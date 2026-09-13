@@ -3,7 +3,7 @@ import { useState } from 'react';
 import type { CaxriMethod } from '@caxri/protocol';
 import { relativeTime } from '@caxri/utils';
 import { useQueryClient } from '@tanstack/react-query';
-import { GitBranch, LoaderCircle } from 'lucide-react';
+import { GitBranch } from 'lucide-react';
 
 import { useNow } from '@/hooks/use-now';
 
@@ -14,6 +14,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '../../components/ui/select';
+import { Spinner } from '../../components/ui/spinner';
 import { caxri } from '../../lib/caxri';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery, useToastOnQueryError } from '../../queries/client';
@@ -131,7 +132,7 @@ export function BranchPicker({
                 ))}
                 {branchesQuery.isLoading && (
                     <div className="flex items-center gap-1.5 px-2 py-1.5 text-[12px] text-muted">
-                        <LoaderCircle className="animate-spin" size={12} />
+                        <Spinner aria-hidden="true" className="size-3" />
                         Loading branches…
                     </div>
                 )}

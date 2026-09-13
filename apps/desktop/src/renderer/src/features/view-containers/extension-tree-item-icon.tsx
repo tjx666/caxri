@@ -16,13 +16,13 @@ import {
     GitPullRequest,
     GitPullRequestClosed,
     GitPullRequestDraft,
-    LoaderCircle,
     MessageSquareWarning,
     Monitor,
     Package,
     Rocket,
 } from 'lucide-react';
 
+import { Spinner } from '../../components/ui/spinner';
 import { DeploymentPreviewIcon } from '../../icons/deployment-preview-icon';
 import type { LinearStatusKind } from '../../icons/linear/linear-status-icon';
 import { LinearStatusIcon } from '../../icons/linear/linear-status-icon';
@@ -49,7 +49,6 @@ const themeIcons = {
     'git-pull-request-closed': GitPullRequestClosed,
     'git-pull-request-draft': GitPullRequestDraft,
     'issues': MessageSquareWarning,
-    'loading': LoaderCircle,
     'monitor': Monitor,
     'package': Package,
     'pass': Check,
@@ -90,7 +89,6 @@ const themeIconClassNames: Partial<Record<ThemeIconId, string>> = {
     'linear-started': 'text-warning',
     'linear-triage': 'text-warning',
     'linear-unstarted': 'text-muted',
-    'loading': 'animate-spin text-warning',
     'pass': 'text-success',
     'question': 'text-muted',
     'warning': 'text-warning',
@@ -114,6 +112,16 @@ export function ExtensionTreeItemIcon({
     size: number;
 }) {
     const iconId = themeIconId(icon);
+    if (iconId === 'loading')
+        return (
+            <Spinner
+                aria-hidden="true"
+                className={cn(className, 'text-warning')}
+                data-theme-icon={iconId}
+                size={size}
+                style={{ width: size, height: size }}
+            />
+        );
     const iconClassName = iconId ? themeIconClassNames[iconId as ThemeIconId] : undefined;
     if (isLinearStatusIconId(iconId))
         return (
@@ -131,6 +139,14 @@ export function ExtensionTreeItemIcon({
 
 export function ExtensionTreeTrailingIcon({ icon }: { icon: TreeItemDto['trailingIcon'] }) {
     const iconId = themeIconId(icon);
+    if (iconId === 'loading')
+        return (
+            <Spinner
+                aria-hidden="true"
+                className="size-3.5 shrink-0 text-muted"
+                data-theme-icon={iconId}
+            />
+        );
     if (!iconId || !(iconId in themeIcons)) return null;
     const Icon = themeIcons[iconId as keyof typeof themeIcons];
     return (

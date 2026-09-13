@@ -1,6 +1,5 @@
-import { RefreshCw } from 'lucide-react';
-
 import { Button } from '../../components/ui/button';
+import { Spinner } from '../../components/ui/spinner';
 import { MobileAccessSections } from './mobile-access-sections';
 import { useMobileAccessController } from './use-mobile-access-controller';
 
@@ -20,7 +19,7 @@ export function MobileAccessForm() {
     if (!controller.status)
         return (
             <div className="flex min-h-16 items-center gap-2 text-[12px] text-muted" role="status">
-                <RefreshCw aria-hidden="true" className="animate-spin" size={13} />
+                <Spinner aria-hidden="true" size={13} style={{ width: 13, height: 13 }} />
                 Loading mobile access…
             </div>
         );

@@ -16,13 +16,13 @@ import {
     FlaskConical,
     GitBranch,
     Info,
-    LoaderCircle,
     Package,
     ScrollText,
 } from 'lucide-react';
 
 import { ChromeTabPanel, ChromeTabs } from '../../components/chrome-tabs';
 import { Button } from '../../components/ui/button';
+import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useCommandShortcut } from '../../lib/keybindings';
 import { useCaxriQuery } from '../../queries/client';
@@ -116,7 +116,8 @@ export function ViewContainerSurface({
     if (catalogQuery.isPending)
         return (
             <div className="flex min-h-0 flex-1 items-center justify-center gap-2 text-xs text-muted">
-                <LoaderCircle className="animate-spin" size={15} /> Loading views…
+                <Spinner aria-hidden="true" size={15} style={{ width: 15, height: 15 }} /> Loading
+                views…
             </div>
         );
     if (catalogQuery.isError)
@@ -278,10 +279,10 @@ export function ViewContainerSurface({
                                                           }}
                                                       >
                                                           {isRetrying && (
-                                                              <LoaderCircle
+                                                              <Spinner
                                                                   aria-hidden="true"
-                                                                  className="animate-spin"
                                                                   size={13}
+                                                                  style={{ width: 13, height: 13 }}
                                                               />
                                                           )}
                                                           Retry

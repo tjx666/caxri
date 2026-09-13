@@ -140,6 +140,40 @@ const borderlessChromeFiles = [
 ];
 
 describe('Renderer design contract', () => {
+    it('rejects spinning classes without a reduced-motion fallback', async () => {
+        const paths = await listProductionSources(rendererRoot);
+        const violationsByFile = await Promise.all(
+            paths.map(async (path): Promise<string[]> => {
+                const source = await readFile(path, 'utf8');
+                const sourceFile = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true);
+                const violations: string[] = [];
+                const visit = (node: ts.Node): void => {
+                    if (
+                        ts.isStringLiteral(node) ||
+                        ts.isNoSubstitutionTemplateLiteral(node) ||
+                        ts.isTemplateHead(node) ||
+                        ts.isTemplateMiddle(node) ||
+                        ts.isTemplateTail(node)
+                    ) {
+                        const classes = new Set(node.text.split(/\s+/u));
+                        if (
+                            classes.has('animate-spin') &&
+                            !classes.has('motion-reduce:animate-none')
+                        )
+                            violations.push(
+                                sourceLocation(path, sourceFile, node.getStart(sourceFile)),
+                            );
+                    }
+                    ts.forEachChild(node, visit);
+                };
+                visit(sourceFile);
+                return violations;
+            }),
+        );
+
+        expect(violationsByFile.flat(), 'spinners must honor reduced motion').toEqual([]);
+    });
+
     it('keeps chrome seams borderless (background steps, not border lines)', async () => {
         const offenders = (
             await Promise.all(
