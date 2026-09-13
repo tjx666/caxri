@@ -44,4 +44,21 @@ describe('theme editing', () => {
         expect(findMatchingBuiltinTheme(next.value)).toBeUndefined();
         expect(themeTokensSchema.parse(parse(next.source))).toEqual(next.value);
     });
+
+    it('preserves an existing alpha channel when the RGB picker changes a color', () => {
+        const theme = structuredClone(tokyoNightTheme);
+        theme.terminal.selectionBackground = '#55667788';
+        const source = `${JSON.stringify(theme, null, 2)}\n`;
+
+        const next = applyThemeColorEdit(
+            source,
+            theme,
+            'terminal',
+            'selectionBackground',
+            '#aabbcc',
+        );
+
+        expect(next.value.terminal.selectionBackground).toBe('#aabbcc88');
+        expect(themeTokensSchema.parse(parse(next.source))).toEqual(next.value);
+    });
 });

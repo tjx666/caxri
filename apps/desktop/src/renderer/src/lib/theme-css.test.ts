@@ -90,9 +90,9 @@ describe('applyCssTheme', () => {
 
         // Derived from the fixture, plus the foregrounds `applyCssTheme` computes, so a new color role
         // is covered here automatically instead of failing on a stale literal.
-        const derivedForegrounds = 3;
+        const derivedProperties = 3;
         expect(setProperty).toHaveBeenCalledTimes(
-            Object.keys(theme.colors).length + derivedForegrounds,
+            Object.keys(theme.colors).length + derivedProperties,
         );
         for (const [token, value] of Object.entries(theme.colors))
             expect(setProperty).toHaveBeenCalledWith(themeColorCssVariable(token), value);

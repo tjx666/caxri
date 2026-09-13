@@ -44,105 +44,6 @@ async function unblockFifoReader(path: string): Promise<void> {
 }
 
 describe('theme import mapping', () => {
-    it('imports syntax colors from string scopes and the terminal selection color', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-syntax-'));
-        temporaryDirectories.push(directory);
-        const path = join(directory, 'syntax.json');
-        await writeFile(
-            path,
-            JSON.stringify({
-                name: 'Syntax',
-                type: 'light',
-                colors: {
-                    'editor.background': '#ffffff',
-                    'terminal.selectionBackground': '#12345678',
-                },
-                tokenColors: [
-                    { scope: 'comment', settings: { foreground: '#111111' } },
-                    { scope: 'keyword', settings: { foreground: '#222222' } },
-                    { scope: 'string', settings: { foreground: '#333333' } },
-                    { scope: 'constant.numeric', settings: { foreground: '#444444' } },
-                ],
-                semanticTokenColors: { variable: '#abcdef' },
-            }),
-            'utf8',
-        );
-
-        const theme = await importTheme(path, draculaTheme);
-        expect(theme.editor).toMatchObject({
-            comment: '#111111',
-            keyword: '#222222',
-            string: '#333333',
-            number: '#444444',
-        });
-        expect(theme.terminal.selectionBackground).toBe('#12345678');
-        expect(theme.warnings).toContain('Semantic token colors were not imported.');
-    });
-
-    it('imports syntax colors from array and comma-separated scopes', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-scope-array-'));
-        temporaryDirectories.push(directory);
-        const path = join(directory, 'array.json');
-        await writeFile(
-            path,
-            JSON.stringify({
-                name: 'Array',
-                tokenColors: [
-                    {
-                        scope: ['entity.name, keyword', 'string'],
-                        settings: { foreground: '#abcdef' },
-                    },
-                    { scope: ['constant.numeric'], settings: { foreground: '#fedcba' } },
-                ],
-            }),
-            'utf8',
-        );
-
-        const theme = await importTheme(path, draculaTheme);
-        expect(theme.editor).toMatchObject({
-            keyword: '#abcdef',
-            string: '#abcdef',
-            number: '#fedcba',
-            comment: draculaTheme.editor.comment,
-        });
-        expect(theme.warnings).toContain('Syntax colors for comments were not imported.');
-    });
-
-    it('ignores rules without a scope and reports unmapped syntax colors', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-no-scope-'));
-        temporaryDirectories.push(directory);
-        const path = join(directory, 'no-scope.json');
-        await writeFile(
-            path,
-            JSON.stringify({
-                name: 'No Scope',
-                tokenColors: [{ settings: { foreground: '#123456' } }],
-            }),
-            'utf8',
-        );
-
-        const theme = await importTheme(path, draculaTheme);
-        expect(theme.editor).toMatchObject({
-            comment: draculaTheme.editor.comment,
-            keyword: draculaTheme.editor.keyword,
-            string: draculaTheme.editor.string,
-            number: draculaTheme.editor.number,
-        });
-        expect(theme.warnings).toContain('Syntax colors were not imported.');
-    });
-
-    it('succeeds without tokenColors and warns that syntax colors were not imported', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-no-tokens-'));
-        temporaryDirectories.push(directory);
-        const path = join(directory, 'no-tokens.json');
-        await writeFile(path, JSON.stringify({ name: 'No Tokens', colors: {} }), 'utf8');
-
-        const theme = await importTheme(path, draculaTheme);
-        expect(theme.source).toBe('vscode');
-        expect(theme.editor.comment).toBe(draculaTheme.editor.comment);
-        expect(theme.warnings).toContain('Syntax colors were not imported.');
-    });
-
     it('maps supported VS Code tokens and preserves normalized fallbacks', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-'));
         temporaryDirectories.push(directory);
@@ -182,7 +83,14 @@ describe('theme import mapping', () => {
         expect((await importTheme(withPurple, draculaTheme)).colors.merged).toBe('#8250df');
 
         const without = join(directory, 'plain.json');
-        await writeFile(without, JSON.stringify({ name: 'Plain', colors: {} }), 'utf8');
+        await writeFile(
+            without,
+            JSON.stringify({
+                name: 'Plain',
+                colors: { 'editor.background': '#1e1e1e' },
+            }),
+            'utf8',
+        );
         expect((await importTheme(without, draculaTheme)).colors.merged).toBe(
             draculaTheme.colors.merged,
         );
@@ -262,6 +170,300 @@ describe('theme import mapping', () => {
         expect(theme.colors.surface).toBe('#f0f0f0');
         for (const role of ['elevated', 'muted', 'selection'] as const)
             expect(theme.colors[role], role).not.toBe(draculaTheme.colors[role]);
+    });
+
+    it('keeps a chrome seam when a VS Code theme only sets the editor canvas', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-editor-only-'));
+        temporaryDirectories.push(directory);
+        const path = join(directory, 'dark.json');
+        await writeFile(
+            path,
+            JSON.stringify({
+                name: 'Editor only',
+                type: 'dark',
+                colors: { 'editor.background': '#1e1e1e' },
+            }),
+            'utf8',
+        );
+
+        const theme = await importTheme(path, draculaTheme);
+        expect(theme.colors.background).toBe('#1e1e1e');
+        expect(theme.colors.surface).toBe('#252526');
+        expect(theme.colors.surface).not.toBe(theme.colors.background);
+    });
+
+    it('preserves a VS Code theme that explicitly paints surface and background the same color', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-same-surface-'));
+        temporaryDirectories.push(directory);
+        const path = join(directory, 'dark.json');
+        await writeFile(
+            path,
+            JSON.stringify({
+                name: 'Same surface',
+                type: 'dark',
+                colors: {
+                    'editor.background': '#1e1e1e',
+                    'sideBar.background': '#1e1e1e',
+                },
+            }),
+            'utf8',
+        );
+
+        const theme = await importTheme(path, draculaTheme);
+        expect(theme.colors.background).toBe('#1e1e1e');
+        expect(theme.colors.surface).toBe('#1e1e1e');
+    });
+
+    it('keeps the surface fallback when only tab and title-bar fills are supplied', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-tab-surface-'));
+        temporaryDirectories.push(directory);
+        const path = join(directory, 'dark.json');
+        await writeFile(
+            path,
+            JSON.stringify({
+                name: 'Tab surface',
+                type: 'dark',
+                colors: {
+                    'editor.background': '#1e1e1e',
+                    'tab.activeBackground': '#2d2d30',
+                    'titleBar.activeBackground': '#252530',
+                },
+            }),
+            'utf8',
+        );
+
+        expect((await importTheme(path, draculaTheme)).colors.surface).toBe('#252526');
+    });
+
+    it('keeps the elevated fallback when only list fills are supplied', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-list-elevated-'));
+        temporaryDirectories.push(directory);
+        const hover = join(directory, 'hover.json');
+        await writeFile(
+            hover,
+            JSON.stringify({
+                name: 'List hover',
+                type: 'dark',
+                colors: {
+                    'editor.background': '#1e1e1e',
+                    'list.hoverBackground': '#2a2d2e',
+                    'list.activeSelectionBackground': '#2c2c32',
+                },
+            }),
+            'utf8',
+        );
+        expect((await importTheme(hover, draculaTheme)).colors.elevated).toBe('#252526');
+
+        const selection = join(directory, 'selection.json');
+        await writeFile(
+            selection,
+            JSON.stringify({
+                name: 'List selection',
+                type: 'dark',
+                colors: {
+                    'editor.background': '#1e1e1e',
+                    'list.activeSelectionBackground': '#2c2c32',
+                },
+            }),
+            'utf8',
+        );
+        expect((await importTheme(selection, draculaTheme)).colors.elevated).toBe('#252526');
+    });
+
+    it('maps string-scoped tokenColors and terminal.selectionBackground', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-token-string-'));
+        temporaryDirectories.push(directory);
+        const path = join(directory, 'light.json');
+        await writeFile(
+            path,
+            JSON.stringify({
+                name: 'Syntax string scopes',
+                type: 'light',
+                colors: {
+                    'editor.background': '#fdf6e3',
+                    'terminal.selectionBackground': '#eee8d5',
+                },
+                tokenColors: [
+                    { scope: 'comment', settings: { foreground: '#93a1a1' } },
+                    { scope: 'keyword', settings: { foreground: '#859900' } },
+                    { scope: 'string', settings: { foreground: '#2aa198' } },
+                    { scope: 'constant.numeric', settings: { foreground: '#d33682' } },
+                ],
+            }),
+            'utf8',
+        );
+
+        const theme = await importTheme(path, draculaTheme);
+        expect(theme.editor).toMatchObject({
+            comment: '#93a1a1',
+            keyword: '#859900',
+            string: '#2aa198',
+            number: '#d33682',
+        });
+        expect(theme.terminal.selectionBackground).toBe('#eee8d5');
+        expect(theme.warnings.filter((warning) => warning.startsWith('Syntax colors'))).toEqual([]);
+        expect(theme.editor.comment).not.toBe(draculaTheme.editor.comment);
+    });
+
+    it('preserves 8-digit and shorthand alpha on terminal.selectionBackground', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-selection-alpha-'));
+        temporaryDirectories.push(directory);
+        const write = async (name: string, colors: Record<string, string>) => {
+            const path = join(directory, name);
+            await writeFile(path, JSON.stringify({ name, colors }), 'utf8');
+            return importTheme(path, draculaTheme);
+        };
+        const dark = await write('dark.json', {
+            'editor.background': '#1e1e1e',
+            'editor.selectionBackground': '#3994BC33',
+            'terminal.selectionBackground': '#3994BC33',
+        });
+        expect(dark.terminal.selectionBackground).toBe('#3994bc33');
+        expect(dark.editor.selection).toBe('#3994bc');
+        expect(
+            (await write('light.json', { 'terminal.selectionBackground': '#06c2' })).terminal
+                .selectionBackground,
+        ).toBe('#0066cc22');
+    });
+
+    it('maps array-scoped tokenColors onto the matching editor syntax role', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-token-array-'));
+        temporaryDirectories.push(directory);
+        const path = join(directory, 'dark.json');
+        await writeFile(
+            path,
+            JSON.stringify({
+                name: 'Syntax array scopes',
+                type: 'dark',
+                colors: { 'editor.background': '#1e1e1e' },
+                tokenColors: [
+                    {
+                        scope: ['keyword', 'storage.type'],
+                        settings: { foreground: '#569cd6' },
+                    },
+                ],
+            }),
+            'utf8',
+        );
+
+        const theme = await importTheme(path, draculaTheme);
+        expect(theme.editor.keyword).toBe('#569cd6');
+        expect(theme.editor.comment).toBe(draculaTheme.editor.comment);
+        expect(theme.warnings).toContain(
+            'Syntax colors for comments, strings, numbers were not imported.',
+        );
+    });
+
+    it('does not let a descendant scope overwrite an exact syntax role', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-token-descendant-'));
+        temporaryDirectories.push(directory);
+        const path = join(directory, 'dark.json');
+        await writeFile(
+            path,
+            JSON.stringify({
+                name: 'Descendant scopes',
+                type: 'dark',
+                colors: { 'editor.background': '#1e1e1e' },
+                tokenColors: [
+                    { scope: 'keyword', settings: { foreground: '#569cd6' } },
+                    { scope: 'keyword.operator', settings: { foreground: '#d4d4d4' } },
+                    {
+                        scope: 'comment, punctuation.definition.comment',
+                        settings: { foreground: '#6a9955' },
+                    },
+                ],
+            }),
+            'utf8',
+        );
+
+        const theme = await importTheme(path, draculaTheme);
+        expect(theme.editor.keyword).toBe('#569cd6');
+        expect(theme.editor.comment).toBe('#6a9955');
+    });
+
+    it('skips a tokenColors entry with no scope and still maps later rules', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-token-missing-scope-'));
+        temporaryDirectories.push(directory);
+        const path = join(directory, 'dark.json');
+        await writeFile(
+            path,
+            JSON.stringify({
+                name: 'Missing scope',
+                type: 'dark',
+                colors: { 'editor.background': '#1e1e1e' },
+                tokenColors: [
+                    { settings: { foreground: '#ff0000' } },
+                    { scope: 'comment', settings: { foreground: '#6a9955' } },
+                ],
+            }),
+            'utf8',
+        );
+
+        const theme = await importTheme(path, draculaTheme);
+        expect(theme.editor.comment).toBe('#6a9955');
+        expect(theme.editor.keyword).toBe(draculaTheme.editor.keyword);
+    });
+
+    it('imports a VS Code theme without tokenColors and warns that syntax colors were skipped', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-no-token-colors-'));
+        temporaryDirectories.push(directory);
+        const path = join(directory, 'dark.json');
+        await writeFile(
+            path,
+            JSON.stringify({
+                name: 'No tokenColors',
+                type: 'dark',
+                colors: { 'editor.background': '#1e1e1e' },
+            }),
+            'utf8',
+        );
+
+        const theme = await importTheme(path, draculaTheme);
+        expect(theme.editor.comment).toBe(draculaTheme.editor.comment);
+        expect(theme.warnings).toContain('Syntax colors were not imported.');
+        expect(theme.warnings).not.toContain(
+            'Unsupported VS Code tokens and extension metadata were ignored.',
+        );
+    });
+
+    it('warns that semantic token colors were not imported', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-semantic-tokens-'));
+        temporaryDirectories.push(directory);
+        const path = join(directory, 'dark.json');
+        await writeFile(
+            path,
+            JSON.stringify({
+                name: 'Semantic tokens',
+                type: 'dark',
+                colors: { 'editor.background': '#1e1e1e' },
+                semanticTokenColors: { comment: '#6a9955' },
+            }),
+            'utf8',
+        );
+
+        expect((await importTheme(path, draculaTheme)).warnings).toContain(
+            'Semantic token colors were not imported.',
+        );
+    });
+
+    it('keeps the success fallback when charts.green is absent', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-success-'));
+        temporaryDirectories.push(directory);
+        const path = join(directory, 'dark.json');
+        await writeFile(
+            path,
+            JSON.stringify({
+                name: 'Passed green',
+                type: 'dark',
+                colors: {
+                    'editor.background': '#1e1e1e',
+                    'testing.iconPassed': '#73c991',
+                },
+            }),
+            'utf8',
+        );
+
+        expect((await importTheme(path, draculaTheme)).colors.success).toBe('#89d185');
     });
 
     it('reads badge and Git decoration colors from their VS Code keys', async () => {
@@ -367,7 +569,7 @@ describe('theme import mapping', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-at-limit-'));
         temporaryDirectories.push(directory);
         const path = join(directory, 'at-limit.json');
-        const prefix = '{"name":"At limit","padding":"';
+        const prefix = '{"name":"At limit","colors":{"editor.background":"#123456"},"padding":"';
         const suffix = '"}';
         await writeFile(
             path,

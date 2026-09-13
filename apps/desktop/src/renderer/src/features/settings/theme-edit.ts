@@ -36,11 +36,18 @@ export function applyThemeColorEdit(
     key: string,
     value: string,
 ): ThemeEditResult {
+    const currentValue = (theme[section] as Record<string, string | undefined>)[key];
+    const nextValue =
+        currentValue !== undefined &&
+        /^#[\da-f]{6}$/iu.test(value) &&
+        /^#[\da-f]{8}$/iu.test(currentValue)
+            ? `${value}${currentValue.slice(7)}`
+            : value;
     const nextId =
         theme.source === 'builtin' && !theme.id.startsWith('custom-')
             ? `custom-${theme.id}`
             : theme.id;
-    let nextSource = applyFormEdit(source, [section, key], value);
+    let nextSource = applyFormEdit(source, [section, key], nextValue);
     nextSource = applyFormEdit(nextSource, ['source'], 'custom');
     if (nextId !== theme.id) nextSource = applyFormEdit(nextSource, ['id'], nextId);
     return {
@@ -48,7 +55,7 @@ export function applyThemeColorEdit(
             ...theme,
             id: nextId,
             source: 'custom',
-            [section]: { ...theme[section], [key]: value },
+            [section]: { ...theme[section], [key]: nextValue },
         },
         source: nextSource,
     };

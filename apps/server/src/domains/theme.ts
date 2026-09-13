@@ -1,4 +1,4 @@
-import { extname } from 'node:path';
+import { dirname, extname, join } from 'node:path';
 
 /**
  * The theme token shape lives in the IPC contract; importers reuse it instead of redeclaring it.
@@ -12,7 +12,7 @@ import {
     upgradeThemeColors,
 } from '@caxri/protocol';
 import { parseJsonc } from '@caxri/system';
-import { contrastRatio } from '@caxri/utils';
+import { contrastRatio, relativeLuminance } from '@caxri/utils';
 import { parse as parsePlist } from 'plist';
 import YAML from 'yaml';
 
@@ -30,6 +30,64 @@ type ThemeImportFormat = (typeof themeImportFormats)[number];
  * `files/documents.ts` and `MAX_CONFIGURABLE_FILE_BYTES` in `shared/ipc/domain.ts`).
  */
 export const MAX_THEME_IMPORT_FILE_BYTES = 1 * 1024 * 1024;
+const ZERO_HIT_THEME_MESSAGE =
+    'This theme file does not define any colors Caxri can import. Check that you picked the theme JSON and not a package manifest.';
+const VSIX_THEME_MESSAGE =
+    'Caxri cannot read a .vsix package yet. Unzip it and pick the theme JSON under themes/.';
+const INCLUDE_DIRECTORY_MESSAGE = 'Theme include must be a file in the same directory.';
+
+/**
+ * VS Code `colors` keys `parseVsCode` actually maps. Zero-hit rejection also counts syntax roles mapped from
+ * `tokenColors`; semantic token colors are omitted because Caxri does not import them.
+ */
+const VSCODE_MAPPED_COLOR_KEYS = new Set([
+    'editor.background',
+    'editor.foreground',
+    'editor.lineHighlightBackground',
+    'editor.selectionBackground',
+    'sideBar.background',
+    'activityBar.background',
+    'editorWidget.background',
+    'foreground',
+    'descriptionForeground',
+    'sideBar.border',
+    'tab.border',
+    'panel.border',
+    'tab.activeBorderTop',
+    'activityBar.activeBorder',
+    'progressBar.background',
+    'focusBorder',
+    'charts.green',
+    'charts.purple',
+    'editorWarning.foreground',
+    'editorError.foreground',
+    'activityBarBadge.background',
+    'gitDecoration.addedResourceForeground',
+    'gitDecoration.modifiedResourceForeground',
+    'gitDecoration.deletedResourceForeground',
+    'gitDecoration.untrackedResourceForeground',
+    'gitDecoration.conflictingResourceForeground',
+    'terminal.background',
+    'terminal.foreground',
+    'terminalCursor.foreground',
+    'terminal.selectionBackground',
+    'terminal.ansiBlack',
+    'terminal.ansiRed',
+    'terminal.ansiGreen',
+    'terminal.ansiYellow',
+    'terminal.ansiBlue',
+    'terminal.ansiMagenta',
+    'terminal.ansiCyan',
+    'terminal.ansiWhite',
+    'terminal.ansiBrightBlack',
+    'terminal.ansiBrightRed',
+    'terminal.ansiBrightGreen',
+    'terminal.ansiBrightYellow',
+    'terminal.ansiBrightBlue',
+    'terminal.ansiBrightMagenta',
+    'terminal.ansiBrightCyan',
+    'terminal.ansiBrightWhite',
+]);
 const MIN_MUTED_CONTRAST = 4.5;
 const APP_COLOR_SURFACES = ['background', 'surface', 'elevated'] as const;
 const APP_COLOR_SURFACE_LABELS = {
@@ -38,16 +96,26 @@ const APP_COLOR_SURFACE_LABELS = {
     surface: 'sidebar and status bar background',
 } satisfies Record<(typeof APP_COLOR_SURFACES)[number], string>;
 
-function normalizedHex(value: unknown, fallback: string, shouldPreserveAlpha = false): string {
+function normalizedHex(
+    value: unknown,
+    fallback: string,
+    options: { preserveAlpha?: boolean } = {},
+): string {
     if (typeof value !== 'string') return fallback;
     const candidate = value.startsWith('#') ? value : `#${value}`;
-    if (/^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/i.test(candidate))
-        return (shouldPreserveAlpha ? candidate : candidate.slice(0, 7)).toLowerCase();
+    if (/^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/i.test(candidate)) {
+        const hex = candidate.toLowerCase();
+        return options.preserveAlpha ? hex : hex.slice(0, 7);
+    }
     // VS Code themes may use CSS shorthand (`#fff`, `#fff8`); expand it rather than silently dropping the color.
     const shorthand = /^#([0-9a-f]{3,4})$/i.exec(candidate);
     if (!shorthand) return fallback;
-    const [red, green, blue, alpha] = shorthand[1];
-    return `#${red}${red}${green}${green}${blue}${blue}${shouldPreserveAlpha && alpha ? `${alpha}${alpha}` : ''}`.toLowerCase();
+    const digits = shorthand[1].toLowerCase();
+    const [red, green, blue] = digits;
+    const rgb = `#${red}${red}${green}${green}${blue}${blue}`;
+    if (!options.preserveAlpha || digits.length === 3) return rgb;
+    const alpha = digits[3];
+    return `${rgb}${alpha}${alpha}`;
 }
 
 /**
@@ -61,13 +129,116 @@ function firstHex(
     colors: Record<string, unknown>,
     keys: readonly string[],
     fallback: string,
-    shouldPreserveAlpha = false,
+    options: { preserveAlpha?: boolean } = {},
 ): string {
     for (const key of keys) {
-        const hex = normalizedHex(colors[key], '', shouldPreserveAlpha);
+        const hex = normalizedHex(colors[key], '', options);
         if (hex) return hex;
     }
     return fallback;
+}
+
+const SYNTAX_EDITOR_ROLES = ['comment', 'keyword', 'string', 'number'] as const;
+type SyntaxEditorRole = (typeof SYNTAX_EDITOR_ROLES)[number];
+
+const SYNTAX_SCOPE_PREFIX = {
+    comment: 'comment',
+    keyword: 'keyword',
+    string: 'string',
+    number: 'constant.numeric',
+} as const satisfies Record<SyntaxEditorRole, string>;
+
+function tokenColorScopes(scope: unknown): string[] {
+    const tokens = typeof scope === 'string' ? [scope] : Array.isArray(scope) ? scope : [];
+    const scopes: string[] = [];
+    for (const token of tokens) {
+        if (typeof token !== 'string') continue;
+        for (const part of token.split(',')) {
+            const trimmed = part.trim();
+            if (trimmed.length > 0) scopes.push(trimmed);
+        }
+    }
+    return scopes;
+}
+
+function assignMatchingSyntaxRoles(
+    theme: ThemeTokens,
+    scopes: readonly string[],
+    foreground: string,
+    assigned: Set<SyntaxEditorRole>,
+): void {
+    for (const role of SYNTAX_EDITOR_ROLES) {
+        if (!scopes.includes(SYNTAX_SCOPE_PREFIX[role])) continue;
+        theme.editor[role] = foreground;
+        assigned.add(role);
+    }
+}
+
+/**
+ * Maps VS Code `tokenColors` onto Caxri's four editor syntax roles. Only exact selectors count — `keyword.operator`
+ * must not overwrite `keyword`. Later exact rules still win. Report both missing roles and valid rules whose scopes
+ * Caxri cannot represent so the import warns without counting them as effective mappings. See
+ * https://code.visualstudio.com/api/extension-guides/color-theme#syntax-colors.
+ */
+function applyVsCodeTokenColors(
+    theme: ThemeTokens,
+    tokenColors: unknown,
+): { missing: SyntaxEditorRole[]; hasOtherSyntaxRules: boolean } {
+    if (!Array.isArray(tokenColors))
+        return { missing: [...SYNTAX_EDITOR_ROLES], hasOtherSyntaxRules: false };
+    const assigned = new Set<SyntaxEditorRole>();
+    const mappedScopes = new Set<string>(Object.values(SYNTAX_SCOPE_PREFIX));
+    let hasOtherSyntaxRules = false;
+    for (const entry of tokenColors) {
+        if (!entry || typeof entry !== 'object') continue;
+        const rule = entry as { scope?: unknown; settings?: { foreground?: unknown } };
+        const scopes = tokenColorScopes(rule.scope);
+        const foreground = normalizedHex(rule.settings?.foreground, '');
+        if (!foreground) continue;
+        if (scopes.length === 0 || scopes.some((scope) => !mappedScopes.has(scope)))
+            hasOtherSyntaxRules = true;
+        assignMatchingSyntaxRoles(theme, scopes, foreground, assigned);
+    }
+    return {
+        missing: SYNTAX_EDITOR_ROLES.filter((role) => !assigned.has(role)),
+        hasOtherSyntaxRules,
+    };
+}
+
+function formatMissingSyntaxWarning(missing: readonly SyntaxEditorRole[]): string {
+    if (missing.length === SYNTAX_EDITOR_ROLES.length) return 'Syntax colors were not imported.';
+    const labels = {
+        comment: 'comments',
+        keyword: 'keywords',
+        string: 'strings',
+        number: 'numbers',
+    };
+    return `Syntax colors for ${missing.map((role) => labels[role]).join(', ')} were not imported.`;
+}
+
+function mixHex(from: string, toward: string, amount: number): string {
+    const channel = (hex: string, start: number): number =>
+        Number.parseInt(hex.slice(start, start + 2), 16);
+    const mix = (start: number, end: number): string =>
+        Math.round(start + (end - start) * amount)
+            .toString(16)
+            .padStart(2, '0');
+    return `#${[0, 2, 4].map((offset) => mix(channel(from, offset + 1), channel(toward, offset + 1))).join('')}`;
+}
+
+/**
+ * Caxri chrome seams are only `bg-surface` vs `bg-background`. When the fallback surface matches the editor canvas,
+ * nudge the fallback so the workbench regions remain distinguishable without rewriting an explicit theme color.
+ */
+function separateSurfaceFromBackground(background: string, surface: string): string {
+    if (surface === background) {
+        return mixHex(
+            background,
+            relativeLuminance(background) > 0.5 ? '#000000' : '#ffffff',
+            0.08,
+        );
+    }
+    return surface;
 }
 
 function cloneFallback(source: ThemeTokens['source'], name: string): ThemeTokens {
@@ -89,6 +260,7 @@ function cloneFallback(source: ThemeTokens['source'], name: string): ThemeTokens
  */
 const VSCODE_DEFAULTS = {
     dark: {
+        surface: '#252526', // sideBar.background
         elevated: '#252526', // editorWidget.background
         muted: '#9d9d9d', // descriptionForeground
         selection: '#264f78', // editor.selectionBackground
@@ -104,6 +276,7 @@ const VSCODE_DEFAULTS = {
         gitConflicting: '#e4676b',
     },
     light: {
+        surface: '#f3f3f3', // sideBar.background
         elevated: '#f3f3f3',
         /**
          * VS Code's light `foreground`, not its light `descriptionForeground` (`#717171`): that value lands at 4.4:1 on
@@ -136,9 +309,23 @@ function isLightVsCodeTheme(value: Record<string, unknown>, editorBackground: st
     return contrastRatio(editorBackground, '#000000') > contrastRatio(editorBackground, '#ffffff');
 }
 
+function hasMappedVsCodeColor(colors: Record<string, unknown>): boolean {
+    for (const key of VSCODE_MAPPED_COLOR_KEYS) {
+        if (normalizedHex(colors[key], '')) return true;
+    }
+    return false;
+}
+
 function parseVsCode(value: Record<string, unknown>, name: string): ThemeTokens {
     const theme = cloneFallback('vscode', name);
     const colors = (value.colors ?? {}) as Record<string, unknown>;
+    const syntaxMapping = applyVsCodeTokenColors(theme, value.tokenColors);
+    if (
+        !hasMappedVsCodeColor(colors) &&
+        syntaxMapping.missing.length === SYNTAX_EDITOR_ROLES.length
+    ) {
+        throw new CaxriError('VALIDATION', ZERO_HIT_THEME_MESSAGE);
+    }
     /**
      * `--background` is the editor/Terminal canvas and `--surface` is the chrome around it, which is exactly VS Code's
      * `editor.background` / `sideBar.background` split. These two were previously swapped — `background` read
@@ -146,14 +333,16 @@ function parseVsCode(value: Record<string, unknown>, name: string): ThemeTokens 
      * sidebar color and the sidebar in its activity-bar color.
      */
     theme.colors.background = firstHex(colors, ['editor.background'], theme.colors.background);
-    theme.colors.surface = firstHex(
-        colors,
-        ['sideBar.background', 'activityBar.background'],
-        theme.colors.background,
-    );
     const defaults = isLightVsCodeTheme(value, theme.colors.background)
         ? VSCODE_DEFAULTS.light
         : VSCODE_DEFAULTS.dark;
+    /**
+     * Fall back to VS Code's own sidebar default rather than the editor canvas. Only a fallback collision may be
+     * adjusted; an explicit sidebar or activity-bar color is the theme author's choice.
+     */
+    const explicitSurface = firstHex(colors, ['sideBar.background', 'activityBar.background'], '');
+    theme.colors.surface =
+        explicitSurface || separateSurfaceFromBackground(theme.colors.background, defaults.surface);
     theme.colors.elevated = firstHex(colors, ['editorWidget.background'], defaults.elevated);
     theme.colors.foreground = firstHex(
         colors,
@@ -238,52 +427,6 @@ function parseVsCode(value: Record<string, unknown>, name: string): ThemeTokens 
         ['editor.selectionBackground'],
         theme.editor.selection,
     );
-    const syntaxMappings = [
-        ['comment', 'comment', 'comments'],
-        ['keyword', 'keyword', 'keywords'],
-        ['string', 'string', 'strings'],
-        ['constant.numeric', 'number', 'numbers'],
-    ] as const;
-    const mappedSyntaxScopes = new Set<string>(syntaxMappings.map(([selector]) => selector));
-    const importedSyntaxRoles = new Set<keyof ThemeTokens['editor']>();
-    let hasOtherSyntaxRules = false;
-    /**
-     * Caxri has four broad syntax roles, so only their matching TextMate selectors can be represented. VS Code themes
-     * allow comma-separated selectors in either a string or an array. Later matching rules override earlier ones.
-     * https://code.visualstudio.com/api/language-extensions/syntax-highlight-guide
-     */
-    if (Array.isArray(value.tokenColors)) {
-        for (const entry of value.tokenColors) {
-            if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
-            const rule = entry as Record<string, unknown>;
-            const settings = rule.settings;
-            if (!settings || typeof settings !== 'object' || Array.isArray(settings)) continue;
-            const foreground = normalizedHex((settings as Record<string, unknown>).foreground, '');
-            if (!foreground) continue;
-            const scopeValues =
-                typeof rule.scope === 'string'
-                    ? [rule.scope]
-                    : Array.isArray(rule.scope)
-                      ? rule.scope
-                      : [];
-            const scopes = new Set<string>();
-            for (const scope of scopeValues) {
-                if (typeof scope === 'string') {
-                    for (const selector of scope.split(',')) scopes.add(selector.trim());
-                }
-            }
-            syntaxMappings.forEach(([selector, role]) => {
-                if (!scopes.has(selector)) {
-                    return;
-                }
-
-                theme.editor[role] = foreground;
-                importedSyntaxRoles.add(role);
-            });
-            if (scopes.size === 0 || [...scopes].some((scope) => !mappedSyntaxScopes.has(scope)))
-                hasOtherSyntaxRules = true;
-        }
-    }
     theme.terminal.background = firstHex(colors, ['terminal.background'], theme.editor.background);
     theme.terminal.foreground = firstHex(colors, ['terminal.foreground'], theme.editor.foreground);
     theme.terminal.cursor = firstHex(colors, ['terminalCursor.foreground'], theme.terminal.cursor);
@@ -292,7 +435,7 @@ function parseVsCode(value: Record<string, unknown>, name: string): ThemeTokens 
         colors,
         ['terminal.selectionBackground'],
         theme.terminal.selectionBackground,
-        true,
+        { preserveAlpha: true },
     );
     const ansiMap: Array<[keyof ThemeTokens['terminal'], string]> = [
         ['black', 'terminal.ansiBlack'],
@@ -314,17 +457,10 @@ function parseVsCode(value: Record<string, unknown>, name: string): ThemeTokens 
     ];
     for (const [target, source] of ansiMap)
         theme.terminal[target] = firstHex(colors, [source], theme.terminal[target]);
-    if (importedSyntaxRoles.size === 0) {
-        theme.warnings.push('Syntax colors were not imported.');
-    } else {
-        const missingRoles: string[] = [];
-        for (const [, role, label] of syntaxMappings) {
-            if (!importedSyntaxRoles.has(role)) missingRoles.push(label);
-        }
-        if (missingRoles.length > 0)
-            theme.warnings.push(`Syntax colors for ${missingRoles.join(', ')} were not imported.`);
-    }
-    if (hasOtherSyntaxRules) theme.warnings.push('Other syntax token colors were not imported.');
+    if (syntaxMapping.missing.length > 0)
+        theme.warnings.push(formatMissingSyntaxWarning(syntaxMapping.missing));
+    if (syntaxMapping.hasOtherSyntaxRules)
+        theme.warnings.push('Other syntax token colors were not imported.');
     if (value.semanticTokenColors !== undefined)
         theme.warnings.push('Semantic token colors were not imported.');
     return theme;
@@ -501,11 +637,71 @@ interface ThemeImportTestSeam {
     beforeRead?: BoundedRegularFileReadOptions['beforeRead'];
 }
 
+function sameDirectoryIncludePath(fromPath: string, include: string): string | undefined {
+    const posix = include.trim().replaceAll('\\', '/');
+    if (posix.length === 0 || posix.includes('..')) return undefined;
+    const relative = posix.startsWith('./') ? posix.slice(2) : posix;
+    if (relative.length === 0 || relative.includes('/')) return undefined;
+    return join(dirname(fromPath), relative);
+}
+
+function mergeVsCodeTheme(
+    parent: Record<string, unknown>,
+    child: Record<string, unknown>,
+): Record<string, unknown> {
+    const parentColors =
+        parent.colors && typeof parent.colors === 'object' && !Array.isArray(parent.colors)
+            ? (parent.colors as Record<string, unknown>)
+            : {};
+    const childColors =
+        child.colors && typeof child.colors === 'object' && !Array.isArray(child.colors)
+            ? (child.colors as Record<string, unknown>)
+            : {};
+    const parentTokens: unknown[] = Array.isArray(parent.tokenColors) ? parent.tokenColors : [];
+    const childTokens: unknown[] = Array.isArray(child.tokenColors) ? child.tokenColors : [];
+    return {
+        ...parent,
+        ...child,
+        colors: { ...parentColors, ...childColors },
+        tokenColors: [...parentTokens, ...childTokens],
+    };
+}
+
+async function resolveVsCodeInclude(
+    path: string,
+    source: string,
+    testSeam?: ThemeImportTestSeam,
+): Promise<string> {
+    let child: unknown;
+    try {
+        child = parseJsonc(source);
+    } catch {
+        return source;
+    }
+    if (!child || typeof child !== 'object' || Array.isArray(child)) return source;
+    const document = child as Record<string, unknown>;
+    if (themeSchema.safeParse(upgradeThemeColors(document)).success) return source;
+    if (typeof document.include !== 'string' || document.include.trim() === '') return source;
+    const parentPath = sameDirectoryIncludePath(path, document.include);
+    if (!parentPath) throw new CaxriError('VALIDATION', INCLUDE_DIRECTORY_MESSAGE);
+    const parentSource = await readBoundedRegularFileText(parentPath, MAX_THEME_IMPORT_FILE_BYTES, {
+        beforeRead: testSeam?.beforeRead,
+        capacityMessage: `Theme file exceeds the ${MAX_THEME_IMPORT_FILE_BYTES} byte import limit`,
+    });
+    const parent = parseJsonc(parentSource);
+    if (!parent || typeof parent !== 'object' || Array.isArray(parent)) {
+        throw new CaxriError('VALIDATION', INCLUDE_DIRECTORY_MESSAGE);
+    }
+    return JSON.stringify(mergeVsCodeTheme(parent as Record<string, unknown>, document));
+}
+
 export async function importTheme(
     path: string,
     current: ThemeTokens,
     testSeam?: ThemeImportTestSeam,
 ): Promise<ThemeTokens> {
+    const extension = extname(path).toLowerCase();
+    if (extension === '.vsix') throw new CaxriError('VALIDATION', VSIX_THEME_MESSAGE);
     const source = await readBoundedRegularFileText(path, MAX_THEME_IMPORT_FILE_BYTES, {
         beforeRead: testSeam?.beforeRead,
         capacityMessage: `Theme file exceeds the ${MAX_THEME_IMPORT_FILE_BYTES} byte import limit`,
@@ -515,9 +711,10 @@ export async function importTheme(
             .split('/')
             .at(-1)
             ?.replace(/\.[^.]+$/, '') ?? 'Imported Theme';
-    const extension = extname(path).toLowerCase();
     const format = resolveThemeImportFormat(extension, source);
-    const theme = parsersByFormatId[format.id](source, name);
+    const document =
+        format.id === 'vscode' ? await resolveVsCodeInclude(path, source, testSeam) : source;
+    const theme = parsersByFormatId[format.id](document, name);
 
     if (format.terminalOnly) {
         theme.colors = structuredClone(current.colors);
@@ -527,5 +724,5 @@ export async function importTheme(
 }
 
 export function serializeTheme(theme: ThemeTokens): string {
-    return `${JSON.stringify(theme, null, 2)}\n`;
+    return `${JSON.stringify({ ...theme, warnings: [] }, null, 2)}\n`;
 }

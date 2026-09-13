@@ -27,6 +27,7 @@ import { configReducer, initialConfigState, parseConfigSource } from './settings
 import { settingsRows } from './settings-registry';
 import { createSettingsWriteCoordinator } from './settings-write-coordinator';
 import { applyBuiltinTheme, applyThemeColorEdit } from './theme-edit';
+import { resetThemeImportWarningDismissals } from './theme-import-warnings';
 
 /**
  * Requests that land on the ordinary settings list and are then answered by a `scrollToIndex` effect in
@@ -590,7 +591,14 @@ export function useSettingsDialogController() {
             // the generation so a stale response cannot clobber the just-imported theme afterward.
             writeCoordinator.supersede('theme');
             const result = await caxri.request('theme.get');
-            dispatchConfig({ type: 'theme/imported', value: result.value, source: result.source });
+            // Use the import payload for `value` so session-local warnings survive serializeTheme
+            // stripping them from theme.json / `theme.get`.
+            resetThemeImportWarningDismissals(imported.id);
+            dispatchConfig({
+                type: 'theme/imported',
+                value: imported,
+                source: result.source,
+            });
             onApplied();
         } catch (error) {
             onSettingsError(error, 'Theme import failed');

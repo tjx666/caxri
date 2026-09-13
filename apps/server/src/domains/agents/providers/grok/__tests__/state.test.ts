@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { AgentEnvironment } from '../../../contract';
+import { encodeGrokCwdDirname } from '../paths';
 import { grokProvider } from '../provider';
 
 const AGENT_SESSION_ID = '49cc1001-2b93-4bb3-9ee8-104e8dcdd683';
@@ -41,14 +42,16 @@ async function writeSummary(
     { cwd, environment }: Workspace,
     agentSessionId: string,
     summary: string,
+    layout: 'encoded' | 'hashed' = 'encoded',
 ): Promise<void> {
-    const session = join(
+    const project = join(
         environment.variables.GROK_HOME!,
         'sessions',
-        encodeURIComponent(cwd),
-        agentSessionId,
+        layout === 'hashed' ? 'hashed-project' : encodeGrokCwdDirname(cwd),
     );
+    const session = join(project, agentSessionId);
     await mkdir(session, { recursive: true });
+    if (layout === 'hashed') await writeFile(join(project, '.cwd'), cwd);
     await writeFile(join(session, 'summary.json'), summary);
 }
 
@@ -141,6 +144,30 @@ describe('Grok Build conversation title', () => {
         if (summary !== undefined) await writeSummary(target, AGENT_SESSION_ID, summary);
         expect(await readState(target, AGENT_SESSION_ID)).toBeUndefined();
     });
+
+    it.each(['special', 'long'] as const)(
+        'publishes the generated title for the exact %s cwd layout',
+        async (kind) => {
+            const target = await workspace();
+            const cwd = join(
+                target.cwd,
+                kind === 'special' ? "project!'()*" : 'segment'.repeat(30),
+            );
+            await mkdir(cwd);
+            await writeSummary(
+                { cwd, environment: target.environment },
+                AGENT_SESSION_ID,
+                JSON.stringify({ generated_title: `${kind} cwd title` }),
+                kind === 'long' ? 'hashed' : 'encoded',
+            );
+            expect(
+                await grokProvider.readState(
+                    { agentSessionId: AGENT_SESSION_ID, rootPath: cwd },
+                    target.environment,
+                ),
+            ).toEqual({ title: `${kind} cwd title`, titleSource: 'automatic' });
+        },
+    );
 
     it('rejects an agent session id that is not an opaque basename', async () => {
         const target = await workspace();
