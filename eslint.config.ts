@@ -502,13 +502,18 @@ export default defineConfig(
     },
     /**
      * Server-state contract (`.agents/skills/react/SKILL.md` section 4): a read that resolves into component state is
-     * lost on every remount. Scoped to the View Container runtime, where views are keyed by Session and a contributed
-     * view inherits whatever the shared tree and controlled-view implementations do; the Settings, Bug Report, and Path
-     * Browser dialogs still read outside the cache and widening the scope to cover them is tracked in
-     * https://github.com/tjx666/caxri/issues/797.
+     * lost on every remount. It started at the View Container runtime, where views are keyed by Session and a
+     * contributed view inherits whatever the shared tree and controlled-view implementations do, and now also covers
+     * the dialogs migrated by #797. The remaining feature directories still read outside the data layer, so the scope
+     * is an explicit list rather than `features/**`; finishing that migration is tracked in
+     * https://github.com/tjx666/caxri/issues/899.
      */
     {
         files: [
+            'apps/desktop/src/renderer/src/features/agent-inbox/**/*.{ts,tsx}',
+            'apps/desktop/src/renderer/src/features/bug-report/**/*.{ts,tsx}',
+            'apps/desktop/src/renderer/src/features/path-browser/**/*.{ts,tsx}',
+            'apps/desktop/src/renderer/src/features/settings/**/*.{ts,tsx}',
             'apps/desktop/src/renderer/src/features/view-containers/**/*.{ts,tsx}',
             'scripts/fixtures/eslint/view-container-reads/**/*.{ts,tsx}',
         ],
