@@ -1,6 +1,6 @@
 import type { PullRequestUnavailable } from '@caxri/protocol';
 
-import { ExternalStatusCliError, failureReason } from './external-status';
+import { ExternalStatusCliError, failureReason } from './command';
 
 /**
  * Only closed reasons and fixed recovery copy cross to the Renderer; CLI stderr can contain private repository data.

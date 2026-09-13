@@ -33,11 +33,11 @@ import {
     GitHubPullRequestStore,
     isNoPullRequest,
     observeExternalStatusCommand,
+    pullRequestUnavailable,
     runExternalStatusCommand,
 } from './external-status';
 import type { GitService } from './git';
 import { parseGitHubPullRequest } from './project-status-parse';
-import { pullRequestUnavailable } from './pull-request-unavailable';
 
 /**
  * Merge state moves on human timescales, so an open PR refreshes once a minute while a merged or closed one only

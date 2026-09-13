@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ExternalStatusCliError } from '../external-status';
-import { pullRequestUnavailable } from '../pull-request-unavailable';
+import { ExternalStatusCliError, pullRequestUnavailable } from '../external-status';
 
 describe('pull request lookup failures', () => {
     it.each([
