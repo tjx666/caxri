@@ -1,10 +1,12 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useState } from 'react';
 
 import type { ThemeTokens } from '@caxri/protocol';
 
+import { Button } from '../../components/ui/button';
 import { configEditorLoadingClassName } from '../../lib/utilities';
 import type { ConfigKind } from './config-edit';
 import { CONFIG_FILE_NAMES } from './config-edit';
+import type { ConfigSourceError } from './settings-drafts';
 
 const ConfigEditor = lazy(async () => {
     const module = await import('./config-editor');
@@ -12,12 +14,13 @@ const ConfigEditor = lazy(async () => {
 });
 
 interface ConfigSourceViewProperties {
-    error?: string;
+    error?: ConfigSourceError;
     kind: ConfigKind;
     source: string;
     theme: ThemeTokens;
     onBlur: () => void;
     onChange: (source: string) => void;
+    onRevert: () => void;
 }
 
 /**
@@ -31,8 +34,11 @@ export function ConfigSourceView({
     theme,
     onBlur,
     onChange,
+    onRevert,
 }: ConfigSourceViewProperties) {
     const fileName = CONFIG_FILE_NAMES[kind];
+    const [goToLineRequest, setGoToLineRequest] = useState<{ line: number }>();
+    const errorLine = error?.line;
     return (
         <div
             className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
@@ -46,14 +52,29 @@ export function ConfigSourceView({
                     value={source}
                     onBlur={onBlur}
                     onChange={onChange}
+                    goToLineRequest={goToLineRequest}
                 />
             </Suspense>
             {error && (
                 <div
                     role="alert"
-                    className="border-t border-danger bg-surface px-3 py-2 text-[11px] text-danger"
+                    className="flex items-center gap-3 border-t border-danger bg-surface px-3 py-2 text-[11px] text-danger"
                 >
-                    {error}
+                    <span className="min-w-0 flex-1">{error.error}</span>
+                    <div className="flex shrink-0 items-center gap-1">
+                        {errorLine !== undefined && (
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setGoToLineRequest({ line: errorLine })}
+                            >
+                                Go to line {errorLine}
+                            </Button>
+                        )}
+                        <Button size="sm" variant="ghost" onClick={onRevert}>
+                            Revert changes
+                        </Button>
+                    </div>
                 </div>
             )}
         </div>

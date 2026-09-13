@@ -3,8 +3,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { ThemeTokens } from '@caxri/protocol';
+import { draculaTheme } from '@caxri/protocol';
 
-import { expect, test } from './support/fixtures.ts';
+import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
 
 test('VS Code theme import updates editor syntax and reports missing syntax rules', async () => {
@@ -111,6 +112,53 @@ test('VS Code theme import updates editor syntax and reports missing syntax rule
                     (await pageRequest<{ value: ThemeTokens }>(running.page, 'theme.get')).value,
             )
             .toMatchObject({ source: 'vscode', editor: { comment: '#6272a4' } });
+    } finally {
+        await running.app.close();
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+test('theme import contrast failure names the color roles and measured ratio', async (_fixtures, testInfo) => {
+    allowE2EErrors([
+        { source: 'renderer', event: 'toast', code: 'ERROR_TOAST', count: 1 },
+        { source: 'desktop', event: 'ipc.request_failed', code: 'VALIDATION', count: 1 },
+        { source: 'server-core', event: 'ipc.request_failed', code: 'VALIDATION', count: 1 },
+    ]);
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-contrast-e2e-'));
+    const root = join(directory, 'project');
+    const themePath = join(directory, 'low-contrast.json');
+    await mkdir(root);
+    const importedTheme = structuredClone(draculaTheme);
+    importedTheme.colors.muted = importedTheme.colors.background;
+    await writeFile(themePath, JSON.stringify(importedTheme));
+
+    const running = await launchCaxri({
+        userDataDir: join(directory, 'user-data'),
+        testRootPath: root,
+    });
+    try {
+        await running.app.evaluate(({ dialog }, path) => {
+            dialog.showOpenDialog = () => Promise.resolve({ canceled: false, filePaths: [path] });
+        }, themePath);
+        await createProjectSession(running.page);
+        const before = await pageRequest<{ value: ThemeTokens }>(running.page, 'theme.get');
+        await running.page.keyboard.press('Meta+,');
+        const settings = running.page.getByRole('dialog');
+        await settings.getByRole('tab', { name: 'Theme', exact: true }).click();
+        await settings.getByRole('button', { name: 'Import Theme' }).click();
+
+        const toast = running.page.locator('.toast', { hasText: 'Theme import failed.' });
+        await expect(toast).toContainText(
+            '--muted has 1.00:1 contrast against --background; at least 4.5:1 is required.',
+        );
+        await expect(toast).not.toContainText(directory);
+        await toast.screenshot({ path: testInfo.outputPath('theme-contrast-failure.png') });
+        await expect
+            .poll(
+                async () =>
+                    (await pageRequest<{ value: ThemeTokens }>(running.page, 'theme.get')).value,
+            )
+            .toEqual(before.value);
     } finally {
         await running.app.close();
         await rm(directory, { recursive: true, force: true });
