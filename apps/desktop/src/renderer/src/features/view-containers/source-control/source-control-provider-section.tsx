@@ -61,8 +61,12 @@ function ProviderHeader({
                  * recoverable from the row's path tooltip; the counts exist nowhere else on this row.
                  */}
                 <span className="git-repository-identity flex min-w-0 items-center gap-1">
-                    {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-                    <SourceControlIcon icon={provider.icon} size={12} />
+                    {expanded ? (
+                        <ChevronDown className="shrink-0" size={13} />
+                    ) : (
+                        <ChevronRight className="shrink-0" size={13} />
+                    )}
+                    <SourceControlIcon className="shrink-0" icon={provider.icon} size={16} />
                     <strong className="git-repository-name min-w-0 truncate font-semibold">
                         {provider.label}
                     </strong>
