@@ -98,8 +98,7 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
             );
         },
         logger,
-        (sessionId, reason) =>
-            send({ event: 'agent.automaticNamingUnavailable', payload: { sessionId, reason } }),
+        (notice) => send({ event: 'agent.automaticNamingUnavailable', payload: notice }),
     );
     namingState.service = automaticNaming;
     const agentHooks = new AgentHookManager({
@@ -151,6 +150,7 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
     return {
         agentEnvironment,
         agentHooks,
+        automaticNaming,
         agentLaunchSettings,
         agentOutputRecoverySettings,
         agents,

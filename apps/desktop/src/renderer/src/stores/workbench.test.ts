@@ -649,3 +649,70 @@ describe('workbench Runtime events', () => {
         unsubscribe();
     });
 });
+
+/**
+ * The live `agent.automaticNamingUnavailable` event is transient: while macOS has no window open there is no Renderer
+ * to deliver it to, so the Server replays the suppressions that are still in force in every bootstrap snapshot. That
+ * makes a reopened window show the reason it missed, and makes it this window's job not to repeat one it already
+ * showed.
+ */
+describe('automatic naming sandbox notices', () => {
+    function snapshot(sessionId: string, launchId: string) {
+        return {
+            automaticNamingUnavailable: [
+                { launchId, reason: 'sandboxBoundaryConflict' as const, sessionId },
+            ],
+            configurationErrors: [],
+            projects: [{ id: 'project-1', displayTitle: 'Fixture' }],
+            sessions: [{ id: sessionId, projectId: 'project-1', displayTitle: 'Session' }],
+            sessionStates: [],
+            terminals: [],
+        } as unknown as BootstrapState;
+    }
+
+    it('reports a replayed notice once, however many times the window reconnects', async () => {
+        mocks.request.mockResolvedValueOnce(snapshot('session-replay', 'launch-replay'));
+        await refreshWorkbench();
+
+        expect(getToasts()).toEqual([
+            expect.objectContaining({
+                type: 'info',
+                title: 'Fixture / Session: Automatic naming is blocked by the Project sandbox boundary. Choose a more specific Project folder and restart the Agent.',
+            }),
+        ]);
+
+        dismissToast();
+        mocks.request.mockResolvedValueOnce(snapshot('session-replay', 'launch-replay'));
+        await refreshWorkbench();
+
+        expect(getToasts()).toEqual([]);
+    });
+
+    it('does not repeat a notice the window already received as a live event', async () => {
+        const unsubscribe = subscribeWorkbenchEvents(eventHandlers());
+        mocks.request.mockResolvedValueOnce({
+            configurationErrors: [],
+            projects: [{ id: 'project-1', displayTitle: 'Fixture' }],
+            sessions: [{ id: 'session-live', projectId: 'project-1', displayTitle: 'Session' }],
+            sessionStates: [],
+            terminals: [],
+        } as unknown);
+        await refreshWorkbench();
+        mocks.emit({
+            event: 'agent.automaticNamingUnavailable',
+            payload: {
+                sessionId: 'session-live',
+                launchId: 'launch-live',
+                reason: 'sandboxPathUnavailable',
+            },
+        });
+        expect(getToasts()).toHaveLength(1);
+        dismissToast();
+
+        mocks.request.mockResolvedValueOnce(snapshot('session-live', 'launch-live'));
+        await refreshWorkbench();
+
+        expect(getToasts()).toEqual([]);
+        unsubscribe();
+    });
+});

@@ -2,8 +2,6 @@ import { z } from 'zod';
 
 import type { AgentProvider } from '../agent/agents.js';
 import { agentProviderIds } from '../agent/agents.js';
-import { MAX_KEYBINDINGS } from '../configuration/configuration-contract.js';
-import { appSettingsSchema } from '../configuration/settings-schema.js';
 import { MAX_CONFIGURABLE_FILE_BYTES } from '../configuration/settings-spec.js';
 import { hexColorSchema } from './color.js';
 import type { CommandId } from './commands.js';
@@ -693,24 +691,6 @@ export const updateStateSchema = z.discriminatedUnion('status', [
     }),
 ]);
 
-export const bootstrapStateSchema = z.object({
-    projects: z.array(projectRecordSchema),
-    sessions: z.array(sessionRecordSchema),
-    terminals: z.array(terminalRecordSchema),
-    selectedProjectId: z.string().optional(),
-    selectedSessionId: z.string().optional(),
-    sessionStates: z.array(sessionStateSchema),
-    settings: appSettingsSchema,
-    keybindings: z.array(keybindingSchema).max(MAX_KEYBINDINGS),
-    keybindingConflicts: z.array(keybindingConflictSchema).max(MAX_KEYBINDINGS),
-    configurationErrors: z.array(z.string()).optional(),
-    theme: themeTokensSchema,
-    runtime: z.object({
-        status: runtimeStatusSchema,
-        restartCount: z.number(),
-    }),
-});
-
 export interface AgentSnapshot {
     /**
      * Native provenance when available; an absent value must never be assumed to mean a user rename.
@@ -782,5 +762,4 @@ export type GitCommitFile = z.infer<typeof gitCommitFileSchema>;
 export type GitCommitDetails = z.infer<typeof gitCommitDetailsSchema>;
 export type GitDiffDocument = z.infer<typeof gitDiffDocumentSchema>;
 export type TerminalResourceUsage = z.infer<typeof terminalResourceUsageSchema>;
-export type BootstrapState = z.infer<typeof bootstrapStateSchema>;
 export type UpdateState = z.infer<typeof updateStateSchema>;

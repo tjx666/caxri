@@ -7,6 +7,10 @@ import { identifierSchema, MAX_TERMINAL_INPUT_LENGTH, pathSchema } from './domai
 export const MAX_LONG_PASTE_CHARACTERS = 1_048_576;
 export const MAX_LONG_PASTE_SUMMARY_CHARACTERS = 4_096;
 
+/**
+ * Why an Agent launch cannot name its own Session. Both values describe the Project sandbox boundary the provider was
+ * given, never the provider's error text, so they are safe to persist and replay.
+ */
 export const lowCostSandboxFailureReasonSchema = z.enum([
     'sandboxBoundaryConflict',
     'sandboxPathUnavailable',

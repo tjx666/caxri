@@ -24,6 +24,7 @@ import {
     showWorkbenchRootCandidate,
 } from '../features/workbench/workbench-root-prompt-store';
 import { caxri } from '../lib/caxri';
+import { reportAutomaticNamingNotices } from './automatic-naming-notice';
 import { openSettings } from './dialogs';
 import { recordNotification, syncNotificationSettings } from './notifications';
 import { mergeStructurally } from './structural-sharing';
@@ -342,6 +343,11 @@ function applySnapshot(
             bootstrap: mergeStructurally(previous.bootstrap, { ...current, terminals }),
         };
     });
+    // After the store holds the snapshot, so the toast can name the Project and Session the notice belongs to.
+    reportAutomaticNamingNotices(
+        current.automaticNamingUnavailable,
+        useWorkbenchStore.getState().bootstrap,
+    );
     if (configErrors.reported) return;
     configErrors.reported = true;
     if (current.configurationErrors?.[0]) pushToast('error', current.configurationErrors[0]);
@@ -734,19 +740,9 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                 return;
             }
             case 'agent.automaticNamingUnavailable': {
-                const bootstrap = useWorkbenchStore.getState().bootstrap;
-                const session = bootstrap?.sessions.find(
-                    (item) => item.id === event.payload.sessionId,
-                );
-                const project = bootstrap?.projects.find((item) => item.id === session?.projectId);
-                const subject =
-                    [project?.displayTitle, session?.displayTitle].filter(Boolean).join(' / ') ||
-                    'Agent';
-                pushToast(
-                    'info',
-                    event.payload.reason === 'sandboxBoundaryConflict'
-                        ? `${subject}: Automatic naming is blocked by the Project sandbox boundary. Choose a more specific Project folder and restart the Agent.`
-                        : `${subject}: Automatic naming is unavailable because its sandbox paths could not be verified. Restart the Agent after correcting the paths.`,
+                reportAutomaticNamingNotices(
+                    [event.payload],
+                    useWorkbenchStore.getState().bootstrap,
                 );
                 return;
             }

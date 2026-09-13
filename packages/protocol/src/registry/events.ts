@@ -278,6 +278,11 @@ export const serverEventPayloads = {
      */
     'agent.automaticNamingUnavailable': z.object({
         sessionId: identifierSchema,
+        /**
+         * The launch the notice belongs to. It is the same key `BootstrapState.automaticNamingUnavailable` replays
+         * under, so a client that already showed this notice live can recognize the replayed copy.
+         */
+        launchId: identifierSchema,
         reason: lowCostSandboxFailureReasonSchema,
     }),
     /**

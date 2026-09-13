@@ -1,3 +1,4 @@
+import type { AutomaticNamingNotice } from '@caxri/protocol';
 import { agentProviderCatalog } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { AsyncSemaphore, logEventCatalog } from '@caxri/system';
@@ -27,6 +28,7 @@ const SESSION_RECORD_CAPACITY = 128;
  */
 interface BlockedLaunch {
     launchId: string;
+    reason: NonNullable<ReturnType<typeof lowCostSandboxFailureReason>>;
     terminalId: string;
 }
 
@@ -54,10 +56,7 @@ export class SessionAutoNamingService {
         private readonly environment: AgentEnvironment,
         private readonly isCurrentLaunch: (terminalId: string, launchId: string) => boolean,
         private readonly logger: StructuredLogger,
-        private readonly onSandboxUnavailable?: (
-            sessionId: string,
-            reason: NonNullable<ReturnType<typeof lowCostSandboxFailureReason>>,
-        ) => void,
+        private readonly onSandboxUnavailable?: (notice: AutomaticNamingNotice) => void,
     ) {}
 
     /**
@@ -94,6 +93,24 @@ export class SessionAutoNamingService {
         this.blockedLaunches.set(sessionId, blocked);
         while (this.blockedLaunches.size > SESSION_RECORD_CAPACITY)
             this.blockedLaunches.delete(this.blockedLaunches.keys().next().value!);
+    }
+
+    /**
+     * The suppressions a freshly connected client still has to be told about.
+     *
+     * The live notice is a transient event, so it is simply lost while macOS has no window open — the Server keeps
+     * running turns, and the user comes back to a Session that silently kept its placeholder name. Reading the
+     * suppression records the service already maintains gives the reason somewhere to wait, and reusing
+     * {@link isBlockedLaunchInForce} means a launch that has since ended, changed Terminal, or been archived is never
+     * replayed as if it were still true.
+     */
+    automaticNamingNotices(): AutomaticNamingNotice[] {
+        const notices: AutomaticNamingNotice[] = [];
+        for (const [sessionId, blocked] of this.blockedLaunches) {
+            if (!this.isBlockedLaunchInForce(sessionId, blocked)) continue;
+            notices.push({ launchId: blocked.launchId, reason: blocked.reason, sessionId });
+        }
+        return notices;
     }
 
     observe(event: AgentLifecycleSignal): void {
@@ -228,9 +245,14 @@ export class SessionAutoNamingService {
                 if (sandboxReason && !controller.signal.aborted) {
                     this.blockLaunch(session.id, {
                         launchId: event.launchId,
+                        reason: sandboxReason,
                         terminalId: terminal.id,
                     });
-                    this.onSandboxUnavailable?.(session.id, sandboxReason);
+                    this.onSandboxUnavailable?.({
+                        launchId: event.launchId,
+                        reason: sandboxReason,
+                        sessionId: session.id,
+                    });
                 }
             } finally {
                 /**
