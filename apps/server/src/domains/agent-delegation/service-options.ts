@@ -19,7 +19,16 @@ export interface AgentDelegationServiceOptions extends DelegationTranscriptReade
     inputEpoch?(terminalId: string): number;
     currentLaunchId?(terminalId: string): string | undefined;
     isIdle?(terminalId: string, launchId: string, turnId: string): boolean;
-    write?(terminalId: string, launchId: string, data: string): boolean;
+    /**
+     * Writes to one exact Agent launch. The return value is the synchronous admission; for a Terminal with no Renderer
+     * attachment that answer is provisional, and `onDelivered` reports what the Terminal Host actually did.
+     */
+    write?(
+        terminalId: string,
+        launchId: string,
+        data: string,
+        onDelivered?: (wasAccepted: boolean) => void,
+    ): boolean;
     submissionTimeoutMs?: number;
     now?: () => number;
 }

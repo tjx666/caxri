@@ -20,7 +20,7 @@ import type {
     TerminalExecutionLaunch,
     TerminalExecutionPort,
 } from '../../domains/terminal';
-import { sendAgentInput } from './agent-input';
+import { canSendAgentInput, deliverAgentInput, sendAgentInput } from './agent-input';
 import type {
     RemoteResizeQueue,
     RemoteTerminalIdentity,
@@ -483,20 +483,26 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         return true;
     }
 
-    writeAgentExact(terminalId: string, data: string, launchId: string): boolean {
+    writeAgentExact(
+        terminalId: string,
+        data: string,
+        launchId: string,
+        onDelivered?: (wasAccepted: boolean) => void,
+    ): boolean {
         const identity = this.identities.get(terminalId);
         if (identity?.agent?.launchId !== launchId) return false;
         if (!identity.attachmentId) {
-            if (
-                !identity.processId ||
-                !identity.agent.processId ||
-                data.length > MAX_TERMINAL_INPUT_LENGTH
-            )
-                return false;
+            if (!canSendAgentInput(identity, data)) return false;
             /**
-             * Background delegations use Host's exact-launch Agent capability without a Renderer attachment.
+             * Background delegations use Host's exact-launch Agent capability without a Renderer attachment. That
+             * answer arrives too late for this return value, so it reaches the caller through `onDelivered` instead:
+             * the launch can change while `identity.ready` is awaited, and the Host can refuse outright.
              */
-            this.background(this.writeAgent(terminalId, data), 'terminal.agent.input', terminalId);
+            this.background(
+                deliverAgentInput(this.supervisor, this.identities, terminalId, data, onDelivered),
+                'terminal.agent.input',
+                terminalId,
+            );
             return true;
         }
         return this.acceptInput(terminalId, data, MAX_TERMINAL_INPUT_LENGTH, false, launchId)
@@ -504,8 +510,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
     }
 
     async writeAgent(terminalId: string, data: string): Promise<boolean> {
-        const result = await sendAgentInput(this.supervisor, this.identities, terminalId, data);
-        return result.accepted;
+        return (await sendAgentInput(this.supervisor, this.identities, terminalId, data)).accepted;
     }
 
     configureOutputRecovery(

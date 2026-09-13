@@ -165,7 +165,12 @@ describe('Visible Codex delegation', () => {
             status: 'interrupted',
             failure: 'caller_stopped',
         });
-        expect(f.write).toHaveBeenLastCalledWith(f.terminal.id, f.state.launch, '\u{1B}');
+        expect(f.write).toHaveBeenLastCalledWith(
+            f.terminal.id,
+            f.state.launch,
+            '\u{1B}',
+            expect.any(Function),
+        );
         f.complete(f.id, 'Late synthetic answer');
         expect((await f.service.result(f.id, owner)).answer).toBeUndefined();
     });

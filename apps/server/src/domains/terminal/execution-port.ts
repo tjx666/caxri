@@ -119,6 +119,20 @@ export interface TerminalExecutionPort {
         data: string,
         abortSignal?: AbortSignal,
     ): Promise<boolean>;
-    writeAgentExact(terminalId: string, data: string, expectedAgentLaunchId: string): boolean;
+    /**
+     * Admits Agent input for one exact launch in a single synchronous turn, which is what lets a caller claim the
+     * Terminal and write without an `await` in between.
+     *
+     * A Terminal with no Renderer attachment cannot be answered that quickly: the write travels to the Terminal Host,
+     * so the synchronous `true` only means "accepted for delivery". `onDelivered` then reports what the Host actually
+     * did, and is called exactly once for that path — never for an attached Terminal, whose return value is already the
+     * admission result.
+     */
+    writeAgentExact(
+        terminalId: string,
+        data: string,
+        expectedAgentLaunchId: string,
+        onDelivered?: (wasAccepted: boolean) => void,
+    ): boolean;
     writeAgent(terminalId: string, data: string): Promise<boolean>;
 }
