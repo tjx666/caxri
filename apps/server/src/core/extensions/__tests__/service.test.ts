@@ -16,7 +16,7 @@ function extension(source: DiscoveredExtension['source']): DiscoveredExtension {
             type: 'module',
             main: './dist/extension.js',
             engines: { caxri: '^0.0.17' },
-            caxri: { capabilities: ['projects.read', 'sessions.read'] },
+            caxri: { capabilities: ['projects.read', 'settings.read'] },
             contributes: {
                 viewsContainers: { secondarySidebar: [], panel: [] },
                 views: {},
@@ -30,7 +30,7 @@ describe('ExtensionService capability projection', () => {
     it('records actual grants independently from an installed extension declaration', () => {
         expect(grantsForExtension(extension('bundled'))).toEqual([
             'projects.read',
-            'sessions.read',
+            'settings.read',
         ]);
         expect(grantsForExtension(extension('installed'))).toEqual([]);
     });

@@ -42,11 +42,16 @@ export const extensionCommandIdSchema = createNamespacedIdentifierSchema();
 export const extensionBuiltinIconIdSchema = z.enum(['beaker', 'files', 'git-branch', 'status']);
 
 export const viewContainerLocationSchema = z.enum(['secondarySidebar', 'panel']);
+/**
+ * Every member must be reachable by an `assertApiAccess` call in the extension service. A declared capability that no
+ * check consumes constrains nothing, so it reads as authority the extension does not actually hold. Session identity is
+ * part of the base API context an extension receives from its lifecycle `scopeId`, not a separate readable surface, so
+ * there is deliberately no `sessions.read`.
+ */
 export const extensionCapabilitySchema = z.enum([
     'git.read',
     'git.write',
     'projects.read',
-    'sessions.read',
     'settings.read',
 ]);
 

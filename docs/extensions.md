@@ -109,6 +109,12 @@ Manifest capabilities are declarations, not grants. The Server Core records actu
 scope per extension. Bundled extensions receive their reviewed grants; installed extensions
 currently receive none. Every API call validates the opaque identity, current generation,
 capability, and Server Core-authoritative active Session/Project scope before returning projected data.
+
+The declared capabilities are `git.read`, `git.write`, `projects.read`, and `settings.read`, and each
+one is consumed by a real check. There is deliberately no Session capability: the active Session
+identity is part of the base API context an extension receives through its lifecycle `scopeId`, not a
+separate readable surface. A capability nothing checks constrains nothing, so it would read as
+authority the extension does not actually hold.
 Configuration reads additionally require `settings.read` and are limited to keys listed by the
 extension view's `configurationDependencies`; declaring the broad capability alone cannot read an
 unlisted setting.

@@ -1,4 +1,5 @@
 import type { AppSettings, ExtensionCapability } from '@caxri/protocol';
+import { extensionCapabilitySchema } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -265,6 +266,33 @@ describe('ExtensionService Git workspace API authority', () => {
                 params: { key: 'git.fetchGitHubAvatars' },
             }),
         ).resolves.toBe(true);
+    });
+
+    it('denies Project Status to an extension that did not declare projects.read', async () => {
+        const registration = await start(['git.read']);
+
+        await expect(
+            harness.requestApi!({
+                type: 'api-request',
+                id: crypto.randomUUID(),
+                extensionId: registration.extensionId,
+                generation: registration.generation,
+                apiToken: registration.apiToken,
+                method: 'workspace.getProjectStatus',
+                params: {},
+            }),
+        ).rejects.toMatchObject({ code: 'CAPABILITY_DENIED' });
+    });
+
+    // Every declared capability must be reachable by a real check. A member no check consumes
+    // reads as authority the extension does not hold; `sessions.read` was exactly that.
+    it('checks every declared extension capability somewhere', () => {
+        expect(extensionCapabilitySchema.options).toEqual([
+            'git.read',
+            'git.write',
+            'projects.read',
+            'settings.read',
+        ]);
     });
 
     it('denies undeclared configuration keys even with settings.read', async () => {
