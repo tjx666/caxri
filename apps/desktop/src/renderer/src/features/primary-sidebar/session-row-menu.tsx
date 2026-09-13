@@ -27,7 +27,7 @@ import {
     openProjectInExternalEditor,
     openSessionPullRequest,
     resumeSession,
-} from '../session/session-actions';
+} from '../session/session-commands';
 
 /**
  * Right-click menu for one Session row. Every entry acts on the clicked row (not the selected Session), so the handlers

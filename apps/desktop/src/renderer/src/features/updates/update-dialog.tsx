@@ -22,7 +22,7 @@ import {
     openDownloadedUpdate,
     subscribeUpdateState,
     useUpdateStore,
-} from './update-actions';
+} from './update-commands';
 
 function statusCopy(state: UpdateState | undefined): {
     title: string;

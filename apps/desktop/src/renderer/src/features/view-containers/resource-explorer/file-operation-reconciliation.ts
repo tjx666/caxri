@@ -9,7 +9,7 @@ import { parentDirectoryPath } from '../../../lib/file-path';
 import { queryClient } from '../../../queries/client';
 import { getSessionOwnerProjectId, useSelectedSession } from '../../../stores/selectors';
 import { pushToast } from '../../../stores/toasts';
-import { remapOpenEditorsDurably } from '../../editor/document-actions';
+import { remapOpenEditorsDurably } from '../../editor/document-commands';
 import { availableResourceExplorerClient } from '../resource-explorer-catalog-client';
 import { isControlledViewOperationQuery } from '../view-operation-client';
 import { useFileOperationStore } from './file-operation-state';

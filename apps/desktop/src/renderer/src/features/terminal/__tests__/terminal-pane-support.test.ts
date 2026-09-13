@@ -9,9 +9,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../../lib/caxri', () => ({ caxri: { request: mocks.caxriRequest } }));
 
 import { dismissToast, getToasts } from '../../../stores/toasts';
-import { canSendTerminalInput, didPasteIntoTerminal } from '../terminal-actions';
+import { canSendTerminalInput, didPasteIntoTerminal } from '../terminal-commands';
 import {
-    detachTerminalQuietly,
     opaqueSearchColor,
     registerTerminalInputHandlers,
     reportTerminalOperationError,
@@ -47,24 +46,6 @@ describe('xtermThemeWithoutOverviewRulerBorder', () => {
             foreground: '#f8f8f2',
             overviewRulerBorder: 'transparent',
         });
-    });
-});
-
-describe('detachTerminalQuietly', () => {
-    it('requests terminal.detach with the given terminal id', async () => {
-        mocks.caxriRequest.mockResolvedValueOnce(undefined);
-
-        await detachTerminalQuietly('terminal-1');
-
-        expect(mocks.caxriRequest).toHaveBeenCalledWith('terminal.detach', {
-            terminalId: 'terminal-1',
-        });
-    });
-
-    it('swallows a rejecting request instead of throwing', async () => {
-        mocks.caxriRequest.mockRejectedValueOnce(new Error('detach failed'));
-
-        await expect(detachTerminalQuietly('terminal-1')).resolves.toBeUndefined();
     });
 });
 

@@ -5,6 +5,7 @@ import {
     agentActionSubmitModes,
     agentActionTerminalInputSteps,
     canExecuteAgentAction,
+    isAlternateAgentActionChord,
 } from '../agent-action-input';
 
 const action = (patch: Partial<AgentAction> = {}): AgentAction => ({
@@ -50,5 +51,26 @@ describe('agent action input', () => {
     it('blocks immediate execution for actions with required arguments', () => {
         expect(canExecuteAgentAction(action({ requiresArguments: true }))).toBe(false);
         expect(canExecuteAgentAction(action({ argumentHint: '[target]' }))).toBe(true);
+    });
+
+    /**
+     * The picker consumes this chord before cmdk sees it, so a false positive runs an action the user meant to insert.
+     * Every extra modifier therefore has to fall through to whatever else claims it.
+     */
+    it('recognizes only Cmd+Enter as the alternate insert chord', () => {
+        const chord = (patch: Partial<Parameters<typeof isAlternateAgentActionChord>[0]> = {}) => ({
+            altKey: false,
+            ctrlKey: false,
+            key: 'Enter',
+            metaKey: true,
+            shiftKey: false,
+            ...patch,
+        });
+        expect(isAlternateAgentActionChord(chord())).toBe(true);
+        expect(isAlternateAgentActionChord(chord({ metaKey: false }))).toBe(false);
+        expect(isAlternateAgentActionChord(chord({ shiftKey: true }))).toBe(false);
+        expect(isAlternateAgentActionChord(chord({ altKey: true }))).toBe(false);
+        expect(isAlternateAgentActionChord(chord({ ctrlKey: true }))).toBe(false);
+        expect(isAlternateAgentActionChord(chord({ key: 'a' }))).toBe(false);
     });
 });

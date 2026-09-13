@@ -7,7 +7,7 @@ import { dragPath } from '../../../lib/file-drag';
 import { isDirectoryEntry, resolveEntryKind } from '../../../lib/file-entry';
 import { parentDirectoryPath } from '../../../lib/file-path';
 import { tryCommand } from '../../../stores/toasts';
-import { openFileForSession } from '../../editor/document-actions';
+import { openFileForSession } from '../../editor/document-commands';
 import { useResourceExplorerClient } from '../controlled-view-context';
 import { didTrashFile, duplicateFile, moveFile, pasteFile, rememberFile } from './file-actions';
 import type { FileClipboardEntry } from './file-clipboard';

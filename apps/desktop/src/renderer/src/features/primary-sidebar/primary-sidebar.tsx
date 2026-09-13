@@ -16,11 +16,11 @@ import {
     useSettings,
     useTerminals,
 } from '../../stores/selectors';
+import { activeSessionsInSidebarOrder } from '../session/session-activity-order';
 import {
     archiveSession,
     SESSION_PULL_REQUESTS_REFETCH_INTERVAL_MS,
-} from '../session/session-actions';
-import { activeSessionsInSidebarOrder } from '../session/session-activity-order';
+} from '../session/session-commands';
 import { useCreateSessionRowFocus } from './hooks/use-create-session-row-focus';
 import { useProjectCollapse } from './hooks/use-project-collapse';
 import type { ProjectSessionWindow } from './hooks/use-project-session-windows';

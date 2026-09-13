@@ -128,7 +128,7 @@ import {
     openSelectedSessionPullRequest,
     selectAdjacentSession,
     selectProject,
-} from '../session-actions';
+} from '../session-commands';
 
 describe('Session actions', () => {
     beforeEach(() => {

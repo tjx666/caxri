@@ -1,5 +1,6 @@
 import type {
     EditorNavigationTarget,
+    FileDocument,
     PaneLayout,
     PaneTabCloseMode,
     SessionState,
@@ -34,7 +35,7 @@ import {
 } from '../../stores/session-view';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { patchSessionState, persistSessionState, useWorkbenchStore } from '../../stores/workbench';
-import { closeTerminal } from '../terminal/terminal-actions';
+import { closeTerminal } from '../terminal/terminal-commands';
 import { getActivePaneTab, getPaneLayout } from '../workbench/pane-actions';
 import { markEditorDocumentReady, markEditorOpenStarted } from './editor-performance';
 import { focusEditor, queueEditorNavigation, revealEditorNavigation } from './editor-reveal';
@@ -204,6 +205,20 @@ export async function cacheDocument(sessionId: string, path: string): Promise<vo
     } finally {
         pendingDocumentOperations.delete(operation);
     }
+}
+
+/**
+ * Reads several files at once, dropping the ones that failed. External sync uses it to re-read what a watcher reported
+ * as changed, where a path deleted between the notification and the read is an ordinary outcome rather than an error.
+ */
+export async function readDocuments(
+    sessionId: string,
+    paths: readonly string[],
+): Promise<FileDocument[]> {
+    const results = await Promise.allSettled(
+        paths.map((path) => caxri.request('files.read', { sessionId, path })),
+    );
+    return results.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []));
 }
 
 export async function openFile(

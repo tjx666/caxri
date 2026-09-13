@@ -12,7 +12,7 @@ import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
 import type { CreateSessionAnchor } from '../../stores/dialogs';
 import { closeCreateSessionMenu, useDialogStore } from '../../stores/dialogs';
-import { beginSessionCreation, chooseSessionTerminalKind } from './session-actions';
+import { beginSessionCreation, chooseSessionTerminalKind } from './session-commands';
 import { useTerminalKindRecencyStore } from './terminal-kind-recency';
 
 /**

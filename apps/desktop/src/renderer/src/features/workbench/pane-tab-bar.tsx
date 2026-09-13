@@ -28,7 +28,7 @@ import {
     useTerminal,
 } from '../../stores/selectors';
 import { sessionViewScope, useSessionViewStore } from '../../stores/session-view';
-import { closeDocumentTabs, pinDocumentTab } from '../editor/document-actions';
+import { closeDocumentTabs, pinDocumentTab } from '../editor/document-commands';
 import {
     documentTabPathMenuState,
     resolveDocumentTabPath,
@@ -36,11 +36,11 @@ import {
 import { DocumentTabPathMenu } from '../editor/document-tab-path-menu';
 import { documentTabPresentation } from '../editor/document-tab-presentation';
 import { EditorTabActions } from '../editor/editor-tab-actions';
-import { moveTerminalToNewSession } from '../session/session-actions';
+import { moveTerminalToNewSession } from '../session/session-commands';
 import { WorkTab } from '../tabs/work-tab';
 import type { WorkTabNavigationKey } from '../tabs/work-tab-accessibility';
 import { workTabId, workTabNavigationTarget } from '../tabs/work-tab-accessibility';
-import { closeTerminal, createTerminal } from '../terminal/terminal-actions';
+import { closeTerminal, createTerminal } from '../terminal/terminal-commands';
 import {
     terminalProgressAriaLabel,
     terminalProgressLabel,

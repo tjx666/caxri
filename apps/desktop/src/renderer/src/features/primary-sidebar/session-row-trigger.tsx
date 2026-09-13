@@ -4,7 +4,7 @@ import { useRender } from '@base-ui/react/use-render';
 import type { SessionRecord } from '@caxri/protocol';
 
 import { cn } from '../../lib/utilities';
-import { didSelectSession } from '../session/session-actions';
+import { didSelectSession } from '../session/session-commands';
 import type { SessionOrderController } from './hooks/use-session-order';
 
 interface SessionRowTriggerProperties extends ComponentProps<'div'> {

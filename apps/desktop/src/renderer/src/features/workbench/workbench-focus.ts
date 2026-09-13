@@ -1,4 +1,4 @@
-import { getTerminalFocusElement } from '../terminal/terminal-actions';
+import { getTerminalFocusElement } from '../terminal/terminal-commands';
 import { getActivePaneTab } from './pane-actions';
 
 /**

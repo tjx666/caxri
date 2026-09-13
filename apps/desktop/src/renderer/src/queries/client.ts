@@ -42,7 +42,7 @@ export function createCaxriQueryClient(): QueryClient {
 }
 
 /**
- * Module-scoped singleton so non-component code (e.g. `features/session/session-actions.ts`) can reach the same cache
+ * Module-scoped singleton so non-component code (e.g. `features/session/session-commands.ts`) can reach the same cache
  * `QueryClientProvider` renders with in `main.tsx`, instead of only being reachable through the `useQueryClient` hook
  * inside a component.
  */

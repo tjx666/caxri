@@ -3,7 +3,6 @@ import { errorMessage, isCaxriError } from '@caxri/protocol';
 import { editorModelPath } from '@desktop-shared/editor-state';
 import type { ITheme, Terminal } from '@xterm/xterm';
 
-import { caxri } from '../../lib/caxri';
 import { openExternalUrl } from '../../lib/external-link';
 import { sessionViewScope } from '../../stores/session-view';
 import { pushToast } from '../../stores/toasts';
@@ -15,7 +14,14 @@ import {
     executeViewCatalogShortcut,
     invalidateControlledViewSnapshot,
 } from '../view-containers/view-container-commands';
-import { registerTerminalInputGate, registerTerminalPasteHandler } from './terminal-actions';
+import {
+    openTerminalFileLink,
+    registerTerminalInputGate,
+    registerTerminalPasteHandler,
+    resolveTerminalCommitLink,
+    sendTerminalInput,
+    sendTerminalInputToAgent,
+} from './terminal-commands';
 import {
     openTerminalLinkCandidatePicker,
     registerTerminalLinkScanner,
@@ -28,9 +34,9 @@ import type { TerminalLinkReferenceContext } from './terminal-reference-links';
 import type { TerminalSearchResults } from './terminal-search';
 
 /**
- * Shared, non-hook support used by `useTerminalPaneRuntime`: user-facing copy, small pure helpers, and the one Server
- * call whose failure is intentionally unobserved. Kept in its own module so the hook file stays under the repository's
- * per-file line budget.
+ * Shared, non-hook support used by `useTerminalPaneRuntime`: user-facing copy, small pure helpers, and the xterm
+ * registrations that wire a live Terminal to `terminal-commands.ts`. Kept in its own module so the hook file stays
+ * under the repository's per-file line budget.
  */
 export const onError = (message: string): void => pushToast('error', message);
 
@@ -75,18 +81,6 @@ export function xtermThemeWithoutOverviewRulerBorder(theme: ITheme | undefined):
 }
 
 /**
- * A Server restart can race a pane teardown, leaving no live view to notify; the failure is intentionally unobserved
- * instead of surfaced through `onError`.
- */
-export async function detachTerminalQuietly(terminalId: string): Promise<void> {
-    try {
-        await caxri.request('terminal.detach', { terminalId });
-    } catch {
-        // Intentionally swallowed, see the function comment above.
-    }
-}
-
-/**
  * Keeps keyboard input and Files-drop paste on the same live xterm path. `xterm.paste` preserves bracketed-paste
  * semantics, while `onData` remains the single ordered bridge into the Server-owned PTY.
  */
@@ -100,13 +94,8 @@ export function registerTerminalInputHandlers(
     const sendInput = async (data: string): Promise<void> => {
         try {
             const expected = expectedAgentLaunchId();
-            if (expected === undefined) await caxri.request('terminal.input', { terminalId, data });
-            else
-                await caxri.request('terminal.inputAgentExact', {
-                    terminalId,
-                    data,
-                    expectedAgentLaunchId: expected,
-                });
+            if (expected === undefined) await sendTerminalInput(terminalId, data);
+            else await sendTerminalInputToAgent(terminalId, data, expected);
         } catch (error) {
             if (!isDisposed) reportTerminalOperationError(error, 'Terminal input failed');
         }
@@ -158,11 +147,7 @@ export function registerTerminalPaneLinks(
         location: EditorNavigationTarget | undefined,
     ): Promise<void> => {
         try {
-            const result = await caxri.request('terminal.openFileLink', {
-                terminalId: latest().terminalId,
-                target,
-                ...(location && { location }),
-            });
+            const result = await openTerminalFileLink(latest().terminalId, target, location);
             if ('document' in result) {
                 const workbenchProjectId = useWorkbenchStore
                     .getState()
@@ -220,10 +205,7 @@ export function registerTerminalPaneLinks(
     };
     const openCommitLink = async (reference: string): Promise<void> => {
         try {
-            const result = await caxri.request('terminal.commitLink.resolve', {
-                terminalId: latest().terminalId,
-                reference,
-            });
+            const result = await resolveTerminalCommitLink(latest().terminalId, reference);
             if (result.status === 'resolved') {
                 await openCommitCandidate(result.candidate.repositoryId, result.candidate.sha);
                 return;

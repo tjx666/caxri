@@ -17,7 +17,7 @@ import {
     terminalProgressLabel,
     useTerminalProgress,
 } from '../terminal/terminal-progress';
-import { confirmTerminalRendererSwitch } from '../terminal/terminal-renderer-actions';
+import { confirmTerminalRendererSwitch } from '../terminal/terminal-renderer-commands';
 import {
     terminalRendererIndicator,
     useTerminalRendererStatus,

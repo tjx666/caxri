@@ -23,7 +23,7 @@ import {
     openDownloadedUpdate,
     subscribeUpdateState,
     useUpdateStore,
-} from './update-actions';
+} from './update-commands';
 
 const availableState: UpdateState = {
     status: 'available',

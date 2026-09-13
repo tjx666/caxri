@@ -43,4 +43,21 @@ describe('caxri/server-reads-through-query', () => {
             await lint('scripts/fixtures/eslint/view-container-reads/tree-branch-client.ts'),
         ).not.toContain(ruleId);
     });
+
+    it('stays silent for a *-commands.ts module that owns the RPC for a feature', async () => {
+        expect(
+            await lint('scripts/fixtures/eslint/view-container-reads/tree-branch-commands.ts'),
+        ).not.toContain(ruleId);
+    });
+
+    /**
+     * The exemption is the two names the convention picked, not "any suffixed module". `*-actions.ts` is the Renderer's
+     * UI-action layer and coexists with `*-commands.ts` in the same feature directories, so a request moved there is
+     * still a request outside the data layer.
+     */
+    it('still reports a read moved into a *-actions.ts module', async () => {
+        expect(
+            await lint('scripts/fixtures/eslint/view-container-reads/tree-branch-actions.ts'),
+        ).toContain(ruleId);
+    });
 });

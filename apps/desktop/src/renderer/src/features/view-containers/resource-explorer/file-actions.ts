@@ -10,8 +10,8 @@ import {
     closeOpenEditorsUnderPath,
     hasUnsavedChangesUnderPath,
     openFile,
-} from '../../editor/document-actions';
-import { createTerminal } from '../../terminal/terminal-actions';
+} from '../../editor/document-commands';
+import { createTerminal } from '../../terminal/terminal-commands';
 import { isControlledViewOperationQuery } from '../view-operation-client';
 import type { FileClipboardEntry } from './file-clipboard';
 import { useFileClipboardStore } from './file-clipboard';

@@ -78,7 +78,7 @@ const SYMLINK_TARGET_PROBE_BUDGET_MS = 1_000;
  * is many that each answered slowly. They call for different responses — a hung mount versus a slow one — so they are
  * recorded apart rather than as one "budget spent".
  */
-export type SymlinkProbeBudgetReason = 'cumulative_wait' | 'probe_timeout';
+type SymlinkProbeBudgetReason = 'cumulative_wait' | 'probe_timeout';
 
 export type SymlinkTargetProbe = <T>(read: () => Promise<T>) => Promise<T | undefined>;
 

@@ -127,7 +127,7 @@ test('editor previews pin and expose the standard close actions', async () => {
     try {
         // Typing into c.js below leaves it dirty when "Close All" closes it later in this test;
         // closing a dirty tab now shows the native Save/Don't Save/Cancel sheet
-        // (`editor.confirmDiscard`, see `document-actions.ts`), so `dialog.showMessageBox` must be
+        // (`editor.confirmDiscard`, see `document-commands.ts`), so `dialog.showMessageBox` must be
         // stubbed before that happens or the close would hang waiting for real user input.
         // `response: 1` is "Don't Save". The call count is tracked so the "Close All" assertion
         // below can prove the dirty tab actually went through confirmation instead of silently

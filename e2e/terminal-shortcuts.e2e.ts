@@ -275,7 +275,7 @@ test('Cmd+Backslash opens fresh Terminals in right panes and keeps the newest pa
  * Only a real Electron run proves the transport and persistence half: the write crosses Desktop and Server, and no unit
  * test can show that the Runtime prunes a stale placement before storing it. The Renderer's own two defences —
  * declining to re-place a Terminal closed mid-creation, and adopting the Runtime's pruned canonical state — are covered
- * narrowly in `terminal-actions.test.ts` and `workbench-session-state.test.ts`, because the replay below bypasses the
+ * narrowly in `terminal-commands.test.ts` and `workbench-session-state.test.ts`, because the replay below bypasses the
  * Renderer's create path by sending the layout straight over IPC.
  */
 test('a Terminal closed while its layout write was in flight leaves no tab behind', async () => {
