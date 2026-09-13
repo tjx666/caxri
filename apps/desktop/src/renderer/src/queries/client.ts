@@ -69,6 +69,22 @@ export function caxriQueryKey<M extends CaxriMethod>(
 }
 
 /**
+ * The matching half of {@link caxriQueryKey}, for the invalidation predicates in `invalidation.ts`.
+ *
+ * React Query hands a predicate a `readonly unknown[]`, so comparing `queryKey[0]` to a bare string literal is not
+ * typechecked: renaming a method leaves the predicate matching nothing, silently and permanently. Two
+ * `viewContainers.treeChildren` predicates were dead that way from the day they were written. Taking the names as
+ * `CaxriMethod` arguments makes a typo or a stale name a compile error at the call site.
+ */
+export function isQueryMethod(
+    queryKey: readonly unknown[],
+    ...methods: readonly [CaxriMethod, ...CaxriMethod[]]
+): boolean {
+    const method = queryKey[0];
+    return typeof method === 'string' && (methods as readonly string[]).includes(method);
+}
+
+/**
  * Typed `useQuery` over a Caxri RPC method. Full inference flows from the method table in `@caxri/protocol`: `params`
  * must match the method's schema and the resolved data is `MethodResult<M>`, with no `any` at any point. Callers gate
  * an unavailable dependency (no Session selected, for instance) with `enabled: false` rather than skipping the hook —

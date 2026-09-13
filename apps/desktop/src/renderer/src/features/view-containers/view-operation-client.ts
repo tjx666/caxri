@@ -1,4 +1,5 @@
 import type {
+    CaxriMethod,
     ExtensionViewEventContext,
     SourceControlActionResult,
     SourceControlHistoryDetails,
@@ -48,7 +49,13 @@ type ViewOperation =
     | 'source.historyPage'
     | 'source.snapshot';
 
-type ControlledViewQueryOperation = ViewOperation | 'files.list' | 'files.search';
+export type ControlledViewQueryOperation = ViewOperation | 'files.list' | 'files.search';
+
+/**
+ * The method every controlled-view read is cached under. Exported so the invalidation predicates in `invalidation.ts`
+ * match the same constant this factory writes, rather than repeating the literal on the matching side.
+ */
+export const CONTROLLED_VIEW_QUERY_METHOD = 'viewContainers.viewOperation' satisfies CaxriMethod;
 
 export function controlledViewQueryKey(
     viewId: string,
@@ -58,7 +65,7 @@ export function controlledViewQueryKey(
     cacheRevision?: string,
 ) {
     return [
-        'viewContainers.viewOperation',
+        CONTROLLED_VIEW_QUERY_METHOD,
         {
             viewId,
             operation,
