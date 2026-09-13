@@ -39,11 +39,8 @@ async function fixture() {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-naming-sync-'));
     const path = join(directory, 'state.db');
     const database = new CaxriDatabase(path);
-    const created = database.createSession(
-        database.createProject(directory).id,
-        'codex',
-        directory,
-    );
+    const projectId = database.createProject(directory).id;
+    const created = database.createSession(projectId, 'codex', directory);
     const terminalId = created.terminal!.id;
     const sessionId = created.session.id;
     database.rebindAgentSession(terminalId, 'codex', 'test-agent');
@@ -110,6 +107,16 @@ async function fixture() {
         renames,
         rename,
         automatic,
+        /**
+         * Adds another Agent Session in the same Project, already bound to a provider Session so a completed turn on it
+         * is eligible for automatic naming.
+         */
+        addSession: () => {
+            const extra = database.createSession(projectId, 'codex', directory);
+            const extraTerminalId = extra.terminal!.id;
+            database.rebindAgentSession(extraTerminalId, 'codex', `agent-${extra.session.id}`);
+            return { sessionId: extra.session.id, terminalId: extraTerminalId };
+        },
         sessionId,
         terminalId,
         target,
@@ -478,5 +485,109 @@ describe('Automatic Session rename synchronization', () => {
         });
         expect(f.database.getSession(f.sessionId)?.displayTitle).toBe('New binding title');
         expect(f.database.automaticSessionNaming(f.sessionId)?.status).toBe('stopped');
+    });
+});
+
+/**
+ * Suppression records the service keeps before it starts discarding them, mirroring `SESSION_RECORD_CAPACITY` in
+ * `session-auto-naming.ts`. Pinned here on purpose: the fault these tests cover is an eviction that forgets a launch
+ * still in force, and raising the bound would hide it rather than fix it.
+ */
+const SUPPRESSION_CAPACITY = 128;
+
+describe('Automatic Session naming sandbox suppression', () => {
+    /**
+     * Puts one Session's naming attempt into the suppressed state and resolves once the sandbox notice for it has been
+     * delivered, so the caller can retire that Session and move to the next one without racing the service.
+     */
+    async function suppressionFixture() {
+        const f = await fixture();
+        vi.spyOn(agentFunctions, 'locateAgentTranscript').mockResolvedValue({
+            baseRoot: f.directory,
+            root: f.directory,
+            path: join(f.directory, 'fixture.jsonl'),
+        });
+        vi.spyOn(agentFunctions, 'readAgentTitleMessages').mockResolvedValue([
+            { role: 'user', text: 'Fixture request' },
+            { role: 'assistant', text: 'Fixture reply' },
+        ]);
+        const generate = vi.spyOn(f.agents, 'generateTitle').mockRejectedValue(
+            new CaxriError('UNAVAILABLE', 'Fixture sandbox conflict', {
+                reason: 'sandboxBoundaryConflict',
+            }),
+        );
+        let delivered = Promise.withResolvers<void>();
+        const notice = vi.fn(() => delivered.resolve());
+        const logger = createLogger(join(f.directory, 'logs'));
+        const service = new SessionAutoNamingService(
+            f.database,
+            f.agents,
+            f.renames,
+            { homeDirectory: f.directory, variables: {} },
+            () => true,
+            logger,
+            notice,
+        );
+        const turnFinished = (terminalId: string) =>
+            ({
+                provider: 'codex',
+                terminalId,
+                launchId: 'launch',
+                phase: 'turnFinished',
+                agentSessionId: f.database.getTerminal(terminalId)?.agentSessionId ?? '',
+            }) as const;
+        return {
+            f,
+            generate,
+            notice,
+            service,
+            dispose: async (): Promise<void> => {
+                await service.close();
+                await logger.flush();
+            },
+            turnFinished,
+            block: async (terminalId: string): Promise<void> => {
+                delivered = Promise.withResolvers<void>();
+                service.observe(turnFinished(terminalId));
+                await delivered.promise;
+            },
+            /**
+             * Lets a re-admitted attempt reach the provider, so a suppression that failed to hold is observable instead
+             * of merely pending.
+             */
+            settle: () => new Promise((resolve) => setTimeout(resolve, 0)),
+        };
+    }
+
+    /**
+     * The boundary the fault sat on. One live Session is suppressed first, so it holds the oldest record, and then
+     * exactly enough Sessions are retired behind it to overflow the bound — archived ones, which keep their Terminals,
+     * and deleted ones. Evicting by insertion order alone would forget the live launch here and ask the user about the
+     * same unavailable sandbox again on its very next completed turn.
+     */
+    it('keeps a live launch suppressed while more Sessions than the bound retire behind it', async () => {
+        const { f, generate, service, turnFinished, block, settle, dispose } =
+            await suppressionFixture();
+        try {
+            await block(f.terminalId);
+            for (let index = 0; index <= SUPPRESSION_CAPACITY; index += 1) {
+                const retired = f.addSession();
+                // Insertion order is the thing under test, so each suppression lands before the next Session exists.
+                // eslint-disable-next-line no-await-in-loop
+                await block(retired.terminalId);
+                // Archiving keeps the Terminal, so only a limited number of Sessions can retire that way at once.
+                if (index < 20) f.database.archiveSession(retired.sessionId);
+                else f.database.deleteSession(retired.sessionId);
+            }
+            const attempts = generate.mock.calls.length;
+            expect(attempts).toBe(SUPPRESSION_CAPACITY + 2);
+
+            service.observe(turnFinished(f.terminalId));
+            await settle();
+
+            expect(generate).toHaveBeenCalledTimes(attempts);
+        } finally {
+            await dispose();
+        }
     });
 });
