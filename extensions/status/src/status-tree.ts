@@ -47,10 +47,26 @@ const linearStateIcons: Partial<
     backlog: 'linear-backlog',
     canceled: 'linear-canceled',
     completed: 'linear-completed',
-    duplicate: 'linear-canceled',
+    duplicate: 'linear-duplicate',
     started: 'linear-started',
     triage: 'linear-triage',
     unstarted: 'linear-unstarted',
+};
+
+/**
+ * Badge tone for the state name shown in an issue's hover card. Deliberately not `stateTones[linearState(…)]`: that
+ * mapping calls every `started` state pending, and Linear files "In Review" and "Ready to Merge" under `started`
+ * alongside "In Progress". Calling those three the same kind of in-flight is the honest reading; the icon carries the
+ * workspace's own color for the distinction.
+ */
+const linearBadgeTones: Partial<
+    Record<
+        NonNullable<ProjectStatusRepository['linearIssues'][number]['stateType']>,
+        'danger' | 'neutral' | 'success' | 'warning'
+    >
+> = {
+    completed: 'success',
+    triage: 'warning',
 };
 
 const stateTones: Record<ProjectStatusState, 'danger' | 'neutral' | 'success' | 'warning'> = {
@@ -62,6 +78,12 @@ const stateTones: Record<ProjectStatusState, 'danger' | 'neutral' | 'success' | 
     unknown: 'neutral',
 };
 
+/**
+ * `label` is deliberately absent from the row's own description: the leading icon already says the lifecycle in the
+ * same colors GitHub uses — green open, grey draft, purple merged, red closed — so repeating "Open" beside it spent the
+ * row's scarce width restating the glyph. It stays on the hover card's badge and in the accessible name, which is where
+ * a reader who cannot use the color needs it.
+ */
 const pullRequestPresentation = {
     open: { icon: 'git-pull-request-open', label: 'Open', tone: 'success' },
     draft: { icon: 'git-pull-request-draft', label: 'Draft', tone: 'neutral' },
@@ -82,10 +104,10 @@ const repoPresentation: Record<
     ProjectStatusRepository['kind'],
     { description?: string; icon: string }
 > = {
-    primary: { icon: 'monitor' },
-    worktree: { description: 'worktree', icon: 'monitor' },
-    nested: { description: 'nested', icon: 'monitor' },
-    submodule: { description: 'submodule', icon: 'package' },
+    primary: { icon: 'repo' },
+    worktree: { description: 'worktree', icon: 'worktree' },
+    nested: { description: 'nested', icon: 'repo' },
+    submodule: { description: 'submodule', icon: 'archive' },
 };
 
 const missingGitRepoErrors = new Set<string>([
@@ -141,6 +163,10 @@ function item(
         command?: Command;
         description?: string;
         icon?: string;
+        /**
+         * `#RRGGBB` tint for `icon`, for a row standing in for content whose palette an external system owns.
+         */
+        iconColor?: string;
         trailingIcon?: string;
         tooltip?: StatusTooltip;
         url?: string;
@@ -162,7 +188,7 @@ function item(
         label:
             options.accessibilityLabel ?? [label, options.description].filter(Boolean).join(', '),
     };
-    if (options.icon) treeItem.iconPath = new ThemeIcon(options.icon);
+    if (options.icon) treeItem.iconPath = new ThemeIcon(options.icon, options.iconColor);
     if (options.trailingIcon) treeItem.trailingIcon = new ThemeIcon(options.trailingIcon);
     if (options.url) {
         treeItem.command = {
@@ -318,7 +344,6 @@ function buildRepoChildren(
         }),
     ];
     for (const issue of repo.linearIssues) {
-        const state = linearState(issue.stateType);
         nodes.push(
             item(
                 `${prefix}:linear:${issue.identifier}`,
@@ -326,10 +351,16 @@ function buildRepoChildren(
                 {
                     description: issue.state,
                     icon: linearIcon(issue.stateType),
+                    iconColor: issue.stateColor,
                     url: issue.url,
                     tooltip: {
                         ...(issue.state && {
-                            badge: { label: issue.state, tone: stateTones[state] },
+                            badge: {
+                                label: issue.state,
+                                tone:
+                                    (issue.stateType && linearBadgeTones[issue.stateType]) ??
+                                    'neutral',
+                            },
                         }),
                     },
                 },
@@ -420,7 +451,8 @@ function buildRepoChildren(
         nodes.push(
             item(`${prefix}:pr`, `#${pullRequest.number} ${pullRequest.title}`, {
                 icon: presentation.icon,
-                description: `${presentation.label} · ${checkLabels[pullRequest.state]}`,
+                description: checkLabels[pullRequest.state],
+                accessibilityLabel: `#${pullRequest.number} ${pullRequest.title}, ${presentation.label}, ${checkLabels[pullRequest.state]}`,
                 url: pullRequest.url,
                 tooltip: {
                     badge: { label: presentation.label, tone: presentation.tone },

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { parseExternalHttpUrl } from '../configuration/trusted-domains.js';
+import { hexColorSchema } from './color.js';
 
 export const MAX_VIEW_TREE_ITEMS = 1_000;
 export const MAX_VIEW_TREE_PAYLOAD_BYTES = 256 * 1024;
@@ -51,7 +52,19 @@ export const extensionCapabilitySchema = z.enum([
 
 export const viewIconSchema = z.discriminatedUnion('kind', [
     z.object({ kind: z.literal('builtin'), id: z.string().min(1).max(100) }),
-    z.object({ kind: z.literal('theme'), id: z.string().min(1).max(100) }),
+    z.object({
+        kind: z.literal('theme'),
+        id: z.string().min(1).max(100),
+        /**
+         * Tint for an icon standing in for content owned by an external system whose palette Caxri does not define — a
+         * Linear workflow state, whose color each workspace configures for itself. Caxri's own semantic tokens cannot
+         * express an arbitrary workspace's palette, and quantizing it back to `success`/`warning` is what made a green
+         * "In Review" render yellow. Deliberately the only color literal in the view protocol: it tints one glyph's
+         * foreground and nothing else, and it is validated here so no unchecked string reaches a `style` attribute.
+         * Absent means the icon inherits its row's theme color, which every Caxri-owned icon does.
+         */
+        color: hexColorSchema.optional(),
+    }),
     z.object({
         kind: z.literal('resource'),
         dataUrl: z.string().startsWith('data:image/').max(MAX_VIEW_ICON_DATA_URL_LENGTH),
@@ -419,6 +432,12 @@ const sourceControlProviderModelSchema = z.object({
     icon: sourceControlViewIconSchema,
     tooltip: z.string().min(1).max(4_096),
     description: z.string().max(4_096),
+    /**
+     * Whether `description` is a `reference` — a branch name or short SHA, atomic enough that an ellipsis destroys it —
+     * or `prose`, a pull request or commit subject that stays useful truncated. The panel truncates whichever of the
+     * repository name and the description is the prose one, so a narrow panel never compresses a branch name.
+     */
+    descriptionKind: z.enum(['reference', 'prose']),
     descriptionAccessibilityLabel: z.string().min(1).max(4_096),
     descriptionTooltip: z.string().min(1).max(4_096),
     countLabel: z.string().min(1).max(1_024),

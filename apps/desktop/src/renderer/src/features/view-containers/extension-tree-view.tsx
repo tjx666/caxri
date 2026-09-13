@@ -500,7 +500,14 @@ function ExtensionTreeViewContent({
         }
     };
 
-    const isRootRefreshing = Boolean(activePendingRefresh) || loading.has(ROOT_HANDLE);
+    /**
+     * `visibleLoading` — not the raw `loading` — is what decides whether the header spins: it drops any handle the
+     * on-screen snapshot can already answer. Reading `loading` instead made every root revalidation announce itself,
+     * including the one a Session switch triggers on remount, so returning to a Session the user had just left looked
+     * like the panel was refetching when the rows never changed. A cold load has no snapshot, so it still spins, and a
+     * manual refresh spins through `activePendingRefresh` regardless.
+     */
+    const isRootRefreshing = Boolean(activePendingRefresh) || visibleLoading.has(ROOT_HANDLE);
     const rowHandlers = useStableTreeRowHandlers({
         focusIndex,
         onRowAction: (row, action) => {

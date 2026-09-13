@@ -2,7 +2,7 @@ import type { SVGProps } from 'react';
 import { useId } from 'react';
 
 export type LinearStatusKind =
-    'backlog' | 'canceled' | 'completed' | 'started' | 'triage' | 'unstarted';
+    'backlog' | 'canceled' | 'completed' | 'duplicate' | 'started' | 'triage' | 'unstarted';
 
 type LinearStatusIconProperties = SVGProps<SVGSVGElement> & {
     size?: number;
@@ -26,6 +26,10 @@ export function LinearStatusIcon({
             <path d="m4.75 8 2.1 2.1 4.4-4.7" />
         ) : kind === 'canceled' ? (
             <path d="m5 5 6 6M11 5l-6 6" />
+        ) : kind === 'duplicate' ? (
+            // Linear separates Duplicate from Canceled by a single slash rather than a cross; mapping both onto the
+            // cross made an issue closed as a duplicate look like one the team decided against.
+            <path d="m5 11 6-6" />
         ) : undefined;
 
     return (

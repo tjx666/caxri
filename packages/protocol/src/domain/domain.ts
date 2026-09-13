@@ -5,6 +5,7 @@ import { agentProviderIds } from '../agent/agents.js';
 import { MAX_KEYBINDINGS } from '../configuration/configuration-contract.js';
 import { appSettingsSchema } from '../configuration/settings-schema.js';
 import { MAX_CONFIGURABLE_FILE_BYTES } from '../configuration/settings-spec.js';
+import { hexColorSchema } from './color.js';
 import type { CommandId } from './commands.js';
 import { gitCommitSchema } from './git.js';
 import { paneLayoutSchema } from './pane-layout.js';
@@ -409,7 +410,7 @@ export const keybindingConflictSchema = z.object({
     commands: z.array(z.string()),
 });
 
-const hex = z.string().regex(/^#[0-9a-f]{6}([0-9a-f]{2})?$/i);
+const hex = hexColorSchema;
 
 /**
  * Import-format ids only. `builtin` and `custom` are persistence sources, not import formats — they stay off this list

@@ -1,5 +1,7 @@
 import type { AgentProvider, ServerEvent, SessionRecord } from '@caxri/protocol';
 import { agentProviderCatalog, CaxriError, sessionRenameTitleSchema } from '@caxri/protocol';
+import type { StructuredLogger } from '@caxri/system';
+import { logEventCatalog } from '@caxri/system';
 
 import type { AgentCoordinator, AgentService } from './agents';
 /**
@@ -61,6 +63,7 @@ export class SessionRenameService {
         private readonly agents: AgentService,
         private readonly coordinator: AgentCoordinator,
         private readonly emit: (event: ServerEvent) => void,
+        private readonly logger: StructuredLogger,
         private readonly queue = new SessionRenameQueue(),
     ) {}
 
@@ -84,11 +87,22 @@ export class SessionRenameService {
             if (!currentSession.primaryAgentTerminalId) return undefined;
             terminal = this.database.getTerminal(currentSession.primaryAgentTerminalId);
         }
-        if (!terminal?.agentSessionId)
-            throw new CaxriError(
-                'UNAVAILABLE',
-                'The primary Agent session has not been identified yet',
-            );
+        /**
+         * A Terminal whose Agent has not produced a session yet — a Session the user opened and named before typing
+         * anything — has nothing to synchronize, not a failure to report. Refusing the rename here made the very first
+         * thing a user does to a new Session fail, and the name they typed was discarded with it. Skipping provider
+         * sync still commits the title locally, and `renameSession` marks the Session manually titled, so automatic
+         * naming will not overwrite it once the Agent does start.
+         */
+        if (!terminal?.agentSessionId) {
+            this.logger.write('info', logEventCatalog.sessionRename.providerSyncSkipped, {
+                fields: {
+                    provider: terminal?.provider ?? null,
+                    reason: 'agent-session-unidentified',
+                },
+            });
+            return undefined;
+        }
         if (!terminal.provider)
             throw new CaxriError('INTERNAL', 'Primary Agent Terminal has no provider');
         return {

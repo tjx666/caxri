@@ -82,7 +82,13 @@ async function fixture() {
         () => {},
         createLogger(join(directory, 'logs')),
     );
-    const renames = new SessionRenameService(database, agents, coordinator, () => {});
+    const renames = new SessionRenameService(
+        database,
+        agents,
+        coordinator,
+        () => {},
+        createLogger(join(directory, 'rename-logs')),
+    );
     cleanups.push(async () => {
         coordinator.close();
         database.close();
@@ -351,7 +357,13 @@ describe('Automatic Session rename synchronization', () => {
             createLogger(join(f.directory, 'reopened-logs')),
         );
         try {
-            const renames = new SessionRenameService(reopened, f.agents, coordinator, () => {});
+            const renames = new SessionRenameService(
+                reopened,
+                f.agents,
+                coordinator,
+                () => {},
+                createLogger(join(f.directory, 'rename-logs')),
+            );
             expect(
                 await renames.renameAutomatically(
                     f.sessionId,
