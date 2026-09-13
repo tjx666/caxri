@@ -42,6 +42,24 @@ describe('buildGitDecorationIndex', () => {
         expect(index.get('/repo/src/app.ts')).toEqual({ kind: 'modified', letter: 'M' });
     });
 
+    it('provides the same exact-file decoration to search and breadcrumb paths', () => {
+        const index = buildGitDecorationIndex(
+            summary([
+                file({ path: 'src/edited.ts' }),
+                file({ path: 'src/new.ts', index: '?', kind: 'untracked', workingTree: '?' }),
+            ]),
+        );
+        const searchMatchPath = '/repo/src/edited.ts';
+        const openEditorPath = '/repo/src/edited.ts';
+        const pickerSiblingPath = '/repo/src/new.ts';
+
+        expect(index.get(searchMatchPath)).toBe(index.get(openEditorPath));
+        expect(index.get(openEditorPath)).toEqual({ kind: 'modified', letter: 'M' });
+        expect(index.get(pickerSiblingPath)).toEqual({ kind: 'untracked', letter: '?' });
+        expect(index.get('/repo/src/clean.ts')).toBeUndefined();
+        expect(index.get('/repo/src')).toEqual({ kind: 'modified' });
+    });
+
     it('prefers the staged column over the working-tree one for the letter', () => {
         const index = buildGitDecorationIndex(
             summary([file({ path: 'src/app.ts', index: 'A', kind: 'added', workingTree: 'M' })]),
