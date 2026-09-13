@@ -150,8 +150,10 @@ export const logEventCatalog = {
         preloadError: 'process_explorer.preload_error',
         renderProcessCrashLoop: 'process_explorer.render_process_crash_loop',
         renderProcessGone: 'process_explorer.render_process_gone',
+        responsive: 'process_explorer.responsive',
         sample: 'process_explorer.sample',
         unhandledRejection: 'process_explorer.unhandled_rejection',
+        unresponsive: 'process_explorer.unresponsive',
     },
     projectStatus: {
         alert: 'project_status.alert',
@@ -285,6 +287,8 @@ export const logEventCatalog = {
         readyToShow: 'window.ready_to_show',
         renderProcessCrashLoop: 'window.render_process_crash_loop',
         renderProcessGone: 'window.render_process_gone',
+        responsive: 'window.responsive',
+        unresponsive: 'window.unresponsive',
     },
     workbenchRoot: {
         fallback: 'workbench_root.fallback',

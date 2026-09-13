@@ -17,6 +17,7 @@ import {
     assertTrustedProcessExplorerSender,
     resolveProcessExplorerRendererUrl,
 } from './process-explorer-window-helpers';
+import { observeRendererHangs } from './renderer-hang-observer';
 import type { E2EWindowMode } from './window-mode';
 
 interface ProcessExplorerWindowOptions {
@@ -138,6 +139,12 @@ export class ProcessExplorerWindowController {
                 fields: { code: 'PRELOAD_ERROR' },
             });
         });
+        observeRendererHangs(
+            window.webContents,
+            logEventCatalog.processExplorer,
+            () => this.options.logger,
+            () => this.window === window,
+        );
         window.webContents.on('render-process-gone', (_event, details) => {
             if (details.reason === 'clean-exit' || window.isDestroyed() || this.window !== window)
                 return;
