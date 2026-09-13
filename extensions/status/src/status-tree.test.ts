@@ -311,8 +311,9 @@ describe('Status extension tree', () => {
             errors: [
                 {
                     source: 'linear',
+                    kind: 'failure',
                     message: 'linear: error',
-                    hint: 'See Runtime logs for details.',
+                    hint: 'Something went wrong while loading linked issues. Open Logs for details.',
                     detailsView: 'logs',
                 },
             ],
@@ -398,7 +399,7 @@ describe('Status extension tree', () => {
         expect(children[9].children?.[1].item.iconPath?.id).toBe('eye-off');
         expect(children[10].item).toMatchObject({
             id: 'status:repo:repo-1:error:linear',
-            description: 'See Runtime logs for details.',
+            description: 'Something went wrong while loading linked issues. Open Logs for details.',
         });
         expect(children[10].item.command).toMatchObject({ command: 'caxri.showLogs' });
     });
@@ -496,6 +497,7 @@ describe('Status extension tree', () => {
             errors: [
                 {
                     source: 'github',
+                    kind: 'failure',
                     message: 'gh: rate limited',
                     hint: 'Refresh after the API limit resets.',
                 },

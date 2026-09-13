@@ -35,6 +35,8 @@ const projectStatusDeploymentSchema = z.object({
 
 const projectStatusErrorSchema = z.object({
     source: z.enum(['github', 'linear', 'vercel']),
+    kind: z.enum(['prerequisite', 'failure']),
+    reason: z.enum(['network', 'tls']).optional(),
     message: z.string(),
     hint: z.string(),
     detailsView: z.literal('logs').optional(),

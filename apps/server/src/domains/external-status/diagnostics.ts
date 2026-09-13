@@ -3,51 +3,13 @@ import { randomUUID } from 'node:crypto';
 import type { StructuredLogger } from '@caxri/system';
 import { runWithObservationContext } from '@caxri/system';
 
-import type { CliFailureKind, ExternalStatusSource } from './command';
-import { ExternalStatusCliError, externalStatusCommandOperation, isNoPullRequest } from './command';
-
-type FailureReason =
-    | CliFailureKind
-    | 'network'
-    | 'tls'
-    | 'permission-denied'
-    | 'invalid-arguments'
-    | 'no-pull-request';
-
-/**
- * Classify locally, then discard prose: CLI stderr may contain credentials, URLs, paths, or provider response bodies.
- * Keep this diagnostic detail separate from the existing UI/limiter classification so logging cannot change retries.
- */
-function failureReason(error: unknown): FailureReason {
-    if (isNoPullRequest(error)) return 'no-pull-request';
-    if (error instanceof ExternalStatusCliError && error.kind !== 'other') return error.kind;
-    const message = error instanceof Error ? error.message : '';
-    if (
-        /certificate|CERT_HAS_EXPIRED|UNABLE_TO_VERIFY_LEAF_SIGNATURE|self.signed|TLS|SSL/i.test(
-            message,
-        )
-    )
-        return 'tls';
-    if (
-        /ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|network|fetch failed|socket hang up/i.test(
-            message,
-        )
-    )
-        return 'network';
-    if (
-        /EACCES|EPERM|permission denied|forbidden|not authorized|access denied|HTTP 403/i.test(
-            message,
-        )
-    )
-        return 'permission-denied';
-    if (
-        /unknown (?:option|argument|flag)|invalid (?:option|argument|flag)|unexpected argument|requires? an argument/i.test(
-            message,
-        )
-    )
-        return 'invalid-arguments';
-    return 'other';
-}
+import type { ExternalStatusSource } from './command';
+import {
+    ExternalStatusCliError,
+    externalStatusCommandOperation,
+    failureReason,
+    isNoPullRequest,
+} from './command';
 
 /**
  * One command identity spans start and completion while AsyncLocalStorage retains the parent request/session context.

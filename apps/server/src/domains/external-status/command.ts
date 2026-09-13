@@ -19,7 +19,17 @@ export type ExternalStatusSource = 'gh' | 'git' | 'linear' | 'vc';
 export type ExternalStatusQuotaSource = Exclude<ExternalStatusSource, 'git'>;
 
 export type CliFailureKind =
-    'not-found' | 'not-logged-in' | 'not-linked' | 'rate-limited' | 'timeout' | 'other';
+    | 'not-found'
+    | 'not-logged-in'
+    | 'not-linked'
+    | 'rate-limited'
+    | 'timeout'
+    | 'network'
+    | 'tls'
+    | 'other';
+
+export type FailureReason =
+    CliFailureKind | 'permission-denied' | 'invalid-arguments' | 'no-pull-request';
 
 export type ExternalStatusRunner = (
     source: ExternalStatusSource,
@@ -56,6 +66,45 @@ export function isSecondaryRateLimit(message: string): boolean {
     return /abuse detection|secondary rate limit/i.test(message);
 }
 
+/**
+ * Classifies diagnostics without recording CLI output. The command boundary also uses the network and TLS results so
+ * Project Status can show a recovery action instead of a generic provider error.
+ */
+export function failureReason(error: unknown): FailureReason {
+    if (isNoPullRequest(error)) return 'no-pull-request';
+    if (error instanceof ExternalStatusCliError && error.kind !== 'other') return error.kind;
+    const fault =
+        error !== null && typeof error === 'object'
+            ? (error as { message?: string; stderr?: string })
+            : {};
+    const message = fault.stderr?.length ? fault.stderr : (fault.message ?? '');
+    if (
+        /certificate|CERT_HAS_EXPIRED|UNABLE_TO_VERIFY_LEAF_SIGNATURE|self.signed|TLS|SSL/i.test(
+            message,
+        )
+    )
+        return 'tls';
+    if (
+        /ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|network|fetch failed|socket hang up/i.test(
+            message,
+        )
+    )
+        return 'network';
+    if (
+        /EACCES|EPERM|permission denied|forbidden|not authorized|access denied|HTTP 403/i.test(
+            message,
+        )
+    )
+        return 'permission-denied';
+    if (
+        /unknown (?:option|argument|flag)|invalid (?:option|argument|flag)|unexpected argument|requires? an argument/i.test(
+            message,
+        )
+    )
+        return 'invalid-arguments';
+    return 'other';
+}
+
 function classifyCliFailure(
     /**
      * A caught value is not guaranteed to be an `Error` with a populated message.
@@ -63,7 +112,9 @@ function classifyCliFailure(
     error: { code?: string | number; killed?: boolean; message?: string; stderr?: string },
 ): CliFailureKind {
     if (error.code === 'ENOENT') return 'not-found';
-    const stderr = error.stderr ?? error.message ?? '';
+    const stderr = error.stderr?.length ? error.stderr : (error.message ?? '');
+    const reason = failureReason(error);
+    if (reason === 'network' || reason === 'tls') return reason;
     if (error.killed || /timed out/i.test(stderr)) return 'timeout';
     if (/rate limit|abuse detection/i.test(stderr)) return 'rate-limited';
     if (
