@@ -14,6 +14,54 @@ const acceptanceLoopReference = readFileSync(
     'utf8',
 );
 
+/**
+ * Returns the body of a `###` section, ending at the next heading of the same or higher level. Used so a label axis is
+ * read from its own table instead of matched anywhere in the document.
+ */
+function sectionBody(markdown: string, heading: string): string {
+    const start = markdown.indexOf(heading);
+    expect(start, `missing heading: ${heading}`).toBeGreaterThanOrEqual(0);
+    const tail = markdown.slice(start + heading.length);
+    const next = tail.search(/^#{1,3} /m);
+    return next === -1 ? tail : tail.slice(0, next);
+}
+
+/**
+ * Labels declared as `- \`name` — description` bullets.
+ */
+function bulletLabels(body: string): string[] {
+    return body
+        .matchAll(/^- `([^`]+)` —/gm)
+        .map((match) => match[1])
+        .toArray();
+}
+
+/**
+ * Labels declared in the first column of a markdown table, skipping the separator row.
+ */
+function tableLabels(body: string): string[] {
+    return body
+        .matchAll(/^\| `([^`]+)`\s*\|/gm)
+        .map((match) => match[1])
+        .toArray();
+}
+
+/**
+ * Labels listed inline in the em-dash clause that immediately follows `prefix`.
+ */
+function inlineLabels(markdown: string, prefix: string): string[] {
+    const start = markdown.indexOf(prefix);
+    expect(start, `missing sentence: ${prefix}`).toBeGreaterThanOrEqual(0);
+    const tail = markdown.slice(start + prefix.length);
+    const clauseEnd = tail.indexOf('—');
+    expect(clauseEnd, `unterminated label clause: ${prefix}`).toBeGreaterThan(0);
+    return tail
+        .slice(0, clauseEnd)
+        .matchAll(/`([^`]+)`/g)
+        .map((match) => match[1])
+        .toArray();
+}
+
 describe('Go Acceptance planning contract', () => {
     it('files new issues as Next unless work is already underway', () => {
         expect(fileIssueSkill).toContain('--field Status --value "Next"');
@@ -45,30 +93,74 @@ describe('Go Acceptance planning contract', () => {
         );
     });
 
-    it('uses one type label plus focused scope labels', () => {
-        expect(fileIssueSkill).toContain('### Type — exactly one');
-        expect(fileIssueSkill).toContain('### Surface — which app, zero or one');
-        expect(fileIssueSkill).toContain('### Area — what it changes, one to three');
-        for (const label of [
-            'skill',
-            'unit-testing',
-            'e2e-testing',
-            'terminal',
-            'editor',
-            'files-explorer',
-            'git',
-            'agent',
-            'acceptance',
-            'ci',
-        ]) {
-            expect(fileIssueSkill).toContain(`| \`${label}\``);
-        }
+    // Each axis is parsed out of its own section so emptying a table fails the contract, and so
+    // adding a label to `file-issue` fails here until the supported set is updated deliberately.
+    it.each([
+        {
+            axis: 'Type',
+            expected: ['bug', 'documentation', 'enhancement', 'question'],
+            read: () => bulletLabels(sectionBody(fileIssueSkill, '### Type — exactly one')),
+        },
+        {
+            axis: 'Surface',
+            expected: ['cli', 'desktop', 'mobile', 'server'],
+            read: () =>
+                tableLabels(sectionBody(fileIssueSkill, '### Surface — which app, zero or one')),
+        },
+        {
+            axis: 'Area',
+            expected: [
+                'a11y',
+                'acceptance',
+                'agent',
+                'agent-dispatch',
+                'agent-hook',
+                'agent-provider',
+                'ci',
+                'db',
+                'deps',
+                'diagnostics',
+                'e2e-testing',
+                'editor',
+                'extension-api',
+                'files-explorer',
+                'git',
+                'performance',
+                'protocol',
+                'session',
+                'settings',
+                'skill',
+                'terminal',
+                'theme',
+                'tree-view',
+                'unit-testing',
+            ],
+            read: () =>
+                tableLabels(
+                    sectionBody(fileIssueSkill, '### Area — what it changes, one to three'),
+                ),
+        },
+        {
+            axis: 'Priority',
+            expected: ['P0', 'P1', 'P2'],
+            read: () => inlineLabels(fileIssueSkill, 'Apply exactly one priority label —'),
+        },
+        {
+            axis: 'effort',
+            expected: ['L', 'M', 'S', 'XL', 'XS'],
+            read: () => inlineLabels(fileIssueSkill, 'Finally apply exactly one effort label —'),
+        },
+    ])('pins every $axis label value', ({ expected, read }) => {
+        const byName = (left: string, right: string): number => left.localeCompare(right);
+        expect(read().toSorted(byName)).toEqual(expected.toSorted(byName));
+    });
+
+    it('keeps the label axes and their application rules explicit', () => {
+        expect(fileIssueSkill).toContain(
+            'Labels are read as five independent axes: type, surface, area, priority, effort.',
+        );
         expect(fileIssueSkill).toContain(
             'Do not apply `unit-testing` or `e2e-testing` merely because a product change requires regression',
-        );
-        expect(fileIssueSkill).toContain('Apply exactly one priority label — `P0`, `P1`, or `P2`');
-        expect(fileIssueSkill).toContain(
-            'Finally apply exactly one effort label — `XS`, `S`, `M`, `L`, or `XL`',
         );
         expect(fileIssueSkill).toContain('verify the complete label set after creation');
     });
