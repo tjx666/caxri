@@ -1,5 +1,6 @@
 import { Buffer } from 'node:buffer';
-import { mkdir } from 'node:fs/promises';
+import type { Stats } from 'node:fs';
+import { chmod, lstat, mkdir } from 'node:fs/promises';
 import { userInfo } from 'node:os';
 import { dirname, isAbsolute, join } from 'node:path';
 
@@ -24,6 +25,33 @@ export function isWithinUnixSocketLimit(path: string): boolean {
  */
 function shortPrivateSocketRoot(): string {
     return join('/tmp', `caxri-${userInfo().uid}`);
+}
+
+/**
+ * Rejects a fallback directory that another local user could use to replace a private socket entry.
+ */
+export function assertPrivateUnixSocketDirectory(metadata: Stats, expectedUid: number): void {
+    if (metadata.isSymbolicLink() || !metadata.isDirectory())
+        throw new Error('Unix socket fallback path must be a real directory');
+    if (metadata.uid !== expectedUid)
+        throw new Error('Unix socket fallback directory must be owned by the current user');
+    if ((metadata.mode & 0o777) !== 0o700)
+        throw new Error('Unix socket fallback directory must have mode 0700');
+}
+
+export async function ensurePrivateUnixSocketDirectory(directory: string): Promise<void> {
+    const expectedUid = userInfo().uid;
+    await mkdir(directory, { recursive: true, mode: 0o700 });
+    const before = await lstat(directory);
+    if (before.isSymbolicLink() || !before.isDirectory())
+        throw new Error('Unix socket fallback path must be a real directory');
+    if (before.uid !== expectedUid)
+        throw new Error('Unix socket fallback directory must be owned by the current user');
+    await chmod(directory, 0o700);
+    const after = await lstat(directory);
+    if (after.dev !== before.dev || after.ino !== before.ino)
+        throw new Error('Unix socket fallback directory changed while it was secured');
+    assertPrivateUnixSocketDirectory(after, expectedUid);
 }
 
 /**
@@ -60,5 +88,10 @@ export function unixSocketPath(preferredDirectory: string, name: string): string
  * run, and `0o700` keeps the socket out of reach of other users on the world-writable `/tmp`.
  */
 export async function ensureUnixSocketDirectory(socketPath: string): Promise<void> {
-    await mkdir(dirname(socketPath), { recursive: true, mode: 0o700 });
+    const directory = dirname(socketPath);
+    if (directory === shortPrivateSocketRoot()) {
+        await ensurePrivateUnixSocketDirectory(directory);
+        return;
+    }
+    await mkdir(directory, { recursive: true, mode: 0o700 });
 }
