@@ -42,6 +42,30 @@ export function hookHealthLabel(
     return health.message ? `${label} — ${health.message}` : label;
 }
 
+/**
+ * Distinguishes states requiring intervention from healthy, disabled, and informational states.
+ */
+export function hookHealthTone(
+    isEnabled: boolean,
+    health: AgentHookHealthMap[AgentProvider] | undefined,
+): 'danger' | 'muted' | 'warning' {
+    if (!isEnabled || !health) return 'muted';
+    switch (health.kind) {
+        case 'notInstalled':
+        case 'incompatible':
+        case 'stale':
+        case 'drifted':
+            return 'warning';
+        case 'conflict':
+        case 'error':
+            return 'danger';
+        case 'unsupported':
+        case 'installedPending':
+        case 'active':
+            return 'muted';
+    }
+}
+
 export function skillScopeHealth(
     health: AgentSkillHealth | undefined,
     provider: AgentSkillInstallationHealth['provider'],

@@ -9,7 +9,7 @@ import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import { launchCaxri, pageRequest, revealSettingsSection } from './support/helpers.ts';
 
-for (const mode of ['missing-cli', 'newer-incomplete'] as const) {
+for (const mode of ['missing-cli', 'newer-incomplete', 'malformed-config', 'conflict'] as const) {
     // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
     test(`hook Settings reports ${mode} without rewriting shared configuration`, async ({}, testInfo) => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-hook-authority-e2e-'));
@@ -39,21 +39,28 @@ for (const mode of ['missing-cli', 'newer-incomplete'] as const) {
         const installedSchema = mode === 'missing-cli' ? 0 : 99;
         await writeFile(
             hooks,
-            JSON.stringify({
-                hooks: {
-                    Stop: [
-                        {
-                            hooks: [
-                                {
-                                    type: 'command',
-                                    command: `'/fixture/bridge' --source caxri --provider codex --phase turnFinished --schema ${installedSchema}`,
-                                },
-                            ],
-                        },
-                    ],
-                },
-            }),
+            mode === 'malformed-config'
+                ? '{ "hooks": false }\n'
+                : JSON.stringify({
+                      hooks: {
+                          Stop: [
+                              {
+                                  hooks: [
+                                      {
+                                          type: 'command',
+                                          command: `'/fixture/bridge' --source caxri --provider codex --phase turnFinished --schema ${installedSchema}`,
+                                      },
+                                  ],
+                              },
+                          ],
+                      },
+                  }),
         );
+        if (mode === 'conflict')
+            await writeFile(
+                join(userData, 'e2e-agents', 'codex', 'config.toml'),
+                '[[hooks.Stop]]\ncommand = "foreign"\n',
+            );
         const identity = async () => ({
             hash: createHash('sha256')
                 .update(await readFile(hooks))
@@ -74,18 +81,31 @@ for (const mode of ['missing-cli', 'newer-incomplete'] as const) {
             const caption = dialog
                 .locator('[data-setting-row="agents.codex.hooks"]')
                 .getByRole('status');
-            await expect(caption).toContainText(
-                mode === 'missing-cli'
-                    ? 'Waiting for the agent CLI to be installed'
-                    : 'Newer installation is incomplete',
-            );
+            const expected = {
+                'missing-cli': {
+                    kind: 'notInstalled',
+                    label: 'Waiting for the agent CLI to be installed',
+                    tone: 'warning',
+                },
+                'newer-incomplete': {
+                    kind: 'incompatible',
+                    label: 'Newer installation is incomplete',
+                    tone: 'warning',
+                },
+                'malformed-config': { kind: 'error', label: 'Setup failed', tone: 'danger' },
+                'conflict': {
+                    kind: 'conflict',
+                    label: 'Conflicts with another tool',
+                    tone: 'danger',
+                },
+            }[mode];
+            await expect(caption).toContainText(expected.label);
+            await expect(caption).toHaveAttribute('data-tone', expected.tone);
+            await expect(caption.locator('[aria-hidden="true"]')).toBeVisible();
             const health = await pageRequest<AgentHookHealthMap>(running.page, 'agentHooks.get');
-            expect(health.codex).toMatchObject(
-                mode === 'missing-cli'
-                    ? { kind: 'notInstalled' }
-                    : { kind: 'incompatible', installedSchema: 99 },
-            );
+            expect(health.codex).toMatchObject({ kind: expected.kind });
             expect(await identity()).toEqual(before);
+            await caption.screenshot({ path: testInfo.outputPath(`${mode}-hook-status.png`) });
             await running.page.screenshot({ path: testInfo.outputPath(`${mode}-hook-health.png`) });
         } finally {
             await running.app.close();
