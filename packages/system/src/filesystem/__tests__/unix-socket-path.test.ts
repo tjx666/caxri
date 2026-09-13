@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { rm, stat } from 'node:fs/promises';
+import { chmod, lstat, mkdir, mkdtemp, rm, stat, symlink } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir, userInfo } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -8,6 +8,8 @@ import process from 'node:process';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
+    assertPrivateUnixSocketDirectory,
+    ensurePrivateUnixSocketDirectory,
     ensureUnixSocketDirectory,
     isWithinUnixSocketLimit,
     MAX_PORTABLE_UNIX_SOCKET_PATH_BYTES,
@@ -95,7 +97,7 @@ describe('ensureUnixSocketDirectory', () => {
         created.push(socketPath);
 
         await ensureUnixSocketDirectory(socketPath);
-        expect((await stat(dirname(socketPath))).mode & 0o700).toBe(0o700);
+        expect((await stat(dirname(socketPath))).mode & 0o777).toBe(0o700);
 
         const server = createServer();
         try {
@@ -106,6 +108,42 @@ describe('ensureUnixSocketDirectory', () => {
             expect((await stat(socketPath)).isSocket()).toBe(true);
         } finally {
             await new Promise<void>((resolve) => server.close(() => resolve()));
+        }
+    });
+
+    it('repairs an existing current-user fallback directory to mode 0700', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-socket-mode-'));
+        try {
+            await chmod(directory, 0o777);
+            await ensurePrivateUnixSocketDirectory(directory);
+            expect((await lstat(directory)).mode & 0o777).toBe(0o700);
+        } finally {
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
+
+    it('rejects a symlink used as a private fallback directory', async () => {
+        const temporary = await mkdtemp(join(tmpdir(), 'caxri-socket-link-'));
+        const target = join(temporary, 'target');
+        const link = join(temporary, 'link');
+        await mkdir(target);
+        await symlink(target, link);
+        try {
+            await expect(ensurePrivateUnixSocketDirectory(link)).rejects.toThrow('real directory');
+        } finally {
+            await rm(temporary, { recursive: true, force: true });
+        }
+    });
+
+    it('rejects a private fallback directory owned by another uid', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-socket-owner-'));
+        try {
+            const metadata = await lstat(directory);
+            expect(() => assertPrivateUnixSocketDirectory(metadata, userInfo().uid + 1)).toThrow(
+                'owned by the current user',
+            );
+        } finally {
+            await rm(directory, { recursive: true, force: true });
         }
     });
 });

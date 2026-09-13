@@ -127,6 +127,7 @@ export class AgentHookManager {
     private readonly watchHub: WatchHub;
     private readonly ownsWatchHub: boolean;
     private health = defaultHookHealth();
+    private launchSettings?: Record<AgentProvider, AgentProviderSettings>;
     private reconcileQueue = Promise.resolve();
     private server?: AgentHookServer;
     private settings?: Record<AgentProvider, AgentProviderSettings>;
@@ -187,7 +188,7 @@ export class AgentHookManager {
          * hook signal for a provider whose CLI Caxri could not resolve came from another installation and must not flip
          * this profile's health to `active`.
          */
-        if (this.requestedSettings === requested) this.settings = settings;
+        if (this.requestedSettings !== requested) return;
         const installHints = new Map<AgentProvider, string>();
         for (const provider of missing) {
             const message = `Install the ${agentProviderCatalog[provider].displayName} CLI, then restart Caxri.`;
@@ -218,7 +219,12 @@ export class AgentHookManager {
                 );
             });
             await this.refreshConfigWatchers(settings);
+            if (this.requestedSettings === requested) {
+                this.settings = settings;
+                this.launchSettings = settings;
+            }
         } catch (error) {
+            if (this.requestedSettings !== requested) return;
             const message = errorMessage(error, 'Lifecycle hook reconciliation failed');
             for (const provider of agentProviderIds)
                 if (settings[provider].hooks.enabled)
@@ -480,6 +486,12 @@ export class AgentHookManager {
         );
     }
 
+    private anyLaunchEnabled(): boolean {
+        return agentProviderIds.some(
+            (provider) => this.launchSettings?.[provider].hooks.enabled === true,
+        );
+    }
+
     private desiredWatchTargets(
         settings: Record<AgentProvider, AgentProviderSettings>,
     ): Map<string, Set<string>> {
@@ -626,7 +638,8 @@ export class AgentHookManager {
 
     async initialize(settings: Record<AgentProvider, AgentProviderSettings>): Promise<void> {
         this.requestedSettings = settings;
-        this.settings = settings;
+        this.settings = undefined;
+        this.launchSettings = undefined;
         if (!this.options.sharedPath) {
             this.health = defaultHookHealth(
                 'Lifecycle hook installation is unavailable in this mode.',
@@ -651,7 +664,10 @@ export class AgentHookManager {
                 socketPath,
                 this.schemaVersions,
                 async (signal) => {
-                    if (!this.settings?.[signal.provider].hooks.enabled)
+                    if (
+                        !this.settings?.[signal.provider].hooks.enabled ||
+                        !this.requestedSettings?.[signal.provider].hooks.enabled
+                    )
                         return { disposition: 'ignored', reason: 'hooksDisabled' };
                     try {
                         const decision = await this.options.onSignal(signal);
@@ -691,7 +707,8 @@ export class AgentHookManager {
 
     reconcile(settings: Record<AgentProvider, AgentProviderSettings>): Promise<void> {
         this.requestedSettings = settings;
-        this.settings = settings;
+        // A managed launch must not combine requested settings with health from the previous executable gate.
+        this.launchSettings = undefined;
         /**
          * The queue field must be reassigned synchronously (not after an `await`) so concurrent `reconcile()` calls
          * serialize onto the same chain instead of racing to read `reconcileQueue` before this call's continuation is
@@ -714,14 +731,14 @@ export class AgentHookManager {
             agentProviders[provider].requiresLifecycleHooks &&
             (!this.server ||
                 !this.bridgePath ||
-                !this.settings?.[provider].hooks.enabled ||
+                !this.launchSettings?.[provider].hooks.enabled ||
                 !['active', 'installedPending'].includes(this.health[provider].kind))
         )
             throw new CaxriError(
                 'UNAVAILABLE',
                 `${agentProviderCatalog[provider].displayName} requires installed lifecycle hooks for reliable Session identity`,
             );
-        if (!this.server || !this.bridgePath || !this.anyEnabled()) return {};
+        if (!this.server || !this.bridgePath || !this.anyLaunchEnabled()) return {};
         return this.launchEnvironment(
             terminalId,
             this.launches.agent(terminalId, launchId, provider),
@@ -729,7 +746,7 @@ export class AgentHookManager {
     }
 
     shellEnvironment(terminalId: string): NodeJS.ProcessEnv {
-        if (!this.server || !this.bridgePath || !this.anyEnabled()) return {};
+        if (!this.server || !this.bridgePath || !this.anyLaunchEnabled()) return {};
         return this.launchEnvironment(terminalId, this.launches.shell(terminalId));
     }
 

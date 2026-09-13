@@ -5,10 +5,11 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import { defaultAgentProviderSettings } from '@caxri/protocol';
-import { StructuredLogger } from '@caxri/system';
+import { execFileAsync, StructuredLogger } from '@caxri/system';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AgentHookManager } from '../manager';
+import { hookBridgeEnvironment } from './server.fixture';
 
 async function fileIdentity(path: string) {
     try {
@@ -24,6 +25,64 @@ async function fileIdentity(path: string) {
 }
 
 describe('Agent hook profile write authority', () => {
+    it('keeps managed launches fail-closed while executable validation is pending', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-hook-gate-'));
+        const userDataPath = join(directory, 'profile');
+        await mkdir(userDataPath);
+        const logger = new StructuredLogger(join(directory, 'logs'));
+        let pendingDiscovery: PromiseWithResolvers<string | undefined> | undefined;
+        const signals = vi.fn(() => 'accepted' as const);
+        const manager = new AgentHookManager({
+            environment: {
+                homeDirectory: directory,
+                variables: { CODEX_HOME: join(directory, 'codex') },
+            },
+            userDataPath,
+            sharedPath: join(directory, 'shared'),
+            logger,
+            discoverExecutable: () =>
+                pendingDiscovery?.promise ?? Promise.resolve(process.execPath),
+            hookExecutable: process.execPath,
+            onAuthorityLost: vi.fn(),
+            onLaunchEnded: vi.fn(),
+            onLaunchStarted: vi.fn(),
+            onSignal: signals,
+            send: vi.fn(),
+        });
+        const settings = structuredClone(defaultAgentProviderSettings);
+        settings.codex.hooks.enabled = true;
+        settings.claude.hooks.enabled = false;
+        settings.grok.hooks.enabled = false;
+        try {
+            await manager.initialize(settings);
+            expect(manager.terminalEnvironment('terminal', 'codex')).toHaveProperty(
+                'CAXRI_HOOK_TOKEN',
+            );
+            const existingShellEnvironment = manager.shellEnvironment('existing-shell');
+
+            pendingDiscovery = Promise.withResolvers<string | undefined>();
+            const reconciling = manager.reconcile(structuredClone(settings));
+            expect(manager.terminalEnvironment('terminal', 'codex')).toEqual({});
+            await execFileAsync(
+                join(directory, 'shared', 'bin', 'caxri-agent-hook-bridge'),
+                ['--source', 'caxri', '--provider', 'codex', '--phase', 'turnFinished'],
+                { env: hookBridgeEnvironment(existingShellEnvironment) },
+            );
+            await vi.waitFor(() => expect(signals).toHaveBeenCalledOnce());
+
+            pendingDiscovery.resolve(process.execPath);
+            await reconciling;
+            expect(manager.terminalEnvironment('terminal', 'codex')).toHaveProperty(
+                'CAXRI_HOOK_TOKEN',
+            );
+        } finally {
+            pendingDiscovery?.resolve(process.execPath);
+            await manager.close();
+            await logger.flush();
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
+
     it('preserves a temporarily unavailable profile intent until explicit disable', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-hook-intent-'));
         const userDataPath = join(directory, 'profile');
