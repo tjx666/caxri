@@ -142,6 +142,7 @@ describe('Git discovery failure', () => {
 
         await expect(fixture.git.summary(fixture.session.id)).resolves.toMatchObject({
             isRepository: false,
+            error: 'The Git operation failed. Open Logs for details.',
         });
         await fixture.git.summary(fixture.session.id);
 
