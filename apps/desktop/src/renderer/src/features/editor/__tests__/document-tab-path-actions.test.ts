@@ -13,6 +13,7 @@ const repositories = [
     { id: 'primary', rootPath: '/project' },
     { id: 'nested', rootPath: '/project/packages/nested' },
     { id: 'submodule', rootPath: '/project/vendor/sub' },
+    { id: 'linked', rootPath: '/elsewhere/linked' },
 ] as const;
 
 describe('documentTabPathMenuState', () => {
@@ -59,19 +60,23 @@ describe('resolveDocumentTabPath', () => {
         ).toEqual({ absolutePath: '/outside/outside.ts' });
     });
 
-    it('keeps ordinary files absolute and uses the innermost repository for relative output', () => {
-        expect(
-            resolveDocumentTabPath('/project/vendor/sub/src/index.ts', {
-                projectRoot: '/project',
-                repositories,
-            }),
-        ).toEqual({
-            absolutePath: '/project/vendor/sub/src/index.ts',
-            relativeRoot: '/project/vendor/sub',
+    /**
+     * A submodule and a nested repository are the only files where the two `Copy Relative Path` entries used to
+     * disagree, the tab measuring from the inner repository and the Files tree from the Project. The Project root is
+     * the one basis now, so the tab reports what the tree reports for the same file.
+     */
+    it.each([
+        { basis: 'submodule', path: '/project/vendor/sub/src/index.ts' },
+        { basis: 'nested repository', path: '/project/packages/nested/lib/a.ts' },
+        { basis: 'plain directory', path: '/project/notes.txt' },
+    ])('measures a file in a $basis from the Project root', ({ path }) => {
+        expect(resolveDocumentTabPath(path, { projectRoot: '/project', repositories })).toEqual({
+            absolutePath: path,
+            relativeRoot: '/project',
         });
     });
 
-    it('resolves a single-file diff URI against its repository root', () => {
+    it('resolves a single-file diff URI to the same Project-relative basis', () => {
         expect(
             resolveDocumentTabPath(gitFileDiffTabPath('submodule', 'src/index.ts'), {
                 projectRoot: '/project',
@@ -79,7 +84,7 @@ describe('resolveDocumentTabPath', () => {
             }),
         ).toEqual({
             absolutePath: '/project/vendor/sub/src/index.ts',
-            relativeRoot: '/project/vendor/sub',
+            relativeRoot: '/project',
         });
         expect(
             resolveDocumentTabPath(
@@ -92,7 +97,23 @@ describe('resolveDocumentTabPath', () => {
             ),
         ).toEqual({
             absolutePath: '/project/packages/nested/lib/a.ts',
-            relativeRoot: '/project/packages/nested',
+            relativeRoot: '/project',
+        });
+    });
+
+    /**
+     * A Git tab can be opened from a linked repository that no Project root contains. There is no Project-relative path
+     * to report for it, so its own repository root stays the basis rather than leaving nothing to copy.
+     */
+    it('keeps the repository basis for a diff opened outside the Project', () => {
+        expect(
+            resolveDocumentTabPath(gitFileDiffTabPath('linked', 'src/index.ts'), {
+                projectRoot: '/project',
+                repositories,
+            }),
+        ).toEqual({
+            absolutePath: '/elsewhere/linked/src/index.ts',
+            relativeRoot: '/elsewhere/linked',
         });
     });
 
@@ -126,16 +147,19 @@ describe('resolveDocumentTabPath', () => {
         ).toBeUndefined();
     });
 
-    it('falls back to the Project root for non-Git files and waits for repo data before relative diff output', () => {
+    it('offers an ordinary file its relative basis before the Git overview loads', () => {
         expect(
             resolveDocumentTabPath('/project/notes.txt', {
                 projectRoot: '/project',
                 repositories: [],
             }),
         ).toEqual({ absolutePath: '/project/notes.txt', relativeRoot: '/project' });
+        // The Files tree row for the same file never waits for repository data, so neither does the tab.
         expect(resolveDocumentTabPath('/project/notes.txt', { projectRoot: '/project' })).toEqual({
             absolutePath: '/project/notes.txt',
+            relativeRoot: '/project',
         });
+        // A diff tab still needs the overview: only it can turn the virtual URI into a filesystem path.
         expect(
             resolveDocumentTabPath(gitFileDiffTabPath('primary', 'src/index.ts'), {
                 projectRoot: '/project',
