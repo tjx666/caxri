@@ -222,6 +222,59 @@ describe('createTerminalLinkHintController', () => {
         expect(classToggle).toHaveBeenCalledTimes(toggleCount);
     });
 
+    it('keeps a held Cmd when a redraw reprovides the link with an older mouse event', async () => {
+        const { classToggle, dispatchDocument, terminal } = createHintDom();
+        const onModifierChange = vi.fn();
+        const controller = createTerminalLinkHintController(terminal);
+        // xterm reprovides a link from `_lastMouseEvent`, so a still pointer replays the move that
+        // happened before the key press — its `metaKey` is `false` while Cmd is actually held.
+        const staleMove = {
+            clientX: 100,
+            clientY: 200,
+            metaKey: false,
+            timeStamp: 10,
+        } as MouseEvent;
+        const linkKey = 'file:src/example.ts';
+
+        controller.show(staleMove, 'Open link', onModifierChange, linkKey);
+        await Promise.resolve();
+        dispatchDocument('keydown', { metaKey: true, timeStamp: 20 } as KeyboardEvent);
+        expect(onModifierChange).toHaveBeenLastCalledWith(true);
+
+        controller.leave();
+        controller.show(staleMove, 'Open link', onModifierChange, linkKey);
+        await Promise.resolve();
+
+        expect(onModifierChange).toHaveBeenLastCalledWith(true);
+        expect(classToggle).toHaveBeenLastCalledWith('terminal-link-modifier-active', true);
+    });
+
+    it('accepts a mouse event newer than the last keyboard observation', async () => {
+        const { classToggle, dispatchDocument, terminal } = createHintDom();
+        const controller = createTerminalLinkHintController(terminal);
+
+        controller.show(
+            { clientX: 100, clientY: 200, metaKey: true, timeStamp: 10 } as MouseEvent,
+            'Open link',
+            undefined,
+            'file:src/example.ts',
+        );
+        await Promise.resolve();
+        dispatchDocument('keyup', { metaKey: false, timeStamp: 20 } as KeyboardEvent);
+        expect(classToggle).toHaveBeenLastCalledWith('terminal-link-modifier-active', false);
+
+        controller.leave();
+        controller.show(
+            { clientX: 110, clientY: 200, metaKey: true, timeStamp: 30 } as MouseEvent,
+            'Open link',
+            undefined,
+            'file:src/example.ts',
+        );
+        await Promise.resolve();
+
+        expect(classToggle).toHaveBeenLastCalledWith('terminal-link-modifier-active', true);
+    });
+
     it('tracks Cmd cursor state for an OSC link without a mutable decoration', async () => {
         const { classToggle, dispatchDocument, terminal } = createHintDom();
         const controller = createTerminalLinkHintController(terminal);
