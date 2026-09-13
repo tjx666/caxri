@@ -68,9 +68,10 @@ function formatErrorDetails(error: unknown, componentStack?: string): string {
  * not JS exceptions inside a live renderer. A full reload is safe to offer as the recovery action: durable workbench
  * state lives in the Server, while Process Explorer is a read-only diagnostic projection.
  *
- * The fallback renders the error message plus its stack and component stack so a crash is diagnosable directly from the
- * window. Error values stay inside the Renderer (only `console.error` mirrors them into local logs) — they may contain
- * source or workspace data and must never travel through diagnostics IPC.
+ * The fallback shows the error message and keeps its stack and component stack in a collapsed disclosure so a crash is
+ * diagnosable without covering the recovery actions. Error values stay inside the Renderer (only `console.error`
+ * mirrors them into local logs) — they may contain source or workspace data and must never travel through diagnostics
+ * IPC.
  *
  * React 18/19 has no hook equivalent for `componentDidCatch`, so this stays a class component rather than pulling in
  * the `react-error-boundary` dependency for one boundary.
@@ -141,9 +142,14 @@ export class ErrorBoundary extends Component<ErrorBoundaryProperties, ErrorBound
                         </p>
                     )}
                     {error !== undefined && (
-                        <pre className="renderer-crash-stack m-0 max-h-[360px] overflow-auto rounded border border-border bg-surface p-3 text-left font-mono text-[11px] leading-[1.5] whitespace-pre-wrap text-muted">
-                            {formatErrorDetails(error, componentStack)}
-                        </pre>
+                        <details className="min-w-0 text-[12px] text-muted">
+                            <summary className="w-fit cursor-pointer rounded outline-none hover:text-foreground focus-visible:shadow-[inset_0_0_0_2px_var(--accent)]">
+                                Technical details
+                            </summary>
+                            <pre className="renderer-crash-stack mt-2 max-h-[360px] overflow-auto rounded border border-border bg-surface p-3 text-left font-mono text-[11px] leading-[1.5] whitespace-pre-wrap text-muted">
+                                {formatErrorDetails(error, componentStack)}
+                            </pre>
+                        </details>
                     )}
                     <div className="flex gap-2">
                         <Button type="button" onClick={this.handleReload}>
