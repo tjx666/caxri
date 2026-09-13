@@ -373,7 +373,8 @@ function buildRepoChildren(repo: ProjectStatusRepository): StatusNode[] {
             if (!deployment) continue;
             nodes.push(
                 item(`${prefix}:${deployment.environment}`, label, {
-                    description: `${deploymentStateLabel(deployment)} · ${deployment.hostname}`,
+                    description: deployment.hostname,
+                    accessibilityLabel: `${label}, ${deploymentStateLabel(deployment)} · ${deployment.hostname}`,
                     icon: deploymentIcons[deployment.state],
                     tooltip: deploymentTooltip(label, deployment),
                     url: deployment.inspectorUrl,
