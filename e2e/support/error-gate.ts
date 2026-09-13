@@ -27,6 +27,31 @@ interface ObservedToastDocument extends Document {
  * Sonner expires errors and updates duplicate notifications in place. Never transport notification text or attributes.
  */
 function observeErrorToasts(binding: string): void {
+    /**
+     * Fixed product copy only; error details may contain paths or user content.
+     */
+    const classify = (element: Element): string => {
+        const title = element.querySelector('[data-title]')?.textContent ?? '';
+        if (title.startsWith('Unable to attach to the Runtime')) return 'runtime.attach';
+        if (title.startsWith('Session layout could not be saved')) return 'session.layout';
+        if (title.startsWith('Session selection failed')) return 'session.select';
+        if (title.startsWith('Session creation failed')) return 'session.create';
+        if (title.startsWith('Project creation failed')) return 'project.create';
+        if (title.startsWith('Another Caxri window took over this profile')) return 'host.replaced';
+        if (title.startsWith('Source Control refresh failed')) return 'source-control.refresh';
+        if (title.startsWith('Unable to read directory')) return 'files.directory';
+        if (title.startsWith('Unable to list Workbench Roots')) return 'workbench.roots';
+        if (title.startsWith('Unable to activate Terminal')) return 'terminal.activate';
+        if (title.startsWith('Terminal creation failed')) return 'terminal.create';
+        if (title.startsWith('Terminal close failed')) return 'terminal.close';
+        if (title.startsWith('Terminal input failed')) return 'terminal.input';
+        if (title.startsWith('Unable to send Agent command or skill')) return 'agent.action';
+        if (title.startsWith('Unable to save recent Agent action')) return 'agent.recent';
+        if (title.startsWith('Project icon update failed')) return 'project.icon';
+        if (title.startsWith('Unable to continue in worktree')) return 'workbench.continue';
+        if (title === 'CAXRI_EXPECTED_E2E_TOAST') return 'e2e.injected';
+        return 'unclassified';
+    };
     const target = document as ObservedToastDocument;
     if (target.__caxriE2EErrorToastReports) return;
     const reports: Array<Promise<void>> = [];
@@ -37,7 +62,11 @@ function observeErrorToasts(binding: string): void {
         if (!element.matches(selector) || seen.has(element)) return;
         seen.add(element);
         // Await acknowledgements before Electron closes; fire-and-forget console events can lose this race.
-        reports.push((globalThis as unknown as Record<string, () => Promise<void>>)[binding]());
+        reports.push(
+            (globalThis as unknown as Record<string, (category: string) => Promise<void>>)[binding](
+                classify(element),
+            ),
+        );
     };
     const scan = (node: Node): void => {
         if (!(node instanceof Element)) return;
@@ -73,6 +102,7 @@ class E2EErrorGate {
     private readonly attachedPages = new WeakSet<Page>();
     private readonly crashedPages = new WeakSet<Page>();
     private readonly directErrors: E2EErrorEvent[] = [];
+    private readonly toastCategories: string[] = [];
     private readonly logSnapshots = new Map<string, E2ELogSnapshot>();
     private readonly launches: E2ELaunch[] = [];
     private readonly captureFailures: unknown[] = [];
@@ -151,8 +181,9 @@ class E2EErrorGate {
             }
         });
         const context = app.context();
-        await context.exposeBinding(ERROR_TOAST_BINDING, () => {
+        await context.exposeBinding(ERROR_TOAST_BINDING, (_source, category: string) => {
             this.directErrors.push({ source: 'renderer', event: 'toast', code: 'ERROR_TOAST' });
+            this.toastCategories.push(category);
         });
         await context.addInitScript(observeErrorToasts, ERROR_TOAST_BINDING);
         await Promise.all(
@@ -209,7 +240,15 @@ class E2EErrorGate {
         if (teardownFailures.length > 0)
             throw new AggregateError(teardownFailures, 'Could not finalize E2E launches');
         const logErrors = parseE2ELogErrors(this.logSnapshots.values().toArray());
-        assertE2EErrorPolicy([...this.directErrors, ...logErrors], this.allowances);
+        try {
+            assertE2EErrorPolicy([...this.directErrors, ...logErrors], this.allowances);
+        } catch (error) {
+            if (this.toastCategories.length === 0) throw error;
+            const message = error instanceof Error ? error.message : String(error);
+            throw new Error(`${message}; toast categories: ${this.toastCategories.join(', ')}`, {
+                cause: error,
+            });
+        }
     }
 }
 

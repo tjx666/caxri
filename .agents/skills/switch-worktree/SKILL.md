@@ -78,6 +78,11 @@ do not pause delivery or require the user to request continuation. Stop only for
 pause or a concrete decision, missing authority, or failed infrastructure that cannot be recovered
 within scope; ordinary queue length and elapsed time do not satisfy that exception.
 
+When repeated CI failures expose a previously tracked defect outside the PR's code, do not leave the
+delivery waiting on that issue for the owner to repair. Preserve the failed runs, repair the defect
+in its own task worktree and delivery path, then refresh and finish the original PR. Treat a known
+issue number as a tracking location, not as evidence that the blocker will resolve itself.
+
 ## Create or resolve a checkout
 
 Create a semantic branch from the latest `origin/main`, install independent dependencies with `ni`,
