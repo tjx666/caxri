@@ -162,6 +162,9 @@ because loaded-runner races can expose stale async state and hidden warmup surfa
 cannot reproduce. Prefer stable observable locators and explicit busy-to-ready transitions over
 arbitrary delays.
 
+For an unrelated case already recorded under the three-repetition rule above, defer this loaded-pool
+reproduction to the later #877 investigation; it does not block the current delivery.
+
 Issue #116 CI evidence uses the repository-owned workflow dispatch instead of an ad-hoc command.
 `docs/ci-performance.md` owns the current profile, pool, receipt, and comparison contract; use the
 following controls when collecting a new comparison:
