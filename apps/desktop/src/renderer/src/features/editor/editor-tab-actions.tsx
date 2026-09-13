@@ -36,12 +36,17 @@ export function EditorTabActions({ path, paneId }: { paneId?: string; path: stri
 
 function FileEditorTabActions({ path }: { path: string }) {
     const session = useSelectedSession();
-    const head = useCaxriQuery(
+    const headQuery = useCaxriQuery(
         'git.fileHead',
         { sessionId: session?.id ?? '', path },
         { enabled: Boolean(session), retry: false, staleTime: 60_000 },
-    ).data;
-    if (!head) return null;
+    );
+    const head = headQuery.data;
+    if (!session || head === null || headQuery.isError) return null;
+    /**
+     * Keep the tab rail at its final width while the optional file-history annotation loads.
+     */
+    if (!head) return <span aria-hidden="true" className="block w-14 flex-none" />;
     return (
         <>
             <Tooltip content="Open Last Commit Changes">
