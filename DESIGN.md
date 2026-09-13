@@ -358,8 +358,12 @@ wins when both are set, so a file staged as added and then edited reads `A` ever
 type icon keeps its own color: it identifies the language, not the change. A directory in the Files
 tree takes the color of the most severe change anywhere beneath it (conflicted > deleted > modified
 
-> renamed > added > untracked) but no letter, which would claim the folder itself changed; the
-> repository root is never decorated. Inactive tabs keep their decoration color — the point is to be
+> renamed > added > untracked) but no letter, which would claim the folder itself changed. Changes
+> inside a submodule or a nested repository decorate that child repository's root and keep climbing
+> through its ancestors, stopping below the selected Workbench Root's own repository root: only that
+> primary root is excluded, and a child root is a decoration the user can act on, not a boundary. A
+> directory's color says there are changes under it, not that the enclosing repository tracks them.
+> Inactive tabs keep their decoration color — the point is to be
 > readable across the whole rail without selecting each tab. Ignored entries stay muted and italic
 > and take no decoration. The decoration is visual only: a row or tab is still named by its bare
 > filename, and the status reaches assistive technology as an accessible description
@@ -371,7 +375,8 @@ ordinary folder. This covers both a `.gitmodules`-declared submodule and a direc
 in independently; the row's tooltip and its accessible description name which of the two it is,
 since only the submodule shows up as a change in the parent when its recorded commit moves. A
 linked worktree takes no mark: it is a peer checkout, not something nested in this tree. The mark
-is independent of the change decoration above — a submodule root can wear both at once.
+is independent of the change decoration above — a submodule or nested-repository root can carry the
+icon and a change color at the same time, and still no letter.
 
 **Editor breadcrumbs** — an ordinary Project file gets one 24px metadata row below the tab strip.
 Its Project-relative path sits on the left and the current file's last-change annotation sits on
