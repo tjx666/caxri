@@ -25,6 +25,10 @@ make a P0/P1 repair complete. Stop and ask when product behavior has multiple re
 the fix expands scope, or new destructive/remote authority is required. An explicit read-only or
 report-only request overrides automatic repair. For `dianjiang`, subagent, or other delegated
 reviews, keep the delegate read-only and apply this policy only in the primary agent.
+An additional review of newly merged changes during the same audit remains a follow-up review:
+report new P2 findings, but do not open a new P2 repair round by treating the merge as a new task.
+Authorization to merge one reviewed PR does not authorize publishing a separate PR for later audit
+findings. Keep those repairs local unless the user separately requests remote delivery.
 
 ## Core principles
 

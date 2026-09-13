@@ -18,6 +18,11 @@ interface Observation {
     fingerprint: string;
 }
 
+interface PendingProbe {
+    generation: number;
+    promise: Promise<string>;
+}
+
 /**
  * The root native stream cannot see external link targets. Observe only workspace entries actually read or listed,
  * using bounded metadata polling instead of recursively subscribing to an external directory (possibly a home root).
@@ -29,8 +34,9 @@ export class ExternalLinkWatcher {
     private generation = 0;
     private handle?: WatchHandle;
     private overflowed = false;
-    private readonly pendingProbes = new Map<string, Promise<string>>();
+    private readonly pendingProbes = new Map<string, PendingProbe>();
     private readonly targetProbes = new Map<string, Promise<string>>();
+    private readonly fingerprintTarget: (target: string) => Promise<string>;
 
     constructor(
         private readonly resolveWorkspacePath: ResolveSessionPath,
@@ -38,7 +44,10 @@ export class ExternalLinkWatcher {
         private readonly intervalMs: number,
         private readonly onChange: (scope: WatchScope, change: FileChange) => void,
         private readonly onOverflow: (scope: WatchScope) => void,
-    ) {}
+        fingerprintTarget?: (target: string) => Promise<string>,
+    ) {
+        this.fingerprintTarget = fingerprintTarget ?? ((target) => this.fingerprint(target));
+    }
 
     private async fingerprint(target: string): Promise<string> {
         try {
@@ -64,37 +73,41 @@ export class ExternalLinkWatcher {
         targets: Map<string, Promise<string>>,
     ): Promise<string> {
         const resolved = await this.resolveWorkspacePath(scope.sessionId, entry);
-        let snapshot = targets.get(resolved.path) ?? this.targetProbes.get(resolved.path);
+        return this.readTargetFingerprint(resolved.path, targets);
+    }
+
+    private async readTargetFingerprint(
+        target: string,
+        targets: Map<string, Promise<string>>,
+    ): Promise<string> {
+        let snapshot = targets.get(target) ?? this.targetProbes.get(target);
         if (!snapshot) {
             // eslint-disable-next-line unicorn/prefer-await -- retain one physical read until uncancellable I/O settles
-            snapshot = this.fingerprint(resolved.path).finally(() => {
-                this.targetProbes.delete(resolved.path);
+            snapshot = this.fingerprintTarget(target).finally(() => {
+                this.targetProbes.delete(target);
             });
-            this.targetProbes.set(resolved.path, snapshot);
+            this.targetProbes.set(target, snapshot);
         }
-        targets.set(resolved.path, snapshot);
+        targets.set(target, snapshot);
         return snapshot;
     }
 
     /**
-     * A mount can hang an uncancellable fs request. Keep that request single-flight even across scope resets; never
-     * reuse its result as another Session's authority. The deadline releases the poll batch, not the underlying I/O.
+     * A mount can hang an uncancellable fs request. Keep each physical target read single-flight even across scope
+     * resets; re-resolve the workspace entry for a new scope instead of reusing the old Session's authority. The
+     * deadline releases the poll batch, not the underlying I/O.
      */
     private async probe(
         scope: WatchScope,
         entry: string,
         targets: Map<string, Promise<string>>,
     ): Promise<string | undefined> {
+        // Polling skips an uncancellable in-flight entry so the rest of the batch can still drain.
         if (this.pendingProbes.has(entry)) return undefined;
-        if (this.pendingProbes.size >= MAX_OBSERVED_ENTRIES) {
-            this.onOverflow(scope);
-            return undefined;
-        }
-        // eslint-disable-next-line unicorn/prefer-await -- cleanup must follow actual I/O settlement, not timeout
-        const pending = this.readFingerprint(scope, entry, targets).finally(() => {
-            this.pendingProbes.delete(entry);
-        });
-        this.pendingProbes.set(entry, pending);
+        return this.probeEntry(scope, entry, () => this.readFingerprint(scope, entry, targets));
+    }
+
+    private async waitForProbe(pending: Promise<string>): Promise<string> {
         let timer: ReturnType<typeof setTimeout> | undefined;
         const deadline = new Promise<never>((_resolve, reject) => {
             timer = setTimeout(
@@ -107,6 +120,38 @@ export class ExternalLinkWatcher {
         } finally {
             clearTimeout(timer);
         }
+    }
+
+    private async probeEntry(
+        scope: WatchScope,
+        entry: string,
+        read: () => Promise<string>,
+    ): Promise<string> {
+        const existing = this.pendingProbes.get(entry);
+        if (existing) {
+            if (existing.generation === this.generation) return this.waitForProbe(existing.promise);
+            // A resolver can remain hung after a scope reset. It must not block the new scope from re-authorizing the
+            // same workspace entry; its finally callback checks identity before deleting a newer generation's probe.
+            this.pendingProbes.delete(entry);
+        }
+        if (this.pendingProbes.size >= MAX_OBSERVED_ENTRIES) {
+            this.onOverflow(scope);
+            throw new Error('External link metadata probe capacity exceeded');
+        }
+        // eslint-disable-next-line unicorn/prefer-await -- cleanup must follow actual I/O settlement, not timeout
+        const pending = read().finally(() => {
+            if (this.pendingProbes.get(entry)?.promise === pending)
+                this.pendingProbes.delete(entry);
+        });
+        this.pendingProbes.set(entry, {
+            generation: this.generation,
+            promise: pending,
+        });
+        return this.waitForProbe(pending);
+    }
+
+    private async probeResolved(scope: WatchScope, entry: string, target: string): Promise<string> {
+        return this.probeEntry(scope, entry, () => this.readTargetFingerprint(target, new Map()));
     }
 
     private async poll(generation: number): Promise<void> {
@@ -166,7 +211,7 @@ export class ExternalLinkWatcher {
         const generation = this.generation;
         const entry = resolved.workspacePath;
         if (this.entries.has(entry)) return;
-        const fingerprint = await this.fingerprint(resolved.path);
+        const fingerprint = await this.probeResolved(this.scope, entry, resolved.path);
         // oxlint-disable-next-line typescript/no-unnecessary-condition -- concurrent notes can overflow during the metadata read
         if (generation !== this.generation || this.overflowed || this.entries.has(entry)) return;
         this.entries.set(entry, { fingerprint });

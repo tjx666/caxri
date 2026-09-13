@@ -32,7 +32,7 @@ import {
     sessionViewScope,
     useSessionViewStore,
 } from '../../stores/session-view';
-import { tryCommand } from '../../stores/toasts';
+import { pushToast, tryCommand } from '../../stores/toasts';
 import { patchSessionState, persistSessionState, useWorkbenchStore } from '../../stores/workbench';
 import { closeTerminal } from '../terminal/terminal-actions';
 import { getActivePaneTab, getPaneLayout } from '../workbench/pane-actions';
@@ -303,6 +303,12 @@ async function didSaveDocumentAt(sessionId: string, path: string): Promise<boole
     const document = getSessionDocuments(sessionId)?.[path];
     if (!document) return true;
     const operation = trackDocumentOperation(sessionId, path);
+    const retryState = sessionStateOf(sessionId);
+    const retryTab = retryState
+        ? findResourceTabs(retryState.paneLayout, { kind: 'file', path }).at(0)?.tab
+        : undefined;
+    // A dirty edit pins its preview. Refuse recovery through a reusable preview slot instead of saving a replacement.
+    const retryTabId = retryTab?.preview ? undefined : retryTab?.id;
     let isSaved = false;
     try {
         await tryCommand(
@@ -337,9 +343,25 @@ async function didSaveDocumentAt(sessionId: string, path: string): Promise<boole
                 recovery: () => ({
                     label: 'Retry',
                     onSelect: () => {
+                        const state = sessionStateOf(sessionId);
+                        const tab =
+                            retryTabId && state
+                                ? findTab(state.paneLayout, retryTabId)?.tab
+                                : undefined;
+                        if (
+                            state?.workbenchProjectId !== operation.workbenchProjectId ||
+                            tab?.resource.kind !== 'file' ||
+                            tab.preview === true
+                        ) {
+                            pushToast(
+                                'error',
+                                'Save retry is no longer available because the editor was closed or its Project changed.',
+                            );
+                            return;
+                        }
                         // Re-read the current buffer so a retry cannot overwrite edits made after the failed save.
                         // eslint-disable-next-line no-void -- tryCommand reports retry failures through the toast
-                        void didSaveDocumentAt(sessionId, path);
+                        void didSaveDocumentAt(sessionId, tab.resource.path);
                     },
                 }),
             },
@@ -396,7 +418,7 @@ async function didConfirmDirtyEditorCloses(
         // Intentionally sequential: a bulk close must never end up half applied, so each save
         // completes before the next tab is confirmed.
         // eslint-disable-next-line no-await-in-loop -- intentional sequential await, see comment above
-        if (choice === 'save') await didSaveDocumentAt(sessionId, path);
+        if (choice === 'save' && !(await didSaveDocumentAt(sessionId, path))) return false;
     }
     return true;
 }
