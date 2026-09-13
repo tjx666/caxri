@@ -36,6 +36,11 @@ if (process.argv.includes('--version')) {
   process.stdout.write('codex-cli 0.153.4\n');
   process.exit(0);
 }
+// Model Codex 0.154's launch eligibility before allowing managed hooks to run.
+if (process.env.CAXRI_MANAGED_AGENT === '1' &&
+    !(process.argv[2] === '-c' && process.argv[3] === 'tui.auto_recap=false')) {
+  process.exit(1);
+}
 let thread = process.argv.includes('resume') ? '${RESUMED_THREAD}' : '019a0000-0000-7000-8000-000000000001';
 function hook(event) {
   const config = JSON.parse(fs.readFileSync(path.join(process.env.CODEX_HOME, 'hooks.json'), 'utf8'));

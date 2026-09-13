@@ -102,6 +102,7 @@ describe('Agent Terminal restart', () => {
                         provider,
                         executable: `/usr/local/bin/${provider}`,
                         args: [
+                            ...(provider === 'codex' ? ['-c', 'tui.auto_recap=false'] : []),
                             ...defaultAgentProviderSettings[provider].launch.args,
                             ...resumeArguments,
                         ],
@@ -170,7 +171,11 @@ describe('Agent Terminal restart', () => {
                 agent: {
                     provider: 'codex',
                     executable: '/usr/local/bin/codex',
-                    args: defaultAgentProviderSettings.codex.launch.args,
+                    args: [
+                        '-c',
+                        'tui.auto_recap=false',
+                        ...defaultAgentProviderSettings.codex.launch.args,
+                    ],
                 },
             });
             const bootstrap = await runtime.handlers['app.bootstrap']({});
