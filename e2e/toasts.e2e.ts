@@ -124,14 +124,14 @@ test('Sonner notifications expire, dedupe, run actions, and stay keyboard-dismis
         await running.page.clock.runFor(1);
         const persistentToast = toastWithTitle(running.page, FALLBACK_TITLE);
         await expect(persistentToast).toBeVisible();
-        await running.page.clock.runFor(3_000);
-        await expect(persistentToast).toBeVisible();
         await persistentToast.getByRole('button', { name: 'Notification options' }).click();
         const muteButton = running.page.getByRole('button', {
             name: "Don't show this type again",
             exact: true,
         });
         await muteButton.hover();
+        await running.page.clock.runFor(3_000);
+        await expect(persistentToast).toBeVisible();
         await running.page.clock.runFor(10_000);
         await expect(muteButton).toBeVisible();
         await running.page.keyboard.press('Escape');

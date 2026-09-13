@@ -28,6 +28,34 @@ afterEach(async () => {
 });
 
 describe('TerminalManager shell integration launch', () => {
+    it('persists the managed Agent shell-integration failure detail', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-agent-shell-integration-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+        const logger = new StructuredLogger(join(directory, 'logs'));
+        const manager = createTestTerminalManager(database, () => {}, logger, {
+            resolveExecutable: (kind) =>
+                Promise.resolve(kind === 'shell' ? '/bin/zsh' : '/bin/codex'),
+            shellIntegration: () => {},
+        });
+
+        try {
+            await expect(manager.start(created.terminal!)).rejects.toThrow(
+                'Managed Agent Terminals require zsh or bash shell integration',
+            );
+            expect(database.getTerminal(created.terminal!.id)).toMatchObject({
+                lastProcessState: 'failed',
+                failureReason: 'spawn_failed',
+                failureDetail: 'Managed Agent Terminals require zsh or bash shell integration.',
+            });
+        } finally {
+            manager.close(created.terminal!.id);
+            database.close();
+            await logger.flush();
+        }
+    });
+
     it('applies controlled argv and environment to a shell launch', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-shell-integration-'));
         temporaryDirectories.push(directory);

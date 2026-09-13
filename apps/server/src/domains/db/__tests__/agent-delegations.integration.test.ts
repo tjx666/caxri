@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it, onTestFinished } from 'vitest';
 
-import { CURRENT_SCHEMA_VERSION } from '../migrations/manifest';
+import { CURRENT_SCHEMA_VERSION, schemaVersionForMigration } from '../migrations/manifest';
 import type { StoredAgentDelegation } from '../models/agent-delegations';
 import { CaxriDatabase } from '../repository';
 
@@ -47,7 +47,10 @@ describe('Agent delegation persistence', () => {
         database.agentDelegations.insert(record);
         database.database.exec('DROP INDEX agent_delegations_terminal');
         database.database.exec('ALTER TABLE agent_delegations DROP COLUMN terminal_id');
-        database.database.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 1}`);
+        database.database.exec('ALTER TABLE terminals DROP COLUMN failure_detail');
+        database.database.pragma(
+            `user_version = ${schemaVersionForMigration('0025_conscious_living_tribunal')}`,
+        );
         database.close();
         const upgraded = new CaxriDatabase(path);
         try {
@@ -88,7 +91,10 @@ describe('Agent delegation persistence', () => {
         const { database, path, record, session } = await fixture();
         const terminals = database.listTerminals(session.id);
         database.database.exec('DROP TABLE agent_delegations');
-        database.database.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 2}`);
+        database.database.exec('ALTER TABLE terminals DROP COLUMN failure_detail');
+        database.database.pragma(
+            `user_version = ${schemaVersionForMigration('0024_session-naming-sync')}`,
+        );
         database.close();
         const upgraded = new CaxriDatabase(path);
         try {

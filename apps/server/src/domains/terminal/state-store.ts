@@ -28,5 +28,6 @@ export interface TerminalStateStore {
         id: string,
         state: ProcessState,
         failureReason?: TerminalFailureReason,
+        failureDetail?: string,
     ): void;
 }

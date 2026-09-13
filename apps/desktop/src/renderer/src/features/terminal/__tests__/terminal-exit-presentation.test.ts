@@ -65,4 +65,18 @@ describe('getTerminalExitPresentation', () => {
             tone: 'danger',
         });
     });
+
+    it('prefers a specific launch failure detail over the reason fallback', () => {
+        expect(
+            getTerminalExitPresentation(
+                'failed',
+                'executable_not_found',
+                'Claude Code CLI was not found',
+            ),
+        ).toEqual({
+            icon: 'failed',
+            label: 'Claude Code CLI was not found',
+            tone: 'danger',
+        });
+    });
 });
