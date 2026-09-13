@@ -118,6 +118,41 @@ describe('Runtime record queries', () => {
         });
     });
 
+    /**
+     * `project list` shows the auto-registered worktree Projects the PrimarySidebar hides, so without this field two
+     * rows can carry the same title with nothing to say which is the Project the user added.
+     */
+    it('marks an auto-registered worktree Project in human output, leaving top-level rows unchanged', () => {
+        const service = new RecordQueryService(
+            {
+                ...source,
+                projects: () => [
+                    ...source.projects(),
+                    {
+                        id: 'project-worktree',
+                        displayTitle: 'Shared',
+                        rootPath: '/Users/test/two-worktrees/feature',
+                        orderIndex: 2,
+                        createdAt: 3,
+                        lastOpenedAt: 3,
+                        ownerProjectId: 'project-2',
+                    },
+                ],
+            },
+            '/Users/test',
+        );
+
+        const result = service.project({ mode: 'list' }, human);
+        expect(result.projects.at(-1)).toEqual({
+            id: 'project-worktree',
+            displayTitle: 'Shared',
+            rootPath: '$HOME/two-worktrees/feature',
+            ownerProjectId: 'project-2',
+        });
+        const topLevel = result.projects.slice(0, -1);
+        for (const project of topLevel) expect(project).not.toHaveProperty('ownerProjectId');
+    });
+
     it('redacts Project roots outside HOME from every human query mode', () => {
         const externalRoot = '/Volumes/Private Client/repository';
         const service = new RecordQueryService(

@@ -269,8 +269,7 @@ export class ListingService {
      * "how often" is the only thing that distinguishes a stale share from a one-off.
      *
      * @param sessionId Session whose listing owns this budget.
-     * @param relativeDirectory The listed directory relative to the Project root; the absolute path is deliberately not
-     *   recorded.
+     * @param relativeDirectory The listed directory relative to the Project root, never the absolute path.
      */
     private createSymlinkProbe(sessionId: string, relativeDirectory: string): SymlinkTargetProbe {
         return this.createProbe({

@@ -115,10 +115,12 @@ export class RecordQueryService {
             };
         return {
             view: principalView(principal) as 'desktop' | 'human-cli',
-            projects: selected.map(({ id, displayTitle, rootPath }) => ({
+            projects: selected.map(({ id, displayTitle, ownerProjectId, rootPath }) => ({
                 id,
                 displayTitle,
                 rootPath: this.projectRootIdentity(rootPath, id),
+                // Omitted rather than set to null for a top-level Project, so plain output stays two columns wide.
+                ...(ownerProjectId !== undefined && { ownerProjectId }),
             })),
         };
     }

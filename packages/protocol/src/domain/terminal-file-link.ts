@@ -33,6 +33,30 @@ export const terminalFileLinkAmbiguousResolutionSchema =
 export type TerminalFileLinkCandidate = z.infer<typeof terminalFileLinkCandidateSchema>;
 
 /**
+ * Why the open did not happen. The reason is absent exactly when the user is the one who stopped it — dismissing the
+ * Session chooser or declining to trust an external folder needs no explanation handed back to them. It is present when
+ * Main refused on its own, which without it reads to the user as the link doing nothing at all.
+ */
+export const terminalFileLinkRefusalReasonSchema = z.enum([
+    /**
+     * The link resolved into a Project that exists only as some Session's linked worktree. Server Core will not create
+     * a Session inside one, and by the time Main looked, none was using it as a Workbench Root any more. Named for that
+     * missing binding rather than for ownership: in this codebase an "owned" Project _is_ the worktree Project.
+     */
+    'worktree_project_unbound',
+    /**
+     * The Project row resolved by Server Core was gone by the time Main read the bootstrap state.
+     */
+    'project_gone',
+]);
+
+export type TerminalFileLinkRefusalReason = z.infer<typeof terminalFileLinkRefusalReasonSchema>;
+
+const terminalFileLinkCanceledSchema = canceledResultSchema.extend({
+    reason: terminalFileLinkRefusalReasonSchema.optional(),
+});
+
+/**
  * The Main-owned open that consumes Server Core's resolution below.
  */
 export const terminalFileLinkMethods = {
@@ -44,7 +68,7 @@ export const terminalFileLinkMethods = {
             location: editorNavigationTargetSchema.optional(),
         }),
         result: z.union([
-            canceledResultSchema,
+            terminalFileLinkCanceledSchema,
             /**
              * A file outside every Project that the user chose to open: Main already read one bounded read-only
              * snapshot, and the Renderer shows it as an ephemeral tab in the Terminal's own Session. This variant must

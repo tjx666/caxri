@@ -1,4 +1,4 @@
-import type { EditorNavigationTarget } from '@caxri/protocol';
+import type { EditorNavigationTarget, TerminalFileLinkRefusalReason } from '@caxri/protocol';
 import { errorMessage, isCaxriError } from '@caxri/protocol';
 import { editorModelPath } from '@desktop-shared/editor-state';
 import type { ITheme, Terminal } from '@xterm/xterm';
@@ -135,6 +135,16 @@ interface TerminalPaneLinkRegistration {
 }
 
 /**
+ * What to say when Main refused a file link on its own. Without these the link reads as broken: the click lands, the
+ * Terminal does nothing, and nothing anywhere says why. A user-initiated cancel carries no reason and stays silent.
+ */
+const TERMINAL_FILE_LINK_REFUSALS: Record<TerminalFileLinkRefusalReason, string> = {
+    project_gone: 'That file\u{2019}s Project is no longer in Caxri.',
+    worktree_project_unbound:
+        'That file is in a Git worktree no Session is using as its Workbench Root. Continue a Session in the worktree first.',
+};
+
+/**
  * Wires `registerTerminalLinks` to the pane's live state snapshot: link providers are registered once per attach, so
  * every field reads through `latest()` instead of capturing values that would go stale on session or settings changes.
  */
@@ -170,6 +180,10 @@ export function registerTerminalPaneLinks(
                         ),
                         location,
                     );
+                return;
+            }
+            if ('canceled' in result) {
+                if (result.reason) onError(TERMINAL_FILE_LINK_REFUSALS[result.reason]);
                 return;
             }
             if ('status' in result)

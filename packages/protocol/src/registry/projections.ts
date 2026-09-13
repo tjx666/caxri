@@ -4,19 +4,14 @@ import { agentProviderIds } from '../agent/agents.js';
 import { appSettingsSchema } from '../configuration/settings-schema.js';
 import type { ProjectRecord } from '../domain/domain.js';
 import {
+    humanProjectSchema,
     projectRecordSchema,
+    scopedProjectSchema,
     sessionRecordSchema,
     terminalRecordSchema,
 } from '../domain/domain.js';
 import type { Principal } from '../transport/principal.js';
 import { protocolVersionSchema } from '../transport/version.js';
-
-const humanProjectSchema = projectRecordSchema.pick({
-    id: true,
-    displayTitle: true,
-    rootPath: true,
-});
-const scopedProjectSchema = projectRecordSchema.pick({ id: true, displayTitle: true });
 
 export const projectListResultSchema = z.discriminatedUnion('view', [
     z.object({ view: z.literal('desktop'), projects: z.array(projectRecordSchema).max(1_024) }),
@@ -109,10 +104,12 @@ export function projectListForPrincipal(value: unknown, principal: Principal): P
     if (principal.kind === 'human-cli') {
         return {
             view: 'human-cli',
-            projects: records.map(({ id, displayTitle, rootPath }) => ({
+            projects: records.map(({ id, displayTitle, ownerProjectId, rootPath }) => ({
                 id,
                 displayTitle,
                 rootPath,
+                // Omitted rather than nulled for a top-level Project, matching `project.query`'s human view.
+                ...(ownerProjectId !== undefined && { ownerProjectId }),
             })),
         };
     }

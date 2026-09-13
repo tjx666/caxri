@@ -121,6 +121,26 @@ export function isTopLevelProject(project: Pick<ProjectRecord, 'ownerProjectId'>
     return project.ownerProjectId === undefined;
 }
 
+/**
+ * What a human CLI principal sees of a Project. `project.list` and `project.query` both answer this shape, so it lives
+ * here rather than beside either of them: when the two drifted, one command could distinguish a worktree Project from a
+ * top-level one and the other could not.
+ *
+ * `ownerProjectId` is part of it because the CLI, unlike the PrimarySidebar, lists worktree Projects alongside the ones
+ * the user added. Without it two rows can carry the same title with nothing to say which is which.
+ */
+export const humanProjectSchema = projectRecordSchema.pick({
+    id: true,
+    displayTitle: true,
+    ownerProjectId: true,
+    rootPath: true,
+});
+
+/**
+ * What every non-human principal sees: an opaque id and a title, never a path.
+ */
+export const scopedProjectSchema = projectRecordSchema.pick({ id: true, displayTitle: true });
+
 export const sessionRecordSchema = z.object({
     id: identifierSchema,
     /**

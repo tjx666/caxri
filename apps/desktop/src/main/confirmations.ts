@@ -123,8 +123,40 @@ function deletePrompt(
     };
 }
 
-export function deleteProjectPrompt(title: string, runningTerminals: number): MessageBoxOptions {
-    return deletePrompt('Project', title, runningTerminals, 'The Project folder');
+/**
+ * How many worktree Project titles the detail names before it switches to a count. A dialog that lists thirty rows is
+ * one nobody reads; a few names are enough to recognize what is going away.
+ */
+const NAMED_WORKTREE_PROJECT_LIMIT = 5;
+
+/**
+ * A worktree Project registered on another Project's behalf is hidden from the PrimarySidebar and has no delete command
+ * of its own, so this cascade is the only way one is ever removed. That makes naming them part of the consent: the user
+ * is deleting records they cannot see.
+ *
+ * The copy is careful about what does _not_ go with them. Such a Project never holds a Session of its own — the Server
+ * refuses to create one there — so the Sessions in play are the ones adopting the worktree as their Workbench Root, and
+ * those survive with their root reset. Saying "and their Sessions" would name a set that is always empty while implying
+ * the one set that is never deleted.
+ */
+export function deleteProjectPrompt(
+    title: string,
+    runningTerminals: number,
+    worktreeProjectTitles: readonly string[] = [],
+): MessageBoxOptions {
+    const prompt = deletePrompt('Project', title, runningTerminals, 'The Project folder');
+    const count = worktreeProjectTitles.length;
+    if (count === 0) return prompt;
+    const named = worktreeProjectTitles.slice(0, NAMED_WORKTREE_PROJECT_LIMIT);
+    const listed = named.map((worktreeTitle) => `'${worktreeTitle}'`).join(', ');
+    const remainder = count - named.length;
+    const names = remainder > 0 ? `${listed}, and ${remainder} more` : listed;
+    const isSingle = count === 1;
+    const cascade = isSingle
+        ? `1 linked worktree Project is removed with it: ${names}.`
+        : `${count} linked worktree Projects are removed with it: ${names}.`;
+    const provenance = `Caxri registered ${isSingle ? 'it' : 'them'} automatically when a Session adopted the worktree, and a cascade like this is the only way ${isSingle ? 'it is' : 'they are'} removed. Any Session still working in ${isSingle ? 'it' : 'one of them'} survives, with its Workbench Root back at its own Project root.`;
+    return { ...prompt, detail: `${cascade} ${provenance}\n\n${prompt.detail}` };
 }
 
 export function deleteSessionPrompt(title: string, runningTerminals: number): MessageBoxOptions {
