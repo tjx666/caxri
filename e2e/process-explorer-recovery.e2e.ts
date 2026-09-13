@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -105,6 +105,7 @@ test('Process Explorer render exceptions offer a working reload', async () => {
     await execFileAsync('mkdir', ['-p', root]);
 
     const running = await launchCaxri({
+        clipboard: true,
         userDataDir: userData,
         testRootPath: root,
         env: { CAXRI_TEST_PROCESS_EXPLORER_RENDER_ERROR: '1' },
@@ -116,6 +117,35 @@ test('Process Explorer render exceptions offer a working reload', async () => {
         await expect(
             processPage.getByRole('heading', { name: 'Process Explorer stopped rendering' }),
         ).toBeVisible();
+        const disclosure = processPage.locator('.renderer-crash-screen details');
+        const stack = disclosure.locator('.renderer-crash-stack');
+        await expect(disclosure).not.toHaveAttribute('open');
+        await expect(stack).not.toBeVisible();
+        await processPage.screenshot({
+            path: test.info().outputPath('crash-details-collapsed.png'),
+        });
+        await processPage.getByText('Technical details', { exact: true }).click();
+        await expect(stack).toBeVisible();
+        const details = await stack.textContent();
+        expect(details).toContain('Forced Process Explorer render error');
+        const stackBounds = await stack.boundingBox();
+        if (!stackBounds) throw new Error('Expanded crash details have no bounds');
+        await processPage.screenshot({
+            path: test.info().outputPath('crash-details-expanded.png'),
+            clip: {
+                x: stackBounds.x,
+                y: stackBounds.y - 38,
+                width: stackBounds.width,
+                height: 62,
+            },
+        });
+        await processPage.getByRole('button', { name: 'Copy details' }).click();
+        await expect.poll(() => running.clipboard.textEquals(details!)).toBe(true);
+        await running.clipboard.claimText(details!);
+        await writeFile(
+            test.info().outputPath('copy-details-receipt.json'),
+            `${JSON.stringify({ copiedMatchesExpandedDetails: true })}\n`,
+        );
         await processPage.getByRole('button', { name: 'Reload Process Explorer' }).click();
         await expect(
             processPage.getByText('Process Explorer — Caxri', { exact: true }),
