@@ -26,6 +26,7 @@ import { ProjectIcon } from './project-icon';
 import type { ProjectDropTarget } from './project-order';
 import { hasProjectDragType } from './project-order';
 import { ProjectRowMenu } from './project-row-menu';
+import { hasWorktreeSession } from './project-worktree-slot';
 import { SessionActivityCard } from './session-activity-card';
 import { SessionPullRequestIndicator } from './session-pull-request-indicator';
 import { SessionRenameInput } from './session-rename-input';
@@ -282,6 +283,10 @@ interface ProjectGroupProperties {
     onRevealMoreSessions: () => void;
     onToggle: () => void;
     project: ProjectRecord;
+    /**
+     * Every active Session in this Project, including those outside the reveal window.
+     */
+    projectSessions: readonly SessionRecord[];
     projectDropTarget?: ProjectDropTarget;
     /**
      * Discovered pull requests keyed by Session id; absent entries render no glyph.
@@ -331,6 +336,7 @@ export function ProjectGroup({
     onRevealMoreSessions,
     onToggle,
     project,
+    projectSessions,
     projectDropTarget,
     pullRequests,
     pullRequestUnavailable,
@@ -350,9 +356,7 @@ export function ProjectGroup({
      * sideways as Sessions come and go. Scoped to the group because a Project without one should not be indented for a
      * column that stays empty.
      */
-    const hasWorktreeSession = visibleSessions.some((session) =>
-        Boolean(worktreeProjects?.[session.id]),
-    );
+    const reserveWorktreeSlot = hasWorktreeSession(projectSessions, worktreeProjects);
     return (
         <section
             data-project-id={project.id}
@@ -491,7 +495,7 @@ export function ProjectGroup({
                                 renameError={renameError}
                                 renameValue={renameValue}
                                 renaming={session.id === renamingSessionId}
-                                reserveWorktreeSlot={hasWorktreeSession}
+                                reserveWorktreeSlot={reserveWorktreeSlot}
                                 roving={session.id === rovingRowId}
                                 selected={session.id === selectedSessionId}
                                 session={session}
