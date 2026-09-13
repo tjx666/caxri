@@ -102,6 +102,7 @@ export const logEventCatalog = {
         operationRecovered: 'file.operation_recovered',
         saved: 'file.saved',
         search: 'file.search',
+        symlinkProbeBudgetSpent: 'file.symlink_probe_budget_spent',
         searchEntrySkipped: 'file.search_entry_skipped',
     },
     files: {
