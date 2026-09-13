@@ -28,7 +28,7 @@ import type {
     TerminalHostControl,
     TerminalHostEvent,
 } from './execution-contract';
-import { terminalScope } from './execution-scope';
+import { currentIdentity, terminalScope } from './execution-scope';
 import type { TerminalInputReceipt } from './input-queue';
 import { TerminalInputQueue } from './input-queue';
 import { buildShutdownCaptures } from './shutdown-captures';
@@ -61,24 +61,16 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         supervisor.onExit(() => this.handleHostExit());
     }
 
-    private isCurrentEvent(event: TerminalHostEvent): RemoteTerminalIdentity | undefined {
-        const identity = this.identities.get(event.identity.terminalId);
-        if (
-            !identity ||
-            identity.record.sessionId !== event.identity.sessionId ||
-            identity.generation !== event.identity.ptyGeneration
-        )
-            return;
-        return identity;
-    }
-
     private projectHostEvent(event: TerminalHostEvent): void {
-        const identity = this.isCurrentEvent(event);
+        const identity = currentIdentity(this.identities, event);
         if (!identity) return;
         switch (event.event) {
-            case 'terminal.output':
-                if (!identity.attachmentId || event.identity.attachmentId !== identity.attachmentId)
-                    return;
+            case 'terminal.output': {
+                // Gated on the view the Renderer asked for, not on `identity.attachmentId`: the two deliberately
+                // disagree for the length of a re-attachment, and a byte forwarded inside that window is a byte the
+                // snapshot is about to replay. See `attach` and `references/persistence.md`.
+                const attached = this.views.get(identity.record.id)?.attachmentId;
+                if (!attached || event.identity.attachmentId !== attached) return;
                 this.emitExecution({
                     type: 'output',
                     terminalId: identity.record.id,
@@ -86,6 +78,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
                     ...(event.droppedBytes !== undefined && { droppedBytes: event.droppedBytes }),
                 });
                 return;
+            }
             case 'terminal.activity':
                 this.emitExecution({
                     type: 'activity',
@@ -590,6 +583,12 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         return true;
     }
 
+    /**
+     * Recording the view before the first `await` is what closes the output gate: `identity.attachmentId` cannot rotate
+     * until `identity.ready` and any hot-path work admitted under the old attachment have settled, and everything the
+     * Host flushes in between is already on the parsed screen the snapshot below is about to capture. Forwarding it
+     * would put the same bytes in both the snapshot and the replay the Renderer runs after it.
+     */
     async attach(
         terminalId: string,
         size?: { cols: number; rows: number },
