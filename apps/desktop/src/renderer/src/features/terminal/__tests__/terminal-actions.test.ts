@@ -1,5 +1,5 @@
 import type { BootstrapState, PaneLayout, TerminalRecord } from '@caxri/protocol';
-import { createPaneLayout, findResourceTabs, listPanes } from '@caxri/protocol';
+import { CaxriError, createPaneLayout, findResourceTabs, listPanes } from '@caxri/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -13,7 +13,13 @@ const mocks = vi.hoisted(() => ({
     tryCommand: vi.fn(
         async (
             ...[, run]: [string, () => Promise<unknown>, { refresh?: () => Promise<void> }?]
-        ): Promise<unknown> => run(),
+        ): Promise<unknown> => {
+            try {
+                return await run();
+            } catch {
+                return undefined;
+            }
+        },
     ),
     useSessionViewStore: { getState: vi.fn() },
 }));
@@ -120,6 +126,47 @@ describe('sendTerminalSequence', () => {
 });
 
 describe('restartTerminal (requestTerminalRestart reattach gate)', () => {
+    it('offers Retry when reattachment fails before restart was submitted', async () => {
+        mocks.getBootstrap.mockReturnValue(
+            bootstrapWith(terminalFixture({ lastProcessState: 'stopped' })),
+        );
+        mocks.caxriRequest.mockRejectedValueOnce(new Error('attach failed'));
+
+        restartTerminal('terminal-1');
+        await mocks.tryCommand.mock.results[0]?.value;
+        const options = mocks.tryCommand.mock.calls[0]?.[2] as unknown as {
+            recovery: () => { label: string; onSelect: () => void };
+        };
+        const action = options.recovery();
+        expect(action.label).toBe('Retry');
+        action.onSelect();
+        await mocks.tryCommand.mock.results[1]?.value;
+
+        expect(mocks.caxriRequest).toHaveBeenNthCalledWith(3, 'terminal.restart', {
+            terminalId: 'terminal-1',
+            mode: 'resume',
+        });
+    });
+
+    it('refreshes instead of restarting again when the first restart outcome is uncertain', async () => {
+        mocks.getBootstrap.mockReturnValue(
+            bootstrapWith(terminalFixture({ lastProcessState: 'running' })),
+        );
+
+        restartTerminal('terminal-1');
+        await mocks.tryCommand.mock.results[0]?.value;
+        const options = mocks.tryCommand.mock.calls[0]?.[2] as unknown as {
+            recovery: () => { label: string; onSelect: () => void };
+        };
+        const action = options.recovery();
+        expect(action.label).toBe('Refresh');
+        action.onSelect();
+        await mocks.tryCommand.mock.results[1]?.value;
+
+        expect(mocks.caxriRequest).toHaveBeenCalledTimes(1);
+        expect(mocks.refreshWorkbench).toHaveBeenCalled();
+    });
+
     it('reattaches before restarting when the Terminal is not currently running', async () => {
         mocks.getBootstrap.mockReturnValue(
             bootstrapWith(terminalFixture({ lastProcessState: 'stopped' })),
@@ -161,6 +208,46 @@ describe('restartTerminal (requestTerminalRestart reattach gate)', () => {
         expect(mocks.caxriRequest).toHaveBeenNthCalledWith(1, 'terminal.attach', {
             terminalId: 'terminal-1',
         });
+    });
+});
+
+describe('createTerminal recovery', () => {
+    it('retries the original Session and placement after selection changes', async () => {
+        mocks.getSelectedSession.mockReturnValue({ id: 'session-1' });
+        mocks.caxriRequest.mockResolvedValue({ id: 'terminal-1' });
+
+        await createTerminal('shell', { cwd: '/repo', paneId: 'pane-1' });
+        const options = mocks.tryCommand.mock.calls[0]?.[2] as unknown as {
+            recovery: (error: unknown) => { label: string; onSelect: () => void };
+        };
+        mocks.getSelectedSession.mockReturnValue({ id: 'session-2' });
+        const action = options.recovery(new CaxriError('IO', 'Working directory is unavailable'));
+        expect(action.label).toBe('Retry');
+        action.onSelect();
+        await mocks.tryCommand.mock.results[1]?.value;
+
+        expect(mocks.caxriRequest).toHaveBeenNthCalledWith(2, 'terminal.create', {
+            sessionId: 'session-1',
+            kind: 'shell',
+            cwd: '/repo',
+        });
+    });
+
+    it('refreshes instead of creating a duplicate after an uncertain result', async () => {
+        mocks.getSelectedSession.mockReturnValue({ id: 'session-1' });
+        mocks.caxriRequest.mockResolvedValue({ id: 'terminal-1' });
+
+        await createTerminal();
+        const options = mocks.tryCommand.mock.calls[0]?.[2] as unknown as {
+            recovery: (error: unknown) => { label: string; onSelect: () => void };
+        };
+        const action = options.recovery(new CaxriError('TIMEOUT', 'No response'));
+        expect(action.label).toBe('Refresh');
+        action.onSelect();
+        await mocks.tryCommand.mock.results[1]?.value;
+
+        expect(mocks.caxriRequest).toHaveBeenCalledTimes(1);
+        expect(mocks.refreshWorkbench).toHaveBeenCalled();
     });
 });
 

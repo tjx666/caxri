@@ -1,7 +1,7 @@
 import './definitions';
 
 import type { CommandId } from '@caxri/protocol';
-import { listPaneTerminalIds, paneSplitBlockedReason } from '@caxri/protocol';
+import { errorMessage, listPaneTerminalIds, paneSplitBlockedReason } from '@caxri/protocol';
 
 import { closeDocumentTabs, saveActiveEditor } from '../features/editor/document-actions';
 import {
@@ -288,10 +288,26 @@ const commandContext: CommandContext = {
     diagnostics: {
         export: () => {
             // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-            void tryCommand('Diagnostics export failed', async () => {
-                const result = await caxri.request('diagnostics.export');
-                if (result) pushToast('success', `Diagnostics exported to ${result.path}`);
-            });
+            void tryCommand(
+                'Diagnostics export failed',
+                async () => {
+                    const result = await caxri.request('diagnostics.export');
+                    if (result) pushToast('success', `Diagnostics exported to ${result.path}`);
+                },
+                {
+                    recovery: (error) => ({
+                        label: 'Copy details',
+                        onSelect: () => {
+                            // eslint-disable-next-line no-void -- tryCommand reports clipboard failures through the toast
+                            void tryCommand('Copy details failed', () =>
+                                navigator.clipboard.writeText(
+                                    errorMessage(error, 'Unknown diagnostics export error'),
+                                ),
+                            );
+                        },
+                    }),
+                },
+            );
         },
     },
     updates: { check: checkForUpdates },

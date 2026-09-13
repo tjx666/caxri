@@ -305,32 +305,45 @@ async function didSaveDocumentAt(sessionId: string, path: string): Promise<boole
     const operation = trackDocumentOperation(sessionId, path);
     let isSaved = false;
     try {
-        await tryCommand('Save failed', async () => {
-            const result = await caxri.request('files.write', {
-                sessionId,
-                path,
-                content: document.content,
-            });
-            if (!operation.discarded) {
-                const current = getSessionDocuments(sessionId, operation.workbenchProjectId)?.[
-                    operation.path
-                ];
-                if (current) {
-                    const isChangedDuringSave = current.content !== document.content;
-                    useSessionViewStore.getState().cacheDocument(
-                        sessionId,
-                        {
-                            ...result,
-                            path: operation.path,
-                            content: isChangedDuringSave ? current.content : result.content,
-                            dirty: isChangedDuringSave,
-                        },
-                        operation.workbenchProjectId,
-                    );
+        await tryCommand(
+            'Save failed',
+            async () => {
+                const result = await caxri.request('files.write', {
+                    sessionId,
+                    path,
+                    content: document.content,
+                });
+                if (!operation.discarded) {
+                    const current = getSessionDocuments(sessionId, operation.workbenchProjectId)?.[
+                        operation.path
+                    ];
+                    if (current) {
+                        const isChangedDuringSave = current.content !== document.content;
+                        useSessionViewStore.getState().cacheDocument(
+                            sessionId,
+                            {
+                                ...result,
+                                path: operation.path,
+                                content: isChangedDuringSave ? current.content : result.content,
+                                dirty: isChangedDuringSave,
+                            },
+                            operation.workbenchProjectId,
+                        );
+                    }
                 }
-            }
-            isSaved = true;
-        });
+                isSaved = true;
+            },
+            {
+                recovery: () => ({
+                    label: 'Retry',
+                    onSelect: () => {
+                        // Re-read the current buffer so a retry cannot overwrite edits made after the failed save.
+                        // eslint-disable-next-line no-void -- tryCommand reports retry failures through the toast
+                        void didSaveDocumentAt(sessionId, path);
+                    },
+                }),
+            },
+        );
     } finally {
         pendingDocumentOperations.delete(operation);
     }

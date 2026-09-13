@@ -600,7 +600,7 @@ describe('workbench Runtime events', () => {
             expect(getToasts()).toContainEqual(
                 expect.objectContaining({
                     type: 'error',
-                    title: 'The worktree is no longer available.',
+                    title: 'Unable to return to the previous Workbench Root. The worktree is no longer available.',
                 }),
             ),
         );
