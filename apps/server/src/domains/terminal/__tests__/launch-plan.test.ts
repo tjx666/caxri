@@ -23,6 +23,41 @@ const record: TerminalRecord = {
 };
 
 describe('TerminalLaunchPlanner managed Agent launch', () => {
+    it('keeps the missing provider name when executable resolution fails', async () => {
+        const planner = new TerminalLaunchPlanner({
+            logger: new StructuredLogger('/tmp/caxri-launch-plan-test-logs'),
+            resolveExecutable: (kind) =>
+                kind === 'shell'
+                    ? Promise.resolve('/bin/zsh')
+                    : Promise.reject(new Error('private executable path')),
+        });
+
+        const resolved = await planner.resolve({ ...record, kind: 'claude', provider: 'claude' });
+        expect(resolved).toMatchObject({
+            ok: false,
+            failureReason: 'executable_not_found',
+            failureDetail: 'Claude Code CLI was not found',
+        });
+    });
+
+    it('keeps the specific shell-integration failure for managed Agent recovery', async () => {
+        const planner = new TerminalLaunchPlanner({
+            logger: new StructuredLogger('/tmp/caxri-launch-plan-test-logs'),
+            resolveExecutable: (kind) =>
+                Promise.resolve(kind === 'shell' ? '/bin/zsh' : '/bin/codex'),
+            shellIntegration: () => {},
+        });
+
+        const resolved = await planner.resolve(record);
+        if (!resolved.ok) throw resolved.error;
+        const prepared = await planner.prepare(record, resolved.value);
+        expect(prepared).toMatchObject({
+            ok: false,
+            failureReason: 'spawn_failed',
+            failureDetail: 'Managed Agent Terminals require zsh or bash shell integration.',
+        });
+    });
+
     it.each([undefined, 'conversation-1'])(
         'isolates Codex with custom settings when resuming %s',
         async (resumeAgentSessionId) => {

@@ -6,7 +6,12 @@ import type {
     TerminalFailureReason,
     TerminalRecord,
 } from '@caxri/protocol';
-import { defaultAgentProviderSettings, errorMessage, isCaxriError } from '@caxri/protocol';
+import {
+    agentProviderCatalog,
+    defaultAgentProviderSettings,
+    errorMessage,
+    isCaxriError,
+} from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import {
     assertE2EAgentLaunch,
@@ -50,7 +55,13 @@ export interface TerminalLaunchPlan extends ResolvedTerminalLaunch {
 }
 
 export type TerminalLaunchPlanResult<T> =
-    { ok: true; value: T } | { ok: false; error: unknown; failureReason: TerminalFailureReason };
+    | { ok: true; value: T }
+    | {
+          ok: false;
+          error: unknown;
+          failureReason: TerminalFailureReason;
+          failureDetail?: string;
+      };
 
 export interface TerminalLaunchPlannerOptions {
     agentEnvironment?: () => Promise<NodeJS.ProcessEnv>;
@@ -145,7 +156,12 @@ export class TerminalLaunchPlanner {
                     },
                 };
             } catch (error) {
-                return { ok: false, error, failureReason: 'executable_not_found' };
+                return {
+                    ok: false,
+                    error,
+                    failureReason: 'executable_not_found',
+                    failureDetail: `${agentProviderCatalog[record.kind].displayName} CLI was not found`,
+                };
             }
         } catch (error) {
             return { ok: false, error, failureReason: 'spawn_failed' };
@@ -238,6 +254,12 @@ export class TerminalLaunchPlanner {
             return {
                 ok: false,
                 error,
+                ...(error instanceof Error &&
+                    error.message ===
+                        'Managed Agent Terminals require zsh or bash shell integration' && {
+                        failureDetail:
+                            'Managed Agent Terminals require zsh or bash shell integration.',
+                    }),
                 failureReason:
                     isCaxriError(error) && error.details?.reason === 'agent_session_unavailable'
                         ? 'agent_session_unavailable'

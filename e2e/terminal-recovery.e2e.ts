@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
+import Database from 'better-sqlite3';
+
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import type { Page } from './support/fixtures.ts';
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
@@ -30,6 +32,12 @@ interface StructuredLogRecord {
 interface ResizeBurstPair {
     host: Record<string, unknown>;
     renderer: Record<string, unknown>;
+}
+
+async function captureRecoveryEvidence(page: Page, name: string): Promise<void> {
+    const path = test.info().outputPath(`${name}.png`);
+    await page.screenshot({ path });
+    await test.info().attach(name, { path, contentType: 'image/png' });
 }
 
 async function readStructuredLog(path: string): Promise<StructuredLogRecord[]> {
@@ -453,6 +461,7 @@ test('normal exit stays neutral and restart preserves one durable Terminal', asy
         const stopped = running.page.locator('[data-terminal-exit-state="stopped"]');
         await expect(stopped).toContainText('Process exited normally');
         await expect(stopped).toHaveClass(/terminal-recovery-neutral/);
+        await captureRecoveryEvidence(running.page, 'normal-exit');
         await expect(running.page.locator('.xterm-rows')).toContainText('FINAL_OUTPUT_IS_VISIBLE');
 
         const [surfaceBox, recoveryBox] = await Promise.all([
@@ -607,11 +616,39 @@ test('startup failure uses a compact danger status without covering output', asy
         env: { PATH: '/caxri-e2e-missing', SHELL: '/usr/bin/false' },
     });
     try {
-        const sessionId = await createProjectSession(running.page, 'codex');
+        await running.page.setViewportSize({ height: 800, width: 1_200 });
+        const sessionId = await createProjectSession(running.page, 'claude');
         const failed = running.page.locator('[data-terminal-exit-state="failed"]');
-        await expect(failed).toContainText('Agent CLI executable was not found');
+        await expect(failed).toContainText('Claude Code CLI was not found');
         await expect(failed).toHaveClass(/terminal-recovery-danger/);
+        const actions = failed.locator('.terminal-recovery-action');
+        await expect(actions).toHaveCount(2);
+        await expect(actions.nth(0)).toHaveAccessibleName('Open Settings');
         await expect(failed.getByRole('button', { name: 'Restart Terminal' })).toBeVisible();
+        await captureRecoveryEvidence(running.page, 'missing-cli');
+        await actions.nth(0).focus();
+        await running.page.keyboard.press('Enter');
+        await expect(running.page.getByRole('dialog', { name: 'Settings' })).toBeVisible();
+        await captureRecoveryEvidence(running.page, 'open-settings');
+        await running.page.keyboard.press('Escape');
+        await expect(running.page.getByRole('dialog', { name: 'Settings' })).toHaveCount(0);
+        // The Runtime failure is covered by its integration test; this persisted state verifies the Renderer copy.
+        const terminalId = await running.page
+            .locator('.terminal-pane')
+            .getAttribute('data-terminal-id');
+        if (!terminalId) throw new Error('Terminal identity was not rendered');
+        const database = new Database(join(userData, 'caxri.db'));
+        database
+            .prepare(
+                "UPDATE terminals SET failure_reason = 'spawn_failed', failure_detail = ? WHERE id = ?",
+            )
+            .run('Managed Agent Terminals require zsh or bash shell integration.', terminalId);
+        database.close();
+        await running.page.reload();
+        await expect(failed).toContainText(
+            'Managed Agent Terminals require zsh or bash shell integration.',
+        );
+        await captureRecoveryEvidence(running.page, 'shell-integration');
         await expect(
             running.page.locator(`[data-session-id="${sessionId}"] .session-status`),
         ).toHaveAttribute('data-session-status', 'default');
