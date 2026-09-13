@@ -29,6 +29,7 @@ import sessionSidebarOrderMigrationSql from './0023_session-sidebar-order.sql?ra
 import sessionNamingSyncMigrationSql from './0024_session-naming-sync.sql?raw';
 import agentDelegationsMigrationSql from './0025_conscious_living_tribunal.sql?raw';
 import delegationTerminalOwnershipMigrationSql from './0026_delegation_terminal_ownership.sql?raw';
+import terminalFailureDetailMigrationSql from './0027_dashing_ego.sql?raw';
 import migrationJournal from './meta/_journal.json';
 
 interface MigrationJournal {
@@ -95,6 +96,7 @@ export const migrationManifest = [
     { tag: '0024_session-naming-sync', sql: sessionNamingSyncMigrationSql },
     { tag: '0025_conscious_living_tribunal', sql: agentDelegationsMigrationSql },
     { tag: '0026_delegation_terminal_ownership', sql: delegationTerminalOwnershipMigrationSql },
+    { tag: '0027_dashing_ego', sql: terminalFailureDetailMigrationSql },
 ] as const;
 
 // Intentional: this check must run at module initialization (see the docstring above) so an

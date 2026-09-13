@@ -213,6 +213,10 @@ export const terminalRecordSchema = z.object({
      * Present only when `lastProcessState` is `failed`; see `TerminalFailureReason`.
      */
     failureReason: terminalFailureReasonSchema.optional(),
+    /**
+     * Specific, safe launch failure copy displayed by the Terminal recovery row.
+     */
+    failureDetail: z.string().max(200).optional(),
     createdAt: z.number(),
     updatedAt: z.number(),
     /**

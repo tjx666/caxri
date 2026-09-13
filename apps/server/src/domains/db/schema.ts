@@ -132,6 +132,7 @@ export const terminals = sqliteTable(
          * Set only alongside `lastProcessState = 'failed'`; see `TerminalFailureReason`.
          */
         failureReason: text('failure_reason'),
+        failureDetail: text('failure_detail'),
         createdAt: integer('created_at').notNull(),
         updatedAt: integer('updated_at').notNull(),
     },
