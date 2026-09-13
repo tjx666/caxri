@@ -657,11 +657,16 @@ describe('workbench Runtime events', () => {
  * showed.
  */
 describe('automatic naming sandbox notices', () => {
-    function snapshot(sessionId: string, launchId: string) {
+    /**
+     * Omitting `launchId` produces the snapshot the Server sends when nothing is suppressed: the field is absent.
+     */
+    function snapshot(sessionId: string, launchId?: string) {
         return {
-            automaticNamingUnavailable: [
-                { launchId, reason: 'sandboxBoundaryConflict' as const, sessionId },
-            ],
+            ...(launchId && {
+                automaticNamingUnavailable: [
+                    { launchId, reason: 'sandboxBoundaryConflict' as const, sessionId },
+                ],
+            }),
             configurationErrors: [],
             projects: [{ id: 'project-1', displayTitle: 'Fixture' }],
             sessions: [{ id: sessionId, projectId: 'project-1', displayTitle: 'Session' }],
@@ -690,13 +695,7 @@ describe('automatic naming sandbox notices', () => {
 
     it('does not repeat a notice the window already received as a live event', async () => {
         const unsubscribe = subscribeWorkbenchEvents(eventHandlers());
-        mocks.request.mockResolvedValueOnce({
-            configurationErrors: [],
-            projects: [{ id: 'project-1', displayTitle: 'Fixture' }],
-            sessions: [{ id: 'session-live', projectId: 'project-1', displayTitle: 'Session' }],
-            sessionStates: [],
-            terminals: [],
-        } as unknown);
+        mocks.request.mockResolvedValueOnce(snapshot('session-live'));
         await refreshWorkbench();
         mocks.emit({
             event: 'agent.automaticNamingUnavailable',
