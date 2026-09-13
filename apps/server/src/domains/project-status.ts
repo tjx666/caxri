@@ -31,7 +31,9 @@ import { prepareStatusRepo, readBranchPublication } from './project-status-branc
 import type { VercelLink } from './project-status-external';
 import {
     extractLinearReferences,
+    hasLocalVercelLink,
     projectStatusCliError,
+    projectStatusNoDeploymentsError,
     vcListArguments,
 } from './project-status-external';
 import {
@@ -169,6 +171,21 @@ export class ProjectStatusService {
         });
     }
 
+    private logExternalParseFailure(command: ExternalStatusSource, error: unknown): void {
+        if (!(error instanceof CaxriError) || error.code !== 'VALIDATION') return;
+        // The successful command log has no parse outcome; record a safe reason without CLI output.
+        this.logger.write('warn', logEventCatalog.projectStatus.cli, {
+            fields: {
+                command,
+                operation: 'response.parse',
+                result: 'failure',
+                failureKind: 'other',
+                failureReason: 'invalid-response',
+                exitCode: null,
+            },
+        });
+    }
+
     private async loadOverview(sessionId: string): Promise<ProjectStatusOverview> {
         const gitSummary = await this.git.summary(sessionId, 0, 'projectStatus');
         if (!gitSummary.isRepository) {
@@ -290,7 +307,7 @@ export class ProjectStatusService {
     ): Promise<ProjectStatusRepo> {
         const [githubState, vercelState, branchState] = await Promise.all([
             this.loadGitHub(prepared.repository.rootPath, prepared.context, isForced),
-            this.loadVercel(prepared.context),
+            this.loadVercel(prepared.context, prepared.repository.rootPath),
             readBranchPublication(
                 prepared.context,
                 (source, arguments_, cwd) => this.runCommand(source, arguments_, cwd),
@@ -348,6 +365,7 @@ export class ProjectStatusService {
             };
         } catch (error) {
             if (isNoPullRequest(error)) return { linearIssues: [], errors: [] };
+            this.logExternalParseFailure('gh', error);
             const failure =
                 error instanceof ExternalStatusCliError
                     ? error
@@ -387,6 +405,7 @@ export class ProjectStatusService {
                         stateType: linearStateType(issue?.state?.type),
                     };
                 } catch (error) {
+                    this.logExternalParseFailure('linear', error);
                     const failure =
                         error instanceof ExternalStatusCliError
                             ? error
@@ -437,11 +456,19 @@ export class ProjectStatusService {
 
     private async loadVercel(
         context: RepoContext,
+        rootPath: string,
     ): Promise<Pick<ProjectStatusRepo, 'deployments'> & { errors: ProjectStatusError[] }> {
         if (!context.owner || !context.repo) return { errors: [] };
         try {
             const link = await this.findVercelLink(context.owner, context.repo);
-            if (!link) return { errors: [] };
+            if (!link)
+                return {
+                    errors: [
+                        (await hasLocalVercelLink(rootPath))
+                            ? projectStatusNoDeploymentsError()
+                            : projectStatusCliError('vc', 'not-linked'),
+                    ],
+                };
             const baseMeta = { githubOrg: context.owner, githubRepo: context.repo };
             const results = await Promise.all([
                 this.runCommand(
@@ -488,6 +515,7 @@ export class ProjectStatusService {
                 errors: [],
             };
         } catch (error) {
+            this.logExternalParseFailure('vc', error);
             const failure =
                 error instanceof ExternalStatusCliError
                     ? error

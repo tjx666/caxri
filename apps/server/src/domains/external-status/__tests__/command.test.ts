@@ -57,6 +57,18 @@ describe('runExternalStatusCommand', () => {
         ).rejects.toMatchObject({ command: 'gh', kind: 'not-found' });
     });
 
+    it.each([
+        ['fetch failed ECONNRESET', 'network'],
+        ['certificate has expired', 'tls'],
+    ] as const)('classifies %s for the status UI', async (message, kind) => {
+        await expect(
+            runExternalStatusCommand('vc', ['ls'], '/repo', {
+                resolveExecutable: () => Promise.resolve('/login/bin/vc'),
+                run: () => Promise.reject(new Error(message)),
+            }),
+        ).rejects.toMatchObject({ command: 'vc', kind });
+    });
+
     it('prevents linear-cli from loading a Project API key through dotenv', async () => {
         const run = vi.fn<NonNullable<ExternalStatusCommandDependencies['run']>>(() =>
             Promise.resolve({ stdout: 'ok', stderr: '' }),

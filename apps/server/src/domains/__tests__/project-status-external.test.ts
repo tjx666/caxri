@@ -9,6 +9,8 @@ const NON_LOG_FAILURE_KINDS: Array<Exclude<CliFailureKind, 'other'>> = [
     'not-linked',
     'rate-limited',
     'timeout',
+    'network',
+    'tls',
 ];
 
 describe('projectStatusCliError', () => {
@@ -20,13 +22,41 @@ describe('projectStatusCliError', () => {
         expect(projectStatusCliError('linear', 'other')).toHaveProperty('detailsView', 'logs');
     });
 
-    it('names the failing subject instead of promising log details that are never recorded', () => {
+    it('gives missing Vercel prerequisites complete guidance', () => {
+        expect(projectStatusCliError('vc', 'not-found')).toMatchObject({
+            kind: 'prerequisite',
+            message: 'Vercel CLI not installed',
+            hint: 'Deployments for this repository need the Vercel CLI. Install it with npm i -g vercel, then recheck.',
+        });
+        expect(projectStatusCliError('vc', 'not-logged-in')).toMatchObject({
+            kind: 'prerequisite',
+            message: 'Vercel CLI not signed in',
+            hint: 'Run vc login in a Terminal, then recheck.',
+        });
+        expect(projectStatusCliError('vc', 'not-linked')).toMatchObject({
+            kind: 'prerequisite',
+            message: 'Repository not linked to Vercel',
+            hint: 'Run vc link in this repository, then recheck.',
+        });
+    });
+
+    it('marks connectivity errors for a single shared fallback', () => {
+        expect(projectStatusCliError('gh', 'network')).toMatchObject({
+            kind: 'failure',
+            reason: 'network',
+        });
+        expect(projectStatusCliError('vc', 'rate-limited')).toMatchObject({
+            kind: 'failure',
+            message: 'Vercel CLI rate limited',
+        });
+    });
+
+    it('names the failing subject and directs users to Logs without internal jargon', () => {
         const error = projectStatusCliError('linear', 'other', 'LOBE-14029');
-        expect(error.message).toBe('linear: LOBE-14029 failed');
-        expect(error.hint).toContain('LOBE-14029');
-        expect(error.hint).not.toContain('See Runtime logs for details');
-        expect(projectStatusCliError('linear', 'other').hint).not.toContain(
-            'See Runtime logs for details',
+        expect(error.message).toBe('Linear CLI: LOBE-14029 failed');
+        expect(error.hint).toBe(
+            'Something went wrong while loading linked issues. Open Logs for details.',
         );
+        expect(error.detailsView).toBe('logs');
     });
 });

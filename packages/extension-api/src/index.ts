@@ -262,6 +262,8 @@ export interface ProjectStatusDeployment {
 
 export interface ProjectStatusError {
     source: 'github' | 'linear' | 'vercel';
+    kind: 'prerequisite' | 'failure';
+    reason?: 'network' | 'tls';
     message: string;
     hint: string;
     detailsView?: 'logs';
