@@ -102,6 +102,7 @@ function pullRequestJson(overrides: Record<string, unknown> = {}): string {
 
 interface Harness {
     emitted: ServerEvent[];
+    logger: StructuredLogger;
     runner: ReturnType<typeof vi.fn<ExternalStatusRunner>>;
     service: SessionPullRequestService;
     setTranscript: (lines: string[]) => Promise<void>;
@@ -137,6 +138,7 @@ async function harness(options: {
         if (command === 'gh' && options.gh) return options.gh(arguments_);
         return Promise.reject(new ExternalStatusCliError('gh', 'other', 'no pull requests found'));
     });
+    const structuredLogger = await logger();
     const service = new SessionPullRequestService(
         {
             getSession: (id) => {
@@ -150,7 +152,7 @@ async function harness(options: {
             summary:
                 options.summary ?? (() => Promise.resolve(gitSummary(options.branch ?? 'feat/x'))),
         },
-        await logger(),
+        structuredLogger,
         runner,
         {
             agentEnvironment: { homeDirectory: home, variables: {} },
@@ -161,7 +163,7 @@ async function harness(options: {
     );
     const setTranscript = (lines: string[]): Promise<void> =>
         writeFile(transcriptPath, `${lines.join('\n')}\n`);
-    return { emitted, runner, service, setTranscript, terminal };
+    return { emitted, logger: structuredLogger, runner, service, setTranscript, terminal };
 }
 
 const createdPullRequestLines = [
@@ -233,6 +235,62 @@ const codexCreatedPullRequestLines = [
 ];
 
 describe('SessionPullRequestService', () => {
+    it('reports a failed branch lookup instead of silently omitting the pull request', async () => {
+        const { logger: structuredLogger, service } = await harness({
+            sessions: [session()],
+            gh: () => Promise.reject(new ExternalStatusCliError('gh', 'not-found', 'missing')),
+        });
+        const logWrite = vi.spyOn(structuredLogger, 'write');
+        await service.refresh();
+
+        expect(service.snapshot()).toMatchObject({
+            unavailable: {
+                'session-1': {
+                    reason: 'not-found',
+                    hint: 'GitHub CLI is not installed. Install gh, then refresh.',
+                },
+            },
+        });
+        expect(logWrite).toHaveBeenCalledWith('warn', 'session_pull_requests.lookup_unavailable', {
+            fields: { reason: 'not-found' },
+        });
+    });
+
+    it('keeps a confirmed missing pull request distinct from CLI failure', async () => {
+        const { service } = await harness({
+            sessions: [session()],
+            gh: () => Promise.resolve('[]'),
+        });
+        await service.refresh();
+        expect(service.snapshot()).toMatchObject({ pullRequests: {} });
+        expect(service.snapshot().unavailable).toBeUndefined();
+    });
+
+    it('clears the unknown state after GitHub CLI recovers', async () => {
+        let now = 0;
+        let isUnavailable = true;
+        const { service } = await harness({
+            sessions: [session()],
+            now: () => now,
+            gh: (arguments_) =>
+                isUnavailable
+                    ? Promise.reject(new ExternalStatusCliError('gh', 'not-logged-in', 'login'))
+                    : Promise.resolve(
+                          arguments_[1] === 'list'
+                              ? JSON.stringify([{ number: 42, state: 'OPEN' }])
+                              : pullRequestJson({ number: 42, state: 'OPEN' }),
+                      ),
+        });
+        await service.refresh();
+        expect(service.snapshot().unavailable?.['session-1']?.reason).toBe('not-logged-in');
+
+        isUnavailable = false;
+        now += 61_000;
+        await service.refresh();
+        expect(service.snapshot().pullRequests['session-1']?.number).toBe(42);
+        expect(service.snapshot().unavailable).toBeUndefined();
+    });
+
     it('refreshes a branch projection immediately when the Workbench Root changes', async () => {
         const sessions = [session()];
         const { service } = await harness({
@@ -598,6 +656,9 @@ describe('SessionPullRequestService', () => {
         await service.refresh();
         expect(gh).toHaveBeenCalledTimes(2);
         expect(service.snapshot().pullRequests['session-1']?.state).toBe('open');
+        expect(service.snapshot().unavailable?.['session-1']).toMatchObject({
+            reason: 'rate-limited',
+        });
     });
 
     it('trusts a merely mentioned PR link only for the Session repository', async () => {
