@@ -90,7 +90,7 @@ test('Source Control keeps its caption and recovery action without a repository'
         const panel = running.page.locator('.git-panel');
         await expect(panel.getByText('Source Control', { exact: true })).toBeVisible();
         await expect(panel.getByText('No Session selected')).toBeVisible();
-        await expect(panel.getByRole('button', { name: 'Refresh Git' })).toBeDisabled();
+        await expect(panel.getByRole('button', { name: 'Refresh Source Control' })).toBeDisabled();
 
         await createShellSession(running.page);
         await running.page.getByRole('tab', { name: 'Git', exact: true }).click();
@@ -99,7 +99,7 @@ test('Source Control keeps its caption and recovery action without a repository'
         await expect(panel.getByText('This Project root is not a repository yet.')).toBeVisible();
         await panel.getByRole('button', { name: 'Refresh', exact: true }).click();
         await expect(panel.getByText('No Git repository')).toBeVisible();
-        await expect(panel.getByRole('button', { name: 'Refresh Git' })).toBeEnabled();
+        await expect(panel.getByRole('button', { name: 'Refresh Source Control' })).toBeEnabled();
     } finally {
         await running.app.close();
         await rm(testDirectory, { recursive: true, force: true });

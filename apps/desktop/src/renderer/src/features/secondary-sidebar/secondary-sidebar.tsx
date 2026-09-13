@@ -1,17 +1,10 @@
-import { useState } from 'react';
-
-import type { ViewContainerId } from '@caxri/protocol';
-
 import { useSessionState } from '../../stores/selectors';
 import { useSessionViewStore } from '../../stores/session-view';
 import { ViewContainerSurface } from '../view-containers/view-container-surface';
 
 export function SecondarySidebar() {
     const sessionState = useSessionState();
-    const [unscopedDesiredId, setUnscopedDesiredId] = useState<ViewContainerId>();
-    const desiredId = sessionState
-        ? sessionState.desiredSecondarySidebarViewContainerId
-        : unscopedDesiredId;
+    const desiredId = sessionState?.desiredSecondarySidebarViewContainerId;
     return (
         <aside
             aria-label="Secondary Side Bar"
@@ -21,13 +14,10 @@ export function SecondarySidebar() {
                 ariaLabel="Secondary Side Bar"
                 desiredId={desiredId}
                 location="secondarySidebar"
-                onSelect={(id) => {
-                    if (sessionState)
-                        useSessionViewStore
-                            .getState()
-                            .setDesiredSecondarySidebarViewContainerId(id);
-                    else setUnscopedDesiredId(id);
-                }}
+                hasUnscopedSelection={!sessionState}
+                onSelect={(id) =>
+                    useSessionViewStore.getState().setDesiredSecondarySidebarViewContainerId(id)
+                }
             />
         </aside>
     );

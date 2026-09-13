@@ -12,11 +12,11 @@ export function SourceControlHeader({ controller }: { controller: SourceControlC
                 className="git-heading"
                 title="Source Control"
                 actions={
-                    <Tooltip content="Refresh Git">
+                    <Tooltip content="Refresh Source Control">
                         <Button
                             size="icon"
                             variant="ghost"
-                            aria-label="Refresh Git"
+                            aria-label="Refresh Source Control"
                             aria-busy={controller.isRefreshing || undefined}
                             disabled={
                                 controller.status === 'no-session' ||
