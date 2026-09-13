@@ -15,6 +15,7 @@ import type { BrowserWindow } from 'electron';
 import { app, clipboard, ClipboardItem, dialog, nativeImage, shell } from 'electron';
 
 import { createAcceptanceExternalOpenFixture } from './acceptance-external-open';
+import { createAcceptanceThemeImportFixture } from './acceptance-theme-import';
 import { readArgvConfig, updateArgvConfig } from './argv-config';
 import {
     deleteProjectPrompt,
@@ -36,6 +37,7 @@ import type { createWorkbenchRootAuthority } from './workbench-root-authority';
 
 interface MainMethodHandlerOptions {
     externalOpenFixture?: ReturnType<typeof createAcceptanceExternalOpenFixture>;
+    acceptanceThemeImportFixture?: ReturnType<typeof createAcceptanceThemeImportFixture>;
     allowGpuTestInjection?: boolean;
     getProcessExplorer(): ProcessExplorerWindowController;
     getUserDataPath(): string;
@@ -112,6 +114,12 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
     const externalOpenFixture =
         options.externalOpenFixture ??
         createAcceptanceExternalOpenFixture({
+            environment: process.env,
+            userDataPath: options.getUserDataPath(),
+        });
+    const themeImportFixture =
+        options.acceptanceThemeImportFixture ??
+        createAcceptanceThemeImportFixture({
             environment: process.env,
             userDataPath: options.getUserDataPath(),
         });
@@ -310,14 +318,19 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 });
             }
             case 'theme.import': {
+                if (themeImportFixture) {
+                    const path = await themeImportFixture.choose();
+                    return supervisor.request('theme.importPath', { path });
+                }
                 const result = await dialog.showOpenDialog(mainWindow!, {
                     title: 'Import Theme',
                     properties: ['openFile'],
                     filters: [
                         {
                             name: 'Theme files',
-                            extensions: [...themeImportExtensions],
+                            extensions: [...themeImportExtensions, 'vsix'],
                         },
+                        { name: 'All Files', extensions: ['*'] },
                     ],
                 });
                 const path = result.filePaths[0];

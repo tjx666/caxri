@@ -101,6 +101,25 @@ describe('Acceptance Electron launcher seams', () => {
         },
     );
 
+    it.each([
+        [undefined, undefined],
+        ['other-case', undefined],
+        ['issue-826-surface-seam', 'issue-826-surface-seam'],
+        ['issue-824-syntax-and-terminal-selection', 'issue-824-syntax-and-terminal-selection'],
+        ['issue-825-include-zero-hit-vsix', 'issue-825-include-zero-hit-vsix'],
+    ])('binds theme import fixture authority to case %s', (caseId, expected) => {
+        const spec = createElectronLaunchSpec({
+            caseId,
+            port: 9222,
+            testRootPath: '/tmp/project',
+            testRootPaths: ['/tmp/project'],
+            userDataDir: '/tmp/caxri-acceptance-owned',
+            environment: { CAXRI_ACCEPTANCE_THEME_IMPORT: 'issue-826-surface-seam' },
+            agentEnvironment: { CAXRI_ACCEPTANCE_THEME_IMPORT: 'issue-826-surface-seam' },
+        });
+        expect(spec.options.env.CAXRI_ACCEPTANCE_THEME_IMPORT).toBe(expected);
+    });
+
     it('protects a reused profile as soon as verified process ownership is inherited', () => {
         expect(shouldPreserveInheritedRuntimeState(runtime.ownedProcesses)).toBe(true);
         expect(shouldPreserveInheritedRuntimeState([])).toBe(false);
@@ -271,10 +290,14 @@ describe('Acceptance Electron launcher seams', () => {
 
     it('can leave folder selection on the explicitly authorized native dialog boundary', () => {
         const launch = createElectronLaunchSpec({
+            caseId: 'issue-826-surface-seam',
             electronPath: '/repo/node_modules/.bin/electron',
             environment: {
                 PATH: '/usr/bin',
                 CAXRI_ACCEPTANCE_NATIVE_DIALOG_AUTHORIZATION: 'explicit-user-request',
+                CAXRI_ACCEPTANCE_THEME_IMPORT: 'issue-826-surface-seam',
+                CAXRI_TEST_ROOT_PATH: '/inherited-root',
+                CAXRI_TEST_ROOT_PATHS: '["/inherited-root"]',
             },
             port: 9333,
             projectRoot: '/repo',
@@ -286,6 +309,7 @@ describe('Acceptance Electron launcher seams', () => {
 
         expect(launch.options.env).not.toHaveProperty('CAXRI_TEST_ROOT_PATH');
         expect(launch.options.env).not.toHaveProperty('CAXRI_TEST_ROOT_PATHS');
+        expect(launch.options.env.CAXRI_ACCEPTANCE_THEME_IMPORT).toBeUndefined();
         expect(launch.options.env).toMatchObject({
             CAXRI_ACCEPTANCE: '1',
             CAXRI_ACCEPTANCE_NATIVE_DIALOG_AUTHORIZATION: 'explicit-user-request',

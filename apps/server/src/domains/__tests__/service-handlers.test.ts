@@ -48,3 +48,36 @@ describe('Runtime service handler cancellation', () => {
         expect(observedSignal).toBe(controller.signal);
     });
 });
+
+describe('Theme import handler', () => {
+    it('does not change the active theme when the imported theme is rejected', async () => {
+        const failure = new Error('No supported colors');
+        const importTheme = vi.fn().mockRejectedValue(failure);
+        const setAppState = vi.fn();
+        const handlers = createServiceHandlers({
+            acknowledgeFileMutation: () => Promise.resolve(),
+            agentEnvironment: {} as never,
+            agentHooks: {} as never,
+            awaitAgentSettingsReconcile: () => Promise.resolve(),
+            configuration: { importTheme } as unknown as ConfigService,
+            database: { setAppState } as unknown as CaxriDatabase,
+            diagnostics: {} as DiagnosticsService,
+            emit: () => {},
+            externalStatus: new ExternalStatusHub(),
+            files: {} as FileService,
+            git: {} as GitService,
+            introspection: {} as ReturnType<typeof createIntrospectionServices>,
+            logger: {} as never,
+            longPastes: {} as never,
+            projectStatus: {} as ProjectStatusService,
+            transcripts: {} as never,
+            userDataPath: '/tmp/caxri-theme-import-handler-test',
+        });
+
+        await expect(handlers['theme.importPath']({ path: '/tmp/empty-theme.json' })).rejects.toBe(
+            failure,
+        );
+        expect(importTheme).toHaveBeenCalledWith('/tmp/empty-theme.json');
+        expect(setAppState).not.toHaveBeenCalled();
+    });
+});
