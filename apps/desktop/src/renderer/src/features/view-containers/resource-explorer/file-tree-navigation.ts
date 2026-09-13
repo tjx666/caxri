@@ -43,7 +43,11 @@ export function parentTreeItemIndex(
 
 function treeItems(current: HTMLElement): HTMLElement[] {
     const tree = current.closest('[role="tree"]');
-    return tree ? Array.from(tree.querySelectorAll<HTMLElement>('[role="treeitem"]')) : [];
+    return tree
+        ? Array.from(tree.querySelectorAll<HTMLElement>('[role="treeitem"]')).filter(
+              (item) => item.closest('[role="tree"]') === tree && !item.closest('[inert]'),
+          )
+        : [];
 }
 
 function descriptorsOf(items: readonly HTMLElement[]): TreeItemDescriptor[] {
@@ -79,4 +83,46 @@ export function focusParentTreeItem(current: HTMLElement): void {
     if (index === -1) return;
     const target = parentTreeItemIndex(descriptorsOf(items), index);
     if (target !== undefined) items[target].focus();
+}
+
+/**
+ * Focuses the first child only when the next visible row is deeper than the current row.
+ */
+export function focusFirstChildTreeItem(current: HTMLElement): void {
+    const items = treeItems(current);
+    const index = items.indexOf(current);
+    const next = items.at(index + 1);
+    if (index === -1 || !next) return;
+    const currentLevel = Number(current.getAttribute('aria-level') ?? '1');
+    const nextLevel = Number(next.getAttribute('aria-level') ?? '1');
+    if (nextLevel > currentLevel) next.focus();
+}
+
+export type TreeNavigationAction =
+    'next' | 'previous' | 'first' | 'last' | 'expand' | 'collapse' | 'child' | 'parent';
+
+/**
+ * Maps tree keys to a focus or disclosure action without depending on one tree's row model.
+ */
+export function treeNavigationAction(
+    key: string,
+    isExpandable: boolean,
+    isExpanded: boolean,
+): TreeNavigationAction | undefined {
+    switch (key) {
+        case 'ArrowDown':
+            return 'next';
+        case 'ArrowUp':
+            return 'previous';
+        case 'Home':
+            return 'first';
+        case 'End':
+            return 'last';
+        case 'ArrowRight':
+            return isExpandable ? (isExpanded ? 'child' : 'expand') : undefined;
+        case 'ArrowLeft':
+            return isExpandable && isExpanded ? 'collapse' : 'parent';
+        default:
+            return undefined;
+    }
 }

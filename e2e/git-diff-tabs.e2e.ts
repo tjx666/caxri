@@ -30,7 +30,7 @@ test('Discard All Changes closes the working diff without an error notification'
         await createProjectSession(page);
         await page.getByRole('tab', { name: 'Git', exact: true }).click();
         const repo = page.locator('.git-repository-section');
-        await repo.getByRole('button', { name: 'tracked.txt', exact: true }).click();
+        await repo.getByRole('treeitem', { name: 'tracked.txt', exact: true }).click();
         await expect(page.locator('.git-file-diff')).toBeVisible();
         await running.app.evaluate(({ dialog }) => {
             dialog.showMessageBox = () => Promise.resolve({ response: 1, checkboxChecked: false });
@@ -54,7 +54,7 @@ test('Discard All Changes closes the working diff without an error notification'
         });
 
         await writeFile(join(root, 'tracked.txt'), trackedWorking);
-        await repo.getByRole('button', { name: 'tracked.txt', exact: true }).click();
+        await repo.getByRole('treeitem', { name: 'tracked.txt', exact: true }).click();
         await expect(page.locator('.git-file-diff')).toBeVisible();
         await repo
             .getByRole('button', { name: 'Discard changes in tracked.txt', exact: true })
@@ -94,7 +94,7 @@ test('Diff view options control layout, unchanged regions, and whitespace across
         await createProjectSession(page);
         await page.getByRole('tab', { name: 'Git', exact: true }).click();
         const repo = page.locator('.git-repository-section');
-        await repo.getByRole('button', { name: 'layout.ts', exact: true }).click();
+        await repo.getByRole('treeitem', { name: 'layout.ts', exact: true }).click();
         const diff = page.locator('.git-file-diff');
         await expect(diff.locator('.monaco-diff-editor')).toBeVisible();
         await page.getByRole('button', { name: 'Diff View Options', exact: true }).click();
@@ -113,7 +113,7 @@ test('Diff view options control layout, unchanged regions, and whitespace across
         await page.keyboard.press('Escape');
         await expect(diff.locator('.editor.modified')).not.toContainText('const line40 = 40;');
         await expect(diff.locator('.diff-hidden-lines')).toHaveCount(0);
-        await repo.getByRole('button', { name: 'whitespace.ts', exact: true }).click();
+        await repo.getByRole('treeitem', { name: 'whitespace.ts', exact: true }).click();
         const next = page.getByRole('button', { name: 'Next Change', exact: true });
         await expect(next).toBeDisabled();
         await page.getByRole('button', { name: 'Diff View Options', exact: true }).click();
@@ -172,7 +172,7 @@ test('Switching between two working diff tabs keeps each diff pointed at its own
         const page = running.page;
         await page.getByRole('tab', { name: 'Git', exact: true }).click();
         const repo = page.locator('.git-repository-section');
-        await expect(repo.getByRole('button', { name: 'Changes', exact: true })).toBeVisible();
+        await expect(repo.getByRole('treeitem', { name: 'Changes', exact: true })).toBeVisible();
 
         const diff = page.locator('.git-file-diff');
         const original = diff.locator('.monaco-diff-editor .editor.original');
@@ -212,11 +212,11 @@ test('Switching between two working diff tabs keeps each diff pointed at its own
             await expect(diff.getByRole('textbox', { name: 'Added file contents' })).toBeFocused();
         };
 
-        await repo.getByRole('button', { name: 'tracked.ts', exact: true }).click();
+        await repo.getByRole('treeitem', { name: 'tracked.ts', exact: true }).click();
         await expect(trackedTab).toBeVisible();
         await expectTrackedDiff();
 
-        await repo.getByRole('button', { name: 'fresh.ts', exact: true }).click();
+        await repo.getByRole('treeitem', { name: 'fresh.ts', exact: true }).click();
         await expect(freshTab).toBeVisible();
         await expectFreshDiff();
 

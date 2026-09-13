@@ -47,7 +47,7 @@ test('Submodule changes clear automatically after an external commit in a linked
         const section = panel.locator('.git-repository-section').filter({
             has: running.page.locator(`.git-repository-row[title="${child}"]`),
         });
-        const file = section.getByRole('button', { name: 'tracked.txt', exact: true });
+        const file = section.getByRole('treeitem', { name: 'tracked.txt', exact: true });
         await expect(file).toBeVisible();
         await panel.screenshot({ path: test.info().outputPath('submodule-before-commit.png') });
         await gitAt(child, 'add', 'tracked.txt');
