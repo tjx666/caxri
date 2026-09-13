@@ -134,16 +134,33 @@ export function CreateSessionMenu({ project }: { project: ProjectRecord }) {
  *
  * It renders its own menu rather than reusing the heading's so the choice opens under the button the user clicked;
  * before that, this button borrowed the heading's menu and the popup appeared several rows above the pointer.
+ *
+ * It is also a row of the PrimarySidebar's ARIA tree: `rowId` is how arrow-key navigation finds and focuses it, and
+ * `roving` is true while it owns the tree's single Tab stop.
  */
-export function EmptyProjectSessionMenu({ project }: { project: ProjectRecord }) {
+export function EmptyProjectSessionMenu({
+    project,
+    roving,
+    rowId,
+}: {
+    project: ProjectRecord;
+    roving: boolean;
+    rowId: string;
+}) {
     return (
         <SessionCreationMenu
             anchor="emptyProject"
             project={project}
             trigger={
                 <button
-                    className="empty-project flex h-7 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-muted hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] hover:text-foreground"
-                    tabIndex={-1}
+                    className="empty-project flex h-7 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-muted hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
+                    /**
+                     * Named after the Project because several empty Projects can show this row at once, and "New
+                     * Session" alone would read identically for every one of them.
+                     */
+                    aria-label={`New Session in ${project.displayTitle}`}
+                    data-row-id={rowId}
+                    tabIndex={roving ? 0 : -1}
                 >
                     <SquarePen size={13} /> New Session
                 </button>
