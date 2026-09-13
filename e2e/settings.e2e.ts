@@ -347,6 +347,8 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
         await expect(sourceEditor.locator('.view-line').nth(1)).toContainText('// jump');
         await dialog.getByRole('button', { name: 'Revert changes' }).click();
         await expect(dialog.getByRole('alert')).toHaveCount(0);
+        await sourceEditor.locator('.monaco-editor').click();
+        await running.page.keyboard.press('Meta+ArrowDown');
         await expect(sourceEditor.locator('.view-lines')).toContainText('keep-source-comment');
         await dialog.getByRole('button', { name: 'UI' }).click();
 

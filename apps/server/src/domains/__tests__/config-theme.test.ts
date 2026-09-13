@@ -72,7 +72,7 @@ describe('ConfigurationService built-in themes', () => {
         await service.close();
     });
 
-    it('keeps import warnings in memory while persisting an empty warnings array', async () => {
+    it('returns structured warnings only for the import and omits them from theme.json', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-theme-warnings-'));
         temporaryDirectories.push(directory);
         const service = new ConfigService(directory, () => {});
@@ -89,12 +89,22 @@ describe('ConfigurationService built-in themes', () => {
         );
 
         const imported = await service.importTheme(path);
-        expect(imported.warnings.length).toBeGreaterThan(0);
-        expect(service.getTheme().value.warnings).toEqual(imported.warnings);
-        expect(JSON.parse(await readFile(service.themePath, 'utf8'))).toMatchObject({
-            warnings: [],
+        expect(imported.warnings).toContainEqual({
+            id: 'missing-syntax-colors',
+            message: 'Syntax colors were not imported.',
         });
+        expect(imported.value).not.toHaveProperty('warnings');
+        expect(service.getTheme().value).not.toHaveProperty('warnings');
+        expect(JSON.parse(await readFile(service.themePath, 'utf8'))).not.toHaveProperty(
+            'warnings',
+        );
         expect(service.getTheme().source).not.toContain('Syntax colors');
         await service.close();
+
+        const restarted = new ConfigService(directory, () => {});
+        await restarted.initialize();
+        expect(restarted.getTheme().value).not.toHaveProperty('warnings');
+        expect(restarted.getTheme().source).not.toContain('warnings');
+        await restarted.close();
     });
 });

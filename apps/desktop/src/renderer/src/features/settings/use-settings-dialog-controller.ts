@@ -602,13 +602,13 @@ export function useSettingsDialogController() {
             // the generation so a stale response cannot clobber the just-imported theme afterward.
             writeCoordinator.supersede('theme');
             const result = await caxri.request('theme.get');
-            // Use the import payload for `value` so session-local warnings survive serializeTheme
-            // stripping them from theme.json / `theme.get`.
-            resetThemeImportWarningDismissals(imported.id);
+            // The import response is the only source of transient warnings; theme.get reads saved tokens only.
+            resetThemeImportWarningDismissals(imported.value.id);
             dispatchConfig({
                 type: 'theme/imported',
-                value: imported,
+                value: imported.value,
                 source: result.source,
+                warnings: imported.warnings,
             });
             onApplied();
         } catch (error) {

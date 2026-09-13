@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import type { ThemeTokens } from '@caxri/protocol';
+import type { ThemeImportWarning, ThemeTokens } from '@caxri/protocol';
 import { builtinThemes, findMatchingBuiltinTheme } from '@caxri/protocol';
 import { Import, X } from 'lucide-react';
 
@@ -25,6 +25,7 @@ import { humanizeThemeTokenLabel } from './theme-token-labels';
 
 interface ThemeFormProperties {
     theme: ThemeTokens;
+    warnings: readonly ThemeImportWarning[];
     onColorChange: (section: 'colors' | 'terminal' | 'editor', key: string, value: string) => void;
     onImport: () => void;
     onSelectBuiltin: (id: string) => void;
@@ -35,6 +36,7 @@ interface ThemeFormProperties {
  */
 export function ThemeForm({
     theme,
+    warnings,
     onColorChange,
     onImport,
     onSelectBuiltin,
@@ -108,7 +110,7 @@ export function ThemeForm({
                         ))}
                     </fieldset>
                 ))}
-                <ThemeImportWarnings key={theme.id} themeId={theme.id} warnings={theme.warnings} />
+                <ThemeImportWarnings key={theme.id} themeId={theme.id} warnings={warnings} />
             </div>
         </div>
     );
@@ -119,7 +121,7 @@ function ThemeImportWarnings({
     warnings,
 }: {
     themeId: string;
-    warnings: readonly string[];
+    warnings: readonly ThemeImportWarning[];
 }) {
     const generation = themeImportWarningDismissGeneration(themeId);
     const [dismissedState, setDismissedState] = useState(() => ({
@@ -134,13 +136,13 @@ function ThemeImportWarnings({
     return (
         <>
             {warnings.map((warning) =>
-                dismissedWarnings.has(warning) ? null : (
+                dismissedWarnings.has(warning.id) ? null : (
                     <Alert
-                        key={warning}
+                        key={warning.id}
                         variant="warning"
                         className="flex items-start justify-between gap-2 text-[11px]"
                     >
-                        <span>{warning}</span>
+                        <span>{warning.message}</span>
                         <Tooltip content="Dismiss warning">
                             <Button
                                 size="icon"
@@ -148,7 +150,7 @@ function ThemeImportWarnings({
                                 className="size-6 shrink-0"
                                 aria-label="Dismiss warning"
                                 onClick={() => {
-                                    dismissThemeImportWarning(themeId, warning);
+                                    dismissThemeImportWarning(themeId, warning.id);
                                     setDismissedState({
                                         generation,
                                         warnings: readThemeImportWarningDismissals(themeId),

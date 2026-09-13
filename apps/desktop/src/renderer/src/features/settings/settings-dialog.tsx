@@ -166,6 +166,7 @@ function SettingsDialogView(controller: SettingsDialogController) {
                         ) : (
                             <ThemeForm
                                 theme={state.theme.value}
+                                warnings={state.theme.warnings}
                                 onColorChange={controller.updateThemeColor}
                                 onImport={() => {
                                     // eslint-disable-next-line no-void -- intentional floating-promise discard, importTheme() reports its own errors

@@ -1,4 +1,10 @@
-import type { AppSettings, Keybinding, KeybindingConflict, ThemeTokens } from '@caxri/protocol';
+import type {
+    AppSettings,
+    Keybinding,
+    KeybindingConflict,
+    ThemeImportWarning,
+    ThemeTokens,
+} from '@caxri/protocol';
 import { appSettingsFileSchema, keybindingsFileSchema, themeTokensSchema } from '@caxri/protocol';
 import type { ParseError } from 'jsonc-parser';
 import { parse, printParseErrorCode } from 'jsonc-parser';
@@ -14,13 +20,18 @@ export interface ConfigState {
         appliedSource: string;
         conflicts: KeybindingConflict[];
     };
-    theme: { value: ThemeTokens | undefined; source: string; appliedSource: string };
+    theme: {
+        value: ThemeTokens | undefined;
+        source: string;
+        appliedSource: string;
+        warnings: ThemeImportWarning[];
+    };
 }
 
 export const initialConfigState: ConfigState = {
     settings: { value: undefined, source: '', appliedSource: '' },
     keybindings: { value: [], source: '', appliedSource: '', conflicts: [] },
-    theme: { value: undefined, source: '', appliedSource: '' },
+    theme: { value: undefined, source: '', appliedSource: '', warnings: [] },
 };
 
 export type ConfigAction =
@@ -71,19 +82,21 @@ export type ConfigAction =
     | { type: 'theme/echoApplied'; source: string }
     | { type: 'theme/reconciled'; value: ThemeTokens; source: string }
     | { type: 'theme/externalChanged'; source: string; value?: ThemeTokens }
-    | { type: 'theme/imported'; value: ThemeTokens; source: string };
+    | {
+          type: 'theme/imported';
+          value: ThemeTokens;
+          source: string;
+          warnings: ThemeImportWarning[];
+      };
 
 /**
  * Keep importer diagnostics visible when a serialized read returns the same theme without them.
  */
 function keepSessionThemeWarnings(
-    current: ThemeTokens | undefined,
+    current: ConfigState['theme'],
     next: ThemeTokens,
-): ThemeTokens {
-    if (next.warnings.length > 0 || current?.id !== next.id || current.warnings.length === 0) {
-        return next;
-    }
-    return { ...next, warnings: current.warnings };
+): ThemeImportWarning[] {
+    return current.value?.id === next.id ? current.warnings : [];
 }
 
 export function configReducer(state: ConfigState, action: ConfigAction): ConfigState {
@@ -105,6 +118,7 @@ export function configReducer(state: ConfigState, action: ConfigAction): ConfigS
                     value: action.theme.value,
                     source: action.theme.source,
                     appliedSource: action.theme.source,
+                    warnings: [],
                 },
             };
         case 'settings/changed':
@@ -199,7 +213,12 @@ export function configReducer(state: ConfigState, action: ConfigAction): ConfigS
         case 'theme/changed':
             return {
                 ...state,
-                theme: { ...state.theme, value: action.value, source: action.source },
+                theme: {
+                    ...state.theme,
+                    value: action.value,
+                    source: action.source,
+                    warnings: [],
+                },
             };
         case 'theme/sourceChanged':
             return { ...state, theme: { ...state.theme, source: action.source } };
@@ -208,16 +227,18 @@ export function configReducer(state: ConfigState, action: ConfigAction): ConfigS
                 ...state,
                 theme: {
                     ...state.theme,
-                    value: keepSessionThemeWarnings(state.theme.value, action.value),
+                    value: action.value,
+                    warnings: keepSessionThemeWarnings(state.theme, action.value),
                 },
             };
         case 'theme/applied':
             return {
                 ...state,
                 theme: {
-                    value: keepSessionThemeWarnings(state.theme.value, action.value),
+                    value: action.value,
                     source: action.source,
                     appliedSource: action.source,
+                    warnings: keepSessionThemeWarnings(state.theme, action.value),
                 },
             };
         case 'theme/echoApplied':
@@ -230,11 +251,10 @@ export function configReducer(state: ConfigState, action: ConfigAction): ConfigS
             return {
                 ...state,
                 theme: {
-                    value: hasPendingDraft
-                        ? state.theme.value
-                        : keepSessionThemeWarnings(state.theme.value, action.value),
+                    value: hasPendingDraft ? state.theme.value : action.value,
                     source: hasPendingDraft ? state.theme.source : action.source,
                     appliedSource: action.source,
+                    warnings: keepSessionThemeWarnings(state.theme, action.value),
                 },
             };
         }
@@ -242,11 +262,12 @@ export function configReducer(state: ConfigState, action: ConfigAction): ConfigS
             return {
                 ...state,
                 theme: {
-                    value: action.value
-                        ? keepSessionThemeWarnings(state.theme.value, action.value)
-                        : state.theme.value,
+                    value: action.value ?? state.theme.value,
                     source: action.source,
                     appliedSource: action.source,
+                    warnings: action.value
+                        ? keepSessionThemeWarnings(state.theme, action.value)
+                        : state.theme.warnings,
                 },
             };
         case 'theme/imported':
@@ -256,6 +277,7 @@ export function configReducer(state: ConfigState, action: ConfigAction): ConfigS
                     value: action.value,
                     source: action.source,
                     appliedSource: action.source,
+                    warnings: action.warnings,
                 },
             };
         default:
