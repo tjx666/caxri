@@ -17,8 +17,7 @@
     },
     "caxri": {
         "capabilities": [
-            "projects.read",
-            "sessions.read"
+            "projects.read"
         ]
     },
     "contributes": {
