@@ -61,12 +61,41 @@ export function FieldTitle({ className, ...properties }: ComponentProps<'div'>) 
     );
 }
 
-export function FieldDescription({ className, ...properties }: ComponentProps<'p'>) {
+/**
+ * Semantic color for a status caption; a visible dot keeps urgent states recognizable without color.
+ */
+export function FieldDescription({
+    children,
+    className,
+    tone = 'muted',
+    ...properties
+}: ComponentProps<'p'> & { tone?: 'danger' | 'muted' | 'warning' }) {
     return (
         <p
             data-slot="field-description"
-            className={cn('m-0 text-[11px] leading-[1.45] text-muted', className)}
+            data-tone={tone}
+            className={cn(
+                'm-0 text-[11px] leading-[1.45]',
+                tone === 'muted'
+                    ? 'text-muted'
+                    : tone === 'warning'
+                      ? 'flex items-start gap-1.5 text-warning'
+                      : 'flex items-start gap-1.5 text-danger',
+                className,
+            )}
             {...properties}
-        />
+        >
+            {tone === 'muted' ? (
+                children
+            ) : (
+                <>
+                    <span
+                        aria-hidden="true"
+                        className="mt-[5px] size-1.5 flex-none rounded-full bg-current"
+                    />
+                    <span className="min-w-0">{children}</span>
+                </>
+            )}
+        </p>
     );
 }
