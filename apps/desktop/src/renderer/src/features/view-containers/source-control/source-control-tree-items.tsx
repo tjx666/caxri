@@ -1,4 +1,4 @@
-import type { DragEvent } from 'react';
+import type { DragEvent, KeyboardEvent } from 'react';
 
 import type { SourceControlAction, SourceControlResource } from '@caxri/protocol';
 import { ChevronDown, ChevronRight } from 'lucide-react';
@@ -12,6 +12,7 @@ import { cn } from '../../../lib/utilities';
 import { SourceControlIcon } from './source-control-icon';
 import type { SourceControlTreeNode } from './source-control-tree';
 import { sourceControlDirectoryExpansionKeys } from './source-control-tree';
+import { SourceControlTreeRow } from './source-control-tree-row';
 
 const resourceRowClassName =
     'git-row flex w-full items-center gap-2 h-7 px-2 border-0 bg-surface text-left cursor-pointer';
@@ -75,7 +76,9 @@ export function SourceControlTreeItems({
             const isExpanded = expandedDirectories[expansionKey] ?? true;
             return (
                 <div key={node.path}>
-                    <button
+                    <SourceControlTreeRow
+                        rowId={`directory:${providerKey}:${node.path}`}
+                        level={3 + depth}
                         className="git-tree-directory flex h-7 w-full cursor-pointer items-center gap-1.5 border-0 bg-surface pr-2 text-left text-foreground hover:bg-elevated"
                         style={{ paddingLeft: 8 + depth * 14 }}
                         aria-expanded={isExpanded}
@@ -88,6 +91,14 @@ export function SourceControlTreeItems({
                                 !isExpanded,
                             )
                         }
+                        onKeyDown={(event: KeyboardEvent<HTMLButtonElement>) => {
+                            if (event.key !== 'Enter' || !event.altKey) return;
+                            event.preventDefault();
+                            setDirectoriesExpanded(
+                                sourceControlDirectoryExpansionKeys(node, providerKey),
+                                !isExpanded,
+                            );
+                        }}
                     >
                         {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                         <FileTypeIcon
@@ -95,7 +106,7 @@ export function SourceControlTreeItems({
                             expanded={isExpanded}
                         />
                         <span className="truncate">{node.name}</span>
-                    </button>
+                    </SourceControlTreeRow>
                     {isExpanded && (
                         <SourceControlTreeItems
                             activeEditorResource={activeEditorResource}
@@ -116,8 +127,10 @@ export function SourceControlTreeItems({
         const resourcePath = resolveRepoFilePath(repositoryRootPath, resource.path);
         if (resource.navigationTargetId && trailingActions.length === 0)
             return (
-                <button
+                <SourceControlTreeRow
                     key={resource.id}
+                    rowId={`resource:${resource.id}`}
+                    level={3 + depth}
                     className={cn(resourceRowClassName, 'git-submodule-row hover:bg-elevated')}
                     style={{ paddingLeft: 10 + depth * 14 }}
                     title={resource.tooltip}
@@ -134,12 +147,16 @@ export function SourceControlTreeItems({
                         </small>
                     )}
                     <Decoration resource={resource} />
-                </button>
+                </SourceControlTreeRow>
             );
         if (resource.navigationTargetId)
             return (
                 <div key={resource.id} className="git-row-container group relative">
-                    <button
+                    <SourceControlTreeRow
+                        rowId={`resource:${resource.id}`}
+                        level={3 + depth}
+                        menuActions={trailingActions}
+                        onMenuAction={runAction}
                         className={cn(resourceRowClassName, 'git-submodule-row hover:bg-elevated')}
                         style={{ paddingLeft: 10 + depth * 14 }}
                         title={resource.tooltip}
@@ -156,7 +173,7 @@ export function SourceControlTreeItems({
                             </small>
                         )}
                         <Decoration resource={resource} />
-                    </button>
+                    </SourceControlTreeRow>
                     {trailingActions.map((action, index) => (
                         <Tooltip content={action.tooltip ?? action.label} key={action.id}>
                             <Button
@@ -168,6 +185,7 @@ export function SourceControlTreeItems({
                                 style={index === 0 ? undefined : { right: 4 + index * 20 }}
                                 size="icon"
                                 variant="ghost"
+                                tabIndex={-1}
                                 aria-label={action.accessibilityLabel ?? action.label}
                                 disabled={action.disabled}
                                 onClick={() => runAction(action)}
@@ -180,7 +198,11 @@ export function SourceControlTreeItems({
             );
         return (
             <div key={resource.id} className="git-row-container group relative">
-                <button
+                <SourceControlTreeRow
+                    rowId={`resource:${resource.id}`}
+                    level={3 + depth}
+                    menuActions={trailingActions}
+                    onMenuAction={runAction}
                     className={cn(
                         resourceRowClassName,
                         'hover:bg-elevated',
@@ -203,7 +225,7 @@ export function SourceControlTreeItems({
                                 : undefined
                         }
                     />
-                </button>
+                </SourceControlTreeRow>
                 {trailingActions.map((action, index) => (
                     <Tooltip content={action.tooltip ?? action.label} key={action.id}>
                         <Button
@@ -215,6 +237,7 @@ export function SourceControlTreeItems({
                             style={index === 0 ? undefined : { right: 4 + index * 20 }}
                             size="icon"
                             variant="ghost"
+                            tabIndex={-1}
                             aria-label={action.accessibilityLabel ?? action.label}
                             disabled={action.disabled}
                             onClick={() => runAction(action)}

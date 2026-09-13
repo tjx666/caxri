@@ -35,11 +35,11 @@ test('Git disclosure state survives Secondary Side Bar tab switches', async () =
         await gitTab.click();
 
         const repo = running.page.locator('.git-repository-section');
-        const changes = repo.getByRole('button', { name: 'Changes', exact: true });
+        const changes = repo.getByRole('treeitem', { name: 'Changes', exact: true });
         await expect(changes).toHaveAttribute('aria-expanded', 'true');
-        const agents = repo.getByRole('button', { name: '.agents', exact: true });
-        const acceptance = repo.getByRole('button', { name: 'acceptance', exact: true });
-        const references = repo.getByRole('button', { name: 'references', exact: true });
+        const agents = repo.getByRole('treeitem', { name: '.agents', exact: true });
+        const acceptance = repo.getByRole('treeitem', { name: 'acceptance', exact: true });
+        const references = repo.getByRole('treeitem', { name: 'references', exact: true });
         await expect(references).toHaveAttribute('aria-expanded', 'true');
         await expect(repo.locator('[data-disclosure="git-directory"]')).toHaveCount(0);
 
@@ -65,7 +65,7 @@ test('Git disclosure state survives Secondary Side Bar tab switches', async () =
         await expect(
             running.page
                 .locator('.git-repository-section')
-                .getByRole('button', { name: 'Changes', exact: true }),
+                .getByRole('treeitem', { name: 'Changes', exact: true }),
         ).toHaveAttribute('aria-expanded', 'false');
     } finally {
         try {
@@ -90,12 +90,14 @@ test('Source Control keeps its caption and recovery action without a repository'
         const panel = running.page.locator('.git-panel');
         await expect(panel.getByText('Source Control', { exact: true })).toBeVisible();
         await expect(panel.getByText('No Session selected')).toBeVisible();
+        await expect(panel.getByText('No Session selected')).toHaveAttribute('tabindex', '0');
         await expect(panel.getByRole('button', { name: 'Refresh Source Control' })).toBeDisabled();
 
         await createShellSession(running.page);
         await running.page.getByRole('tab', { name: 'Git', exact: true }).click();
         await expect(panel.getByText('Source Control', { exact: true })).toBeVisible();
         await expect(panel.getByText('No Git repository')).toBeVisible();
+        await expect(panel.getByText('No Git repository')).toHaveAttribute('tabindex', '0');
         await expect(panel.getByText('This Project root is not a repository yet.')).toBeVisible();
         await panel.getByRole('button', { name: 'Refresh', exact: true }).click();
         await expect(panel.getByText('No Git repository')).toBeVisible();
@@ -130,6 +132,7 @@ test('Source Control reports a Git failure without calling the Project a non-rep
         const panel = running.page.locator('.git-panel');
         await expect(panel.getByText('Source Control', { exact: true })).toBeVisible();
         await expect(panel.getByText('Git is not available')).toBeVisible();
+        await expect(panel.getByText('Git is not available')).toHaveAttribute('tabindex', '0');
         await expect(
             panel.getByText('Source Control is unavailable right now.', { exact: false }),
         ).toBeVisible();
