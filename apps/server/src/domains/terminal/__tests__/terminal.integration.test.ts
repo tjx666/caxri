@@ -76,6 +76,38 @@ afterEach(async () => {
 });
 
 describe('TerminalManager', () => {
+    it('persists a provider-specific missing CLI detail for the recovery row', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-missing-agent-cli-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'claude');
+        const manager = createTestTerminalManager(
+            database,
+            () => {},
+            createTestLogger(join(directory, 'logs')),
+            {
+                resolveExecutable: (kind) =>
+                    kind === 'shell'
+                        ? Promise.resolve('/bin/zsh')
+                        : Promise.reject(new Error('private executable path')),
+            },
+        );
+
+        try {
+            await expect(manager.start(created.terminal!)).rejects.toThrow(
+                'private executable path',
+            );
+            expect(database.getTerminal(created.terminal!.id)).toMatchObject({
+                lastProcessState: 'failed',
+                failureReason: 'executable_not_found',
+                failureDetail: 'Claude Code CLI was not found',
+            });
+        } finally {
+            manager.close(created.terminal!.id);
+            database.close();
+        }
+    });
+
     it('isolates Agent lifecycle environment and fences an intentional restart', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-pty-lifecycle-'));
         temporaryDirectories.push(directory);

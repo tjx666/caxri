@@ -98,7 +98,9 @@ describe('CaxriDatabaseConnection', () => {
             (database.database.pragma('table_info(terminals)') as Array<{ name: string }>).map(
                 (column) => column.name,
             ),
-        ).toEqual(expect.arrayContaining(['pty_title', 'last_agent_process_state']));
+        ).toEqual(
+            expect.arrayContaining(['pty_title', 'last_agent_process_state', 'failure_detail']),
+        );
         database.close();
     });
 

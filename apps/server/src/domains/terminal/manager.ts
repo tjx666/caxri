@@ -357,6 +357,7 @@ export class TerminalManager {
     ): Promise<TerminalRecord> {
         const startedAt = performance.now();
         let failureReason: TerminalFailureReason = 'spawn_failed';
+        let failureDetail: string | undefined;
         try {
             const pendingSnapshot = this.snapshots.pending(record.id);
             if (pendingSnapshot) await pendingSnapshot;
@@ -365,6 +366,7 @@ export class TerminalManager {
             const resolved = await this.launchPlanner.resolve(record, options);
             if (!resolved.ok) {
                 failureReason = resolved.failureReason;
+                failureDetail = resolved.failureDetail;
                 throw resolved.error;
             }
             await this.execution.reserve(record);
@@ -388,6 +390,7 @@ export class TerminalManager {
             );
             if (!prepared.ok) {
                 failureReason = prepared.failureReason;
+                failureDetail = prepared.failureDetail;
                 throw prepared.error;
             }
             if (options?.shouldStart && !options.shouldStart())
@@ -437,7 +440,12 @@ export class TerminalManager {
                 });
             }
             if (this.database.getTerminal(record.id))
-                this.database.updateTerminalState(record.id, 'failed', failureReason);
+                this.database.updateTerminalState(
+                    record.id,
+                    'failed',
+                    failureReason,
+                    failureDetail,
+                );
             const wire = toWireError(error);
             this.logger.write('error', ptyLogEvents.spawnFailed, {
                 durationMs: performance.now() - startedAt,

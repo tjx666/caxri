@@ -31,6 +31,7 @@ interface TerminalRow {
     lastAgentProcessState: string | null;
     lastProcessState: string;
     failureReason: string | null;
+    failureDetail: string | null;
     createdAt: number;
     updatedAt: number;
 }
@@ -51,6 +52,7 @@ function mapTerminal(row: TerminalRow): TerminalRecord {
         lastAgentProcessState: (row.lastAgentProcessState as ProcessState | null) ?? undefined,
         lastProcessState: row.lastProcessState as ProcessState,
         failureReason: (row.failureReason as TerminalFailureReason | null) ?? undefined,
+        failureDetail: row.failureDetail ?? undefined,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
     };
@@ -162,6 +164,7 @@ export class TerminalsModel {
         id: string,
         state: ProcessState,
         failureReason?: TerminalFailureReason,
+        failureDetail?: string,
         now = Date.now(),
     ): void {
         this.database
@@ -169,6 +172,7 @@ export class TerminalsModel {
             .set({
                 lastProcessState: state,
                 failureReason: state === 'failed' ? (failureReason ?? null) : null,
+                failureDetail: state === 'failed' ? (failureDetail ?? null) : null,
                 updatedAt: now,
             })
             .where(eq(terminals.id, id))
