@@ -1,4 +1,4 @@
-import type { TreeChildrenResult, TreeItemDto } from '@caxri/protocol';
+import type { CaxriMethod, TreeChildrenResult, TreeItemDto } from '@caxri/protocol';
 import type { QueryClient } from '@tanstack/react-query';
 
 import { caxri } from '../../lib/caxri';
@@ -36,15 +36,21 @@ function extensionTreeContextKey(scope: ExtensionTreeScope): string {
 }
 
 /**
+ * The method every Extension Tree branch is cached under. Exported so the sweep in `invalidation.ts` matches the same
+ * constant the factory below writes, rather than repeating the literal on the matching side.
+ */
+export const EXTENSION_TREE_QUERY_METHOD = 'viewContainers.treeChildren' satisfies CaxriMethod;
+
+/**
  * The one place a branch's cache key is built. Keeping it module-private is the point of this file: every read, write,
  * and removal below goes through it, so no call site can invent a key shape that a later sweep fails to match.
  */
 function extensionTreeChildrenQueryKey(
     scope: ExtensionTreeScope,
     parentHandle: string,
-): readonly [string, ExtensionTreeChildrenQueryParameters] {
+): readonly [CaxriMethod, ExtensionTreeChildrenQueryParameters] {
     return [
-        'viewContainers.treeChildren',
+        EXTENSION_TREE_QUERY_METHOD,
         { contextKey: extensionTreeContextKey(scope), parentHandle, viewId: scope.viewId },
     ] as const;
 }
@@ -54,7 +60,7 @@ function treeChildrenQueryParameters(
 ): ExtensionTreeChildrenQueryParameters | undefined {
     const [method, rawParameters] = queryKey;
     if (
-        method !== 'viewContainers.treeChildren' ||
+        method !== EXTENSION_TREE_QUERY_METHOD ||
         typeof rawParameters !== 'object' ||
         rawParameters === null
     )

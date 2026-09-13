@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('../lib/caxri', () => ({ caxri: mocks }));
 
+import { caxriQueryKey } from './client';
 import { subscribeRuntimeQueryInvalidation } from './invalidation';
 
 /**
@@ -63,7 +64,9 @@ describe('subscribeRuntimeQueryInvalidation transcript queries', () => {
             ['terminal.agentTranscript', { terminalId: 'terminal-b', withContent: true }],
             { content: 'old-b' },
         );
-        queryClient.setQueryData(['files.browse', { sessionId: 'session-a' }], { entries: [] });
+        queryClient.setQueryData(caxriQueryKey('files.list', { sessionId: 'session-a' }), {
+            entries: [],
+        });
         const unsubscribe = subscribeRuntimeQueryInvalidation(queryClient);
 
         mocks.state.handler?.({
@@ -84,7 +87,8 @@ describe('subscribeRuntimeQueryInvalidation transcript queries', () => {
             ])?.isInvalidated,
         ).toBe(true);
         expect(
-            queryClient.getQueryState(['files.browse', { sessionId: 'session-a' }])?.isInvalidated,
+            queryClient.getQueryState(caxriQueryKey('files.list', { sessionId: 'session-a' }))
+                ?.isInvalidated,
         ).toBe(false);
         unsubscribe();
     });
