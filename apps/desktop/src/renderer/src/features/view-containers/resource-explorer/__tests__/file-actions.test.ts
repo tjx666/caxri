@@ -54,6 +54,12 @@ function paneLayout(path: string) {
     };
 }
 
+/**
+ * The `satisfies` clause is load-bearing. `mocks.request` answers `Promise<unknown>`, so the stub cannot be annotated
+ * as a `ResourceExplorerClient` outright — but a bare `as` assertion reports nothing when a member is missing, and a
+ * client method added later would then be `undefined` here while every call site silently took its failure path and the
+ * tests stayed green (issue #909). Requiring every key restores that check without constraining the return types.
+ */
 const client = {
     viewId: 'publisher.files.explorer',
     acknowledgeOperation: (operationId: string) =>
@@ -64,9 +70,17 @@ const client = {
         mocks.request('files.copy', { sessionId: 'session-a', path, directory }),
     create: (options: Parameters<ResourceExplorerClient['create']>[0]) =>
         mocks.request('files.create', { sessionId: 'session-a', ...options }),
+    forgetEditorPath: (workbenchProjectId: string, path: string) =>
+        mocks.request('session.workbenchRoot.forgetEditorPath', {
+            sessionId: 'session-a',
+            workbenchProjectId,
+            path,
+        }),
     getOperation: (operationId: string) => mocks.request('files.operation.get', { operationId }),
     list: (directory?: string) =>
         mocks.request('files.list', { sessionId: 'session-a', directory }),
+    listDirectory: (directory?: string) =>
+        mocks.request('files.browse', { sessionId: 'session-a', directory }),
     listOperations: () => mocks.request('files.operation.list', {}),
     move: (options: Parameters<ResourceExplorerClient['move']>[0]) =>
         mocks.request('files.move', { sessionId: 'session-a', ...options }),
@@ -77,7 +91,7 @@ const client = {
         mocks.request('files.search', { sessionId: 'session-a', ...options }),
     trash: (path: string, options?: Parameters<ResourceExplorerClient['trash']>[1]) =>
         mocks.request('files.trash', { sessionId: 'session-a', path, ...options }),
-} as ResourceExplorerClient;
+} satisfies Record<keyof ResourceExplorerClient, unknown> as unknown as ResourceExplorerClient;
 
 beforeEach(() => vi.stubGlobal('window', globalThis));
 
@@ -377,6 +391,12 @@ describe('file action lifecycle', () => {
             hasUnsavedChanges: true,
         });
         expect(useSessionViewStore.getState().documents['session-a']).toEqual({});
+        // The durable snapshot cleanup has to name the same root: it is the only copy for a Session parked elsewhere.
+        expect(mocks.request).toHaveBeenCalledWith('session.workbenchRoot.forgetEditorPath', {
+            sessionId: 'session-a',
+            workbenchProjectId: 'project-1',
+            path: '/project/source.txt',
+        });
     });
 
     it('reports no unsaved changes for a clean file', async () => {
