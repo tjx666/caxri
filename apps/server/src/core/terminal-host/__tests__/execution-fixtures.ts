@@ -52,6 +52,11 @@ export class FakeTerminalHostControl implements TerminalHostControl {
     private readonly resizeResolvers: Array<() => void> = [];
     declineNextInput = false;
     failNextInput?: Error;
+    /**
+     * Payload `terminal.attach` answers with. Terminal Host serializes the live screen, so bytes it has already flushed
+     * as `terminal.output` are still part of the next snapshot; a test that needs both copies to exist sets this.
+     */
+    attachSnapshot?: TerminalSnapshot;
     readonly requests: Array<{ request: TerminalHostRequest; scope: TerminalHostScope }> = [];
     holdInputRequests = false;
     holdAgentInputRequests = false;
@@ -85,7 +90,10 @@ export class FakeTerminalHostControl implements TerminalHostControl {
             case 'terminal.reserve':
                 return Promise.resolve({ reserved: true });
             case 'terminal.attach':
-                return Promise.resolve({ snapshot: null, wasAttached: false });
+                return Promise.resolve({
+                    snapshot: this.attachSnapshot ?? null,
+                    wasAttached: false,
+                });
             case 'terminal.start':
                 return Promise.resolve({ processId: 4243 });
             case 'terminal.stop':

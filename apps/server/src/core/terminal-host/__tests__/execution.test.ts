@@ -576,6 +576,70 @@ describe('architecture-a3b-terminal-host: RemoteTerminalExecution', () => {
         expect(control.requestCount('terminal.attach')).toBe(2);
     });
 
+    it('forwards no output between accepting a re-attach and publishing its attachment', async () => {
+        const { control, execution } = createExecution();
+        const output = vi.fn();
+        execution.onEvent((event) => {
+            if (event.type === 'output') output(event.data);
+        });
+        await execution.attach(terminal.id);
+        await execution.reserve(terminal);
+        await execution.start({
+            args: [],
+            environment: {},
+            executable: '/bin/zsh',
+            initialSnapshot: null,
+            record: terminal,
+        });
+        const attachmentIdOf = (index: number): string => {
+            const attach = control.requests.filter(
+                ({ request }) => request.method === 'terminal.attach',
+            )[index].request as Extract<TerminalHostRequest, { method: 'terminal.attach' }>;
+            return attach.params.attachmentId;
+        };
+        const flush = (data: string, attachmentId = attachmentIdOf(0)): void =>
+            control.emit({
+                type: 'event',
+                event: 'terminal.output',
+                identity: {
+                    scope: 'terminal',
+                    sessionId: terminal.sessionId,
+                    terminalId: terminal.id,
+                    ptyGeneration: 1,
+                    attachmentId,
+                },
+                data,
+            });
+
+        flush('settled');
+        expect(output.mock.calls.flat()).toEqual(['settled']);
+
+        /**
+         * A held input parks the re-attach inside `settleHotPaths`, which is the widest await between accepting the
+         * re-attach and publishing its `attachmentId` — the window issue #740 is about. The Renderer has already
+         * installed its replacement replay buffer by then, so anything forwarded here is replayed _after_ the snapshot
+         * this same re-attach returns.
+         */
+        control.holdInputRequests = true;
+        expect(execution.write(terminal.id, 'typed')).toBe(true);
+        await vi.waitFor(() => expect(control.requestCount('terminal.input')).toBe(1));
+        control.attachSnapshot = { ...snapshot, payload: 'settled/flushed' };
+        const reattachment = execution.attach(terminal.id);
+        await Promise.resolve();
+        expect(control.requestCount('terminal.attach')).toBe(1);
+
+        // Terminal Host wrote this batch to the live screen before its 16 ms timer shipped it, so the snapshot has it too.
+        flush('flushed');
+        control.releaseInput();
+
+        expect((await reattachment).snapshot?.payload).toContain('flushed');
+        expect(output.mock.calls.flat()).toEqual(['settled']);
+
+        // The mute lasts exactly as long as the gap; the published attachment forwards again.
+        flush('after', attachmentIdOf(1));
+        expect(output.mock.calls.flat()).toEqual(['settled', 'after']);
+    });
+
     it('rejects input accepted while Terminal Host shutdown is in progress', async () => {
         const { control, execution } = createExecution();
         const shutdownStarted = Promise.withResolvers<void>();

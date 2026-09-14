@@ -9,6 +9,7 @@ dist/
 test-results/
 playwright-report/
 coverage/
+.vitest/
 .cache/
 .records/
 *.tsbuildinfo
