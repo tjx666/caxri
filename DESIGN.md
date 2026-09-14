@@ -107,6 +107,17 @@ equivalent. `lib/window-active.ts` publishes the condition as `data-window-activ
 `<html>` element the color variables land on, and `styles/theme.css` defines a `window-inactive:`
 variant over it, so every surface that paints a title bar switches together.
 
+A built-in preset fills these roles from its upstream theme only where that clears the contrast
+floor. Every label the focused window shows — the three tab states, the four list states, and
+`titleBarActiveForeground` — must reach WCAG AA on its own fill, asserted per theme and per role in
+`domains/__tests__/theme-control-colors.test.ts`. This is the same rule `--muted` already answers
+to, and for the same reason: several upstream themes set `tab.inactiveForeground` to their comment
+color, which is exactly the substitution that rule forbids. A preset is Caxri's own product, so it
+takes the correction; an imported theme is its author's and keeps the original values.
+`titleBarInactiveForeground` is the one exemption. It paints only while the whole window is
+unfocused — inactive UI under WCAG 1.4.3, and the one case where the dimming is the message, which
+is how macOS and VS Code both fade an unfocused title.
+
 `--badge` and the five `--git-*` roles exist so the theme, not the component, decides these colors.
 Both mirror a VS Code key a theme author already writes — `activityBarBadge.background` and the Git
 extension's `gitDecoration.*ResourceForeground` — so a built-in preset carries the exact value VS

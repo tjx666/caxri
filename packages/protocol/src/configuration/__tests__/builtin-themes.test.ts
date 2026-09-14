@@ -7,7 +7,7 @@ import {
     builtinThemes,
     builtinThemeSources,
     solarizedLightTheme,
-} from '../builtin-themes.js';
+} from '../builtin-themes/index.js';
 import {
     findMatchingBuiltinTheme,
     normalizeBuiltinTheme,
