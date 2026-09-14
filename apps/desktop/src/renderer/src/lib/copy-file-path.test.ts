@@ -1,7 +1,26 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { dismissToast, getToasts } from '../stores/toasts';
-import { copyFilePath } from './copy-file-path';
+import { copyFilePath, relativePathRoot } from './copy-file-path';
+
+describe('relativePathRoot', () => {
+    it.each([
+        { basis: 'a plain file', path: '/project/src/index.ts' },
+        { basis: 'a submodule file', path: '/project/vendor/sub/src/index.ts' },
+        { basis: 'a nested repository file', path: '/project/packages/nested/lib/a.ts' },
+    ])('measures $basis from the Project root even with its own repository', ({ path }) => {
+        expect(relativePathRoot(path, '/project')).toBe('/project');
+        expect(relativePathRoot(path, '/project', '/project/vendor/sub')).toBe('/project');
+    });
+
+    it('keeps the repository root only for a resource the Project does not contain', () => {
+        expect(
+            relativePathRoot('/elsewhere/linked/src/a.ts', '/project', '/elsewhere/linked'),
+        ).toBe('/elsewhere/linked');
+        expect(relativePathRoot('/elsewhere/linked/src/a.ts', '/project')).toBeUndefined();
+        expect(relativePathRoot('/elsewhere/linked/src/a.ts', undefined)).toBeUndefined();
+    });
+});
 
 describe('copyFilePath', () => {
     afterEach(() => {

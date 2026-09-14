@@ -6,7 +6,7 @@ import { editorModelPath } from '@desktop-shared/editor-state';
 import { useSelectedSession, useSelectedWorkbenchProject, useTheme } from '../../stores/selectors';
 import { sessionViewScope, useDocument } from '../../stores/session-view';
 import type { CodeEditorProperties } from './code-editor';
-import { cacheDocument, changeDocument } from './document-actions';
+import { cacheDocument, changeDocument } from './document-commands';
 import { EditorBreadcrumbs } from './editor-breadcrumbs';
 import { EditorHeadBlame } from './editor-head-blame';
 import { getLoadedCodeEditor, loadCodeEditor, subscribeLoadedCodeEditor } from './editor-loader';

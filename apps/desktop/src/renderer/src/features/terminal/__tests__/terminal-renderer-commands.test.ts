@@ -20,7 +20,7 @@ vi.mock('../../../lib/caxri', () => ({
 }));
 vi.mock('../../../stores/toasts', () => ({ tryCommand: mocks.tryCommand }));
 
-import { confirmTerminalRendererSwitch } from '../terminal-renderer-actions';
+import { confirmTerminalRendererSwitch } from '../terminal-renderer-commands';
 import { registerTerminalRendererRetry } from '../terminal-renderer-status';
 
 const action = {

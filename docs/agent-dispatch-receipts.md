@@ -17,6 +17,12 @@ Terminal restart retires the previous Agent generation through the existing life
 It does not depend on a synthetic `starting` event. Terminal Host loss and Terminal restart
 carry distinct causes.
 
+A manual start can win the race against a delegation resuming the same Terminal, because
+`terminals.start` and `terminals.restart` join a launch already in flight and return successfully
+to both. The dispatch that lost the Terminal settles as `interrupted` with `target_changed`, the
+same outcome its delegation reports. The Agent process is left running: it belongs to the user who
+started it, and the losing dispatch never signals it.
+
 Every receipt status transition emits `agent_dispatch.transitioned`. Fields contain the dispatch
 and Terminal identifiers, previous and current statuses, a closed reason, and elapsed lifetime.
 Reasons distinguish launch readiness/failure, process failure/exit, Host or Terminal restart,

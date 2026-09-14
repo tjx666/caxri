@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { SessionRecord } from '@caxri/protocol';
 
-import { didReorderSession } from '../../session/session-actions';
+import { didReorderSession } from '../../session/session-commands';
 import type { SessionDropTarget } from '../session-order';
 import { frozenSessionOrder, SESSION_DRAG_TYPE, sessionDropTarget } from '../session-order';
 

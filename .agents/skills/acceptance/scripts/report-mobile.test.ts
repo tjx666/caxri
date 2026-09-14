@@ -335,6 +335,51 @@ describe('Acceptance mobile report scaffold', () => {
         );
     });
 
+    it('finalizes a mobile case blocked before the target ever ran', async () => {
+        const directory = await reportDirectory();
+        const caseId = 'ios-pairing-no-driver';
+        const mobilePlan = {
+            category: '移动端配对',
+            expected: 'iOS 模拟器显示配对入口。',
+            id: caseId,
+            method: '使用指定 iOS 模拟器检查配对入口。',
+            mobileDevice: {
+                appId: 'com.caxri.mobile',
+                deviceId: 'simulator-udid',
+                platform: 'ios',
+            },
+            requiredEvidence: ['screenshot'],
+            stateIsolation: { mode: 'isolated' },
+            surface: 'mobile',
+            title: 'iOS 模拟器配对入口',
+            verifier: 'agent',
+        } satisfies InitializeReportInput['plan'][number];
+        await initialize(directory, [mobilePlan]);
+        const resultPath = join(directory, 'result.json');
+        const result = parseReport(await readFile(resultPath, 'utf8'));
+        const covering = 'assets/covering-tests.txt';
+        result.cases[0] = {
+            category: mobilePlan.category,
+            evidence: [covering],
+            id: caseId,
+            name: mobilePlan.title,
+            observation: '本轮没有可用的 iOS 模拟器，断言由最窄拥有层的单元测试覆盖。',
+            status: 'blocked',
+            surface: 'mobile',
+        };
+        await Promise.all([
+            writeFile(resultPath, `${JSON.stringify(result, null, 2)}\n`),
+            writeFile(join(directory, covering), '覆盖该用例断言的单元测试：7 passed / 0 failed\n'),
+        ]);
+
+        /**
+         * No simulator ever came up, so there is neither a device receipt nor a launch lifecycle to read. Demanding
+         * either would leave an honest blocked mobile case unpublishable.
+         */
+        const finalized = await finalizeReport({ directory, requirement });
+        expect(finalized.summary).toMatchObject({ blocked: 1, verdict: 'partial' });
+    });
+
     it('finalizes blocked mobile evidence and rejects a mismatched outcome status', async () => {
         const directory = await reportDirectory();
         const caseId = 'ios-pairing-blocked';

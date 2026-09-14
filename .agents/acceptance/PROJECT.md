@@ -54,9 +54,10 @@ Android, and iOS Simulator product surfaces.
   UI may the agent prefix each native command with
   `CAXRI_ACCEPTANCE_NATIVE_DIALOG_AUTHORIZATION=explicit-user-request` and add `--native-dialog`;
   the launcher and native helpers otherwise fail closed.
-  For `issue-826-surface-seam`, `issue-824-syntax-and-terminal-selection`,
-  `issue-825-include-zero-hit-vsix`, `issue-851-transient-warnings`, and
-  `issue-854-contrast-error`, the launcher enables a narrower theme-file selection fixture.
+  For the cases listed in `acceptanceThemeImportCaseIds`
+  (`apps/desktop/src/main/acceptance-theme-import.ts`), which is the single source the launcher
+  reads, the launcher enables a narrower theme-file selection fixture. Read that list there rather
+  than from a copy here: a case missing from it opens a real macOS panel instead of failing.
   Put the import file inside the first `--test-root`, then write
   `{ "caseId": "<current case>", "relativePath": "<path within test root>", "sequence": 1 }`
   to `acceptance-theme-import-command.json` in the owned runtime's `userDataDir` before clicking

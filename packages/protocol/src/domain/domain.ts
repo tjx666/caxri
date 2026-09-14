@@ -2,10 +2,7 @@ import { z } from 'zod';
 
 import type { AgentProvider } from '../agent/agents.js';
 import { agentProviderIds } from '../agent/agents.js';
-import { MAX_KEYBINDINGS } from '../configuration/configuration-contract.js';
-import { appSettingsSchema } from '../configuration/settings-schema.js';
 import { MAX_CONFIGURABLE_FILE_BYTES } from '../configuration/settings-spec.js';
-import { hexColorSchema } from './color.js';
 import type { CommandId } from './commands.js';
 import { gitCommitSchema } from './git.js';
 import { paneLayoutSchema } from './pane-layout.js';
@@ -17,6 +14,7 @@ import {
 } from './views.js';
 
 export * from './git.js';
+export * from './theme.js';
 
 export const identifierSchema = z.string().min(1).max(200);
 export const pathSchema = z.string().min(1).max(16_384);
@@ -122,6 +120,26 @@ export const projectRecordSchema = z.object({
 export function isTopLevelProject(project: Pick<ProjectRecord, 'ownerProjectId'>): boolean {
     return project.ownerProjectId === undefined;
 }
+
+/**
+ * What a human CLI principal sees of a Project. `project.list` and `project.query` both answer this shape, so it lives
+ * here rather than beside either of them: when the two drifted, one command could distinguish a worktree Project from a
+ * top-level one and the other could not.
+ *
+ * `ownerProjectId` is part of it because the CLI, unlike the PrimarySidebar, lists worktree Projects alongside the ones
+ * the user added. Without it two rows can carry the same title with nothing to say which is which.
+ */
+export const humanProjectSchema = projectRecordSchema.pick({
+    id: true,
+    displayTitle: true,
+    ownerProjectId: true,
+    rootPath: true,
+});
+
+/**
+ * What every non-human principal sees: an opaque id and a title, never a path.
+ */
+export const scopedProjectSchema = projectRecordSchema.pick({ id: true, displayTitle: true });
 
 export const sessionRecordSchema = z.object({
     id: identifierSchema,
@@ -410,103 +428,6 @@ export const keybindingConflictSchema = z.object({
     commands: z.array(z.string()),
 });
 
-const hex = hexColorSchema;
-
-/**
- * Import-format ids only. `builtin` and `custom` are persistence sources, not import formats — they stay off this list
- * so a new parser must extend both this tuple and `themeTokenSourceIds`.
- */
-export const themeImportFormatIds = ['iterm2', 'warp', 'vscode'] as const;
-export type ThemeImportFormatId = (typeof themeImportFormatIds)[number];
-
-export const themeTokenSourceIds = ['builtin', 'custom', ...themeImportFormatIds] as const;
-export type ThemeTokenSource = (typeof themeTokenSourceIds)[number];
-
-export const themeTokensSchema = z.object({
-    id: z.string().min(1),
-    name: z.string().min(1),
-    source: z.enum(themeTokenSourceIds),
-    colors: z.object({
-        background: hex,
-        surface: hex,
-        elevated: hex,
-        foreground: hex,
-        muted: hex,
-        border: hex,
-        selection: hex,
-        accent: hex,
-        success: hex,
-        warning: hex,
-        danger: hex,
-        merged: hex, // landed work; DESIGN.md owns the role, `upgradeThemeColors` backfills older files
-        /**
-         * Numeric view-container badge fill, mirroring VS Code's `activityBarBadge.background`. Its text color is
-         * derived for contrast rather than persisted, like `accent` and `danger`.
-         */
-        badge: hex,
-        /**
-         * Fills for the severity variants of the same badge, mirroring VS Code's `activityErrorBadge.background` and
-         * `activityWarningBadge.background`. Separate roles rather than reuses of `danger` and `warning`: those two are
-         * text colors tuned to sit on the editor canvas (they import from `editorError.foreground` /
-         * `editorWarning.foreground`), and a color that reads as a squiggle is not automatically a readable fill behind
-         * a 10px digit.
-         */
-        errorBadge: hex,
-        warningBadge: hex,
-        /**
-         * Working-tree decoration colors, mirroring VS Code's `gitDecoration.*` resource foregrounds. A theme that
-         * leaves one unset inherits the built-in Git extension's default, so every built-in below carries the exact
-         * color VS Code would paint. `renamed` shares `gitUntracked` (VS Code's two defaults are the same green) and
-         * `ignored` stays on `muted`, so neither needs a role of its own.
-         */
-        gitAdded: hex,
-        gitModified: hex,
-        gitDeleted: hex,
-        gitUntracked: hex,
-        gitConflicting: hex,
-    }),
-    terminal: z.object({
-        background: hex,
-        foreground: hex,
-        cursor: hex,
-        selectionBackground: hex,
-        black: hex,
-        red: hex,
-        green: hex,
-        yellow: hex,
-        blue: hex,
-        magenta: hex,
-        cyan: hex,
-        white: hex,
-        brightBlack: hex,
-        brightRed: hex,
-        brightGreen: hex,
-        brightYellow: hex,
-        brightBlue: hex,
-        brightMagenta: hex,
-        brightCyan: hex,
-        brightWhite: hex,
-    }),
-    editor: z.object({
-        background: hex,
-        foreground: hex,
-        lineHighlight: hex,
-        selection: hex,
-        comment: hex,
-        keyword: hex,
-        string: hex,
-        number: hex,
-    }),
-});
-
-/**
- * Import diagnostics are transient and never part of a saved theme.
- */
-export const themeImportWarningSchema = z.object({
-    id: z.string().min(1),
-    message: z.string().min(1),
-});
-
 export const fileEntrySchema = z.object({
     name: z.string(),
     path: z.string(),
@@ -702,24 +623,6 @@ export const updateStateSchema = z.discriminatedUnion('status', [
     }),
 ]);
 
-export const bootstrapStateSchema = z.object({
-    projects: z.array(projectRecordSchema),
-    sessions: z.array(sessionRecordSchema),
-    terminals: z.array(terminalRecordSchema),
-    selectedProjectId: z.string().optional(),
-    selectedSessionId: z.string().optional(),
-    sessionStates: z.array(sessionStateSchema),
-    settings: appSettingsSchema,
-    keybindings: z.array(keybindingSchema).max(MAX_KEYBINDINGS),
-    keybindingConflicts: z.array(keybindingConflictSchema).max(MAX_KEYBINDINGS),
-    configurationErrors: z.array(z.string()).optional(),
-    theme: themeTokensSchema,
-    runtime: z.object({
-        status: runtimeStatusSchema,
-        restartCount: z.number(),
-    }),
-});
-
 export interface AgentSnapshot {
     /**
      * Native provenance when available; an absent value must never be assumed to mean a user rename.
@@ -779,8 +682,6 @@ export type AgentHookHealthMap = z.infer<typeof agentHookHealthMapSchema>;
 export type PersistedWindowState = z.infer<typeof persistedWindowStateSchema>;
 export type Keybinding = z.infer<typeof keybindingSchema>;
 export type KeybindingConflict = z.infer<typeof keybindingConflictSchema>;
-export type ThemeTokens = z.infer<typeof themeTokensSchema>;
-export type ThemeImportWarning = z.infer<typeof themeImportWarningSchema>;
 export type FileEntry = z.infer<typeof fileEntrySchema>;
 export type MutableFileEntry = z.infer<typeof mutableFileEntrySchema>;
 export type MovedFileEntry = z.infer<typeof movedFileEntrySchema>;
@@ -791,5 +692,4 @@ export type GitCommitFile = z.infer<typeof gitCommitFileSchema>;
 export type GitCommitDetails = z.infer<typeof gitCommitDetailsSchema>;
 export type GitDiffDocument = z.infer<typeof gitDiffDocumentSchema>;
 export type TerminalResourceUsage = z.infer<typeof terminalResourceUsageSchema>;
-export type BootstrapState = z.infer<typeof bootstrapStateSchema>;
 export type UpdateState = z.infer<typeof updateStateSchema>;

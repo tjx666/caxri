@@ -20,7 +20,7 @@ import { monaco } from '../../lib/monaco';
 import { useCaxriQuery, useToastOnQueryError } from '../../queries/client';
 import { useSelectedSession, useTheme } from '../../stores/selectors';
 import { describeFailure } from '../../stores/toasts';
-import { closeResolvedGitDiff, openFile } from './document-actions';
+import { closeResolvedGitDiff, openFile } from './document-commands';
 import { resolveRegisteredEditorLanguage } from './editor-language';
 import { GitChangesDiffList } from './git-changes-diff-list';
 import { registerDiffEditorActions } from './git-diff-actions';

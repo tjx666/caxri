@@ -393,18 +393,20 @@ describe('path browsing', () => {
         await symlink('real-dir', join(root, 'link-to-dir'));
         const linkPath = join(root, 'link-to-dir');
         let createdProbes = 0;
+        const logger = createLogger(join(directory, 'logs'));
+        const write = vi.spyOn(logger, 'write');
         const listing = new ListingService(
             () => Promise.resolve({ path: root, root }),
-            createLogger(join(directory, 'logs')),
+            logger,
             () => ({}),
             undefined,
             undefined,
             undefined,
             undefined,
             {
-                createSymlinkTargetProbe: () => {
+                createSymlinkTargetProbe: (options) => {
                     createdProbes += 1;
-                    return createSymlinkTargetProbe(50);
+                    return createSymlinkTargetProbe({ ...options, timeoutMs: 50 });
                 },
             },
         );
@@ -419,6 +421,21 @@ describe('path browsing', () => {
             expect(entries[0]).not.toHaveProperty('linkKind');
             // One budget covers the whole browse, so a hung mount costs this listing a single timeout.
             expect(createdProbes).toBe(1);
+            /**
+             * An unprobed link is invisible in the result — it simply keeps the neutral icon — so without this record a
+             * stale mount degrades the path browser with nothing to find afterwards. The reason separates a hung target
+             * from a merely slow one, and the count is what turns one occurrence into a rate.
+             */
+            const budgetSpent = write.mock.calls.find(
+                ([, event]) => event === 'file.symlink_probe_budget_spent',
+            );
+
+            expect(budgetSpent?.[2]?.fields).toMatchObject({
+                path: '.',
+                reason: 'probe_timeout',
+                sessionId: 'session',
+                spentCount: 1,
+            });
         } finally {
             setStatOverride(undefined);
         }

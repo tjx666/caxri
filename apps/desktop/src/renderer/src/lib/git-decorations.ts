@@ -15,7 +15,8 @@ export interface GitDecoration {
 
 /**
  * Absolute filesystem path to the decoration that path carries, covering changed files and every ancestor directory up
- * to the owning repository root.
+ * to — but not including — the Workbench Root's own repository root. A submodule or nested-repository root in between
+ * is decorated like any other folder.
  */
 export type GitDecorationIndex = ReadonlyMap<string, GitDecoration>;
 
@@ -98,19 +99,43 @@ export function gitDecorationForFile(file: GitFileStatus): GitDecoration {
     return { kind: file.kind, letter: file.index === ' ' ? file.workingTree : file.index };
 }
 
+/**
+ * Raises a directory row to `kind` when nothing louder is already there, and reports whether it moved.
+ *
+ * Directory decorations are order-independent by construction: the result is the maximum severity written to that path,
+ * whatever sequence the writes arrive in. That matters because two unrelated writers reach a child repository's root —
+ * the parent repository reports the child as one gitlink change, and the child's own contents climb to it — and which
+ * one runs first is just the order `summary.repositories` happens to hold.
+ *
+ * Never carries a letter. A letter claims the entry itself changed, and every path this writes is a folder in the tree,
+ * including a child repository root reported as a gitlink.
+ */
+function didRaiseDirectory(
+    index: Map<string, GitDecoration>,
+    absolutePath: string,
+    kind: GitDecorationKind,
+): boolean {
+    const current = index.get(absolutePath);
+    if (current && KIND_SEVERITY[current.kind] >= KIND_SEVERITY[kind]) return false;
+    index.set(absolutePath, { kind });
+    return true;
+}
+
 function recordAncestors(
     index: Map<string, GitDecoration>,
-    repoRootPath: string,
+    boundaryPath: string,
     absolutePath: string,
     kind: GitDecorationKind,
 ): void {
-    // Strictly below the repository root: VS Code decorates the folders inside a repository, never the root itself.
+    // Strictly below the boundary: the Workbench Root's own repository root is the one folder that stays undecorated.
+    // The trailing separator is what makes "below" mean containment rather than a string prefix. Without it a boundary
+    // of `/repo` also swallows `/repo-vendor`, a sibling directory that shares the prefix and none of the ancestors —
+    // reachable whenever a symlinked child repository canonicalizes to such a sibling path.
+    const boundaryPrefix = boundaryPath.endsWith('/') ? boundaryPath : `${boundaryPath}/`;
     let directory = absolutePath.slice(0, absolutePath.lastIndexOf('/'));
-    while (directory.length > repoRootPath.length && directory.startsWith(repoRootPath)) {
-        const current = index.get(directory);
+    while (directory.length > boundaryPath.length && directory.startsWith(boundaryPrefix)) {
         // Every shallower ancestor already holds at least this severity, so there is nothing left to raise.
-        if (current && KIND_SEVERITY[current.kind] >= KIND_SEVERITY[kind]) break;
-        index.set(directory, { kind });
+        if (!didRaiseDirectory(index, directory, kind)) break;
         directory = directory.slice(0, directory.lastIndexOf('/'));
     }
 }
@@ -118,14 +143,39 @@ function recordAncestors(
 function recordRepo(
     index: Map<string, GitDecoration>,
     repo: GitSummary['repositories'][number],
+    boundaryPath: string,
+    repoRoots: ReadonlySet<string>,
 ): void {
     for (const file of repo.files) {
         const absolutePath = resolveRepoFilePath(repo.rootPath, file.path);
         // A path that escapes its repository root is not a file the tree can show; drop it rather than guess.
         if (!absolutePath) continue;
-        index.set(absolutePath, gitDecorationForFile(file));
-        recordAncestors(index, repo.rootPath, absolutePath, file.kind);
+        if (repoRoots.has(absolutePath)) didRaiseDirectory(index, absolutePath, file.kind);
+        else index.set(absolutePath, gitDecorationForFile(file));
+        recordAncestors(index, boundaryPath, absolutePath, file.kind);
     }
+}
+
+/**
+ * Where ancestor propagation stops: the repository root of the selected Workbench Root itself.
+ *
+ * A change inside a submodule is still a change the user needs to see once its folder is collapsed, so a child
+ * repository root is a destination rather than a wall — only the one root the tree never draws is excluded. A linked
+ * worktree counts as that root too: it is a peer checkout of the Project's own repository, not something nested in it.
+ *
+ * The shallowest such root wins if a summary ever reports more than one, since propagation has to stop at the outermost
+ * of them for the inner one's ancestors to be reachable at all. `undefined` means the summary named no root of that
+ * kind; each repository then bounds its own climb at its own root, and a child root another repository reports as a
+ * gitlink still loses its letter, because a folder row never carries one whichever repository named it.
+ */
+function propagationBoundary(summary: GitSummary): string | undefined {
+    let boundary: string | undefined;
+    for (const repo of summary.repositories) {
+        if (repo.kind !== 'primary' && repo.kind !== 'worktree') continue;
+        if (boundary === undefined || repo.rootPath.length < boundary.length)
+            boundary = repo.rootPath;
+    }
+    return boundary;
 }
 
 /**
@@ -169,7 +219,13 @@ export function buildGitDecorationIndex(
 ): GitDecorationIndex {
     if (!summary?.isRepository) return previous.size === 0 ? previous : EMPTY_GIT_DECORATION_INDEX;
     const index = new Map<string, GitDecoration>();
-    for (const repo of summary.repositories) recordRepo(index, repo);
+    const boundary = propagationBoundary(summary);
+    // The boundary is the one root the tree never draws, so it is not a child root a gitlink could decorate either.
+    const repoRoots = new Set<string>();
+    for (const repo of summary.repositories)
+        if (repo.rootPath !== boundary) repoRoots.add(repo.rootPath);
+    for (const repo of summary.repositories)
+        recordRepo(index, repo, boundary ?? repo.rootPath, repoRoots);
     return withPreservedIdentity(previous, index);
 }
 

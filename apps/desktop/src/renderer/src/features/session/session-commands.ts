@@ -13,6 +13,7 @@ import { openExternalUrl } from '../../lib/external-link';
 import { caxriQueryKey, queryClient } from '../../queries/client';
 import { removeSessionQueries } from '../../queries/invalidation';
 import { useChromeLayoutStore } from '../../stores/chrome-layout';
+import type { CreateSessionAnchor } from '../../stores/dialogs';
 import { clearPendingSession, useDialogStore } from '../../stores/dialogs';
 import { getBootstrap, getSelectedSession, selectSelectedProject } from '../../stores/selectors';
 import { useSessionViewStore } from '../../stores/session-view';
@@ -125,12 +126,18 @@ async function createProjectSession(
  * Skips the Terminal choice whenever the user configured a default Agent. Otherwise it opens the Project row's anchored
  * menu rather than a centered dialog: the trigger already sits under the pointer, so the choice should too.
  *
+ * `anchor` names the trigger the menu should hang from; it defaults to the Project heading so callers with no row of
+ * their own — the command palette, the native menu, a shortcut — keep opening it there.
+ *
  * The menu lives inside the Primary Side Bar, so `session.create` from the native menu, a shortcut, or the command
  * palette would otherwise mark a Project whose row is not mounted and do nothing visible. Revealing the bar first keeps
  * the keyboard path leading to the same picker as the pointer path, the way `activateSecondarySidebarViewContainer`
  * already reveals its panel before selecting a view.
  */
-export function beginSessionCreation(projectId: string): void {
+export function beginSessionCreation(
+    projectId: string,
+    anchor: CreateSessionAnchor = 'heading',
+): void {
     const defaultAgent = getBootstrap()?.settings['session.defaultAgent'];
     if (defaultAgent) {
         // Fire-and-forget: `createSession` funnels its own failures into a toast via `tryCommand`.
@@ -140,7 +147,7 @@ export function beginSessionCreation(projectId: string): void {
     }
     if (!useChromeLayoutStore.getState().primarySidebarVisible)
         useChromeLayoutStore.getState().setPrimarySidebarVisible(true);
-    useDialogStore.getState().openCreateSessionMenu(projectId);
+    useDialogStore.getState().openCreateSessionMenu(projectId, anchor);
 }
 
 /**
@@ -291,6 +298,14 @@ export function detachSelectedSession(): void {
 export function resumeSelectedSession(): void {
     const session = getSelectedSession();
     if (session) resumeSession(session.id);
+}
+
+/**
+ * Acknowledges one attention generation. Rejection is the caller's to handle: the same generation stays unread on the
+ * Server, so the next focus or visibility event can retry it without the Renderer tracking anything of its own.
+ */
+export async function markSessionRead(sessionId: string, attentionEpoch: number): Promise<void> {
+    await caxri.request('session.markRead', { sessionId, attentionEpoch });
 }
 
 /**

@@ -2,7 +2,7 @@ import { externalEditorTabPath } from '@caxri/protocol';
 
 import { useSessionViewStore } from '../../stores/session-view';
 import { useWorkbenchStore } from '../../stores/workbench';
-import { didOpenEditorTabForSession } from './document-actions';
+import { didOpenEditorTabForSession } from './document-commands';
 
 interface ExternalEditorDocumentResult {
     content: string;

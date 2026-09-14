@@ -21,17 +21,21 @@ import { useDialogStore } from '../../../stores/dialogs';
 import { pushToast } from '../../../stores/toasts';
 import { gpuIncidentBudget } from '../../gpu/gpu-incident-budget';
 import {
-    markTerminalAttached,
-    registerTerminalClearHandler,
-    registerTerminalSelectionHandlers,
-} from '../terminal-actions';
-import {
     formatTerminalCommandCompletionStatus,
     registerTerminalCommandNavigation,
     terminalCommandDecorationDefaultColor,
     terminalCommandDecorationFailedColor,
     terminalCommandDecorationSucceededColor,
     TerminalCommandTracker,
+} from '../terminal-command-tracker';
+import {
+    attachTerminal,
+    detachTerminalQuietly,
+    markTerminalAttached,
+    prepareTerminalLongPaste,
+    registerTerminalClearHandler,
+    registerTerminalSelectionHandlers,
+    resizeTerminal,
 } from '../terminal-commands';
 import { loadTerminalFonts } from '../terminal-fonts';
 import { createTerminalImageAddon, registerTerminalImageAddon } from '../terminal-images';
@@ -40,7 +44,6 @@ import { createTerminalLongPasteRuntime } from '../terminal-long-paste';
 import { ControlledOsc52Clipboard } from '../terminal-osc52-clipboard';
 import { createTerminalOsc52ClipboardWriteFailureDiagnostic } from '../terminal-osc52-clipboard-diagnostics';
 import {
-    detachTerminalQuietly,
     onError,
     OSC52_BLOCK_MESSAGES,
     registerTerminalInputHandlers,
@@ -299,7 +302,7 @@ export function useTerminalPaneRuntime({
             xterm,
             // VS Code registers a `terminalCommandDecoration.*` color per theme (dark/light/HC) rather than one fixed
             // hex; deriving these from the workbench `--danger` / `--success` tokens is the token-driven equivalent
-            // (see terminal-commands.ts).
+            // (see terminal-command-tracker.ts).
             {
                 failed: terminalCommandDecorationFailedColor(latest.dangerColor),
                 running: terminalCommandDecorationDefaultColor(latest.terminalTheme?.foreground),
@@ -375,8 +378,7 @@ export function useTerminalPaneRuntime({
                 setLongPasteState({ id: terminalId, pending });
             },
             paste: (text) => xterm.paste(text),
-            request: (content) =>
-                caxri.request('terminal.prepareLongPaste', { content, terminalId }),
+            request: (content) => prepareTerminalLongPaste(terminalId, content),
         });
         const longPaste = longPasteRuntime.controller;
         xterm.attachCustomKeyEventHandler((event) => {
@@ -406,7 +408,7 @@ export function useTerminalPaneRuntime({
             fitted: ({ cols, rows }) => (container.dataset.terminalGrid = `${cols}x${rows}`),
             isRunning: () => latestReference.current.processState === 'running',
             propose: () => fit.proposeDimensions(),
-            request: (size) => caxri.request('terminal.resize', { terminalId, ...size }),
+            request: (size) => resizeTerminal(terminalId, size),
             terminalId,
         });
         const resizeSettler = new TerminalResizeSettler(() => resizeController.fitAndResize());
@@ -516,11 +518,7 @@ export function useTerminalPaneRuntime({
         backpressureRecovery.current = new TerminalBackpressureRecovery(
             () =>
                 replay.reattach(() =>
-                    caxri.request('terminal.attach', {
-                        terminalId,
-                        cols: xterm.cols,
-                        rows: xterm.rows,
-                    }),
+                    attachTerminal(terminalId, { cols: xterm.cols, rows: xterm.rows }),
                 ),
             (error) => reportTerminalOperationError(error, 'Terminal output recovery failed'),
         );
@@ -574,10 +572,7 @@ export function useTerminalPaneRuntime({
             let attachment: TerminalSnapshot | null = null;
             let isAttached = false;
             try {
-                attachment = await caxri.request(
-                    'terminal.attach',
-                    initialSize ? { terminalId, ...initialSize } : { terminalId },
-                );
+                attachment = await attachTerminal(terminalId, initialSize);
                 isAttached = true;
                 if (initialSize && latestReference.current.processState === 'running')
                     resizeController.confirmSent(initialSize);
@@ -686,13 +681,12 @@ export function useTerminalPaneRuntime({
             markTerminalAttached(terminalId, false);
             try {
                 await replay.reattach(async () => {
-                    const attachment = await caxri.request(
-                        'terminal.attach',
+                    return attachTerminal(
+                        terminalId,
                         latestReference.current.processState === 'running'
-                            ? { terminalId, cols: xterm.cols, rows: xterm.rows }
-                            : { terminalId },
+                            ? { cols: xterm.cols, rows: xterm.rows }
+                            : undefined,
                     );
-                    return attachment;
                 });
                 markTerminalAttached(terminalId, true);
             } catch (error) {
@@ -734,12 +728,7 @@ export function useTerminalPaneRuntime({
             markTerminalAttached(terminalId, false);
             try {
                 await replay.reattach(async () => {
-                    const attachment = await caxri.request('terminal.attach', {
-                        terminalId,
-                        cols: xterm.cols,
-                        rows: xterm.rows,
-                    });
-                    return attachment;
+                    return attachTerminal(terminalId, { cols: xterm.cols, rows: xterm.rows });
                 });
                 markTerminalAttached(terminalId, true);
             } catch (error) {

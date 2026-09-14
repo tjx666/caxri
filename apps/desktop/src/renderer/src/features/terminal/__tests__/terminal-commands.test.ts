@@ -1,235 +1,573 @@
-import type { IDecoration, IDisposable, IMarker, Terminal } from '@xterm/xterm';
-import { describe, expect, it, vi } from 'vitest';
+import type { BootstrapState, PaneLayout, TerminalRecord } from '@caxri/protocol';
+import { CaxriError, createPaneLayout, findResourceTabs, listPanes } from '@caxri/protocol';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const mocks = vi.hoisted(() => ({
+    caxriRequest: vi.fn((): Promise<unknown> => Promise.resolve(undefined)),
+    getBootstrap: vi.fn<() => BootstrapState | undefined>(),
+    getSelectedSession: vi.fn(),
+    getSessionState: vi.fn(),
+    patchSessionState: vi.fn(),
+    pushToast: vi.fn(),
+    refreshWorkbench: vi.fn(() => Promise.resolve()),
+    tryCommand: vi.fn(
+        async (
+            ...[, run]: [string, () => Promise<unknown>, { refresh?: () => Promise<void> }?]
+        ): Promise<unknown> => {
+            try {
+                return await run();
+            } catch {
+                return undefined;
+            }
+        },
+    ),
+    useSessionViewStore: { getState: vi.fn() },
+}));
+
+vi.mock('../../../lib/caxri', () => ({ caxri: { request: mocks.caxriRequest } }));
+vi.mock('../../../stores/selectors', () => ({
+    getBootstrap: mocks.getBootstrap,
+    getSelectedSession: mocks.getSelectedSession,
+    getSessionState: mocks.getSessionState,
+}));
+vi.mock('../../../stores/session-view', () => ({ useSessionViewStore: mocks.useSessionViewStore }));
+vi.mock('../../../stores/toasts', () => ({
+    pushToast: mocks.pushToast,
+    tryCommand: mocks.tryCommand,
+}));
+vi.mock('../../../stores/workbench', () => ({
+    patchSessionState: mocks.patchSessionState,
+    refreshWorkbench: mocks.refreshWorkbench,
+}));
 
 import {
-    terminalCommandDecorationDefaultColor,
-    terminalCommandDecorationFailedColor,
-    terminalCommandDecorationSucceededColor,
-    terminalCommandDecorationTooltip,
-    TerminalCommandTracker,
+    clearActiveTerminal,
+    copyActiveTerminalSelection,
+    createTerminal,
+    detachTerminalQuietly,
+    didPasteIntoTerminal,
+    focusTerminalById,
+    getTerminalFocusElement,
+    hasActiveTerminalSelection,
+    isTerminalAttached,
+    markTerminalAttached,
+    registerTerminalClearHandler,
+    registerTerminalFocusHandler,
+    registerTerminalInputGate,
+    registerTerminalPasteHandler,
+    registerTerminalSelectionHandlers,
+    restartTerminal,
+    sendTerminalSequence,
+    startNewAgentSession,
+    whenTerminalAttached,
 } from '../terminal-commands';
 
-function createTerminalHost() {
-    const handlers = new Map<number, (data: string) => boolean | Promise<boolean>>();
-    const decorations: Array<{ element: HTMLElement; marker: IMarker }> = [];
-    const markerDisposers: Array<ReturnType<typeof vi.fn>> = [];
-    const markers: IMarker[] = [];
-    const scrollToLine = vi.fn();
-    let nextLine = 10;
-    const terminal = {
-        parser: {
-            registerOscHandler: vi.fn(
-                (protocol: number, canHandleOscData: (data: string) => boolean) => {
-                    handlers.set(protocol, canHandleOscData);
-                    return { dispose: () => handlers.delete(protocol) };
-                },
-            ),
-        },
-        registerDecoration: vi.fn(({ marker }: { marker: IMarker }) => {
-            const classNames = new Set<string>();
-            const element = {
-                classList: {
-                    add: (...names: string[]) => {
-                        for (const name of names) classNames.add(name);
-                    },
-                },
-                dataset: {},
-                style: {},
-            } as unknown as HTMLElement;
-            decorations.push({ element, marker });
-            return {
-                dispose: vi.fn(),
-                element,
-                marker,
-                onDispose: vi.fn(),
-                onRender: (listener: (target: HTMLElement) => void): IDisposable => {
-                    listener(element);
-                    return { dispose: vi.fn() };
-                },
-                options: {},
-            } as unknown as IDecoration;
-        }),
-        registerMarker: vi.fn(() => {
-            const dispose = vi.fn();
-            const marker = {
-                dispose,
-                id: nextLine,
-                isDisposed: false,
-                line: nextLine++,
-                onDispose: vi.fn(),
-            } as unknown as IMarker;
-            markerDisposers.push(dispose);
-            markers.push(marker);
-            return marker;
-        }),
-        scrollToLine,
-    } as unknown as Terminal;
-    return { decorations, handlers, markerDisposers, markers, scrollToLine, terminal };
+/**
+ * Content-free `TerminalRecord` fixture; only `id` and `lastProcessState`/`provider`/`agentSessionId` are exercised by
+ * the behaviors under test.
+ */
+function terminalFixture(overrides: Partial<TerminalRecord> = {}): TerminalRecord {
+    return {
+        id: 'terminal-1',
+        sessionId: 'session-1',
+        kind: 'shell',
+        cwd: '/repo',
+        title: 'Shell',
+        icon: 'terminal',
+        orderIndex: 0,
+        lastProcessState: 'running',
+        createdAt: 0,
+        updatedAt: 0,
+        ...overrides,
+    };
 }
 
-const colors = {
-    failed: '#ff0000',
-    running: '#ffffff40',
-    succeeded: '#00ff00',
-};
+function bootstrapWith(terminal: TerminalRecord): BootstrapState {
+    return { terminals: [terminal] } as unknown as BootstrapState;
+}
 
-describe('TerminalCommandTracker', () => {
-    it('maps OSC 133 and 633 lifecycle events without retaining command text', () => {
-        const host = createTerminalHost();
-        const publish = vi.fn();
-        const tracker = new TerminalCommandTracker(host.terminal, colors, publish);
+beforeEach(() => {
+    mocks.caxriRequest.mockReset();
+    mocks.caxriRequest.mockResolvedValue(undefined);
+    mocks.getBootstrap.mockReset();
+    mocks.getSelectedSession.mockReset();
+    mocks.getSessionState.mockReset();
+    mocks.patchSessionState.mockClear();
+    mocks.pushToast.mockClear();
+    mocks.refreshWorkbench.mockClear();
+    mocks.tryCommand.mockClear();
+});
 
-        expect(host.handlers.get(133)?.('A')).toBe(true);
-        expect(host.handlers.get(133)?.('C')).toBe(true);
-        expect(host.handlers.get(133)?.('D;0')).toBe(true);
-        expect(host.handlers.get(633)?.('A')).toBe(true);
-        expect(host.handlers.get(633)?.('C')).toBe(true);
-        expect(host.handlers.get(633)?.('D;23;ignored metadata')).toBe(true);
-        expect(host.handlers.get(133)?.('E;SECRET_COMMAND_TEXT')).toBe(false);
+describe('sendTerminalSequence', () => {
+    it('sends the exact configured text through the typed Terminal input request', async () => {
+        const sequence = '\u{1B}[1;3B';
 
-        expect(publish).toHaveBeenLastCalledWith({
-            commandCount: 2,
-            completedCount: 2,
-            lastExitStatus: 23,
+        sendTerminalSequence('terminal-1', sequence);
+        await mocks.tryCommand.mock.results[0]?.value;
+
+        expect(mocks.tryCommand).toHaveBeenCalledWith(
+            'Terminal input failed',
+            expect.any(Function),
+        );
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('terminal.input', {
+            terminalId: 'terminal-1',
+            data: sequence,
         });
-        expect(JSON.stringify(publish.mock.calls)).not.toContain('SECRET_COMMAND_TEXT');
-        expect(
-            host.decorations.some(
-                ({ element }) =>
-                    element.dataset.terminalCommandPhase === 'failed' &&
-                    element.dataset.terminalCommandExitStatus === '23',
+    });
+
+    it('sends nothing while the mounted Terminal input gate is locked', () => {
+        const unregister = registerTerminalInputGate('terminal-locked', () => false);
+
+        sendTerminalSequence('terminal-locked', '\r');
+
+        expect(mocks.tryCommand).not.toHaveBeenCalled();
+        expect(mocks.caxriRequest).not.toHaveBeenCalled();
+        unregister();
+    });
+});
+
+describe('restartTerminal (requestTerminalRestart reattach gate)', () => {
+    it('offers Retry when reattachment fails before restart was submitted', async () => {
+        mocks.getBootstrap.mockReturnValue(
+            bootstrapWith(terminalFixture({ lastProcessState: 'stopped' })),
+        );
+        mocks.caxriRequest.mockRejectedValueOnce(new Error('attach failed'));
+
+        restartTerminal('terminal-1');
+        await mocks.tryCommand.mock.results[0]?.value;
+        const options = mocks.tryCommand.mock.calls[0]?.[2] as unknown as {
+            recovery: () => { label: string; onSelect: () => void };
+        };
+        const action = options.recovery();
+        expect(action.label).toBe('Retry');
+        action.onSelect();
+        await mocks.tryCommand.mock.results[1]?.value;
+
+        expect(mocks.caxriRequest).toHaveBeenNthCalledWith(3, 'terminal.restart', {
+            terminalId: 'terminal-1',
+            mode: 'resume',
+        });
+    });
+
+    it('refreshes instead of restarting again when the first restart outcome is uncertain', async () => {
+        mocks.getBootstrap.mockReturnValue(
+            bootstrapWith(terminalFixture({ lastProcessState: 'running' })),
+        );
+
+        restartTerminal('terminal-1');
+        await mocks.tryCommand.mock.results[0]?.value;
+        const options = mocks.tryCommand.mock.calls[0]?.[2] as unknown as {
+            recovery: () => { label: string; onSelect: () => void };
+        };
+        const action = options.recovery();
+        expect(action.label).toBe('Refresh');
+        action.onSelect();
+        await mocks.tryCommand.mock.results[1]?.value;
+
+        expect(mocks.caxriRequest).toHaveBeenCalledTimes(1);
+        expect(mocks.refreshWorkbench).toHaveBeenCalled();
+    });
+
+    it('reattaches before restarting when the Terminal is not currently running', async () => {
+        mocks.getBootstrap.mockReturnValue(
+            bootstrapWith(terminalFixture({ lastProcessState: 'stopped' })),
+        );
+
+        restartTerminal('terminal-1');
+        await mocks.tryCommand.mock.results[0]?.value;
+
+        expect(mocks.caxriRequest).toHaveBeenNthCalledWith(1, 'terminal.attach', {
+            terminalId: 'terminal-1',
+        });
+        expect(mocks.caxriRequest).toHaveBeenNthCalledWith(2, 'terminal.restart', {
+            terminalId: 'terminal-1',
+            mode: 'resume',
+        });
+    });
+
+    it('skips reattachment when the Terminal is already running (avoids discarding queued live output)', async () => {
+        mocks.getBootstrap.mockReturnValue(
+            bootstrapWith(terminalFixture({ lastProcessState: 'running' })),
+        );
+
+        restartTerminal('terminal-1');
+        await mocks.tryCommand.mock.results[0]?.value;
+
+        expect(mocks.caxriRequest).toHaveBeenCalledTimes(1);
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('terminal.restart', {
+            terminalId: 'terminal-1',
+            mode: 'resume',
+        });
+    });
+
+    it('reattaches when the Terminal is missing from the bootstrap snapshot entirely', async () => {
+        mocks.getBootstrap.mockReturnValue({ terminals: [] } as unknown as BootstrapState);
+
+        restartTerminal('terminal-1');
+        await mocks.tryCommand.mock.results[0]?.value;
+
+        expect(mocks.caxriRequest).toHaveBeenNthCalledWith(1, 'terminal.attach', {
+            terminalId: 'terminal-1',
+        });
+    });
+});
+
+describe('createTerminal recovery', () => {
+    it('retries the original Session and placement after selection changes', async () => {
+        mocks.getSelectedSession.mockReturnValue({ id: 'session-1' });
+        mocks.caxriRequest.mockResolvedValue({ id: 'terminal-1' });
+
+        await createTerminal('shell', { cwd: '/repo', paneId: 'pane-1' });
+        const options = mocks.tryCommand.mock.calls[0]?.[2] as unknown as {
+            recovery: (error: unknown) => { label: string; onSelect: () => void };
+        };
+        mocks.getSelectedSession.mockReturnValue({ id: 'session-2' });
+        const action = options.recovery(new CaxriError('IO', 'Working directory is unavailable'));
+        expect(action.label).toBe('Retry');
+        action.onSelect();
+        await mocks.tryCommand.mock.results[1]?.value;
+
+        expect(mocks.caxriRequest).toHaveBeenNthCalledWith(2, 'terminal.create', {
+            sessionId: 'session-1',
+            kind: 'shell',
+            cwd: '/repo',
+        });
+    });
+
+    it('refreshes instead of creating a duplicate after an uncertain result', async () => {
+        mocks.getSelectedSession.mockReturnValue({ id: 'session-1' });
+        mocks.caxriRequest.mockResolvedValue({ id: 'terminal-1' });
+
+        await createTerminal();
+        const options = mocks.tryCommand.mock.calls[0]?.[2] as unknown as {
+            recovery: (error: unknown) => { label: string; onSelect: () => void };
+        };
+        const action = options.recovery(new CaxriError('TIMEOUT', 'No response'));
+        expect(action.label).toBe('Refresh');
+        action.onSelect();
+        await mocks.tryCommand.mock.results[1]?.value;
+
+        expect(mocks.caxriRequest).toHaveBeenCalledTimes(1);
+        expect(mocks.refreshWorkbench).toHaveBeenCalled();
+    });
+});
+
+describe('startNewAgentSession', () => {
+    it('shows an info toast and never calls the Runtime when the Terminal has no Agent session', () => {
+        mocks.getBootstrap.mockReturnValue(
+            bootstrapWith(terminalFixture({ provider: undefined, agentSessionId: undefined })),
+        );
+
+        startNewAgentSession('terminal-1');
+
+        expect(mocks.pushToast).toHaveBeenCalledWith(
+            'info',
+            'The active Terminal has no Agent session to replace.',
+        );
+        expect(mocks.tryCommand).not.toHaveBeenCalled();
+        expect(mocks.caxriRequest).not.toHaveBeenCalled();
+    });
+
+    it('shows the info toast when a provider is set but no Agent session id is bound yet', () => {
+        mocks.getBootstrap.mockReturnValue(
+            bootstrapWith(terminalFixture({ provider: 'claude', agentSessionId: undefined })),
+        );
+
+        startNewAgentSession('terminal-1');
+
+        expect(mocks.pushToast).toHaveBeenCalledWith(
+            'info',
+            'The active Terminal has no Agent session to replace.',
+        );
+        expect(mocks.caxriRequest).not.toHaveBeenCalled();
+    });
+
+    it('restarts in fresh mode through tryCommand when a bound Agent session exists', async () => {
+        mocks.getBootstrap.mockReturnValue(
+            bootstrapWith(
+                terminalFixture({
+                    provider: 'claude',
+                    agentSessionId: 'agent-session-1',
+                    lastProcessState: 'running',
+                }),
             ),
-        ).toBe(true);
+        );
 
-        tracker.dispose();
-        expect(host.handlers.size).toBe(0);
-    });
+        startNewAgentSession('terminal-1');
+        await mocks.tryCommand.mock.results[0]?.value;
 
-    it('renders VS Code-style gutter decorations: no prompt glyph, subtle running placeholder', async () => {
-        const host = createTerminalHost();
-        new TerminalCommandTracker(host.terminal, colors, vi.fn());
-
-        await host.handlers.get(133)?.('A');
-        // A prompt alone must not render any decoration (VS Code shows nothing before execution).
-        expect(host.decorations).toHaveLength(0);
-
-        await host.handlers.get(133)?.('C');
-        expect(host.decorations).toHaveLength(1);
-        const running = host.decorations[0].element;
-        expect(running.dataset.terminalCommandPhase).toBe('running');
-        expect(running.style.color).toBe(colors.running);
-        expect(running.style.marginLeft).toBe('-17px');
-        expect(running.style.width).toBe('16px');
-
-        await host.handlers.get(133)?.('D;0');
-        const succeeded = host.decorations.at(-1)!.element;
-        expect(succeeded.dataset.terminalCommandPhase).toBe('succeeded');
-        expect(succeeded.style.color).toBe(colors.succeeded);
-    });
-
-    it('derives the running placeholder color from the theme foreground at 25% alpha', () => {
-        expect(terminalCommandDecorationDefaultColor('#aabbcc')).toBe('#aabbcc40');
-        expect(terminalCommandDecorationDefaultColor(undefined)).toBe('#ffffff40');
-        expect(terminalCommandDecorationDefaultColor('red')).toBe('#ffffff40');
-    });
-
-    it('derives the failed/succeeded gutter colors from the workbench --danger/--success tokens', () => {
-        expect(terminalCommandDecorationFailedColor('#aa1122')).toBe('#aa1122');
-        expect(terminalCommandDecorationFailedColor(undefined)).toBe('#ff5555');
-        expect(terminalCommandDecorationFailedColor('red')).toBe('#ff5555');
-        expect(terminalCommandDecorationSucceededColor('#22aa11')).toBe('#22aa11');
-        expect(terminalCommandDecorationSucceededColor(undefined)).toBe('#50fa7b');
-        expect(terminalCommandDecorationSucceededColor('green')).toBe('#50fa7b');
-    });
-
-    it('builds the decoration hover tooltip from phase and exit status', () => {
-        expect(terminalCommandDecorationTooltip('running')).toBe('Command running');
-        expect(terminalCommandDecorationTooltip('succeeded', 0)).toBe('Command succeeded (exit 0)');
-        expect(terminalCommandDecorationTooltip('failed', 23)).toBe('Command failed (exit 23)');
-    });
-
-    it('sets an exit-status tooltip on the rendered decoration element', async () => {
-        const host = createTerminalHost();
-        new TerminalCommandTracker(host.terminal, colors, vi.fn());
-
-        await host.handlers.get(133)?.('C');
-        expect(host.decorations[0].element.title).toBe('Command running');
-
-        await host.handlers.get(133)?.('D;1');
-        expect(host.decorations.at(-1)!.element.title).toBe('Command failed (exit 1)');
-    });
-
-    it('navigates content-free command start markers in both directions', async () => {
-        const host = createTerminalHost();
-        const tracker = new TerminalCommandTracker(host.terminal, colors, vi.fn());
-        for (const status of [0, 1, 0]) {
-            // Each OSC event mutates shared tracker state and must be observed in this exact
-            // prompt -> command -> finish order, so the awaits cannot be parallelized.
-            // eslint-disable-next-line no-await-in-loop -- intentionally sequential, see above
-            await host.handlers.get(133)?.('A');
-            // eslint-disable-next-line no-await-in-loop -- intentionally sequential, see above
-            await host.handlers.get(133)?.('C');
-            // eslint-disable-next-line no-await-in-loop -- intentionally sequential, see above
-            await host.handlers.get(133)?.(`D;${status}`);
-        }
-
-        expect(tracker.navigate('previous')).toBe(true);
-        expect(tracker.navigate('previous')).toBe(true);
-        expect(tracker.navigate('next')).toBe(true);
-        expect(host.scrollToLine).toHaveBeenNthCalledWith(1, 14);
-        expect(host.scrollToLine).toHaveBeenNthCalledWith(2, 12);
-        expect(host.scrollToLine).toHaveBeenNthCalledWith(3, 14);
-    });
-
-    it('ignores finish and oversized metadata without a command boundary', () => {
-        const host = createTerminalHost();
-        const publish = vi.fn();
-        const tracker = new TerminalCommandTracker(host.terminal, colors, publish);
-
-        expect(host.handlers.get(133)?.('D;0')).toBe(true);
-        expect(host.handlers.get(133)?.(`A;${'x'.repeat(65)}`)).toBe(false);
-        expect(tracker.navigate('previous')).toBe(false);
-        expect(publish).toHaveBeenLastCalledWith({ commandCount: 0, completedCount: 0 });
-    });
-
-    it('releases boundaries after xterm trims their scrollback markers', async () => {
-        const host = createTerminalHost();
-        const publish = vi.fn();
-        new TerminalCommandTracker(host.terminal, colors, publish);
-        await host.handlers.get(133)?.('A');
-        await host.handlers.get(133)?.('C');
-        await host.handlers.get(133)?.('D;0');
-        Object.assign(host.markers[0], { isDisposed: true, line: -1 });
-
-        await host.handlers.get(133)?.('A');
-        await host.handlers.get(133)?.('C');
-
-        expect(publish).toHaveBeenLastCalledWith({ commandCount: 1, completedCount: 0 });
-    });
-
-    it('caps untrimmed command boundaries and releases the oldest markers', async () => {
-        const host = createTerminalHost();
-        const publish = vi.fn();
-        const tracker = new TerminalCommandTracker(host.terminal, colors, publish);
-
-        for (let command = 0; command < 1_001; command += 1) {
-            // Each OSC event mutates shared tracker state and must be observed in this exact
-            // prompt -> command -> finish order, so the awaits cannot be parallelized.
-            // eslint-disable-next-line no-await-in-loop -- intentionally sequential, see above
-            await host.handlers.get(133)?.('A');
-            // eslint-disable-next-line no-await-in-loop -- intentionally sequential, see above
-            await host.handlers.get(133)?.('C');
-            // eslint-disable-next-line no-await-in-loop -- intentionally sequential, see above
-            await host.handlers.get(133)?.('D;0');
-        }
-
-        expect(publish).toHaveBeenLastCalledWith({
-            commandCount: 1_000,
-            completedCount: 1_000,
-            lastExitStatus: 0,
+        expect(mocks.pushToast).not.toHaveBeenCalled();
+        expect(mocks.tryCommand).toHaveBeenCalledWith(
+            'Starting a new Agent session failed',
+            expect.any(Function),
+            { refresh: mocks.refreshWorkbench },
+        );
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('terminal.restart', {
+            terminalId: 'terminal-1',
+            mode: 'fresh',
         });
-        expect(host.markerDisposers[0]).toHaveBeenCalledOnce();
-        expect(host.markerDisposers[1]).toHaveBeenCalledOnce();
-        expect(tracker.navigate('previous')).toBe(true);
+    });
+});
+
+describe('clear handler registration contract', () => {
+    it('routes clearActiveTerminal to the registered handler', () => {
+        const handler = vi.fn();
+        registerTerminalClearHandler('terminal-1', handler);
+
+        clearActiveTerminal('terminal-1');
+
+        expect(handler).toHaveBeenCalledTimes(1);
+    });
+
+    it('stops routing to the handler once its own unregister callback runs', () => {
+        const handler = vi.fn();
+        const unregister = registerTerminalClearHandler('terminal-1', handler);
+
+        unregister();
+        clearActiveTerminal('terminal-1');
+
+        expect(handler).not.toHaveBeenCalled();
+    });
+
+    it('does not let a stale unregister callback evict a newer handler for the same id', () => {
+        const firstHandler = vi.fn();
+        const secondHandler = vi.fn();
+        const unregisterFirst = registerTerminalClearHandler('terminal-1', firstHandler);
+        registerTerminalClearHandler('terminal-1', secondHandler);
+
+        // A pane that already lost ownership (e.g. after remount) must not evict its successor.
+        unregisterFirst();
+        clearActiveTerminal('terminal-1');
+
+        expect(firstHandler).not.toHaveBeenCalled();
+        expect(secondHandler).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('paste handler registration contract', () => {
+    it('routes data to the mounted Terminal and returns whether it accepted the paste', () => {
+        const handlers = { paste: vi.fn(() => true) };
+        const unregister = registerTerminalPasteHandler('terminal-paste-1', handlers);
+
+        expect(didPasteIntoTerminal('terminal-paste-1', "'/repo/a file.txt'")).toBe(true);
+        expect(handlers.paste).toHaveBeenCalledWith("'/repo/a file.txt'");
+
+        unregister();
+    });
+
+    it('returns false after unregister and does not let stale cleanup evict a newer pane', () => {
+        const firstHandlers = { paste: vi.fn(() => true) };
+        const secondHandlers = { paste: vi.fn(() => true) };
+        const unregisterFirst = registerTerminalPasteHandler('terminal-paste-2', firstHandlers);
+        const unregisterSecond = registerTerminalPasteHandler('terminal-paste-2', secondHandlers);
+
+        unregisterFirst();
+
+        expect(didPasteIntoTerminal('terminal-paste-2', '/repo/folder')).toBe(true);
+        expect(firstHandlers.paste).not.toHaveBeenCalled();
+        expect(secondHandlers.paste).toHaveBeenCalledWith('/repo/folder');
+
+        unregisterSecond();
+        expect(didPasteIntoTerminal('terminal-paste-2', '/repo/folder')).toBe(false);
+    });
+});
+
+describe('focus handler registration contract', () => {
+    it('routes focus to the mounted Terminal handler', () => {
+        const handler = vi.fn();
+        const unregister = registerTerminalFocusHandler('terminal-focus', handler);
+
+        focusTerminalById('terminal-focus');
+
+        expect(handler).toHaveBeenCalledTimes(1);
+        unregister();
+    });
+
+    it('exposes the mounted Terminal focus element and yields null for unknown or element-less handlers', () => {
+        const element = {} as HTMLElement;
+        const unregister = registerTerminalFocusHandler('terminal-focus', vi.fn(), () => element);
+        const unregisterBare = registerTerminalFocusHandler('terminal-bare', vi.fn());
+
+        expect(getTerminalFocusElement('terminal-focus')).toBe(element);
+        expect(getTerminalFocusElement('terminal-bare')).toBeNull();
+        expect(getTerminalFocusElement('terminal-missing')).toBeNull();
+        unregister();
+        unregisterBare();
+        expect(getTerminalFocusElement('terminal-focus')).toBeNull();
+    });
+
+    it('does not let a stale unregister callback evict a newer focus handler', () => {
+        const firstHandler = vi.fn();
+        const secondHandler = vi.fn();
+        const unregisterFirst = registerTerminalFocusHandler('terminal-focus', firstHandler);
+        const unregisterSecond = registerTerminalFocusHandler('terminal-focus', secondHandler);
+
+        unregisterFirst();
+        focusTerminalById('terminal-focus');
+
+        expect(firstHandler).not.toHaveBeenCalled();
+        expect(secondHandler).toHaveBeenCalledTimes(1);
+        unregisterSecond();
+    });
+});
+
+describe('createTerminal', () => {
+    function stubSessionState(paneLayout = createPaneLayout()): void {
+        mocks.getSelectedSession.mockReturnValue({ id: 'session-1' });
+        mocks.getSessionState.mockReturnValue({
+            sessionId: 'session-1',
+            workbenchProjectId: 'project-1',
+            paneLayout,
+        });
+        mocks.caxriRequest.mockResolvedValue(terminalFixture({ id: 'terminal-new' }));
+    }
+
+    it('places the new Terminal into the layout once it exists', async () => {
+        stubSessionState();
+        mocks.getBootstrap.mockReturnValue(bootstrapWith(terminalFixture({ id: 'terminal-new' })));
+
+        await createTerminal();
+
+        expect(mocks.patchSessionState).toHaveBeenCalledTimes(1);
+    });
+
+    /**
+     * `Cmd+T` then `Cmd+W`: the close lands while `createTerminal` is still awaiting its refresh, so the Terminal is
+     * already gone by the time the placement would run. Writing the tab back would strand a blank pane.
+     */
+    it('opens no tab for a Terminal that was closed before the refresh returned', async () => {
+        stubSessionState();
+        mocks.getBootstrap.mockReturnValue(bootstrapWith(terminalFixture({ id: 'terminal-1' })));
+
+        await createTerminal();
+
+        expect(mocks.patchSessionState).not.toHaveBeenCalled();
+    });
+
+    it('keeps the active Terminal in place when opening a fresh Terminal in a split pane', async () => {
+        const layout = createPaneLayout(
+            { kind: 'terminal', terminalId: 'terminal-existing' },
+            (() => {
+                let next = 0;
+                return () => `layout-${++next}`;
+            })(),
+        );
+        stubSessionState(layout);
+        mocks.getBootstrap.mockReturnValue(bootstrapWith(terminalFixture({ id: 'terminal-new' })));
+
+        await createTerminal('shell', { split: 'right' });
+
+        const nextLayout = (
+            mocks.patchSessionState.mock.calls as Array<[{ paneLayout: PaneLayout }]>
+        )[0]?.[0]?.paneLayout;
+        expect(nextLayout.root).toMatchObject({ type: 'split', direction: 'horizontal' });
+        if (nextLayout.root.type !== 'split') throw new Error('Expected a horizontal pane split');
+        expect(nextLayout.root.first).toMatchObject({ type: 'pane', id: layout.root.id });
+        expect(nextLayout.root.second).toMatchObject({
+            type: 'pane',
+            tabs: [{ resource: { kind: 'terminal', terminalId: 'terminal-new' } }],
+        });
+        expect(listPanes(nextLayout)).toHaveLength(2);
+        expect(
+            findResourceTabs(nextLayout, {
+                kind: 'terminal',
+                terminalId: 'terminal-existing',
+            }),
+        ).toHaveLength(1);
+        expect(
+            findResourceTabs(nextLayout, { kind: 'terminal', terminalId: 'terminal-new' }),
+        ).toHaveLength(1);
+        expect(
+            findResourceTabs(nextLayout, {
+                kind: 'terminal',
+                terminalId: 'terminal-existing',
+            })[0]?.pane.id,
+        ).toBe(layout.root.id);
+        expect(
+            findResourceTabs(nextLayout, { kind: 'terminal', terminalId: 'terminal-new' })[0]?.pane
+                .id,
+        ).not.toBe(layout.root.id);
+    });
+});
+
+describe('selection handler registration contract', () => {
+    it('routes copySelection and hasSelection to the registered handlers', () => {
+        const handlers = { copySelection: vi.fn(), hasSelection: vi.fn(() => true) };
+        registerTerminalSelectionHandlers('terminal-1', handlers);
+
+        copyActiveTerminalSelection('terminal-1');
+
+        expect(handlers.copySelection).toHaveBeenCalledTimes(1);
+        expect(hasActiveTerminalSelection('terminal-1')).toBe(true);
+    });
+
+    it('reports no selection once its own unregister callback runs', () => {
+        const handlers = { copySelection: vi.fn(), hasSelection: vi.fn(() => true) };
+        const unregister = registerTerminalSelectionHandlers('terminal-1', handlers);
+
+        unregister();
+
+        expect(hasActiveTerminalSelection('terminal-1')).toBe(false);
+        copyActiveTerminalSelection('terminal-1');
+        expect(handlers.copySelection).not.toHaveBeenCalled();
+    });
+
+    it('does not let a stale unregister callback evict a newer handler set for the same id', () => {
+        const firstHandlers = { copySelection: vi.fn(), hasSelection: vi.fn(() => false) };
+        const secondHandlers = { copySelection: vi.fn(), hasSelection: vi.fn(() => true) };
+        const unregisterFirst = registerTerminalSelectionHandlers('terminal-1', firstHandlers);
+        registerTerminalSelectionHandlers('terminal-1', secondHandlers);
+
+        unregisterFirst();
+
+        expect(hasActiveTerminalSelection('terminal-1')).toBe(true);
+        copyActiveTerminalSelection('terminal-1');
+        expect(secondHandlers.copySelection).toHaveBeenCalledTimes(1);
+        expect(firstHandlers.copySelection).not.toHaveBeenCalled();
+    });
+});
+
+describe('terminal attachment registry', () => {
+    it('resolves immediately for an already attached Terminal', async () => {
+        markTerminalAttached('attached-1', true);
+        await expect(whenTerminalAttached('attached-1', 10)).resolves.toBe(true);
+        expect(isTerminalAttached('attached-1')).toBe(true);
+    });
+
+    it('resolves pending waiters once the pane reports its attach, and no longer after unmount', async () => {
+        const pending = whenTerminalAttached('attached-2', 1000);
+        markTerminalAttached('attached-2', true);
+        await expect(pending).resolves.toBe(true);
+        markTerminalAttached('attached-2', false);
+        expect(isTerminalAttached('attached-2')).toBe(false);
+    });
+
+    it('gives up after the timeout when no pane attaches', async () => {
+        vi.useFakeTimers();
+        try {
+            const pending = whenTerminalAttached('attached-3', 50);
+            await vi.advanceTimersByTimeAsync(50);
+            await expect(pending).resolves.toBe(false);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+});
+
+describe('detachTerminalQuietly', () => {
+    it('requests terminal.detach with the given terminal id', async () => {
+        mocks.caxriRequest.mockResolvedValueOnce(undefined);
+
+        await detachTerminalQuietly('terminal-1');
+
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('terminal.detach', {
+            terminalId: 'terminal-1',
+        });
+    });
+
+    it('swallows a rejecting request instead of throwing', async () => {
+        mocks.caxriRequest.mockRejectedValueOnce(new Error('detach failed'));
+
+        await expect(detachTerminalQuietly('terminal-1')).resolves.toBeUndefined();
     });
 });

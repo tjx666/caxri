@@ -611,6 +611,55 @@ describe('extension view contracts', () => {
         ).toBe(false);
     });
 
+    it('carries a source control provider root path independently of its tooltip', () => {
+        const provider = {
+            id: 'repository-1',
+            label: 'project',
+            icon: { kind: 'theme' as const, id: 'folder-git' },
+            // Decorated display text: a consumer that reads this as a path resolves the wrong file.
+            tooltip: '/authorized/project (2 changes)',
+            rootPath: '/authorized/project',
+            description: 'main',
+            descriptionKind: 'reference' as const,
+            descriptionAccessibilityLabel: 'On branch main',
+            descriptionTooltip: 'main',
+            countLabel: ' · 2',
+            expandedByDefault: true,
+            actions: [],
+            groups: [],
+        };
+        const model = {
+            revision: '7',
+            title: 'Source Control',
+            accessibilityLabel: 'Source Control',
+            modeAccessibilityLabel: 'Source Control mode',
+            modes: [],
+            selectedModeId: 'working',
+            refreshAction: {
+                id: 'publisher.fixture.refresh',
+                label: 'Refresh',
+                icon: { kind: 'theme' as const, id: 'refresh' },
+                command: { id: 'publisher.fixture.refresh' },
+            },
+            providers: [provider],
+        };
+
+        const rootlessEntries = Object.entries(provider).filter(([key]) => key !== 'rootPath');
+        const rootless = Object.fromEntries(rootlessEntries);
+
+        expect(sourceControlViewModelSchema.parse(model).providers[0]).toEqual(provider);
+        // A provider without a filesystem root stays valid; consumers then disable path-dependent affordances.
+        expect(
+            sourceControlViewModelSchema.parse({ ...model, providers: [rootless] }).providers[0],
+        ).not.toHaveProperty('rootPath');
+        expect(
+            sourceControlViewModelSchema.safeParse({
+                ...model,
+                providers: [{ ...provider, rootPath: '' }],
+            }).success,
+        ).toBe(false);
+    });
+
     it('validates one unified builtin and extension catalog shape', () => {
         expect(
             viewCatalogSnapshotSchema.parse({

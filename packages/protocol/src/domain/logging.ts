@@ -102,6 +102,7 @@ export const logEventCatalog = {
         operationRecovered: 'file.operation_recovered',
         saved: 'file.saved',
         search: 'file.search',
+        symlinkProbeBudgetSpent: 'file.symlink_probe_budget_spent',
         searchEntrySkipped: 'file.search_entry_skipped',
     },
     files: {
@@ -150,8 +151,10 @@ export const logEventCatalog = {
         preloadError: 'process_explorer.preload_error',
         renderProcessCrashLoop: 'process_explorer.render_process_crash_loop',
         renderProcessGone: 'process_explorer.render_process_gone',
+        responsive: 'process_explorer.responsive',
         sample: 'process_explorer.sample',
         unhandledRejection: 'process_explorer.unhandled_rejection',
+        unresponsive: 'process_explorer.unresponsive',
     },
     projectStatus: {
         alert: 'project_status.alert',
@@ -208,6 +211,7 @@ export const logEventCatalog = {
         attachFailed: 'server_connection.attach_failed',
         attached: 'server_connection.attached',
         connectionLost: 'server_connection.lost',
+        desktopCommandCallbackRejected: 'server_connection.desktop_command_callback_rejected',
         desktopLeaseReplaced: 'server_connection.desktop_lease_replaced',
         desktopReadyFailed: 'server_connection.desktop_ready_failed',
         eventRecoveryFailed: 'server_connection.event_recovery_failed',
@@ -285,6 +289,8 @@ export const logEventCatalog = {
         readyToShow: 'window.ready_to_show',
         renderProcessCrashLoop: 'window.render_process_crash_loop',
         renderProcessGone: 'window.render_process_gone',
+        responsive: 'window.responsive',
+        unresponsive: 'window.unresponsive',
     },
     workbenchRoot: {
         fallback: 'workbench_root.fallback',

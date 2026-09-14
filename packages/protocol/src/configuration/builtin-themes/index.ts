@@ -1,0 +1,9 @@
+export type { BuiltinThemeId } from './catalog.js';
+export { builtinThemeIds, builtinThemes, builtinThemeSources } from './catalog.js';
+export { draculaTheme } from './dracula.js';
+export { monokaiTheme } from './monokai.js';
+export { oneDarkProTheme } from './one-dark-pro.js';
+export { oscuraMidnightTheme } from './oscura-midnight.js';
+export { solarizedDarkTheme, solarizedLightTheme } from './solarized.js';
+export { tokyoNightTheme } from './tokyo-night.js';
+export { vscodeDarkPlusTheme } from './vscode-dark-plus.js';

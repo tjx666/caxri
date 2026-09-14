@@ -29,7 +29,12 @@ describe('Agent-exact Terminal input', () => {
                 'launch-1',
             ),
         ).toBe(true);
-        expect(writeAgentExact).toHaveBeenLastCalledWith('terminal-1', 'safe', 'launch-1');
+        expect(writeAgentExact).toHaveBeenLastCalledWith(
+            'terminal-1',
+            'safe',
+            'launch-1',
+            undefined,
+        );
         expect(observeUserInput).toHaveBeenCalledTimes(2);
         expect(observeUserInput).toHaveBeenLastCalledWith('terminal-1', 'safe');
 
@@ -44,7 +49,12 @@ describe('Agent-exact Terminal input', () => {
             ),
         ).toBe(true);
         expect(observeUserInput).not.toHaveBeenCalled();
-        expect(writeAgentExact).toHaveBeenLastCalledWith('terminal-1', 'delegated', 'launch-1');
+        expect(writeAgentExact).toHaveBeenLastCalledWith(
+            'terminal-1',
+            'delegated',
+            'launch-1',
+            undefined,
+        );
     });
 
     it('rejects the request when the target Agent generation changed', () => {

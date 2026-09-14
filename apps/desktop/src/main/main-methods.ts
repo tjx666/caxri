@@ -245,8 +245,22 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
             case 'project.delete': {
                 const { projectId } = request.params;
                 const state = await supervisor.request('app.bootstrap');
-                const sessions = state.sessions.filter(
-                    (session) => session.projectId === projectId,
+                /**
+                 * The Terminal count is taken over the same set Server Core deletes — this Project plus the worktree
+                 * Projects registered on its behalf — so the number the user consents to is defined by the cascade
+                 * rather than by a second rule maintained here. The worktree half contributes nothing today: the Server
+                 * refuses to create a Session inside an auto-registered Project at all. Taking the union is what keeps
+                 * that a property of the Server's rule instead of an assumption made at this call site.
+                 */
+                const worktreeProjects = state.projects.filter(
+                    (project) => project.ownerProjectId === projectId,
+                );
+                const deletedProjectIds = new Set([
+                    projectId,
+                    ...worktreeProjects.map((project) => project.id),
+                ]);
+                const sessions = state.sessions.filter((session) =>
+                    deletedProjectIds.has(session.projectId),
                 );
                 const counts = await Promise.all(
                     sessions.map((session) =>
@@ -259,7 +273,11 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                     'this Project';
                 const result = await dialog.showMessageBox(
                     mainWindow!,
-                    deleteProjectPrompt(projectTitle, count),
+                    deleteProjectPrompt(
+                        projectTitle,
+                        count,
+                        worktreeProjects.map((project) => project.displayTitle),
+                    ),
                 );
                 if (result.response !== 0) return { canceled: true };
                 return supervisor.request('project.delete', { projectId });

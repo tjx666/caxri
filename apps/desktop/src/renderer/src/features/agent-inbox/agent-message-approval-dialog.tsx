@@ -14,6 +14,11 @@ import {
 import { caxri } from '../../lib/caxri';
 import { describeFailure, pushToast } from '../../stores/toasts';
 import {
+    getHeldAgentMessage,
+    listHeldAgentMessages,
+    settleHeldAgentMessage,
+} from './agent-message-approval-client';
+import {
     heldMessageActionResultForError,
     loadHeldMessageDetail,
     updateHeldMessagesAfterAction,
@@ -43,7 +48,7 @@ export function AgentMessageApprovalDialog() {
         let isActive = true;
         async function loadHeldMessages(): Promise<void> {
             try {
-                const { messages: initial } = await caxri.request('agent.message.held');
+                const initial = await listHeldAgentMessages();
                 if (isActive) setMessages(initial);
             } catch (error: unknown) {
                 pushToast('error', describeFailure(error, 'Unable to load held peer messages'));
@@ -98,7 +103,7 @@ export function AgentMessageApprovalDialog() {
                 setMessages((existing) =>
                     existing.filter(({ messageId: existingId }) => existingId !== messageId),
                 ),
-            request: () => caxri.request('agent.message.held.get', { messageId }),
+            request: () => getHeldAgentMessage(messageId),
         });
         return () => {
             isActive = false;
@@ -116,7 +121,7 @@ export function AgentMessageApprovalDialog() {
         if (action === 'approve' && detail?.messageId !== current.messageId) return;
         setPending(true);
         try {
-            await caxri.request(`agent.message.${action}`, { messageId: current.messageId });
+            await settleHeldAgentMessage(action, current.messageId);
             setMessages((existing) =>
                 updateHeldMessagesAfterAction(existing, current.messageId, 'confirmed'),
             );

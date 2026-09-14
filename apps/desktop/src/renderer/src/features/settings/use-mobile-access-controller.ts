@@ -3,7 +3,14 @@ import { useCallback, useEffect, useMemo, useReducer } from 'react';
 import type { MobileAccessStatus, MobileDeviceSummary, ProjectQueryResult } from '@caxri/protocol';
 import { MOBILE_MAX_PROJECT_GRANTS } from '@caxri/protocol';
 
-import { caxri } from '../../lib/caxri';
+import {
+    createMobilePairing,
+    listMobileDevices,
+    listMobileGrantableProjects,
+    mobileAccessStatus,
+    revokeMobileDevice,
+    setMobileAccessEnabled,
+} from './mobile-access-client';
 
 export interface MobilePairingState {
     expiresAt: number;
@@ -134,9 +141,9 @@ export const useMobileAccessController = () => {
         dispatch({ type: 'load-started' });
         try {
             const [status, devices, projects] = await Promise.all([
-                caxri.request('mobile.access.status'),
-                caxri.request('mobile.device.list'),
-                caxri.request('project.query', { mode: 'list' }),
+                mobileAccessStatus(),
+                listMobileDevices(),
+                listMobileGrantableProjects(),
             ]);
             dispatch({
                 devices: devices.devices,
@@ -166,7 +173,7 @@ export const useMobileAccessController = () => {
             isLoading = true;
             const now = Date.now();
             try {
-                const result = await caxri.request('mobile.device.list');
+                const result = await listMobileDevices();
                 if (!isActive) return;
                 const pairingCompleted = result.devices.some(
                     (device) =>
@@ -201,9 +208,7 @@ export const useMobileAccessController = () => {
         dispatch({ busy: true, type: 'set-busy' });
         dispatch({ error: undefined, type: 'set-error' });
         try {
-            const status = await caxri.request(
-                isEnabled ? 'mobile.access.enable' : 'mobile.access.disable',
-            );
+            const status = await setMobileAccessEnabled(isEnabled);
             dispatch({ isEnabled, status, type: 'access-applied' });
         } catch {
             dispatch({
@@ -223,7 +228,7 @@ export const useMobileAccessController = () => {
         dispatch({ copied: false, type: 'set-copied' });
         dispatch({ error: undefined, type: 'set-error' });
         try {
-            const pairing = await caxri.request('mobile.pairing.create', {
+            const pairing = await createMobilePairing({
                 projectIds: [...state.selectedProjectIds],
             });
             dispatch({
@@ -240,7 +245,7 @@ export const useMobileAccessController = () => {
                 type: 'pairing-created',
             });
             try {
-                const status = await caxri.request('mobile.access.status');
+                const status = await mobileAccessStatus();
                 dispatch({ isEnabled: true, status, type: 'access-applied' });
             } catch {
                 // A transient status refresh must not discard the already-issued pairing link.
@@ -256,7 +261,7 @@ export const useMobileAccessController = () => {
         dispatch({ busy: true, type: 'set-busy' });
         dispatch({ error: undefined, type: 'set-error' });
         try {
-            await caxri.request('mobile.device.revoke', { deviceId });
+            await revokeMobileDevice({ deviceId });
             await load();
         } catch {
             dispatch({ error: 'Unable to revoke this device.', type: 'set-error' });

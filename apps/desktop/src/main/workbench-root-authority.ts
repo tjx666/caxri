@@ -1,7 +1,7 @@
 import { realpath } from 'node:fs/promises';
 import { basename, dirname } from 'node:path';
 
-import type { MainRequest } from '@caxri/protocol';
+import type { MainRequest, TerminalFileLinkRefusalReason } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import type { BrowserWindow } from 'electron';
 import { dialog } from 'electron';
@@ -51,7 +51,16 @@ async function showMessageBox(
  * and can never nominate a path for automatic authorization.
  */
 export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOptions) {
-    async function chooseTargetSession(projectId: string): Promise<string | undefined> {
+    /**
+     * The Session that should receive the file, or why it will not be opened. A refusal carries a reason so the
+     * Renderer can say something; a user who dismissed the chooser gets `undefined` and no message, because they
+     * already know.
+     */
+    async function chooseTargetSession(
+        projectId: string,
+    ): Promise<
+        { sessionId: string } | { reason: TerminalFileLinkRefusalReason } | { canceled: true }
+    > {
         const server = options.getServer();
         const state = await server.request('app.bootstrap');
         const sessions = state.sessions.filter(
@@ -59,18 +68,25 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
                 session.archivedAt === undefined && session.workbenchProjectId === projectId,
         );
         const selected = sessions.find((session) => session.id === state.selectedSessionId);
-        if (selected) return selected.id;
-        if (sessions.length === 1) return sessions[0].id;
+        if (selected) return { sessionId: selected.id };
+        if (sessions[0] && sessions.length === 1) return { sessionId: sessions[0].id };
         if (sessions.length === 0) {
             /**
              * Server Core resolves a link into an auto-registered worktree Project only while a live Session uses it as
              * its Workbench Root, and it refuses to create a Session inside such a Project. If that binding vanished
-             * between resolve and open, cancel instead of asking for a Session the Server would reject.
+             * between resolve and open, refuse instead of asking for a Session the Server would reject. A missing
+             * Project row is the same situation one step further along, and `project?.ownerProjectId !== undefined`
+             * used to read as "this is a top-level Project" for it — so the open fell through to `session.create`
+             * against a Project id that no longer named anything.
              */
             const project = state.projects.find((candidate) => candidate.id === projectId);
-            if (project?.ownerProjectId !== undefined) return undefined;
-            return (await server.request('session.create', { projectId, defaultAgent: null }))
-                .session.id;
+            if (!project) return { reason: 'project_gone' };
+            if (project.ownerProjectId !== undefined) return { reason: 'worktree_project_unbound' };
+            const created = await server.request('session.create', {
+                projectId,
+                defaultAgent: null,
+            });
+            return { sessionId: created.session.id };
         }
 
         const projectTitle =
@@ -90,7 +106,10 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
             cancelId: sessions.length,
             noLink: true,
         });
-        return result.response === sessions.length ? undefined : sessions[result.response]?.id;
+        // Cancel is the one button past the Session list, so its response is the first index with no Session behind it.
+        const chosen: (typeof sessions)[number] | undefined =
+            result.response === sessions.length ? undefined : sessions[result.response];
+        return chosen ? { sessionId: chosen.id } : { canceled: true };
     }
 
     /**
@@ -121,12 +140,15 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
             };
         }
 
-        const sessionId = await chooseTargetSession(resolved.projectId);
-        if (!sessionId) return { canceled: true as const };
+        const target = await chooseTargetSession(resolved.projectId);
+        if (!('sessionId' in target))
+            return 'reason' in target
+                ? { canceled: true as const, reason: target.reason }
+                : { canceled: true as const };
         await server.request('desktop.openFile', {
             expectedIdentity: resolved.identity,
             path: resolved.path,
-            sessionId,
+            sessionId: target.sessionId,
             launchIfNeeded: false,
             ...(parameters.location && { location: parameters.location }),
         });

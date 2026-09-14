@@ -197,9 +197,13 @@ function treeItemPresentation(row: VisibleItemRow, isRefreshing: boolean) {
     const isRefreshingMessage = isMessage && isRefreshing;
     return {
         className: cn(
-            'flex w-full min-w-0 items-center gap-2 border-0 bg-transparent text-left text-foreground focus-visible:bg-elevated focus-visible:outline-none',
+            // Hover and keyboard focus only: this tree has no persistent selected row, so it must not borrow a
+            // selection color to stand in for one.
+            'flex w-full min-w-0 items-center gap-2 border-0 bg-transparent text-left text-foreground focus-visible:bg-list-focus-background focus-visible:text-list-focus-foreground focus-visible:outline-none',
             isHeader ? 'h-8 border-b border-border font-semibold' : isMessage ? 'min-h-40' : 'h-7',
-            !isMessage ? 'pr-2 hover:bg-elevated' : undefined,
+            !isMessage
+                ? 'pr-2 hover:bg-list-hover-background hover:text-list-hover-foreground'
+                : undefined,
             !isMessage && row.item.command ? 'cursor-pointer' : undefined,
         ),
         commandTarget: !isRefreshingMessage && row.item.command ? 'true' : undefined,

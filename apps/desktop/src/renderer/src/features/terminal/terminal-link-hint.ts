@@ -98,18 +98,48 @@ export function createTerminalLinkHintController(terminal: Terminal): TerminalLi
     let element: HTMLDivElement | undefined;
     let generation = 0;
     let isLinkHovered = false;
+    let isModifierDown = false;
     let modifierChange: ((isModifierDown: boolean) => void) | undefined;
+    let modifierObservedAt: number | undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const host = terminal.element;
     const ownerDocument = host?.ownerDocument;
     const ownerWindow = ownerDocument?.defaultView;
 
-    const updateModifier = (isModifierDown: boolean) => {
-        host?.classList.toggle('terminal-link-modifier-active', isLinkHovered && isModifierDown);
-        modifierChange?.(isModifierDown);
+    /**
+     * The affordance is hover-scoped, so leaving a link clears it without forgetting that the key is still held.
+     */
+    const applyModifier = () => {
+        const isActive = isLinkHovered && isModifierDown;
+        host?.classList.toggle('terminal-link-modifier-active', isActive);
+        modifierChange?.(isActive);
     };
-    const onKeyboardModifier = (event: KeyboardEvent) => updateModifier(event.metaKey);
-    const onWindowBlur = () => updateModifier(false);
+    /**
+     * A mouse event reports the modifier state as of the last pointer move. When the pointer is still and the user only
+     * presses Cmd, xterm reprovides the link with that older event, whose `metaKey` is `false` — accepting it would
+     * clear a modifier the user is currently holding, and nothing would correct it until the next key press. So an
+     * observation only changes the state when it is at least as recent as the one already recorded. Events without a
+     * timestamp cannot be proven stale and are always accepted.
+     */
+    const observeModifier = (isNextModifierDown: boolean, at: number | undefined) => {
+        const isStale =
+            at !== undefined && modifierObservedAt !== undefined && at < modifierObservedAt;
+        if (!isStale) {
+            if (at !== undefined) modifierObservedAt = at;
+            isModifierDown = isNextModifierDown;
+        }
+        applyModifier();
+    };
+    const onKeyboardModifier = (event: KeyboardEvent) =>
+        observeModifier(event.metaKey, event.timeStamp);
+    /**
+     * A blurred window never delivers the matching `keyup`, so the recorded observation is dropped with the state.
+     */
+    const onWindowBlur = () => {
+        isModifierDown = false;
+        modifierObservedAt = undefined;
+        applyModifier();
+    };
     ownerDocument?.addEventListener('keydown', onKeyboardModifier);
     ownerDocument?.addEventListener('keyup', onKeyboardModifier);
     ownerWindow?.addEventListener('blur', onWindowBlur);
@@ -130,7 +160,7 @@ export function createTerminalLinkHintController(terminal: Terminal): TerminalLi
         if (timer !== undefined) clearTimeout(timer);
         timer = undefined;
         isLinkHovered = false;
-        updateModifier(false);
+        applyModifier();
         modifierChange = undefined;
         activeLinkKey = undefined;
         anchorEvent = undefined;
@@ -155,7 +185,8 @@ export function createTerminalLinkHintController(terminal: Terminal): TerminalLi
                 };
             }
             queueMicrotask(() => {
-                if (generation === currentGeneration) updateModifier(event.metaKey);
+                if (generation === currentGeneration)
+                    observeModifier(event.metaKey, event.timeStamp);
             });
 
             if (isSameLink) {
@@ -181,7 +212,7 @@ export function createTerminalLinkHintController(terminal: Terminal): TerminalLi
         hide,
         leave() {
             isLinkHovered = false;
-            updateModifier(false);
+            applyModifier();
             const leavingLinkKey = activeLinkKey;
             queueMicrotask(() => {
                 if (!isLinkHovered && activeLinkKey === leavingLinkKey) hide();

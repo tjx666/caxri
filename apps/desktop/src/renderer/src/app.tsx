@@ -9,7 +9,7 @@ import { AgentActionsDialog } from './features/agent-actions/agent-actions-dialo
 import { AgentMessageApprovalDialog } from './features/agent-inbox/agent-message-approval-dialog';
 import { BugReportDialog } from './features/bug-report/bug-report-dialog';
 import { ConfirmationDialog } from './features/confirmations/confirmation-dialog';
-import { openFileForSession } from './features/editor/document-actions';
+import { openFileForSession } from './features/editor/document-commands';
 import { scheduleCodeEditorPreload } from './features/editor/editor-loader';
 import { useExternalDocumentSync } from './features/editor/external-sync';
 import { CommandPalette } from './features/palette/command-palette';
@@ -22,8 +22,8 @@ import { SecondarySidebar } from './features/secondary-sidebar/secondary-sidebar
 import { ArchivedSessionsDialog } from './features/session/archived-sessions-dialog';
 import { CreateSessionDialog } from './features/session/create-session-dialog';
 import { createDesktopOpenQueue } from './features/session/desktop-open';
-import { didSelectSession } from './features/session/session-actions';
 import { useSessionAttentionAcknowledgement } from './features/session/session-attention';
+import { didSelectSession } from './features/session/session-commands';
 import { SessionMruSwitcher } from './features/session/session-mru-switcher';
 import { useSessionMruSwitcherLifecycle } from './features/session/use-session-mru-switcher-lifecycle';
 import { useSessionNavigationHistory } from './features/session/use-session-navigation-history';

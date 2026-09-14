@@ -6,11 +6,16 @@ import {
     cleanupExecutionFixtures,
     createExecution,
     snapshot,
+    startBackgroundAgent,
     terminal,
 } from './execution-fixtures';
 
 afterEach(cleanupExecutionFixtures);
 
+/**
+ * Input delivery, PTY generations, and shutdown. The view-attachment half of the same class lives in
+ * `./execution-attachment.test.ts`; the two were one file until it outgrew the 800-line cap.
+ */
 describe('architecture-a3b-terminal-host: RemoteTerminalExecution', () => {
     it('accepts exact Agent input for a live background Terminal without a Renderer attachment', async () => {
         const { control, execution } = createExecution();
@@ -60,80 +65,31 @@ describe('architecture-a3b-terminal-host: RemoteTerminalExecution', () => {
         );
     });
 
-    it('replays a pre-launch view reservation and preserves synchronous input acceptance', async () => {
+    /**
+     * The synchronous `true` above only means the input was admitted for delivery: without an attachment the write
+     * travels to the Terminal Host, which can still refuse it or fail outright. A caller that treats that admission as
+     * proof records a submission the Agent never received (github.com/tjx666/caxri/issues/893).
+     */
+    it('reports what the Host did with a background Agent input the caller was told was accepted', async () => {
         const { control, execution } = createExecution();
-        const output = vi.fn();
-        const themeTerminalColors = {
-            background: '#111111',
-            foreground: '#eeeeee',
-            cursor: '#ffffff',
-        };
-        execution.onEvent(output);
-        await expect(execution.attach(terminal.id, { cols: 120, rows: 40 })).resolves.toEqual({
-            snapshot: null,
-            wasAttached: false,
-        });
-        await execution.reserve(terminal);
-        await execution.start({
-            args: ['-l'],
-            colors: themeTerminalColors,
-            environment: { TERM: 'xterm-256color' },
-            executable: '/bin/zsh',
-            initialSnapshot: null,
-            record: terminal,
-        });
+        await startBackgroundAgent(execution, control);
+        const delivered = vi.fn();
 
-        expect(control.requests.map(({ request }) => request.method)).toEqual([
-            'terminal.reserve',
-            'terminal.attach',
-            'terminal.start',
-        ]);
-        const attach = control.requests[1];
-        expect(control.requests[2]?.request).toMatchObject({
-            method: 'terminal.start',
-            params: {
-                colors: { background: '#111111', foreground: '#eeeeee' },
-            },
-        });
-        expect(attach.scope).toMatchObject({ ptyGeneration: 1 });
-        expect(execution.write(terminal.id, 'echo safe\r')).toBe(true);
-        await vi.waitFor(() =>
-            expect(control.requests.at(-1)!.request.method).toBe('terminal.input'),
+        control.declineNextAgentInput = true;
+        expect(execution.writeAgentExact(terminal.id, 'refused\r', 'launch-1', delivered)).toBe(
+            true,
         );
+        await vi.waitFor(() => expect(delivered).toHaveBeenLastCalledWith(false));
 
-        const attachmentId = (
-            attach.request as Extract<TerminalHostRequest, { method: 'terminal.attach' }>
-        ).params.attachmentId;
-        control.emit({
-            type: 'event',
-            event: 'terminal.output',
-            identity: {
-                scope: 'terminal',
-                sessionId: terminal.sessionId,
-                terminalId: terminal.id,
-                ptyGeneration: 2,
-                attachmentId,
-            },
-            data: 'stale',
-        });
-        control.emit({
-            type: 'event',
-            event: 'terminal.output',
-            identity: {
-                scope: 'terminal',
-                sessionId: terminal.sessionId,
-                terminalId: terminal.id,
-                ptyGeneration: 1,
-                attachmentId,
-            },
-            data: 'current',
-        });
-        expect(output).toHaveBeenCalledOnce();
-        expect(output).toHaveBeenCalledWith({
-            type: 'output',
-            terminalId: terminal.id,
-            data: 'current',
-        });
+        control.failNextAgentInput = new Error('Synthetic Host failure');
+        expect(execution.writeAgentExact(terminal.id, '\u{1B}', 'launch-1', delivered)).toBe(true);
+        await vi.waitFor(() => expect(delivered).toHaveBeenCalledTimes(2));
+        expect(delivered).toHaveBeenLastCalledWith(false);
+
+        expect(execution.writeAgentExact(terminal.id, 'accepted\r', 'launch-1', delivered)).toBe(
+            true,
+        );
+        await vi.waitFor(() => expect(delivered).toHaveBeenLastCalledWith(true));
     });
 
     it('projects only the current managed Agent launch and signals it by exact identity', async () => {
@@ -539,107 +495,6 @@ describe('architecture-a3b-terminal-host: RemoteTerminalExecution', () => {
         await expect(execution.writeAcknowledged(terminal.id, 'recovered')).resolves.toBe(true);
     });
 
-    it('drains hot paths admitted while changing the Terminal attachment', async () => {
-        const { control, execution } = createExecution();
-        control.holdInputRequests = true;
-        control.holdResizeRequests = true;
-        await execution.attach(terminal.id);
-        await execution.reserve(terminal);
-        await execution.start({
-            args: [],
-            environment: {},
-            executable: '/bin/zsh',
-            initialSnapshot: null,
-            record: terminal,
-        });
-        const pending = execution.writeAcknowledged(terminal.id, 'pending');
-        await vi.waitFor(() => expect(control.requestCount('terminal.input')).toBe(1));
-        expect(execution.resize(terminal.id, 120, 40)).toBe(true);
-        await vi.waitFor(() => expect(control.requestCount('terminal.resize')).toBe(1));
-        const reattachment = execution.attach(terminal.id);
-        await Promise.resolve();
-        expect(control.requestCount('terminal.attach')).toBe(1);
-        control.releaseInput();
-        await expect(pending).resolves.toBe(true);
-        const duringReattachment = execution.writeAcknowledged(terminal.id, 'during');
-        await vi.waitFor(() => expect(control.requestCount('terminal.input')).toBe(2));
-        control.releaseResize();
-        expect(
-            await Promise.race([
-                reattachment,
-                new Promise<'pending'>((resolve) => setTimeout(resolve, 0, 'pending')),
-            ]),
-        ).toBe('pending');
-        control.releaseInput();
-        await expect(duringReattachment).resolves.toBe(true);
-        await expect(reattachment).resolves.toMatchObject({ snapshot: null });
-        expect(control.requestCount('terminal.attach')).toBe(2);
-    });
-
-    it('forwards no output between accepting a re-attach and publishing its attachment', async () => {
-        const { control, execution } = createExecution();
-        const output = vi.fn();
-        execution.onEvent((event) => {
-            if (event.type === 'output') output(event.data);
-        });
-        await execution.attach(terminal.id);
-        await execution.reserve(terminal);
-        await execution.start({
-            args: [],
-            environment: {},
-            executable: '/bin/zsh',
-            initialSnapshot: null,
-            record: terminal,
-        });
-        const attachmentIdOf = (index: number): string => {
-            const attach = control.requests.filter(
-                ({ request }) => request.method === 'terminal.attach',
-            )[index].request as Extract<TerminalHostRequest, { method: 'terminal.attach' }>;
-            return attach.params.attachmentId;
-        };
-        const flush = (data: string, attachmentId = attachmentIdOf(0)): void =>
-            control.emit({
-                type: 'event',
-                event: 'terminal.output',
-                identity: {
-                    scope: 'terminal',
-                    sessionId: terminal.sessionId,
-                    terminalId: terminal.id,
-                    ptyGeneration: 1,
-                    attachmentId,
-                },
-                data,
-            });
-
-        flush('settled');
-        expect(output.mock.calls.flat()).toEqual(['settled']);
-
-        /**
-         * A held input parks the re-attach inside `settleHotPaths`, which is the widest await between accepting the
-         * re-attach and publishing its `attachmentId` — the window issue #740 is about. The Renderer has already
-         * installed its replacement replay buffer by then, so anything forwarded here is replayed _after_ the snapshot
-         * this same re-attach returns.
-         */
-        control.holdInputRequests = true;
-        expect(execution.write(terminal.id, 'typed')).toBe(true);
-        await vi.waitFor(() => expect(control.requestCount('terminal.input')).toBe(1));
-        control.attachSnapshot = { ...snapshot, payload: 'settled/flushed' };
-        const reattachment = execution.attach(terminal.id);
-        await Promise.resolve();
-        expect(control.requestCount('terminal.attach')).toBe(1);
-
-        // Terminal Host wrote this batch to the live screen before its 16 ms timer shipped it, so the snapshot has it too.
-        flush('flushed');
-        control.releaseInput();
-
-        expect((await reattachment).snapshot?.payload).toContain('flushed');
-        expect(output.mock.calls.flat()).toEqual(['settled']);
-
-        // The mute lasts exactly as long as the gap; the published attachment forwards again.
-        flush('after', attachmentIdOf(1));
-        expect(output.mock.calls.flat()).toEqual(['settled', 'after']);
-    });
-
     it('rejects input accepted while Terminal Host shutdown is in progress', async () => {
         const { control, execution } = createExecution();
         const shutdownStarted = Promise.withResolvers<void>();
@@ -768,14 +623,5 @@ describe('architecture-a3b-terminal-host: RemoteTerminalExecution', () => {
         await vi.waitFor(() =>
             expect(control.requests.at(-1)!.request.method).toBe('terminal.stop'),
         );
-    });
-
-    it('does not start an empty Terminal Host to detach an unreserved view', async () => {
-        const { control, execution } = createExecution();
-        await execution.attach(terminal.id);
-
-        execution.detachAllViews();
-
-        expect(control.requests).toEqual([]);
     });
 });

@@ -162,13 +162,9 @@ describe('runtime invalidation matches the production key factories', () => {
     it('invalidates the Files reads a debounced file change covers', () => {
         vi.useFakeTimers();
         const queryClient = new QueryClient();
-        // The Path Browser's key carries a `query` too; the hand-written keys elsewhere in this suite omit it, which is
-        // the drift the factory removes.
-        const browse = caxriQueryKey('files.browse', {
-            sessionId: scope.sessionId,
-            directory: '/project',
-            query: '',
-        });
+        // `files.browse` is deliberately not seeded here: the Path Browser is owned by Desktop Main
+        // (`main/path-browser-authority.ts`), which calls Server directly, so the Renderer never caches that method and
+        // the predicate no longer names it.
         const list = caxriQueryKey('files.list', {
             sessionId: scope.sessionId,
             directory: '/project',
@@ -179,7 +175,7 @@ describe('runtime invalidation matches the production key factories', () => {
             { directory: '/project' },
             scope.workbenchProjectId,
         );
-        for (const key of [browse, list, controlled]) queryClient.setQueryData(key, []);
+        for (const key of [list, controlled]) queryClient.setQueryData(key, []);
         const unsubscribe = subscribeRuntimeQueryInvalidation(queryClient);
 
         emit({
@@ -193,7 +189,6 @@ describe('runtime invalidation matches the production key factories', () => {
         });
         vi.advanceTimersByTime(150);
 
-        expect(queryClient.getQueryState(browse)?.isInvalidated).toBe(true);
         expect(queryClient.getQueryState(list)?.isInvalidated).toBe(true);
         expect(queryClient.getQueryState(controlled)?.isInvalidated).toBe(true);
         unsubscribe();

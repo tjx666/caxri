@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest';
 import type { PrimarySidebarProjectNode } from '../primary-sidebar-tree';
 import {
     flattenPrimarySidebarRows,
+    isPrimarySidebarCreateSessionRowId,
     nextPrimarySidebarRowId,
     primarySidebarArchiveIntent,
+    primarySidebarCreateSessionRowId,
     primarySidebarHorizontalIntent,
     primarySidebarRevealRowId,
     rovingPrimarySidebarRowId,
@@ -16,6 +18,11 @@ const projects: PrimarySidebarProjectNode[] = [
     { id: 'gamma', sessionIds: [] },
 ];
 
+/**
+ * `gamma` has no Sessions, so its "New Session" row stands in for them and is the tree's last row.
+ */
+const gammaCreateRowId = primarySidebarCreateSessionRowId('gamma');
+
 describe('flattenPrimarySidebarRows', () => {
     it('walks each Project heading followed by its Sessions while expanded', () => {
         const rows = flattenPrimarySidebarRows(projects, () => true);
@@ -26,13 +33,20 @@ describe('flattenPrimarySidebarRows', () => {
             'beta',
             'beta-1',
             'gamma',
+            gammaCreateRowId,
         ]);
         expect(rows.find((row) => row.id === 'alpha-2')?.projectId).toBe('alpha');
     });
 
     it('skips a collapsed Project entirely so focus never lands on a hidden row', () => {
         const rows = flattenPrimarySidebarRows(projects, (projectId) => projectId !== 'alpha');
-        expect(rows.map((row) => row.id)).toEqual(['alpha', 'beta', 'beta-1', 'gamma']);
+        expect(rows.map((row) => row.id)).toEqual([
+            'alpha',
+            'beta',
+            'beta-1',
+            'gamma',
+            gammaCreateRowId,
+        ]);
     });
 
     it('closes an expanded Project with hidden Sessions with its reveal row', () => {
@@ -54,6 +68,33 @@ describe('flattenPrimarySidebarRows', () => {
         );
         expect(rows.map((row) => row.id)).toEqual(['alpha']);
     });
+
+    /**
+     * The "New Session" row is the only row an empty Project has below its heading, so leaving it out of the tree is
+     * what used to make arrow keys skip straight past it (github.com/tjx666/caxri/issues/608).
+     */
+    it('stands the New Session row in for an expanded Project with no Sessions', () => {
+        const rows = flattenPrimarySidebarRows([{ id: 'gamma', sessionIds: [] }], () => true);
+        expect(rows).toEqual([
+            { id: 'gamma', kind: 'project', projectId: 'gamma' },
+            { id: gammaCreateRowId, kind: 'createSession', projectId: 'gamma' },
+        ]);
+    });
+
+    it('leaves the New Session row out of a collapsed Project', () => {
+        const rows = flattenPrimarySidebarRows([{ id: 'gamma', sessionIds: [] }], () => false);
+        expect(rows.map((row) => row.id)).toEqual(['gamma']);
+    });
+});
+
+describe('primarySidebarCreateSessionRowId', () => {
+    it('namespaces the row id so it can never collide with a Session or reveal row', () => {
+        expect(gammaCreateRowId).not.toBe('gamma');
+        expect(gammaCreateRowId).not.toBe(primarySidebarRevealRowId('gamma'));
+        expect(isPrimarySidebarCreateSessionRowId(gammaCreateRowId)).toBe(true);
+        expect(isPrimarySidebarCreateSessionRowId(primarySidebarRevealRowId('gamma'))).toBe(false);
+        expect(isPrimarySidebarCreateSessionRowId(undefined)).toBe(false);
+    });
 });
 
 describe('nextPrimarySidebarRowId', () => {
@@ -66,12 +107,17 @@ describe('nextPrimarySidebarRowId', () => {
 
     it('stops at either edge instead of wrapping', () => {
         expect(nextPrimarySidebarRowId(rows, 'alpha', 'ArrowUp')).toBeUndefined();
-        expect(nextPrimarySidebarRowId(rows, 'gamma', 'ArrowDown')).toBeUndefined();
+        expect(nextPrimarySidebarRowId(rows, gammaCreateRowId, 'ArrowDown')).toBeUndefined();
+    });
+
+    it('walks Down onto an empty Project New Session row and back up to its heading', () => {
+        expect(nextPrimarySidebarRowId(rows, 'gamma', 'ArrowDown')).toBe(gammaCreateRowId);
+        expect(nextPrimarySidebarRowId(rows, gammaCreateRowId, 'ArrowUp')).toBe('gamma');
     });
 
     it('jumps to the first or last row on Home/End regardless of the current row', () => {
         expect(nextPrimarySidebarRowId(rows, 'beta-1', 'Home')).toBe('alpha');
-        expect(nextPrimarySidebarRowId(rows, 'alpha-1', 'End')).toBe('gamma');
+        expect(nextPrimarySidebarRowId(rows, 'alpha-1', 'End')).toBe(gammaCreateRowId);
     });
 
     it('recovers to the first row when the active id no longer exists', () => {
@@ -118,6 +164,18 @@ describe('primarySidebarHorizontalIntent', () => {
             focusRowId: 'alpha',
         });
         expect(primarySidebarHorizontalIntent(revealRow, true, 'ArrowRight')).toEqual({});
+    });
+
+    it('treats a New Session row like a Session: Left goes to the Project, Right does nothing', () => {
+        const createRow = {
+            id: gammaCreateRowId,
+            kind: 'createSession' as const,
+            projectId: 'gamma',
+        };
+        expect(primarySidebarHorizontalIntent(createRow, true, 'ArrowLeft')).toEqual({
+            focusRowId: 'gamma',
+        });
+        expect(primarySidebarHorizontalIntent(createRow, true, 'ArrowRight')).toEqual({});
     });
 });
 
@@ -186,5 +244,15 @@ describe('primarySidebarArchiveIntent', () => {
             projectId: 'alpha',
         };
         expect(primarySidebarArchiveIntent(revealRow, 'Delete')).toBeUndefined();
+    });
+
+    it('is always a no-op for a New Session row', () => {
+        const createRow = {
+            id: gammaCreateRowId,
+            kind: 'createSession' as const,
+            projectId: 'gamma',
+        };
+        expect(primarySidebarArchiveIntent(createRow, 'Delete')).toBeUndefined();
+        expect(primarySidebarArchiveIntent(createRow, 'Backspace')).toBeUndefined();
     });
 });

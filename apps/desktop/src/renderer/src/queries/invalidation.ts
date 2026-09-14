@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-import type { CaxriMethod } from '@caxri/protocol';
+import type { CaxriMethod, ServerEvent } from '@caxri/protocol';
 import type { QueryClient } from '@tanstack/react-query';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -8,7 +8,11 @@ import type { ControlledViewQueryOperation } from '../features/view-containers/v
 import { caxri } from '../lib/caxri';
 import { parentDirectoryPath } from '../lib/file-path';
 import { getWorkbenchProjectSessionIds } from '../stores/selectors';
-import { CONTROLLED_VIEW_QUERY_METHOD, EXTENSION_TREE_CHILDREN_QUERY_METHOD } from './client';
+import {
+    CONTROLLED_VIEW_QUERY_METHOD,
+    EXTENSION_TREE_CHILDREN_QUERY_METHOD,
+    isQueryMethod,
+} from './client';
 
 /**
  * Debounce window used to coalesce a burst of `files.changed` events into one invalidation pass.
@@ -16,9 +20,9 @@ import { CONTROLLED_VIEW_QUERY_METHOD, EXTENSION_TREE_CHILDREN_QUERY_METHOD } fr
 const FILE_CHANGE_INVALIDATION_DEBOUNCE_MS = 150;
 
 /**
- * Typing these as {@link ControlledViewQueryOperation} is what keeps them honest: `files.operation.get` and
- * `files.operation.list` used to sit in the first set, but the Resource Explorer awaits those two methods directly and
- * never caches them under a controlled-view key, so they could never match a query (issue #799).
+ * `files.operation.get` and `files.operation.list` are deliberately absent: the Resource Explorer issues those as
+ * direct `caxri.request` calls (`resource-explorer-client.ts`), so they are never cached under a controlled-view key
+ * and listing them here matched nothing.
  */
 const RESOURCE_EXPLORER_READ_OPERATIONS = new Set<ControlledViewQueryOperation>([
     'files.list',
@@ -28,6 +32,39 @@ const SOURCE_CONTROL_CONTENT_OPERATIONS = new Set<ControlledViewQueryOperation>(
     'source.snapshot',
 ]);
 const BADGE_OPERATIONS = new Set<ControlledViewQueryOperation>(['badge.snapshot']);
+
+/**
+ * Query-key prefixes for whole-method invalidation. Annotated rather than inferred so a renamed method is a compile
+ * error here, instead of a predicate that quietly stops matching anything.
+ */
+const CATALOG_QUERY_KEY: readonly [CaxriMethod] = ['viewContainers.catalog'];
+const PULL_REQUESTS_QUERY_KEY: readonly [CaxriMethod] = ['session.pullRequests'];
+const AGENT_ACTIONS_QUERY_KEY: readonly [CaxriMethod] = ['agentActions.list'];
+
+/**
+ * Reasons whose Session membership change must refresh the shared pull-request query at once. Typed from the event
+ * contract so a renamed reason fails typecheck rather than silently never matching.
+ */
+type FullStateChangeReason = Extract<
+    Extract<ServerEvent, { event: 'state.changed' }>['payload'],
+    { kind: 'full' }
+>['reason'];
+/**
+ * Git reads a `git.changed` event covers for one Session.
+ */
+const SESSION_SCOPED_GIT_METHODS = [
+    'git.summary',
+    'git.overview',
+    'git.diffDocument',
+    'git.blame',
+    'git.fileHead',
+] as const satisfies readonly [CaxriMethod, ...CaxriMethod[]];
+
+const PULL_REQUEST_MEMBERSHIP_REASONS: ReadonlySet<FullStateChangeReason> = new Set([
+    'session.create',
+    'session.unarchive',
+    'terminal.moveToNewSession',
+]);
 
 interface PendingFileChangeBatch {
     changes: Map<string, 'create' | 'update' | 'delete'>;
@@ -78,11 +115,11 @@ function isControlledOperationMatch(
         viewId?: string;
     } = {},
 ): boolean {
-    const [method, rawParameters] = queryKey;
+    const [, rawParameters] = queryKey;
     if (
-        method !== CONTROLLED_VIEW_QUERY_METHOD ||
         typeof rawParameters !== 'object' ||
-        rawParameters === null
+        rawParameters === null ||
+        !isQueryMethod(queryKey, CONTROLLED_VIEW_QUERY_METHOD)
     )
         return false;
     const parameters = rawParameters as Record<string, unknown>;
@@ -113,14 +150,17 @@ function isControlledOperationMatch(
 }
 
 /**
- * Invalidates the Session-scoped Files reads that a `files.changed` event cheaply reflects: the Path Browser and the
- * Core Resource Explorer. Both consume the same Server authority, so its durable event is the single invalidation
- * source instead of an Extension Host echo. `projectStatus.summary` and `projectStatus.overview` are excluded: a
- * Project Status read may shell out to a delivery CLI (e.g. `gh`), so it stays on its own polling interval instead of
- * re-running on every file write. Git status/diff/blame queries (`git.summary`, `git.overview`, `git.diffDocument`,
- * `git.blame`) are no longer invalidated from here: a plain file write does not always mean the working tree changed
- * (e.g. an ignored file), so Git invalidation instead rides the Server-emitted `git.changed` event, which is scoped to
- * the repository identities that actually changed — see `invalidateGitChangedQueries` below.
+ * Invalidates the Session-scoped Files reads that a `files.changed` event cheaply reflects: the direct `files.list`
+ * listing behind the editor breadcrumb picker, and the Core Resource Explorer. Both consume the same Server authority,
+ * so its durable event is the single invalidation source instead of an Extension Host echo. `files.browse` is not
+ * listed: the Path Browser is owned by Desktop Main (`path-browser-authority.ts`), which calls Server directly, so no
+ * `files.browse` query is ever cached in the Renderer for a predicate to match. `projectStatus.summary` and
+ * `projectStatus.overview` are excluded: a Project Status read may shell out to a delivery CLI (e.g. `gh`), so it stays
+ * on its own polling interval instead of re-running on every file write. Git status/diff/blame queries (`git.summary`,
+ * `git.overview`, `git.diffDocument`, `git.blame`) are no longer invalidated from here: a plain file write does not
+ * always mean the working tree changed (e.g. an ignored file), so Git invalidation instead rides the Server-emitted
+ * `git.changed` event, which is scoped to the repository identities that actually changed — see
+ * `invalidateGitChangedQueries` below.
  */
 function invalidateFileDependentQueries(
     queryClient: QueryClient,
@@ -135,23 +175,12 @@ function invalidateFileDependentQueries(
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void queryClient.invalidateQueries({
         predicate: (query) => {
-            const [method, parameters] = query.queryKey as [
+            const [, parameters] = query.queryKey as [
                 CaxriMethod,
                 { directory?: string; sessionId?: string } | undefined,
             ];
-            const isPathBrowserMatch =
-                method === 'files.browse' &&
-                parameters?.sessionId !== undefined &&
-                sessionIdSet.has(parameters.sessionId) &&
-                isDirectoryAffected(
-                    parameters.directory,
-                    changes,
-                    batch.overflow,
-                    batch.gitIgnoreRulesChanged,
-                );
-            if (isPathBrowserMatch) return true;
             const isDirectFileListingMatch =
-                method === 'files.list' &&
+                isQueryMethod(query.queryKey, 'files.list') &&
                 parameters?.sessionId !== undefined &&
                 sessionIdSet.has(parameters.sessionId) &&
                 isDirectoryAffected(
@@ -183,23 +212,16 @@ function invalidateGitChangedQueries(
     queryClient: QueryClient,
     sessionIds: readonly string[],
 ): void {
-    const sessionScoped = new Set<CaxriMethod>([
-        'git.summary',
-        'git.overview',
-        'git.diffDocument',
-        'git.blame',
-        'git.fileHead',
-    ]);
     // Fire-and-forget: see the justification in invalidateFileDependentQueries above.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void queryClient.invalidateQueries({
         predicate: (query) => {
-            const [method, parameters] = query.queryKey as [
+            const [, parameters] = query.queryKey as [
                 CaxriMethod,
                 { sessionId?: string } | undefined,
             ];
             return (
-                sessionScoped.has(method) &&
+                isQueryMethod(query.queryKey, ...SESSION_SCOPED_GIT_METHODS) &&
                 parameters?.sessionId !== undefined &&
                 sessionIds.includes(parameters.sessionId)
             );
@@ -212,11 +234,14 @@ function invalidateProjectStatusQuery(queryClient: QueryClient, sessionId: strin
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void queryClient.invalidateQueries({
         predicate: (query) => {
-            const [method, parameters] = query.queryKey as [
+            const [, parameters] = query.queryKey as [
                 CaxriMethod,
                 { sessionId?: string } | undefined,
             ];
-            return method === 'projectStatus.summary' && parameters?.sessionId === sessionId;
+            return (
+                isQueryMethod(query.queryKey, 'projectStatus.summary') &&
+                parameters?.sessionId === sessionId
+            );
         },
     });
 }
@@ -232,8 +257,7 @@ function invalidateDeliveryStatusQueries(queryClient: QueryClient): void {
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void queryClient.invalidateQueries({
         predicate: (query) => {
-            const [method] = query.queryKey as [CaxriMethod];
-            return method === 'projectStatus.summary' || method === 'session.pullRequests';
+            return isQueryMethod(query.queryKey, 'projectStatus.summary', 'session.pullRequests');
         },
     });
 }
@@ -243,12 +267,12 @@ function invalidateAgentTranscriptQuery(queryClient: QueryClient, terminalId?: s
     // eslint-disable-next-line no-void -- targeted query invalidation owns its own error state
     void queryClient.invalidateQueries({
         predicate: (query) => {
-            const [method, parameters] = query.queryKey as [
+            const [, parameters] = query.queryKey as [
                 CaxriMethod,
                 { terminalId?: string } | undefined,
             ];
             return (
-                method === 'terminal.agentTranscript' &&
+                isQueryMethod(query.queryKey, 'terminal.agentTranscript') &&
                 (terminalId === undefined || parameters?.terminalId === terminalId)
             );
         },
@@ -298,14 +322,13 @@ function invalidateFileTreeQueries(queryClient: ReturnType<typeof useQueryClient
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void queryClient.invalidateQueries({
         predicate: (query) => {
-            const [method, parameters] = query.queryKey as [
+            const [, parameters] = query.queryKey as [
                 CaxriMethod,
-                { operation?: string } | undefined,
+                { operation?: ControlledViewQueryOperation } | undefined,
             ];
             return (
-                method === 'files.browse' ||
-                method === 'files.list' ||
-                (method === CONTROLLED_VIEW_QUERY_METHOD &&
+                isQueryMethod(query.queryKey, 'files.list') ||
+                (isQueryMethod(query.queryKey, CONTROLLED_VIEW_QUERY_METHOD) &&
                     (parameters?.operation === 'files.list' ||
                         parameters?.operation === 'files.search'))
             );
@@ -318,7 +341,7 @@ function invalidateControlledViewQueries(queryClient: QueryClient): void {
     // lets active observers resolve the new generation instead of reusing an old provider result.
     // eslint-disable-next-line no-void -- invalidation is intentionally fire-and-forget
     void queryClient.invalidateQueries({
-        predicate: (query) => query.queryKey[0] === CONTROLLED_VIEW_QUERY_METHOD,
+        predicate: (query) => isQueryMethod(query.queryKey, CONTROLLED_VIEW_QUERY_METHOD),
     });
     /**
      * Extension Tree branches are dropped rather than invalidated: their cached items are addressed by opaque provider
@@ -326,7 +349,7 @@ function invalidateControlledViewQueries(queryClient: QueryClient): void {
      * would replay tokens the provider can no longer resolve.
      */
     queryClient.removeQueries({
-        predicate: (query) => query.queryKey[0] === EXTENSION_TREE_CHILDREN_QUERY_METHOD,
+        predicate: (query) => isQueryMethod(query.queryKey, EXTENSION_TREE_CHILDREN_QUERY_METHOD),
     });
 }
 
@@ -335,7 +358,7 @@ function invalidateControlledViewQueries(queryClient: QueryClient): void {
  * picker starts from the current Renderer fallback instead of briefly rendering cached pre-write overrides.
  */
 function removeAgentActionQueries(queryClient: QueryClient): void {
-    queryClient.removeQueries({ queryKey: ['agentActions.list' satisfies CaxriMethod] });
+    queryClient.removeQueries({ queryKey: AGENT_ACTIONS_QUERY_KEY });
 }
 
 /**
@@ -358,9 +381,7 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
     const unsubscribe = caxri.onEvent((event) => {
         if (event.event === 'viewContainers.catalogChanged') {
             // eslint-disable-next-line no-void -- intentional floating-promise discard, React Query owns invalidation errors
-            void queryClient.invalidateQueries({
-                queryKey: ['viewContainers.catalog' satisfies CaxriMethod],
-            });
+            void queryClient.invalidateQueries({ queryKey: CATALOG_QUERY_KEY });
             invalidateControlledViewQueries(queryClient);
             return;
         }
@@ -414,14 +435,10 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
              */
             if (
                 event.payload.kind === 'full' &&
-                ['session.create', 'terminal.moveToNewSession', 'session.unarchive'].includes(
-                    event.payload.reason,
-                )
+                PULL_REQUEST_MEMBERSHIP_REASONS.has(event.payload.reason)
             ) {
                 // eslint-disable-next-line no-void -- React Query owns the invalidation lifecycle
-                void queryClient.invalidateQueries({
-                    queryKey: ['session.pullRequests' satisfies CaxriMethod],
-                });
+                void queryClient.invalidateQueries({ queryKey: PULL_REQUESTS_QUERY_KEY });
             }
             return;
         }
@@ -433,18 +450,14 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
              */
             invalidateAgentTranscriptQuery(queryClient);
             // eslint-disable-next-line no-void -- React Query owns the invalidation lifecycle
-            void queryClient.invalidateQueries({
-                queryKey: ['viewContainers.catalog' satisfies CaxriMethod],
-            });
+            void queryClient.invalidateQueries({ queryKey: CATALOG_QUERY_KEY });
             invalidateControlledViewQueries(queryClient);
             return;
         }
         if (event.event === 'workbench.changed') {
             removeSessionQueries(queryClient, [event.payload.sessionId]);
             // eslint-disable-next-line no-void -- React Query owns the invalidation lifecycle.
-            void queryClient.invalidateQueries({
-                queryKey: ['session.pullRequests' satisfies CaxriMethod],
-            });
+            void queryClient.invalidateQueries({ queryKey: PULL_REQUESTS_QUERY_KEY });
             return;
         }
         if (event.event === 'settings.changed') {
@@ -466,9 +479,7 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
         if (event.event === 'sessionPullRequests.changed') {
             // Fire-and-forget: the refreshed query surfaces any error through React Query state.
             // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-            void queryClient.invalidateQueries({
-                queryKey: ['session.pullRequests' satisfies CaxriMethod],
-            });
+            void queryClient.invalidateQueries({ queryKey: PULL_REQUESTS_QUERY_KEY });
             return;
         }
         if (event.event === 'agentTranscript.changed') {

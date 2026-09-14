@@ -502,14 +502,15 @@ export default defineConfig(
     },
     /**
      * Server-state contract (`.agents/skills/react/SKILL.md` section 4): a read that resolves into component state is
-     * lost on every remount. Scoped to the View Container runtime, where views are keyed by Session and a contributed
-     * view inherits whatever the shared tree and controlled-view implementations do; the Settings, Bug Report, and Path
-     * Browser dialogs still read outside the cache and widening the scope to cover them is tracked in
-     * https://github.com/tjx666/caxri/issues/797.
+     * lost on every remount. It started at the View Container runtime, where views are keyed by Session and a
+     * contributed view inherits whatever the shared tree and controlled-view implementations do, then grew through the
+     * dialogs (#797) and the remaining feature directories (#899) until every Renderer feature was covered. The scope
+     * is now `features/**` rather than a directory list: a new feature is inside the contract from its first commit,
+     * which is the only version of this rule that cannot be outgrown again.
      */
     {
         files: [
-            'apps/desktop/src/renderer/src/features/view-containers/**/*.{ts,tsx}',
+            'apps/desktop/src/renderer/src/features/**/*.{ts,tsx}',
             'scripts/fixtures/eslint/view-container-reads/**/*.{ts,tsx}',
         ],
         plugins: {
@@ -517,6 +518,24 @@ export default defineConfig(
         },
         rules: {
             'caxri/server-reads-through-query': 'error',
+        },
+    },
+    /**
+     * DESIGN.md principle 5 claimed unregistering Tailwind's palette made a literal color utility fail the build. It
+     * does not: Tailwind simply emits no rule, so `bg-white` stays on the element and styles nothing. Three such class
+     * names had already survived into the bundle, one of them the quiet zone around the pairing QR code. This rule is
+     * the check the comment described.
+     */
+    {
+        files: [
+            'apps/desktop/src/renderer/src/**/*.{ts,tsx}',
+            'scripts/fixtures/eslint/color-utilities/**/*.ts',
+        ],
+        plugins: {
+            caxri,
+        },
+        rules: {
+            'caxri/registered-color-utilities': 'error',
         },
     },
 );

@@ -420,7 +420,7 @@ export function WorkTab({
         <m.div
             style={style}
             className={cn(
-                'work-tab group relative flex items-center bg-surface text-muted [-webkit-app-region:no-drag] hover:bg-elevated hover:text-foreground',
+                'work-tab group relative flex items-center bg-tab-inactive-background text-tab-inactive-foreground [-webkit-app-region:no-drag] hover:bg-tab-hover-background hover:text-tab-hover-foreground',
                 'min-w-0',
                 showTrailingSeparator && 'border-r border-border',
                 fill
@@ -431,7 +431,9 @@ export function WorkTab({
                       'flex-none',
                 !isPresent && 'pointer-events-none',
                 isVisuallyActive &&
-                    "active bg-background text-foreground after:absolute after:inset-x-0 after:bottom-[-1px] after:h-px after:bg-background after:content-['']",
+                    // The `after` hairline erases the seam between the active tab and the editor below it, so it
+                    // tracks the tab's own fill rather than the canvas — a theme may give them different colors.
+                    "active bg-tab-active-background text-tab-active-foreground after:absolute after:inset-x-0 after:bottom-[-1px] after:h-px after:bg-tab-active-background after:content-['']",
                 isVisuallyActive &&
                     showActiveAccent !== false &&
                     "before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-accent before:content-['']",

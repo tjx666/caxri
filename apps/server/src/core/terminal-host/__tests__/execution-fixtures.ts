@@ -51,7 +51,9 @@ export class FakeTerminalHostControl implements TerminalHostControl {
     private readonly agentInputResolvers: Array<() => void> = [];
     private readonly resizeResolvers: Array<() => void> = [];
     declineNextInput = false;
+    declineNextAgentInput = false;
     failNextInput?: Error;
+    failNextAgentInput?: Error;
     /**
      * Payload `terminal.attach` answers with. Terminal Host serializes the live screen, so bytes it has already flushed
      * as `terminal.output` are still part of the next snapshot; a test that needs both copies to exist sets this.
@@ -128,6 +130,15 @@ export class FakeTerminalHostControl implements TerminalHostControl {
                     });
                 });
             case 'terminal.agent.input':
+                if (this.declineNextAgentInput) {
+                    this.declineNextAgentInput = false;
+                    return Promise.resolve({ accepted: false });
+                }
+                if (this.failNextAgentInput) {
+                    const error = this.failNextAgentInput;
+                    this.failNextAgentInput = undefined;
+                    return Promise.reject(error);
+                }
                 if (!this.holdAgentInputRequests) return Promise.resolve({ accepted: true });
                 return new Promise((resolve) =>
                     this.agentInputResolvers.push(() => resolve({ accepted: true })),
@@ -176,6 +187,44 @@ export function createExecution(): {
         control,
         execution: new RemoteTerminalExecution(control, logger),
     };
+}
+
+/**
+ * Brings up a Terminal running a managed Agent with no Renderer attachment — the shape a background delegation writes
+ * to, and the only one whose Agent input is admitted before the Terminal Host has answered.
+ */
+export async function startBackgroundAgent(
+    execution: RemoteTerminalExecution,
+    control: FakeTerminalHostControl,
+    launchId = 'launch-1',
+): Promise<void> {
+    await execution.reserve(terminal);
+    await execution.start({
+        args: ['-l'],
+        environment: { TERM: 'xterm-256color' },
+        executable: '/bin/zsh',
+        initialSnapshot: null,
+        record: terminal,
+        agent: {
+            launchId,
+            provider: 'claude',
+            executable: '/usr/local/bin/claude',
+            args: ['--resume', 'session-1'],
+            environment: {},
+        },
+    });
+    control.emit({
+        type: 'event',
+        event: 'terminal.agent.started',
+        identity: {
+            scope: 'terminal',
+            sessionId: terminal.sessionId,
+            terminalId: terminal.id,
+            ptyGeneration: 1,
+        },
+        launchId,
+        processId: 4244,
+    });
 }
 
 /**

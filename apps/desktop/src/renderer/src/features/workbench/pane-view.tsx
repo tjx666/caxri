@@ -24,7 +24,7 @@ import { cn } from '../../lib/utilities';
 import { useSessionState, useTerminal } from '../../stores/selectors';
 import { EditorSurface } from '../editor/editor-surface';
 import { workPanelId, workTabId } from '../tabs/work-tab-accessibility';
-import { createTerminal, didPasteIntoTerminal } from '../terminal/terminal-actions';
+import { createTerminal, didPasteIntoTerminal } from '../terminal/terminal-commands';
 import { TerminalPane } from '../terminal/terminal-pane';
 import { retainTerminalProgress } from '../terminal/terminal-progress';
 import { focusPane, movePaneTab, resizePaneSplit, splitPaneTab } from './pane-actions';

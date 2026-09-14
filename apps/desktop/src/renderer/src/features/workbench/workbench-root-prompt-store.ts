@@ -1,7 +1,7 @@
 import { omit } from 'es-toolkit';
 import { create } from 'zustand';
 
-interface WorkbenchRootCandidate {
+export interface WorkbenchRootCandidate {
     candidateId: string;
     sessionId: string;
     rootPath: string;

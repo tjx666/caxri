@@ -13,7 +13,7 @@ import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { useDialogStore } from '../../stores/dialogs';
 import { useProjects } from '../../stores/selectors';
-import { cancelPendingSession, confirmPendingSession } from './session-actions';
+import { cancelPendingSession, confirmPendingSession } from './session-commands';
 import { useTerminalKindRecencyStore } from './terminal-kind-recency';
 
 /**

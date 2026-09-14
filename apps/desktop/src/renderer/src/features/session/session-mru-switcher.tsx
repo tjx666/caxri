@@ -15,7 +15,7 @@ import { useProjects, useSessions, useTerminals } from '../../stores/selectors';
 import { ProjectIcon } from '../primary-sidebar/project-icon';
 import { formatSessionRelativeTime } from '../primary-sidebar/session-activity';
 import { SessionStatusIndicator } from '../primary-sidebar/session-status-indicator';
-import { commitMruSession } from './session-actions';
+import { commitMruSession } from './session-commands';
 import { resolveSessionMruView, useSessionMruSwitcherStore } from './session-mru-switcher-state';
 
 /**

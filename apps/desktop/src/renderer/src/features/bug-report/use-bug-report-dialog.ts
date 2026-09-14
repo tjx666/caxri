@@ -4,7 +4,6 @@ import type { MethodResult } from '@caxri/protocol';
 import { errorMessage } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 
-import { caxri } from '../../lib/caxri';
 import { setBugReportOpen } from '../../stores/dialogs';
 import { getBootstrap } from '../../stores/selectors';
 import { pushToast } from '../../stores/toasts';
@@ -17,6 +16,12 @@ import {
     chooseBugReportTarget,
     runningAgentTargets,
 } from './bug-report';
+import {
+    captureBugReportScreenshot,
+    loadBugReportContext,
+    saveBugReportScreenshot,
+    sendBugReport,
+} from './bug-report-client';
 import type { ScreenshotAnnotation } from './screenshot-annotations';
 
 type DiagnosticsContext = MethodResult<'bugReport.context'>;
@@ -167,7 +172,7 @@ export function useBugReportDialog() {
         let isCurrent = true;
         async function loadContext(): Promise<void> {
             try {
-                const value = await caxri.request('bugReport.context');
+                const value = await loadBugReportContext();
                 if (isCurrent) updateState({ diagnostics: value });
             } catch (error: unknown) {
                 if (isCurrent)
@@ -200,7 +205,7 @@ export function useBugReportDialog() {
                 screenshot: {
                     annotatedDataUrl: undefined,
                     annotations: [],
-                    original: await caxri.request('bugReport.captureScreenshot'),
+                    original: await captureBugReportScreenshot(),
                 },
             });
         } catch (error) {
@@ -297,7 +302,7 @@ export function useBugReportDialog() {
                     const path =
                         cached?.dataUrl === dataUrl
                             ? cached.path
-                            : (await caxri.request('bugReport.saveScreenshot', { dataUrl })).path;
+                            : (await saveBugReportScreenshot({ dataUrl })).path;
                     savedScreenshot.current = { dataUrl, path };
                     reference = {
                         annotations: screenshot.annotations,
@@ -354,7 +359,7 @@ export function useBugReportDialog() {
         }
         updateState({ busy: true, sendError: undefined });
         try {
-            await caxri.request('bugReport.send', {
+            await sendBugReport({
                 report,
                 // The Agent-facing image is the annotated one; the original only exists so the marks stay editable.
                 screenshot: screenshot && {

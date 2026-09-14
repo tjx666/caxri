@@ -55,7 +55,7 @@ export function createCaxriQueryClient(): QueryClient {
 }
 
 /**
- * Module-scoped singleton so non-component code (e.g. `features/session/session-actions.ts`) can reach the same cache
+ * Module-scoped singleton so non-component code (e.g. `features/session/session-commands.ts`) can reach the same cache
  * `QueryClientProvider` renders with in `main.tsx`, instead of only being reachable through the `useQueryClient` hook
  * inside a component.
  */
@@ -79,6 +79,22 @@ export function caxriQueryKey<M extends CaxriMethod>(
     parameters: MethodParameters<M>,
 ): CaxriQueryKey<M> {
     return [method, parameters] as CaxriQueryKey<M>;
+}
+
+/**
+ * The matching half of {@link caxriQueryKey}, for the invalidation predicates in `invalidation.ts`.
+ *
+ * React Query hands a predicate a `readonly unknown[]`, so comparing `queryKey[0]` to a bare string literal is not
+ * typechecked: renaming a method leaves the predicate matching nothing, silently and permanently. Two
+ * `viewContainers.treeChildren` predicates were dead that way from the day they were written. Taking the names as
+ * `CaxriMethod` arguments makes a typo or a stale name a compile error at the call site.
+ */
+export function isQueryMethod(
+    queryKey: readonly unknown[],
+    ...methods: readonly [CaxriMethod, ...CaxriMethod[]]
+): boolean {
+    const method = queryKey[0];
+    return typeof method === 'string' && (methods as readonly string[]).includes(method);
 }
 
 /**

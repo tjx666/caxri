@@ -89,4 +89,6 @@ instead of hanging if Server Core does not become ready within 15 seconds. The f
 command is the explicit durable process-shutdown boundary; its legacy method ID is retained to
 preserve the A0 command contract, not as an architecture owner name.
 
-A Renderer process crash (`render-process-gone`) reloads the window automatically with backoff (250ms, then 1s, then 4s). After three crashes within a 60-second window, automatic reload stops; Main logs the crash loop and shows a native dialog offering Relaunch or Quit instead of reloading indefinitely.
+A Renderer process crash (`render-process-gone`) reloads the window automatically with backoff (250ms, then 1s, then 4s). After three crashes within a 60-second window, automatic reload stops; Main logs the crash loop and shows a native dialog offering Relaunch or Quit instead of reloading indefinitely. The Process Explorer window runs the same policy, but its terminal state is `destroy()` rather than a dialog.
+
+A Renderer hang (`unresponsive`, and its `responsive` recovery) is observation only. Both windows record the entry at `warn` with a per-window lifetime hang count, and the recovery at `info` with how long the main thread was blocked; a repeat `unresponsive` for one continuous block does not increment the count. A hang never reloads, never consumes the crash-recovery budget, and never reaches either terminal state, because Chromium's ~30s threshold is not tunable and long synchronous work is not by itself a fault.

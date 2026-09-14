@@ -5,12 +5,19 @@ import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 import { z } from 'zod';
 
-const CASE_IDS = new Set([
+/**
+ * The Acceptance cases allowed to replace the native file picker, and the only place that list lives. The launcher
+ * imports it to decide whether to pass `CAXRI_ACCEPTANCE_THEME_IMPORT`; a second copy there silently degrades an
+ * unlisted case into a real macOS open panel, which is a manual boundary rather than a visible failure.
+ */
+export const acceptanceThemeImportCaseIds: ReadonlySet<string> = new Set([
     'issue-826-surface-seam',
     'issue-824-syntax-and-terminal-selection',
     'issue-825-include-zero-hit-vsix',
     'issue-851-transient-warnings',
     'issue-854-contrast-error',
+    'theme-roles-follow-import',
+    'theme-import-validation-error',
 ]);
 const commandSchema = z.strictObject({
     caseId: z.string(),
@@ -30,7 +37,7 @@ export function createAcceptanceThemeImportFixture(options: {
     const caseId = environment.CAXRI_ACCEPTANCE_THEME_IMPORT;
     if (
         !caseId ||
-        !CASE_IDS.has(caseId) ||
+        !acceptanceThemeImportCaseIds.has(caseId) ||
         !environment.CAXRI_TEST_ROOT_PATH ||
         environment.CAXRI_ACCEPTANCE !== '1' ||
         environment.CAXRI_E2E !== '1'

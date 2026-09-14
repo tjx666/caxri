@@ -1,12 +1,39 @@
-import { useId } from 'react';
+import { useId, useState } from 'react';
 
 import { ContextMenu as ContextMenuPrimitive } from '@base-ui/react/context-menu';
 
 import { ShortcutBadge } from '@/components/shortcut-badge';
+import { useModalRegistration } from '@/hooks/use-modal-registration';
 import { cn } from '@/lib/utilities';
 
-export function ContextMenu(properties: ContextMenuPrimitive.Root.Props) {
-    return <ContextMenuPrimitive.Root {...properties} />;
+/**
+ * Right-click surface of the same Base UI Menu primitive `menu.tsx` wraps; both share one popup and item appearance.
+ *
+ * An open context menu registers as a modal for the same reason a dropdown does: Base UI traps focus and blocks outside
+ * pointer interaction, so an app-wide shortcut firing behind it would act on a surface the user cannot see or reach.
+ * Unlike `Menu`, a context menu is almost always uncontrolled — it opens from a right click, not from consumer state —
+ * so the open flag is mirrored here from `onOpenChange` instead of read off an `open` prop. A consumer's own
+ * `onOpenChange` is chained, never replaced.
+ */
+export function ContextMenu({
+    defaultOpen,
+    onOpenChange,
+    open,
+    ...properties
+}: ContextMenuPrimitive.Root.Props) {
+    const [observedOpen, setObservedOpen] = useState(defaultOpen ?? false);
+    useModalRegistration(open ?? observedOpen);
+    return (
+        <ContextMenuPrimitive.Root
+            defaultOpen={defaultOpen}
+            open={open}
+            onOpenChange={(nextOpen, eventDetails) => {
+                setObservedOpen(nextOpen);
+                onOpenChange?.(nextOpen, eventDetails);
+            }}
+            {...properties}
+        />
+    );
 }
 
 export function ContextMenuTrigger(properties: ContextMenuPrimitive.Trigger.Props) {
