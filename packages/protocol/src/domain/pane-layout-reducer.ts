@@ -396,11 +396,18 @@ export function pinPaneTab(layout: PaneLayout, tabId: string): PaneLayout {
     };
 }
 
-export type PaneTabCloseMode = 'all' | 'one' | 'others' | 'right';
+export type PaneTabCloseMode = 'all' | 'editors' | 'one' | 'others' | 'right';
 
 /**
- * Bulk closes stay inside the anchor's pane and resource kind: closing editors must never terminate a Terminal, and
- * Terminal bulk actions must leave documents open. Filter before resolving positions to preserve tab order.
+ * Bulk closes stay inside the anchor's pane, and the family they span depends on what the anchor holds.
+ *
+ * A document anchor is scoped to documents, so an editor action can never terminate a Terminal — losing a running agent
+ * to a stray "Close All" is not recoverable. A Terminal anchor spans the whole rail instead: a pane typically holds a
+ * single Terminal beside several documents, and scoping its family to Terminals left "Close Others" and "Close to the
+ * Right" permanently disabled with nothing on screen explaining why. Closing a document from a Terminal's menu is cheap
+ * and still confirms unsaved work.
+ *
+ * Filter before resolving positions so tab order survives.
  */
 export function paneTabIdsToClose(
     layout: PaneLayout,
@@ -409,9 +416,14 @@ export function paneTabIdsToClose(
 ): string[] {
     const found = findTab(layout, tabId);
     if (!found) return [];
-    const tabs = found.pane.tabs.filter((tab) => tab.resource.kind === found.tab.resource.kind);
-    const index = tabs.findIndex((tab) => tab.id === tabId);
     if (mode === 'one') return [tabId];
+    if (mode === 'editors')
+        return found.pane.tabs.flatMap((tab) => (tab.resource.kind === 'file' ? [tab.id] : []));
+    const tabs =
+        found.tab.resource.kind === 'terminal'
+            ? found.pane.tabs
+            : found.pane.tabs.filter((tab) => tab.resource.kind === found.tab.resource.kind);
+    const index = tabs.findIndex((tab) => tab.id === tabId);
     if (mode === 'all') return tabs.map((tab) => tab.id);
     if (mode === 'others') return tabs.flatMap((tab) => (tab.id === tabId ? [] : [tab.id]));
     return tabs.slice(index + 1).map((tab) => tab.id);
