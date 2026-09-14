@@ -1,4 +1,4 @@
-export * from './builtin-themes.js';
+export * from './builtin-themes/index.js';
 export * from './config-files.js';
 export * from './configuration-contract.js';
 export * from './ignored-checks.js';

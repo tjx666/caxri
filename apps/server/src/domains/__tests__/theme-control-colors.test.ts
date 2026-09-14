@@ -2,7 +2,8 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { DEFAULT_SHADOW } from '@caxri/protocol';
+import { builtinThemes, DEFAULT_SHADOW } from '@caxri/protocol';
+import { contrastRatio } from '@caxri/utils';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { draculaTheme, importTheme } from '../theme';
@@ -292,5 +293,63 @@ describe('VS Code control state colors', () => {
             'utf8',
         );
         expect((await importTheme(selection, draculaTheme)).colors.elevated).toBe('#252526');
+    });
+});
+
+/**
+ * Flattens a `#rrggbbaa` fill over what sits behind it, because a translucent list or tab fill has no contrast of its
+ * own — what the reader actually sees is the blend. Opaque values pass straight through.
+ */
+function flattenedOver(fill: string, backdrop: string): string {
+    if (fill.length !== 9) return fill;
+    const alpha = Number.parseInt(fill.slice(7, 9), 16) / 255;
+    const channel = (hex: string, start: number): number =>
+        Number.parseInt(hex.slice(start, start + 2), 16);
+    const blended = [1, 3, 5].map((start) =>
+        Math.round(channel(fill, start) * alpha + channel(backdrop, start) * (1 - alpha))
+            .toString(16)
+            .padStart(2, '0'),
+    );
+    return `#${blended.join('')}`;
+}
+
+/**
+ * Every label a user reads while working in the focused window, paired with the fill it sits on.
+ *
+ * `titleBarInactive*` is deliberately absent. It only paints when the whole window is unfocused, which is inactive UI
+ * under WCAG 1.4.3 and the one case where the dimming is the message — macOS and VS Code both fade an unfocused title
+ * the same way. Every other state here is something the user is looking at right now.
+ */
+const READABLE_STATE_PAIRS: ReadonlyArray<readonly [string, string]> = [
+    ['tabActiveForeground', 'tabActiveBackground'],
+    ['tabInactiveForeground', 'tabInactiveBackground'],
+    ['tabHoverForeground', 'tabHoverBackground'],
+    ['listHoverForeground', 'listHoverBackground'],
+    ['listFocusForeground', 'listFocusBackground'],
+    ['listActiveSelectionForeground', 'listActiveSelectionBackground'],
+    ['listInactiveSelectionForeground', 'listInactiveSelectionBackground'],
+    ['titleBarActiveForeground', 'titleBarActiveBackground'],
+];
+
+/**
+ * The presets are Caxri's own product, not a mirror of anyone's VS Code theme, so they answer to `DESIGN.md`'s contrast
+ * floor before they answer to upstream fidelity — the same reason Dracula's `muted` is an adjusted blue-grey rather
+ * than its palette's comment color. Without this, a preset filling these roles from its upstream theme quietly reverts
+ * that correction: several upstream themes use their comment color for `tab.inactiveForeground`, which is exactly the
+ * substitution `DESIGN.md` forbids. An imported theme is a different contract and keeps its author's values.
+ */
+describe('built-in control state contrast', () => {
+    it('keeps every label the focused window shows at WCAG AA', () => {
+        for (const theme of builtinThemes) {
+            const colors = theme.colors as unknown as Record<string, string>;
+            for (const [foreground, background] of READABLE_STATE_PAIRS) {
+                const fill = flattenedOver(colors[background], theme.colors.background);
+                const label = flattenedOver(colors[foreground], fill);
+                expect(
+                    contrastRatio(label, fill),
+                    `${theme.id} ${foreground}`,
+                ).toBeGreaterThanOrEqual(4.5);
+            }
+        }
     });
 });
