@@ -46,6 +46,36 @@ describe('GitProvider refresh nonce', () => {
         provider.dispose();
     });
 
+    /**
+     * A watcher-driven refresh used to drop every settled commit detail, so the panel repainted as `Loading last
+     * commit…` with no files and then back to the identical content — the periodic flash. The detail is re-requested
+     * either way; what must not happen is the empty frame in between.
+     */
+    it('keeps the settled last-commit files on screen while a watcher-driven re-read runs', async () => {
+        const { git, provider } = createHarness();
+        const cancellation = new CancellationTokenSource();
+        const filesOf = async () => {
+            const view = await provider.provideView(
+                { scopeId, preferredModeId: 'commit', refresh: 0 },
+                cancellation.token,
+            );
+            return view.providers[0]?.groups[0]?.resources.map(({ path }) => path);
+        };
+
+        await provider.provideView(
+            { scopeId, preferredModeId: 'commit', refresh: 0 },
+            cancellation.token,
+        );
+        await vi.waitFor(() => expect(git.commitDetails).toHaveBeenCalled());
+        await expect.poll(filesOf).toEqual(['src/extension.ts']);
+
+        provider.refresh(scopeId);
+        expect(await filesOf()).toEqual(['src/extension.ts']);
+
+        cancellation.dispose();
+        provider.dispose();
+    });
+
     it('sends the Pull Request detail the same forcing nonce as the summary, not the Renderer counter', async () => {
         const { git, provider } = createHarness();
         const cancellation = new CancellationTokenSource();
