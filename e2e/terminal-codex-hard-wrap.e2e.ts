@@ -59,10 +59,23 @@ test('Codex hard-wrapped file paths open as one trusted Terminal link', async ()
     const firstFragment = emittedTarget.slice(0, splitIndex);
     const continuation = `${emittedTarget.slice(splitIndex)}:56:7`;
     const fullLink = `${emittedTarget}:56:7`;
+    /**
+     * Codex wraps prose paragraphs the same way: the directory ends one row and the file name, location, and the rest
+     * of the sentence continue on the next indented row.
+     */
+    const proseFirstRow = `  The handler in ${dirname(emittedTarget)}/`;
+    const proseContinuation = 'systemRole.desktop.ts:12 owns that branch, see the note above.';
     await Promise.all([
         writeFile(
             hardWrapScript,
-            `#!/bin/sh\nprintf '%s\\n' ${shellQuote(firstFragment)}\nprintf '  %s\\n' ${shellQuote(continuation)}\n`,
+            [
+                '#!/bin/sh',
+                String.raw`printf '%s\n' ${shellQuote(firstFragment)}`,
+                String.raw`printf '  %s\n' ${shellQuote(continuation)}`,
+                String.raw`printf '%s\n' ${shellQuote(proseFirstRow)}`,
+                String.raw`printf '  %s\n' ${shellQuote(proseContinuation)}`,
+                '',
+            ].join('\n'),
         ),
         writeFile(
             negativeScript,
@@ -80,7 +93,18 @@ test('Codex hard-wrapped file paths open as one trusted Terminal link', async ()
         await typeTerminal(running.page, 'sh ./emit-codex-hard-wrap.sh');
         await expect(running.page.locator('.xterm-rows')).toContainText(firstFragment);
         await expect(running.page.locator('.xterm-rows')).toContainText(continuation);
+        await expect(running.page.locator('.xterm-rows')).toContainText(proseContinuation);
 
+        await clickTerminalLink(running.page, 'systemRole.desktop.ts:12');
+        await expect(
+            running.page.getByRole('tab', { name: 'systemRole.desktop.ts' }),
+        ).toHaveAttribute('aria-selected', 'true');
+        await expect(
+            running.page.locator('.monaco-editor').first().locator('.view-lines'),
+        ).toContainText('target-12');
+
+        await running.page.getByRole('tab', { name: 'Shell' }).click();
+        await expect(running.page.locator('.xterm-rows')).toContainText(continuation);
         await clickTerminalLink(running.page, 'systemRole.desktop.ts:56:7');
         await expect(
             running.page.getByRole('tab', { name: 'systemRole.desktop.ts' }),
