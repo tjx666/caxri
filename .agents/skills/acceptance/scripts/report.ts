@@ -3,6 +3,7 @@ import { dirname, extname, isAbsolute, join, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
+import { execFileAsync } from '@caxri/system';
 import { z } from 'zod';
 
 import { validateAgentFixtureEvidence } from './agent-fixture-lifecycle';
@@ -275,6 +276,24 @@ export async function rebindReportHead(input: RebindReportHeadInput): Promise<vo
     const resultPath = join(directory, 'result.json');
     const raw: unknown = JSON.parse(await readFile(resultPath, 'utf8'));
     await writeJsonAtomically(resultPath, rebindReportDocument(raw, input));
+}
+
+/**
+ * Lists what the two heads actually differ in, so a rebind is judged by the delta rather than by the caller's
+ * description of it. Both heads must exist locally; an unresolved revision fails closed.
+ */
+async function changedPathsBetween(fromCommit: string, commit: string): Promise<string[]> {
+    let stdout: string;
+    try {
+        ({ stdout } = await execFileAsync(
+            'git',
+            ['diff', '--name-only', '-z', `${fromCommit}..${commit}`],
+            { cwd: PROJECT_ROOT },
+        ));
+    } catch {
+        throw new Error(`Cannot compare ${fromCommit}..${commit} to check the rebind delta`);
+    }
+    return stdout.split('\0').filter(Boolean);
 }
 
 function evidencePath(evidence: z.infer<typeof evidenceSchema>): string {
@@ -656,6 +675,7 @@ async function main(argv: string[]): Promise<void> {
             throw new Error('Missing report head rebind input');
         }
         await rebindReportHead({
+            changedPaths: await changedPathsBetween(fromCommit, commit),
             commit,
             createdAt: option(options, 'created-at'),
             directory,

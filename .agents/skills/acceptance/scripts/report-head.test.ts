@@ -41,12 +41,39 @@ describe('rebindReportDocument', () => {
         });
     });
 
-    it('rejects rebinding an already-finalized report', () => {
+    it('rejects rebinding a finalized report without the machine-checked delta', () => {
         const finalized = unfinishedReport({ summary: { conclusion: '本轮结论。', score: 100 } });
 
         expect(() => rebindReportDocument(finalized, baseInput)).toThrow(
-            'A finalized Acceptance report cannot be rebound',
+            'A finalized Acceptance report can only be rebound onto a non-product head',
         );
+    });
+
+    it('rejects rebinding a finalized report onto a head that changed product code', () => {
+        const finalized = unfinishedReport({ summary: { conclusion: '本轮结论。', score: 100 } });
+
+        expect(() =>
+            rebindReportDocument(finalized, {
+                ...baseInput,
+                changedPaths: ['.agents/skills/acceptance/scripts/report.ts', 'apps/desktop/a.tsx'],
+            }),
+        ).toThrow('A finalized Acceptance report can only be rebound onto a non-product head');
+    });
+
+    it('rebinds a finalized report onto a non-product head and drops its summary', () => {
+        const finalized = unfinishedReport({ summary: { conclusion: '本轮结论。', score: 100 } });
+
+        const rebound = rebindReportDocument(finalized, {
+            ...baseInput,
+            changedPaths: ['.agents/skills/acceptance/scripts/report.ts'],
+            createdAt: '2026-08-14T00:00:00.000Z',
+        });
+
+        expect(rebound).not.toHaveProperty('summary');
+        expect(rebound).toMatchObject({
+            commit: 'new-head',
+            headRebinds: [{ fromCommit: 'old-head', toCommit: 'new-head' }],
+        });
     });
 
     it('rejects a replacement commit identical to --from-commit', () => {

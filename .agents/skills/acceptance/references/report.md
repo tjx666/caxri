@@ -132,9 +132,14 @@ bun run .agents/skills/acceptance/scripts/report.ts rebind-head \
 ```
 
 The command atomically checks the expected old head, updates `commit`, `entry`,
-and `createdAt`, and appends an audit record. It rejects finalized reports. A
-product-affecting repair requires a fresh round and fresh product-surface evidence;
-never rebind a published immutable round.
+and `createdAt`, and appends an audit record. An already-finalized round may
+still follow the head, because finalization is a local recompute and only the
+LobeHub ingest is irreversible; the command then reads the real
+`<old>..<new>` diff from git and refuses unless every changed path is under
+`.agents/`, and it drops the round's `summary` so it cannot be published before
+you re-run `finalize`. A free-text `--reason` never substitutes for that check. A
+product-affecting repair requires a fresh round and fresh product-surface
+evidence; never rebind a published immutable round.
 
 ## Record observations
 
