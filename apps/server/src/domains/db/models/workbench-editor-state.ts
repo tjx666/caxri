@@ -10,7 +10,7 @@ import {
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
-import { isOutsideRoot } from '../../path-security';
+import { isOutsideRoot, isSameOrInside } from '../../path-security';
 import type { CaxriDrizzleDatabase } from '../connection';
 import { sessionState as sessionStateTable } from '../schema';
 
@@ -69,7 +69,9 @@ function remapStoredEditorPath(path: string, previousPath: string, nextPath: str
 }
 
 /**
- * Rewrites every stored snapshot of one Workbench Root, keyed by the caller's operation so a retry is idempotent.
+ * Rewrites every stored snapshot of one Workbench Root, including the Sessions parked on another root. `mutate` returns
+ * `undefined` for a snapshot it leaves untouched, which is also how a caller declines work it has already done — see
+ * the operation-id check in {@link remapWorkbenchEditorState}.
  */
 function mutateRootStates(
     database: CaxriDrizzleDatabase,
@@ -108,8 +110,8 @@ function mutateRootStates(
 }
 
 /**
- * Remaps one durable root snapshot even when its Session has since selected another root. Terminal occurrences
- * carry no path, so only document tabs move.
+ * Remaps one durable root snapshot even when its Session has since selected another root. Terminal occurrences carry no
+ * path, so only document tabs move.
  */
 export function remapWorkbenchEditorState(
     database: CaxriDrizzleDatabase,
@@ -149,20 +151,13 @@ export function removeWorkbenchEditorPath(
         const closingIds = listPaneTabs(rootState.paneLayout).flatMap(({ tab }) =>
             tab.resource.kind === 'file' &&
             !isVirtualEditorTabPath(tab.resource.path) &&
-            isStoredEditorPathAtOrBelow(tab.resource.path, path)
+            // `isSameOrInside` is the Server's counterpart of the Renderer's `isPathAtOrBelow`; both sides of the Trash
+            // cleanup must agree on which tabs a directory owns, so neither may grow its own containment rule.
+            isSameOrInside(path, tab.resource.path)
                 ? [tab.id]
                 : [],
         );
         if (closingIds.length === 0) return;
         return { ...rootState, paneLayout: closeTabs(rootState.paneLayout, closingIds) };
     });
-}
-
-/**
- * Matches the Renderer's `isPathAtOrBelow` for Caxri's canonical absolute paths, expressed with the Server's own
- * containment primitive so both sides of the Trash cleanup agree on which tabs a directory owns.
- */
-function isStoredEditorPathAtOrBelow(path: string, parent: string): boolean {
-    const nested = relative(parent, path);
-    return nested === '' || !isOutsideRoot(nested);
 }

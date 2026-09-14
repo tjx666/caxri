@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { lstat, realpath } from 'node:fs/promises';
-import { relative } from 'node:path';
+import { isAbsolute, relative } from 'node:path';
 
 import type {
     NewWorktreeBehavior,
@@ -596,11 +596,17 @@ export class WorkbenchRootService {
             workbenchProjectId !== session.workbenchProjectId
         )
             throw new CaxriError('PATH_DENIED', 'Workbench Root is not selected by this Session');
-        const project = this.requireProject(workbenchProjectId);
-        assertInsideRoot(
-            relative(project.rootPath, path),
-            'Trashed path is outside the Workbench Root',
-        );
+        /**
+         * `pathSchema` only bounds the length, and `relative()` resolves a relative argument against the Server's own
+         * cwd, so an absolute path is required before containment means anything. The root itself is refused for the
+         * same reason `files.trash` refuses it (`files/mutations.ts`): it can never be trashed, and accepting it here
+         * would let one call clear every stored document tab of the root.
+         */
+        if (!isAbsolute(path)) throw new CaxriError('VALIDATION', 'Trashed path must be absolute');
+        const nested = relative(this.requireProject(workbenchProjectId).rootPath, path);
+        if (nested === '')
+            throw new CaxriError('PATH_DENIED', 'The Workbench Root itself cannot be trashed');
+        assertInsideRoot(nested, 'Trashed path is outside the Workbench Root');
         this.options.database.removeWorkbenchEditorPath(workbenchProjectId, path);
     }
 

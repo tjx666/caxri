@@ -51,6 +51,14 @@ describe('WorkbenchRootService.forgetEditorPath', () => {
         expect(() =>
             service.forgetEditorPath(sessionId, owner.id, join(worktreeRoot, 'x.ts')),
         ).toThrow(/outside the Workbench Root/);
+        // `relative()` would resolve a relative argument against the Server's cwd, so containment needs an absolute path.
+        expect(() => service.forgetEditorPath(sessionId, owner.id, 'src/entry.ts')).toThrow(
+            /must be absolute/,
+        );
+        // The root can never be trashed, and accepting it would clear every stored document tab in one call.
+        expect(() => service.forgetEditorPath(sessionId, owner.id, ownerRoot)).toThrow(
+            /Root itself cannot be trashed/,
+        );
         await service.close();
         database.close();
     });
