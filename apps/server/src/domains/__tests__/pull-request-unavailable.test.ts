@@ -16,4 +16,26 @@ describe('pull request lookup failures', () => {
             hint,
         });
     });
+
+    it('states when a paused GitHub budget resumes', () => {
+        const error = new ExternalStatusCliError('gh', 'rate-limited', 'private output');
+        const retryAt = Date.now() + 30 * 60_000;
+        error.retryAt = retryAt;
+        const time = new Date(retryAt).toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+        });
+        expect(pullRequestUnavailable(error)).toEqual({
+            reason: 'rate-limited',
+            hint: `GitHub API rate limit reached. Caxri retries after ${time}.`,
+        });
+    });
+
+    it('ignores a deadline the snapshot has already outlived', () => {
+        const error = new ExternalStatusCliError('gh', 'rate-limited', 'private output');
+        error.retryAt = Date.now() - 1;
+        expect(pullRequestUnavailable(error).hint).toBe(
+            'GitHub API rate limit reached. Refresh after the limit resets.',
+        );
+    });
 });

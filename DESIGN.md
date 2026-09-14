@@ -550,6 +550,18 @@ into a single data row. Missing prerequisites use a neutral icon and an action t
 state; actual failures use the matching status tone. The complete guidance stays visible without a
 tooltip, and the item remains reachable through the tree's existing keyboard focus path.
 
+**Project-wide provider failures** — a failure that belongs to the account rather than to one
+repository is stated once at the Status root and dropped from the repository subtrees: a lost
+connection, and an API budget every repository draws on. A Project holding a repository and its
+submodule otherwise printed the same account-level sentence twice, each with its own button. A rate
+limit is a wait rather than a fault, so it takes the hourglass instead of the danger tone, names the
+clock time Caxri resumes, and shows no action while that pause is still running — the retry it would
+offer is exactly the request the limiter is refusing. It keeps one row per provider, because each
+budget resets on its own schedule. The status bar's pull-request chip follows the same rule: it names
+the reason it has no pull request to show (`PR rate limited`, `PR needs login`, `PR offline`) rather
+than the single `PR unknown` that was true of all eight reasons and useful for none, and its hover
+card carries the full recovery sentence.
+
 **Chrome tabs** — the moving underline is derived from the tab slot, never from the label inside
 it: inset 8px on each side, capped, and centred in the slot. In the SecondarySidebar's evenly
 divided rail every mark is therefore the same size, so it reads as "this region is selected"

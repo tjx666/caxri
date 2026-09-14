@@ -46,9 +46,20 @@ const projectStatusDeploymentSchema = z.object({
 const projectStatusErrorSchema = z.object({
     source: z.enum(['github', 'linear', 'vercel']),
     kind: z.enum(['prerequisite', 'failure']),
-    reason: z.enum(['network', 'tls']).optional(),
+    /**
+     * Set for the failures that are one condition across every repository in the Project rather than a property of the
+     * repository reporting them: a lost connection, and a provider budget the whole account shares. The Status panel
+     * coalesces these into a single message instead of repeating them under each repository.
+     */
+    reason: z.enum(['network', 'rate-limited', 'tls']).optional(),
     message: z.string(),
     hint: z.string(),
+    /**
+     * Epoch ms when Caxri's own circuit breaker will query this provider again, from the reset GitHub reported. Present
+     * only alongside `rate-limited`, and only when the limiter knows the deadline; a consumer must still compare it
+     * against the current time, because a cached snapshot outlives its own pause.
+     */
+    retryAt: z.number().optional(),
     detailsView: z.literal('logs').optional(),
 });
 

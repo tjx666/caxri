@@ -16,6 +16,7 @@ import {
     GitPullRequest,
     GitPullRequestClosed,
     GitPullRequestDraft,
+    Hourglass,
     MessageSquareWarning,
     Monitor,
     Package,
@@ -56,6 +57,11 @@ const themeIcons = {
     'git-pull-request-open': GitPullRequest,
     'git-pull-request-closed': GitPullRequestClosed,
     'git-pull-request-draft': GitPullRequestDraft,
+    /**
+     * A provider that will answer again once its own clock runs out. Deliberately not `circle-x`: a rate limit is a
+     * wait, and dressing it as a failure told the user to fix something that fixes itself.
+     */
+    'hourglass': Hourglass,
     'issues': MessageSquareWarning,
     'monitor': Monitor,
     'package': Package,
@@ -93,6 +99,7 @@ const themeIconClassNames: Partial<Record<ThemeIconId, string>> = {
     'git-pull-request-open': 'text-success',
     'git-pull-request-closed': 'text-danger',
     'git-pull-request-draft': 'text-muted',
+    'hourglass': 'text-muted',
     'pass': 'text-success',
     'question': 'text-muted',
     'warning': 'text-warning',
