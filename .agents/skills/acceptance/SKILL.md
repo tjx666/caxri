@@ -1,20 +1,22 @@
 ---
 name: acceptance
 description: >
-  Verify Caxri deliveries on the real macOS Electron desktop, Android, and iOS
-  Simulator product surfaces; capture visually inspected evidence; and publish
-  immutable review rounds with the LobeHub CLI. Use when Caxri work must prove
-  user-visible behavior, generate an acceptance report, respond to acceptance
-  feedback, or re-verify a repair.
+  Verify Caxri deliveries on the real macOS Electron desktop, `caxri` CLI,
+  Android, and iOS Simulator product surfaces; capture visually inspected
+  evidence; and publish immutable review rounds with the LobeHub CLI. Use when
+  Caxri work must prove user-visible behavior, generate an acceptance report,
+  respond to acceptance feedback, or re-verify a repair.
 ---
 
 # Caxri Acceptance
 
 Builders may produce delivery evidence, but only a separate human review may accept or reject it.
-Choose `desktop` or `mobile` per planned claim. Use focused tests, build output, logs, or probes as
-supporting evidence, never as substitutes for the real product surface when the claim is
-user-visible. A cross-device workflow may use both surfaces, but each check names the surface whose
-user outcome it asks a reviewer to decide.
+Choose `desktop`, `cli`, or `mobile` per planned claim: the surface whose user-visible outcome the
+check asks a reviewer to decide. Use `cli` only when the outcome is what a `caxri` command prints or
+changes; a command run to set up a Renderer check is setup, not the check. Use focused tests, build
+output, logs, or probes as supporting evidence, never as substitutes for the real product surface
+when the claim is user-visible. A cross-surface workflow may use several surfaces, but each check
+names exactly one.
 
 ## Independent acceptance review (first round only)
 
@@ -204,6 +206,18 @@ Read [references/report.md](references/report.md) before authoring the report an
 5. Report failures honestly. Once round execution starts, a product failure, blocked environment,
    invalid screenshot, or missing evidence is part of that round's observed result.
 
+### Caxri CLI
+
+1. Follow [surfaces/cli.md](surfaces/cli.md). Build with `bun run build:cli` and point
+   `--profile` at the isolated launch's `userDataDir`; Agent and CI invocations never start a
+   Server implicitly, so an isolated Server must already exist. Never target the developer's
+   resident profile.
+2. Run the smallest command sequence that reaches the planned outcome, preferring `--json` so the
+   proof is assertable. For a mutation, also capture the read-back that shows the new state.
+3. Redirect stdout into the round's `assets/` and read it before citing it. A `cli` case keeps the
+   same `stateIsolation` receipt as a desktop case, and strips pairing links, credentials, Agent
+   transcripts, Session names, and Project paths from every artifact.
+
 ### Android
 
 1. Use a disposable emulator for the automated encrypted pairing and short-reply path. Follow
@@ -322,6 +336,7 @@ report, owns the compact workflow-observation summary shown beside that URL.
 ## Reference map
 
 - Electron workflow: [surfaces/electron.md](surfaces/electron.md)
+- Caxri CLI workflow: [surfaces/cli.md](surfaces/cli.md)
 - Android workflow: [surfaces/android.md](surfaces/android.md)
 - iOS Simulator workflow: [surfaces/ios-simulator.md](surfaces/ios-simulator.md)
 - Independent plan/evidence review: [references/acceptance-checker.md](references/acceptance-checker.md)
