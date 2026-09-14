@@ -159,6 +159,16 @@ For isolated and restart cases, include the adapter-generated
 one exact profile identity across launches. A plan with `fixturePreflight: terminal` must also
 include the ready `assets/<case-id>-fixture-preflight.json` receipt.
 
+`blocked` is the status for a case whose planned observation could not be made, so finalization
+asks it for what it does have rather than for what it could not produce. It still needs at least
+one real evidence file that supports its observation — the covering focused test's result, a log
+excerpt, the extracted copy — but it does not have to satisfy the plan's `requiredEvidence` medium,
+and it may omit the launch, fixture preflight, and Agent fixture receipts when the case was blocked
+before that step ever ran. The moment one of those receipts exists on disk the case did execute, so
+it must declare that receipt and pass the full check; `pass` and `fail` are unchanged and still owe
+every planned medium and receipt. Without this, one honest blocked case would make the whole round
+impossible to finalize and publish.
+
 A plan may declare `agentFixture: "agent-features-v1"` for fake Claude Code or Codex processes,
 `agentFixture: "agent-delegation-v1"` for visible Claude/Codex/Grok task delegation with a synthetic caller,
 or `agentFixture: "grok-build-v1"` for fake Grok Build. Launch with the matching `--agent-fixture` value and include

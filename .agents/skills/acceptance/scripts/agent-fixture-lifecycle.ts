@@ -218,14 +218,26 @@ export async function validateAgentFixtureEvidence(
         caseId: string;
         evidencePaths: string[];
         fixtureId: string | undefined;
+        status: 'pass' | 'fail' | 'blocked';
     },
 ): Promise<void> {
     if (!input.fixtureId) return;
     const evidence = agentFixtureEvidencePath(input.caseId);
+    /**
+     * The fixture writes this receipt on its first launch, so a case blocked before the fixture ever ran cannot have
+     * one; see the same rule for launch and preflight receipts in `report.ts`. Once the file exists the fixture did
+     * run, so the case must still declare it and pass below.
+     */
+    let receipt: AgentFixtureReceipt;
+    try {
+        receipt = await readAgentFixtureReceipt(join(directory, evidence));
+    } catch (error: unknown) {
+        if (input.status === 'blocked' && errorCode(error) === 'ENOENT') return;
+        throw error;
+    }
     if (!input.evidencePaths.includes(evidence)) {
         throw new Error(`Case ${input.caseId} must include its Agent fixture receipt`);
     }
-    const receipt = await readAgentFixtureReceipt(join(directory, evidence));
     if (
         receipt.caseId !== input.caseId ||
         receipt.fixtureId !== input.fixtureId ||

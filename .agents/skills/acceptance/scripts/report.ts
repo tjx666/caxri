@@ -328,17 +328,50 @@ function requiredEvidenceTypes(plan: PlanItem): RequiredEvidenceType[] {
     );
 }
 
+/**
+ * Reads one receipt that only exists because the case actually executed — a launch lifecycle or a fixture preflight.
+ * The adapter writes it during execution, so a case blocked before that point cannot have one, and demanding it
+ * unconditionally would leave the honest blocked round `SKILL.md` asks for impossible to finalize. Absence is accepted
+ * only for `blocked`; the moment the file exists the case did execute, so it must declare the receipt and pass every
+ * check below. Returns `null` when the case is legitimately blocked without the receipt.
+ */
+async function readExecutionReceipt(
+    directory: string,
+    evidence: string,
+    acceptanceCase: AcceptanceCase,
+    missingMessage: string,
+): Promise<string | null> {
+    let rawReceipt: string;
+    try {
+        rawReceipt = await readFile(join(directory, evidence), 'utf8');
+    } catch (error) {
+        if (
+            acceptanceCase.status === 'blocked' &&
+            (error as NodeJS.ErrnoException).code === 'ENOENT'
+        )
+            return null;
+        throw error;
+    }
+    if (acceptanceCase.evidence.every((item) => evidencePath(item) !== evidence)) {
+        throw new Error(missingMessage);
+    }
+    return rawReceipt;
+}
+
 async function validateFixturePreflightEvidence(
     directory: string,
     plan: PlanItem,
     acceptanceCase: AcceptanceCase,
 ): Promise<void> {
     if (plan.fixturePreflight !== 'terminal') return;
-    const evidence = preflightEvidencePath(plan.id);
-    if (acceptanceCase.evidence.every((item) => evidencePath(item) !== evidence)) {
-        throw new Error(`Case ${plan.id} must include its fixture preflight receipt`);
-    }
-    const rawReceipt: unknown = JSON.parse(await readFile(join(directory, evidence), 'utf8'));
+    const rawReceiptText = await readExecutionReceipt(
+        directory,
+        preflightEvidencePath(plan.id),
+        acceptanceCase,
+        `Case ${plan.id} must include its fixture preflight receipt`,
+    );
+    if (rawReceiptText === null) return;
+    const rawReceipt: unknown = JSON.parse(rawReceiptText);
     const receipt = terminalFixturePreflightReceiptSchema.parse(rawReceipt);
     const verified = createTerminalFixturePreflightReceipt(receipt.fixture, receipt.caseId);
     if (
@@ -356,11 +389,14 @@ async function validateCaseLifecycleEvidence(
     acceptanceCase: AcceptanceCase,
 ): Promise<void> {
     if (plan.stateIsolation.mode === 'readonly_checkpoint') return;
-    const evidence = lifecycleEvidencePath(plan.id);
-    if (acceptanceCase.evidence.every((item) => evidencePath(item) !== evidence)) {
-        throw new Error(`Case ${plan.id} must include its state-isolation receipt`);
-    }
-    const rawReceipt: unknown = JSON.parse(await readFile(join(directory, evidence), 'utf8'));
+    const rawReceiptText = await readExecutionReceipt(
+        directory,
+        lifecycleEvidencePath(plan.id),
+        acceptanceCase,
+        `Case ${plan.id} must include its state-isolation receipt`,
+    );
+    if (rawReceiptText === null) return;
+    const rawReceipt: unknown = JSON.parse(rawReceiptText);
     const receipt = caseLifecycleReceiptSchema.parse(rawReceipt);
     if (
         receipt.caseId !== plan.id ||
@@ -495,9 +531,16 @@ export async function finalizeReport(input: FinalizeReportInput) {
             // eslint-disable-next-line no-await-in-loop
             actualTypes.add(await validateEvidenceFile(directory, evidencePath(evidence)));
         }
-        const missing = requiredEvidenceTypes(planned).filter(
-            (required) => !actualTypes.has(required),
-        );
+        /**
+         * `requiredEvidence` names the medium that would show the planned behavior, so it only applies to a case that
+         * reached a verdict about that behavior. A `blocked` case is the one that could not, and the schema's `min(1)`
+         * plus the per-file check above still keep it from declaring nothing; demanding the unreachable medium would
+         * leave "could not observe this" with no representable outcome.
+         */
+        const missing =
+            item.status === 'blocked'
+                ? []
+                : requiredEvidenceTypes(planned).filter((required) => !actualTypes.has(required));
         if (missing.length > 0) {
             throw new Error(`Case ${item.id} is missing required evidence: ${missing.join(', ')}`);
         }
@@ -510,6 +553,7 @@ export async function finalizeReport(input: FinalizeReportInput) {
             caseId: planned.id,
             evidencePaths: item.evidence.map(evidencePath),
             fixtureId: planned.agentFixture,
+            status: item.status,
         });
         // eslint-disable-next-line no-await-in-loop
         await validateCaseLifecycleEvidence(directory, planned, item);
