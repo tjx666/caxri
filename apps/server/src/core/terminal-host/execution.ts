@@ -288,6 +288,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
              */
             await this.settleHotPaths([identity.record.id]);
         }
+        // Published before the request resolves, so bytes the host emits after taking the snapshot are forwarded again.
         identity.attachmentId = view.attachmentId;
         return (await this.supervisor.request(
             {

@@ -621,6 +621,10 @@ process.stdin.on('end', () => {
             sessionId: 'codex-session-1',
             status: 'unknown',
             title: 'Finish Phase 1',
+            // Deliberately absent: Codex records no writer for a thread name, so a title it reports can be an upstream
+            // AI name or one the user typed at the CLI. Declaring either source would let automatic naming claim or
+            // surrender a Session name on a guess (issue #671).
+            titleSource: undefined,
             usage: [{ label: 'Tokens', value: '12,345' }],
             version: 'codex 1.0',
         });

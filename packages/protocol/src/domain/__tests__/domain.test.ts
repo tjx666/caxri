@@ -161,6 +161,8 @@ describe('themeTokensSchema hex color validation', () => {
             danger: '#000000',
             merged: '#000000',
             badge: '#000000',
+            errorBadge: '#000000',
+            warningBadge: '#000000',
             gitAdded: '#000000',
             gitModified: '#000000',
             gitDeleted: '#000000',

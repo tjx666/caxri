@@ -339,6 +339,15 @@ export const settingsSpec = [
     },
     {
         kind: 'boolean',
+        key: 'editor.unfoldOnClickAfterEndOfLine',
+        title: 'Unfold on click after end of line',
+        description: 'Clicking the empty space after a folded line unfolds it',
+        category: 'editor',
+        keywords: ['fold', 'folding', 'collapse', 'expand', 'unfold', 'click'],
+        default: true,
+    },
+    {
+        kind: 'boolean',
         key: 'git.fetchGitHubAvatars',
         title: 'Fetch commit avatars from GitHub',
         description:

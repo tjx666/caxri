@@ -166,7 +166,22 @@ mid-read). Extension-triggered state does not count: a tree provider's own refre
 disposed itself, or a `caxri.*` call made outside any Server-supplied view context (from `activate()` or a timer)
 that the controlled-view scope fence rejected. Any other error thrown by
 extension code — from a provider, a contributed command, or `activate()` — is logged as a real fault regardless of
-which `code` it carries, and a host-minted rejection an extension re-throws gains nothing from its origin. Server Core's wire handling of these two
+which `code` it carries, and a host-minted rejection an extension re-throws gains nothing from its origin.
+
+`caxri.supersededError(message)` is the one exception, and it exists because one staleness is genuinely
+invisible to the host: a provider's own model revision. A provider that keeps a revision and rejects
+requests carrying an older one — as the bundled Git extension does for superseded snapshots and expired
+actions — throws this instead of constructing its own `GENERATION_EXPIRED`, and the call is then logged
+at `debug` with `remediation: none`. What the classifier recognizes is the object the host minted, not
+the code on it: a copy carrying the same `code` and message is still a fault, so the guarantee above is
+unchanged for every extension that does not call this factory. Calling it is a trust contract the
+extension author takes on — Caxri records the outcome as routine because the extension said it was, so
+wrapping a genuine failure in it hides that failure from diagnostics. There is deliberately no general
+`nonFailureError(code)`; this factory can express only "superseded". Outside the Extension Host the
+same call returns an equivalent unregistered error, so a provider stays unit-testable and an
+unregistered error classifies exactly as it did before this contract existed.
+
+Server Core's wire handling of these two
 codes (retrying a superseded tree read, converting a superseded read into `CANCELLED` for the Renderer) is unchanged
 and keeps keying on the code string. Extensions cannot submit a Session ID, repository path, shell command, or
 native API request. The Git domain owns Git execution, repository discovery, approved-repository identity,
@@ -202,18 +217,29 @@ cannot turn its authoritative completion into a retryable stale-generation error
 propagates to Server Core, but non-expiring mutations keep their API request pending until Server Core distinguishes
 pre-boundary `CANCELLED` from an authoritative post-boundary completion.
 
-## Numeric view badges
+## View badges
 
 A contributed view opts in with `"badge": true` in its manifest and registers a
 `ViewBadgeProvider` through `caxri.views.registerViewBadgeProvider(viewId, provider)`.
 Content and badge registrations are independent, so a tree or Source Control provider can share
 the same view ID with its badge provider.
 
-`provideBadge({ scopeId }, token)` returns a nonnegative integer `count`, a bounded plain-text
-`description`, and an optional `neutral` or `danger` tone. Return `undefined` or `null` when
-unavailable; the Host normalizes that result to wire-safe `null`. Zero is hidden. The Workbench
-aggregates badges from views in each container, prioritizes danger tone, and formats counts as
-`99+` for neutral or `9+` for danger while retaining full accessible descriptions.
+`provideBadge({ scopeId }, token)` returns a `kind` and a bounded plain-text `description`. A
+`count` badge is a plain tally and requires a nonnegative integer `count`; an `error` or `warning`
+badge is a severity whose `count` is optional, so a provider that knows something is failing but
+not how many things can still report it. Return `undefined` or `null` when unavailable; the Host
+normalizes that result to wire-safe `null`. An explicit zero is hidden.
+
+An extension reports what the activity means and never how it looks — no color, icon, or priority
+crosses the API — so one container never shows two views' badges in two unrelated colors. The
+Workbench draws its own fixed glyph for `error` and `warning`, keeping severity legible without
+color, and paints each kind from its own theme role (`badge`, `errorBadge`, `warningBadge`).
+
+Within a container the Workbench takes the most severe kind present (`error` > `warning` >
+`count`) and totals only that kind, capped at `99+`; summing across kinds would let 20 ordinary
+items and 1 failure render as a red `21`. If any badge of the winning kind has no `count`, the
+badge shows the glyph alone rather than a total that silently omits it. Every contributing view's
+description is retained for the accessible name whatever the digit does.
 
 The Renderer issues `badge.snapshot` before the view opens, activating declared providers and
 sharing concurrent activation by extension generation. Reads carry the same cancellation and

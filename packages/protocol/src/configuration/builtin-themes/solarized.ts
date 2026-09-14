@@ -50,6 +50,8 @@ export const solarizedDarkTheme: ThemeTokens = {
          */
         merged: '#8f8fd4',
         badge: '#007acc',
+        errorBadge: '#dc322f',
+        warningBadge: '#b58900',
         gitAdded: '#81b88b',
         gitModified: '#e2c08d',
         gitDeleted: '#c74e39',
@@ -127,6 +129,8 @@ export const solarizedLightTheme: ThemeTokens = {
          */
         merged: '#5c5fb0',
         badge: '#b58900',
+        errorBadge: '#dc322f',
+        warningBadge: '#b58900',
         /**
          * The Git extension's light-variant defaults; this is the one built-in whose decorations must read on a light
          * canvas.

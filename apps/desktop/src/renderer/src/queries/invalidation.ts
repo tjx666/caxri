@@ -4,13 +4,15 @@ import type { CaxriMethod, ServerEvent } from '@caxri/protocol';
 import type { QueryClient } from '@tanstack/react-query';
 import { useQueryClient } from '@tanstack/react-query';
 
-import { EXTENSION_TREE_QUERY_METHOD } from '../features/view-containers/extension-tree-client';
 import type { ControlledViewQueryOperation } from '../features/view-containers/view-operation-client';
-import { CONTROLLED_VIEW_QUERY_METHOD } from '../features/view-containers/view-operation-client';
 import { caxri } from '../lib/caxri';
 import { parentDirectoryPath } from '../lib/file-path';
 import { getWorkbenchProjectSessionIds } from '../stores/selectors';
-import { isQueryMethod } from './client';
+import {
+    CONTROLLED_VIEW_QUERY_METHOD,
+    EXTENSION_TREE_CHILDREN_QUERY_METHOD,
+    isQueryMethod,
+} from './client';
 
 /**
  * Debounce window used to coalesce a burst of `files.changed` events into one invalidation pass.
@@ -347,7 +349,7 @@ function invalidateControlledViewQueries(queryClient: QueryClient): void {
      * would replay tokens the provider can no longer resolve.
      */
     queryClient.removeQueries({
-        predicate: (query) => isQueryMethod(query.queryKey, EXTENSION_TREE_QUERY_METHOD),
+        predicate: (query) => isQueryMethod(query.queryKey, EXTENSION_TREE_CHILDREN_QUERY_METHOD),
     });
 }
 

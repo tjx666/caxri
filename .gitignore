@@ -11,7 +11,9 @@ playwright-report/
 coverage/
 # `rtk vitest run` writes its report here; a parse failure leaves it behind
 .vitest/
-# Temporary oxlint config written per-process by scripts/__tests__/oxlint-toolchain-contract.test.ts
+# oxlint resolves `overrides[].files` relative to its config, so the toolchain contract test must write its fixture
+# config at the repository root. It is removed in `afterAll`, but a concurrent or interrupted run would otherwise dirty
+# `git status` and block the release precheck.
 .oxlintrc.contract-*.json
 .cache/
 .records/

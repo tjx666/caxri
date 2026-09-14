@@ -589,6 +589,22 @@ async function readCodexState(
     }
     if (!selectedRow) return undefined;
     const turnState = await readCodexTurnState(context, stateDirectories);
+    /**
+     * No `titleSource`: Codex publishes no provenance for a thread name, so this provider cannot tell an upstream
+     * AI-generated title from one the user typed at the Codex CLI (issue #671). Verified against codex-cli 0.154.0:
+     * `threads` carries `title` (the raw first prompt) and `name` (the displayed title) and no column recording which
+     * writer set `name`; the rollout stream's `session_meta` has no title field, and its only event payload types are
+     * `item_completed`, `task_complete`, `task_started`, `thread_goal_updated`, `thread_settings_applied`,
+     * `token_count`, and `turn_aborted` — none of them a rename. Both writers go through the same app-server
+     * `thread/name/set` this provider itself calls for {@link renameCodexSession}.
+     *
+     * Leaving the field undefined is the conservative reading, not an oversight: `session-rename.ts` only adopts a
+     * pre-existing native title when it is declared `explicit`, and only mirrors a later native rename back into Caxri
+     * under the same declaration, so an ambiguous Codex title neither claims a Session name nor suppresses one. The
+     * cost is the case #671 reported — a title the user set in the CLI before Caxri's first automatic naming is
+     * overwritten. Closing that needs an upstream provenance field; inferring it from title text is explicitly out,
+     * since a generated title and a typed one are indistinguishable strings.
+     */
     return {
         ...turnState,
         sessionId: selectedRow.id,

@@ -30,14 +30,12 @@ import {
     saveActiveEditor,
 } from '../document-commands';
 
-interface PaneLayoutTabSpec {
-    path: string;
-    preview?: boolean;
-}
+type PaneLayoutTabSpec = { path: string; preview?: boolean } | { terminalId: string };
 
 /**
- * A single-pane layout with one document tab per entry; these tests only care that a document action rewrites the
- * pane's tabs, not about the tree's shape.
+ * A single-pane layout with one tab per entry, in the given order; these tests only care that a document action
+ * rewrites the pane's tabs, not about the tree's shape. A bare string is a document path, and a `terminalId` entry
+ * places a Terminal in the same rail so mixed-pane close rules can be exercised.
  */
 function paneLayout(
     tabs: ReadonlyArray<string | PaneLayoutTabSpec>,
@@ -50,8 +48,12 @@ function paneLayout(
             id: 'pane-1',
             tabs: specs.map((spec, index) => ({
                 id: `tab-${index}`,
-                resource: { kind: 'file', path: spec.path },
-                ...(spec.preview && { preview: true }),
+                ...('terminalId' in spec
+                    ? { resource: { kind: 'terminal' as const, terminalId: spec.terminalId } }
+                    : {
+                          resource: { kind: 'file' as const, path: spec.path },
+                          ...(spec.preview && { preview: true }),
+                      }),
             })),
             ...(specs.length > 0 && { activeTabId: `tab-${activeIndex}` }),
         },
@@ -169,6 +171,27 @@ function installEmptySession(): void {
         } as unknown as BootstrapState,
     });
     useSessionViewStore.setState({ documents: {}, recentDocuments: {} });
+}
+
+/**
+ * An empty Session whose single pane is then filled with the given tabs, for the cases that need a specific rail rather
+ * than the one-document-per-Session shape `installSessions` builds.
+ */
+function installPaneLayout(tabs: ReadonlyArray<string | PaneLayoutTabSpec>, activeIndex = 0): void {
+    installEmptySession();
+    useWorkbenchStore.setState((state) => ({
+        bootstrap: state.bootstrap
+            ? {
+                  ...state.bootstrap,
+                  sessionStates: [
+                      {
+                          ...state.bootstrap.sessionStates[0],
+                          paneLayout: paneLayout(tabs, activeIndex),
+                      },
+                  ],
+              }
+            : undefined,
+    }));
 }
 
 function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
@@ -315,7 +338,7 @@ describe('session-scoped file mutation completion', () => {
     it('closes only the origin Session tab after Trash confirmation returns', () => {
         installSessions('/project/trashed.ts');
 
-        closeOpenEditorsUnderPath('session-1', '/project/trashed.ts');
+        closeOpenEditorsUnderPath('project-1', '/project/trashed.ts');
 
         const states = useWorkbenchStore.getState().bootstrap?.sessionStates ?? [];
         const session1 = states.find((state) => state.sessionId === 'session-1')!;
@@ -346,7 +369,7 @@ describe('session-scoped file mutation completion', () => {
     it('closes the same trashed Project file in every Session', () => {
         installSessions('/project/trashed.ts', 'session-1', '/project/trashed.ts');
 
-        closeOpenEditorsUnderPath('session-1', '/project/trashed.ts');
+        closeOpenEditorsUnderPath('project-1', '/project/trashed.ts');
 
         const states = useWorkbenchStore.getState().bootstrap?.sessionStates ?? [];
         expect(states.map((state) => paneTabPaths(state))).toEqual([[], []]);
@@ -378,7 +401,7 @@ describe('session-scoped file mutation completion', () => {
         mocks.request.mockReturnValueOnce(read.promise);
 
         const opening = openFile('/project/trashed.ts');
-        closeOpenEditorsUnderPath('session-1', '/project/trashed.ts');
+        closeOpenEditorsUnderPath('project-1', '/project/trashed.ts');
         read.resolve({ content: 'disk', mtimeMs: 1, path: '/project/trashed.ts', size: 4 });
 
         await expect(opening).resolves.toBe(false);
@@ -633,42 +656,9 @@ describe('closing a mixed pane of Terminal and document tabs', () => {
     it.each(['all', 'others', 'right'] as const)(
         'preserves the Terminal PTY when an editor closes %s',
         async (mode) => {
-            installEmptySession();
-            useWorkbenchStore.setState((state) => ({
-                bootstrap: state.bootstrap
-                    ? {
-                          ...state.bootstrap,
-                          sessionStates: [
-                              {
-                                  ...state.bootstrap.sessionStates[0],
-                                  paneLayout: {
-                                      root: {
-                                          type: 'pane',
-                                          id: 'pane-1',
-                                          tabs: [
-                                              {
-                                                  id: 'tab-file',
-                                                  resource: { kind: 'file', path: '/project/a.ts' },
-                                              },
-                                              {
-                                                  id: 'tab-terminal',
-                                                  resource: {
-                                                      kind: 'terminal',
-                                                      terminalId: 'terminal-1',
-                                                  },
-                                              },
-                                          ],
-                                          activeTabId: 'tab-file',
-                                      },
-                                      activePaneId: 'pane-1',
-                                  },
-                              },
-                          ],
-                      }
-                    : undefined,
-            }));
+            installPaneLayout(['/project/a.ts', { terminalId: 'terminal-1' }]);
 
-            await closeDocumentTabFamily('tab-file', mode);
+            await closeDocumentTabFamily('tab-0', mode);
 
             expect(mocks.request).not.toHaveBeenCalledWith('terminal.close', {
                 terminalId: 'terminal-1',
@@ -677,16 +667,32 @@ describe('closing a mixed pane of Terminal and document tabs', () => {
                 mode === 'all' ? ['terminal-1'] : ['/project/a.ts', 'terminal-1'],
             );
 
-            // Explicitly closing the Terminal must still release its PTY and preserve any editor.
-            await closeDocumentTabFamily('tab-terminal', 'all');
+            /*
+             * The other direction is deliberately asymmetric: a Terminal's own bulk close spans the whole rail, so
+             * "Close All" from it clears the surviving editor too, and the PTY is still released rather than orphaned.
+             */
+            await closeDocumentTabFamily('tab-1', 'all');
             expect(mocks.request).toHaveBeenCalledWith('terminal.close', {
                 terminalId: 'terminal-1',
             });
             expect(paneTabPaths(useWorkbenchStore.getState().bootstrap!.sessionStates[0])).toEqual(
-                mode === 'all' ? [] : ['/project/a.ts'],
+                [],
             );
         },
     );
+
+    it('clears the documents beside a Terminal without touching its PTY', async () => {
+        installPaneLayout(['/project/a.ts', { terminalId: 'terminal-1' }, '/project/b.ts'], 1);
+
+        await closeDocumentTabFamily('tab-1', 'editors');
+
+        expect(mocks.request).not.toHaveBeenCalledWith('terminal.close', {
+            terminalId: 'terminal-1',
+        });
+        expect(paneTabPaths(useWorkbenchStore.getState().bootstrap!.sessionStates[0])).toEqual([
+            'terminal-1',
+        ]);
+    });
 });
 
 describe('editing the pane tree through document actions', () => {
@@ -774,7 +780,7 @@ describe('editing the pane tree through document actions', () => {
                 : undefined,
         }));
 
-        closeOpenEditorsUnderPath('session-1', '/project/dir');
+        closeOpenEditorsUnderPath('project-1', '/project/dir');
 
         const state = useWorkbenchStore.getState().bootstrap!.sessionStates[0];
         expect(paneTabPaths(state)).toEqual(['/project/keep.ts']);

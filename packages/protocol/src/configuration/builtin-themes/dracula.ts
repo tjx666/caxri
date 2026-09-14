@@ -40,6 +40,8 @@ export const draculaTheme: ThemeTokens = {
          */
         merged: '#bd93f9',
         badge: '#ff79c6',
+        errorBadge: '#ff5555',
+        warningBadge: '#f1fa8c',
         gitAdded: '#81b88b',
         gitModified: '#8be9fd',
         gitDeleted: '#ff5555',

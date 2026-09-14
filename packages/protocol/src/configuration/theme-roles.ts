@@ -30,6 +30,8 @@ const UPGRADABLE_COLOR_ROLES = [
     'gitDeleted',
     'gitUntracked',
     'gitConflicting',
+    'errorBadge',
+    'warningBadge',
     'tabActiveBackground',
     'tabActiveForeground',
     'tabInactiveBackground',
@@ -65,6 +67,13 @@ const CUSTOM_THEME_ROLE_SOURCE = {
     gitDeleted: 'danger',
     gitUntracked: 'success',
     gitConflicting: 'danger',
+    /**
+     * The severity fills borrow the severity text colors a theme already carries. Not ideal — those are tuned for text
+     * on the canvas rather than as a fill — but it is the only value in the file that means the same thing, and the
+     * badge derives its own readable foreground on top of whatever it gets.
+     */
+    errorBadge: 'danger',
+    warningBadge: 'warning',
     /**
      * The tab, list, and title-bar roles borrow the same surfaces those controls were painted with before the roles
      * existed, so a file written by the older build keeps the exact appearance it had. `shadow` is the one value with

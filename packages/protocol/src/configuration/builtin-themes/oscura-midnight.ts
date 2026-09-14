@@ -27,6 +27,8 @@ export const oscuraMidnightTheme: ThemeTokens = {
          */
         merged: '#a89ec9',
         badge: '#e6e7a3',
+        errorBadge: '#ff5c5c',
+        warningBadge: '#d2d714',
         gitAdded: '#81b88b',
         /**
          * Oscura deliberately decorates a changed file with plain white instead of a status hue, so these two sit a

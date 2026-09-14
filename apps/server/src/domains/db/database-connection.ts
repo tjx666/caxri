@@ -16,6 +16,10 @@ import type { SessionStateRepair } from './models/sessions';
 import { SessionsModel } from './models/sessions';
 import { SnapshotsModel } from './models/snapshots';
 import { TerminalsModel } from './models/terminals';
+import {
+    remapWorkbenchEditorState,
+    removeWorkbenchEditorPath,
+} from './models/workbench-editor-state';
 
 export interface CaxriDatabaseConnectionOptions {
     onSessionStateRepair?: (repair: SessionStateRepair) => void;
@@ -102,6 +106,31 @@ export class CaxriDatabaseConnection {
             });
             throw error;
         }
+    }
+
+    /**
+     * Durable cross-root editor state spans every Session's `workbenchStateJson`, so it has no single owning CRUD
+     * module; both operations run here, inside one transaction, over the whole `session_state` table.
+     */
+    remapWorkbenchEditorState(
+        workbenchProjectId: string,
+        operationId: string,
+        previousPath: string,
+        nextPath: string,
+    ): number {
+        return this.transaction(() =>
+            remapWorkbenchEditorState(
+                this.db,
+                workbenchProjectId,
+                operationId,
+                previousPath,
+                nextPath,
+            ),
+        );
+    }
+
+    removeWorkbenchEditorPath(workbenchProjectId: string, path: string): number {
+        return this.transaction(() => removeWorkbenchEditorPath(this.db, workbenchProjectId, path));
     }
 
     markShutdown(reason: ShutdownReason): void {

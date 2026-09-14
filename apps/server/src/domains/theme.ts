@@ -125,6 +125,12 @@ const VSCODE_DEFAULTS = {
         warning: '#cca700', // editorWarning.foreground
         danger: '#f48771', // editorError.foreground
         badge: '#007acc', // activityBarBadge.background
+        /**
+         * `activityErrorBadge`/`activityWarningBadge` are recent keys most themes still leave unset, so these repeat
+         * the error and warning foreground defaults above rather than adding a color the theme never declared.
+         */
+        errorBadge: '#f48771',
+        warningBadge: '#cca700',
         gitAdded: '#81b88b',
         gitModified: '#e2c08d',
         gitDeleted: '#c74e39',
@@ -146,6 +152,8 @@ const VSCODE_DEFAULTS = {
         warning: '#bf8803',
         danger: '#e51400',
         badge: '#007acc',
+        errorBadge: '#e51400',
+        warningBadge: '#bf8803',
         gitAdded: '#587c0c',
         gitModified: '#895503',
         gitDeleted: '#ad0707',
@@ -235,6 +243,20 @@ function parseVsCode(value: Record<string, unknown>, name: string): ParsedThemeI
      * which is the control VS Code styles with the activity-bar key.
      */
     theme.colors.badge = firstHex(colors, ['activityBarBadge.background'], defaults.badge);
+    /**
+     * The severity badges fall back to the theme's own error/warning text color before the registry default, because a
+     * theme that never heard of these keys still declared how its errors should look.
+     */
+    theme.colors.errorBadge = firstHex(
+        colors,
+        ['activityErrorBadge.background', 'editorError.foreground'],
+        defaults.errorBadge,
+    );
+    theme.colors.warningBadge = firstHex(
+        colors,
+        ['activityWarningBadge.background', 'editorWarning.foreground'],
+        defaults.warningBadge,
+    );
     theme.colors.gitAdded = firstHex(
         colors,
         ['gitDecoration.addedResourceForeground'],
@@ -589,11 +611,15 @@ async function resolveVsCodeInclude(
         beforeRead: testSeam?.beforeRead,
         capacityMessage: `Theme file exceeds the ${MAX_THEME_IMPORT_FILE_BYTES} byte import limit`,
     });
+    /**
+     * The included parent is a second untrusted document, so it gets the same two guards as the file the user picked. A
+     * parent that parsed to an array used to be reported as `INCLUDE_DIRECTORY_MESSAGE`, which pointed at the one thing
+     * that was not wrong — the parent is in the right directory, it just does not hold theme colors.
+     */
     const parent = parseThemeDocument(() => parseJsonc(parentSource), JSON_THEME_PARSE_MESSAGE);
-    if (!parent || typeof parent !== 'object' || Array.isArray(parent)) {
-        throw new CaxriError('VALIDATION', INCLUDE_DIRECTORY_MESSAGE);
-    }
-    return JSON.stringify(mergeVsCodeTheme(parent as Record<string, unknown>, document));
+    return JSON.stringify(
+        mergeVsCodeTheme(themeDocumentRoot(parent, JSON_THEME_ROOT_MESSAGE), document),
+    );
 }
 
 export async function importTheme(

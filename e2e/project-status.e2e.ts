@@ -195,7 +195,8 @@ esac
             .locator('.tree-item-rich-tooltip:visible')
             .filter({ hasText: '#42 Status A' });
         await expect(pullRequestTooltip).toBeVisible();
-        await expect(pullRequestTooltip).toContainText('failure');
+        // The same wording the row's accessible name uses, rather than the raw check state off the wire.
+        await expect(pullRequestTooltip).toContainText('CI failed');
         await expect(
             pullRequestTooltip.getByRole('button', {
                 name: 'Open link: github.com/tjx666/project/pull/42',

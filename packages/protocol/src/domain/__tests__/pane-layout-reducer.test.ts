@@ -282,7 +282,34 @@ describe('pane layout reducer', () => {
         expect(findTab(closed, second.id)).toBeDefined();
     });
 
-    it('keeps bulk close families within the anchor resource kind in a mixed pane', () => {
+    it('keeps an editor bulk close away from Terminals in a mixed pane', () => {
+        const id = ids();
+        let layout = createPaneLayout(terminal('terminal-1'), id);
+        layout = openResource(layout, file('a.ts'), {}, id);
+        layout = openResource(layout, terminal('terminal-2'), {}, id);
+        layout = openResource(layout, file('b.ts'), {}, id);
+        const [, firstFile, , secondFile] = activePane(layout).tabs;
+
+        expect(paneTabIdsToClose(layout, firstFile.id, 'one')).toEqual([firstFile.id]);
+        expect(paneTabIdsToClose(layout, firstFile.id, 'others')).toEqual([secondFile.id]);
+        expect(paneTabIdsToClose(layout, firstFile.id, 'right')).toEqual([secondFile.id]);
+        expect(paneTabIdsToClose(layout, secondFile.id, 'right')).toEqual([]);
+        expect(paneTabIdsToClose(layout, firstFile.id, 'all')).toEqual([
+            firstFile.id,
+            secondFile.id,
+        ]);
+
+        const singleFile = closeTabs(layout, [secondFile.id]);
+        expect(paneTabIdsToClose(singleFile, firstFile.id, 'others')).toEqual([]);
+        expect(paneTabIdsToClose(singleFile, firstFile.id, 'right')).toEqual([]);
+    });
+
+    /**
+     * A pane usually holds one Terminal beside several documents. Scoping the Terminal's own bulk closes to Terminals
+     * made "Close Others" and "Close to the Right" resolve to nothing there, which the menu renders as a permanently
+     * disabled entry.
+     */
+    it('spans the whole rail for a Terminal bulk close and offers a document-only mode', () => {
         const id = ids();
         let layout = createPaneLayout(terminal('terminal-1'), id);
         layout = openResource(layout, file('a.ts'), {}, id);
@@ -290,20 +317,42 @@ describe('pane layout reducer', () => {
         layout = openResource(layout, file('b.ts'), {}, id);
         const [firstTerminal, firstFile, secondTerminal, secondFile] = activePane(layout).tabs;
 
-        for (const [anchor, sibling] of [
-            [firstFile, secondFile],
-            [firstTerminal, secondTerminal],
-        ]) {
-            expect(paneTabIdsToClose(layout, anchor.id, 'one')).toEqual([anchor.id]);
-            expect(paneTabIdsToClose(layout, anchor.id, 'others')).toEqual([sibling.id]);
-            expect(paneTabIdsToClose(layout, anchor.id, 'right')).toEqual([sibling.id]);
-            expect(paneTabIdsToClose(layout, sibling.id, 'right')).toEqual([]);
-            expect(paneTabIdsToClose(layout, anchor.id, 'all')).toEqual([anchor.id, sibling.id]);
-        }
+        expect(paneTabIdsToClose(layout, firstTerminal.id, 'one')).toEqual([firstTerminal.id]);
+        expect(paneTabIdsToClose(layout, firstTerminal.id, 'others')).toEqual([
+            firstFile.id,
+            secondTerminal.id,
+            secondFile.id,
+        ]);
+        expect(paneTabIdsToClose(layout, firstTerminal.id, 'right')).toEqual([
+            firstFile.id,
+            secondTerminal.id,
+            secondFile.id,
+        ]);
+        expect(paneTabIdsToClose(layout, secondFile.id, 'right')).toEqual([]);
+        expect(paneTabIdsToClose(layout, firstTerminal.id, 'all')).toEqual([
+            firstTerminal.id,
+            firstFile.id,
+            secondTerminal.id,
+            secondFile.id,
+        ]);
+        expect(paneTabIdsToClose(layout, firstTerminal.id, 'editors')).toEqual([
+            firstFile.id,
+            secondFile.id,
+        ]);
 
-        const singleFile = closeTabs(layout, [secondFile.id]);
-        expect(paneTabIdsToClose(singleFile, firstFile.id, 'others')).toEqual([]);
-        expect(paneTabIdsToClose(singleFile, firstFile.id, 'right')).toEqual([]);
+        // Nothing to clear leaves the mode empty, which is how the menu learns to disable the entry.
+        const terminalsOnly = closeTabs(layout, [firstFile.id, secondFile.id]);
+        expect(paneTabIdsToClose(terminalsOnly, firstTerminal.id, 'editors')).toEqual([]);
+        // A lone Terminal beside documents is the layout that used to disable both entries.
+        const singleTerminal = closeTabs(layout, [secondTerminal.id]);
+        expect(paneTabIdsToClose(singleTerminal, firstTerminal.id, 'others')).toEqual([
+            firstFile.id,
+            secondFile.id,
+        ]);
+        expect(paneTabIdsToClose(singleTerminal, firstTerminal.id, 'right')).toEqual([
+            firstFile.id,
+            secondFile.id,
+        ]);
     });
 
     it('drops a closed Terminal wherever it was placed', () => {

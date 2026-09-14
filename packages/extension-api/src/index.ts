@@ -218,13 +218,16 @@ export interface TreeDataProvider<T> {
 }
 
 /**
- * Numeric activity owned by a view; the Workbench formats and aggregates it on the container.
+ * Activity owned by a view; the Workbench formats and aggregates it on the container.
+ *
+ * Report meaning, not appearance — the Workbench picks the icon and the fill, so a container never shows two views'
+ * badges in two unrelated colors. `count` is a plain tally. `error` and `warning` are severities: the Workbench draws
+ * its own fixed icon for them, so they stay distinguishable without relying on color, and their `count` is optional for
+ * a provider that knows something is failing but not how many things.
  */
-export interface ViewBadge {
-    count: number;
-    description: string;
-    tone?: 'neutral' | 'danger';
-}
+export type ViewBadge =
+    | { kind: 'count'; count: number; description: string }
+    | { kind: 'error' | 'warning'; count?: number; description: string };
 
 export interface ViewBadgeProvider {
     /**
@@ -402,6 +405,18 @@ export interface CaxriApi {
         getConfiguration<Value = unknown>(key: string): Promise<Value | undefined>;
         getProjectStatus(options?: ProjectStatusRequestOptions): Promise<ProjectStatusSummary>;
     };
+    /**
+     * Builds the error a provider throws when a request arrived against a model revision it has already replaced.
+     *
+     * Throw this instead of your own `GENERATION_EXPIRED` whenever the staleness is your extension's own bookkeeping —
+     * a snapshot superseded by a newer `provideView`, an action carrying a revision you no longer serve. Caxri cannot
+     * see your revision, so an equivalent error you construct yourself is indistinguishable from a real failure and is
+     * logged as one, recommending an Extension Host restart.
+     *
+     * This is a trust contract, not an escape hatch: Caxri records the result at `debug` because you declared it
+     * routine. Wrapping a genuine failure in it hides that failure from diagnostics.
+     */
+    supersededError(message: string): Error;
 }
 
 function unavailable(method: string): never {
@@ -451,6 +466,14 @@ const caxri: CaxriApi = Object.freeze({
         getConfiguration: () => unavailable('workspace.getConfiguration'),
         getProjectStatus: () => unavailable('workspace.getProjectStatus'),
     }),
+    /**
+     * Unlike every other member here this does not call {@link unavailable}: it mints a value rather than reaching into
+     * the Host, so a provider under unit test can still throw it and assert the code. The object simply is not
+     * registered as a declared non-fault — outside the Extension Host there is no classifier to declare it to, and an
+     * unregistered error is classified exactly as it was before this contract existed.
+     */
+    supersededError: (message: string) =>
+        Object.assign(new Error(message), { code: 'GENERATION_EXPIRED' }),
 });
 
 export default caxri;

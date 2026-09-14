@@ -26,6 +26,8 @@ export const monokaiTheme: ThemeTokens = {
          * `badge.background` (`#75715e`) styles search-result chips, a different control.
          */
         badge: '#007acc',
+        errorBadge: '#f92672',
+        warningBadge: '#e6db74',
         gitAdded: '#81b88b',
         gitModified: '#e2c08d',
         gitDeleted: '#c74e39',

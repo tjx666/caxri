@@ -336,22 +336,30 @@ is `--merged`, and draft is `--muted`. Checks appear as text in the hover card, 
 `--danger`; never overlay a badge on the small PR glyph or recolor it for CI. The existing animated
 yellow Session attention ring keeps its separate meaning and position.
 
-The Status tab carries a compact, static numeric badge anchored to the heartbeat icon's lower-right
-corner, following VS Code's activity-bar badge placement. Use a 14px minimum circular surface that
-grows into a capsule for `9+`, `badge` text, `--danger`/`--danger-foreground`, and a surface-colored
-ring separating it from the icon. It counts failed PR checks and current production/preview
-deployments across the selected Session's repositories, deduplicated by identity. PR rollups,
-historical deployments, pending work, and provider-fetch errors do not inflate the number. Zero or
-unavailable status hides the badge; tooltip and accessible description expose the full count and
-categories. Switching tabs does not clear failures; switching Sessions changes the badge scope.
+The Status tab carries a compact, static badge anchored to the heartbeat icon's lower-right
+corner, following VS Code's activity-bar badge placement. Use a 16px minimum circular surface that
+grows into a capsule, `badge` text, and a surface-colored ring separating it from the icon. It
+counts failed PR checks and current production/preview deployments across the selected Session's
+repositories, deduplicated by identity. PR rollups, historical deployments, pending work, and
+provider-fetch errors do not inflate the number. Zero or unavailable status hides the badge;
+tooltip and accessible description expose the full count and categories. Switching tabs does not
+clear failures; switching Sessions changes the badge scope.
 
-Numeric badges are an extension view capability: plugins provide the count, plain-text description,
-and neutral or danger tone; the Workbench aggregates them on the owning container. Git counts all
-working-tree changes across the current Workbench Root's repositories, including hidden and
-truncated entries. Its neutral badge uses `--badge`/`--badge-foreground` and caps visible text at
-`99+`; danger badges retain `9+`. Both expose the full count in their accessible description.
-Badge reads activate declared providers even before their views open. Zero, no selected Session,
-and unavailable extension states hide the badge; counts never carry across Workbench scopes.
+Badges are an extension view capability, and an extension reports only meaning: a plain-text
+description plus one of `count`, `error`, or `warning`. Appearance is the Workbench's, so two views
+can never paint one container in two unrelated colors. A `count` badge uses
+`--badge`/`--badge-foreground`; `error` and `warning` use `--error-badge` and `--warning-badge` with
+their derived foregrounds, and each carries a fixed Workbench glyph inside the badge so severity
+survives without color. Those two roles are separate from `--danger` and `--warning`, which are text
+colors imported from the editor's error and warning squiggles and are not fills.
+
+Within a container the Workbench keeps the most severe kind present and totals only that kind,
+capped at `99+`; a severity with any uncounted badge shows its glyph alone rather than a partial
+total. Git counts all working-tree changes across the current Workbench Root's repositories,
+including hidden and truncated entries. Every contributing view's description reaches the
+accessible name whatever the digit shows. Badge reads activate declared providers even before their
+views open. Zero, no selected Session, and unavailable extension states hide the badge; counts
+never carry across Workbench scopes.
 
 **Tab strip** — active tab: `--background` fill joining it visually to the pane below,
 `--foreground` text, and a 2px `--accent` top border, VS Code style. Inactive: `--surface` +

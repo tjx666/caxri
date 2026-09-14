@@ -23,6 +23,8 @@ export const vscodeDarkPlusTheme: ThemeTokens = {
         danger: '#f48771',
         merged: '#c586c0',
         badge: '#007acc',
+        errorBadge: '#f48771',
+        warningBadge: '#cca700',
         gitAdded: '#81b88b',
         gitModified: '#e2c08d',
         gitDeleted: '#c74e39',

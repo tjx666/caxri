@@ -17,34 +17,52 @@ Pass `--json` when another tool or agent will consume the result.
 
 An isolated worktree is a self-contained development environment: its branch, dependencies, and
 profile cannot disturb the primary checkout or sibling agent sessions. That isolation is the point
-— it is not remote-delivery authority. Creating a worktree under `AGENTS.md` standing orders, or a
-request that merely says to work in one, authorizes isolated local implementation and validation.
-Issue mutation, commit, push, PR publication, merge, closeout, and primary-checkout synchronization
-remain governed by the user's exact request or an explicitly active workflow such as `go`.
+— when the user asks to switch to a worktree to get work done (e.g. "切 worktree 处理 issue #123"
+or "切 worktree 做一下"), they are delegating the entire development loop, including commit,
+push, PR creation, CI, merge, issue closeout, and primary-checkout synchronization. This applies
+equally when the request arrives midway through an existing conversation. A run under the `go`
+workflow follows `go`'s own orchestration instead. Inspection, listing, and dev-launch-only requests
+do not activate this delivery flow. Run it end to end without pausing for permission between stages:
 
-When the current request does authorize full delivery, run these applicable stages end to end:
+The same delivery authorization applies when an implementation or bug-fix request causes the agent
+to create the task worktree under the repository's standing orders. The user does not need to say
+"switch worktree", "commit", "open a PR", or "merge" separately. A follow-up correcting an early
+stop continues the original delivery scope. Only an explicit analysis-only, local-only, or no-merge
+restriction narrows that scope; do not invent one because the agent chose the worktree itself.
 
-1. Use or create a GitHub issue only when issue mutation is authorized.
+1. Ensure a GitHub issue tracks the task: when the request references an existing issue, use it;
+   otherwise create one first (`gh issue create`, Simplified Chinese title and body, technical
+   identifiers in English) capturing the request, scope, and acceptance expectations, then link it
+   from the branch work and the eventual PR.
 2. Implement and validate the change in the isolated worktree.
 3. Review the completed local work (light `deep-review` scope) and repair validated P0/P1 findings.
-4. Call the Skill tool with "pull-request" to push and publish only when those remote steps are
-   authorized.
+4. Call the Skill tool with "pull-request" to push the branch and open a pull request.
 5. Watch CI on the PR, repair failures, and re-push until checks are green.
-6. Merge, close issues, and synchronize the primary checkout only when each operation is inside the
-   authorized delivery scope; merge always requires explicit user or active-`go` authority.
-7. Publish follow-up debt only when issue mutation is authorized; otherwise preserve it in the local
-   handoff.
+6. Merge the PR, close the linked issues, and synchronize the primary checkout.
+7. File a GitHub issue (same language conventions) for any debt or follow-up the delivery leaves
+   behind — deferred findings, known flakes, consciously skipped scope — so nothing survives only
+   in the session transcript.
 
-Before reporting completion, verify every authorized applicable step above against current evidence.
-Do not describe an unauthorized remote step as pending work.
+Narrow this flow only when the user explicitly limits delivery (e.g. "只实现，不提交" or
+"只分析"). Do not infer implementation-only scope from casual wording, the timing of the request,
+or the absence of a separate "open a PR" or "merge" instruction. Pause for discussion when review
+or CI exposes a real product decision; when the user pauses execution to ask a question, answer it
+without treating that pause as cancellation of the remaining delivery steps.
+
+Before reporting completion, verify every applicable step above against current evidence. Passing
+local checks is not completion while PR creation, CI, merge, issue closeout, or synchronization is
+still pending. Continue authorized work; if a concrete blocker prevents progress, report the exact
+unfinished step and blocker instead of declaring the task complete.
 
 When moving an in-progress implementation into a task worktree after a user correction, carry
 the original task and this delivery checklist forward. Migration is an intermediate repair, not
 a completion boundary. A request to adjust contributor instructions during that work does not
 cancel the remaining delivery steps unless the user explicitly says to stop or narrow delivery.
 
-At entry, record which delivery steps are authorized, complete, and still pending. A task-specific
-restriction always wins; invoking this skill never widens the request.
+At entry, record which delivery steps are complete and which remain. A generic instruction to
+avoid unrequested remote mutations does not narrow this explicitly activated workflow: the request
+that activates it supplies that authorization. Honor a task-specific restriction instead when the
+user explicitly limits the current run.
 
 Queued or running CI, a busy shared runner, and ordinary check latency are waiting states, not
 reasons to end the turn or mark the issue `Blocked`. Keep the primary agent active with the CI

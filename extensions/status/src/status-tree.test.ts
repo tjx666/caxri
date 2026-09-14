@@ -72,12 +72,12 @@ describe('Status extension tree', () => {
     it.each(['primary', 'submodule'] as const)(
         'keeps merged %s PRs distinct from every CI result',
         (kind) => {
-            for (const [state, checkLabel] of [
-                ['success', 'CI passed'],
-                ['failure', 'CI failed'],
-                ['pending', 'CI pending'],
-                ['neutral', 'CI neutral'],
-                ['unknown', 'CI unknown'],
+            for (const [state, checkLabel, checkIcon] of [
+                ['success', 'CI passed', 'circle-check'],
+                ['failure', 'CI failed', 'circle-x'],
+                ['pending', 'CI pending', 'loading'],
+                ['neutral', 'CI neutral', 'circle-outline'],
+                ['unknown', 'CI unknown', 'circle-dot'],
             ] as const) {
                 const root = buildRepoNode({
                     id: 'fixture',
@@ -97,13 +97,16 @@ describe('Status extension tree', () => {
                     },
                 });
                 const pr = root.children!.find((node) => node.item.id?.endsWith(':pr'))!;
-                expect(iconId(pr)).toBe('git-merge');
-                expect(pr.item.description).toBe(checkLabel);
-                expect(pr.item.accessibilityInformation?.label).toContain('Merged');
+                expect(iconId(pr)).toBe(checkIcon);
+                expect(pr.item.trailingIcon?.id).toBe('git-merge');
+                expect(pr.item.description).toBeUndefined();
+                expect(pr.item.accessibilityInformation?.label).toBe(
+                    `#42 Lifecycle fixture, Merged, ${checkLabel}`,
+                );
                 expect(pr.item.tooltip).toMatchObject({ badge: { label: 'Merged' } });
                 expect((pr.item.tooltip as TreeItemRichTooltip).rows).toContainEqual({
                     label: 'checks',
-                    value: state,
+                    value: checkLabel,
                 });
                 expect(pr.children?.[0].item.tooltip).toMatchObject({ badge: { label: state } });
                 expect(pr.item.collapsibleState).toBe(
@@ -135,16 +138,17 @@ describe('Status extension tree', () => {
         });
         const pr = node.children?.find((child) => child.item.id === 'status:repo:repo:pr');
         /**
-         * The PR row's icon and badge now carry the lifecycle, so a cancellation surfaces there through the description
-         * and the `checks` row instead; only the check row still renders the cancelled state directly. Both stay
-         * neutral — a check cancelled by concurrency is not a closed PR and not a failure.
+         * The PR row's leading icon carries the aggregate check state while its trailing icon and badge carry the
+         * lifecycle, so a cancellation surfaces on the leading icon and the `checks` row. Both stay neutral — a check
+         * cancelled by concurrency is not a closed PR and not a failure.
          */
-        expect(pr?.item.iconPath?.id).toBe('git-pull-request-open');
-        expect(pr?.item.description).toBe('CI cancelled');
-        expect(pr?.item.accessibilityInformation?.label).toContain('Open');
+        expect(pr?.item.iconPath?.id).toBe('circle-slash');
+        expect(pr?.item.trailingIcon?.id).toBe('git-pull-request-open');
+        expect(pr?.item.description).toBeUndefined();
+        expect(pr?.item.accessibilityInformation?.label).toBe('#1 Cancelled, Open, CI cancelled');
         expect((pr?.item.tooltip as TreeItemRichTooltip).rows).toContainEqual({
             label: 'checks',
-            value: 'cancelled',
+            value: 'CI cancelled',
         });
         const check = pr?.children?.[0]?.item;
         expect(check?.iconPath?.id).toBe('circle-slash');
@@ -177,13 +181,13 @@ describe('Status extension tree', () => {
                 },
             });
             const pr = root.children!.find((node) => node.item.id?.endsWith(':pr'))!;
-            expect(iconId(pr)).toBe(icon);
+            expect(iconId(pr)).toBe('circle-check');
+            expect(pr.item.trailingIcon?.id).toBe(icon);
             /**
-             * The lifecycle word is deliberately not in the row description — the icon already carries it in GitHub's
-             * own colors — so it has to remain reachable through the accessible name for a reader who cannot use
-             * color.
+             * Neither status is spelled out in the row — the two icons carry them in GitHub's own colors — so both have
+             * to remain reachable through the accessible name for a reader who cannot use color.
              */
-            expect(pr.item.description).toBe('CI passed');
+            expect(pr.item.description).toBeUndefined();
             expect(pr.item.accessibilityInformation?.label).toBe(
                 `#42 Lifecycle fixture, ${label}, CI passed`,
             );
@@ -579,7 +583,7 @@ describe('Status extension tree', () => {
             title: '#307 Restore Project Status',
             badge: { label: 'Unknown', tone: 'neutral' },
             rows: [
-                { label: 'checks', value: 'failure' },
+                { label: 'checks', value: 'CI failed' },
                 { label: 'hidden', value: '1 ignored check' },
                 {
                     label: 'link',

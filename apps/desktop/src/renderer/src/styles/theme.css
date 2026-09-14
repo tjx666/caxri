@@ -43,6 +43,10 @@
     --color-merged: var(--merged);
     --color-badge: var(--badge);
     --color-badge-foreground: var(--badge-foreground);
+    --color-error-badge: var(--error-badge);
+    --color-error-badge-foreground: var(--error-badge-foreground);
+    --color-warning-badge: var(--warning-badge);
+    --color-warning-badge-foreground: var(--warning-badge-foreground);
     --color-git-added: var(--git-added);
     --color-git-modified: var(--git-modified);
     --color-git-deleted: var(--git-deleted);
@@ -86,6 +90,8 @@
     --danger: #ff5555;
     --merged: #bd93f9;
     --badge: #ff79c6;
+    --error-badge: #ff5555;
+    --warning-badge: #f1fa8c;
     --git-added: #81b88b;
     --git-modified: #8be9fd;
     --git-deleted: #ff5555;
@@ -116,6 +122,8 @@
     --accent-foreground: #282a36;
     --danger-foreground: #000000;
     --badge-foreground: #282a36;
+    --error-badge-foreground: #282a36;
+    --warning-badge-foreground: #282a36;
     --overlay: color-mix(in srgb, var(--background) 60%, transparent);
     --shadow: #00000073;
     --indicator: color-mix(in srgb, var(--foreground) 45%, transparent);

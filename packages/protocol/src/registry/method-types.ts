@@ -96,6 +96,7 @@ export const effectfulCommandRecovery = {
     'session.selectWorkbenchRoot': 'durable',
     'session.authorizeWorkbenchRoot': 'durable',
     'session.dismissWorkbenchCandidate': 'durable',
+    'session.workbenchRoot.forgetEditorPath': 'durable',
     'session.continueInWorktree': 'durable',
     'viewContainers.viewOperation': 'memory',
     'viewContainers.executeCommand': 'durable',
