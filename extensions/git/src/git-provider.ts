@@ -334,7 +334,7 @@ export class GitProvider implements SourceControlProvider {
 
     private assertRevision(state: GitProviderScopeState, revision: string): void {
         if (revision !== state.revision)
-            throw providerError('GENERATION_EXPIRED', 'Source Control model revision expired');
+            throw caxri.supersededError('Source Control model revision expired');
     }
 
     private statesFor(scopeId?: string): GitProviderScopeState[] {
@@ -481,14 +481,14 @@ export class GitProvider implements SourceControlProvider {
         const rawSummary = await this.workspace.git.summary(state.forceSequence, token);
         assertNotCancelled(token);
         if (revision !== state.revision)
-            throw providerError('GENERATION_EXPIRED', 'Source Control snapshot was superseded');
+            throw caxri.supersededError('Source Control snapshot was superseded');
         const diffExclude =
             await this.workspace.getConfiguration<Readonly<Record<string, boolean>>>(
                 'git.diffExclude',
             );
         assertNotCancelled(token);
         if (revision !== state.revision)
-            throw providerError('GENERATION_EXPIRED', 'Source Control snapshot was superseded');
+            throw caxri.supersededError('Source Control snapshot was superseded');
         state.diffExclude = diffExclude ?? {};
 
         if (
@@ -661,7 +661,7 @@ export class GitProvider implements SourceControlProvider {
         assertNotCancelled(token);
         const registration = state.actions.get(request.actionId);
         if (!registration || registration.revision !== request.revision)
-            throw providerError('GENERATION_EXPIRED', 'Source Control action expired');
+            throw caxri.supersededError('Source Control action expired');
         const result = await this.executeAction(state, registration.command, token);
         /**
          * Git invalidation commonly advances the model while an authorized Sync or Discard is completing. Its

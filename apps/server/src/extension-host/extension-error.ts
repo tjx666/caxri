@@ -54,6 +54,31 @@ export function isHostOriginatedError(error: unknown): boolean {
 }
 
 /**
+ * The separate registry for the one non-fault an extension is allowed to assert about state the host cannot see.
+ *
+ * A provider's own model revision is extension-owned: the bundled Git extension bumps it on every refresh, and the host
+ * has no way to corroborate that a request arrived against a stale one. Without this, the only honest classification
+ * for that routine outcome was a `warn` fault recommending an Extension Host restart (issue #614).
+ *
+ * It is deliberately not merged into {@link hostOriginatedErrors}: membership there means "the host decided this", and
+ * {@link providerFailure} strips it precisely because an extension can re-throw a host rejection. Membership here means
+ * the narrower "the extension declared this one outcome", which survives the trip because declaring it is the point.
+ * The factory mints only `GENERATION_EXPIRED` for exactly that reason — a general `nonFailureError(code)` would let an
+ * extension downgrade any real failure, which is what issue #606 closed.
+ */
+const declaredSupersededErrors = new WeakSet<Error>();
+
+/**
+ * Mints the extension-declared "my own revision is superseded" non-fault. Reachable by extension code as
+ * `caxri.supersededError(...)`; see `docs/extensions.md` for the trust contract it carries.
+ */
+export function supersededError(message: string): Error {
+    const error = Object.assign(new Error(message), { code: 'GENERATION_EXPIRED' });
+    declaredSupersededErrors.add(error);
+    return error;
+}
+
+/**
  * Host-private ledger of what the host itself did to the `caxri.*` API calls one provider request issued. A provider
  * that awaits `workspace.git.summary(...)` or `workspace.getProjectStatus(...)` receives Server Core's own
  * `GENERATION_EXPIRED` when the active Session changes mid-read, and the bundled providers let that rejection propagate
@@ -159,7 +184,10 @@ function readErrorCode(error: unknown): string | undefined {
  *
  * Each of those is the host's decision reported back, not an extension fault. A `CANCELLED` or `GENERATION_EXPIRED` the
  * host cannot corroborate stays a fault, so extension code cannot silence a real failure by choosing the code (issue
- * #606). `fallbackCode` keeps each boundary's existing wire code for an uncoded failure.
+ * #606). The one exception is an object minted by {@link supersededError}, which is the extension declaring the single
+ * outcome only it can see — that a request arrived against its own stale model revision (issue #614). Object identity,
+ * not the code string, is what separates it from a forged `GENERATION_EXPIRED`. `fallbackCode` keeps each boundary's
+ * existing wire code for an uncoded failure.
  */
 export function providerFailure(
     error: unknown,
@@ -174,7 +202,12 @@ export function providerFailure(
         fallbackMessage;
     if (code === 'CANCELLED' && (host.cancelled || host.scope.hostCancelledApiCall))
         return hostError(code, message);
-    if (code === 'GENERATION_EXPIRED' && (host.generationExpired || host.scope.hostExpiredApiCall))
+    if (
+        code === 'GENERATION_EXPIRED' &&
+        (host.generationExpired ||
+            host.scope.hostExpiredApiCall ||
+            (error instanceof Error && declaredSupersededErrors.has(error)))
+    )
         return hostError(code, message);
     return Object.assign(new Error(message), { code: code ?? fallbackCode });
 }
