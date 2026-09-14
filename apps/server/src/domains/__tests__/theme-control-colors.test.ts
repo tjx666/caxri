@@ -2,6 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { ThemeTokens } from '@caxri/protocol';
 import { builtinThemes, DEFAULT_SHADOW } from '@caxri/protocol';
 import { contrastRatio } from '@caxri/utils';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -320,7 +321,9 @@ function flattenedOver(fill: string, backdrop: string): string {
  * under WCAG 1.4.3 and the one case where the dimming is the message — macOS and VS Code both fade an unfocused title
  * the same way. Every other state here is something the user is looking at right now.
  */
-const READABLE_STATE_PAIRS: ReadonlyArray<readonly [string, string]> = [
+type ColorRole = keyof ThemeTokens['colors'];
+
+const READABLE_STATE_PAIRS: ReadonlyArray<readonly [ColorRole, ColorRole]> = [
     ['tabActiveForeground', 'tabActiveBackground'],
     ['tabInactiveForeground', 'tabInactiveBackground'],
     ['tabHoverForeground', 'tabHoverBackground'],
@@ -337,19 +340,38 @@ const READABLE_STATE_PAIRS: ReadonlyArray<readonly [string, string]> = [
  * than its palette's comment color. Without this, a preset filling these roles from its upstream theme quietly reverts
  * that correction: several upstream themes use their comment color for `tab.inactiveForeground`, which is exactly the
  * substitution `DESIGN.md` forbids. An imported theme is a different contract and keeps its author's values.
+ *
+ * `theme.test.ts` holds the sibling floor for `muted`, `foreground`, and `merged` on the three chrome surfaces. The two
+ * live apart only because that file is within a few lines of the repository's per-file limit; they are one rule.
  */
 describe('built-in control state contrast', () => {
     it('keeps every label the focused window shows at WCAG AA', () => {
         for (const theme of builtinThemes) {
-            const colors = theme.colors as unknown as Record<string, string>;
+            const { colors } = theme;
             for (const [foreground, background] of READABLE_STATE_PAIRS) {
-                const fill = flattenedOver(colors[background], theme.colors.background);
+                const fill = flattenedOver(colors[background], colors.background);
                 const label = flattenedOver(colors[foreground], fill);
                 expect(
                     contrastRatio(label, fill),
                     `${theme.id} ${foreground}`,
                 ).toBeGreaterThanOrEqual(4.5);
             }
+        }
+    });
+
+    /**
+     * Which tab is open has to be visible without the accent line, because Caxri draws that line only on the focused
+     * pane — in a split, the other pane's tab strip has nothing else. Either cue alone is enough, and the two are on
+     * different scales, so they are checked separately: Solarized Light carries it entirely on the fill and Oscura
+     * Midnight entirely on the label. What this rules out is a theme with neither, which is what happens when a theme
+     * paints both tab states the same color and the contrast floor then pulls the two labels together.
+     */
+    it('leaves the active tab distinguishable from its neighbours in every theme', () => {
+        for (const theme of builtinThemes) {
+            const { colors } = theme;
+            const fill = contrastRatio(colors.tabActiveBackground, colors.tabInactiveBackground);
+            const label = contrastRatio(colors.tabActiveForeground, colors.tabInactiveForeground);
+            expect(Math.max(fill / 1.05, label / 1.5), theme.id).toBeGreaterThanOrEqual(1);
         }
     });
 });
