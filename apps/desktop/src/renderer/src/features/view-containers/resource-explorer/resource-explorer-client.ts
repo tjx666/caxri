@@ -45,7 +45,6 @@ export interface ResourceExplorerClient {
         options: { operationId: string; path: string; name: string },
         signal?: AbortSignal,
     ): Promise<MovedFileEntry>;
-    reveal(path: string, signal?: AbortSignal): Promise<null>;
     search(
         options: {
             mode: 'name' | 'content';
@@ -86,7 +85,6 @@ type ResourceExplorerMethod = Extract<
     | 'files.list'
     | 'files.move'
     | 'files.rename'
-    | 'files.reveal'
     | 'files.search'
     | 'files.trash'
     | 'session.workbenchRoot.forgetEditorPath'
@@ -165,10 +163,6 @@ export function createResourceExplorerClient(
             request('files.move', { sessionId: requireSessionId(sessionId), ...options }, signal),
         rename: (options, signal) =>
             request('files.rename', { sessionId: requireSessionId(sessionId), ...options }, signal),
-        reveal: async (path, signal) => {
-            await request('files.reveal', { sessionId: requireSessionId(sessionId), path }, signal);
-            return null;
-        },
         search: (options, signal) =>
             request('files.search', { sessionId: requireSessionId(sessionId), ...options }, signal),
         forgetEditorPath: (workbenchProjectId, path, signal) =>

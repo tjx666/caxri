@@ -26,7 +26,7 @@ interface StoredTarget {
     expiresAt: number;
     generation: number;
     id: string;
-    operation: 'open' | 'openInEditor' | 'reveal' | 'trash';
+    operation: 'open' | 'openInEditor' | 'openWithDefaultApp' | 'reveal' | 'trash';
     projectId?: string;
     sessionId?: string;
     projectRootId?: string;
@@ -126,7 +126,7 @@ export class ServerDesktopRouter {
     }
 
     private issueTarget(
-        operation: 'open' | 'openInEditor' | 'reveal' | 'trash',
+        operation: 'open' | 'openInEditor' | 'openWithDefaultApp' | 'reveal' | 'trash',
         generation: number,
         resolved: {
             entry: AuthorizedEntry;
@@ -403,7 +403,7 @@ export class ServerDesktopRouter {
     }
 
     async open(
-        operation: 'open' | 'openInEditor' | 'reveal',
+        operation: 'open' | 'openInEditor' | 'openWithDefaultApp' | 'reveal',
         requestedKind: 'directory' | 'file' | undefined,
         parameters: {
             launchIfNeeded: boolean;
@@ -472,7 +472,7 @@ export class ServerDesktopRouter {
             state:
                 operation === 'reveal'
                     ? 'revealed'
-                    : operation === 'openInEditor'
+                    : operation === 'openInEditor' || operation === 'openWithDefaultApp'
                       ? 'opened'
                       : 'requested',
             generation: lease.generation,

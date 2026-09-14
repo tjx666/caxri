@@ -554,6 +554,7 @@ export async function createDomainServices(
             return null;
         },
         'files.reveal': () => mainOwned('files.reveal'),
+        'files.openWithDefaultApp': () => mainOwned('files.openWithDefaultApp'),
         'project.openInEditor': () => mainOwned('project.openInEditor'),
         'project.openRoot': () => mainOwned('project.openRoot'),
         'files.trash': () => mainOwned('files.trash'),

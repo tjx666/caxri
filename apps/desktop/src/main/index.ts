@@ -21,9 +21,9 @@ import { resolveDevelopmentDockIconPath } from './app-icon';
 import type { AppQuitIntent } from './app-quit';
 import { confirmAppQuit, createAppQuitHandler, notifyAppQuitStopFailure } from './app-quit';
 import { updateArgvConfig } from './argv-config';
-import { discardGitChangesPrompt, trashPrompt } from './confirmations';
 import { consoleErrorLogFields } from './console-error-fields';
 import { decideCrashRecovery } from './crash-policy';
+import { createDesktopActions } from './desktop-actions';
 import { createDesktopLogger } from './desktop-logger';
 import type { DesktopNotifications } from './desktop-notifications';
 import { createDesktopNotifications } from './desktop-notifications';
@@ -34,7 +34,6 @@ import {
     installSecondInstanceFocus,
 } from './desktop-profile';
 import { createMainEventRelay } from './event-relay';
-import { launchExternalEditor } from './external-editor';
 import { createGpuDiagnostics } from './gpu-diagnostics';
 import { createGpuRecoveryCoordinator, prepareGpuBoot } from './gpu-recovery';
 import { createElectronIpcCommandAdapter } from './ipc-command-adapter';
@@ -482,36 +481,13 @@ if (ownsProfileInstance) {
         workbenchRootAuthority,
     });
 
-    const handleServerDesktopOperation = createDesktopOperationHandler({
-        confirmFilesTrash: async (item) => {
-            const result = await dialog.showMessageBox(mainWindow!, trashPrompt(item));
-            return result.response === 0;
-        },
-        confirmGitDiscard: async (target) => {
-            const result = await dialog.showMessageBox(
-                mainWindow!,
-                discardGitChangesPrompt(target),
-            );
-            return result.response === 0;
-        },
-        focus: async () => {
-            await focusMainWindow();
-        },
-        open: (target) =>
-            sendEvent({
-                event: 'desktop.openRequested',
-                payload: {
-                    sessionId: target.sessionId,
-                    kind: target.kind,
-                    ...(target.kind === 'file' && { path: target.path }),
-                    ...(target.location && { location: target.location }),
-                },
-            }),
-        openInEditor: (path, editorCommand) => launchExternalEditor(editorCommand, path),
-        reveal: (path) => shell.showItemInFolder(path),
-        status: () => (mainWindow && !mainWindow.isDestroyed() ? 'window' : 'background'),
-        trash: (path) => shell.trashItem(path),
-    });
+    const handleServerDesktopOperation = createDesktopOperationHandler(
+        createDesktopActions({
+            focusMainWindow,
+            getMainWindow: () => mainWindow,
+            sendEvent,
+        }),
+    );
 
     function installIpc(): void {
         const dispatchCommand = createElectronIpcCommandAdapter({

@@ -18,6 +18,7 @@ function handlers() {
         focus: vi.fn(() => Promise.resolve()),
         open: vi.fn(),
         openInEditor: vi.fn(() => Promise.resolve()),
+        openWithDefaultApp: vi.fn(() => Promise.resolve()),
         reveal: vi.fn(),
         status: vi.fn(() => 'background' as const),
         trash: vi.fn(() => Promise.resolve()),
@@ -60,6 +61,35 @@ describe('createDesktopOperationHandler', () => {
         expect(injected.reveal).toHaveBeenCalledWith(target.path);
         expect(injected.focus).not.toHaveBeenCalled();
         expect(injected.open).not.toHaveBeenCalled();
+    });
+
+    it('hands a consumed target to the default application without focusing the window', async () => {
+        const injected = handlers();
+        const consumeTarget = vi.fn(() => Promise.resolve(target));
+        const handle = createDesktopOperationHandler(injected);
+
+        await expect(
+            handle({ kind: 'openWithDefaultApp', targetId: target.targetId }, consumeTarget),
+        ).resolves.toBeNull();
+        expect(consumeTarget).toHaveBeenCalledOnce();
+        expect(injected.openWithDefaultApp).toHaveBeenCalledWith(target.path);
+        expect(injected.focus).not.toHaveBeenCalled();
+        expect(injected.open).not.toHaveBeenCalled();
+    });
+
+    it('surfaces a refused default-application launch as a rejection', async () => {
+        const injected = handlers();
+        injected.openWithDefaultApp = vi.fn(() =>
+            Promise.reject(new Error('No application is registered')),
+        );
+        const handle = createDesktopOperationHandler(injected);
+
+        await expect(
+            handle(
+                { kind: 'openWithDefaultApp', targetId: target.targetId },
+                vi.fn(() => Promise.resolve(target)),
+            ),
+        ).rejects.toThrow('No application is registered');
     });
 
     it('focuses the window before opening a consumed target', async () => {

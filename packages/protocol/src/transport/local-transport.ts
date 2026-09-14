@@ -210,6 +210,7 @@ export const desktopOperationSchema = z.discriminatedUnion('kind', [
     z.object({ kind: z.literal('focus') }),
     z.object({ kind: z.literal('open'), targetId: identifierSchema }),
     z.object({ kind: z.literal('reveal'), targetId: identifierSchema }),
+    z.object({ kind: z.literal('openWithDefaultApp'), targetId: identifierSchema }),
     /**
      * Carries the resolved `workbench.externalEditor` command with the operation instead of letting Main read it back
      * from Server Core. A Desktop command handler may only call back over the dedicated `desktop-target.consume` lane;
@@ -259,7 +260,7 @@ export const localClientDesktopTargetConsumeSchema = z.object({
 
 const sessionDesktopTargetPayloadSchema = z.object({
     targetId: identifierSchema,
-    operation: z.enum(['open', 'reveal', 'openInEditor', 'trash']),
+    operation: z.enum(['open', 'reveal', 'openWithDefaultApp', 'openInEditor', 'trash']),
     kind: z.enum(['file', 'directory']),
     sessionId: identifierSchema,
     path: pathSchema,
