@@ -448,4 +448,68 @@ describe('CaxriDatabase Workbench Root editor state', () => {
         ]);
         database.close();
     });
+
+    it('forgets a trashed path in a Workbench Root the Session is no longer showing', async () => {
+        const directory = await temporaryDirectory('caxri-db-trash-forget-editor-');
+        const ownerRoot = join(directory, 'owner');
+        const worktreeRoot = join(directory, 'worktree');
+        await Promise.all([mkdir(ownerRoot), mkdir(worktreeRoot)]);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const owner = database.createProject(ownerRoot);
+        const worktree = database.createProject(worktreeRoot);
+        const created = database.createSession(owner.id, 'shell');
+        const trashedDirectory = join(ownerRoot, 'src');
+        const nestedPath = join(trashedDirectory, 'nested', 'deep.ts');
+        const directPath = join(trashedDirectory, 'entry.ts');
+        const survivingPath = join(ownerRoot, 'source.ts');
+        // Shares the trashed directory's name as a string prefix while being a sibling, not a descendant.
+        const siblingPath = join(ownerRoot, 'src-extra', 'kept.ts');
+        const transcriptPath = 'caxri-agent-transcript://terminal-1/Claude%20Code';
+        const ownerState = database.getSessionState(created.session.id);
+        database.updateSessionState({
+            ...ownerState,
+            paneLayout: [survivingPath, siblingPath, transcriptPath, directPath, nestedPath].reduce(
+                (layout, path) => openResource(layout, { kind: 'file', path }),
+                ownerState.paneLayout,
+            ),
+        });
+        const identity = await lstat(worktreeRoot, { bigint: true });
+        database.selectWorkbenchProject(created.session.id, worktree.id, {
+            device: identity.dev.toString(),
+            inode: identity.ino.toString(),
+        });
+        const worktreePath = join(worktreeRoot, 'src', 'entry.ts');
+        const worktreeState = database.getSessionState(created.session.id);
+        // The same relative path under the other Root; only the named Root may lose its tab.
+        database.updateSessionState({
+            ...worktreeState,
+            paneLayout: openResource(worktreeState.paneLayout, {
+                kind: 'file',
+                path: worktreePath,
+            }),
+        });
+        const statesBeforeTrash = readStoredRootStates(database, created.session.id);
+
+        expect(database.removeWorkbenchEditorPath(owner.id, trashedDirectory)).toBe(1);
+
+        const statesAfterTrash = readStoredRootStates(database, created.session.id);
+        expect(filePaths(statesAfterTrash[owner.id].paneLayout)).toEqual([
+            survivingPath,
+            siblingPath,
+            transcriptPath,
+        ]);
+        expect(statesAfterTrash[worktree.id]).toEqual(statesBeforeTrash[worktree.id]);
+        // The Session is still parked on the worktree Root, so the state it reads back is untouched.
+        expect(filePaths(database.getSessionState(created.session.id).paneLayout)).toEqual([
+            worktreePath,
+        ]);
+
+        // A trashed file closes only its own tab, and a repeat over an already-cleaned path changes nothing.
+        expect(database.removeWorkbenchEditorPath(owner.id, survivingPath)).toBe(1);
+        expect(database.removeWorkbenchEditorPath(owner.id, trashedDirectory)).toBe(0);
+        expect(
+            filePaths(readStoredRootStates(database, created.session.id)[owner.id].paneLayout),
+        ).toEqual([siblingPath, transcriptPath]);
+        database.close();
+    });
 });

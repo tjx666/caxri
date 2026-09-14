@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { lstat, realpath } from 'node:fs/promises';
+import { relative } from 'node:path';
 
 import type {
     NewWorktreeBehavior,
@@ -14,6 +15,7 @@ import { logEventCatalog } from '@caxri/system';
 import type { AgentLifecycleSignal, AgentSignalDecision } from './agents';
 import type { CaxriDatabase } from './db';
 import type { GitService, GitWorktreeTopology } from './git';
+import { assertInsideRoot } from './path-security';
 import { SingleFlight } from './single-flight';
 import type { WorktreeProvenanceScope } from './workbench-provenance';
 import {
@@ -575,6 +577,31 @@ export class WorkbenchRootService {
     dismissCandidate(sessionId: string, candidateId: string): void {
         this.requireCandidate(sessionId, candidateId);
         this.candidates.delete(candidateId);
+    }
+
+    /**
+     * Removes the trashed path's editor tabs from every Session's stored snapshot of one Workbench Root.
+     *
+     * The Renderer can only close tabs for the root each Session is currently showing, so without this a Session parked
+     * elsewhere keeps a tab for a file that no longer exists and reopens it stuck on `Loading file…` (issue #909).
+     *
+     * Containment is checked against the named root rather than the Session's current one, because a Trash is always
+     * authorized against the root the confirmation was about, which the Session may have left since. Requiring the root
+     * to be the Session's owner or its active root keeps a Renderer from naming an unrelated Project's stored layout.
+     */
+    forgetEditorPath(sessionId: string, workbenchProjectId: string, path: string): void {
+        const session = this.requireSession(sessionId);
+        if (
+            workbenchProjectId !== session.projectId &&
+            workbenchProjectId !== session.workbenchProjectId
+        )
+            throw new CaxriError('PATH_DENIED', 'Workbench Root is not selected by this Session');
+        const project = this.requireProject(workbenchProjectId);
+        assertInsideRoot(
+            relative(project.rootPath, path),
+            'Trashed path is outside the Workbench Root',
+        );
+        this.options.database.removeWorkbenchEditorPath(workbenchProjectId, path);
     }
 
     /**

@@ -63,6 +63,15 @@ export interface ResourceExplorerClient {
         options?: { hasUnsavedChanges?: boolean },
         signal?: AbortSignal,
     ): Promise<MutableFileEntry | { canceled: true }>;
+    /**
+     * Drops a trashed path's editor tabs from the Workbench Root's durable snapshot, which is the only copy for the
+     * Sessions parked on another root (issue #909).
+     */
+    forgetEditorPath(
+        workbenchProjectId: string,
+        path: string,
+        signal?: AbortSignal,
+    ): Promise<null>;
 }
 
 function requireSessionId(sessionId: string | undefined): string {
@@ -84,6 +93,7 @@ type ResourceExplorerMethod = Extract<
     | 'files.reveal'
     | 'files.search'
     | 'files.trash'
+    | 'session.workbenchRoot.forgetEditorPath'
 >;
 
 function request<M extends ResourceExplorerMethod>(
@@ -165,6 +175,12 @@ export function createResourceExplorerClient(
         },
         search: (options, signal) =>
             request('files.search', { sessionId: requireSessionId(sessionId), ...options }, signal),
+        forgetEditorPath: (workbenchProjectId, path, signal) =>
+            request(
+                'session.workbenchRoot.forgetEditorPath',
+                { sessionId: requireSessionId(sessionId), workbenchProjectId, path },
+                signal,
+            ),
         trash: (path, options, signal) =>
             request(
                 'files.trash',

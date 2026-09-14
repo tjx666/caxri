@@ -429,6 +429,13 @@ export async function didTrashFile(
     );
     if (!result || 'canceled' in result) return false;
     closeOpenEditorsUnderPath(workbenchProjectId, result.path);
+    /**
+     * Only this root's pane layout is in memory, so the call above cannot reach a Session parked on another root. Its
+     * layout for this root lives on the Server, and a tab left there reopens stuck on `Loading file…` (issue #909).
+     */
+    await tryCommand('Trashed editor state could not be cleaned up', () =>
+        client.forgetEditorPath(workbenchProjectId, result.path),
+    );
     await invalidateDirectory(client, parentDirectoryPath(result.path));
     pushToast('success', `Moved '${result.name}' to Trash`);
     /**
