@@ -218,13 +218,16 @@ export interface TreeDataProvider<T> {
 }
 
 /**
- * Numeric activity owned by a view; the Workbench formats and aggregates it on the container.
+ * Activity owned by a view; the Workbench formats and aggregates it on the container.
+ *
+ * Report meaning, not appearance — the Workbench picks the icon and the fill, so a container never shows two views'
+ * badges in two unrelated colors. `count` is a plain tally. `error` and `warning` are severities: the Workbench draws
+ * its own fixed icon for them, so they stay distinguishable without relying on color, and their `count` is optional for
+ * a provider that knows something is failing but not how many things.
  */
-export interface ViewBadge {
-    count: number;
-    description: string;
-    tone?: 'neutral' | 'danger';
-}
+export type ViewBadge =
+    | { kind: 'count'; count: number; description: string }
+    | { kind: 'error' | 'warning'; count?: number; description: string };
 
 export interface ViewBadgeProvider {
     /**

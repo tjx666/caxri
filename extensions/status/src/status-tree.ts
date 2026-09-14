@@ -450,14 +450,20 @@ function buildRepoChildren(
         }
         nodes.push(
             item(`${prefix}:pr`, `#${pullRequest.number} ${pullRequest.title}`, {
-                icon: presentation.icon,
-                description: checkLabels[pullRequest.state],
+                /**
+                 * The row carries two independent statuses, so each gets its own slot instead of spending the
+                 * description on a `CI failed` string that competed with the title for width: the leading icon
+                 * aggregates the check states shown by the child rows, and the trailing icon is the pull request's own
+                 * lifecycle.
+                 */
+                icon: stateIcons[pullRequest.state],
+                trailingIcon: presentation.icon,
                 accessibilityLabel: `#${pullRequest.number} ${pullRequest.title}, ${presentation.label}, ${checkLabels[pullRequest.state]}`,
                 url: pullRequest.url,
                 tooltip: {
                     badge: { label: presentation.label, tone: presentation.tone },
                     rows: [
-                        { label: 'checks', value: pullRequest.state },
+                        { label: 'checks', value: checkLabels[pullRequest.state] },
                         ...(pullRequest.hiddenCheckCount > 0
                             ? [
                                   {

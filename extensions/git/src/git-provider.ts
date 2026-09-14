@@ -151,18 +151,26 @@ export class GitProvider implements SourceControlProvider {
         };
     }
 
-    private clearDetails(state: GitProviderScopeState, shouldPreservePullRequests = false): void {
+    private clearDetails(state: GitProviderScopeState, shouldPreserveSettled = false): void {
         if (state.contentTimer) clearTimeout(state.contentTimer);
         state.contentTimer = undefined;
         for (const detail of [...state.commitDetails.values(), ...state.pullRequests.values()]) {
             detail.cancellation.cancel();
             detail.cancellation.dispose();
         }
-        state.commitDetails.clear();
-        if (shouldPreservePullRequests) {
-            // Keep settled content visible while a replacement request runs in the same repository context.
-            for (const detail of state.pullRequests.values()) detail.key = '';
-        } else state.pullRequests.clear();
+        if (shouldPreserveSettled) {
+            /**
+             * Keep settled content visible while a replacement request runs in the same repository context. Blanking
+             * the key alone re-queues the request; each loader decides whether its own `identity` still matches and so
+             * whether the old value may stay on screen meanwhile (#584). Dropping the entries instead made every
+             * watcher-driven refresh repaint the panel as empty and then back, which read as a periodic flash.
+             */
+            for (const detail of [...state.commitDetails.values(), ...state.pullRequests.values()])
+                detail.key = '';
+        } else {
+            state.commitDetails.clear();
+            state.pullRequests.clear();
+        }
     }
 
     private scheduleContentChange(state: GitProviderScopeState): void {
@@ -225,7 +233,14 @@ export class GitProvider implements SourceControlProvider {
         current?.cancellation.cancel();
         current?.cancellation.dispose();
         const cancellation = new CancellationTokenSource();
-        const detail: DetailState<GitCommitDetails> = { cancellation, key, status: 'loading' };
+        const detail: DetailState<GitCommitDetails> = {
+            cancellation,
+            // The commit is its own identity: re-reading the same sha may keep showing the settled diff.
+            identity: sha,
+            key,
+            status: 'loading',
+            value: current?.identity === sha ? current.value : undefined,
+        };
         state.commitDetails.set(repo.id, detail);
         this.enqueueDetail({
             cancellation,
@@ -500,8 +515,8 @@ export class GitProvider implements SourceControlProvider {
             if (state.mode === 'commit') {
                 this.loadCommitDetails(state, repo);
                 const detail = state.commitDetails.get(repo.id);
-                if (detail?.status === 'ready' && detail.value) details.set(repo.id, detail.value);
-                else if (detail?.status === 'error') detailErrors.set(repo.id, true);
+                if (detail?.status === 'error') detailErrors.set(repo.id, true);
+                else if (detail?.value) details.set(repo.id, detail.value);
             } else if (state.mode === 'pull-request') {
                 this.loadPullRequest(state, repo);
                 const detail = state.pullRequests.get(repo.id);

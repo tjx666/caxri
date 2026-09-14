@@ -56,8 +56,8 @@ describe('Status tab badge', () => {
             },
         });
         expect(statusBadge(summary([repo, { ...repo, id: 'nested', kind: 'submodule' }]))).toEqual({
+            kind: 'error',
             count: 3,
-            tone: 'danger',
             description: '2 failed checks, 1 failed deployment',
         });
     });
@@ -78,8 +78,8 @@ describe('Status tab badge', () => {
             }),
         );
         expect(statusBadge(summary(repos))).toEqual({
+            kind: 'error',
             count: 101,
-            tone: 'danger',
             description: '101 failed checks',
         });
         const healthy = summary([repo_()]);

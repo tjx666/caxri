@@ -41,6 +41,8 @@ export const draculaTheme: ThemeTokens = {
          */
         merged: '#bd93f9',
         badge: '#ff79c6',
+        errorBadge: '#ff5555',
+        warningBadge: '#f1fa8c',
         gitAdded: '#81b88b',
         gitModified: '#8be9fd',
         gitDeleted: '#ff5555',
@@ -107,6 +109,8 @@ export const monokaiTheme: ThemeTokens = {
          * `badge.background` (`#75715e`) styles search-result chips, a different control.
          */
         badge: '#007acc',
+        errorBadge: '#f92672',
+        warningBadge: '#e6db74',
         gitAdded: '#81b88b',
         gitModified: '#e2c08d',
         gitDeleted: '#c74e39',
@@ -169,6 +173,8 @@ export const oneDarkProTheme: ThemeTokens = {
         danger: '#e06c75',
         merged: '#c678dd',
         badge: '#4d78cc',
+        errorBadge: '#e06c75',
+        warningBadge: '#e5c07b',
         gitAdded: '#81b88b',
         gitModified: '#e2c08d',
         gitDeleted: '#c74e39',
@@ -259,6 +265,8 @@ export const solarizedDarkTheme: ThemeTokens = {
          */
         merged: '#8f8fd4',
         badge: '#007acc',
+        errorBadge: '#dc322f',
+        warningBadge: '#b58900',
         gitAdded: '#81b88b',
         gitModified: '#e2c08d',
         gitDeleted: '#c74e39',
@@ -312,6 +320,8 @@ export const solarizedLightTheme: ThemeTokens = {
          */
         merged: '#5c5fb0',
         badge: '#b58900',
+        errorBadge: '#dc322f',
+        warningBadge: '#b58900',
         /**
          * The Git extension's light-variant defaults; this is the one built-in whose decorations must read on a light
          * canvas.
@@ -377,6 +387,8 @@ export const tokyoNightTheme: ThemeTokens = {
         danger: '#f7768e',
         merged: '#bb9af7',
         badge: '#3d59a1',
+        errorBadge: '#f7768e',
+        warningBadge: '#e0af68',
         gitAdded: '#449dab',
         gitModified: '#6183bb',
         gitDeleted: '#914c54',
@@ -451,6 +463,8 @@ export const oscuraMidnightTheme: ThemeTokens = {
          */
         merged: '#a89ec9',
         badge: '#e6e7a3',
+        errorBadge: '#ff5c5c',
+        warningBadge: '#d2d714',
         gitAdded: '#81b88b',
         /**
          * Oscura deliberately decorates a changed file with plain white instead of a status hue, so these two sit a
@@ -518,6 +532,8 @@ export const vscodeDarkPlusTheme: ThemeTokens = {
         danger: '#f48771',
         merged: '#c586c0',
         badge: '#007acc',
+        errorBadge: '#f48771',
+        warningBadge: '#cca700',
         gitAdded: '#81b88b',
         gitModified: '#e2c08d',
         gitDeleted: '#c74e39',
@@ -642,6 +658,8 @@ const UPGRADABLE_COLOR_ROLES = [
     'gitDeleted',
     'gitUntracked',
     'gitConflicting',
+    'errorBadge',
+    'warningBadge',
 ] as const satisfies ReadonlyArray<keyof ThemeTokens['colors']>;
 
 /**
@@ -658,6 +676,13 @@ const CUSTOM_THEME_ROLE_SOURCE = {
     gitDeleted: 'danger',
     gitUntracked: 'success',
     gitConflicting: 'danger',
+    /**
+     * The severity fills borrow the severity text colors a theme already carries. Not ideal — those are tuned for text
+     * on the canvas rather than as a fill — but it is the only value in the file that means the same thing, and the
+     * badge derives its own readable foreground on top of whatever it gets.
+     */
+    errorBadge: 'danger',
+    warningBadge: 'warning',
 } as const satisfies Record<(typeof UPGRADABLE_COLOR_ROLES)[number], keyof ThemeTokens['colors']>;
 
 /**

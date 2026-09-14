@@ -11,14 +11,14 @@ export interface ArchivedSessionFilters {
     query: string;
 }
 
-interface ArchivedSessionItem {
+export interface ArchivedSessionItem {
     agent: TerminalKind;
     archivedAt: number;
     session: SessionRecord;
     terminal?: TerminalRecord;
 }
 
-interface ArchivedSessionGroup {
+export interface ArchivedSessionGroup {
     project: ProjectRecord;
     sessions: ArchivedSessionItem[];
 }

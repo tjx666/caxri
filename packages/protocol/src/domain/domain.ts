@@ -445,6 +445,15 @@ export const themeTokensSchema = z.object({
          */
         badge: hex,
         /**
+         * Fills for the severity variants of the same badge, mirroring VS Code's `activityErrorBadge.background` and
+         * `activityWarningBadge.background`. Separate roles rather than reuses of `danger` and `warning`: those two are
+         * text colors tuned to sit on the editor canvas (they import from `editorError.foreground` /
+         * `editorWarning.foreground`), and a color that reads as a squiggle is not automatically a readable fill behind
+         * a 10px digit.
+         */
+        errorBadge: hex,
+        warningBadge: hex,
+        /**
          * Working-tree decoration colors, mirroring VS Code's `gitDecoration.*` resource foregrounds. A theme that
          * leaves one unset inherits the built-in Git extension's default, so every built-in below carries the exact
          * color VS Code would paint. `renamed` shares `gitUntracked` (VS Code's two defaults are the same green) and

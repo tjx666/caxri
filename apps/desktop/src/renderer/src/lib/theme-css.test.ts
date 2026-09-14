@@ -41,6 +41,8 @@ function themeFixture(): ThemeTokens {
             danger: '#b00000',
             merged: '#c00000',
             badge: '#d00000',
+            errorBadge: '#d01000',
+            warningBadge: '#d02000',
             gitAdded: '#e00000',
             gitModified: '#f00000',
             gitDeleted: '#010000',
@@ -89,7 +91,7 @@ describe('applyCssTheme', () => {
 
         // Derived from the fixture, plus the foregrounds `applyCssTheme` computes, so a new color role
         // is covered here automatically instead of failing on a stale literal.
-        const derivedProperties = 3;
+        const derivedProperties = 5;
         expect(setProperty).toHaveBeenCalledTimes(
             Object.keys(theme.colors).length + derivedProperties,
         );
@@ -119,6 +121,17 @@ describe('applyCssTheme', () => {
             expect(
                 contrastRatio(properties.get('--badge-foreground')!, theme.colors.badge),
                 `${theme.id} badge foreground`,
+            ).toBeGreaterThanOrEqual(4.5);
+            expect(
+                contrastRatio(properties.get('--error-badge-foreground')!, theme.colors.errorBadge),
+                `${theme.id} error badge foreground`,
+            ).toBeGreaterThanOrEqual(4.5);
+            expect(
+                contrastRatio(
+                    properties.get('--warning-badge-foreground')!,
+                    theme.colors.warningBadge,
+                ),
+                `${theme.id} warning badge foreground`,
             ).toBeGreaterThanOrEqual(4.5);
         }
 

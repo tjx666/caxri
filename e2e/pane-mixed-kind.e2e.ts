@@ -166,9 +166,14 @@ test('a pane holding a Terminal and a document treats both tabs the same', async
         await expect(running.page.locator('.work-tab')).toHaveCount(2);
         await expect(panes).toHaveCount(1);
 
-        // The same Terminal tab, now that its pane has somewhere to split from.
+        /**
+         * The same Terminal tab, now that its pane has somewhere to split from. A Terminal's bulk close spans the whole
+         * rail rather than only the Terminals on it, so the document beside it is what these two entries act on;
+         * scoping them to Terminals left both permanently disabled in exactly this layout.
+         */
         await terminalTab.click({ button: 'right' });
-        await expect(running.page.getByRole('menuitem', { name: 'Close Others' })).toBeDisabled();
+        await expect(running.page.getByRole('menuitem', { name: 'Close Others' })).toBeEnabled();
+        await expect(running.page.getByRole('menuitem', { name: 'Close Editors' })).toBeEnabled();
         await running.page.getByRole('menuitem', { name: 'Split Right' }).click();
         await expect(panes).toHaveCount(2);
 
