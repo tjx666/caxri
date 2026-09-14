@@ -1,5 +1,4 @@
 import type {
-    CaxriMethod,
     ExtensionViewEventContext,
     SourceControlActionResult,
     SourceControlHistoryDetails,
@@ -9,6 +8,7 @@ import type {
 import type { QueryClient } from '@tanstack/react-query';
 
 import { caxri } from '../../lib/caxri';
+import { CONTROLLED_VIEW_QUERY_METHOD } from '../../queries/client';
 
 export interface SourceControlClient {
     readonly viewId: string;
@@ -49,13 +49,12 @@ type ViewOperation =
     | 'source.historyPage'
     | 'source.snapshot';
 
-export type ControlledViewQueryOperation = ViewOperation | 'files.list' | 'files.search';
-
 /**
- * The method every controlled-view read is cached under. Exported so the invalidation predicates in `invalidation.ts`
- * match the same constant this factory writes, rather than repeating the literal on the matching side.
+ * Every operation name {@link controlledViewQueryKey} can put in a cache key. Cache predicates match against this union
+ * rather than bare strings so an operation that no controlled view produces cannot sit in a matcher forever without
+ * matching anything (issue #799).
  */
-export const CONTROLLED_VIEW_QUERY_METHOD = 'viewContainers.viewOperation' satisfies CaxriMethod;
+export type ControlledViewQueryOperation = ViewOperation | 'files.list' | 'files.search';
 
 export function controlledViewQueryKey(
     viewId: string,

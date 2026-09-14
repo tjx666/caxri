@@ -281,6 +281,7 @@ const rows: SettingRowDescriptor[] = [
     },
     specRow('terminal.defaultWorkingDirectory'),
     specRow('editor.fontFamily'),
+    specRow('editor.unfoldOnClickAfterEndOfLine'),
     {
         ...specRow('security.trustedDomains'),
         binding: { type: 'trusted-domains' },

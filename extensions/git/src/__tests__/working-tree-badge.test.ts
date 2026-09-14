@@ -13,7 +13,7 @@ describe('working tree badge', () => {
                     { ...repo, id: 'submodule', kind: 'submodule', changedFileCount: 2 },
                 ],
             }),
-        ).toEqual({ count: 122, description: '122 changes', tone: 'neutral' });
+        ).toEqual({ kind: 'count', count: 122, description: '122 changes' });
     });
 
     it('hides zero and unavailable summaries', () => {

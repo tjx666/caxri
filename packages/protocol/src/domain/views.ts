@@ -326,11 +326,27 @@ export const extensionViewChangeSchema = z.discriminatedUnion('kind', [
     }),
 ]);
 
-export const viewBadgeSchema = z.object({
-    count: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
-    description: z.string().min(1).max(2_048),
-    tone: z.enum(['neutral', 'danger']).optional(),
-});
+const viewBadgeCountSchema = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
+const viewBadgeDescriptionSchema = z.string().min(1).max(2_048);
+
+/**
+ * An extension reports what the activity means, never how it looks: the Workbench owns the icon, the fill, the digit
+ * cap, and how badges from several views in one container combine. `count` is a plain tally with no severity; `error`
+ * and `warning` are severities whose tally is optional, because a provider that knows something is failing without
+ * knowing how many things are failing must still be able to say so.
+ */
+export const viewBadgeSchema = z.discriminatedUnion('kind', [
+    z.object({
+        kind: z.literal('count'),
+        count: viewBadgeCountSchema,
+        description: viewBadgeDescriptionSchema,
+    }),
+    z.object({
+        kind: z.enum(['error', 'warning']),
+        count: viewBadgeCountSchema.optional(),
+        description: viewBadgeDescriptionSchema,
+    }),
+]);
 
 export type ViewBadge = z.infer<typeof viewBadgeSchema>;
 

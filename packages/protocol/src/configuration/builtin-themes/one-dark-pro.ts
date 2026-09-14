@@ -22,6 +22,8 @@ export const oneDarkProTheme: ThemeTokens = {
         danger: '#e06c75',
         merged: '#c678dd',
         badge: '#4d78cc',
+        errorBadge: '#e06c75',
+        warningBadge: '#e5c07b',
         gitAdded: '#81b88b',
         gitModified: '#e2c08d',
         gitDeleted: '#c74e39',

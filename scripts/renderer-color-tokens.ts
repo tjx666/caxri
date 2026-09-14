@@ -19,6 +19,8 @@ export const registeredColorRoles = [
     'danger',
     'danger-foreground',
     'elevated',
+    'error-badge',
+    'error-badge-foreground',
     'foreground',
     'git-added',
     'git-conflicting',
@@ -51,6 +53,8 @@ export const registeredColorRoles = [
     'title-bar-inactive-background',
     'title-bar-inactive-foreground',
     'warning',
+    'warning-badge',
+    'warning-badge-foreground',
 ];
 
 /**

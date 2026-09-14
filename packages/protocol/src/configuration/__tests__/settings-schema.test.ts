@@ -68,6 +68,7 @@ describe('settings spec and schema agreement', () => {
         expect(defaultAppSettings['editor.fontFamily']).toBe(
             "'Fira Code', 'JetBrains Mono', 'Caxri JetBrains Mono', monospace",
         );
+        expect(defaultAppSettings['editor.unfoldOnClickAfterEndOfLine']).toBe(true);
         expect(defaultAppSettings['agents.providers'].claude.launch.args).toEqual([
             '--dangerously-skip-permissions',
         ]);
@@ -81,6 +82,7 @@ describe('settings spec and schema agreement', () => {
             'terminal.gpuAcceleration': 'off',
             'terminal.osc52ClipboardWrite': false,
             'editor.fontFamily': null,
+            'editor.unfoldOnClickAfterEndOfLine': false,
             'agents.providers': {
                 claude: {
                     launch: { executable: 'claude', args: ['--profile', 'manual'] },
@@ -92,6 +94,7 @@ describe('settings spec and schema agreement', () => {
         expect(saved['terminal.gpuAcceleration']).toBe('off');
         expect(saved['terminal.osc52ClipboardWrite']).toBe(false);
         expect(saved['editor.fontFamily']).toBeNull();
+        expect(saved['editor.unfoldOnClickAfterEndOfLine']).toBe(false);
         expect(saved['agents.providers'].claude.launch.args).toEqual(['--profile', 'manual']);
         expect(saved['agents.providers'].codex.launch.args).toEqual(
             defaultAgentProviderSettings.codex.launch.args,

@@ -1,7 +1,7 @@
 import type { AgentTranscriptTab } from '@caxri/protocol';
 import Editor from '@monaco-editor/react';
 
-import { useEditorFontFamily } from '@/hooks/use-editor-font-family';
+import { useEditorOptions } from '@/hooks/use-editor-options';
 
 import { Button } from '../../components/ui/button';
 import { applyEditorTheme } from '../../lib/editor-theme';
@@ -23,7 +23,7 @@ const emptyWorkDangerClassName =
  */
 export function AgentTranscriptEditor({ tab }: { tab: AgentTranscriptTab }) {
     const theme = useTheme();
-    const fontFamily = useEditorFontFamily();
+    const editorOptions = useEditorOptions();
     const query = useCaxriQuery('terminal.agentTranscript', {
         terminalId: tab.terminalId,
         withContent: true,
@@ -76,12 +76,8 @@ export function AgentTranscriptEditor({ tab }: { tab: AgentTranscriptTab }) {
                     beforeMount={() => applyEditorTheme(theme)}
                     onMount={follow.onMount}
                     options={{
-                        automaticLayout: true,
-                        ...(fontFamily && { fontFamily }),
-                        fontSize: 13,
-                        minimap: { enabled: false },
+                        ...editorOptions,
                         readOnly: true,
-                        scrollBeyondLastLine: false,
                         wordWrap: 'on',
                     }}
                 />

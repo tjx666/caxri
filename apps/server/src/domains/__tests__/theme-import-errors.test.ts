@@ -211,4 +211,23 @@ describe('JSON theme import', () => {
         expect(error.code).toBe('VALIDATION');
         expect(error.message).toContain('not readable JSON');
     });
+
+    it('reports an include parent that is not a JSON object as such, not as a bad path', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-json-include-root-'));
+        temporaryDirectories.push(directory);
+        await writeFile(join(directory, 'base.json'), '[]', 'utf8');
+        const path = join(directory, 'child.json');
+        await writeFile(
+            path,
+            JSON.stringify({ include: './base.json', colors: { 'editor.background': '#101010' } }),
+            'utf8',
+        );
+
+        const error = await rejectionOf(path);
+
+        expect(error.code).toBe('VALIDATION');
+        expect(error.message).toContain('not a JSON object');
+        // The parent sits beside the child, so blaming the include path would point at the one thing that is right.
+        expect(error.message).not.toContain('same directory');
+    });
 });
