@@ -38,13 +38,29 @@ test('the PrimarySidebar reveals older Sessions on demand and always renders the
         );
         const projectId = bootstrap.projects[0]?.id;
         if (!projectId) throw new Error('Project fixture was not created');
-        for (let index = 1; index < SESSION_COUNT; index += 1)
+        let newestSessionId = '';
+        for (let index = 1; index < SESSION_COUNT; index += 1) {
             // eslint-disable-next-line no-await-in-loop -- Session activity order follows creation order
-            await pageRequest(running.page, 'session.create', { projectId, defaultAgent: null });
+            const created = await pageRequest<{ session: { id: string } }>(
+                running.page,
+                'session.create',
+                { projectId, defaultAgent: null },
+            );
+            newestSessionId = created.session.id;
+        }
 
         const sessionCards = running.page.locator('.session-list .session-card');
         const reveal = running.page.getByRole('button', { name: /^Show \d+ more Sessions? in / });
         await expect(sessionCards).toHaveCount(5);
+        /**
+         * A `session.create` reply only proves Server stored it; the sidebar learns about it from a later refresh. The
+         * reveal row cannot stand in for that wait — its label is capped at the reveal step, so it reads "Show 10 more"
+         * whether 15 or 16 Sessions have arrived. Acting one Session early is what made this case intermittent: with 15
+         * the very first reveal already drains the list, so the row hands focus to the Session above it before
+         * unmounting and the reveal row is legitimately no longer focused. Sessions are ordered by activity recency, so
+         * the newest one reaching the top row is the observable proof that every create has landed.
+         */
+        await expect(sessionCards.first()).toHaveAttribute('data-session-id', newestSessionId);
         await expect(reveal).toHaveAccessibleName(/^Show 10 more Sessions in /);
 
         // The row is the tree's last stop, so End reaches it from the Project heading.

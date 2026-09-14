@@ -28,8 +28,15 @@ import { reportAutomaticNamingNotices } from './automatic-naming-notice';
 import { openSettings } from './dialogs';
 import { recordNotification, syncNotificationSettings } from './notifications';
 import { mergeStructurally } from './structural-sharing';
-import { describeFailure, pushToast } from './toasts';
+import { describeFailure, isCancelledRequest, pushToast } from './toasts';
 import { reportWorkbenchRootChange } from './workbench-root-notice';
+import {
+    acceptTerminalReads,
+    applyFullTerminalSnapshot,
+    beginTerminalRead,
+    finishTerminalRead,
+    replaceRequestedRecords,
+} from './workbench-terminal-reads';
 
 interface WorkbenchState {
     /**
@@ -80,17 +87,6 @@ const pendingSessionRecordIds = new Set<string>();
 const pendingTerminalRecordIds = new Set<string>();
 const configErrors = { reported: false };
 const sessionPatchRevision = { current: 0 };
-/**
- * Per-Terminal request ordering for the two read paths that can overlap: full `app.bootstrap` and targeted
- * `app.records`. One monotonic counter timestamps request issuance, while `appliedById` keeps the latest successfully
- * applied read for each affected Terminal. Entries retire as soon as no older request can still resolve, so deleted
- * Terminal IDs cannot accumulate as permanent tombstones.
- */
-const terminalReads = {
-    active: new Map<number, ReadonlySet<string>>(),
-    appliedById: new Map<string, number>(),
-    sent: 0,
-};
 /**
  * Monotonic count of `session.updateState` requests issued so far. Stamped on a write when it is _sent_, not when it
  * resolves: over a single serialized Server connection, any read issued after that point is guaranteed to observe the
@@ -229,7 +225,9 @@ export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
                 });
             }
             if (isLatestRevision && isRootIsStillVisible) onLatestFailure?.();
-            if (shouldReportFailure && isLatestRevision)
+            // A cancelled write has nothing for the user to act on and usually arrives with no window left to show it
+            // on; `tryCommand` applies the same rule to every other Renderer-initiated write.
+            if (shouldReportFailure && isLatestRevision && !isCancelledRequest(error))
                 pushToast('error', describeFailure(error, failureLabel));
             return false;
         }
@@ -301,23 +299,6 @@ function applyPendingSessionPatches(state: BootstrapState, readStamp: number): B
     return { ...state, sessionStates };
 }
 
-function beginTerminalRead(terminalIds: ReadonlySet<string> = new Set()): number {
-    terminalReads.sent += 1;
-    terminalReads.active.set(terminalReads.sent, new Set(terminalIds));
-    return terminalReads.sent;
-}
-
-function finishTerminalRead(readSequence: number): void {
-    terminalReads.active.delete(readSequence);
-    const oldestActiveSequence = Math.min(...terminalReads.active.keys());
-    for (const [terminalId, appliedSequence] of terminalReads.appliedById)
-        if (oldestActiveSequence >= appliedSequence) terminalReads.appliedById.delete(terminalId);
-}
-
-function isCurrentTerminalRead(terminalId: string, readSequence: number): boolean {
-    return (terminalReads.appliedById.get(terminalId) ?? -1) <= readSequence;
-}
-
 /**
  * Dirtiness is no longer mirrored into the persisted Session state: an unsaved buffer lives only in the Renderer's
  * document cache, so a Server snapshot can be applied as is.
@@ -353,53 +334,6 @@ function applySnapshot(
     if (current.configurationErrors?.[0]) pushToast('error', current.configurationErrors[0]);
 }
 
-function replaceRequestedRecords<Record extends { id: string }>(
-    current: readonly Record[],
-    requestedIds: ReadonlySet<string>,
-    updates: readonly Record[],
-): Record[] {
-    const updatesById = new Map(updates.map((record) => [record.id, record]));
-    const currentIds = new Set(current.map((record) => record.id));
-    return [
-        ...current.flatMap((record) => {
-            if (!requestedIds.has(record.id)) return [record];
-            const update = updatesById.get(record.id);
-            return update ? [update] : [];
-        }),
-        ...updates.filter((record) => !currentIds.has(record.id)),
-    ];
-}
-
-/**
- * Applies every Terminal in a full snapshot except IDs already covered by a newer successful targeted read. The current
- * record (or its absence) is preserved for those IDs, so an older bootstrap cannot roll `dead` back to `running` or
- * resurrect a targeted deletion.
- */
-function applyFullTerminalSnapshot(
-    current: readonly TerminalRecord[],
-    incoming: readonly TerminalRecord[],
-    readSequence: number,
-): TerminalRecord[] {
-    const currentIds = new Set(current.map((terminal) => terminal.id));
-    const candidateIds = new Set([
-        ...currentIds,
-        ...incoming.map((terminal) => terminal.id),
-        ...terminalReads.appliedById.keys(),
-    ]);
-    for (const terminalIds of terminalReads.active.values())
-        for (const terminalId of terminalIds) candidateIds.add(terminalId);
-    const authoritativeIds = new Set<string>();
-    for (const terminalId of candidateIds) {
-        if (!isCurrentTerminalRead(terminalId, readSequence)) continue;
-        authoritativeIds.add(terminalId);
-        terminalReads.appliedById.set(terminalId, readSequence);
-    }
-    const safeIncoming = incoming.filter(
-        (terminal) => authoritativeIds.has(terminal.id) || currentIds.has(terminal.id),
-    );
-    return replaceRequestedRecords(current, authoritativeIds, safeIncoming);
-}
-
 function applyRecordSnapshot(
     sessionIds: ReadonlySet<string>,
     terminalIds: ReadonlySet<string>,
@@ -408,16 +342,10 @@ function applyRecordSnapshot(
 ): void {
     useWorkbenchStore.setState((current) => {
         if (!current.bootstrap) return current;
-        const acceptedTerminalIds = new Set(
+        const acceptedTerminalIds =
             terminalReadSequence === undefined
-                ? []
-                : [...terminalIds].filter((terminalId) =>
-                      isCurrentTerminalRead(terminalId, terminalReadSequence),
-                  ),
-        );
-        if (terminalReadSequence !== undefined)
-            for (const terminalId of acceptedTerminalIds)
-                terminalReads.appliedById.set(terminalId, terminalReadSequence);
+                ? new Set<string>()
+                : acceptTerminalReads(terminalIds, terminalReadSequence);
         const next = {
             ...current.bootstrap,
             sessions: replaceRequestedRecords(
@@ -525,7 +453,11 @@ async function runLoadBootstrap(): Promise<void> {
         applySnapshot(state, readStamp, terminalReadSequence);
     } catch (error: unknown) {
         finishPerformanceRequest();
-        pushToast('error', describeFailure(error, 'Unable to attach to the Runtime'));
+        // Quit refuses every queued Renderer request, so the last `state.changed` before the window closes lands here
+        // as a cancellation. Reporting it raised "Unable to attach to the Runtime" over an application that is already
+        // gone; `tryCommand` and `shouldToastQueryError` apply the same rule to the other two failure funnels.
+        if (!isCancelledRequest(error))
+            pushToast('error', describeFailure(error, 'Unable to attach to the Runtime'));
     } finally {
         finishTerminalRead(terminalReadSequence);
         bootstrapRead.inFlight = undefined;
@@ -559,11 +491,37 @@ export function refreshWorkbench(): Promise<void> {
     return queuedRead.current;
 }
 
+/**
+ * Drops a fire-and-forget patch that would persist the state Server already holds.
+ *
+ * UI-driven patches are frequently re-entered with no change at all: restoring focus to a Terminal that is already the
+ * active tab re-runs `selectTab`, which rebuilds the layout object and therefore never compares equal by reference.
+ * Sending that write costs a `session.updateState` round trip and a SQLite write per focus change, and — worse — it
+ * turns an ordinary focus restoration into a failure surface. The Terminal regains focus exactly when a dialog or
+ * command palette closes, which is also when the Session behind it may have just been deleted or the application may
+ * have started quitting, so the no-op write came back `NOT_FOUND` or `CANCELLED` and raised an "Unable to activate
+ * Terminal" notification over a Session the user deliberately removed.
+ *
+ * `persistSessionState` deliberately keeps the opposite rule: a durable workflow re-persists an already-applied
+ * optimistic state on purpose (see `remapOpenEditorsInSession`), so it must still issue the write.
+ */
+function isSessionStatePersisted(next: SessionState): boolean {
+    const previous = useWorkbenchStore
+        .getState()
+        .bootstrap?.sessionStates.find(
+            (state) =>
+                state.sessionId === next.sessionId &&
+                state.workbenchProjectId === next.workbenchProjectId,
+        );
+    return previous !== undefined && isEqual(previous, next);
+}
+
 export function patchSessionState(
     next: SessionState,
     failureLabel?: string,
     onLatestFailure?: () => void,
 ): void {
+    if (isSessionStatePersisted(next)) return;
     // Fire-and-forget: the store method already funnels every failure into a toast internally and
     // never rejects, so this synchronous-looking wrapper never needs to await the outcome.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above

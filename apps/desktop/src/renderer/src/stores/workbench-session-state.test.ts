@@ -1,5 +1,5 @@
 import type { BootstrapState, SessionState } from '@caxri/protocol';
-import { externalEditorTabPath } from '@caxri/protocol';
+import { CaxriError, externalEditorTabPath } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -24,7 +24,12 @@ vi.mock('./notifications', () => ({
 import { resetExternalEditorStateForTests } from '../features/editor/external-editor-state';
 import { useSessionViewStore } from './session-view';
 import { dismissToast, getToasts } from './toasts';
-import { patchSessionState, refreshWorkbench, useWorkbenchStore } from './workbench';
+import {
+    patchSessionState,
+    persistSessionState,
+    refreshWorkbench,
+    useWorkbenchStore,
+} from './workbench';
 
 /**
  * A minimal one-pane layout; these tests only care that Session state round-trips, not about its tree shape.
@@ -536,5 +541,82 @@ describe('workbench Session state', () => {
 
         expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([agentsState]);
         expect(getToasts()).toEqual([]);
+    });
+
+    /**
+     * Restoring focus to a Terminal that is already the active tab rebuilds the layout object, so the patch compares
+     * unequal by reference while describing the state Server already holds. Writing it cost a round trip per focus
+     * change and, worse, could only fail: the Session behind the restored focus may have just been deleted, or the
+     * application may already be quitting.
+     */
+    it('drops a fire-and-forget patch that repeats the persisted Session state', () => {
+        const filesState: SessionState = {
+            sessionId: 'session-1',
+            workbenchProjectId: 'project-1',
+            desiredSecondarySidebarViewContainerId: 'caxri.files',
+            paneLayout: paneLayout('/project/a.ts'),
+        };
+        const bootstrap = {
+            configurationErrors: [],
+            sessionStates: [filesState],
+        } as unknown as BootstrapState;
+        useWorkbenchStore.setState({ bootstrap });
+
+        patchSessionState(
+            { ...filesState, paneLayout: paneLayout('/project/a.ts') },
+            'Unable to activate Terminal',
+        );
+
+        expect(mocks.request).not.toHaveBeenCalled();
+        expect(getToasts()).toEqual([]);
+        expect(useWorkbenchStore.getState().bootstrap).toBe(bootstrap);
+    });
+
+    it('keeps persisting a durable re-write of the state already applied locally', async () => {
+        const filesState: SessionState = {
+            sessionId: 'session-1',
+            workbenchProjectId: 'project-1',
+            desiredSecondarySidebarViewContainerId: 'caxri.files',
+            paneLayout: paneLayout('/project/a.ts'),
+        };
+        useWorkbenchStore.setState({
+            bootstrap: {
+                configurationErrors: [],
+                sessionStates: [filesState],
+            } as unknown as BootstrapState,
+        });
+        mocks.request.mockResolvedValue(filesState);
+
+        await expect(persistSessionState({ ...filesState })).resolves.toBe(true);
+
+        expect(mocks.request).toHaveBeenCalledWith('session.updateState', filesState);
+    });
+
+    it('stays quiet when a Session-state write is cancelled', async () => {
+        const filesState: SessionState = {
+            sessionId: 'session-1',
+            workbenchProjectId: 'project-1',
+            desiredSecondarySidebarViewContainerId: 'caxri.files',
+            paneLayout: paneLayout(),
+        };
+        useWorkbenchStore.setState({
+            bootstrap: {
+                configurationErrors: [],
+                sessionStates: [filesState],
+            } as unknown as BootstrapState,
+        });
+        mocks.request.mockImplementation((method: unknown) =>
+            method === 'session.updateState'
+                ? Promise.reject(new CaxriError('CANCELLED', 'Application is quitting'))
+                : Promise.reject(new Error(`Unexpected method: ${String(method)}`)),
+        );
+
+        await useWorkbenchStore.getState().patchSessionState({
+            ...filesState,
+            desiredSecondarySidebarViewContainerId: 'caxri.project-status',
+        });
+
+        expect(getToasts()).toEqual([]);
+        expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([filesState]);
     });
 });

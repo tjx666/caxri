@@ -119,15 +119,20 @@ test('a failed Terminal launch can retry after its folder becomes available', as
     try {
         await createProjectSession(running.page);
         await expect(running.page.locator('.work-tab[data-terminal-id]')).toHaveCount(1);
-        await running.page
-            .getByRole('treeitem', { name: 'volatile', exact: true })
-            .click({ button: 'right' });
-        await expect(
-            running.page.getByRole('menuitem', { name: 'Open in Terminal' }),
-        ).toBeVisible();
-        // Keep the tree row mounted while making its cwd inaccessible; deleting it closes the context menu.
+        /**
+         * The folder is made inaccessible before its menu is opened, never while it is open. A mode change is a watched
+         * filesystem event, so the Files tree refreshes on it; doing that behind an open context menu means the menu's
+         * own row can be re-rendered out from under it, which is how `Open in Terminal` went missing for the full click
+         * timeout in CI. The row itself stays listed either way — reading the parent directory is what enumerates it,
+         * and that is still permitted.
+         */
         await chmod(folder, 0o000);
-        await running.page.getByRole('menuitem', { name: 'Open in Terminal' }).click();
+        const volatileRow = running.page.getByRole('treeitem', { name: 'volatile', exact: true });
+        await expect(volatileRow).toBeVisible();
+        await volatileRow.click({ button: 'right' });
+        const openInTerminal = running.page.getByRole('menuitem', { name: 'Open in Terminal' });
+        await expect(openInTerminal).toBeVisible();
+        await openInTerminal.click();
 
         const failure = running.page.locator('.toast', { hasText: 'Terminal creation failed.' });
         await expect(failure).toBeVisible();
