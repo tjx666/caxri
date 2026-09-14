@@ -6,11 +6,13 @@ import {
     builtinThemeIds,
     builtinThemes,
     builtinThemeSources,
+    solarizedLightTheme,
+} from '../builtin-themes.js';
+import {
     findMatchingBuiltinTheme,
     normalizeBuiltinTheme,
-    solarizedLightTheme,
     upgradeThemeColors,
-} from '../builtin-themes.js';
+} from '../theme-roles.js';
 
 describe('built-in themes', () => {
     it('publishes the reviewed catalog in stable picker order', () => {

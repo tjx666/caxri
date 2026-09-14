@@ -76,23 +76,36 @@ roles below.
 | `--badge`                              | neutral view-container count badge fill                                        |
 | `--badge-foreground`                   | text on `--badge` (derived, not hardcoded)                                     |
 | `--git-added` … `--git-conflicting`    | working-tree decorations: added, modified, deleted, untracked, conflicting     |
+| `--tab-*`                              | tab strip fill and label, per state: active, inactive, hover                   |
+| `--list-*`                             | tree and list rows, per state: hover, focus, active/inactive selection         |
+| `--title-bar-*`                        | window title bar fill and label, by whether the window is focused              |
 | `--overlay`                            | dialog backdrop: `color-mix(in srgb, var(--background) 60%, transparent)`      |
-| `--shadow`                             | elevation shadows: translucent black derived once                              |
+| `--shadow`                             | elevation shadows: a theme value, read from `widget.shadow` on import          |
 | `--indicator`                          | neutral (non-accent) selected-tab underline for secondarySidebar/settings tabs |
 
-Derive `--accent-foreground`, `--danger-foreground`, `--badge-foreground`, `--overlay`, and
-`--shadow` in one place from theme colors. The status bar uses `--surface` plus a top hairline —
-never an accent fill.
+Derive `--accent-foreground`, `--danger-foreground`, `--badge-foreground`, and `--overlay` in one
+place from theme colors. The status bar uses `--surface` plus a top hairline — never an accent fill.
 
-Tabs, list rows, and the title bar have no roles of their own yet, so they borrow `--surface`,
-`--elevated`, and `--background`, and a VS Code theme's `tab.*`, `list.*`, `titleBar.*`, and
-`widget.shadow` are dropped on import. Adding eighteen roles for them, plus a theme value for the
-existing `--shadow`, is decided but not implemented — including which VS Code key each one reads and
-the rule that an explicitly given color is never rewritten just because it matches another role.
-Read the decision on [issue caxri#852](https://github.com/tjx666/caxri/issues/852#issuecomment-5656606135)
-before styling one of these surfaces, and do not widen `--elevated` or `--surface` to cover a state
-they already refuse: [issue caxri#903](https://github.com/tjx666/caxri/issues/903) owns the
-migration.
+Tabs, list rows, and the title bar own their states rather than borrowing a surface: eighteen
+`--tab-*`, `--list-*`, and `--title-bar-*` tokens, plus `--shadow`, which became a theme value
+instead of a derived one. Each reads one VS Code key on import — `tab.activeBackground`,
+`list.hoverBackground`, `titleBar.activeBackground`, `widget.shadow`, and so on — and falls back to
+the role that surface borrowed before, so a theme naming none of them looks exactly as it did. The
+inactive list and title-bar states inherit from their active counterparts, which is VS Code's own
+rule: a theme that styles only the focused state means the unfocused one to match. Alpha survives
+the import, because `list.hoverBackground` is a translucent wash in most themes and flattening it
+would paint an opaque band over the row instead of tinting it. An explicitly given color is never
+rewritten just because it equals another role, and none of these states writes back into
+`--background`, `--surface`, or `--elevated` — those three stay the canvas, the chrome, and the
+popup fill. Read the decision on
+[issue caxri#852](https://github.com/tjx666/caxri/issues/852#issuecomment-5656606135) for why each
+key was chosen.
+
+The two inactive title-bar roles need to know whether this window is the focused one, and CSS cannot
+ask: `:window-inactive` is a WebKit pseudo-class and Chromium, which is what Electron runs, has no
+equivalent. `lib/window-active.ts` publishes the condition as `data-window-active` on the same
+`<html>` element the color variables land on, and `styles/theme.css` defines a `window-inactive:`
+variant over it, so every surface that paints a title bar switches together.
 
 `--badge` and the five `--git-*` roles exist so the theme, not the component, decides these colors.
 Both mirror a VS Code key a theme author already writes — `activityBarBadge.background` and the Git

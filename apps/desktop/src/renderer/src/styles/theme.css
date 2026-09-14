@@ -15,6 +15,13 @@
 }
 
 /*
+ * "This window is not the focused one", for the title-bar roles. Chromium has no `:window-inactive`
+ * pseudo-class — that one is WebKit's — so `lib/window-active.ts` publishes the condition as an
+ * attribute on the same `<html>` element `applyCssTheme` writes the color variables to.
+ */
+@custom-variant window-inactive (&:where([data-window-active='false'] *));
+
+/*
  * Single semantic bridge for the workbench and Process Explorer. `applyCssTheme`
  * (`lib/theme-css.ts`) overwrites the underlying custom properties on `<html>` in either
  * window, so Tailwind utilities resolve through the same live runtime theme. `--selection`
@@ -44,6 +51,24 @@
     --color-overlay: var(--overlay);
     --color-shadow: var(--shadow);
     --color-indicator: var(--indicator);
+    --color-tab-active-background: var(--tab-active-background);
+    --color-tab-active-foreground: var(--tab-active-foreground);
+    --color-tab-inactive-background: var(--tab-inactive-background);
+    --color-tab-inactive-foreground: var(--tab-inactive-foreground);
+    --color-tab-hover-background: var(--tab-hover-background);
+    --color-tab-hover-foreground: var(--tab-hover-foreground);
+    --color-list-hover-background: var(--list-hover-background);
+    --color-list-hover-foreground: var(--list-hover-foreground);
+    --color-list-focus-background: var(--list-focus-background);
+    --color-list-focus-foreground: var(--list-focus-foreground);
+    --color-list-active-selection-background: var(--list-active-selection-background);
+    --color-list-active-selection-foreground: var(--list-active-selection-foreground);
+    --color-list-inactive-selection-background: var(--list-inactive-selection-background);
+    --color-list-inactive-selection-foreground: var(--list-inactive-selection-foreground);
+    --color-title-bar-active-background: var(--title-bar-active-background);
+    --color-title-bar-active-foreground: var(--title-bar-active-foreground);
+    --color-title-bar-inactive-background: var(--title-bar-inactive-background);
+    --color-title-bar-inactive-foreground: var(--title-bar-inactive-foreground);
 }
 
 :root {
@@ -67,12 +92,32 @@
     --git-untracked: #50fa7b;
     --git-conflicting: #ffb86c;
 
+    /* Dracula's own `tab.*`, `list.*`, and `titleBar.*`, so the pre-Runtime frame matches the default theme. */
+    --tab-active-background: #282a36;
+    --tab-active-foreground: #f8f8f2;
+    --tab-inactive-background: #21222c;
+    --tab-inactive-foreground: #6272a4;
+    --tab-hover-background: #343746;
+    --tab-hover-foreground: #f8f8f2;
+    --list-hover-background: #44475a75;
+    --list-hover-foreground: #f8f8f2;
+    --list-focus-background: #44475a75;
+    --list-focus-foreground: #f8f8f2;
+    --list-active-selection-background: #44475a;
+    --list-active-selection-foreground: #f8f8f2;
+    --list-inactive-selection-background: #44475a75;
+    --list-inactive-selection-foreground: #f8f8f2;
+    --title-bar-active-background: #21222c;
+    --title-bar-active-foreground: #f8f8f2;
+    --title-bar-inactive-background: #191a21;
+    --title-bar-inactive-foreground: #6272a4;
+
     /* `applyCssTheme` replaces these fallbacks with contrast-checked values for the active theme. */
     --accent-foreground: #282a36;
     --danger-foreground: #000000;
     --badge-foreground: #282a36;
     --overlay: color-mix(in srgb, var(--background) 60%, transparent);
-    --shadow: rgb(0 0 0 / 0.45);
+    --shadow: #00000073;
     --indicator: color-mix(in srgb, var(--foreground) 45%, transparent);
 
     color: var(--foreground);

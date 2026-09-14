@@ -3,7 +3,6 @@ import { z } from 'zod';
 import type { AgentProvider } from '../agent/agents.js';
 import { agentProviderIds } from '../agent/agents.js';
 import { MAX_CONFIGURABLE_FILE_BYTES } from '../configuration/settings-spec.js';
-import { hexColorSchema } from './color.js';
 import type { CommandId } from './commands.js';
 import { gitCommitSchema } from './git.js';
 import { paneLayoutSchema } from './pane-layout.js';
@@ -15,6 +14,7 @@ import {
 } from './views.js';
 
 export * from './git.js';
+export * from './theme.js';
 
 export const identifierSchema = z.string().min(1).max(200);
 export const pathSchema = z.string().min(1).max(16_384);
@@ -428,94 +428,6 @@ export const keybindingConflictSchema = z.object({
     commands: z.array(z.string()),
 });
 
-const hex = hexColorSchema;
-
-/**
- * Import-format ids only. `builtin` and `custom` are persistence sources, not import formats — they stay off this list
- * so a new parser must extend both this tuple and `themeTokenSourceIds`.
- */
-export const themeImportFormatIds = ['iterm2', 'warp', 'vscode'] as const;
-export type ThemeImportFormatId = (typeof themeImportFormatIds)[number];
-
-export const themeTokenSourceIds = ['builtin', 'custom', ...themeImportFormatIds] as const;
-export type ThemeTokenSource = (typeof themeTokenSourceIds)[number];
-
-export const themeTokensSchema = z.object({
-    id: z.string().min(1),
-    name: z.string().min(1),
-    source: z.enum(themeTokenSourceIds),
-    colors: z.object({
-        background: hex,
-        surface: hex,
-        elevated: hex,
-        foreground: hex,
-        muted: hex,
-        border: hex,
-        selection: hex,
-        accent: hex,
-        success: hex,
-        warning: hex,
-        danger: hex,
-        merged: hex, // landed work; DESIGN.md owns the role, `upgradeThemeColors` backfills older files
-        /**
-         * Numeric view-container badge fill, mirroring VS Code's `activityBarBadge.background`. Its text color is
-         * derived for contrast rather than persisted, like `accent` and `danger`.
-         */
-        badge: hex,
-        /**
-         * Working-tree decoration colors, mirroring VS Code's `gitDecoration.*` resource foregrounds. A theme that
-         * leaves one unset inherits the built-in Git extension's default, so every built-in below carries the exact
-         * color VS Code would paint. `renamed` shares `gitUntracked` (VS Code's two defaults are the same green) and
-         * `ignored` stays on `muted`, so neither needs a role of its own.
-         */
-        gitAdded: hex,
-        gitModified: hex,
-        gitDeleted: hex,
-        gitUntracked: hex,
-        gitConflicting: hex,
-    }),
-    terminal: z.object({
-        background: hex,
-        foreground: hex,
-        cursor: hex,
-        selectionBackground: hex,
-        black: hex,
-        red: hex,
-        green: hex,
-        yellow: hex,
-        blue: hex,
-        magenta: hex,
-        cyan: hex,
-        white: hex,
-        brightBlack: hex,
-        brightRed: hex,
-        brightGreen: hex,
-        brightYellow: hex,
-        brightBlue: hex,
-        brightMagenta: hex,
-        brightCyan: hex,
-        brightWhite: hex,
-    }),
-    editor: z.object({
-        background: hex,
-        foreground: hex,
-        lineHighlight: hex,
-        selection: hex,
-        comment: hex,
-        keyword: hex,
-        string: hex,
-        number: hex,
-    }),
-});
-
-/**
- * Import diagnostics are transient and never part of a saved theme.
- */
-export const themeImportWarningSchema = z.object({
-    id: z.string().min(1),
-    message: z.string().min(1),
-});
-
 export const fileEntrySchema = z.object({
     name: z.string(),
     path: z.string(),
@@ -770,8 +682,6 @@ export type AgentHookHealthMap = z.infer<typeof agentHookHealthMapSchema>;
 export type PersistedWindowState = z.infer<typeof persistedWindowStateSchema>;
 export type Keybinding = z.infer<typeof keybindingSchema>;
 export type KeybindingConflict = z.infer<typeof keybindingConflictSchema>;
-export type ThemeTokens = z.infer<typeof themeTokensSchema>;
-export type ThemeImportWarning = z.infer<typeof themeImportWarningSchema>;
 export type FileEntry = z.infer<typeof fileEntrySchema>;
 export type MutableFileEntry = z.infer<typeof mutableFileEntrySchema>;
 export type MovedFileEntry = z.infer<typeof movedFileEntrySchema>;

@@ -99,7 +99,7 @@ export function ProcessExplorerApp() {
                 className="process-explorer grid h-full w-full grid-rows-[42px_minmax(0,1fr)] bg-background"
                 data-sampled-at={snapshot?.sampledAt}
             >
-                <header className="process-titlebar relative flex items-center justify-center bg-surface px-12 pl-[84px] [-webkit-app-region:drag]">
+                <header className="process-titlebar relative flex items-center justify-center bg-title-bar-active-background px-12 pl-[84px] text-title-bar-active-foreground [-webkit-app-region:drag] window-inactive:bg-title-bar-inactive-background window-inactive:text-title-bar-inactive-foreground">
                     <strong className="overflow-hidden text-[12px] text-ellipsis whitespace-nowrap">
                         Process Explorer — Caxri
                     </strong>
