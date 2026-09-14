@@ -454,7 +454,8 @@ export async function closeDocumentTabs(tabIds: readonly string[]): Promise<void
 }
 
 /**
- * Close families resolved against the tab's own pane and resource kind, keeping editor and Terminal closes separate.
+ * Close families resolved against the tab's own pane, on the scoping rules `paneTabIdsToClose` documents: an editor's
+ * bulk close never reaches a Terminal, while a Terminal's reaches the documents beside it.
  */
 export function closeDocumentTabFamily(tabId: string, mode: PaneTabCloseMode): Promise<void> {
     const layout = getPaneLayout();

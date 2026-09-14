@@ -1,7 +1,12 @@
 import type { ReactNode } from 'react';
 
-import type { PaneLayout, PaneSplitSide } from '@caxri/protocol';
-import { MAX_PANE_LAYOUT_PANES, paneSplitBlockedReason, paneTabIdsToClose } from '@caxri/protocol';
+import type { PaneLayout, PaneSplitSide, PaneTabCloseMode } from '@caxri/protocol';
+import {
+    findTab,
+    MAX_PANE_LAYOUT_PANES,
+    paneSplitBlockedReason,
+    paneTabIdsToClose,
+} from '@caxri/protocol';
 
 import {
     ContextMenuContent,
@@ -11,12 +16,26 @@ import {
 import { closeDocumentTabFamily } from '../editor/document-actions';
 import { splitPaneTab } from './pane-actions';
 
-const closeLabels = {
+const closeLabels: Record<PaneTabCloseMode, string> = {
     one: 'Close',
     others: 'Close Others',
     right: 'Close to the Right',
+    editors: 'Close Editors',
     all: 'Close All',
-} as const;
+};
+
+/**
+ * "Close Editors" is offered only on a Terminal tab. From a document it would be an alias for "Close All" one line
+ * above it, whereas a Terminal is exactly the tab a user keeps while clearing the documents stacked next to it.
+ */
+const terminalCloseModes: readonly PaneTabCloseMode[] = [
+    'one',
+    'others',
+    'right',
+    'editors',
+    'all',
+];
+const documentCloseModes: readonly PaneTabCloseMode[] = ['one', 'others', 'right', 'all'];
 
 const splitLabels: Record<PaneSplitSide, string> = {
     left: 'Split Left',
@@ -34,7 +53,7 @@ const splitDisabledReasons = {
 /**
  * The context menu every pane tab gets, whatever it holds.
  *
- * Bulk closes are scoped to the tab's resource kind so editor actions cannot terminate Terminals. Split still acts on
+ * Bulk closes are scoped by `paneTabIdsToClose`, which never lets an editor action terminate a Terminal. Split acts on
  * placement across resource kinds. Resource-specific entries (a Terminal's "Move to New Session") are appended through
  * `resourceItems`.
  */
@@ -57,9 +76,11 @@ export function PaneTabMenu({
     const splitBlockedReason = paneLayout
         ? paneSplitBlockedReason(paneLayout, tabId, paneId)
         : 'missing';
+    const isTerminalTab =
+        paneLayout && findTab(paneLayout, tabId)?.tab.resource.kind === 'terminal';
     return (
         <ContextMenuContent>
-            {(['one', 'others', 'right', 'all'] as const).map((mode) => {
+            {(isTerminalTab ? terminalCloseModes : documentCloseModes).map((mode) => {
                 const family = paneLayout ? paneTabIdsToClose(paneLayout, tabId, mode) : [];
                 return (
                     <ContextMenuItem
