@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 
+import { citeEvidenceList, writeProposal } from './__tests__/evidence-fixture';
 import {
     beginAgentFixtureLifecycle,
     completeAgentFixtureLifecycle,
@@ -75,7 +76,7 @@ async function reportDirectory(round = 1): Promise<string> {
 }
 
 async function initialize(directory: string, input: Partial<InitializeReportInput> = {}) {
-    return initializeReport({
+    const path = await initializeReport({
         directory,
         entry: '在 Caxri Electron 中打开首个 Session 终端。',
         plan: [...plan],
@@ -83,6 +84,8 @@ async function initialize(directory: string, input: Partial<InitializeReportInpu
         title: '验收 Caxri 终端布局',
         ...input,
     });
+    await writeProposal(directory);
+    return path;
 }
 
 async function writeIsolatedLifecycle(directory: string, caseId = 'terminal-layout') {
@@ -163,7 +166,7 @@ describe('Acceptance report scaffold', () => {
         const fixtureEvidence = await writeAgentFixtureLifecycle(directory);
         result.cases[0] = {
             category: '终端布局',
-            evidence: ['assets/terminal.png', lifecycleEvidence, fixtureEvidence],
+            evidence: citeEvidenceList(['assets/terminal.png', lifecycleEvidence, fixtureEvidence]),
             id: 'terminal-layout',
             name: '终端内容填满工作区',
             observation: '固定假 Agent 在隔离配置中完成启动与清理。',
@@ -409,8 +412,12 @@ describe('Acceptance report scaffold', () => {
         const lifecycleEvidence = await writeIsolatedLifecycle(directory);
         result.cases[0] = {
             category: '终端布局',
-            datasets: [{ id: 'terminal-layout-metrics' }],
-            evidence: ['assets/terminal.png', 'assets/terminal-dom.html', lifecycleEvidence],
+            datasets: [{ fields: [{ key: 'gap', type: 'number' }], id: 'layout-gap', rows: [] }],
+            evidence: citeEvidenceList([
+                'assets/terminal.png',
+                'assets/terminal-dom.html',
+                lifecycleEvidence,
+            ]),
             id: 'terminal-layout',
             name: '终端内容填满工作区',
             observation: '终端视口周围没有露出应用背景。',
@@ -418,6 +425,7 @@ describe('Acceptance report scaffold', () => {
             status: 'pass',
             suggestion: '保持当前终端布局实现。',
             surface: 'desktop',
+            visualizations: [{ dataset: 'layout-gap', id: 'gap-table', type: 'table', version: 1 }],
         };
         result.summary = { score: 92, uncertain: 0 };
         await Promise.all([
@@ -444,7 +452,7 @@ describe('Acceptance report scaffold', () => {
             supersedes: ['legacy-terminal-layout'],
         });
         expect(finalized.cases[0]).toMatchObject({
-            datasets: [{ id: 'terminal-layout-metrics' }],
+            datasets: [{ id: 'layout-gap' }],
             required: false,
             suggestion: '保持当前终端布局实现。',
         });
@@ -460,7 +468,7 @@ describe('Acceptance report scaffold', () => {
         const result = parseReport(await readFile(resultPath, 'utf8'));
         result.cases[0] = {
             category: '终端布局',
-            evidence: ['assets/terminal.png'],
+            evidence: citeEvidenceList(['assets/terminal.png']),
             id: 'terminal-layout',
             name: '终端内容填满工作区',
             observation: '终端视口周围没有露出应用背景。',
@@ -485,7 +493,7 @@ describe('Acceptance report scaffold', () => {
         const result = parseReport(await readFile(resultPath, 'utf8'));
         result.cases[0] = {
             category: '终端布局',
-            evidence: ['assets/terminal.png'],
+            evidence: citeEvidenceList(['assets/terminal.png']),
             id: 'different-check',
             name: '终端内容填满工作区',
             observation: '终端视口周围没有露出应用背景。',
@@ -548,7 +556,7 @@ describe('Acceptance report scaffold', () => {
         const result = parseReport(await readFile(resultPath, 'utf8'));
         result.cases[0] = {
             category: '终端布局',
-            evidence: ['assets/../outside.png'],
+            evidence: citeEvidenceList(['assets/../outside.png']),
             id: 'terminal-layout',
             name: '终端内容填满工作区',
             observation: '终端视口周围没有露出应用背景。',
@@ -575,7 +583,7 @@ describe('Acceptance report scaffold', () => {
         const lifecycleEvidence = await writeIsolatedLifecycle(directory);
         result.cases[0] = {
             category: '终端布局',
-            evidence: ['assets/terminal-notes.md', lifecycleEvidence],
+            evidence: citeEvidenceList(['assets/terminal-notes.md', lifecycleEvidence]),
             id: 'terminal-layout',
             name: '终端内容填满工作区',
             observation: '终端视口周围没有露出应用背景。',
@@ -691,7 +699,10 @@ describe('Acceptance report scaffold', () => {
         const result = parseReport(await readFile(resultPath, 'utf8'));
         result.cases[0] = {
             category: '终端布局',
-            evidence: ['assets/terminal.png', 'assets/terminal-layout-state-isolation.json'],
+            evidence: citeEvidenceList([
+                'assets/terminal.png',
+                'assets/terminal-layout-state-isolation.json',
+            ]),
             id: 'terminal-layout',
             name: '终端内容填满工作区',
             observation: '第二次隔离启动完成了终端布局观察。',
@@ -733,7 +744,11 @@ describe('Acceptance report scaffold', () => {
         const preflightEvidence = 'assets/terminal-layout-fixture-preflight.json';
         result.cases[0] = {
             category: '终端布局',
-            evidence: ['assets/terminal.png', lifecycleEvidence, preflightEvidence],
+            evidence: citeEvidenceList([
+                'assets/terminal.png',
+                lifecycleEvidence,
+                preflightEvidence,
+            ]),
             id: 'terminal-layout',
             name: '终端内容填满工作区',
             observation: '终端视口周围没有露出应用背景。',

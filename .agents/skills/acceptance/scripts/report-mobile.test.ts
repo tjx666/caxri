@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 
+import { citeEvidenceList, writeProposal } from './__tests__/evidence-fixture';
 import {
     beginCaseLifecycle,
     completeCaseLifecycle,
@@ -56,7 +57,7 @@ async function reportDirectory(): Promise<string> {
 }
 
 async function initialize(directory: string, plan: InitializeReportInput['plan']) {
-    return initializeReport({
+    const path = await initializeReport({
         commit: reportCommit,
         directory,
         entry: '在指定移动设备上执行隔离验收。',
@@ -64,6 +65,8 @@ async function initialize(directory: string, plan: InitializeReportInput['plan']
         requirement,
         title: '验收 Caxri 移动端',
     });
+    await writeProposal(directory, '本轮交付移动端配对与短回复路径，请重点看设备收据的绑定。');
+    return path;
 }
 
 async function writeIsolatedLifecycle(
@@ -125,11 +128,11 @@ describe('Acceptance mobile report scaffold', () => {
         const mobileLifecycle = await writeIsolatedLifecycle(directory, mobilePlan.id);
         result.cases[0] = {
             category: desktopPlan.category,
-            evidence: [
+            evidence: citeEvidenceList([
                 'assets/terminal.png',
                 'assets/terminal-dom.html',
                 desktopLifecycle.evidence,
-            ],
+            ]),
             id: desktopPlan.id,
             name: desktopPlan.title,
             observation: '终端视口周围没有露出应用背景。',
@@ -138,11 +141,11 @@ describe('Acceptance mobile report scaffold', () => {
         };
         result.cases[1] = {
             category: mobilePlan.category,
-            evidence: [
+            evidence: citeEvidenceList([
                 'assets/android-short-reply-mobile-device.json',
                 'assets/android-short-reply-result.json',
                 mobileLifecycle.evidence,
-            ],
+            ]),
             id: mobilePlan.id,
             name: mobilePlan.title,
             observation: '发布构建完成配对，并将一次短回复送达等待中的 Agent Session。',
@@ -232,7 +235,7 @@ describe('Acceptance mobile report scaffold', () => {
         const lifecycle = await writeIsolatedLifecycle(directory, caseId);
         result.cases[0] = {
             category: mobilePlan.category,
-            evidence: ['assets/android-pairing.png', lifecycle.evidence],
+            evidence: citeEvidenceList(['assets/android-pairing.png', lifecycle.evidence]),
             id: caseId,
             name: mobilePlan.title,
             observation: 'Android 发布构建显示了配对入口。',
@@ -251,7 +254,11 @@ describe('Acceptance mobile report scaffold', () => {
         const deviceEvidence = `assets/${caseId}-mobile-device.json`;
         result.cases[0] = {
             ...result.cases[0],
-            evidence: ['assets/android-pairing.png', deviceEvidence, lifecycle.evidence],
+            evidence: citeEvidenceList([
+                'assets/android-pairing.png',
+                deviceEvidence,
+                lifecycle.evidence,
+            ]),
         };
         const receipt = {
             appId: 'com.caxri.mobile',
@@ -360,7 +367,7 @@ describe('Acceptance mobile report scaffold', () => {
         const covering = 'assets/covering-tests.txt';
         result.cases[0] = {
             category: mobilePlan.category,
-            evidence: [covering],
+            evidence: citeEvidenceList([covering]),
             id: caseId,
             name: mobilePlan.title,
             observation: '本轮没有可用的 iOS 模拟器，断言由最窄拥有层的单元测试覆盖。',
@@ -406,7 +413,7 @@ describe('Acceptance mobile report scaffold', () => {
         const deviceEvidence = `assets/${caseId}-mobile-device.json`;
         result.cases[0] = {
             category: mobilePlan.category,
-            evidence: [deviceEvidence, lifecycle.evidence],
+            evidence: citeEvidenceList([deviceEvidence, lifecycle.evidence]),
             id: caseId,
             name: mobilePlan.title,
             observation: '当前环境没有可用的原生触摸驱动，交互验收被阻断。',
@@ -469,7 +476,7 @@ describe('Acceptance mobile report scaffold', () => {
         const deviceEvidence = `assets/${caseId}-mobile-device.json`;
         result.cases[0] = {
             category: mobilePlan.category,
-            evidence: [deviceEvidence, 'assets/ios-static-layout.txt'],
+            evidence: citeEvidenceList([deviceEvidence, 'assets/ios-static-layout.txt']),
             id: caseId,
             name: mobilePlan.title,
             observation: '指定 iOS 模拟器的静态布局没有裁切。',

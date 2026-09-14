@@ -242,6 +242,6 @@ describe('Go mobile Acceptance publication', () => {
                 runner,
             ),
         ).resolves.toMatchObject({ acceptanceId: 'acc-1', roundIndex: 1 });
-        expect(runner).toHaveBeenLastCalledWith('lobehub', ['file', 'view', fileId, '--json']);
+        expect(runner).toHaveBeenLastCalledWith('lh', ['file', 'view', fileId, '--json']);
     });
 });

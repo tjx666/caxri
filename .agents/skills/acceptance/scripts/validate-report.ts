@@ -63,6 +63,15 @@ export function validateHumanText(value: unknown, field: string): string {
 const comparisonEvidenceCaseSchema = z.object({ evidence: z.array(z.unknown()).optional() });
 const comparisonLabelReportSchema = z.object({ cases: z.array(comparisonEvidenceCaseSchema) });
 
+/**
+ * The evidence description is what a reviewer reads next to the artifact, so it follows the same language contract as
+ * the rest of the human-facing report rather than falling back to an English filename.
+ */
+function validateEvidenceDescription(evidence: unknown, field: string): void {
+    if (typeof evidence !== 'object' || evidence === null || !('description' in evidence)) return;
+    validateHumanText(evidence.description, field);
+}
+
 function validateComparisonLabel(evidence: unknown, field: string): void {
     if (
         typeof evidence !== 'object' ||
@@ -77,7 +86,7 @@ function validateComparisonLabel(evidence: unknown, field: string): void {
     validateHumanText(label, field);
 }
 
-function validateComparisonLabels(report: unknown): void {
+function validateEvidenceProse(report: unknown): void {
     const parsed = comparisonLabelReportSchema.safeParse(report);
     if (!parsed.success) return;
     for (const [caseIndex, item] of parsed.data.cases.entries()) {
@@ -87,16 +96,39 @@ function validateComparisonLabels(report: unknown): void {
                 evidence,
                 `cases.${caseIndex}.evidence.${evidenceIndex}.comparison.label`,
             );
+            validateEvidenceDescription(
+                evidence,
+                `cases.${caseIndex}.evidence.${evidenceIndex}.description`,
+            );
+        }
+    }
+}
+
+function validateMarkdownProse(document: string | undefined, file: string): void {
+    let isInsideFence = false;
+    const lines = withoutHtmlComments(document ?? '').split('\n');
+    for (const [index, rawLine] of lines.entries()) {
+        if (/^\s*(?:```|~~~)/.test(rawLine)) {
+            isInsideFence = !isInsideFence;
+            continue;
+        }
+        if (isInsideFence) continue;
+        const line = visibleMarkdownProse(rawLine);
+        if (!CHINESE_TEXT.test(line) && !LATIN_TEXT.test(line)) continue;
+        if (!humanTextSchema.safeParse(line).success) {
+            throw new Error(`${file} line ${index + 1} must be primarily Chinese`);
         }
     }
 }
 
 export function validateReportLanguage({
     notes,
+    proposal,
     report,
     requirement,
 }: {
     notes?: string;
+    proposal?: string;
     report: unknown;
     requirement: string;
 }): void {
@@ -110,19 +142,7 @@ export function validateReportLanguage({
         const field = issue?.path.length ? issue.path.join('.') : 'report';
         throw new Error(`${field} must be primarily Chinese`);
     }
-    validateComparisonLabels(report);
-    let isInsideFence = false;
-    const lines = withoutHtmlComments(notes ?? '').split('\n');
-    for (const [index, rawLine] of lines.entries()) {
-        if (/^\s*(?:```|~~~)/.test(rawLine)) {
-            isInsideFence = !isInsideFence;
-            continue;
-        }
-        if (isInsideFence) continue;
-        const line = visibleMarkdownProse(rawLine);
-        if (!CHINESE_TEXT.test(line) && !LATIN_TEXT.test(line)) continue;
-        if (!humanTextSchema.safeParse(line).success) {
-            throw new Error(`report.md line ${index + 1} must be primarily Chinese`);
-        }
-    }
+    validateEvidenceProse(report);
+    validateMarkdownProse(notes, 'report.md');
+    validateMarkdownProse(proposal, 'proposal.md');
 }

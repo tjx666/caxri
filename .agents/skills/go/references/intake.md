@@ -35,8 +35,8 @@ evidence for why the work is new; title similarity alone is not enough.
 Check only prerequisites relevant to the planned workflow:
 
 - GitHub authentication and repository identity;
-- LobeHub Acceptance authentication: use `lobehub whoami --json`; the CLI has no
-  `lobehub auth status` command, so do not infer or guess an auth subcommand;
+- LobeHub Acceptance authentication: use `lh whoami --json`; the CLI has no
+  `lh auth status` command, so do not infer or guess an auth subcommand;
 - dependencies needed by selected issues;
 - availability of every selected Acceptance path: isolated macOS Electron for `desktop`, or an
   explicitly selected Android emulator/device or iOS Simulator for `mobile`.
