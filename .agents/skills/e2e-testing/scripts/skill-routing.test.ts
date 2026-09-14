@@ -38,7 +38,9 @@ describe('testing skill routing', () => {
         expect(unitSkill).toContain('does not own Playwright');
         expect(e2eSkill).toContain('name: e2e-testing');
         expect(e2eSkill).toContain('Do not use as the default Vitest workflow');
-        expect(e2eSkill).toContain('--workers=1 --repeat-each=3');
+        expect(e2eSkill).toContain('--workers=1 --repeat-each=2');
+        expect(e2eSkill).toContain('Two repetitions are the entire local budget');
+        expect(e2eSkill).toContain('do not keep re-dispatching CI');
         expect(e2eSkill).toContain('long temporary-path conditions');
         expect(e2eSkill).toContain('observable product invariant');
         expect(e2eSkill).toContain('self-hosted `m2-24` runner');
