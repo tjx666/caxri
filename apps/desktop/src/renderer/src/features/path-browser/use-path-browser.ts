@@ -11,7 +11,13 @@ import { setPathBrowserOpen } from '../../stores/dialogs';
 import { openExternalEditorDocument } from '../editor/external-editor-documents';
 import { createItem } from '../view-containers/resource-explorer/file-actions';
 import { activeResourceExplorerClient } from '../view-containers/resource-explorer-catalog-client';
-import type { PathBrowserInputState } from './path-browser';
+import type {
+    PathBrowserCreateCandidate,
+    PathBrowserInputState,
+    PathBrowserKeyIntent,
+    PathBrowserMode,
+    PathBrowserResultKind,
+} from './path-browser';
 import {
     completePathQuery,
     parsePathBrowserInput,
@@ -33,6 +39,15 @@ const EMPTY_ENTRIES: MethodResult<'pathBrowser.start'>['entries'] = [];
 
 type PathBrowserSnapshot = MethodResult<'pathBrowser.start'>;
 export type PathBrowserEntry = PathBrowserSnapshot['entries'][number];
+
+/**
+ * One selectable line of the dialog. Creation shares the list and the selection model with the results so a single
+ * Enter path serves both, instead of living in a separate slot the keyboard cannot reach.
+ */
+export type PathBrowserRow =
+    | { candidate: PathBrowserCreateCandidate; kind: 'create' }
+    | { entry: PathBrowserEntry; kind: 'entry' };
+
 type PathBrowserNavigationResult = MethodResult<'pathBrowser.navigate'>;
 
 function closePathBrowser(): void {
@@ -54,6 +69,134 @@ export function runPathBrowserDetached(operation: Promise<unknown>): void {
 
 function isSnapshot(result: PathBrowserNavigationResult): result is PathBrowserSnapshot {
     return 'browserId' in result;
+}
+
+function toBrowserError(value: unknown, fallback: string): Error {
+    return value instanceof Error ? value : new Error(fallback);
+}
+
+/**
+ * True when a browse request would add nothing: the input is unparsable, a navigation already owns the browser, or the
+ * current snapshot already answers exactly this input and mode.
+ *
+ * Takes the snapshot and request fields as primitives so the calling effect can keep listing them individually and stay
+ * free of whole-object dependencies.
+ */
+function isBrowseRedundant(state: {
+    hasSyntaxError: boolean;
+    isNavigating: boolean;
+    requestedInput: string;
+    requestedMode: PathBrowserMode;
+    snapshotInput: string | undefined;
+    snapshotMode: PathBrowserMode | undefined;
+}): boolean {
+    if (state.hasSyntaxError || state.isNavigating) return true;
+    return (
+        state.snapshotMode === state.requestedMode && state.snapshotInput === state.requestedInput
+    );
+}
+
+/**
+ * Projects one snapshot plus the in-flight flags into everything the dialog renders.
+ *
+ * Results are shown only while the snapshot answers the current input, so a stale list never appears actionable.
+ * Creation is decided against the current directory alone: Main falls back to a Project search only after an exhaustive
+ * empty listing, so a search snapshot contributes neither matches nor truncation to that decision, and the offer can
+ * sit in the same list as the search results.
+ */
+function derivePathBrowserView(state: {
+    hasSyntaxError: boolean;
+    inputState: PathBrowserInputState;
+    isFetching: boolean;
+    isNavigating: boolean;
+    isStarting: boolean;
+    snapshot: PathBrowserSnapshot | undefined;
+}): {
+    candidateToCreate: PathBrowserCreateCandidate | undefined;
+    emptyMessage: string | undefined;
+    isResultsReady: boolean;
+    isTruncated: boolean;
+    matches: PathBrowserSnapshot['entries'];
+    resultKind: PathBrowserResultKind;
+    rows: PathBrowserRow[];
+} {
+    const { hasSyntaxError, inputState, isFetching, isNavigating, isStarting, snapshot } = state;
+    const isSnapshotCurrent =
+        snapshot?.mode === inputState.mode && snapshot.input === inputState.input;
+    const isResultsReady =
+        !isStarting && !isNavigating && !isFetching && isSnapshotCurrent && !hasSyntaxError;
+    const matches = isResultsReady ? snapshot.entries : EMPTY_ENTRIES;
+    const resultKind: PathBrowserResultKind = snapshot?.resultKind ?? 'directory';
+    const isProjectSearch = resultKind === 'projectSearch';
+    const isTruncated = snapshot?.truncated ?? false;
+    const candidateToCreate =
+        snapshot?.canCreate === true
+            ? pathBrowserCreateCandidate(
+                  inputState.mode,
+                  inputState.input,
+                  isProjectSearch ? 0 : matches.length,
+                  isProjectSearch ? false : isTruncated,
+                  isResultsReady,
+              )
+            : undefined;
+    const rows: PathBrowserRow[] = matches.map((entry) => ({ entry, kind: 'entry' as const }));
+    if (candidateToCreate) rows.push({ candidate: candidateToCreate, kind: 'create' });
+    return {
+        candidateToCreate,
+        emptyMessage: pathBrowserEmptyMessage(rows.length, isTruncated, resultKind),
+        isResultsReady,
+        isTruncated,
+        matches,
+        resultKind,
+        rows,
+    };
+}
+
+/**
+ * Dispatches one decoded key intent onto the dialog's actions. Keeping the branch table outside the hook leaves the
+ * hook body to state and data flow only.
+ */
+function applyPathBrowserIntent(
+    intent: PathBrowserKeyIntent,
+    actions: {
+        accept: () => void;
+        close: () => void;
+        complete: () => void;
+        detachProject: () => void;
+        enterDirectory: () => void;
+        moveSelection: (delta: -1 | 1) => void;
+        parent: () => void;
+    },
+): void {
+    switch (intent.kind) {
+        case 'accept': {
+            actions.accept();
+            return;
+        }
+        case 'close': {
+            actions.close();
+            return;
+        }
+        case 'complete': {
+            actions.complete();
+            return;
+        }
+        case 'detach-project': {
+            actions.detachProject();
+            return;
+        }
+        case 'enter-directory': {
+            actions.enterDirectory();
+            return;
+        }
+        case 'move-selection': {
+            actions.moveSelection(intent.delta);
+            return;
+        }
+        case 'parent': {
+            actions.parent();
+        }
+    }
 }
 
 export function usePathBrowser(projectRoot: string, sessionId: string, workbenchProjectId: string) {
@@ -98,10 +241,7 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
                     setInputState({ input: result.input, mode: result.mode });
                 setError(undefined);
             } catch (error_) {
-                if (!isDisposed)
-                    setError(
-                        error_ instanceof Error ? error_ : new Error('Unable to browse files'),
-                    );
+                if (!isDisposed) setError(toBrowserError(error_, 'Unable to browse files'));
             } finally {
                 if (!isDisposed) setIsStarting(false);
             }
@@ -124,10 +264,14 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
         }
         if (
             !browserId ||
-            hasSyntaxError ||
-            isNavigating ||
-            (snapshot.mode === debouncedInputState.mode &&
-                snapshot.input === debouncedInputState.input)
+            isBrowseRedundant({
+                hasSyntaxError,
+                isNavigating,
+                requestedInput: debouncedInputState.input,
+                requestedMode: debouncedInputState.mode,
+                snapshotInput: snapshot.input,
+                snapshotMode: snapshot.mode,
+            })
         )
             return;
         const generation = ++requestGeneration.current;
@@ -146,7 +290,7 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
                 setError(undefined);
             } catch (error_) {
                 if (requestGeneration.current !== generation) return;
-                setError(error_ instanceof Error ? error_ : new Error('Unable to browse files'));
+                setError(toBrowserError(error_, 'Unable to browse files'));
             } finally {
                 if (requestGeneration.current === generation) setIsFetching(false);
             }
@@ -162,38 +306,33 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
         snapshot?.mode,
     ]);
 
-    const entries = snapshot?.entries ?? EMPTY_ENTRIES;
-    const isTruncated = snapshot?.truncated ?? false;
-    const isSnapshotCurrent =
-        snapshot?.mode === inputState.mode && snapshot.input === inputState.input;
-    const isResultsReady =
-        !isStarting && !isNavigating && !isFetching && isSnapshotCurrent && !syntaxError;
-    const matches = isResultsReady ? entries : EMPTY_ENTRIES;
-    const emptyMessage = pathBrowserEmptyMessage(matches.length, isTruncated);
-    const isListboxRendered = isResultsReady && !error;
-    const effectiveSelectedIndex = clamp(selectedIndex, Math.max(matches.length - 1, 0));
-    const selected = matches.at(effectiveSelectedIndex);
-    const activeOptionId = selected ? `${listboxId}-option-${effectiveSelectedIndex}` : undefined;
-    const candidateToCreate = useMemo(
+    const {
+        candidateToCreate,
+        emptyMessage,
+        isResultsReady,
+        isTruncated,
+        matches,
+        resultKind,
+        rows,
+    } = useMemo(
         () =>
-            snapshot?.canCreate === true
-                ? pathBrowserCreateCandidate(
-                      inputState.mode,
-                      inputState.input,
-                      matches.length,
-                      isTruncated,
-                      isResultsReady,
-                  )
-                : undefined,
-        [
-            inputState.input,
-            inputState.mode,
-            isResultsReady,
-            isTruncated,
-            matches.length,
-            snapshot?.canCreate,
-        ],
+            derivePathBrowserView({
+                hasSyntaxError,
+                inputState,
+                isFetching,
+                isNavigating,
+                isStarting,
+                snapshot,
+            }),
+        [hasSyntaxError, inputState, isFetching, isNavigating, isStarting, snapshot],
     );
+    const isListboxRendered = isResultsReady && !error;
+    const effectiveSelectedIndex = clamp(selectedIndex, Math.max(rows.length - 1, 0));
+    const selectedRow = rows.at(effectiveSelectedIndex);
+    const selected = selectedRow?.kind === 'entry' ? selectedRow.entry : undefined;
+    const activeOptionId = selectedRow
+        ? `${listboxId}-option-${effectiveSelectedIndex}`
+        : undefined;
 
     useEffect(() => {
         if (activeOptionId)
@@ -236,7 +375,7 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
                 }
             }
         } catch (error_) {
-            setError(error_ instanceof Error ? error_ : new Error('Unable to open path'));
+            setError(toBrowserError(error_, 'Unable to open path'));
         } finally {
             setIsNavigating(false);
         }
@@ -286,7 +425,7 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
             }
             closePathBrowser();
         } catch (error_) {
-            setError(error_ instanceof Error ? error_ : new Error('Unable to open path'));
+            setError(toBrowserError(error_, 'Unable to open path'));
         } finally {
             setIsNavigating(false);
         }
@@ -348,7 +487,7 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
 
     const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
         const intent = pathBrowserKeyIntent({
-            entryCount: matches.length,
+            entryCount: rows.length,
             input: inputState.input,
             isComposing: event.nativeEvent.isComposing,
             key: event.key,
@@ -359,64 +498,46 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
         });
         if (!intent) return;
         event.preventDefault();
-        switch (intent.kind) {
-            case 'close': {
-                closePathBrowser();
-                return;
-            }
-            case 'move-selection': {
-                setSelectedIndex(
-                    (current) => (current + intent.delta + matches.length) % matches.length,
-                );
-                return;
-            }
-            case 'complete': {
-                if (syntaxError) return;
-                const completion = completePathQuery(matches, inputState.input, isTruncated);
-                if (completion) {
-                    completedInputWithoutBrowse.current = completion;
-                    inputRevision.current += 1;
-                    setInputState((current) => ({ ...current, input: completion }));
-                    setSelectedIndex(0);
-                    /**
-                     * Completion is offered only for one authoritative, non-truncated candidate. Keep that opaque
-                     * candidate actionable immediately so a fast Tab → Enter sequence does not become a no-op while the
-                     * debounced identical filter catches up.
-                     */
-                    setSnapshot((current) =>
-                        current?.mode === inputState.mode
-                            ? { ...current, input: completion }
-                            : current,
-                    );
-                }
-                return;
-            }
-            case 'enter-directory': {
-                choose(selected);
-                return;
-            }
-            case 'parent': {
-                goToParent();
-                return;
-            }
-            case 'detach-project': {
-                detachProject();
-                return;
-            }
-            case 'accept': {
+        applyPathBrowserIntent(intent, {
+            accept: () => {
                 if (syntaxError) {
                     setError(syntaxError);
                     return;
                 }
-                if (selected) choose(selected);
-                else if (candidateToCreate) runPathBrowserDetached(createFromQuery());
-            }
-        }
+                if (!selectedRow) return;
+                if (selectedRow.kind === 'create') runPathBrowserDetached(createFromQuery());
+                else choose(selectedRow.entry);
+            },
+            close: closePathBrowser,
+            complete: applyCompletion,
+            detachProject,
+            enterDirectory: () => choose(selected),
+            moveSelection: (delta) =>
+                setSelectedIndex((current) => (current + delta + rows.length) % rows.length),
+            parent: goToParent,
+        });
     };
+
+    function applyCompletion(): void {
+        if (syntaxError) return;
+        const completion = completePathQuery(matches, inputState.input, isTruncated, resultKind);
+        if (!completion) return;
+        completedInputWithoutBrowse.current = completion;
+        inputRevision.current += 1;
+        setInputState((current) => ({ ...current, input: completion }));
+        setSelectedIndex(0);
+        /**
+         * Completion is offered only for one authoritative, non-truncated candidate. Keep that opaque candidate
+         * actionable immediately so a fast Tab → Enter sequence does not become a no-op while the debounced identical
+         * filter catches up.
+         */
+        setSnapshot((current) =>
+            current?.mode === inputState.mode ? { ...current, input: completion } : current,
+        );
+    }
 
     return {
         activeOptionId,
-        candidateToCreate,
         choose,
         createFromQuery,
         displayedError: syntaxError ?? error,
@@ -432,8 +553,10 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
         isStarting,
         isTruncated,
         listboxId,
-        matches,
         mode: inputState.mode,
+        resultKind,
+        rows,
+        selectedRow,
         selectIndex: setSelectedIndex,
         snapshot,
         updateInput,

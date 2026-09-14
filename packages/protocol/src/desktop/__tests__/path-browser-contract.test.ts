@@ -46,6 +46,7 @@ describe('path browser contract', () => {
             ],
             input: '',
             mode: 'project',
+            resultKind: 'directory',
             rootLabel: 'Authorized Folder',
             truncated: false,
         });
@@ -81,6 +82,7 @@ describe('path browser contract', () => {
             ],
             input: '',
             mode: 'project',
+            resultKind: 'directory',
             truncated: false,
         });
 
@@ -114,6 +116,7 @@ describe('path browser contract', () => {
                 ],
                 input: '',
                 mode: 'project',
+                resultKind: 'directory',
                 truncated: false,
             }).success,
         ).toBe(false);

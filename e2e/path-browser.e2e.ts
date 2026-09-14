@@ -344,13 +344,16 @@ test('typing a name that does not exist offers to create a file or folder', asyn
         await expect(input).toBeFocused();
 
         // Empty state used to be a dead end ("No matching file or folder."); it now offers to
-        // create the typed name, a trailing slash meaning a folder.
+        // create the typed name, a trailing slash meaning a folder. `notes.md` is a bare name, so
+        // this also exercises the Project-wide search fallback — the Project is empty, so it finds
+        // nothing and the create row is the only option in the list.
         await input.fill('notes.md');
         await expect(input).toHaveAttribute('aria-busy', 'false');
-        await expect(dialog.getByRole('option')).toHaveCount(0);
-        const fileCreateButton = dialog.getByRole('button', { name: 'Create file' });
-        await expect(fileCreateButton).toBeVisible();
-        await expect(fileCreateButton).toContainText('notes.md');
+        const fileCreateOption = dialog.getByRole('option', { name: /^Create file/ });
+        await expect(dialog.getByRole('option')).toHaveCount(1);
+        await expect(fileCreateOption).toBeVisible();
+        await expect(fileCreateOption).toContainText('notes.md');
+        // Selecting the create row is what turns the shared Enter hint into the create wording.
         await expect(dialog).toContainText('Enter Create');
 
         await input.press('Enter');
@@ -400,10 +403,10 @@ test('typing a name that does not exist offers to create a file or folder', asyn
         // A slow initial snapshot must not overwrite input entered while the dialog is opening.
         await expect(secondInput).toHaveValue('drafts/');
         await expect(secondInput).toHaveAttribute('aria-busy', 'false');
-        const folderCreateButton = secondDialog.getByRole('button', { name: 'Create folder' });
-        await expect(folderCreateButton).toBeVisible();
-        await expect(folderCreateButton).toContainText('drafts');
-        await folderCreateButton.click();
+        const folderCreateOption = secondDialog.getByRole('option', { name: /^Create folder/ });
+        await expect(folderCreateOption).toBeVisible();
+        await expect(folderCreateOption).toContainText('drafts');
+        await folderCreateOption.click();
         // Creating a folder navigates into it instead of closing the dialog, matching the folder
         // affordance in the existing entry list (`CornerDownLeft`/`ArrowRight`).
         await expect(secondDialog).toBeVisible();
