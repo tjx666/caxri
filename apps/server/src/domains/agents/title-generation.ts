@@ -159,33 +159,49 @@ export async function readAgentTitleMessages(
     const opened = await openSafeAgentTranscript(location);
     if (!opened) return empty;
     try {
+        const ranges = titleScanRanges(opened.stats.size);
         const opening: TitleMessage[] = [];
-        const recent: Array<{ index: number; message: TitleMessage }> = [];
-        const openingIndexes = new Set<number>();
+        let recent: Array<{ index: number; message: TitleMessage }> = [];
+        /**
+         * Stays below every index until the opening request is found, so a transcript without one keeps its tail.
+         */
+        let openingStartIndex = -1;
         let index = 0;
-        for (const range of titleScanRanges(opened.stats.size)) {
-            // Ranges are scanned in file order so the opening is found before the tail replaces it.
+        for (const [position, range] of ranges.entries()) {
+            /**
+             * Only the first range can supply the opening. A split scan skips the middle of the transcript, so letting
+             * the tail fill an empty opening would label the Session's last exchange as its subject.
+             */
+            const isOpeningWindow = position === 0;
+            // A later range is newer than everything before it, so it replaces the latest exchange rather than extending it.
+            if (!isOpeningWindow) recent = [];
+            // Ranges are scanned in file order so the opening is found before the tail is read.
             // eslint-disable-next-line no-await-in-loop -- ordered range scan, see comment above
             for await (const line of readRangeLines(opened.handle, range)) {
                 const message = parseTitleMessageLine(line);
                 if (message) {
                     const current = index++;
                     if (
-                        (opening.length === 0 && message.role === 'user') ||
-                        (opening.length === 1 && message.role === 'assistant')
+                        isOpeningWindow &&
+                        ((opening.length === 0 && message.role === 'user') ||
+                            (opening.length === 1 && message.role === 'assistant'))
                     ) {
+                        if (opening.length === 0) openingStartIndex = current;
                         opening.push(message);
-                        openingIndexes.add(current);
+                    } else {
+                        recent.push({ index: current, message });
+                        if (recent.length > RECENT_MESSAGE_LIMIT) recent.shift();
                     }
-                    recent.push({ index: current, message });
-                    if (recent.length > RECENT_MESSAGE_LIMIT) recent.shift();
                 }
             }
         }
         return {
             opening,
+            /**
+             * Anything before the opening request predates the Session's subject and is not its latest exchange.
+             */
             recent: recent
-                .filter((entry) => !openingIndexes.has(entry.index))
+                .filter((entry) => entry.index > openingStartIndex)
                 .map((entry) => entry.message),
         };
     } finally {
@@ -193,8 +209,15 @@ export async function readAgentTitleMessages(
     }
 }
 
-export function agentTitleContextMessages(context: AgentTitleContext): readonly TitleMessage[] {
-    return [...context.opening, ...context.recent];
+/**
+ * A title needs both sides of the conversation: a request to name, and a reply that shows what it turned out to mean.
+ */
+export function hasTitleNamingMaterial(context: AgentTitleContext): boolean {
+    const messages = [...context.opening, ...context.recent];
+    return (
+        messages.some((message) => message.role === 'user') &&
+        messages.some((message) => message.role === 'assistant')
+    );
 }
 
 function renderTitleMessages(tag: string, messages: readonly TitleMessage[]): string {
