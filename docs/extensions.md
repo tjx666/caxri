@@ -160,7 +160,22 @@ mid-read). Extension-triggered state does not count: a tree provider's own refre
 disposed itself, or a `caxri.*` call made outside any Server-supplied view context (from `activate()` or a timer)
 that the controlled-view scope fence rejected. Any other error thrown by
 extension code — from a provider, a contributed command, or `activate()` — is logged as a real fault regardless of
-which `code` it carries, and a host-minted rejection an extension re-throws gains nothing from its origin. Server Core's wire handling of these two
+which `code` it carries, and a host-minted rejection an extension re-throws gains nothing from its origin.
+
+`caxri.supersededError(message)` is the one exception, and it exists because one staleness is genuinely
+invisible to the host: a provider's own model revision. A provider that keeps a revision and rejects
+requests carrying an older one — as the bundled Git extension does for superseded snapshots and expired
+actions — throws this instead of constructing its own `GENERATION_EXPIRED`, and the call is then logged
+at `debug` with `remediation: none`. What the classifier recognizes is the object the host minted, not
+the code on it: a copy carrying the same `code` and message is still a fault, so the guarantee above is
+unchanged for every extension that does not call this factory. Calling it is a trust contract the
+extension author takes on — Caxri records the outcome as routine because the extension said it was, so
+wrapping a genuine failure in it hides that failure from diagnostics. There is deliberately no general
+`nonFailureError(code)`; this factory can express only "superseded". Outside the Extension Host the
+same call returns an equivalent unregistered error, so a provider stays unit-testable and an
+unregistered error classifies exactly as it did before this contract existed.
+
+Server Core's wire handling of these two
 codes (retrying a superseded tree read, converting a superseded read into `CANCELLED` for the Renderer) is unchanged
 and keeps keying on the code string. Extensions cannot submit a Session ID, repository path, shell command, or
 native API request. The Git domain owns Git execution, repository discovery, approved-repository identity,
