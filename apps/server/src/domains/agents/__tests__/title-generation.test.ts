@@ -196,3 +196,43 @@ describe('Session title transcript reading', () => {
         await rm(location.baseRoot, { force: true, recursive: true });
     });
 });
+
+describe('Session title record bounds', () => {
+    const message = (role: 'assistant' | 'user', text: string): string =>
+        JSON.stringify({
+            type: 'response_item',
+            payload: {
+                type: 'message',
+                role,
+                content: [{ type: role === 'user' ? 'input_text' : 'output_text', text }],
+            },
+        });
+
+    it('discards an oversized record and resumes at the next complete line', async () => {
+        const baseRoot = await mkdtemp(join(tmpdir(), 'caxri-title-bound-'));
+        const root = join(baseRoot, 'project');
+        await mkdir(root);
+        const path = join(root, 'transcript.jsonl');
+        await writeFile(
+            path,
+            `${[
+                message('user', 'opening request'),
+                message('assistant', 'opening reply'),
+                /**
+                 * A parseable message this large is a paste, not naming material. Without the record bound it would
+                 * both buffer whole in Server memory and occupy a slot in the latest exchange.
+                 */
+                message('user', `oversized paste ${'x'.repeat(700_000)}`),
+                message('user', 'closing request'),
+            ].join('\n')}\n`,
+            'utf8',
+        );
+        const context = await readAgentTitleMessages({ baseRoot, path, root });
+        expect(context.opening.map((entry) => entry.text)).toEqual([
+            'opening request',
+            'opening reply',
+        ]);
+        expect(context.recent.map((entry) => entry.text)).toEqual(['closing request']);
+        await rm(baseRoot, { force: true, recursive: true });
+    });
+});
