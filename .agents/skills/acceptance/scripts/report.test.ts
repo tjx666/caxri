@@ -288,6 +288,7 @@ describe('Acceptance report scaffold', () => {
         ).rejects.toThrow('must be a direct regular file');
         await expect(
             validateAgentFixtureEvidence(directory, {
+                status: 'pass',
                 caseId: 'terminal-layout',
                 evidencePaths: ['assets/terminal-layout-agent-fixture.json'],
                 fixtureId: 'agent-features-v1',

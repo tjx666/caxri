@@ -88,6 +88,7 @@ describe('Acceptance Agent fixture lifecycle', () => {
         expect(receipt.providers).toEqual(providers);
         await expect(
             validateAgentFixtureEvidence(directory, {
+                status: 'pass',
                 caseId: 'terminal-layout',
                 fixtureId,
                 evidencePaths: [evidence],
@@ -95,6 +96,7 @@ describe('Acceptance Agent fixture lifecycle', () => {
         ).resolves.toBeUndefined();
         await expect(
             validateAgentFixtureEvidence(directory, {
+                status: 'pass',
                 caseId: 'terminal-layout',
                 fixtureId: 'agent-features-v1',
                 evidencePaths: [evidence],
@@ -108,6 +110,7 @@ describe('Acceptance Agent fixture lifecycle', () => {
         await writeFile(receiptPath, JSON.stringify(tampered));
         await expect(
             validateAgentFixtureEvidence(directory, {
+                status: 'pass',
                 caseId: 'terminal-layout',
                 fixtureId: 'grok-build-v1',
                 evidencePaths: [evidence],
@@ -117,6 +120,7 @@ describe('Acceptance Agent fixture lifecycle', () => {
         await writeFile(receiptPath, JSON.stringify(tampered));
         await expect(
             validateAgentFixtureEvidence(directory, {
+                status: 'pass',
                 caseId: 'terminal-layout',
                 fixtureId: 'grok-build-v1',
                 evidencePaths: [evidence],
@@ -170,6 +174,7 @@ describe('Acceptance Agent fixture lifecycle', () => {
         ]);
         await expect(
             validateAgentFixtureEvidence(directory, {
+                status: 'pass',
                 caseId: 'terminal-layout',
                 evidencePaths: [evidence],
                 fixtureId: 'agent-features-v1',
@@ -218,6 +223,7 @@ describe('Acceptance Agent fixture lifecycle', () => {
         });
         await expect(
             validateAgentFixtureEvidence(directory, {
+                status: 'pass',
                 caseId: 'terminal-layout',
                 evidencePaths: [evidence],
                 fixtureId: 'agent-features-v1',
