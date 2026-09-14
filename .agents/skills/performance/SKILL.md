@@ -23,9 +23,12 @@ description: Measure and protect Caxri startup, Server Core responsiveness, and 
    `app.bootstrap` request summaries before attributing time to React.
    For Claude Agent-state probe latency, run `bun run benchmark:agent-probe` and record
    `CAXRI_AGENT_PROBE_BENCHMARK`. It runs below Electron against a synthetic 512-file
-   `sessions/` directory, rewrites one file every ten probes, and fails when warm p95 exceeds
-   50ms (`CAXRI_BENCHMARK_AGENT_PROBE_P95_MS`); the production `agent.probe` log only keeps
-   samples slower than 250ms, so this is the only source of the full distribution.
+   `sessions/` directory and rewrites one file every ten probes; the production `agent.probe` log
+   only keeps samples slower than 250ms, so this is the only source of the full distribution. It
+   is a trend tool and never fails on its own: a wall-clock threshold passes on an idle machine
+   with the cache fully broken. Read the `cache` counters it prints beside the timings to tell a
+   fast run from a cache that stopped working, and keep regression protection in the syscall-count
+   assertions in `metadata-cache.test.ts` and `probe-fanout.test.ts`.
 3. Read the correlated Desktop Main, Server Core, Terminal Host, and Extension Host JSONL logs
    from the active runtime profile's `<userData>/logs/` directory. Use `app.ready`,
    `server_connection.attached`, `window.ready_to_show`, `server_core.ready`, `pty.spawned`,

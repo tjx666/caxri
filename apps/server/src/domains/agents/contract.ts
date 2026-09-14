@@ -62,6 +62,24 @@ export interface AgentProbeSnapshot extends AgentSnapshot {
     activitySource?: LocalAgentState['activitySource'];
 }
 
+/**
+ * Cache accounting a provider offers for diagnostics. `hits`, `misses`, and `listingReads` are the shape every provider
+ * must agree on so one log field means the same thing across providers; the remaining keys are that provider's own
+ * closed miss-reason enum, each counting how often it caused a read.
+ *
+ * Every value is cumulative for the process, not a per-probe delta: probes for different Terminals overlap, so a delta
+ * measured around one of them would charge it with another's disk work.
+ */
+export interface AgentProbeCacheCounters extends Record<string, number> {
+    hits: number;
+    /**
+     * Directory listings rebuilt. A probe can serve every file from cache and still re-`readdir`, which a hit/miss
+     * ratio alone would hide.
+     */
+    listingReads: number;
+    misses: number;
+}
+
 export interface AgentSessionRenameContext {
     agentSessionId: string;
     cwd: string;
@@ -191,6 +209,13 @@ export interface AgentProviderDescriptor {
         context: AgentSnapshotContext,
         environment: AgentEnvironment,
     ): Promise<LocalAgentState | undefined>;
+    /**
+     * Process-lifetime accounting for whatever on-disk cache this provider's `readState` sits behind, read by
+     * `AgentService` after each probe and written to `agent.probe`. Without it a cache that stopped working is
+     * invisible in production: probe duration varies with machine load, so only the hit rate says whether the disk work
+     * is still being avoided. Providers that read no cache omit this.
+     */
+    probeCacheCounters?(this: void): AgentProbeCacheCounters;
     /**
      * Sets the provider-owned conversation name through its supported public CLI boundary. Implementations must fail
      * closed for unsupported versions and must never write provider-private persistence directly.

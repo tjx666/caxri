@@ -1,5 +1,5 @@
 import type * as FsPromises from 'node:fs/promises';
-import { mkdir, mkdtemp, rm, stat, utimes, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -25,12 +25,10 @@ vi.mock('node:fs/promises', async (importOriginal) => {
     };
 });
 
-import type { BigIntStats } from 'node:fs';
-
 import type { ClaudeSessionMetadata } from '../metadata-cache';
 import {
+    claudeMetadataCacheCounters,
     clearClaudeMetadataCache,
-    fileIdentity,
     readClaudeSessionMetadata,
 } from '../metadata-cache';
 
@@ -63,25 +61,6 @@ function sessionIds(entries: readonly ClaudeSessionMetadata[] | undefined): stri
 function metadataJson(sessionId: string, status: string): string {
     return JSON.stringify({ cwd: tmpdir(), sessionId, status, updatedAt: 1 });
 }
-
-describe('fileIdentity', () => {
-    it('separates revisions that differ only below one millisecond', () => {
-        const base = {
-            ctimeNs: 1_788_580_529_659_183_087n,
-            dev: 1n,
-            ino: 2n,
-            mtimeNs: 1_788_580_529_659_183_087n,
-            size: 64n,
-        } as BigIntStats;
-        const sameMillisecond = {
-            ...base,
-            ctimeNs: base.ctimeNs + 1_000n,
-            mtimeNs: base.mtimeNs + 1_000n,
-        };
-        expect(fileIdentity(sameMillisecond)).not.toBe(fileIdentity(base));
-        expect(fileIdentity({ ...base })).toBe(fileIdentity(base));
-    });
-});
 
 describe('readClaudeSessionMetadata', () => {
     it('serves unchanged metadata files from the cache on the next probe', async () => {
@@ -160,6 +139,27 @@ describe('readClaudeSessionMetadata', () => {
         expect(counters.open).toBe(2);
     });
 
+    /**
+     * Several Terminals in one Project probe on the same PTY-activity burst, so on a cold cache they arrive together
+     * and the cache — which only helps a probe that starts after an earlier one finished writing it — saves nothing.
+     * The assertion is the syscall count rather than a timing: three probes, one `readdir` and one `open` per file.
+     */
+    it('scans the directory once for probes that arrive together on a cold cache', async () => {
+        const { config, sessions } = await createConfigDirectory();
+        await writeFile(join(sessions, 'a.json'), metadataJson('session-a', 'busy'), 'utf8');
+        await writeFile(join(sessions, 'b.json'), metadataJson('session-b', 'idle'), 'utf8');
+
+        const concurrent = await Promise.all([
+            readClaudeSessionMetadata(config),
+            readClaudeSessionMetadata(config),
+            readClaudeSessionMetadata(config),
+        ]);
+
+        for (const entries of concurrent)
+            expect(sessionIds(entries)).toEqual(['session-a', 'session-b']);
+        expect(counters).toEqual({ open: 2, readdir: 1 });
+    });
+
     it('returns undefined and forgets the directory when the sessions folder is missing', async () => {
         const { config, sessions } = await createConfigDirectory();
         await writeFile(join(sessions, 'a.json'), metadataJson('session-a', 'busy'), 'utf8');
@@ -169,5 +169,88 @@ describe('readClaudeSessionMetadata', () => {
         await mkdir(sessions);
         await writeFile(join(sessions, 'b.json'), metadataJson('session-b', 'busy'), 'utf8');
         expect(sessionIds(await readClaudeSessionMetadata(config))).toEqual(['session-b']);
+    });
+});
+
+describe('claudeMetadataCacheCounters', () => {
+    it('separates a cold read, a hit, and a re-read forced by a changed file', async () => {
+        const { config, sessions } = await createConfigDirectory();
+        await writeFile(join(sessions, 'a.json'), metadataJson('session-a', 'busy'), 'utf8');
+        await writeFile(join(sessions, 'b.json'), metadataJson('session-b', 'busy'), 'utf8');
+
+        await readClaudeSessionMetadata(config);
+        expect(claudeMetadataCacheCounters()).toMatchObject({
+            cold: 2,
+            file_changed: 0,
+            hits: 0,
+            listingReads: 1,
+            misses: 2,
+        });
+
+        await readClaudeSessionMetadata(config);
+        expect(claudeMetadataCacheCounters()).toMatchObject({
+            hits: 2,
+            // The listing is reused too, which a hit/miss ratio on its own would not show.
+            listingReads: 1,
+            misses: 2,
+        });
+
+        await writeFile(join(sessions, 'b.json'), metadataJson('session-b', 'idle'), 'utf8');
+        await readClaudeSessionMetadata(config);
+        expect(claudeMetadataCacheCounters()).toMatchObject({
+            cold: 2,
+            file_changed: 1,
+            hits: 3,
+            listingReads: 1,
+            misses: 3,
+        });
+    });
+
+    /**
+     * A probe that could read nothing and a probe that served everything from cache both do zero reads. Without a
+     * reason of its own, the unreadable directory is the one that looks healthy in the log.
+     */
+    it('counts a file it could not read at all, rather than passing over it silently', async () => {
+        const { config, sessions } = await createConfigDirectory();
+        const denied = join(sessions, 'a.json');
+        await writeFile(denied, metadataJson('session-a', 'busy'), 'utf8');
+        await writeFile(join(sessions, 'b.json'), metadataJson('session-b', 'busy'), 'utf8');
+        await chmod(denied, 0o000);
+
+        expect(sessionIds(await readClaudeSessionMetadata(config))).toEqual(['session-b']);
+        expect(claudeMetadataCacheCounters()).toMatchObject({
+            cold: 1,
+            hits: 0,
+            misses: 2,
+            read_failed: 1,
+        });
+    });
+
+    /**
+     * A directory dropped to stay under the cache's own limit re-reads everything on its next probe, exactly like a
+     * cold start. Reporting both as `cold` would hide the one of the two that is a capacity problem the operator can
+     * act on, so the reason has to survive the eviction.
+     */
+    it('names a capacity eviction rather than reporting the re-read as a cold start', async () => {
+        // One past the module's own `MAX_CACHED_SESSION_DIRECTORIES`, so the first directory is exactly the one dropped.
+        const directories = await Promise.all(
+            Array.from({ length: 9 }, async (_, index) => {
+                const { config, sessions } = await createConfigDirectory();
+                await writeFile(
+                    join(sessions, 'a.json'),
+                    metadataJson(`session-${index}`, 'busy'),
+                    'utf8',
+                );
+                return config;
+            }),
+        );
+
+        for (const config of directories)
+            // eslint-disable-next-line no-await-in-loop -- eviction order is what this asserts
+            await readClaudeSessionMetadata(config);
+        expect(claudeMetadataCacheCounters()).toMatchObject({ capacity_evicted: 0, cold: 9 });
+
+        await readClaudeSessionMetadata(directories[0]);
+        expect(claudeMetadataCacheCounters()).toMatchObject({ capacity_evicted: 1, cold: 9 });
     });
 });
