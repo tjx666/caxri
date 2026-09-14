@@ -6,8 +6,8 @@ import { join } from 'node:path';
  * evidence description and this round's `proposal.md` note. Keeping them here stops every fixture from inventing its
  * own Chinese sentence, and keeps the real contract in one place when it changes.
  */
-export function citeEvidence(path: string, description?: string) {
-    return { description: description ?? `用于核对本用例观察结果的证据文件：${path}`, path };
+function citeEvidence(path: string) {
+    return { description: `用于核对本用例观察结果的证据文件：${path}`, path };
 }
 
 export function citeEvidenceList(paths: string[]) {
