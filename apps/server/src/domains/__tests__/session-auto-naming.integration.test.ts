@@ -136,10 +136,13 @@ describe('Automatic Session rename synchronization', () => {
             root: f.directory,
             path: join(f.directory, 'fixture.jsonl'),
         });
-        vi.spyOn(agentFunctions, 'readAgentTitleMessages').mockResolvedValue([
-            { role: 'user', text: 'Fixture request' },
-            { role: 'assistant', text: 'Fixture reply' },
-        ]);
+        vi.spyOn(agentFunctions, 'readAgentTitleMessages').mockResolvedValue({
+            opening: [
+                { role: 'user', text: 'Fixture request' },
+                { role: 'assistant', text: 'Fixture reply' },
+            ],
+            recent: [],
+        });
         const generate = vi.spyOn(f.agents, 'generateTitle').mockRejectedValue(
             new CaxriError('UNAVAILABLE', 'Fixture sandbox conflict', {
                 reason: 'sandboxBoundaryConflict',
@@ -192,10 +195,13 @@ describe('Automatic Session rename synchronization', () => {
             root: f.directory,
             path: join(f.directory, 'fixture.jsonl'),
         });
-        vi.spyOn(agentFunctions, 'readAgentTitleMessages').mockResolvedValue([
-            { role: 'user', text: 'Fix title synchronization' },
-            { role: 'assistant', text: 'The native title precedence was wrong' },
-        ]);
+        vi.spyOn(agentFunctions, 'readAgentTitleMessages').mockResolvedValue({
+            opening: [
+                { role: 'user', text: 'Fix title synchronization' },
+                { role: 'assistant', text: 'The native title precedence was wrong' },
+            ],
+            recent: [],
+        });
         const generate = vi
             .spyOn(f.agents, 'generateTitle')
             .mockResolvedValueOnce('SKIP')
@@ -259,10 +265,13 @@ describe('Automatic Session rename synchronization', () => {
             root: f.directory,
             path: join(f.directory, 'fixture.jsonl'),
         });
-        vi.spyOn(agentFunctions, 'readAgentTitleMessages').mockResolvedValue([
-            { role: 'user', text: 'Fix title synchronization' },
-            { role: 'assistant', text: 'The native title precedence was wrong' },
-        ]);
+        vi.spyOn(agentFunctions, 'readAgentTitleMessages').mockResolvedValue({
+            opening: [
+                { role: 'user', text: 'Fix title synchronization' },
+                { role: 'assistant', text: 'The native title precedence was wrong' },
+            ],
+            recent: [],
+        });
         const older = Promise.withResolvers<string>();
         const generate = vi
             .spyOn(f.agents, 'generateTitle')
@@ -305,10 +314,13 @@ describe('Automatic Session rename synchronization', () => {
             root: f.directory,
             path: join(f.directory, 'fixture.jsonl'),
         });
-        vi.spyOn(agentFunctions, 'readAgentTitleMessages').mockResolvedValue([
-            { role: 'user', text: 'Fix title synchronization' },
-            { role: 'assistant', text: 'The native title precedence was wrong' },
-        ]);
+        vi.spyOn(agentFunctions, 'readAgentTitleMessages').mockResolvedValue({
+            opening: [
+                { role: 'user', text: 'Fix title synchronization' },
+                { role: 'assistant', text: 'The native title precedence was wrong' },
+            ],
+            recent: [],
+        });
         const generation = Promise.withResolvers<string>();
         const generate = vi.spyOn(f.agents, 'generateTitle').mockReturnValue(generation.promise);
         const logger = createLogger(join(f.directory, 'logs'));
@@ -513,10 +525,13 @@ describe('Automatic Session naming sandbox suppression', () => {
             root: f.directory,
             path: join(f.directory, 'fixture.jsonl'),
         });
-        vi.spyOn(agentFunctions, 'readAgentTitleMessages').mockResolvedValue([
-            { role: 'user', text: 'Fixture request' },
-            { role: 'assistant', text: 'Fixture reply' },
-        ]);
+        vi.spyOn(agentFunctions, 'readAgentTitleMessages').mockResolvedValue({
+            opening: [
+                { role: 'user', text: 'Fixture request' },
+                { role: 'assistant', text: 'Fixture reply' },
+            ],
+            recent: [],
+        });
         const generate = vi.spyOn(f.agents, 'generateTitle').mockRejectedValue(
             new CaxriError('UNAVAILABLE', 'Fixture sandbox conflict', {
                 reason: 'sandboxBoundaryConflict',

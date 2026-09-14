@@ -14,6 +14,24 @@ Both the instruction entry and its resolved target are denied. This covers `CLAU
 Missing instruction files are allowed. Other resolution failures stop generation with
 `sandboxPathUnavailable`; correct the paths or permissions and restart the Agent.
 
+## Naming material
+
+Automatic naming reads the Agent transcript for two separate sections. `opening_request` holds the
+first user message and the first assistant reply that followed it; it establishes what the Session
+is about. `recent_messages` holds the newest six messages and only sharpens that subject. A
+transcript with no user message and no assistant message produces no title.
+
+Both sections matter because a transcript's byte size is dominated by tool records, not by
+conversation. Reading a window near the end of the file therefore reaches very few messages and
+routinely misses the opening request entirely, which renames a Session after whatever the user
+happened to say last. Transcripts are instead line-streamed end to end while retaining only the
+bounded message set above. A transcript past the scan budget keeps its opening window and its
+tail window, so both sections survive.
+
+An opening request that is only an image, a link, or an issue identifier carries no subject on its
+own. The assistant's first reply supplies it, which is why the naming subprocess needs no tools,
+no network fetches, and no image access of its own.
+
 Automatic naming shows one notice and suppresses further attempts for that managed launch.
 A new Agent launch can try again. A long paste keeps its original local file and includes the
 specific failure reason in the path-only fallback. Neither flow logs prompts, model output,

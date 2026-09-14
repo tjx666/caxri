@@ -7,6 +7,7 @@ import type { AgentEnvironment, AgentLifecycleSignal, AgentService } from './age
 import {
     agentProviderStateRoot,
     buildAgentTitlePrompt,
+    hasTitleNamingMaterial,
     locateAgentTranscript,
     lowCostSandboxFailureReason,
     normalizeGeneratedAgentTitle,
@@ -207,19 +208,18 @@ export class SessionAutoNamingService {
                             terminal.id,
                             this.environment,
                         );
-                        const messages = location ? await readAgentTitleMessages(location) : [];
+                        const context = location
+                            ? await readAgentTitleMessages(location)
+                            : { opening: [], recent: [] };
                         if (!isEligible()) return;
-                        if (
-                            messages.every((message) => message.role !== 'user') ||
-                            messages.every((message) => message.role !== 'assistant')
-                        ) {
+                        if (!hasTitleNamingMaterial(context)) {
                             reason = 'insufficientContext';
                             return;
                         }
                         title = normalizeGeneratedAgentTitle(
                             await this.agents.generateTitle(target.provider, {
                                 cwd: terminal.cwd,
-                                prompt: buildAgentTitlePrompt(messages),
+                                prompt: buildAgentTitlePrompt(context),
                                 signal: controller.signal,
                             }),
                         );
