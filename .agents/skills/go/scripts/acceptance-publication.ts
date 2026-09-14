@@ -81,7 +81,7 @@ const evidenceTypeSchema = z.enum([
     'video',
 ]);
 const evidenceReferenceSchema = z.union([z.string().min(1), z.object({ path: z.string().min(1) })]);
-const productSurfaceSchema = z.enum(['desktop', 'mobile']);
+const productSurfaceSchema = z.enum(['cli', 'desktop', 'mobile']);
 const mobileDeviceSchema = z.object({
     appId: z.literal('com.caxri.mobile'),
     deviceId: z.string().min(1),

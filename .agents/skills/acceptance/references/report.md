@@ -248,7 +248,7 @@ The pipeline acts on these values; they are not labels.
 | ------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | `verifier`                      | `program` / `agent` / `llm` (default `agent`)                         | How the verdict is reached. A command-asserted check is `program`; calling it `agent` hides what actually judged it. |
 | `requiredEvidence`              | `screenshot` / `gif` / `video` / `text` / `markdown` / `dom_snapshot` | The artifact this check **must** produce. Finalization fails a `pass`/`fail` case whose required medium is missing.  |
-| `surfaces` / per-case `surface` | `desktop` / `mobile`                                                  | The product surface a check ran **on**. A test kind (`unit`, `e2e`) or runtime mode is not a surface.                |
+| `surfaces` / per-case `surface` | `desktop` / `cli` / `mobile`                                          | The product surface a check ran **on**. A test kind (`unit`, `e2e`) or runtime mode is not a surface.                |
 
 `category` names the user-facing requirement area (e.g. `终端布局`, `配对恢复`) —
 never a technical surface. `method` / `expected` stay free Chinese prose; they

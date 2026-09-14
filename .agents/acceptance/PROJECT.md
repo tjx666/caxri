@@ -5,7 +5,8 @@
 Caxri is a macOS-first Electron workbench with an Expo/React Native mobile companion. Electron Main
 owns desktop windows and lifecycle, Preload exposes the typed `window.caxri` bridge, the Renderer
 owns desktop UI, and the detached Server Core owns PTYs, Git, files, SQLite, settings, Agent
-adapters, mobile access, and the encrypted mobile gateway. Acceptance uses the real macOS Electron,
+adapters, mobile access, and the encrypted mobile gateway. The scriptable `caxri` CLI is a separate
+product surface over that same Server. Acceptance uses the real macOS Electron, `caxri` CLI,
 Android, and iOS Simulator product surfaces.
 
 ## 2. Environment
@@ -102,6 +103,22 @@ Android, and iOS Simulator product surfaces.
 - **Required services:** none beyond the local Caxri Desktop, detached Server processes, and the
   explicitly selected native device for a mobile case. Mobile acceptance never uses a cloud Expo
   or EAS account.
+
+### Caxri CLI acceptance
+
+Build the standalone bundle, then drive it against the isolated launch's own profile:
+
+```bash
+bun run build:cli
+node apps/cli/dist/caxri.cjs --profile "$USER_DATA_DIR" project list --json
+```
+
+`$USER_DATA_DIR` is the `userDataDir` recorded in `.records/acceptance/runtime.json`; it is also
+the `CAXRI_USER_DATA_DIR` environment equivalent. The bundle requires Node.js 24 or newer, and
+Agent and CI invocations never start a Server implicitly, so start the isolated desktop first.
+`--help` and `capabilities --json` are the only commands that work without a Server. Every mutation
+additionally requires `--yes` and should carry a stable `--request-id`. The plan item uses
+`surface: "cli"` and keeps the same `stateIsolation` receipt as a desktop case.
 
 ### Android release acceptance
 
