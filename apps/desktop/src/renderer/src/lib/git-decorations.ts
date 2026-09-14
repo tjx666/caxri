@@ -128,8 +128,12 @@ function recordAncestors(
     kind: GitDecorationKind,
 ): void {
     // Strictly below the boundary: the Workbench Root's own repository root is the one folder that stays undecorated.
+    // The trailing separator is what makes "below" mean containment rather than a string prefix. Without it a boundary
+    // of `/repo` also swallows `/repo-vendor`, a sibling directory that shares the prefix and none of the ancestors —
+    // reachable whenever a symlinked child repository canonicalizes to such a sibling path.
+    const boundaryPrefix = boundaryPath.endsWith('/') ? boundaryPath : `${boundaryPath}/`;
     let directory = absolutePath.slice(0, absolutePath.lastIndexOf('/'));
-    while (directory.length > boundaryPath.length && directory.startsWith(boundaryPath)) {
+    while (directory.length > boundaryPath.length && directory.startsWith(boundaryPrefix)) {
         // Every shallower ancestor already holds at least this severity, so there is nothing left to raise.
         if (!didRaiseDirectory(index, directory, kind)) break;
         directory = directory.slice(0, directory.lastIndexOf('/'));
@@ -161,7 +165,8 @@ function recordRepo(
  *
  * The shallowest such root wins if a summary ever reports more than one, since propagation has to stop at the outermost
  * of them for the inner one's ancestors to be reachable at all. `undefined` means the summary named no root of that
- * kind, and each repository then bounds its own climb as it did before child roots were decorated.
+ * kind; each repository then bounds its own climb at its own root, and a child root another repository reports as a
+ * gitlink still loses its letter, because a folder row never carries one whichever repository named it.
  */
 function propagationBoundary(summary: GitSummary): string | undefined {
     let boundary: string | undefined;
@@ -215,7 +220,10 @@ export function buildGitDecorationIndex(
     if (!summary?.isRepository) return previous.size === 0 ? previous : EMPTY_GIT_DECORATION_INDEX;
     const index = new Map<string, GitDecoration>();
     const boundary = propagationBoundary(summary);
-    const repoRoots = new Set(summary.repositories.map((repo) => repo.rootPath));
+    // The boundary is the one root the tree never draws, so it is not a child root a gitlink could decorate either.
+    const repoRoots = new Set<string>();
+    for (const repo of summary.repositories)
+        if (repo.rootPath !== boundary) repoRoots.add(repo.rootPath);
     for (const repo of summary.repositories)
         recordRepo(index, repo, boundary ?? repo.rootPath, repoRoots);
     return withPreservedIdentity(previous, index);

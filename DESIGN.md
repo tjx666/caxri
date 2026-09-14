@@ -379,9 +379,9 @@ type icon keeps its own color: it identifies the language, not the change. A dir
 tree takes the color of the most severe change anywhere beneath it (conflicted, then deleted,
 modified, renamed, added, untracked) but no letter, which would claim the folder itself changed.
 Changes inside a submodule or a nested repository decorate that child repository's root and keep
-climbing through its ancestors, stopping below the selected Workbench Root's own repository root:
-only that primary root is excluded, and a child root is a decoration the user can act on, not a
-boundary. A child root a parent repository reports as a moved gitlink is still a folder row, so it
+climbing through its ancestors, stopping below the selected Workbench Root's own repository root —
+its main checkout or a linked worktree, whichever the Workbench Root is. Only that one root is
+excluded; a child root is a decoration the user can act on, not a boundary. A child root a parent repository reports as a moved gitlink is still a folder row, so it
 takes the louder of that change and whatever is inside it, and still no letter. A directory's color
 says there are changes under it, not that the enclosing repository tracks them. Inactive tabs keep
 their decoration color — the point is to be readable across the whole rail without selecting each
