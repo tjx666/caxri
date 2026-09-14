@@ -77,7 +77,13 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         if (!identity) return;
         switch (event.event) {
             case 'terminal.output':
-                if (!identity.attachmentId || event.identity.attachmentId !== identity.attachmentId)
+                // The third comparison mutes output for the whole gap between a re-attach being requested and being
+                // published; see `RemoteTerminalIdentity.attachmentId` for why that gap duplicates bytes (issue #740).
+                if (
+                    !identity.attachmentId ||
+                    event.identity.attachmentId !== identity.attachmentId ||
+                    this.views.get(identity.record.id)?.attachmentId !== identity.attachmentId
+                )
                     return;
                 this.emitExecution({
                     type: 'output',
@@ -295,6 +301,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
              */
             await this.settleHotPaths([identity.record.id]);
         }
+        // Published before the request resolves, so bytes the host emits after taking the snapshot are forwarded again.
         identity.attachmentId = view.attachmentId;
         return (await this.supervisor.request(
             {
