@@ -1,10 +1,16 @@
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import {
     buildAgentTitlePrompt,
     extractAgentTitleMessage,
     normalizeGeneratedAgentTitle,
+    readAgentTitleMessages,
 } from '../title-generation';
+import type { AgentTranscriptLocation } from '../transcript-security';
 
 describe('Session title material', () => {
     it('uses real conversation text and excludes instructions, tools and duplicate Codex events', () => {
@@ -57,14 +63,29 @@ describe('Session title material', () => {
         ).toEqual({ role: 'assistant', text: 'The title reader used the wrong precedence.' });
     });
 
-    it('does not introduce branch or previous-title anchoring into the prompt', () => {
-        const prompt = buildAgentTitlePrompt([
-            { role: 'user', text: 'Investigate <image> rename behavior' },
-            { role: 'assistant', text: 'The task is session title synchronization.' },
-        ]);
+    it('separates the opening request from the latest exchange in the prompt', () => {
+        const prompt = buildAgentTitlePrompt({
+            opening: [
+                { role: 'user', text: 'Investigate <image> rename behavior' },
+                { role: 'assistant', text: 'The task is session title synchronization.' },
+            ],
+            recent: [{ role: 'user', text: 'just cancel it' }],
+        });
+        expect(prompt).toContain('<opening_request>');
         expect(prompt).toContain('session title synchronization');
+        expect(prompt).toContain('<recent_messages>');
+        expect(prompt).toContain('just cancel it');
         expect(prompt).not.toContain('git_branch');
         expect(prompt).toContain('&lt;image&gt;');
+    });
+
+    it('omits an empty section instead of emitting an unmatched tag', () => {
+        const prompt = buildAgentTitlePrompt({
+            opening: [{ role: 'user', text: 'Only request' }],
+            recent: [],
+        });
+        expect(prompt).toContain('<opening_request>');
+        expect(prompt).not.toContain('recent_messages');
     });
 
     it('rejects empty, generic, multiline and oversized titles', () => {
@@ -81,5 +102,97 @@ describe('Session title material', () => {
             'Session rename synchronization',
         );
         expect(normalizeGeneratedAgentTitle('会话标题同步')).toBe('会话标题同步');
+    });
+});
+
+describe('Session title transcript reading', () => {
+    const codexUser = (text: string): string =>
+        JSON.stringify({
+            type: 'response_item',
+            payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text }] },
+        });
+    const codexAssistant = (text: string): string =>
+        JSON.stringify({
+            type: 'response_item',
+            payload: {
+                type: 'message',
+                role: 'assistant',
+                content: [{ type: 'output_text', text }],
+            },
+        });
+    /**
+     * Tool records carry no naming material but dominate a real transcript's byte size.
+     */
+    const toolNoise = (bytes: number): string =>
+        JSON.stringify({
+            type: 'response_item',
+            payload: { type: 'function_call_output', output: 'x'.repeat(bytes) },
+        });
+
+    async function writeTranscript(lines: readonly string[]): Promise<AgentTranscriptLocation> {
+        const baseRoot = await mkdtemp(join(tmpdir(), 'caxri-title-test-'));
+        const root = join(baseRoot, 'project');
+        await mkdir(root);
+        const path = join(root, 'transcript.jsonl');
+        await writeFile(path, `${lines.join('\n')}\n`, 'utf8');
+        return { baseRoot, path, root };
+    }
+
+    it('keeps the opening request when megabytes of tool output separate it from the latest turn', async () => {
+        const location = await writeTranscript([
+            codexUser('https://linear.app/lobehub/issue/LOBE-14090/bedrock-channel-errors'),
+            codexAssistant('I will verify the Linear alert and the Bedrock channel routing.'),
+            toolNoise(1_500_000),
+            codexAssistant('The circuit breaker entries already cleared.'),
+            codexUser('just cancel'),
+            codexAssistant('Moved the issue to Canceled.'),
+        ]);
+        const context = await readAgentTitleMessages(location);
+        expect(context.opening).toEqual([
+            {
+                role: 'user',
+                text: 'https://linear.app/lobehub/issue/LOBE-14090/bedrock-channel-errors',
+            },
+            {
+                role: 'assistant',
+                text: 'I will verify the Linear alert and the Bedrock channel routing.',
+            },
+        ]);
+        expect(context.recent.map((message) => message.text)).toEqual([
+            'The circuit breaker entries already cleared.',
+            'just cancel',
+            'Moved the issue to Canceled.',
+        ]);
+        await rm(location.baseRoot, { force: true, recursive: true });
+    });
+
+    it('reports the opening exactly once and bounds the latest exchange', async () => {
+        const location = await writeTranscript([
+            codexUser('first request'),
+            codexAssistant('first reply'),
+            ...Array.from({ length: 10 }, (_, index) => codexAssistant(`step ${index}`)),
+        ]);
+        const context = await readAgentTitleMessages(location);
+        expect(context.opening.map((message) => message.text)).toEqual([
+            'first request',
+            'first reply',
+        ]);
+        expect(context.recent).toHaveLength(6);
+        expect(context.recent.map((message) => message.text)).not.toContain('first request');
+        expect(context.recent.at(-1)?.text).toBe('step 9');
+        await rm(location.baseRoot, { force: true, recursive: true });
+    });
+
+    it('decodes multi-byte text split across read chunks', async () => {
+        const text = '排查熔断告警'.repeat(200);
+        const location = await writeTranscript([
+            codexUser(text),
+            toolNoise(200_000),
+            codexAssistant('完成'),
+        ]);
+        const context = await readAgentTitleMessages(location);
+        expect(context.opening[0]?.text).toBe([...text].slice(0, 1600).join(''));
+        expect(context.opening[0]?.text).not.toContain('�');
+        await rm(location.baseRoot, { force: true, recursive: true });
     });
 });
