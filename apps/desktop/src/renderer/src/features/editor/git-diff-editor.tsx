@@ -8,7 +8,7 @@ import type { DiffOnMount, MonacoDiffEditor, OnMount } from '@monaco-editor/reac
 import Editor from '@monaco-editor/react';
 import { ChevronDown, ChevronRight, FileSymlink } from 'lucide-react';
 
-import { useEditorFontFamily } from '@/hooks/use-editor-font-family';
+import { useEditorOptions } from '@/hooks/use-editor-options';
 
 import { GitFileStatusLetter } from '../../components/git-file-status-letter';
 import { Button } from '../../components/ui/button';
@@ -101,7 +101,7 @@ function DiffSurface({
     const theme = useTheme();
     const editorReference = useRef<MonacoDiffEditor | null>(null);
     const diffEditorRegistrationReference = useRef<(() => void) | undefined>(undefined);
-    const fontFamily = useEditorFontFamily();
+    const editorOptions = useEditorOptions();
     const contentSizeListeners = useRef<Array<{ dispose(): void }>>([]);
     useEffect(() => {
         if (theme) applyEditorTheme(theme);
@@ -197,12 +197,8 @@ function DiffSurface({
                     );
                 }}
                 options={{
-                    automaticLayout: true,
-                    ...(fontFamily && { fontFamily }),
-                    fontSize: 13,
-                    minimap: { enabled: false },
+                    ...editorOptions,
                     readOnly: true,
-                    scrollBeyondLastLine: false,
                     wordWrap: 'off',
                     ...(stacked && { scrollbar: { alwaysConsumeMouseWheel: false } }),
                 }}
@@ -243,13 +239,9 @@ function DiffSurface({
                 );
             }}
             options={{
-                automaticLayout: true,
-                ...(fontFamily && { fontFamily }),
-                fontSize: 13,
-                minimap: { enabled: false },
+                ...editorOptions,
                 originalEditable: false,
                 readOnly: true,
-                scrollBeyondLastLine: false,
                 wordWrap: 'off',
                 ...(stacked && {
                     scrollbar: { alwaysConsumeMouseWheel: false },

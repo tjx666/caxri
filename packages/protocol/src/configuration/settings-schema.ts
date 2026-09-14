@@ -196,6 +196,7 @@ export const appSettingsSchema = z.object({
     'terminal.fontFamily': nullableStringField(spec['terminal.fontFamily']),
     'terminal.fontSize': integerField(spec['terminal.fontSize']),
     'editor.fontFamily': nullableStringField(spec['editor.fontFamily']),
+    'editor.unfoldOnClickAfterEndOfLine': booleanField(spec['editor.unfoldOnClickAfterEndOfLine']),
     'terminal.scrollback': integerField(spec['terminal.scrollback']),
     'terminal.longPasteThreshold': integerField(spec['terminal.longPasteThreshold']),
     'terminal.copyOnSelect': booleanField(spec['terminal.copyOnSelect']),

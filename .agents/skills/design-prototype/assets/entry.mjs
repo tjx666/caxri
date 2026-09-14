@@ -46,7 +46,7 @@ import * as ToggleGroup from '@/components/ui/toggle-group';
 import * as Tooltip from '@/components/ui/tooltip';
 import * as useContainerWidth from '@/hooks/use-container-width';
 import * as useDebouncedValue from '@/hooks/use-debounced-value';
-import * as useEditorFontFamily from '@/hooks/use-editor-font-family';
+import * as useEditorOptions from '@/hooks/use-editor-options';
 import * as useFocusOnRevision from '@/hooks/use-focus-on-revision';
 import * as useIsOverflowing from '@/hooks/use-is-overflowing';
 import * as useLatestReference from '@/hooks/use-latest-reference';
@@ -100,7 +100,7 @@ export default {
     '@/components/ui/tooltip': Tooltip,
     '@/hooks/use-container-width': useContainerWidth,
     '@/hooks/use-debounced-value': useDebouncedValue,
-    '@/hooks/use-editor-font-family': useEditorFontFamily,
+    '@/hooks/use-editor-options': useEditorOptions,
     '@/hooks/use-focus-on-revision': useFocusOnRevision,
     '@/hooks/use-is-overflowing': useIsOverflowing,
     '@/hooks/use-latest-reference': useLatestReference,

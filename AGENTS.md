@@ -69,6 +69,12 @@ directories.
   does not already have a related worktree, create and switch to one with `switch-worktree` before
   editing. This is the default even for small fixes or a clean checkout. Do not modify code
   directly on `main` or an unrelated task's branch unless the user explicitly requests it.
+- Before the public release, the maintainer iterates through coding agents and wants proactive
+  delivery: an implementation or bug-fix request that lands in a task worktree delegates the whole
+  loop — commit, push, PR, CI repair, merge, issue closeout, primary-checkout sync — as defined in
+  `switch-worktree`'s default delivery flow. Do not stop at a green local check to ask whether to
+  open or merge the PR; only an explicit analysis-only, local-only, or no-merge instruction narrows
+  that scope.
 - With explicit user authorization, small fixes and minor features may be committed directly on
   `main` and pushed without a pull request. `main` and remote branches can move at any moment.
 - When you encounter commits you did not author — after a branch switch, fetch, rebase, or a PR
