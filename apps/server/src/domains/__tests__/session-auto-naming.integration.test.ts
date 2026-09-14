@@ -525,10 +525,13 @@ describe('Automatic Session naming sandbox suppression', () => {
             root: f.directory,
             path: join(f.directory, 'fixture.jsonl'),
         });
-        vi.spyOn(agentFunctions, 'readAgentTitleMessages').mockResolvedValue([
-            { role: 'user', text: 'Fixture request' },
-            { role: 'assistant', text: 'Fixture reply' },
-        ]);
+        vi.spyOn(agentFunctions, 'readAgentTitleMessages').mockResolvedValue({
+            opening: [
+                { role: 'user', text: 'Fixture request' },
+                { role: 'assistant', text: 'Fixture reply' },
+            ],
+            recent: [],
+        });
         const generate = vi.spyOn(f.agents, 'generateTitle').mockRejectedValue(
             new CaxriError('UNAVAILABLE', 'Fixture sandbox conflict', {
                 reason: 'sandboxBoundaryConflict',
