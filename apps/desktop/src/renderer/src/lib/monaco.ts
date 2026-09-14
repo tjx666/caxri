@@ -12,6 +12,7 @@ import {
     IGNORE_LANGUAGE_ID,
     RC_LANGUAGE_ID,
 } from '../features/editor/editor-language';
+import { registerImportLinks } from '../features/editor/import-link-commands';
 import { configureTypeScriptDiagnostics } from './editor-diagnostics';
 
 declare global {
@@ -50,14 +51,16 @@ const MONACO_WARMUP_LANGUAGES = [
 ] as const;
 
 /**
- * Registers every Caxri-owned Monarch language, silences the TypeScript worker's project-less semantic diagnostics, and
- * configures the module-level `loader`. Wrapped in one function (invoked once below through a `const` initializer, not
- * a bare top-level call) so this file's only top-level side effects are assignment expressions and variable
- * declarations, which is what unicorn/no-top-level-side-effects allows in an exported module.
+ * Registers every Caxri-owned Monarch language, silences the TypeScript worker's project-less semantic diagnostics,
+ * makes relative import paths clickable, and configures the module-level `loader`. Wrapped in one function (invoked
+ * once below through a `const` initializer, not a bare top-level call) so this file's only top-level side effects are
+ * assignment expressions and variable declarations, which is what unicorn/no-top-level-side-effects allows in an
+ * exported module.
  */
 function registerMonacoLanguages(): void {
     loader.config({ monaco });
     configureTypeScriptDiagnostics(monaco.typescript);
+    registerImportLinks(monaco);
 
     if (monaco.languages.getLanguages().every((language) => language.id !== DOTENV_LANGUAGE_ID)) {
         monaco.languages.register({

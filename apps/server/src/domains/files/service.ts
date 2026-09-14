@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { stat } from 'node:fs/promises';
 import { basename, dirname, resolve } from 'node:path';
 
 import type {
@@ -17,6 +18,7 @@ import type { ResolvedSessionPath } from '../project-roots';
 import { ProjectRootResolver } from '../project-roots';
 import type { OpenFile } from './documents';
 import { DocumentService } from './documents';
+import { relativeImportCandidatePaths } from './import-specifier';
 import type { GitIgnoreDecorator, ListingServiceOptions, OpenDirectory } from './listing';
 import { ListingService } from './listing';
 import type { FileMutationJournalOptions, FileMutationOperationScope } from './mutation-journal';
@@ -122,6 +124,35 @@ export class FileService {
             sessionId,
             workbenchProjectId: this.projectRoots.getSessionWorkbenchProjectId(sessionId),
         };
+    }
+
+    private async resolveImportSpecifier(
+        parameters: ServerOperationParameters<'files.resolveImports'>,
+        specifier: string,
+    ): Promise<string | undefined> {
+        for (const candidate of relativeImportCandidatePaths(parameters.from, specifier)) {
+            try {
+                // eslint-disable-next-line no-await-in-loop -- first existing candidate wins, see resolveImports
+                const resolved = await this.projectRoots.resolveSessionPath(
+                    parameters.sessionId,
+                    candidate,
+                    true,
+                );
+                // eslint-disable-next-line no-await-in-loop -- first existing candidate wins, see resolveImports
+                if ((await stat(resolved.path)).isFile())
+                    return resolved.workspacePath ?? resolved.path;
+            } catch (error) {
+                /**
+                 * A missing candidate is the expected answer for every extension the target does not use, so the loop
+                 * moves on. Anything else — notably a path the Session is not allowed to reach — stops this specifier
+                 * instead of falling through to the next guess, which would turn one refusal into a probe sequence.
+                 */
+                if (error instanceof CaxriError && error.code === 'NOT_FOUND') continue;
+                if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+                return undefined;
+            }
+        }
+        return undefined;
     }
 
     resolveSessionPath(
@@ -337,6 +368,31 @@ export class FileService {
                 paths: [resolved.path],
             },
         );
+    }
+
+    /**
+     * Resolves the relative module specifiers written in one open document to the files they name.
+     *
+     * Candidates are built from the document's own entry path rather than its canonical path, so a document reached
+     * through a workspace link resolves its siblings the way the user sees them. Every candidate still goes through
+     * `resolveSessionPath`, so a specifier that climbs out of the Session's Project (`'../../../../etc/passwd'`) is
+     * refused by the same check every other file read uses. A specifier that resolves to nothing is simply left out:
+     * the editor then shows no link, which is the intended answer for an alias or a package name.
+     */
+    async resolveImports(
+        parameters: ServerOperationParameters<'files.resolveImports'>,
+    ): Promise<ServerOperationResult<'files.resolveImports'>> {
+        await this.projectRoots.resolveSessionPath(parameters.sessionId, parameters.from, true);
+        const resolved: Array<{ path: string; specifier: string }> = [];
+        const uniqueSpecifiers = new Set(parameters.specifiers);
+        for (const specifier of uniqueSpecifiers) {
+            // Candidates are probed in order and the first regular file wins, so these awaits are intentionally
+            // sequential: a parallel probe would do the filesystem work of every fallback for every hit.
+            // oxlint-disable-next-line react-doctor/async-await-in-loop
+            const path = await this.resolveImportSpecifier(parameters, specifier); // eslint-disable-line no-await-in-loop -- see above
+            if (path) resolved.push({ path, specifier });
+        }
+        return { resolved };
     }
 
     async read(sessionId: string, path: string, signal?: AbortSignal): Promise<FileDocument> {
