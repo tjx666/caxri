@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { relative, resolve } from 'node:path';
 
 import type {
     AgentActivityState,
@@ -12,16 +11,12 @@ import {
     addPaneTerminalSilently,
     CaxriError,
     createPaneLayout,
-    isVirtualEditorTabPath,
     openResource,
-    remapPaneLayoutPaths,
     removePaneTerminal,
     sessionStateSchema,
 } from '@caxri/protocol';
 import { and, asc, eq, lt, sql } from 'drizzle-orm';
-import { z } from 'zod';
 
-import { isOutsideRoot } from '../../path-security';
 import type { CaxriDrizzleDatabase } from '../connection';
 import { DEFAULT_LAYOUT_VERSION } from '../connection';
 import {
@@ -40,6 +35,12 @@ import {
     workbenchProjects,
 } from './session-record';
 import { reconcileOwnedTerminalTabs } from './session-terminal-layout';
+import type { WorkbenchEditorStates } from './workbench-editor-state';
+import {
+    parseWorkbenchEditorStates,
+    pruneWorkbenchEditorState,
+    workbenchEditorStatesSchema,
+} from './workbench-editor-state';
 
 export interface NewSessionInput {
     projectId: string;
@@ -60,60 +61,6 @@ interface SessionStateRow {
     stateVersion: number;
     workbenchStateJson: string;
     desiredSecondarySidebarViewContainerId: string;
-}
-
-/**
- * One Workbench Root's durable snapshot. Terminal processes are Session-global; only their placement lives here, so
- * switching Root restores a different arrangement of the same Terminals without restarting anything.
- */
-const workbenchEditorStateSchema = z.object({
-    editorRemapOperationId: sessionStateSchema.shape.editorRemapOperationId,
-    extensionTreeViewStates: sessionStateSchema.shape.extensionTreeViewStates,
-    sourceControlViewStates: sessionStateSchema.shape.sourceControlViewStates,
-    paneLayout: sessionStateSchema.shape.paneLayout,
-});
-const workbenchEditorStatesSchema = z
-    .record(z.string().min(1).max(200), workbenchEditorStateSchema)
-    .refine((states) => Object.keys(states).length <= 1_024, 'Too many Workbench Root states');
-// `Partial` corrects `z.record`'s inferred type: real lookups by workbenchProjectId key can miss
-// (Session-owned root has no state yet), but zod's inference promises every value is present.
-type WorkbenchEditorStates = Partial<z.infer<typeof workbenchEditorStatesSchema>>;
-
-function parseWorkbenchEditorStates(source: string): WorkbenchEditorStates | undefined {
-    try {
-        const parsed = workbenchEditorStatesSchema.safeParse(JSON.parse(source) as unknown);
-        return parsed.success ? parsed.data : undefined;
-    } catch {
-        return undefined;
-    }
-}
-
-function pruneWorkbenchEditorState(source: string, projectId: string): string | undefined {
-    try {
-        const parsed = JSON.parse(source) as unknown;
-        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return;
-        const candidate = { ...(parsed as Record<string, unknown>) };
-        if (!Object.hasOwn(candidate, projectId)) return;
-        delete candidate[projectId];
-        if (!workbenchEditorStatesSchema.safeParse(candidate).success) return;
-        return JSON.stringify(candidate);
-    } catch {
-        return;
-    }
-}
-
-/**
- * Remaps one stored editor path after a Project root move. Note the parallel implementation for the `paneLayout` tree:
- * `remapPaneLayoutPaths` in `packages/protocol/src/domain/pane-layout-reducer.ts` does a pure string-prefix rewrite
- * (browser-safe, no `node:path`), while this one uses `relative`/`resolve`. Both agree for Caxri's canonical absolute
- * POSIX-style paths; if either ever needs to handle non-canonical input, change both together.
- */
-function remapStoredEditorPath(path: string, previousPath: string, nextPath: string): string {
-    if (isVirtualEditorTabPath(path)) return path;
-    const nested = relative(previousPath, path);
-    if (nested === '') return nextPath;
-    if (isOutsideRoot(nested)) return path;
-    return resolve(nextPath, nested);
 }
 
 export interface SessionStateRepair {
@@ -741,50 +688,5 @@ export class SessionsModel {
         this.mutateTerminalAcrossRootStates(sessionId, (paneLayout) =>
             removePaneTerminal(paneLayout, terminalId),
         );
-    }
-
-    /**
-     * Remaps one durable root snapshot even when its Session has since selected another root. Terminal occurrences
-     * carry no path, so only document tabs move.
-     */
-    remapWorkbenchEditorState(
-        workbenchProjectId: string,
-        operationId: string,
-        previousPath: string,
-        nextPath: string,
-    ): number {
-        const rows = this.database
-            .select({
-                sessionId: sessionStateTable.sessionId,
-                workbenchStateJson: sessionStateTable.workbenchStateJson,
-            })
-            .from(sessionStateTable)
-            .all();
-        let remappedCount = 0;
-        for (const row of rows) {
-            const workbenchStates = parseWorkbenchEditorStates(row.workbenchStateJson);
-            const rootState = workbenchStates?.[workbenchProjectId];
-            if (!workbenchStates || !rootState) continue;
-            if (rootState.editorRemapOperationId === operationId) continue;
-            const remappedState = {
-                ...rootState,
-                paneLayout: remapPaneLayoutPaths(rootState.paneLayout, (path) =>
-                    remapStoredEditorPath(path, previousPath, nextPath),
-                ),
-                editorRemapOperationId: operationId,
-            };
-            this.database
-                .update(sessionStateTable)
-                .set({
-                    workbenchStateJson: JSON.stringify({
-                        ...workbenchStates,
-                        [workbenchProjectId]: remappedState,
-                    }),
-                })
-                .where(eq(sessionStateTable.sessionId, row.sessionId))
-                .run();
-            remappedCount += 1;
-        }
-        return remappedCount;
     }
 }

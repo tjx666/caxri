@@ -12,6 +12,20 @@ export interface RemoteTerminalIdentity {
         launchId: string;
         processId?: number;
     };
+    /**
+     * The attachment Terminal Host has already accepted, which lags the requested {@link RemoteView} for as long as a
+     * re-attach is in flight — `attach()` records the new view synchronously but publishes it only once
+     * `identity.ready` and any admitted hot paths have settled.
+     *
+     * Output is forwarded only while the two agree. A Renderer that re-attaches while already attached installs its
+     * replacement replay buffer before the request leaves, so a frame Terminal Host's 16 ms timer ships during that gap
+     * is replayed _after_ the snapshot the same re-attach fetches — and the snapshot already contains it, because the
+     * host writes to the live screen before enqueueing. Dropping the forward is what keeps it rendering once (#740).
+     *
+     * The gap's bytes are therefore not delivered when the re-attach itself fails. That path is already broken for a
+     * larger reason — `attachReserved` publishes this field before the request, so a rejected `terminal.attach` leaves
+     * it naming an attachment Terminal Host never accepted and mutes the Terminal outright — and is tracked by #910.
+     */
     attachmentId?: string;
     generation: number;
     processId?: number;

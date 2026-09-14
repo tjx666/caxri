@@ -66,6 +66,7 @@ export const coreForwardedMethods = [
     'session.unarchive',
     'session.unarchiveMany',
     'session.updateState',
+    'session.workbenchRoot.forgetEditorPath',
     'session.workbenchRoots',
     'settings.get',
     'settings.inspect',

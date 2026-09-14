@@ -28,6 +28,7 @@ import {
     hostError,
     providerFailure,
     runExtensionCode,
+    supersededError,
 } from './extension-error';
 import type {
     ExtensionHostMessage,
@@ -347,6 +348,7 @@ function createBinding(registration: ExtensionHostRegistration): ApiBinding {
                 return requestProjectStatus(request, options?.refreshToken);
             },
         }),
+        supersededError,
     });
     return {
         api,

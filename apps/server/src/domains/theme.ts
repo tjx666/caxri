@@ -18,6 +18,7 @@ import YAML from 'yaml';
 
 import type { BoundedRegularFileReadOptions } from './bounded-file-reader';
 import { readBoundedRegularFileText } from './bounded-file-reader';
+import { parseThemeDocument } from './theme-parse';
 
 export { draculaTheme } from '@caxri/protocol';
 
@@ -525,7 +526,7 @@ function plistColor(value: unknown, fallback: string): string {
 }
 
 function parseIterm(source: string, name: string): ParsedThemeImport {
-    const value = parsePlist(source) as Record<string, unknown>;
+    const value = parseThemeDocument(source, 'iTerm2', parsePlist);
     const theme = cloneFallback('iterm2', name);
     theme.terminal.background = plistColor(value['Background Color'], theme.terminal.background);
     theme.terminal.foreground = plistColor(value['Foreground Color'], theme.terminal.foreground);
@@ -563,7 +564,7 @@ function parseIterm(source: string, name: string): ParsedThemeImport {
 }
 
 function parseWarp(source: string, name: string): ParsedThemeImport {
-    const value = YAML.parse(source) as Record<string, unknown>;
+    const value = parseThemeDocument(source, 'Warp', (text) => YAML.parse(text) as unknown);
     const theme = cloneFallback('warp', typeof value.name === 'string' ? value.name : name);
     theme.colors.accent = normalizedHex(value.accent, theme.colors.accent);
     theme.terminal.background = normalizedHex(value.background, theme.terminal.background);
@@ -629,12 +630,14 @@ function assertImportedThemeContrast(theme: ThemeTokens): void {
  * fails.
  */
 function parseVsCodeOrCustom(source: string, name: string): ParsedThemeImport {
-    const value = parseJsonc(source);
+    // `JSON`, not `VS Code`: this path also accepts Caxri's own exported theme, so naming the other editor would
+    // mislabel the user's own file.
+    const value = parseThemeDocument(source, 'JSON', parseJsonc);
     // Upgrade first: a Caxri theme exported before a color role existed must still be recognized as one here, or it
     // would fall through to the VS Code mapping and import as a mangled theme rather than the one the user exported.
     const parsed = themeSchema.safeParse(upgradeThemeColors(value));
     if (!parsed.success) {
-        const theme = parseVsCode(value as Record<string, unknown>, name);
+        const theme = parseVsCode(value, name);
         assertImportedThemeContrast(theme);
         return theme;
     }
@@ -734,11 +737,13 @@ async function resolveVsCodeInclude(
         beforeRead: testSeam?.beforeRead,
         capacityMessage: `Theme file exceeds the ${MAX_THEME_IMPORT_FILE_BYTES} byte import limit`,
     });
-    const parent = parseJsonc(parentSource);
-    if (!parent || typeof parent !== 'object' || Array.isArray(parent)) {
-        throw new CaxriError('VALIDATION', INCLUDE_DIRECTORY_MESSAGE);
-    }
-    return JSON.stringify(mergeVsCodeTheme(parent as Record<string, unknown>, document));
+    /**
+     * The included parent is a second untrusted document, so it needs the same guard as the file the user picked. It
+     * used to report a broken parent as `INCLUDE_DIRECTORY_MESSAGE`, which pointed at the wrong thing — the parent is
+     * in the right directory, it just does not parse.
+     */
+    const parent = parseThemeDocument(parentSource, 'JSON', parseJsonc);
+    return JSON.stringify(mergeVsCodeTheme(parent, document));
 }
 
 export async function importTheme(

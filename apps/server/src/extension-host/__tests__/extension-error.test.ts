@@ -8,6 +8,7 @@ import {
     isHostOriginatedError,
     providerFailure,
     recordHostApiRejection,
+    supersededError,
 } from '../extension-error';
 
 describe('extensionErrorShape', () => {
@@ -143,6 +144,36 @@ describe('providerFailure', () => {
         expect(failure).toMatchObject({ code: 'GENERATION_EXPIRED', message: propagated.message });
         expect(isHostOriginatedError(failure)).toBe(true);
         expect(extensionRequestFailureRecord('GENERATION_EXPIRED', failure).level).toBe('debug');
+    });
+
+    it('records an extension-declared superseded revision as a non-fault without host corroboration', () => {
+        // The bundled Git extension's model revision is its own state, so no host turnover can ever corroborate it
+        // (#614). Identity is what makes this different from the forged code in the test below.
+        const declared = supersededError('Source Control snapshot was superseded');
+        const failure = providerFailure(declared, current, 'fallback');
+        expect(failure).not.toBe(declared);
+        expect(failure).toMatchObject({
+            code: 'GENERATION_EXPIRED',
+            message: declared.message,
+        });
+        expect(isHostOriginatedError(failure)).toBe(true);
+        expect(extensionRequestFailureRecord('GENERATION_EXPIRED', failure)).toMatchObject({
+            failure: { reason: 'generation-superseded', remediation: 'none' },
+            level: 'debug',
+        });
+    });
+
+    it('keeps a copy of a declared superseded error a fault, since only the original object is declared', () => {
+        // An extension that reads the message and code off a declared error and rethrows its own object has not
+        // declared anything; the copy carries no membership, so #606's rule still applies to it.
+        const declared = supersededError('Source Control snapshot was superseded');
+        const copied = Object.assign(new Error(declared.message), { code: 'GENERATION_EXPIRED' });
+        const failure = providerFailure(copied, current, 'fallback');
+        expect(isHostOriginatedError(failure)).toBe(false);
+        expect(extensionRequestFailureRecord('GENERATION_EXPIRED', failure)).toMatchObject({
+            failure: { remediation: 'restart-extension-host' },
+            level: 'warn',
+        });
     });
 
     it("re-mints a propagated CANCELLED once Server Core's own reply cancelled an API call", () => {

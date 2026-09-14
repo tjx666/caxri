@@ -405,6 +405,18 @@ export interface CaxriApi {
         getConfiguration<Value = unknown>(key: string): Promise<Value | undefined>;
         getProjectStatus(options?: ProjectStatusRequestOptions): Promise<ProjectStatusSummary>;
     };
+    /**
+     * Builds the error a provider throws when a request arrived against a model revision it has already replaced.
+     *
+     * Throw this instead of your own `GENERATION_EXPIRED` whenever the staleness is your extension's own bookkeeping —
+     * a snapshot superseded by a newer `provideView`, an action carrying a revision you no longer serve. Caxri cannot
+     * see your revision, so an equivalent error you construct yourself is indistinguishable from a real failure and is
+     * logged as one, recommending an Extension Host restart.
+     *
+     * This is a trust contract, not an escape hatch: Caxri records the result at `debug` because you declared it
+     * routine. Wrapping a genuine failure in it hides that failure from diagnostics.
+     */
+    supersededError(message: string): Error;
 }
 
 function unavailable(method: string): never {
@@ -454,6 +466,14 @@ const caxri: CaxriApi = Object.freeze({
         getConfiguration: () => unavailable('workspace.getConfiguration'),
         getProjectStatus: () => unavailable('workspace.getProjectStatus'),
     }),
+    /**
+     * Unlike every other member here this does not call {@link unavailable}: it mints a value rather than reaching into
+     * the Host, so a provider under unit test can still throw it and assert the code. The object simply is not
+     * registered as a declared non-fault — outside the Extension Host there is no classifier to declare it to, and an
+     * unregistered error is classified exactly as it was before this contract existed.
+     */
+    supersededError: (message: string) =>
+        Object.assign(new Error(message), { code: 'GENERATION_EXPIRED' }),
 });
 
 export default caxri;
