@@ -97,8 +97,14 @@ describe('GitMetadataWatcher close/subscribe race', () => {
                 expect(onStatusChanged).toHaveBeenCalledWith('/repo/.git', ['/repo']),
             );
             onStatusChanged.mockClear();
+            /**
+             * These paths do not exist, so no `HEAD` can be read and the ref cannot be attributed to one worktree.
+             * Being unable to narrow must widen back to the whole group rather than drop the refresh.
+             */
             callback?.(null, [{ type: 'update', path: '/repo/.git/refs/heads/main' }]);
-            expect(onStatusChanged).toHaveBeenCalledWith('/repo/.git', ['/repo', '/linked']);
+            await vi.waitFor(() =>
+                expect(onStatusChanged).toHaveBeenCalledWith('/repo/.git', ['/repo', '/linked']),
+            );
             await watcher.watch('/repo/.git', '/repo', ['/repo', '/replacement']);
             onStatusChanged.mockClear();
             callback?.(null, [{ type: 'update', path: '/repo/.git/packed-refs' }]);

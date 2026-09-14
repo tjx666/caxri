@@ -28,5 +28,5 @@ export function statusBadge(summary: ProjectStatusSummary | undefined): ViewBadg
         parts.push(
             `${deployments.size} failed ${deployments.size === 1 ? 'deployment' : 'deployments'}`,
         );
-    return { count, description: parts.join(', '), tone: 'danger' };
+    return { kind: 'error', count, description: parts.join(', ') };
 }

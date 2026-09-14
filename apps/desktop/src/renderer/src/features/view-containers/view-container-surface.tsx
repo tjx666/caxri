@@ -18,6 +18,7 @@ import {
     Info,
     Package,
     ScrollText,
+    X,
 } from 'lucide-react';
 
 import { ChromeTabPanel, ChromeTabs } from '../../components/chrome-tabs';
@@ -34,6 +35,7 @@ import { useViewBadges } from './hooks/use-view-badges';
 import { resolveViewContainerId } from './resolution';
 import { ResourceExplorerView } from './resource-explorer/resource-explorer-view';
 import { SourceControlView } from './source-control/source-control-view';
+import type { ContainerBadge } from './view-badges';
 import { ViewContainerActivityProvider } from './view-container-activity';
 import { retryExtension } from './view-container-commands';
 
@@ -87,6 +89,44 @@ function CatalogIcon({ icon }: { icon: ViewIcon }) {
             Icon = extensionBuiltinIcons[builtinIconId as ExtensionBuiltinIconId];
     }
     return <Icon size={16} />;
+}
+
+/**
+ * The container tab's aggregated badge.
+ *
+ * Severity is drawn as a fixed glyph and not only as a fill, so `error` stays distinguishable from an ordinary count
+ * for a reader who cannot use color — two containers painting differently-colored plain digits is exactly the ambiguity
+ * this replaces. The glyph is the Workbench's, never the extension's: a badge reports meaning and the Workbench owns
+ * how meaning looks. `text` is empty when the winning severity had no countable tally, leaving a glyph-only badge.
+ */
+function ContainerBadgeChip({
+    badge,
+    containerId,
+}: {
+    badge: ContainerBadge;
+    containerId: string;
+}) {
+    const fill = {
+        count: 'bg-badge text-badge-foreground',
+        error: 'bg-error-badge text-error-badge-foreground',
+        warning: 'bg-warning-badge text-warning-badge-foreground',
+    }[badge.kind];
+    return (
+        <span
+            aria-hidden="true"
+            className={`absolute -right-2 -bottom-1 flex h-4 min-w-4 items-center justify-center gap-px rounded-full px-1 text-[10px] leading-none font-semibold ring-2 ring-surface ${fill}`}
+            data-view-container-badge={containerId}
+            data-view-container-badge-kind={badge.kind}
+        >
+            {/* The glyph is drawn at 9px, far below the size Lucide's stroke scaling assumes, so the stroke has to stay
+                in screen pixels or it renders as a barely visible hairline. */}
+            {badge.kind === 'error' && <X nonScalingStroke size={9} strokeWidth={3} />}
+            {badge.kind === 'warning' && (
+                <AlertTriangle nonScalingStroke size={9} strokeWidth={2.5} />
+            )}
+            {badge.text}
+        </span>
+    );
 }
 
 export function ViewContainerSurface({
@@ -152,13 +192,10 @@ export function ViewContainerSurface({
                 <span className="relative flex size-4 items-center justify-center">
                     <CatalogIcon icon={container.icon} />
                     {badges[container.id] && (
-                        <span
-                            aria-hidden="true"
-                            className={`absolute -right-2 -bottom-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-1 text-[10px] leading-none font-semibold ring-2 ring-surface ${badges[container.id]?.tone === 'danger' ? 'bg-danger text-danger-foreground' : 'bg-badge text-badge-foreground'}`}
-                            data-view-container-badge={container.id}
-                        >
-                            {badges[container.id]?.text}
-                        </span>
+                        <ContainerBadgeChip
+                            badge={badges[container.id]!}
+                            containerId={container.id}
+                        />
                     )}
                 </span>
                 {location === 'panel' && (

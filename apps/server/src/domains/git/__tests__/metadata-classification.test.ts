@@ -20,10 +20,22 @@ describe('classifyGitMetadataPath', () => {
         expect(classifyGitMetadataPath('REBASE_HEAD')).toMatchObject({ kind: 'status' });
     });
 
-    it('classifies shared ref changes as shared-scope status', () => {
+    /**
+     * The ref name has to survive classification: it is what lets the watcher refresh only the worktrees on that branch
+     * instead of every worktree sharing the common Git directory. `packed-refs` carries no single name and stays
+     * deliberately broad.
+     */
+    it('classifies shared ref changes as shared-scope status and keeps the ref name', () => {
         expect(classifyGitMetadataPath(path('refs', 'heads', 'main'))).toEqual({
             kind: 'status',
             scope: 'shared',
+            refName: 'refs/heads/main',
+        });
+        expect(classifyGitMetadataPath(path('refs', 'heads', 'feature', 'nested'))).toMatchObject({
+            refName: 'refs/heads/feature/nested',
+        });
+        expect(classifyGitMetadataPath(path('refs', 'remotes', 'origin', 'main'))).toMatchObject({
+            refName: 'refs/remotes/origin/main',
         });
         expect(classifyGitMetadataPath('packed-refs')).toEqual({
             kind: 'status',

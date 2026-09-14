@@ -203,7 +203,11 @@ describe('ExtensionService generation lifecycle', () => {
             workspaceRequest: () => Promise.resolve(null),
         });
         await service.start();
-        supervisorHarness.viewOperationResult = { count: 3, description: '3 changes' };
+        supervisorHarness.viewOperationResult = {
+            kind: 'count',
+            count: 3,
+            description: '3 changes',
+        };
         const request = {
             viewId: 'publisher.fixture.tree',
             operation: 'badge.snapshot' as const,
@@ -223,8 +227,8 @@ describe('ExtensionService generation lifecycle', () => {
         );
         supervisorHarness.activation.resolve();
         expect(await Promise.all([first, second])).toEqual([
-            { count: 3, description: '3 changes' },
-            { count: 3, description: '3 changes' },
+            { kind: 'count', count: 3, description: '3 changes' },
+            { kind: 'count', count: 3, description: '3 changes' },
         ]);
         expect(
             supervisorHarness.requests.filter(({ method }) => method === 'activate'),
