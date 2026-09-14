@@ -17,6 +17,7 @@ import { ActiveFileStatus } from './active-file-status';
 import { ActiveTerminalStatus } from './active-terminal-status';
 import { BranchPicker } from './branch-picker';
 import { resolveChipVisibility } from './chip-priority';
+import { pullRequestUnavailableLabel } from './pull-request-status-label';
 import { ScreencastModeChip } from './screencast-mode-chip';
 import { StatusInfo } from './status-info';
 import { StatusItem } from './status-item';
@@ -209,12 +210,12 @@ export function StatusBar() {
                 {repo?.pullRequestUnavailable && chipVisibility.pullRequest && (
                     <StatusInfo
                         icon={GitPullRequest}
-                        ariaLabel={`PR unknown. ${repo.pullRequestUnavailable.hint}`}
+                        ariaLabel={`${pullRequestUnavailableLabel(repo.pullRequestUnavailable.reason)}. ${repo.pullRequestUnavailable.hint}`}
                         title={repo.pullRequestUnavailable.hint}
                         className="bg-elevated text-muted"
                         focusable
                     >
-                        PR unknown
+                        {pullRequestUnavailableLabel(repo.pullRequestUnavailable.reason)}
                     </StatusInfo>
                 )}
                 {repo && (

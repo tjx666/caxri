@@ -47,12 +47,31 @@ describe('projectStatusCliError', () => {
         });
         expect(projectStatusCliError('vc', 'rate-limited')).toMatchObject({
             kind: 'failure',
-            message: 'Vercel CLI rate limited',
+            reason: 'rate-limited',
+            message: 'Vercel API limit reached',
         });
     });
 
+    it('states when a paused provider resumes, and falls back without a deadline', () => {
+        const retryAt = Date.now() + 30 * 60_000;
+        const paused = projectStatusCliError('gh', 'rate-limited', { retryAt });
+        expect(paused.retryAt).toBe(retryAt);
+        expect(paused.hint).toBe(
+            `Caxri paused GitHub checks to protect the shared API budget. Retries after ${new Date(
+                retryAt,
+            ).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}.`,
+        );
+        expect(projectStatusCliError('gh', 'rate-limited').hint).toBe(
+            'Caxri paused GitHub checks to protect the shared API budget. Refresh after the limit resets.',
+        );
+        // A snapshot can outlive its own pause; a promise about a time that has passed is worse than the generic copy.
+        expect(projectStatusCliError('gh', 'rate-limited', { retryAt: Date.now() - 1 }).hint).toBe(
+            'Caxri paused GitHub checks to protect the shared API budget. Refresh after the limit resets.',
+        );
+    });
+
     it('names the failing subject and directs users to Logs without internal jargon', () => {
-        const error = projectStatusCliError('linear', 'other', 'LOBE-14029');
+        const error = projectStatusCliError('linear', 'other', { subject: 'LOBE-14029' });
         expect(error.message).toBe('Linear CLI: LOBE-14029 failed');
         expect(error.hint).toBe(
             'Something went wrong while loading linked issues. Open Logs for details.',

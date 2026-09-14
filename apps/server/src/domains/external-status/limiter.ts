@@ -307,12 +307,15 @@ export class ExternalStatusLimiter {
         await this.reload();
         if (source === 'gh') await this.ensureGitHubQuota();
         const remaining = this.pauseRemainingMs(source);
-        if (remaining > 0)
-            throw new ExternalStatusCliError(
+        if (remaining > 0) {
+            const paused = new ExternalStatusCliError(
                 source,
                 'rate-limited',
                 `${source}: rate limited, paused for ${Math.ceil(remaining / 1_000)}s`,
             );
+            paused.retryAt = this.circuit(source).resumeAt;
+            throw paused;
+        }
         try {
             const result = await work();
             const circuit = this.circuit(source);
@@ -324,8 +327,11 @@ export class ExternalStatusLimiter {
             }
             return result;
         } catch (error) {
-            if (error instanceof ExternalStatusCliError && error.kind === 'rate-limited')
+            if (error instanceof ExternalStatusCliError && error.kind === 'rate-limited') {
                 await this.open(source, error.message);
+                // The provider reported the limit; the circuit now holds the deadline the UI needs to state.
+                error.retryAt = this.circuit(source).resumeAt;
+            }
             throw error;
         }
     }

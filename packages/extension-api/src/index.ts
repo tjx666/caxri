@@ -283,9 +283,18 @@ export interface ProjectStatusDeployment {
 export interface ProjectStatusError {
     source: 'github' | 'linear' | 'vercel';
     kind: 'prerequisite' | 'failure';
-    reason?: 'network' | 'tls';
+    /**
+     * Present when the failure describes the whole Project rather than the repository reporting it — a lost connection,
+     * or a provider budget the account shares — so a view can state it once instead of per repository.
+     */
+    reason?: 'network' | 'rate-limited' | 'tls';
     message: string;
     hint: string;
+    /**
+     * Epoch ms when Caxri queries this provider again, for `rate-limited` failures whose deadline is known. Compare it
+     * against the current time: a cached status snapshot outlives its own pause.
+     */
+    retryAt?: number;
     detailsView?: 'logs';
 }
 

@@ -199,6 +199,9 @@ export async function readBranchPublication(
             error: projectStatusCliError(
                 'gh',
                 error instanceof ExternalStatusCliError ? error.kind : 'other',
+                {
+                    retryAt: error instanceof ExternalStatusCliError ? error.retryAt : undefined,
+                },
             ),
         };
     }

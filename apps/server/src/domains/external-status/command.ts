@@ -40,6 +40,13 @@ export type ExternalStatusRunner = (
 export type ExternalStatusCommandDependencies = ExternalCommandDependencies;
 
 export class ExternalStatusCliError extends Error {
+    /**
+     * Epoch ms when `ExternalStatusLimiter` will let this source run again. Only a `rate-limited` failure carries it,
+     * and only when the limiter learned a reset: travelling on the error keeps the deadline with the one thing every
+     * consumer already catches, instead of threading the limiter itself through each domain that reports the failure.
+     */
+    retryAt?: number;
+
     constructor(
         readonly command: ExternalStatusSource,
         readonly kind: CliFailureKind,

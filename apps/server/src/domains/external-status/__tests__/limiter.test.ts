@@ -51,6 +51,29 @@ describe('ExternalStatusLimiter', () => {
         await expect(limiter.guard('gh', work)).resolves.toBe('ok');
     });
 
+    it('carries the resume deadline on the error so the UI can state it', async () => {
+        let now = 1_000_000;
+        const resetAt = 1_900_000;
+        const limiter = new ExternalStatusLimiter({
+            now: () => now,
+            pausePath: await pausePath(),
+            probeQuota: () => Promise.resolve({ remaining: 0, resetAt }),
+        });
+
+        // The provider itself reported the limit; the deadline comes from the probe the circuit just ran.
+        await expect(limiter.guard('gh', rateLimited('gh'))).rejects.toMatchObject({
+            kind: 'rate-limited',
+            retryAt: resetAt,
+        });
+
+        // A call pre-empted by the open circuit carries the same deadline without touching GitHub.
+        now += 60_000;
+        await expect(limiter.guard('gh', () => Promise.resolve('ok'))).rejects.toMatchObject({
+            kind: 'rate-limited',
+            retryAt: resetAt,
+        });
+    });
+
     it('clears a secondary limit in a minute rather than waiting for the hourly reset', async () => {
         let now = 1_000_000;
         const limiter = new ExternalStatusLimiter({
