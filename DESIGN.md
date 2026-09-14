@@ -376,18 +376,18 @@ the diff headers all render that letter from one component. Source Control still
 from the Extension API's generic `tone`. The staged column
 wins when both are set, so a file staged as added and then edited reads `A` everywhere. The file
 type icon keeps its own color: it identifies the language, not the change. A directory in the Files
-tree takes the color of the most severe change anywhere beneath it (conflicted > deleted > modified
-
-> renamed > added > untracked) but no letter, which would claim the folder itself changed. Changes
-> inside a submodule or a nested repository decorate that child repository's root and keep climbing
-> through its ancestors, stopping below the selected Workbench Root's own repository root: only that
-> primary root is excluded, and a child root is a decoration the user can act on, not a boundary. A
-> directory's color says there are changes under it, not that the enclosing repository tracks them.
-> Inactive tabs keep their decoration color — the point is to be
-> readable across the whole rail without selecting each tab. Ignored entries stay muted and italic
-> and take no decoration. The decoration is visual only: a row or tab is still named by its bare
-> filename, and the status reaches assistive technology as an accessible description
-> (`Git: modified.`) rather than being folded into that name.
+tree takes the color of the most severe change anywhere beneath it (conflicted, then deleted,
+modified, renamed, added, untracked) but no letter, which would claim the folder itself changed.
+Changes inside a submodule or a nested repository decorate that child repository's root and keep
+climbing through its ancestors, stopping below the selected Workbench Root's own repository root:
+only that primary root is excluded, and a child root is a decoration the user can act on, not a
+boundary. A child root a parent repository reports as a moved gitlink is still a folder row, so it
+takes the louder of that change and whatever is inside it, and still no letter. A directory's color
+says there are changes under it, not that the enclosing repository tracks them. Inactive tabs keep
+their decoration color — the point is to be readable across the whole rail without selecting each
+tab. Ignored entries stay muted and italic and take no decoration. The decoration is visual only: a
+row or tab is still named by its bare filename, and the status reaches assistive technology as an
+accessible description (`Git: modified.`) rather than being folded into that name.
 
 **Child repositories** — a directory that is a repository of its own takes the Git repository
 folder icon instead of the one its name would earn, so a submodule is never mistaken for an
