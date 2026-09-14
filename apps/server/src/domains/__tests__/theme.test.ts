@@ -214,62 +214,6 @@ describe('theme import mapping', () => {
         expect(theme.colors.surface).toBe('#1e1e1e');
     });
 
-    it('keeps the surface fallback when only tab and title-bar fills are supplied', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-tab-surface-'));
-        temporaryDirectories.push(directory);
-        const path = join(directory, 'dark.json');
-        await writeFile(
-            path,
-            JSON.stringify({
-                name: 'Tab surface',
-                type: 'dark',
-                colors: {
-                    'editor.background': '#1e1e1e',
-                    'tab.activeBackground': '#2d2d30',
-                    'titleBar.activeBackground': '#252530',
-                },
-            }),
-            'utf8',
-        );
-
-        expect((await importTheme(path, draculaTheme)).colors.surface).toBe('#252526');
-    });
-
-    it('keeps the elevated fallback when only list fills are supplied', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-list-elevated-'));
-        temporaryDirectories.push(directory);
-        const hover = join(directory, 'hover.json');
-        await writeFile(
-            hover,
-            JSON.stringify({
-                name: 'List hover',
-                type: 'dark',
-                colors: {
-                    'editor.background': '#1e1e1e',
-                    'list.hoverBackground': '#2a2d2e',
-                    'list.activeSelectionBackground': '#2c2c32',
-                },
-            }),
-            'utf8',
-        );
-        expect((await importTheme(hover, draculaTheme)).colors.elevated).toBe('#252526');
-
-        const selection = join(directory, 'selection.json');
-        await writeFile(
-            selection,
-            JSON.stringify({
-                name: 'List selection',
-                type: 'dark',
-                colors: {
-                    'editor.background': '#1e1e1e',
-                    'list.activeSelectionBackground': '#2c2c32',
-                },
-            }),
-            'utf8',
-        );
-        expect((await importTheme(selection, draculaTheme)).colors.elevated).toBe('#252526');
-    });
-
     it('maps string-scoped tokenColors and terminal.selectionBackground', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-token-string-'));
         temporaryDirectories.push(directory);
@@ -455,7 +399,12 @@ describe('theme import mapping', () => {
         });
     });
 
-    it('keeps the success fallback when charts.green is absent', async () => {
+    /**
+     * `testing.iconPassed` is the workbench's own passed-state green, which a theme tunes for a success glyph;
+     * `charts.green` is a data-series color several themes leave at a saturated default. Preferring the semantic key
+     * was decided in #852 and is the reason this reads the theme's value rather than the built-in dark default.
+     */
+    it('prefers the semantic passed-state green over the chart palette', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-success-'));
         temporaryDirectories.push(directory);
         const path = join(directory, 'dark.json');
@@ -467,12 +416,53 @@ describe('theme import mapping', () => {
                 colors: {
                     'editor.background': '#1e1e1e',
                     'testing.iconPassed': '#73c991',
+                    'charts.green': '#00ff00',
                 },
             }),
             'utf8',
         );
 
-        expect((await importTheme(path, draculaTheme)).colors.success).toBe('#89d185');
+        expect((await importTheme(path, draculaTheme)).colors.success).toBe('#73c991');
+    });
+
+    it('falls back to the chart palette when the passed-state green is absent', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-chart-green-'));
+        temporaryDirectories.push(directory);
+        const path = join(directory, 'dark.json');
+        await writeFile(
+            path,
+            JSON.stringify({
+                name: 'Chart green',
+                type: 'dark',
+                colors: { 'editor.background': '#1e1e1e', 'charts.green': '#00ff00' },
+            }),
+            'utf8',
+        );
+
+        expect((await importTheme(path, draculaTheme)).colors.success).toBe('#00ff00');
+    });
+
+    it('prefers the pull-request merged color over the chart palette', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-merged-'));
+        temporaryDirectories.push(directory);
+        const path = join(directory, 'dark.json');
+        await writeFile(
+            path,
+            JSON.stringify({
+                name: 'Merged',
+                type: 'dark',
+                colors: {
+                    'editor.background': '#1e1e1e',
+                    'pullRequests.merged': '#8957e5',
+                    'charts.purple': '#ff00ff',
+                },
+            }),
+            'utf8',
+        );
+
+        const imported = await importTheme(path, draculaTheme);
+
+        expect(imported.colors.merged).toBe('#8957e5');
     });
 
     it('reads badge and Git decoration colors from their VS Code keys', async () => {

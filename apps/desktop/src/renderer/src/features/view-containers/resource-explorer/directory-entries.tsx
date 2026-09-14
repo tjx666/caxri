@@ -70,8 +70,17 @@ function discard(promise: Promise<unknown>): void {
     void promise;
 }
 
+/**
+ * Hover, keyboard focus, and selection are three separate `list.*` roles rather than one shared `elevated`, so a theme
+ * that distinguishes them here keeps that distinction in Caxri.
+ *
+ * `active` and `inactive` selection follow VS Code's meaning: a list is active when it holds keyboard focus. A focused
+ * row is that condition at row granularity, so the selected row takes the active fill exactly while it is focused and
+ * the inactive one once focus moves elsewhere — no separate "the tree has focus" state to track. The focus ring stays
+ * on top of the focus fill; a theme may set the two focus colors flat, and the ring is what still says "you are here".
+ */
 const treeRowClassName =
-    'tree-row relative flex w-full h-7 items-center gap-2 pr-2 border-0 bg-surface text-foreground text-left cursor-pointer outline-none hover:bg-elevated focus-visible:shadow-[inset_0_0_0_2px_var(--accent)] aria-disabled:text-muted aria-disabled:cursor-not-allowed data-[git-ignored=true]:text-muted data-[git-ignored=true]:italic data-[selected=true]:bg-elevated data-[cut=true]:opacity-50 data-[drop-target=true]:bg-[color-mix(in_srgb,var(--accent)_18%,var(--elevated))]';
+    'tree-row relative flex w-full h-7 items-center gap-2 pr-2 border-0 bg-surface text-foreground text-left cursor-pointer outline-none hover:bg-list-hover-background hover:text-list-hover-foreground focus-visible:bg-list-focus-background focus-visible:text-list-focus-foreground focus-visible:shadow-[inset_0_0_0_2px_var(--accent)] aria-disabled:text-muted aria-disabled:cursor-not-allowed data-[git-ignored=true]:text-muted data-[git-ignored=true]:italic data-[selected=true]:bg-list-inactive-selection-background data-[selected=true]:text-list-inactive-selection-foreground data-[selected=true]:focus-visible:bg-list-active-selection-background data-[selected=true]:focus-visible:text-list-active-selection-foreground data-[cut=true]:opacity-50 data-[drop-target=true]:bg-[color-mix(in_srgb,var(--accent)_18%,var(--elevated))]';
 
 function InlineFileName({
     depth = 0,

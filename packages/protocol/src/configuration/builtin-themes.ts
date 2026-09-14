@@ -1,5 +1,4 @@
 import type { ThemeTokens } from '../domain/domain.js';
-import { themeTokensSchema } from '../domain/domain.js';
 
 /**
  * Dracula's official MIT palette, normalized for Caxri's app, Terminal, and Monaco roles. Source:
@@ -46,6 +45,25 @@ export const draculaTheme: ThemeTokens = {
         gitDeleted: '#ff5555',
         gitUntracked: '#50fa7b',
         gitConflicting: '#ffb86c',
+        tabActiveBackground: '#282a36',
+        tabActiveForeground: '#f8f8f2',
+        tabInactiveBackground: '#21222c',
+        tabInactiveForeground: '#6272a4',
+        tabHoverBackground: '#343746',
+        tabHoverForeground: '#f8f8f2',
+        listHoverBackground: '#44475a75',
+        listHoverForeground: '#f8f8f2',
+        listFocusBackground: '#44475a75',
+        listFocusForeground: '#f8f8f2',
+        listActiveSelectionBackground: '#44475a',
+        listActiveSelectionForeground: '#f8f8f2',
+        listInactiveSelectionBackground: '#44475a75',
+        listInactiveSelectionForeground: '#f8f8f2',
+        titleBarActiveBackground: '#21222c',
+        titleBarActiveForeground: '#f8f8f2',
+        titleBarInactiveBackground: '#191a21',
+        titleBarInactiveForeground: '#6272a4',
+        shadow: '#00000073',
     },
     terminal: {
         background: '#282a36',
@@ -112,6 +130,25 @@ export const monokaiTheme: ThemeTokens = {
         gitDeleted: '#c74e39',
         gitUntracked: '#73c991',
         gitConflicting: '#e4676b',
+        tabActiveBackground: '#272822',
+        tabActiveForeground: '#f8f8f2',
+        tabInactiveBackground: '#34352f',
+        tabInactiveForeground: '#ccccc7',
+        tabHoverBackground: '#34352f',
+        tabHoverForeground: '#f8f8f2',
+        listHoverBackground: '#3e3d32',
+        listHoverForeground: '#f8f8f2',
+        listFocusBackground: '#34352f',
+        listFocusForeground: '#f8f8f2',
+        listActiveSelectionBackground: '#75715e',
+        listActiveSelectionForeground: '#f8f8f2',
+        listInactiveSelectionBackground: '#414339',
+        listInactiveSelectionForeground: '#f8f8f2',
+        titleBarActiveBackground: '#1e1f1c',
+        titleBarActiveForeground: '#f8f8f2',
+        titleBarInactiveBackground: '#202120',
+        titleBarInactiveForeground: '#f8f8f2',
+        shadow: '#00000098',
     },
     terminal: {
         background: '#272822',
@@ -174,6 +211,25 @@ export const oneDarkProTheme: ThemeTokens = {
         gitDeleted: '#c74e39',
         gitUntracked: '#73c991',
         gitConflicting: '#e4676b',
+        tabActiveBackground: '#282c34',
+        tabActiveForeground: '#dcdcdc',
+        tabInactiveBackground: '#21252b',
+        tabInactiveForeground: '#9da5b4',
+        tabHoverBackground: '#323842',
+        tabHoverForeground: '#abb2bf',
+        listHoverBackground: '#2c313a',
+        listHoverForeground: '#abb2bf',
+        listFocusBackground: '#323842',
+        listFocusForeground: '#f0f0f0',
+        listActiveSelectionBackground: '#2c313a',
+        listActiveSelectionForeground: '#d7dae0',
+        listInactiveSelectionBackground: '#323842',
+        listInactiveSelectionForeground: '#d7dae0',
+        titleBarActiveBackground: '#282c34',
+        titleBarActiveForeground: '#9da5b4',
+        titleBarInactiveBackground: '#282c34',
+        titleBarInactiveForeground: '#6b717d',
+        shadow: '#00000073',
     },
     terminal: {
         background: '#282c34',
@@ -264,6 +320,25 @@ export const solarizedDarkTheme: ThemeTokens = {
         gitDeleted: '#c74e39',
         gitUntracked: '#73c991',
         gitConflicting: '#e4676b',
+        tabActiveBackground: '#002b37',
+        tabActiveForeground: '#d6dbdb',
+        tabInactiveBackground: '#004052',
+        tabInactiveForeground: '#93a1a1',
+        tabHoverBackground: '#073642',
+        tabHoverForeground: '#eee8d5',
+        listHoverBackground: '#004454aa',
+        listHoverForeground: '#eee8d5',
+        listFocusBackground: '#073642',
+        listFocusForeground: '#eee8d5',
+        listActiveSelectionBackground: '#005a6f',
+        listActiveSelectionForeground: '#eee8d5',
+        listInactiveSelectionBackground: '#00445488',
+        listInactiveSelectionForeground: '#eee8d5',
+        titleBarActiveBackground: '#002c39',
+        titleBarActiveForeground: '#eee8d5',
+        titleBarInactiveBackground: '#0e2931',
+        titleBarInactiveForeground: '#eee8d5',
+        shadow: '#00000073',
     },
     terminal: {
         background: '#002b36',
@@ -321,6 +396,25 @@ export const solarizedLightTheme: ThemeTokens = {
         gitDeleted: '#ad0707',
         gitUntracked: '#007100',
         gitConflicting: '#ad0707',
+        tabActiveBackground: '#fdf6e3',
+        tabActiveForeground: '#42545a',
+        tabInactiveBackground: '#d3cbb7',
+        tabInactiveForeground: '#586e75',
+        tabHoverBackground: '#ddd6c1',
+        tabHoverForeground: '#42545a',
+        listHoverBackground: '#dfca8844',
+        listHoverForeground: '#42545a',
+        listFocusBackground: '#ddd6c1',
+        listFocusForeground: '#42545a',
+        listActiveSelectionBackground: '#dfca88',
+        listActiveSelectionForeground: '#6c6c6c',
+        listInactiveSelectionBackground: '#d1cbb8',
+        listInactiveSelectionForeground: '#6c6c6c',
+        titleBarActiveBackground: '#eee8d5',
+        titleBarActiveForeground: '#42545a',
+        titleBarInactiveBackground: '#f0ece1',
+        titleBarInactiveForeground: '#42545a',
+        shadow: '#00000073',
     },
     terminal: {
         background: '#fdf6e3',
@@ -386,6 +480,30 @@ export const tokyoNightTheme: ThemeTokens = {
          * decoration is already the quietest text on the row.
          */
         gitConflicting: '#e0af68',
+        tabActiveBackground: '#16161e',
+        tabActiveForeground: '#a9b1d6',
+        tabInactiveBackground: '#16161e',
+        tabInactiveForeground: '#787c99',
+        tabHoverBackground: '#202330',
+        tabHoverForeground: '#a9b1d6',
+        listHoverBackground: '#13131a',
+        listHoverForeground: '#a9b1d6',
+        listFocusBackground: '#1c1d29',
+        listFocusForeground: '#a9b1d6',
+        listActiveSelectionBackground: '#202330',
+        listActiveSelectionForeground: '#a9b1d6',
+        listInactiveSelectionBackground: '#1c1d29',
+        listInactiveSelectionForeground: '#a9b1d6',
+        titleBarActiveBackground: '#16161e',
+        titleBarActiveForeground: '#787c99',
+        titleBarInactiveBackground: '#16161e',
+        titleBarInactiveForeground: '#787c99',
+        /**
+         * Tokyo Night sets `widget.shadow` to a fully transparent white, which is the author turning widget shadows off
+         * rather than an unset key. Kept as written: an opaque fallback here would put a shadow under every popup the
+         * theme deliberately leaves flat.
+         */
+        shadow: '#ffffff00',
     },
     terminal: {
         background: '#16161e',
@@ -460,6 +578,25 @@ export const oscuraMidnightTheme: ThemeTokens = {
         gitUntracked: '#ffffff',
         gitDeleted: '#ff5c5c',
         gitConflicting: '#ff5c5c',
+        tabActiveBackground: '#0b0b0f',
+        tabActiveForeground: '#ffffff',
+        tabInactiveBackground: '#0b0b0f',
+        tabInactiveForeground: '#868f97',
+        tabHoverBackground: '#232323',
+        tabHoverForeground: '#e6e6e6',
+        listHoverBackground: '#ffffff08',
+        listHoverForeground: '#e6e6e6',
+        listFocusBackground: '#232323',
+        listFocusForeground: '#e6e6e6',
+        listActiveSelectionBackground: '#232323',
+        listActiveSelectionForeground: '#e6e6e6',
+        listInactiveSelectionBackground: '#232323',
+        listInactiveSelectionForeground: '#e6e6e6',
+        titleBarActiveBackground: '#0b0b0f',
+        titleBarActiveForeground: '#7e7e7e',
+        titleBarInactiveBackground: '#0b0b0f',
+        titleBarInactiveForeground: '#6a7782',
+        shadow: '#00000073',
     },
     terminal: {
         background: '#0b0b0f',
@@ -523,6 +660,31 @@ export const vscodeDarkPlusTheme: ThemeTokens = {
         gitDeleted: '#c74e39',
         gitUntracked: '#73c991',
         gitConflicting: '#e4676b',
+        tabActiveBackground: '#1e1e1e',
+        tabActiveForeground: '#d4d4d4',
+        tabInactiveBackground: '#303031',
+        tabInactiveForeground: '#a6a6a6',
+        tabHoverBackground: '#2d2d30',
+        tabHoverForeground: '#d4d4d4',
+        /**
+         * Dark+ declares its list and tab state colors in VS Code's TypeScript color registry rather than in
+         * `dark_plus.json`, so the four list fills below all resolve to `elevated` through the documented fallback —
+         * the same result an import of that file produces. Matching the registry would make the preset and an import of
+         * its own source disagree.
+         */
+        listHoverBackground: '#2d2d30',
+        listHoverForeground: '#d4d4d4',
+        listFocusBackground: '#2d2d30',
+        listFocusForeground: '#d4d4d4',
+        listActiveSelectionBackground: '#2d2d30',
+        listActiveSelectionForeground: '#d4d4d4',
+        listInactiveSelectionBackground: '#2d2d30',
+        listInactiveSelectionForeground: '#d4d4d4',
+        titleBarActiveBackground: '#252526',
+        titleBarActiveForeground: '#d4d4d4',
+        titleBarInactiveBackground: '#323233',
+        titleBarInactiveForeground: '#d4d4d4',
+        shadow: '#00000073',
     },
     terminal: {
         background: '#1e1e1e',
@@ -619,103 +781,3 @@ export const builtinThemeSources = {
         url: 'https://github.com/microsoft/vscode/blob/main/extensions/theme-defaults/themes/dark_plus.json',
     },
 } as const satisfies Record<BuiltinThemeId, { license: 'MIT'; url: string }>;
-
-/**
- * CSS custom property for a theme color role. Roles are camelCase in the persisted contract and kebab-case in the
- * stylesheet, so `gitAdded` reaches the Renderer as `--git-added`. Shared rather than inlined because `applyCssTheme`
- * writes these names at runtime and `styles/theme.css` hardcodes the same ones as its pre-Runtime fallback; the two are
- * asserted equal, and a private copy of the rule on either side would let them drift into a first-frame flash.
- */
-export function themeColorCssVariable(role: string): string {
-    return `--${role.replaceAll(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`;
-}
-
-/**
- * Every color role added after the first release, newest group last. A saved theme file missing any of these predates
- * the release that introduced it.
- */
-const UPGRADABLE_COLOR_ROLES = [
-    'merged',
-    'badge',
-    'gitAdded',
-    'gitModified',
-    'gitDeleted',
-    'gitUntracked',
-    'gitConflicting',
-] as const satisfies ReadonlyArray<keyof ThemeTokens['colors']>;
-
-/**
- * Where a custom theme — which has no catalog entry to recover from — borrows each late role. Every source is a role
- * the file already carries, so the recovered value is readable on that theme's own surfaces by construction. Falling
- * back to `accent` for all of them was tried first and is wrong for the decorations: it paints added, deleted, and
- * conflicting files the same color, which is exactly the distinction the roles exist to make.
- */
-const CUSTOM_THEME_ROLE_SOURCE = {
-    merged: 'accent',
-    badge: 'accent',
-    gitAdded: 'success',
-    gitModified: 'warning',
-    gitDeleted: 'danger',
-    gitUntracked: 'success',
-    gitConflicting: 'danger',
-} as const satisfies Record<(typeof UPGRADABLE_COLOR_ROLES)[number], keyof ThemeTokens['colors']>;
-
-/**
- * Fills in color roles that did not exist when a theme file was written, ahead of schema validation.
- *
- * A fixed default hex cannot do this job. `findMatchingBuiltinTheme` compares the whole parsed snapshot, so filling
- * `merged` with any value other than the preset's own would strip a saved preset's built-in identity;
- * `normalizeBuiltinTheme` would then rewrite it to `custom-*` and `ConfigService` would persist that downgrade. A
- * single default is also wrong on contrast grounds — no one violet clears 3:1 on both a dark and a light preset's
- * chrome. Recovering the preset's own value keeps identity and contrast intact. A genuinely custom theme has no catalog
- * entry to recover from and borrows the nearest role it already carries (see {@link CUSTOM_THEME_ROLE_SOURCE}).
- *
- * A built-in snapshot missing any of these roles gets its whole `colors` block replaced by the catalog's, not just the
- * absent keys. Such a file was written by an older build, so a value that now differs is drift from that build rather
- * than a deliberate edit — and backfilling only the new keys would leave the preset failing `findMatchingBuiltinTheme`,
- * silently downgrading the user to `custom-*` and pinning them to the old colors. The escape hatch closes on its own:
- * once rewritten, the snapshot carries every role and takes the branch below.
- *
- * Anything that is not a theme-shaped object passes through untouched so the schema still owns rejection.
- */
-export function upgradeThemeColors(value: unknown): unknown {
-    if (typeof value !== 'object' || value === null) return value;
-    const theme = value as { colors?: unknown; id?: unknown; source?: unknown };
-    const colors = theme.colors;
-    if (typeof colors !== 'object' || colors === null) return value;
-    const missing = UPGRADABLE_COLOR_ROLES.filter((role) => !(role in colors));
-    if (missing.length === 0) return value;
-    const preset = builtinThemes.find((candidate) => candidate.id === theme.id);
-    if (preset && theme.source === 'builtin')
-        return { ...theme, colors: structuredClone(preset.colors) };
-    const existing = colors as Record<string, unknown>;
-    const recovered: Record<string, unknown> = { ...existing };
-    for (const role of missing) {
-        const value_ = preset?.colors[role] ?? existing[CUSTOM_THEME_ROLE_SOURCE[role]];
-        if (typeof value_ !== 'string') return value;
-        recovered[role] = value_;
-    }
-    return { ...theme, colors: recovered };
-}
-
-/**
- * Finds a preset only when every persisted token still matches the current built-in snapshot.
- */
-export function findMatchingBuiltinTheme(theme: ThemeTokens): ThemeTokens | undefined {
-    const canonicalTheme = JSON.stringify(themeTokensSchema.parse(theme));
-    return builtinThemes.find(
-        (candidate) => JSON.stringify(themeTokensSchema.parse(candidate)) === canonicalTheme,
-    );
-}
-
-/**
- * Keeps externally edited built-in snapshots honest after a restart.
- */
-export function normalizeBuiltinTheme(theme: ThemeTokens): ThemeTokens {
-    if (theme.source !== 'builtin' || findMatchingBuiltinTheme(theme)) return theme;
-    return {
-        ...theme,
-        id: theme.id.startsWith('custom-') ? theme.id : `custom-${theme.id}`,
-        source: 'custom',
-    };
-}

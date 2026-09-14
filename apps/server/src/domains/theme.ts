@@ -18,6 +18,16 @@ import YAML from 'yaml';
 
 import type { BoundedRegularFileReadOptions } from './bounded-file-reader';
 import { readBoundedRegularFileText } from './bounded-file-reader';
+import {
+    applyVsCodeControlColors,
+    applyVsCodeTokenColors,
+    firstHex,
+    formatMissingSyntaxWarning,
+    hasMappedVsCodeColor,
+    isLightVsCodeTheme,
+    normalizedHex,
+    SYNTAX_EDITOR_ROLES,
+} from './theme-colors';
 import { parseThemeDocument, themeDocumentRoot } from './theme-import-source';
 
 export { draculaTheme } from '@caxri/protocol';
@@ -54,58 +64,6 @@ const JSON_THEME_ROOT_MESSAGE =
     'This theme file is not a JSON object. Pick the theme JSON that holds the "colors" object, not a list or a bare value.';
 const INCLUDE_DIRECTORY_MESSAGE = 'Theme include must be a file in the same directory.';
 
-/**
- * VS Code `colors` keys `parseVsCode` actually maps. Zero-hit rejection also counts syntax roles mapped from
- * `tokenColors`; semantic token colors are omitted because Caxri does not import them.
- */
-const VSCODE_MAPPED_COLOR_KEYS = new Set([
-    'editor.background',
-    'editor.foreground',
-    'editor.lineHighlightBackground',
-    'editor.selectionBackground',
-    'sideBar.background',
-    'activityBar.background',
-    'editorWidget.background',
-    'foreground',
-    'descriptionForeground',
-    'sideBar.border',
-    'tab.border',
-    'panel.border',
-    'tab.activeBorderTop',
-    'activityBar.activeBorder',
-    'progressBar.background',
-    'focusBorder',
-    'charts.green',
-    'charts.purple',
-    'editorWarning.foreground',
-    'editorError.foreground',
-    'activityBarBadge.background',
-    'gitDecoration.addedResourceForeground',
-    'gitDecoration.modifiedResourceForeground',
-    'gitDecoration.deletedResourceForeground',
-    'gitDecoration.untrackedResourceForeground',
-    'gitDecoration.conflictingResourceForeground',
-    'terminal.background',
-    'terminal.foreground',
-    'terminalCursor.foreground',
-    'terminal.selectionBackground',
-    'terminal.ansiBlack',
-    'terminal.ansiRed',
-    'terminal.ansiGreen',
-    'terminal.ansiYellow',
-    'terminal.ansiBlue',
-    'terminal.ansiMagenta',
-    'terminal.ansiCyan',
-    'terminal.ansiWhite',
-    'terminal.ansiBrightBlack',
-    'terminal.ansiBrightRed',
-    'terminal.ansiBrightGreen',
-    'terminal.ansiBrightYellow',
-    'terminal.ansiBrightBlue',
-    'terminal.ansiBrightMagenta',
-    'terminal.ansiBrightCyan',
-    'terminal.ansiBrightWhite',
-]);
 const MIN_MUTED_CONTRAST = 4.5;
 const APP_COLOR_SURFACES = ['background', 'surface', 'elevated'] as const;
 const APP_COLOR_SURFACE_LABELS = {
@@ -113,126 +71,6 @@ const APP_COLOR_SURFACE_LABELS = {
     elevated: 'raised panel background',
     surface: 'sidebar and status bar background',
 } satisfies Record<(typeof APP_COLOR_SURFACES)[number], string>;
-
-function normalizedHex(
-    value: unknown,
-    fallback: string,
-    options: { preserveAlpha?: boolean } = {},
-): string {
-    if (typeof value !== 'string') return fallback;
-    const candidate = value.startsWith('#') ? value : `#${value}`;
-    if (/^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/i.test(candidate)) {
-        const hex = candidate.toLowerCase();
-        return options.preserveAlpha ? hex : hex.slice(0, 7);
-    }
-    // VS Code themes may use CSS shorthand (`#fff`, `#fff8`); expand it rather than silently dropping the color.
-    const shorthand = /^#([0-9a-f]{3,4})$/i.exec(candidate);
-    if (!shorthand) return fallback;
-    const digits = shorthand[1].toLowerCase();
-    const [red, green, blue] = digits;
-    const rgb = `#${red}${red}${green}${green}${blue}${blue}`;
-    if (!options.preserveAlpha || digits.length === 3) return rgb;
-    const alpha = digits[3];
-    return `${rgb}${alpha}${alpha}`;
-}
-
-/**
- * First key the VS Code theme actually defines as a usable color, else `fallback`.
- *
- * Several Caxri roles have no single VS Code counterpart and have to walk an ordered preference list (see `border` and
- * `accent` below). Written as a helper rather than nested `normalizedHex` calls so the preference order reads as a list
- * instead of as nesting depth, and so a one-key read looks the same as a three-key one.
- */
-function firstHex(
-    colors: Record<string, unknown>,
-    keys: readonly string[],
-    fallback: string,
-    options: { preserveAlpha?: boolean } = {},
-): string {
-    for (const key of keys) {
-        const hex = normalizedHex(colors[key], '', options);
-        if (hex) return hex;
-    }
-    return fallback;
-}
-
-const SYNTAX_EDITOR_ROLES = ['comment', 'keyword', 'string', 'number'] as const;
-type SyntaxEditorRole = (typeof SYNTAX_EDITOR_ROLES)[number];
-
-const SYNTAX_SCOPE_PREFIX = {
-    comment: 'comment',
-    keyword: 'keyword',
-    string: 'string',
-    number: 'constant.numeric',
-} as const satisfies Record<SyntaxEditorRole, string>;
-
-function tokenColorScopes(scope: unknown): string[] {
-    const tokens = typeof scope === 'string' ? [scope] : Array.isArray(scope) ? scope : [];
-    const scopes: string[] = [];
-    for (const token of tokens) {
-        if (typeof token !== 'string') continue;
-        for (const part of token.split(',')) {
-            const trimmed = part.trim();
-            if (trimmed.length > 0) scopes.push(trimmed);
-        }
-    }
-    return scopes;
-}
-
-function assignMatchingSyntaxRoles(
-    theme: ThemeTokens,
-    scopes: readonly string[],
-    foreground: string,
-    assigned: Set<SyntaxEditorRole>,
-): void {
-    for (const role of SYNTAX_EDITOR_ROLES) {
-        if (!scopes.includes(SYNTAX_SCOPE_PREFIX[role])) continue;
-        theme.editor[role] = foreground;
-        assigned.add(role);
-    }
-}
-
-/**
- * Maps VS Code `tokenColors` onto Caxri's four editor syntax roles. Only exact selectors count — `keyword.operator`
- * must not overwrite `keyword`. Later exact rules still win. Report both missing roles and valid rules whose scopes
- * Caxri cannot represent so the import warns without counting them as effective mappings. See
- * https://code.visualstudio.com/api/extension-guides/color-theme#syntax-colors.
- */
-function applyVsCodeTokenColors(
-    theme: ThemeTokens,
-    tokenColors: unknown,
-): { missing: SyntaxEditorRole[]; hasOtherSyntaxRules: boolean } {
-    if (!Array.isArray(tokenColors))
-        return { missing: [...SYNTAX_EDITOR_ROLES], hasOtherSyntaxRules: false };
-    const assigned = new Set<SyntaxEditorRole>();
-    const mappedScopes = new Set<string>(Object.values(SYNTAX_SCOPE_PREFIX));
-    let hasOtherSyntaxRules = false;
-    for (const entry of tokenColors) {
-        if (!entry || typeof entry !== 'object') continue;
-        const rule = entry as { scope?: unknown; settings?: { foreground?: unknown } };
-        const scopes = tokenColorScopes(rule.scope);
-        const foreground = normalizedHex(rule.settings?.foreground, '');
-        if (!foreground) continue;
-        if (scopes.length === 0 || scopes.some((scope) => !mappedScopes.has(scope)))
-            hasOtherSyntaxRules = true;
-        assignMatchingSyntaxRoles(theme, scopes, foreground, assigned);
-    }
-    return {
-        missing: SYNTAX_EDITOR_ROLES.filter((role) => !assigned.has(role)),
-        hasOtherSyntaxRules,
-    };
-}
-
-function formatMissingSyntaxWarning(missing: readonly SyntaxEditorRole[]): string {
-    if (missing.length === SYNTAX_EDITOR_ROLES.length) return 'Syntax colors were not imported.';
-    const labels = {
-        comment: 'comments',
-        keyword: 'keywords',
-        string: 'strings',
-        number: 'numbers',
-    };
-    return `Syntax colors for ${missing.map((role) => labels[role]).join(', ')} were not imported.`;
-}
 
 function mixHex(from: string, toward: string, amount: number): string {
     const channel = (hex: string, start: number): number =>
@@ -320,20 +158,6 @@ const VSCODE_DEFAULTS = {
  * `type` is the theme author's own declaration; `uiTheme` is the older manifest field carrying the same information.
  * Falling back to the editor background's luminance covers a file that declares neither.
  */
-function isLightVsCodeTheme(value: Record<string, unknown>, editorBackground: string): boolean {
-    const declared = value.type ?? value.uiTheme;
-    if (declared === 'light' || declared === 'vs') return true;
-    if (declared === 'dark' || declared === 'vs-dark') return false;
-    return contrastRatio(editorBackground, '#000000') > contrastRatio(editorBackground, '#ffffff');
-}
-
-function hasMappedVsCodeColor(colors: Record<string, unknown>): boolean {
-    for (const key of VSCODE_MAPPED_COLOR_KEYS) {
-        if (normalizedHex(colors[key], '')) return true;
-    }
-    return false;
-}
-
 function parseVsCode(value: Record<string, unknown>, name: string): ParsedThemeImport {
     const theme = cloneFallback('vscode', name);
     const colors = (value.colors ?? {}) as Record<string, unknown>;
@@ -394,7 +218,16 @@ function parseVsCode(value: Record<string, unknown>, name: string): ParsedThemeI
         ],
         theme.colors.accent,
     );
-    theme.colors.success = firstHex(colors, ['charts.green'], defaults.success);
+    /**
+     * `testing.iconPassed` is the workbench's own "this passed" green and is what a theme tunes for a success glyph;
+     * `charts.green` is a data-series color that several themes leave at a saturated default. It stays as the second
+     * source because plenty of themes set only it.
+     */
+    theme.colors.success = firstHex(
+        colors,
+        ['testing.iconPassed', 'charts.green'],
+        defaults.success,
+    );
     theme.colors.warning = firstHex(colors, ['editorWarning.foreground'], defaults.warning);
     theme.colors.danger = firstHex(colors, ['editorError.foreground'], defaults.danger);
     /**
@@ -428,11 +261,17 @@ function parseVsCode(value: Record<string, unknown>, name: string): ParsedThemeI
         defaults.gitConflicting,
     );
     /**
-     * VS Code has no merged-pull-request color of its own — that lives in the GitHub PR extension — so the chart
-     * palette's purple is the closest workbench-native source. Absent it the value stays whatever `cloneFallback`
+     * VS Code core has no merged-pull-request color, but the GitHub Pull Requests extension declares
+     * `pullRequests.merged`, and real themes set it far more often than they tune `charts.purple` for this. The chart
+     * palette stays as the workbench-native second source. Absent both, the value stays whatever `cloneFallback`
      * seeded, i.e. Dracula's, which is the same fallback every unmapped app color here already uses.
      */
-    theme.colors.merged = firstHex(colors, ['charts.purple'], theme.colors.merged);
+    theme.colors.merged = firstHex(
+        colors,
+        ['pullRequests.merged', 'charts.purple'],
+        theme.colors.merged,
+    );
+    applyVsCodeControlColors(theme, colors);
     theme.editor.background = firstHex(colors, ['editor.background'], theme.editor.background);
     theme.editor.foreground = firstHex(colors, ['editor.foreground'], theme.editor.foreground);
     theme.editor.lineHighlight = firstHex(

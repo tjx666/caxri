@@ -477,8 +477,10 @@ export function PaneTabBar({
             className={cn(
                 'work-tabs flex h-11 flex-none bg-surface',
                 // Only the Workbench-level bar carries the frameless window's drag region and the windowed traffic-light
-                // inset; a pane bar inside a split is an ordinary surface.
-                isRootBar && '[-webkit-app-region:drag]',
+                // inset; a pane bar inside a split is an ordinary surface. Being the drag region is also what earns it
+                // the title-bar fill — a pane bar inside a split is not a title bar and keeps `surface`.
+                isRootBar &&
+                    'bg-title-bar-active-background text-title-bar-active-foreground [-webkit-app-region:drag] window-inactive:bg-title-bar-inactive-background window-inactive:text-title-bar-inactive-foreground',
                 isRootBar && !isPrimarySidebarVisible && !isFullScreen && 'pl-[78px]',
                 isDropTarget && 'bg-elevated',
             )}

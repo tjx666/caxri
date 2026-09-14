@@ -5,9 +5,11 @@ import { createRoot } from 'react-dom/client';
 
 import { ErrorBoundary } from './components/error-boundary';
 import { ProcessExplorerRoot } from './features/process-explorer/process-explorer-root';
+import { observeWindowActive } from './lib/window-active';
 import { installRendererErrorReporter } from './renderer-error-reporter';
 
 installRendererErrorReporter((kind) => globalThis.processExplorer.reportError(kind));
+observeWindowActive();
 
 createRoot(document.querySelector('#root')!).render(
     <StrictMode>
