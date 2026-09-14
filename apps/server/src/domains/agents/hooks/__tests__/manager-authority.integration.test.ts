@@ -83,6 +83,88 @@ describe('Agent hook profile write authority', () => {
         }
     });
 
+    it('ignores a disabled provider signal across the whole re-check window', async () => {
+        /**
+         * A config-file watcher re-runs reconciliation with the same requested settings, which still say "enabled" for
+         * a provider whose CLI Caxri could not resolve. Discovery that re-decides it is asynchronous, so the window
+         * between re-publishing that intent and gating it again must never accept a signal for the disabled provider
+         * (issue #720). The token is real and the launch is live — only the effective authority says no.
+         */
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-hook-recheck-'));
+        const userDataPath = join(directory, 'profile');
+        await mkdir(userDataPath);
+        const logger = new StructuredLogger(join(directory, 'logs'));
+        let codexDiscovery: PromiseWithResolvers<string | undefined> | undefined;
+        let isCodexInstalled = false;
+        const accepted: string[] = [];
+        const manager = new AgentHookManager({
+            environment: {
+                homeDirectory: directory,
+                variables: { CODEX_HOME: join(directory, 'codex') },
+            },
+            userDataPath,
+            sharedPath: join(directory, 'shared'),
+            logger,
+            discoverExecutable: (provider) =>
+                provider === 'codex'
+                    ? (codexDiscovery?.promise ??
+                      Promise.resolve(isCodexInstalled ? process.execPath : undefined))
+                    : Promise.resolve(process.execPath),
+            hookExecutable: process.execPath,
+            onAuthorityLost: vi.fn(),
+            onLaunchEnded: vi.fn(),
+            onLaunchStarted: vi.fn(),
+            onSignal: (signal) => {
+                accepted.push(signal.provider);
+                return 'accepted';
+            },
+            send: vi.fn(),
+        });
+        const settings = structuredClone(defaultAgentProviderSettings);
+        settings.claude.hooks.enabled = true;
+        settings.codex.hooks.enabled = true;
+        settings.grok.hooks.enabled = false;
+        const signal = (shellEnvironment: NodeJS.ProcessEnv, provider: string) =>
+            execFileAsync(
+                join(directory, 'shared', 'bin', 'caxri-agent-hook-bridge'),
+                ['--source', 'caxri', '--provider', provider, '--phase', 'turnFinished'],
+                { env: hookBridgeEnvironment(shellEnvironment) },
+            );
+        try {
+            await manager.initialize(settings);
+            expect(manager.getHealth().codex.kind).toBe('notInstalled');
+            const shell = manager.shellEnvironment('shell');
+
+            await signal(shell, 'codex');
+            expect(accepted).toEqual([]);
+
+            codexDiscovery = Promise.withResolvers<string | undefined>();
+            const reconciling = manager.reconcile(structuredClone(settings));
+            await signal(shell, 'codex');
+            expect(accepted).toEqual([]);
+            // The other provider keeps its authority throughout: this is a per-provider gate, not a global freeze.
+            await signal(shell, 'claude');
+            expect(accepted).toEqual(['claude']);
+
+            // Discovery still fails, so the provider stays closed rather than inheriting the re-published intent.
+            codexDiscovery.resolve(undefined);
+            await reconciling;
+            await signal(shell, 'codex');
+            expect(accepted).toEqual(['claude']);
+
+            isCodexInstalled = true;
+            codexDiscovery = undefined;
+            await manager.reconcile(structuredClone(settings));
+            await signal(manager.shellEnvironment('shell'), 'codex');
+            expect(accepted).toEqual(['claude', 'codex']);
+        } finally {
+            codexDiscovery?.resolve(undefined);
+            await manager.close();
+            await logger.flush();
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
+
     it('preserves a temporarily unavailable profile intent until explicit disable', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-hook-intent-'));
         const userDataPath = join(directory, 'profile');

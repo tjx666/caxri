@@ -46,23 +46,12 @@ describe('Go Acceptance planning contract', () => {
     });
 
     it('uses one type label plus focused scope labels', () => {
+        // The five axis headings must exist for intake to route a label at all. Which labels each one declares is
+        // pinned by `file-issue/scripts/__tests__/label-axes.test.ts`, beside the skill that owns them: the list used
+        // to be hand-written here and silently went stale for four whole Surface labels (issue #820).
         expect(fileIssueSkill).toContain('### Type — exactly one');
         expect(fileIssueSkill).toContain('### Surface — which app, zero or one');
         expect(fileIssueSkill).toContain('### Area — what it changes, one to three');
-        for (const label of [
-            'skill',
-            'unit-testing',
-            'e2e-testing',
-            'terminal',
-            'editor',
-            'files-explorer',
-            'git',
-            'agent',
-            'acceptance',
-            'ci',
-        ]) {
-            expect(fileIssueSkill).toContain(`| \`${label}\``);
-        }
         expect(fileIssueSkill).toContain(
             'Do not apply `unit-testing` or `e2e-testing` merely because a product change requires regression',
         );

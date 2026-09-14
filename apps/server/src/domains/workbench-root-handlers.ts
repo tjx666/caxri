@@ -13,6 +13,7 @@ type WorkbenchRootHandlers = Pick<
     | 'session.workbenchCandidate.claim'
     | 'session.workbenchRoot.authorizeSelection'
     | 'session.workbenchRoot.resolve'
+    | 'session.workbenchRoot.forgetEditorPath'
     | 'session.workbenchRoots'
 >;
 
@@ -33,6 +34,10 @@ export function createWorkbenchRootHandlers(
         'session.workbenchRoots': ({ sessionId }) => service.listOptions(sessionId),
         'session.selectWorkbenchRoot': ({ sessionId, projectId }) =>
             service.select(sessionId, projectId),
+        'session.workbenchRoot.forgetEditorPath': ({ sessionId, workbenchProjectId, path }) => {
+            service.forgetEditorPath(sessionId, workbenchProjectId, path);
+            return null;
+        },
         'session.dismissWorkbenchCandidate': ({ sessionId, candidateId }) => {
             service.dismissCandidate(sessionId, candidateId);
             return null;

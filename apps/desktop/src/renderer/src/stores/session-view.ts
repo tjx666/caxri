@@ -40,7 +40,7 @@ interface SessionViewState {
     ): void;
     updateDocumentContent(sessionId: string, path: string, content: string): void;
     evictDocument(sessionId: string, path: string, workbenchProjectId?: string): void;
-    evictDocumentsUnderPath(sessionId: string, path: string): void;
+    evictDocumentsUnderPath(sessionId: string, path: string, workbenchProjectId?: string): void;
     remapDocuments(
         sessionId: string,
         previousPath: string,
@@ -262,8 +262,8 @@ export const useSessionViewStore = create<SessionViewState>((set, get) => ({
         });
     },
 
-    evictDocumentsUnderPath(sessionId, path) {
-        const scope = sessionViewScope(sessionId);
+    evictDocumentsUnderPath(sessionId, path, workbenchProjectId) {
+        const scope = sessionViewScope(sessionId, workbenchProjectId);
         set((state) => {
             const cached = readScopedDocuments(state.documents, scope);
             if (!cached || Object.keys(cached).every((value) => !isPathAtOrBelow(value, path)))
