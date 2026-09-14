@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 
+import { citeEvidenceList, writeProposal } from './__tests__/evidence-fixture';
 import {
     beginCaseLifecycle,
     completeCaseLifecycle,
@@ -62,7 +63,7 @@ async function reportDirectory(): Promise<string> {
 }
 
 async function initialize(directory: string, input: Partial<InitializeReportInput> = {}) {
-    return initializeReport({
+    const path = await initializeReport({
         directory,
         entry: '在 Caxri Electron 中打开首个 Session 终端。',
         plan: [...plan],
@@ -70,6 +71,8 @@ async function initialize(directory: string, input: Partial<InitializeReportInpu
         title: '验收 Caxri 终端布局',
         ...input,
     });
+    await writeProposal(directory);
+    return path;
 }
 
 afterEach(async () => {
@@ -142,7 +145,10 @@ describe('Acceptance case lifecycle repair', () => {
         const result = parseReport(await readFile(resultPath, 'utf8'));
         result.cases[0] = {
             category: '终端布局',
-            evidence: ['assets/terminal.png', 'assets/terminal-layout-state-isolation.json'],
+            evidence: citeEvidenceList([
+                'assets/terminal.png',
+                'assets/terminal-layout-state-isolation.json',
+            ]),
             id: 'terminal-layout',
             name: '终端内容填满工作区',
             observation: '启动器被强制结束后回执仍然完整。',
@@ -220,7 +226,10 @@ describe('Acceptance case lifecycle repair', () => {
         const result = parseReport(await readFile(resultPath, 'utf8'));
         result.cases[0] = {
             category: '终端布局',
-            evidence: ['assets/terminal.png', 'assets/terminal-layout-state-isolation.json'],
+            evidence: citeEvidenceList([
+                'assets/terminal.png',
+                'assets/terminal-layout-state-isolation.json',
+            ]),
             id: 'terminal-layout',
             name: '终端内容填满工作区',
             observation: '停止脚本在启动器之后完成了配置目录清理。',

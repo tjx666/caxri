@@ -304,7 +304,7 @@ async function hasMatchingPublishedMobileReceipt(
         try {
             // Sequential readback preserves remote evidence order and avoids parallel CLI auth pressure.
             // eslint-disable-next-line no-await-in-loop
-            const fileRaw = await runner('lobehub', ['file', 'view', item.fileId, '--json']);
+            const fileRaw = await runner('lh', ['file', 'view', item.fileId, '--json']);
             const file = publishedFileSchema.parse(JSON.parse(fileRaw));
             if (file.id === item.fileId && file.hash === localHash && file.size === localSize)
                 return true;
@@ -403,7 +403,7 @@ async function discoverPublishedRun(
         roundIndex: number;
     },
 ): Promise<z.infer<typeof ingestResultSchema> | null> {
-    const raw = await runner('lobehub', ['acceptance', 'run', 'list', '--json']);
+    const raw = await runner('lh', ['acceptance', 'run', 'list', '--json']);
     if (!raw.trim()) throw new Error('LobeHub run discovery returned empty JSON output');
     const candidates = discoverableAcceptanceRuns(JSON.parse(raw)).filter(
         (run) =>
@@ -707,7 +707,7 @@ export async function publishAcceptanceRound(
             ingest = existing;
         } else {
             try {
-                const stdout = await runner('lobehub', arguments_, ACCEPTANCE_INGEST_TIMEOUT_MS);
+                const stdout = await runner('lh', arguments_, ACCEPTANCE_INGEST_TIMEOUT_MS);
                 if (!stdout.trim()) throw new Error('LobeHub ingest returned empty JSON output');
                 ingest = ingestResultSchema.parse(JSON.parse(stdout));
             } catch (error: unknown) {
@@ -738,7 +738,7 @@ export async function publishAcceptanceRound(
         await persistPending();
     }
 
-    const viewRaw = await runner('lobehub', ['acceptance', 'view', ingest.acceptanceId, '--json']);
+    const viewRaw = await runner('lh', ['acceptance', 'view', ingest.acceptanceId, '--json']);
     if (!viewRaw.trim()) throw new Error('LobeHub Acceptance readback returned empty JSON output');
     const view = acceptanceViewSchema.parse(JSON.parse(viewRaw));
     const remoteRound = view.rounds.find(({ run }) => run.id === ingest.verifyRunId);

@@ -77,6 +77,14 @@ be ingested:
 Do not publish every focused test failure from implementation. The immutable
 history begins when the Acceptance plan is frozen and round execution starts.
 
+Before publishing the **first** round, hand the finalized report, the per-case evidence index, and
+an explicit file list with the relevant diff to one read-only `acceptance-checker` for a single
+quick evidence review, following the Acceptance skill's
+`references/acceptance-checker.md`. `acceptance_plan_tester` already owns the plan gate here, so
+run only that evidence stage; follow-up rounds have neither. Replace this round's `proposal.md`
+placeholder before publishing — ingest posts it into the acceptance discussion, and `finalize`
+refuses the untouched placeholder.
+
 Before a Terminal fixture capture, run the Acceptance fixture preflight. It
 uses terminal cell width rather than UTF-16 length and verifies generation,
 first grid marker, DOM rows, grid dimensions, and both border columns. A failed
@@ -110,7 +118,7 @@ After a passing round:
    `userDecision` fields once using the Acceptance report reference. Treat an
    explicit `userDecision` as authoritative even if an auxiliary review flag is
    stale, or wait by event when supported.
-6. Never call `lobehub acceptance accept` or `reject` as the builder.
+6. Never call `lh acceptance accept` or `reject` as the builder.
 
 On rejection:
 

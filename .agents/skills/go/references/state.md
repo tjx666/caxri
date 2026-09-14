@@ -249,7 +249,7 @@ bun run .agents/skills/go/scripts/state.ts phase --help
   that its PID is dead and safely reclaims the stale receipt; malformed or older-format locks still fail closed. State and
   history artifacts use exclusive unpredictable temporary files, ownership/no-follow checks, and
   atomic replacement.
-- Do not call raw `lobehub acceptance run ingest` inside Go. A `pending`
+- Do not call raw `lh acceptance run ingest` inside Go. A `pending`
   Acceptance without verified publication history, or with a stale exact head,
   cannot enter handoff or survive ledger validation.
 - Treat GitHub and LobeHub as authoritative and refresh at delivery boundaries.

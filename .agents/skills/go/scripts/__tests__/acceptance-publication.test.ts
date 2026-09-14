@@ -687,7 +687,7 @@ describe('Go Acceptance round publication', () => {
         await expect(
             publishAcceptanceRound(state, { headSha: 'head-1', reportDirectory: directory }, retry),
         ).resolves.toMatchObject({ verifyRunId: 'run-1' });
-        expect(retry).toHaveBeenCalledWith('lobehub', ['acceptance', 'view', 'acc-1', '--json']);
+        expect(retry).toHaveBeenCalledWith('lh', ['acceptance', 'view', 'acc-1', '--json']);
         expect(state.acceptance.publication.pendingAttempt).toBeNull();
         expect(state.acceptance.publication.history).toHaveLength(1);
     });

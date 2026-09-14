@@ -248,7 +248,7 @@ async function main(): Promise<void> {
     const viewRaw = runMobileAcceptanceCommand({
         arguments: ['acceptance', 'view', publication.acceptanceId, '--json'],
         captureOutput: true,
-        command: 'lobehub',
+        command: 'lh',
         cwd: projectRoot,
         deadlineMs: Date.now() + COMMAND_TIMEOUT_MS,
         timeoutMs: COMMAND_TIMEOUT_MS,

@@ -153,7 +153,7 @@ Caxri itself has no account login. LobeHub publication uses the developer's
 existing production CLI authentication and must be checked separately with:
 
 ```bash
-lobehub whoami --json
+lh whoami --json
 ```
 
 ### Project hook trust
