@@ -106,6 +106,17 @@ export const desktopHostMethods = {
         result: desktopTargetResultSchema.extend({ state: z.literal('revealed') }),
     },
     /**
+     * Hands one authorized Project file to the operating system's default application for its type, so an `.html`
+     * document opens in the browser. Main performs the launch; the Renderer never resolves an application or spawns a
+     * process. Unlike `external.open`, which takes a URL, this takes a path that Server Core re-validates against the
+     * Session's authorized Project root before Main sees it.
+     */
+    'files.openWithDefaultApp': {
+        ...hostDesktopControl,
+        params: desktopOpenParametersSchema.extend({ launchIfNeeded: z.boolean().default(false) }),
+        result: desktopTargetResultSchema.extend({ state: z.literal('opened') }),
+    },
+    /**
      * Opens an authorized Project root in the operator's configured external editor (`workbench.externalEditor`); the
      * editor process is launched by Main, never by the Renderer.
      */

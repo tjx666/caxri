@@ -11,7 +11,6 @@ import {
     hasUnsavedChangesUnderPath,
     openFile,
 } from '../../editor/document-commands';
-import { createTerminal } from '../../terminal/terminal-commands';
 import { isControlledViewOperationQuery } from '../view-operation-client';
 import type { FileClipboardEntry } from './file-clipboard';
 import { useFileClipboardStore } from './file-clipboard';
@@ -391,19 +390,6 @@ export function duplicateFile(
     path: string,
 ): Promise<MutableFileEntry | undefined> {
     return copyItem(client, sessionId, path, parentDirectoryPath(path));
-}
-
-export function revealFile(
-    client: ResourceExplorerClient,
-    path: string,
-): Promise<void | undefined> {
-    return tryCommand('Unable to reveal item in Finder', async () => {
-        await client.reveal(path);
-    });
-}
-
-export function openFileInTerminal(directory: string): Promise<void> {
-    return createTerminal('shell', { cwd: directory });
 }
 
 export async function didTrashFile(

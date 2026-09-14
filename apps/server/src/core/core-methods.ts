@@ -16,6 +16,7 @@ export const coreForwardedMethods = [
     'bugReport.context',
     'diagnostics.snapshot',
     'files.browse',
+    'files.resolveImports',
     'files.resolveKind',
     'files.copy',
     'files.create',
