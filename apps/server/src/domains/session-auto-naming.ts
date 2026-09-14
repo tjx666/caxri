@@ -6,6 +6,7 @@ import { AsyncSemaphore, logEventCatalog } from '@caxri/system';
 import type { AgentEnvironment, AgentLifecycleSignal, AgentService } from './agents';
 import {
     agentProviderStateRoot,
+    agentTitleContextMessages,
     buildAgentTitlePrompt,
     locateAgentTranscript,
     lowCostSandboxFailureReason,
@@ -207,8 +208,11 @@ export class SessionAutoNamingService {
                             terminal.id,
                             this.environment,
                         );
-                        const messages = location ? await readAgentTitleMessages(location) : [];
+                        const context = location
+                            ? await readAgentTitleMessages(location)
+                            : { opening: [], recent: [] };
                         if (!isEligible()) return;
+                        const messages = agentTitleContextMessages(context);
                         if (
                             messages.every((message) => message.role !== 'user') ||
                             messages.every((message) => message.role !== 'assistant')
@@ -219,7 +223,7 @@ export class SessionAutoNamingService {
                         title = normalizeGeneratedAgentTitle(
                             await this.agents.generateTitle(target.provider, {
                                 cwd: terminal.cwd,
-                                prompt: buildAgentTitlePrompt(messages),
+                                prompt: buildAgentTitlePrompt(context),
                                 signal: controller.signal,
                             }),
                         );
