@@ -39,6 +39,12 @@ const OPENING_SCAN_BYTES = 4 * 1024 * 1024;
 const RECENT_MESSAGE_LIMIT = 6;
 
 /**
+ * A single tool record can occupy megabytes on one line. Line buffering must not follow it: a conversation message is
+ * capped well below this, so a record past the limit is discarded instead of held in Server memory.
+ */
+const MAX_RECORD_CHARS = 256 * 1024;
+
+/**
  * Only visible conversation messages are naming material; tools, injected instructions and duplicate events are not.
  */
 export function extractAgentTitleMessage(record: unknown): TitleMessage | undefined {
@@ -108,7 +114,10 @@ async function* readRangeLines(handle: FileHandle, range: ScanRange): AsyncGener
     const decoder = new StringDecoder('utf8');
     let position = range.start;
     let pending = '';
-    let isPartialLinePending = range.start > 0;
+    /**
+     * The next completed line is a fragment: the range opened mid-record, or an oversized record was discarded.
+     */
+    let isFragmentPending = range.start > 0;
     while (position < range.end) {
         const length = Math.min(CHUNK_BYTES, range.end - position);
         // Each read continues where the previous one stopped, so the reads are inherently sequential.
@@ -119,12 +128,16 @@ async function* readRangeLines(handle: FileHandle, range: ScanRange): AsyncGener
         pending += decoder.write(buffer.subarray(0, bytesRead));
         const lines = pending.split('\n');
         pending = lines.pop() ?? '';
-        const complete = isPartialLinePending && lines.length > 0 ? lines.slice(1) : lines;
-        isPartialLinePending &&= lines.length === 0;
+        const complete = isFragmentPending && lines.length > 0 ? lines.slice(1) : lines;
+        isFragmentPending &&= lines.length === 0;
+        if (pending.length > MAX_RECORD_CHARS) {
+            pending = '';
+            isFragmentPending = true;
+        }
         yield* complete;
     }
     pending += decoder.end();
-    if (pending && !isPartialLinePending) yield pending;
+    if (pending && !isFragmentPending) yield pending;
 }
 
 function parseTitleMessageLine(line: string): TitleMessage | undefined {
