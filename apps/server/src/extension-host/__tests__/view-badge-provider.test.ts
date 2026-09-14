@@ -1,3 +1,4 @@
+import type { ViewBadge } from 'caxri';
 import { EventEmitter } from 'caxri';
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -61,9 +62,13 @@ describe('view badge provider lifecycle', () => {
             },
         });
         const badge = api.registerViewBadgeProvider(viewId, {
-            provideBadge: ({ scopeId }) => ({ count: 1, description: scopeId }),
+            provideBadge: ({ scopeId }) => ({ kind: 'count', count: 1, description: scopeId }),
         });
-        expect(await snapshot()).toEqual({ count: 1, description: 'session-a:project-a' });
+        expect(await snapshot()).toEqual({
+            kind: 'count',
+            count: 1,
+            description: 'session-a:project-a',
+        });
         badge.dispose();
         await expect(snapshot()).rejects.toMatchObject({ code: 'PROVIDER_MISSING' });
     });
@@ -74,12 +79,12 @@ describe('view badge provider lifecycle', () => {
     });
 
     it.each(['cancel', 'retire'] as const)('rejects late results after %s', async (mode) => {
-        const gate = Promise.withResolvers<{ count: number; description: string }>();
+        const gate = Promise.withResolvers<ViewBadge>();
         registration().registerViewBadgeProvider(viewId, { provideBadge: () => gate.promise });
         const pending = snapshot();
         if (mode === 'cancel') didCancelViewRequest('badge');
         else retireViewProviders('fixture');
-        gate.resolve({ count: 1, description: '1 change' });
+        gate.resolve({ kind: 'count', count: 1, description: '1 change' });
         await expect(pending).rejects.toMatchObject({
             code: mode === 'cancel' ? 'CANCELLED' : 'GENERATION_EXPIRED',
         });

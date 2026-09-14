@@ -63,6 +63,8 @@ const VSCODE_MAPPED_COLOR_KEYS = new Set([
     'editorWarning.foreground',
     'editorError.foreground',
     'activityBarBadge.background',
+    'activityErrorBadge.background',
+    'activityWarningBadge.background',
     'gitDecoration.addedResourceForeground',
     'gitDecoration.modifiedResourceForeground',
     'gitDecoration.deletedResourceForeground',
@@ -270,6 +272,12 @@ const VSCODE_DEFAULTS = {
         warning: '#cca700', // editorWarning.foreground
         danger: '#f48771', // editorError.foreground
         badge: '#007acc', // activityBarBadge.background
+        /**
+         * `activityErrorBadge`/`activityWarningBadge` are recent keys most themes still leave unset, so these repeat
+         * the error and warning foreground defaults above rather than adding a color the theme never declared.
+         */
+        errorBadge: '#f48771',
+        warningBadge: '#cca700',
         gitAdded: '#81b88b',
         gitModified: '#e2c08d',
         gitDeleted: '#c74e39',
@@ -291,6 +299,8 @@ const VSCODE_DEFAULTS = {
         warning: '#bf8803',
         danger: '#e51400',
         badge: '#007acc',
+        errorBadge: '#e51400',
+        warningBadge: '#bf8803',
         gitAdded: '#587c0c',
         gitModified: '#895503',
         gitDeleted: '#ad0707',
@@ -385,6 +395,20 @@ function parseVsCode(value: Record<string, unknown>, name: string): ParsedThemeI
      * which is the control VS Code styles with the activity-bar key.
      */
     theme.colors.badge = firstHex(colors, ['activityBarBadge.background'], defaults.badge);
+    /**
+     * The severity badges fall back to the theme's own error/warning text color before the registry default, because a
+     * theme that never heard of these keys still declared how its errors should look.
+     */
+    theme.colors.errorBadge = firstHex(
+        colors,
+        ['activityErrorBadge.background', 'editorError.foreground'],
+        defaults.errorBadge,
+    );
+    theme.colors.warningBadge = firstHex(
+        colors,
+        ['activityWarningBadge.background', 'editorWarning.foreground'],
+        defaults.warningBadge,
+    );
     theme.colors.gitAdded = firstHex(
         colors,
         ['gitDecoration.addedResourceForeground'],

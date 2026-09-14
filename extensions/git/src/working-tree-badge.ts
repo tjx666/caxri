@@ -8,8 +8,8 @@ export function workingTreeBadge(summary: GitSummary): ViewBadge | undefined {
     const count = summary.repositories.reduce((total, repo) => total + repo.changedFileCount, 0);
     if (count === 0) return undefined;
     return {
+        kind: 'count',
         count,
         description: `${count} ${count === 1 ? 'change' : 'changes'}`,
-        tone: 'neutral',
     };
 }
