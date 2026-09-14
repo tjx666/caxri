@@ -24,3 +24,30 @@ export function reconcileOwnedTerminalTabs(
     }
     return reconciled;
 }
+
+/**
+ * Picks the arrangement a Session-state write should persist.
+ *
+ * A write that never mentions a Terminal the Server already owns was assembled before that Terminal existed, so its
+ * pane tree also predates whatever pane the Server built for it. Merging such a write used to flatten a Server-created
+ * pane — an Agent delegation's sibling pane, for example — back into a background tab of the caller's pane, and the
+ * split was then gone for good, including across a restart. The stored arrangement is newer for exactly that case, so
+ * it wins; the write's answer carries it back and the Renderer adopts it instead of its own stale copy.
+ *
+ * Every other write still reconciles normally, including one that omits a Terminal the stored arrangement never placed
+ * either — there the incoming layout is the only arrangement anyone has.
+ */
+export function resolveSessionPaneLayout(
+    incoming: PaneLayout,
+    stored: PaneLayout | undefined,
+    terminalIds: readonly string[],
+): PaneLayout {
+    const written = new Set(listPaneTerminalIds(incoming));
+    const missing = terminalIds.filter((terminalId) => !written.has(terminalId));
+    if (stored && missing.length > 0) {
+        const placed = new Set(listPaneTerminalIds(stored));
+        if (missing.every((terminalId) => placed.has(terminalId)))
+            return reconcileOwnedTerminalTabs(stored, terminalIds);
+    }
+    return reconcileOwnedTerminalTabs(incoming, terminalIds);
+}
