@@ -35,6 +35,35 @@ function summary(files: GitFileStatus[], rootPath = '/repo'): GitSummary {
     };
 }
 
+/**
+ * A Project whose Git summary reports several repositories. `repositories[0]` is the Workbench Root's own; the rest are
+ * children discovered inside it.
+ */
+function nestedSummary(
+    repositories: ReadonlyArray<{
+        files: GitFileStatus[];
+        kind?: GitSummary['repositories'][number]['kind'];
+        rootPath: string;
+    }>,
+): GitSummary {
+    return {
+        isRepository: true,
+        repositories: repositories.map((repo, order) => ({
+            ...summary(repo.files, repo.rootPath).repositories[0],
+            id: `repo-${order}`,
+            kind: repo.kind ?? (order === 0 ? 'primary' : 'submodule'),
+        })),
+    };
+}
+
+/**
+ * A parent repository reports a submodule whose recorded commit moved as one change entry naming the submodule
+ * directory itself — a gitlink. The path is a folder in the tree, not a file.
+ */
+function gitlink(path: string): GitFileStatus {
+    return file({ path, index: 'M', workingTree: ' ' });
+}
+
 describe('buildGitDecorationIndex', () => {
     it('decorates a changed file with its kind and status letter', () => {
         const index = buildGitDecorationIndex(summary([file({ path: 'src/app.ts' })]));
@@ -142,6 +171,111 @@ describe('buildGitDecorationIndex', () => {
         // An unchanged row must not re-render just because another file changed elsewhere.
         expect(next.get('/repo/src/app.ts')).toBe(previous.get('/repo/src/app.ts'));
         expect(next.get('/repo/docs')).toEqual({ kind: 'untracked' });
+    });
+
+    /**
+     * The reason this rollup exists: with `packages/` collapsed, a submodule's twelve edits are invisible if
+     * propagation stops at the submodule's own root.
+     */
+    it('rolls a change inside a child repository up to that root and on through its ancestors', () => {
+        const index = buildGitDecorationIndex(
+            nestedSummary([
+                { files: [], rootPath: '/repo' },
+                { files: [file({ path: 'src/app.ts' })], rootPath: '/repo/packages/foo' },
+            ]),
+        );
+
+        expect(index.get('/repo/packages/foo/src/app.ts')).toEqual({
+            kind: 'modified',
+            letter: 'M',
+        });
+        expect(index.get('/repo/packages/foo/src')).toEqual({ kind: 'modified' });
+        expect(index.get('/repo/packages/foo')).toEqual({ kind: 'modified' });
+        expect(index.get('/repo/packages')).toEqual({ kind: 'modified' });
+        // Only the Workbench Root's own repository root stays undecorated.
+        expect(index.has('/repo')).toBe(false);
+    });
+
+    it('keeps climbing through a repository nested inside another child repository', () => {
+        const index = buildGitDecorationIndex(
+            nestedSummary([
+                { files: [], rootPath: '/repo' },
+                { files: [], rootPath: '/repo/packages/foo' },
+                {
+                    files: [file({ path: 'app.ts' })],
+                    kind: 'nested',
+                    rootPath: '/repo/packages/foo/vendor/bar',
+                },
+            ]),
+        );
+
+        expect(index.get('/repo/packages/foo/vendor/bar')).toEqual({ kind: 'modified' });
+        expect(index.get('/repo/packages/foo/vendor')).toEqual({ kind: 'modified' });
+        expect(index.get('/repo/packages/foo')).toEqual({ kind: 'modified' });
+        expect(index.get('/repo/packages')).toEqual({ kind: 'modified' });
+        expect(index.has('/repo')).toBe(false);
+    });
+
+    /**
+     * Two writers reach the child root: the parent's gitlink entry and the child's own contents climbing to it. Which
+     * runs first is only the order `summary.repositories` happens to hold, so both orders must land on the same row.
+     */
+    it('merges a gitlink and the child repository’s own changes the same way in either order', () => {
+        const parent = {
+            files: [gitlink('packages/foo')],
+            rootPath: '/repo',
+        };
+        const child = {
+            files: [file({ path: 'src/app.ts', index: 'U', kind: 'conflicted', workingTree: 'U' })],
+            rootPath: '/repo/packages/foo',
+        };
+
+        for (const order of [
+            [parent, child],
+            [child, { ...parent, kind: 'primary' as const }],
+        ]) {
+            const index = buildGitDecorationIndex(nestedSummary(order));
+
+            // The louder of the two wins, and the row is a folder, so it carries no letter.
+            expect(index.get('/repo/packages/foo')).toEqual({ kind: 'conflicted' });
+            expect(index.get('/repo/packages')).toEqual({ kind: 'conflicted' });
+        }
+    });
+
+    it('drops the gitlink letter even when the child repository has no changes of its own', () => {
+        const index = buildGitDecorationIndex(
+            nestedSummary([
+                { files: [gitlink('packages/foo')], rootPath: '/repo' },
+                { files: [], rootPath: '/repo/packages/foo' },
+            ]),
+        );
+
+        expect(index.get('/repo/packages/foo')).toEqual({ kind: 'modified' });
+    });
+
+    it('stops at a linked worktree root, which is the Workbench Root’s own checkout', () => {
+        const index = buildGitDecorationIndex(
+            nestedSummary([
+                { files: [], kind: 'worktree', rootPath: '/worktree' },
+                { files: [file({ path: 'app.ts' })], rootPath: '/worktree/vendor/bar' },
+            ]),
+        );
+
+        expect(index.get('/worktree/vendor/bar')).toEqual({ kind: 'modified' });
+        expect(index.get('/worktree/vendor')).toEqual({ kind: 'modified' });
+        expect(index.has('/worktree')).toBe(false);
+    });
+
+    it('bounds each repository by its own root when the summary names no primary one', () => {
+        const index = buildGitDecorationIndex(
+            nestedSummary([
+                { files: [file({ path: 'src/app.ts' })], kind: 'nested', rootPath: '/repo/foo' },
+            ]),
+        );
+
+        expect(index.get('/repo/foo/src')).toEqual({ kind: 'modified' });
+        expect(index.has('/repo/foo')).toBe(false);
+        expect(index.has('/repo')).toBe(false);
     });
 
     it('replaces the entry of a file whose status changed', () => {
