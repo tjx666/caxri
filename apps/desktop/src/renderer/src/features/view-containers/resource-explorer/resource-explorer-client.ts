@@ -67,11 +67,7 @@ export interface ResourceExplorerClient {
      * Drops a trashed path's editor tabs from the Workbench Root's durable snapshot, which is the only copy for the
      * Sessions parked on another root (issue #909).
      */
-    forgetEditorPath(
-        workbenchProjectId: string,
-        path: string,
-        signal?: AbortSignal,
-    ): Promise<null>;
+    forgetEditorPath(workbenchProjectId: string, path: string, signal?: AbortSignal): Promise<null>;
 }
 
 function requireSessionId(sessionId: string | undefined): string {
