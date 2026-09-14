@@ -200,9 +200,9 @@ export async function readAgentTitleMessages(
             /**
              * Anything before the opening request predates the Session's subject and is not its latest exchange.
              */
-            recent: recent
-                .filter((entry) => entry.index > openingStartIndex)
-                .map((entry) => entry.message),
+            recent: recent.flatMap((entry) =>
+                entry.index > openingStartIndex ? [entry.message] : [],
+            ),
         };
     } finally {
         await opened.handle.close();
