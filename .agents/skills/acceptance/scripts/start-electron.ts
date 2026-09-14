@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 import { assertBuildOutputsFresh, e2eAgentEnvironmentKeys } from '@caxri/system';
 
+import { acceptanceThemeImportCaseIds } from '../../../../apps/desktop/src/main/acceptance-theme-import';
 import type { DesktopLeaseHandle } from '../../switch-worktree/scripts/desktop-lease';
 import {
     acquireDesktopLease,
@@ -219,14 +220,7 @@ export function createElectronLaunchSpec({
                 CAXRI_ACCEPTANCE_EXTERNAL_OPEN:
                     caseId === 'session-pr-open-parity' ? 'session-pr-open-parity-v1' : undefined,
                 CAXRI_ACCEPTANCE_THEME_IMPORT:
-                    useTestRootFixture &&
-                    [
-                        'issue-826-surface-seam',
-                        'issue-824-syntax-and-terminal-selection',
-                        'issue-825-include-zero-hit-vsix',
-                        'issue-851-transient-warnings',
-                        'issue-854-contrast-error',
-                    ].includes(caseId ?? '')
+                    useTestRootFixture && acceptanceThemeImportCaseIds.has(caseId ?? '')
                         ? caseId
                         : undefined,
                 ...(useTestRootFixture && {
