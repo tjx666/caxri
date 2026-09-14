@@ -1,96 +1,18 @@
 import { Buffer } from 'node:buffer';
-import {
-    link,
-    lstat,
-    mkdir,
-    mkdtemp,
-    realpath,
-    rename,
-    rm,
-    symlink,
-    writeFile,
-} from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { link, lstat, mkdir, realpath, rename, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { MAX_CONFIGURABLE_FILE_BYTES, MAX_FILE_BROWSE_ENTRIES } from '@caxri/protocol';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { readBoundedExternalContent } from '../external-file-snapshot';
-import type { PathBrowserOpenTarget } from '../path-browser-authority';
-import { createPathBrowserAuthority } from '../path-browser-authority';
-import type { DesktopServerConnection } from '../server-connection';
+import {
+    authorityOptions,
+    bootstrap,
+    registerTemporaryDirectories,
+} from './path-browser-authority.fixture';
 
-const temporaryDirectories: string[] = [];
-
-async function temporaryDirectory(prefix: string): Promise<string> {
-    const path = await mkdtemp(join(tmpdir(), prefix));
-    temporaryDirectories.push(path);
-    return path;
-}
-
-afterEach(async () => {
-    const directoriesToRemove = [...temporaryDirectories];
-    temporaryDirectories.length = 0;
-    await Promise.all(
-        directoriesToRemove.map((path) => rm(path, { recursive: true, force: true })),
-    );
-});
-
-function server(request: (method: string, parameters?: unknown) => Promise<unknown>) {
-    return { request } as unknown as DesktopServerConnection;
-}
-
-function bootstrap(ownerRoot: string, workbenchRoot: string) {
-    return {
-        projects: [
-            { id: 'project-owner', displayTitle: 'Owner', rootPath: ownerRoot },
-            { id: 'project-worktree', displayTitle: 'Worktree', rootPath: workbenchRoot },
-        ],
-        sessions: [
-            {
-                id: 'session-1',
-                archivedAt: undefined,
-                projectId: 'project-owner',
-                workbenchProjectId: 'project-worktree',
-            },
-        ],
-        selectedSessionId: 'session-1',
-    };
-}
-
-function authorityOptions(
-    ownerRoot: string,
-    workbenchRoot: string,
-    options: {
-        openFile?: (
-            target: PathBrowserOpenTarget,
-        ) => Promise<{ canceled: true } | { opened: true }>;
-        request?: (method: string, parameters?: unknown) => Promise<unknown>;
-        userHome?: string;
-    } = {},
-) {
-    const request = vi.fn(
-        options.request ??
-            ((method: string) => {
-                if (method === 'app.bootstrap')
-                    return Promise.resolve(bootstrap(ownerRoot, workbenchRoot));
-                if (method === 'files.browse')
-                    return Promise.resolve({ entries: [], truncated: false });
-                return Promise.reject(new Error(`Unexpected method: ${method}`));
-            }),
-    );
-    const openFile = vi.fn(options.openFile ?? (() => Promise.resolve({ opened: true as const })));
-    return {
-        authority: createPathBrowserAuthority({
-            getServer: () => server(request),
-            openFile,
-            ...(options.userHome && { userHome: options.userHome }),
-        }),
-        openFile,
-        request,
-    };
-}
+const temporaryDirectory = registerTemporaryDirectories();
 
 describe('path browser authority', () => {
     it('opens and expands unprobed workspace links using the current Server-authorized kind', async () => {

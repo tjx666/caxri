@@ -5,7 +5,7 @@ import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 
 import type { MainRequest, MethodResult } from '@caxri/protocol';
-import { CaxriError, MAX_FILE_BROWSE_ENTRIES } from '@caxri/protocol';
+import { CaxriError, MAX_FILE_BROWSE_ENTRIES, MAX_PATH_BROWSER_ENTRIES } from '@caxri/protocol';
 import { AsyncSemaphore } from '@caxri/system';
 
 import { readExternalFile } from './external-file-snapshot';
@@ -17,6 +17,12 @@ import {
     pathFailure,
     validateDirectory,
 } from './path-browser-identity';
+import type { ProjectSearchMatch } from './path-browser-search';
+import {
+    memoizedProjectSearch,
+    rankProjectSearchMatches,
+    rememberProjectSearch,
+} from './path-browser-search';
 import { memoizedSubpathPrefix, projectSubpathSuffix } from './path-browser-subpath';
 import type { DesktopServerConnection } from './server-connection';
 
@@ -31,6 +37,10 @@ type BrowserMode = Snapshot['mode'];
 type Opened = MethodResult<'pathBrowser.open'>;
 
 interface Candidate {
+    /**
+     * Project-relative directory shown beside a `projectSearch` row; absent for ordinary directory listings.
+     */
+    directoryLabel?: string;
     id: string;
     kind: Entry['kind'];
     /**
@@ -62,6 +72,15 @@ interface BrowserContext {
     mode: BrowserMode;
     root: RootIdentity;
     rootLabel: string;
+    /**
+     * Quick-open memo for this browser, keyed by lower-cased filter: the complete in-root name hits it produced.
+     * `files.search` tests a case-insensitive literal against each Project-relative path, so every longer filter
+     * containing this key can only match a subset of these rows and is answered by filtering them here. A burst of
+     * keystrokes therefore costs one bounded Project scan instead of one per key, the way `locatedSuffixes` already
+     * bounds the subpath fallback. Only a complete scan is stored: a truncated or canceled one proves nothing about the
+     * files it never reached.
+     */
+    searchedFilters: Map<string, ProjectSearchMatch[]>;
     sourceSessionId: string;
 }
 
@@ -93,6 +112,14 @@ function displayProjectDirectory(root: string, directory: string): string {
 
 function trailingSlash(path: string): string {
     return path === '/' ? '/' : `${path}/`;
+}
+
+/**
+ * True when the whole input is one plain name segment. Anything carrying a separator is an explicit location the user
+ * typed, so it keeps the existing relative-path and subpath-fallback behavior instead of turning into a name search.
+ */
+function isBareFilter(input: string, filter: string): boolean {
+    return filter.length > 0 && input === filter && !filter.includes('/');
 }
 
 /**
@@ -175,9 +202,10 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
 
     function replaceCandidates(context: BrowserContext, candidates: Candidate[]): Entry[] {
         context.candidates = new Map(candidates.map((candidate) => [candidate.id, candidate]));
-        return candidates.map(({ id, kind, linkKind, linkTarget, name }) => ({
+        return candidates.map(({ directoryLabel, id, kind, linkKind, linkTarget, name }) => ({
             id,
             kind,
+            ...(directoryLabel !== undefined && { directoryLabel }),
             ...(linkKind !== undefined && { linkKind }),
             ...(linkTarget !== undefined && { linkTarget }),
             name,
@@ -191,6 +219,7 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
         entries: Entry[],
         isTruncated: boolean,
         displayDirectory = context.currentDirectory,
+        resultKind: Snapshot['resultKind'] = 'directory',
     ): Snapshot {
         context.input = input;
         context.listedDirectory = directory;
@@ -214,6 +243,7 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
             entries,
             input,
             mode: context.mode,
+            resultKind,
             ...(context.mode === 'project' && { rootLabel: context.rootLabel }),
             truncated: isTruncated,
         };
@@ -251,6 +281,8 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
             name: entry.name,
             path: entry.path,
         }));
+        if (candidates.length === 0 && !result.truncated && isBareFilter(input, filter))
+            return searchProject(context, directory, filter, input, displayDirectory);
         return snapshot(
             context,
             directory,
@@ -258,6 +290,110 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
             replaceCandidates(context, candidates),
             result.truncated,
             displayDirectory,
+        );
+    }
+
+    /**
+     * Quick-open fallback: a bare filter that matched nothing in the current directory is far more likely to name a
+     * file somewhere else in the Project than a file the user wants to create, so list the Project-wide name hits and
+     * let the Renderer keep offering Create alongside them.
+     *
+     * Server Core owns the bounded search; Main refuses any returned path outside this browser's root and re-derives
+     * the displayed directory from that validated path before minting an entry ID, so nothing the Renderer sees rests
+     * on an unchecked Server string. This mirrors the `files.locateDirectory` subpath fallback.
+     */
+    async function searchProject(
+        context: BrowserContext,
+        directory: RootIdentity,
+        filter: string,
+        input: string,
+        displayDirectory?: string,
+    ): Promise<Snapshot> {
+        const memoized = memoizedProjectSearch(context.searchedFilters, filter);
+        if (memoized)
+            return searchSnapshot(
+                context,
+                directory,
+                filter,
+                input,
+                memoized,
+                false,
+                displayDirectory,
+            );
+        let result: MethodResult<'files.search'>;
+        try {
+            result = await options.getServer().request('files.search', {
+                sessionId: context.browseSessionId,
+                mode: 'name',
+                query: filter,
+            });
+        } catch {
+            // The empty directory listing is authoritative on its own; an unavailable search engine must not turn it
+            // into a dialog-wide error and hide the Create action.
+            return snapshot(
+                context,
+                directory,
+                input,
+                replaceCandidates(context, []),
+                false,
+                displayDirectory,
+            );
+        }
+        const inRoot: ProjectSearchMatch[] = result.matches.flatMap((match) =>
+            isSameOrInside(context.root.path, match.path)
+                ? [
+                      {
+                          path: match.path,
+                          relativePath: relative(context.root.path, match.path)
+                              .split(sep)
+                              .join('/'),
+                      },
+                  ]
+                : [],
+        );
+        /**
+         * A canceled scan reached an unknown part of the Project — `files.search` shares one abort slot per Session
+         * with the Search view — so it must read as incomplete rather than as an authoritative "this name exists
+         * nowhere". Only a complete scan may be memoized for later filters to refine.
+         */
+        const isIncomplete = result.truncated || result.canceled;
+        if (!isIncomplete) rememberProjectSearch(context.searchedFilters, filter, inRoot);
+        return searchSnapshot(
+            context,
+            directory,
+            filter,
+            input,
+            inRoot,
+            isIncomplete,
+            displayDirectory,
+        );
+    }
+
+    function searchSnapshot(
+        context: BrowserContext,
+        directory: RootIdentity,
+        filter: string,
+        input: string,
+        matches: readonly ProjectSearchMatch[],
+        isIncomplete: boolean,
+        displayDirectory?: string,
+    ): Snapshot {
+        const ranked = rankProjectSearchMatches(matches, filter, MAX_PATH_BROWSER_ENTRIES);
+        const candidates = ranked.map((match) => ({
+            directoryLabel: match.directoryLabel,
+            id: randomUUID(),
+            kind: 'file' as const,
+            name: match.name,
+            path: match.path,
+        }));
+        return snapshot(
+            context,
+            directory,
+            input,
+            replaceCandidates(context, candidates),
+            isIncomplete || matches.length > ranked.length,
+            displayDirectory,
+            'projectSearch',
         );
     }
 
@@ -547,6 +683,7 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
                 mode: 'project',
                 root,
                 rootLabel: project.displayTitle,
+                searchedFilters: new Map(),
                 sourceSessionId: sessionId,
             };
             contexts.set(context.id, context);
