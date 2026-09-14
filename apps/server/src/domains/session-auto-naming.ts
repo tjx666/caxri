@@ -6,8 +6,8 @@ import { AsyncSemaphore, logEventCatalog } from '@caxri/system';
 import type { AgentEnvironment, AgentLifecycleSignal, AgentService } from './agents';
 import {
     agentProviderStateRoot,
-    agentTitleContextMessages,
     buildAgentTitlePrompt,
+    hasTitleNamingMaterial,
     locateAgentTranscript,
     lowCostSandboxFailureReason,
     normalizeGeneratedAgentTitle,
@@ -212,11 +212,7 @@ export class SessionAutoNamingService {
                             ? await readAgentTitleMessages(location)
                             : { opening: [], recent: [] };
                         if (!isEligible()) return;
-                        const messages = agentTitleContextMessages(context);
-                        if (
-                            messages.every((message) => message.role !== 'user') ||
-                            messages.every((message) => message.role !== 'assistant')
-                        ) {
+                        if (!hasTitleNamingMaterial(context)) {
                             reason = 'insufficientContext';
                             return;
                         }
