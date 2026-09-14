@@ -16,6 +16,57 @@ supporting evidence, never as substitutes for the real product surface when the 
 user-visible. A cross-device workflow may use both surfaces, but each check names the surface whose
 user outcome it asks a reviewer to decide.
 
+## Independent acceptance review (first round only)
+
+The primary checks the environment, writes the plan, executes cases, inspects
+evidence, repairs failures, and publishes. Use one `acceptance-checker` agent at two points
+in the first acceptance round: give at most two feedback responses on the plan and cases
+before execution, then perform exactly one quick report/evidence check against
+the agreed criteria before publishing. A second plan check is optional, only
+to check the primary's revisions; there is no third plan-feedback response.
+Count the two stages separately. After
+either stage's limit, the primary owns remaining corrections and verification.
+The acceptance-checker **is** the plan gate — never ask the user to approve a
+plan; ask the user only for a user-owned prerequisite or a product decision
+that changes the plan. In both stages, the primary supplies an explicit file
+list and the relevant diff text or prepared diff artifact paths. The acceptance-checker
+limits code reading to these materials; it must not run `git diff` or discover
+its own scope. This does not restrict inspection of the plan, report, or evidence.
+During evidence review, use it only to identify the updates and the agreed
+cases whose evidence needs checking; the core task is checking the report
+against the plan and artifacts. Do not reopen requirements, expand into code
+review, or investigate implementation details. Return contradictions to the
+primary for explanation or repair. Follow-up rounds have no acceptance-checker: the primary
+re-runs, inspects, and publishes itself. Do not delegate execution or require
+per-case approval.
+
+Read [references/acceptance-checker.md](references/acceptance-checker.md) for the input/output
+contract, review boundaries, and follow-up rules. Acceptance review supplements the
+primary's own checks and `deep-review`; it does not replace either. Spawn it with this harness's
+own subagent controls and keep it read-only: it never launches Electron, never attaches to CDP,
+and never holds the desktop lease. If delegation or required media inspection is unavailable,
+disclose the missing review and unverified claims rather than claiming independent acceptance.
+
+Inside Go the plan stage is already owned by `acceptance_plan_tester`, so do not run both: Go's
+tester is the plan gate, and the acceptance-checker runs only the final evidence stage before the
+first round is published. Standalone Acceptance runs both stages with the acceptance-checker.
+
+## HARD RULE — programmatic gates are NEVER acceptance checks
+
+Every check MUST be an outcome a **person decides about the delivery**: what the
+user sees, hears, reads, or receives. These MUST NOT appear as a check, under any
+phrasing: unit / integration / regression / snapshot tests, coverage,
+`type-check` / `tsc`, lint / `eslint`, format, "compiles", "build passes",
+"CI is green". Run them, then report them as **one line of narrative**.
+
+Enforced before publication: every matching item (matched on title, category, AND
+`method` — "run `bun run check`" under a product-sounding title still matches) is
+**rejected** before the plan is frozen; a plan containing only such checks
+**fails local validation**. The line is the _subject_ of the check, not who judged it:
+a Terminal behavior asserted by a command is a fine check (`verifier: "program"`);
+"the suite is green" is not. Before writing any plan, ask of each draft check:
+_would the user click accept/reject on this?_
+
 ## Boundaries
 
 - Exercise Caxri in an isolated Electron instance. Never drive the developer's resident app or real
@@ -80,7 +131,7 @@ user outcome it asks a reviewer to decide.
    the round, load the matching project field notes indexed by `PROJECT.md`, and search
    [`.agents/acceptance/probe-mock-patterns.md`](../../acceptance/probe-mock-patterns.md) before
    authoring a new probe or mock. Fix adapter drift when observed.
-2. Confirm LobeHub CLI authentication with `lobehub whoami --json`. Do not guess an
+2. Confirm LobeHub CLI authentication with `lh whoami --json`. Do not guess an
    `auth status` subcommand; the Go intake snapshot runs this same fail-closed probe automatically.
 3. Resolve the immutable one-sentence business requirement for the whole acceptance. Write it in
    Simplified Chinese. The scaffold freezes it in the acceptance root so every later round must
@@ -102,10 +153,20 @@ user outcome it asks a reviewer to decide.
    cited `assets/<case-id>-result.json` receipt must carry the same identities. Every cited mobile
    screenshot or recording must also appear in the device receipt's `artifacts` array with its
    exact relative path, SHA-256, media type, and platform framebuffer source.
-5. Run the report scaffold's `init` command with the frozen plan. It creates a fresh round
-   directory containing case placeholders, `report.md`, and `assets/`. Inside Go use
+   Group the checks by the independently reviewable user tasks in the requirement, not by the PR
+   title or the test surface. When acceptance depends on a sequence of user states, publish that
+   graph during planning following [references/flow.md](references/flow.md); it is optional and
+   never replaces evidence or human review.
+5. Gate the first round's plan through an independent reviewer before executing: the
+   acceptance-checker standalone, or Go's `acceptance_plan_tester` inside Go. Freeze the agreed
+   plan after resolving its material findings. That decision is the plan gate; do not ask the user
+   to approve the plan.
+6. Run the report scaffold's `init` command with the frozen plan. It creates a fresh round
+   directory containing case placeholders, `report.md`, `proposal.md`, and `assets/`. Inside Go use
    `.records/go/<run-id>/acceptance/round-<n>/`; for standalone verification use
-   `.records/acceptance/<timestamp>/round-<n>/`.
+   `.records/acceptance/<timestamp>/round-<n>/`. Replace the `proposal.md` placeholder with this
+   round's note to the reviewer — ingest posts it into the acceptance discussion, and `finalize`
+   refuses the untouched placeholder.
 
 Read [references/report.md](references/report.md) before authoring the report and
 [references/evidence.md](references/evidence.md) before capturing artifacts.
@@ -166,6 +227,26 @@ Read [references/report.md](references/report.md) before authoring the report an
    A clean launch screenshot may still support a narrower static-layout check, but cannot replace
    the blocked gesture or cross-device workflow.
 
+## Keep checklist explanations brief
+
+Write each check's `observation` and inline explanation in Simplified Chinese,
+usually 1–3 short sentences: what was done, what happened, and any limitation
+needed to judge that outcome. Do not paste the execution report into the check.
+Omit repeated titles, verdict labels, SHA/port/ID headers, environment boilerplate,
+and round-history explanations. Put shared setup and revision details once in
+`report.md`; keep commands, traces, raw output, and detailed reasoning in
+separate evidence attachments. Briefly disclose a limitation in the check when
+it changes the verdict; concision must not hide missing verification.
+
+Example: “切换 Session 后终端视口铺满工作区，边缘没有露出应用背景色条。”
+For a failure, name the unmet outcome directly, without recounting the debugging
+process. Keep required evidence complete; shorten its presentation, not the work.
+
+**Every cited artifact MUST carry a non-empty, reviewer-facing `description`.**
+Identify what the file contains and what it demonstrates for this check. A
+filename, path, artifact id, or generic label such as “证据” is not a sufficient
+description; `finalize` rejects a bare path and an English-only description.
+
 ## Publish immutable rounds
 
 Follow [references/report.md](references/report.md) for the authoritative ingest commands and
@@ -175,7 +256,7 @@ history and publish a corrected round. Run the report scaffold's `finalize` comm
 ingest. It computes the summary and fails locally on plan/case drift, missing evidence,
 required-medium gaps, or English-only human-facing content.
 
-Inside Go, never call raw `lobehub acceptance run ingest`. Use the Go `acceptance-publish` command
+Inside Go, never call raw `lh acceptance run ingest`. Use the Go `acceptance-publish` command
 so later rounds are forced onto the frozen Acceptance id and publication is recorded only after
 the server readback matches the exact head, round index, stable check ids, and verdict. Record an
 accidental standalone with `acceptance-orphan`; immutable remote history is never deleted.
@@ -207,11 +288,6 @@ isolated user-data directory is temporary. Stop only the Electron process starte
 Clear only the Android package data owned by a disposable acceptance emulator. Terminate or
 uninstall only the app instance owned by a disposable iOS acceptance Simulator; leave user-owned
 emulators, Simulators, and physical devices running.
-Keep local reports under `.records/` and expose only the stable production acceptance URL in the
-user handoff. The latest round must show complete required-evidence coverage before the delivery
-can wait for human acceptance. When Go owns the delivery, return the published round to Go; the Go
-ledger, not the Acceptance report, owns the compact workflow-observation summary shown beside that
-URL.
 
 After owned product processes have stopped, record only verified, reusable project learnings using the
 routing rules in `.agents/acceptance/PROJECT.md`: a mistake that cost a run belongs in
@@ -220,11 +296,36 @@ environment or fixture fact belongs in the matching project reference. Do not tu
 failure or an unverified hypothesis into guidance, and do not keep the desktop session open while
 editing the learning log.
 
+## Final handoff (mandatory)
+
+Before declaring the task done, prove coverage: for each check with
+`requiredEvidence`, every declared `type` is present at least once. Report it
+explicitly; a missing type holds the delivery at `uncertain` no matter how good
+the work is.
+
+The final response MUST include the published acceptance URL together with the
+coverage result — never only a check-result id or a prose claim. Keep local reports under
+`.records/` and expose only the **acceptance** (`/acceptance/<acceptanceId>`), the stable
+cross-round decision surface; append `?r=<roundIndex>` for this round's fixed snapshot.
+Put no images, local paths, local file links, or internal run-page paths in the
+chat reply.
+
+Write the link as a plain-text line, never inside a fenced or inline code block — the
+chat client only linkifies plain text, and a code block makes it unclickable:
+
+Acceptance: <https://app.lobehub.com/acceptance/ACCEPTANCE_ID> (the placeholder is the id ingest printed; it stays inside the URL)
+Coverage: 2/2 criteria, all required evidence uploaded
+
+When Go owns the delivery, return the published round to Go; the Go ledger, not the Acceptance
+report, owns the compact workflow-observation summary shown beside that URL.
+
 ## Reference map
 
 - Electron workflow: [surfaces/electron.md](surfaces/electron.md)
 - Android workflow: [surfaces/android.md](surfaces/android.md)
 - iOS Simulator workflow: [surfaces/ios-simulator.md](surfaces/ios-simulator.md)
+- Independent plan/evidence review: [references/acceptance-checker.md](references/acceptance-checker.md)
+- User-journey flows and checklist grouping: [references/flow.md](references/flow.md)
 - CDP commands: [references/agent-browser.md](references/agent-browser.md)
 - Evidence rules: [references/evidence.md](references/evidence.md)
 - Native dialogs: [references/native-dialogs.md](references/native-dialogs.md)

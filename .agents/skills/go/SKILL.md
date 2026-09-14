@@ -53,7 +53,7 @@ GitHub/LobeHub readback remain the corresponding evidence sources.
 Read [references/intake.md](references/intake.md) in full.
 
 1. Refresh the working tree, current branch, open issues, related PRs, and authentication state
-   without modifying them. Use the intake snapshot so its canonical `lobehub whoami --json` probe
+   without modifying them. Use the intake snapshot so its canonical `lh whoami --json` probe
    fails closed before Acceptance work.
 2. Normalize the user's requirements. For every existing issue the request names, dispatch a
    read-only verifier subagent that checks the problem is still real at the current head, weighs

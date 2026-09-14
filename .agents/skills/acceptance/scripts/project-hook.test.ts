@@ -86,8 +86,8 @@ describe('Caxri Acceptance project hook', () => {
             'utf8',
         );
 
-        expect(projectGuide).toContain('lobehub whoami --json');
-        expect(projectGuide).not.toContain('lobehub acceptance run list --json');
+        expect(projectGuide).toContain('lh whoami --json');
+        expect(projectGuide).not.toContain('lh acceptance run list --json');
         expect(projectGuide).toContain('/hooks');
         expect(projectGuide).toContain('caxri-acceptance-hook-self-test');
     });
