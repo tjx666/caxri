@@ -7,6 +7,7 @@ import { extname, join } from 'node:path';
 import { z } from 'zod';
 
 import { assertDecodablePng } from './png-integrity';
+import { errorCode } from './report-paths';
 
 export const mobileDeviceSchema = z.object({
     appId: z.literal('com.caxri.mobile'),
@@ -69,6 +70,21 @@ const mobileDeviceEvidencePath = (caseId: string): string =>
 
 const mobileResultEvidencePath = (caseId: string): string =>
     `assets/${encodeURIComponent(caseId)}-result.json`;
+
+/**
+ * The device adapter writes this receipt the first time it reaches the selected target, so its absence is how a
+ * `blocked` mobile case proves it never got there — the same rule the launch, preflight, and Agent fixture receipts
+ * follow in `report.ts`. Once it exists the case did reach the device and owes the full check.
+ */
+export async function hasMobileDeviceReceipt(directory: string, caseId: string): Promise<boolean> {
+    try {
+        await readFile(join(directory, mobileDeviceEvidencePath(caseId)), 'utf8');
+        return true;
+    } catch (error: unknown) {
+        if (errorCode(error) === 'ENOENT') return false;
+        throw error;
+    }
+}
 
 const SCREENSHOT_EXTENSIONS = new Set(['.bmp', '.gif', '.jpeg', '.jpg', '.png', '.svg', '.webp']);
 const VIDEO_EXTENSIONS = new Set(['.m4v', '.mov', '.mp4', '.webm']);

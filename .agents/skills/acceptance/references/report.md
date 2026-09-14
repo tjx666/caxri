@@ -132,14 +132,20 @@ bun run .agents/skills/acceptance/scripts/report.ts rebind-head \
 ```
 
 The command atomically checks the expected old head, updates `commit`, `entry`,
-and `createdAt`, and appends an audit record. An already-finalized round may
-still follow the head, because finalization is a local recompute and only the
-LobeHub ingest is irreversible; the command then reads the real
-`<old>..<new>` diff from git and refuses unless every changed path is under
-`.agents/`, and it drops the round's `summary` so it cannot be published before
-you re-run `finalize`. A free-text `--reason` never substitutes for that check. A
-product-affecting repair requires a fresh round and fresh product-surface
-evidence; never rebind a published immutable round.
+and `createdAt`, and appends an audit record.
+
+An already-finalized round may still follow the head, because finalization is a
+local recompute and only the LobeHub ingest is irreversible. That path needs
+`--allow-finalized`, and the command then resolves both revisions with
+`git rev-parse` and reads the real `<old>..<new>` diff with rename detection
+off, refusing unless every changed path is under `.agents/`. It drops the
+round's `summary`, so the round cannot be published before you re-run
+`finalize`. A free-text `--reason` never substitutes for that check.
+
+Publication is recorded in the Go ledger, not in `result.json`, so this command
+cannot detect it; `--allow-finalized` is you stating the round is unpublished.
+Never rebind a published immutable round, and a product-affecting repair always
+requires a fresh round with fresh product-surface evidence.
 
 ## Record observations
 
@@ -165,14 +171,18 @@ one exact profile identity across launches. A plan with `fixturePreflight: termi
 include the ready `assets/<case-id>-fixture-preflight.json` receipt.
 
 `blocked` is the status for a case whose planned observation could not be made, so finalization
-asks it for what it does have rather than for what it could not produce. It still needs at least
-one real evidence file that supports its observation — the covering focused test's result, a log
-excerpt, the extracted copy — but it does not have to satisfy the plan's `requiredEvidence` medium,
-and it may omit the launch, fixture preflight, and Agent fixture receipts when the case was blocked
-before that step ever ran. The moment one of those receipts exists on disk the case did execute, so
-it must declare that receipt and pass the full check; `pass` and `fail` are unchanged and still owe
-every planned medium and receipt. Without this, one honest blocked case would make the whole round
-impossible to finalize and publish.
+asks it for what it does have rather than for what it could not produce. It does not have to
+satisfy the plan's `requiredEvidence` medium, and it may omit the launch, fixture preflight, Agent
+fixture, and mobile device receipts when the case was blocked before that step ever ran. The moment
+one of those receipts exists on disk the case did execute, so it must declare that receipt and pass
+the full check; `pass` and `fail` are unchanged and still owe every planned medium and receipt.
+Without this, one honest blocked case would make the whole round impossible to finalize and
+publish.
+
+A blocked case still owes at least one real evidence file that supports its observation — the
+covering focused test's result, a log excerpt, the extracted copy. The launch, fixture preflight,
+and Agent fixture receipts do not count: they record that the adapter's own machinery ran, not what
+the product did. The mobile device receipt does count, because it carries the target's `outcome`.
 
 A plan may declare `agentFixture: "agent-features-v1"` for fake Claude Code or Codex processes,
 `agentFixture: "agent-delegation-v1"` for visible Claude/Codex/Grok task delegation with a synthetic caller,
