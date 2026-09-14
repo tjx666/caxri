@@ -17,7 +17,16 @@ const scenarios = [
         action: 'Recheck',
         icon: 'cloud',
     },
-    { id: 'rate-limited', title: 'Vercel CLI rate limited', action: 'Retry', icon: 'circle-x' },
+    {
+        id: 'rate-limited',
+        title: 'Vercel API limit reached',
+        /**
+         * A rate limit is a wait Caxri is already honouring, so the row offers nothing to press: the request a Retry
+         * would send is exactly the one the limiter is refusing. The hourglass says the same thing in the icon.
+         */
+        action: undefined,
+        icon: 'hourglass',
+    },
     { id: 'network', title: 'No network connection', action: 'Recheck', icon: 'cloud' },
 ] as const;
 
@@ -96,8 +105,6 @@ for (const scenario of scenarios) {
             await tree.screenshot({ path: screenshot });
             await test.info().attach(scenario.id, { path: screenshot, contentType: 'image/png' });
 
-            const action = message.getByRole('button', { name: scenario.action, exact: true });
-            await expect(action).toBeEnabled();
             if (scenario.id === 'network')
                 await expect(
                     tree.getByRole('treeitem', { name: /^No network connection,/ }),
@@ -106,6 +113,14 @@ for (const scenario of scenarios) {
                 await expect(
                     tree.getByRole('treeitem', { name: 'Deployments', exact: true }),
                 ).toBeVisible();
+            if (scenario.action === undefined) {
+                await expect(message.getByRole('button')).toHaveCount(0);
+                // Stated for the Project, not under the repository that reported it, so it appears exactly once.
+                await expect(message).toHaveCount(1);
+                return;
+            }
+            const action = message.getByRole('button', { name: scenario.action, exact: true });
+            await expect(action).toBeEnabled();
             if (scenario.id === 'not-logged-in') {
                 await tree.getByRole('treeitem', { name: 'Deployments', exact: true }).focus();
                 await running.page.keyboard.press('ArrowDown');
@@ -135,7 +150,7 @@ for (const scenario of scenarios) {
                 await action.click();
             }
             await expect(message).toBeVisible();
-            if (scenario.id !== 'not-installed' && scenario.id !== 'rate-limited')
+            if (scenario.id !== 'not-installed')
                 await expect
                     .poll(
                         async () =>

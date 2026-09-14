@@ -19,15 +19,27 @@ const view = JSON.stringify({
 const scenarios = [
     {
         id: 'not-installed',
+        label: 'PR needs gh',
         hint: 'GitHub CLI is not installed. Install gh, then refresh.',
     },
     {
         id: 'not-logged-in',
+        label: 'PR needs login',
         hint: 'GitHub CLI is not signed in. Run gh auth login, then refresh.',
     },
     {
         id: 'rate-limited',
-        hint: 'GitHub API rate limit reached. Refresh after the limit resets.',
+        label: 'PR rate limited',
+        /**
+         * `hint` is the stable opening of the sentence; the rest names the limiter's own resume deadline, whose clock
+         * time moves with the run, so the accessible name is matched by shape instead of by literal.
+         *
+         * The deadline is required, not optional: this fixture's `gh` fails every call including `api rate_limit`, so
+         * the limiter cannot read GitHub's own reset and always falls back to its fixed 15-minute pause. Accepting the
+         * deadline-free wording here would let the whole `retryAt` path break without failing this test.
+         */
+        hint: 'GitHub API rate limit reached.',
+        hintPattern: /GitHub API rate limit reached\. Caxri retries after \d{1,2}:\d{2} [AP]M\./,
     },
     { id: 'has-pr' },
     { id: 'no-pr' },
@@ -83,21 +95,30 @@ ${response}
         try {
             const sessionId = await createProjectSession(running.page);
             const statusBar = running.page.locator('footer.statusbar');
-            const unknown = statusBar.locator('.statusbar-info').filter({ hasText: 'PR unknown' });
+            // Every unavailable reason states itself; a readable pull request shows `#42` instead.
+            const unavailable = statusBar.locator('.statusbar-info').filter({ hasText: /^PR / });
             const row = sessionCard(running.page, sessionId);
             if ('hint' in scenario) {
-                await expect(unknown).toBeVisible();
-                await expect(unknown).toHaveAttribute('aria-label', `PR unknown. ${scenario.hint}`);
-                await expect(unknown).toHaveAttribute('role', 'note');
-                await unknown.focus();
-                await expect(unknown).toBeFocused();
+                await expect(unavailable).toBeVisible();
+                await expect(unavailable).toHaveText(scenario.label);
+                await expect(unavailable).toHaveAttribute(
+                    'aria-label',
+                    'hintPattern' in scenario
+                        ? new RegExp(
+                              String.raw`^${scenario.label}\. ${scenario.hintPattern.source}$`,
+                          )
+                        : `${scenario.label}. ${scenario.hint}`,
+                );
+                await expect(unavailable).toHaveAttribute('role', 'note');
+                await unavailable.focus();
+                await expect(unavailable).toBeFocused();
                 const screenshot = test.info().outputPath(`${scenario.id}.png`);
                 await statusBar.screenshot({ path: screenshot });
                 await test
                     .info()
                     .attach(scenario.id, { path: screenshot, contentType: 'image/png' });
                 if (scenario.id === 'not-logged-in') {
-                    await unknown.hover();
+                    await unavailable.hover();
                     await expect(running.page.locator('.tooltip-popup')).toContainText(
                         scenario.hint,
                     );
@@ -123,7 +144,7 @@ ${response}
                     const before = test.info().outputPath('before-recovery.png');
                     await statusBar.screenshot({ path: before });
                     await writeFile(ready, 'ready');
-                    await expect(unknown).toHaveCount(0, { timeout: 75_000 });
+                    await expect(unavailable).toHaveCount(0, { timeout: 75_000 });
                     await expect(
                         statusBar.getByRole('link', { name: 'Open pull request #42' }),
                     ).toBeVisible();
@@ -150,7 +171,7 @@ ${response}
                 await expect
                     .poll(async () => (await readFile(requests, 'utf8')).includes('pr view'))
                     .toBe(true);
-                await expect(unknown).toHaveCount(0);
+                await expect(unavailable).toHaveCount(0);
                 await expect(row.locator('[data-pull-request-state]')).toHaveCount(0);
                 const screenshot = test.info().outputPath('no-pr.png');
                 await statusBar.screenshot({ path: screenshot });
