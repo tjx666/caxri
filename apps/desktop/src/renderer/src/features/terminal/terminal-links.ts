@@ -433,6 +433,12 @@ export function createDetectedLink(
  * Reconstructs the explicit physical newline emitted by Codex only when both path fragments carry enough syntax to
  * distinguish them from ordinary adjacent lines. The complete candidate still goes through the existing parser here and
  * the trusted Project-rooted resolver when activated.
+ *
+ * Codex wraps prose paragraphs the same way it wraps standalone paths, so the continuation row may carry more text
+ * after the path fragment (` formatErrorForState.ts:79 又合入了上游原文`). That inline form is accepted only when the joined
+ * target ends in a file extension or a line location, because an indented prose word glued onto a dangling path
+ * (`/repo/one-` + `followed by prose`) would otherwise parse as a plausible extensionless file. The returned text is
+ * the whole joined row so later links on the continuation row stay discoverable.
  */
 export function joinCodexHardWrappedFileLink(
     firstText: string,
@@ -440,8 +446,9 @@ export function joinCodexHardWrappedFileLink(
     wordSeparators: string = TERMINAL_DEFAULT_WORD_SEPARATORS,
 ): { continuationOffset: number; text: string } | undefined {
     if (firstText.length + continuationText.length > MAX_LOGICAL_LINE_LENGTH) return;
-    const continuation = /^([ \t]{2,8})(\S+)$/u.exec(continuationText);
+    const continuation = /^([ \t]{2,8})(\S+)/u.exec(continuationText);
     if (!continuation) return;
+    const continuationOffset = continuation[1].length;
     const continuationTarget = continuation[2];
     if (/^(?:\/|\.\.?\/|~\/|[a-z][a-z\d+.-]*:\/\/)/iu.test(continuationTarget)) return;
 
@@ -452,18 +459,34 @@ export function joinCodexHardWrappedFileLink(
         firstMatch.location
     )
         return;
-    const finalSegment = firstMatch.target.slice(firstMatch.target.lastIndexOf('/') + 1);
-    if (/\.[a-z\d][\w-]{0,15}$/iu.test(finalSegment)) return;
+    if (hasFileExtension(firstMatch.target)) return;
 
-    const text = firstText + continuationTarget;
-    const joinedMatch = findTerminalLinks(text, wordSeparators).at(-1);
+    const text = firstText + continuationText.slice(continuationOffset);
+    const joinedMatch = findTerminalLinks(text, wordSeparators).find(
+        (match) => match.startIndex === firstMatch.startIndex,
+    );
     if (
         joinedMatch?.kind !== 'file' ||
-        joinedMatch.startIndex !== firstMatch.startIndex ||
-        joinedMatch.endIndex !== text.length
+        joinedMatch.endIndex <= firstText.length ||
+        joinedMatch.endIndex > firstText.length + continuationTarget.length
     )
         return;
-    return { continuationOffset: continuation[1].length, text };
+    /**
+     * A fragment that fills the rest of the row (the multi-row case) needs no further syntax; anything followed by more
+     * text must prove it is a file reference rather than a prose word glued onto a dangling path.
+     */
+    if (
+        joinedMatch.endIndex !== text.length &&
+        !joinedMatch.location &&
+        !hasFileExtension(joinedMatch.target)
+    )
+        return;
+    return { continuationOffset, text };
+}
+
+function hasFileExtension(target: string): boolean {
+    const finalSegment = target.slice(target.lastIndexOf('/') + 1);
+    return /\.[a-z\d][\w-]{0,15}$/iu.test(finalSegment);
 }
 
 /**

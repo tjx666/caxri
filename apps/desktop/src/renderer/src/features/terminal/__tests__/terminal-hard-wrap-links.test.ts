@@ -10,6 +10,11 @@ const CONTINUATION =
     '  lobe-13558/lobehub/packages/builtin-tool-local-system/src/systemRole.desktop.ts:56:7';
 const COMPLETE_TARGET =
     '/Users/tj/code/lobehub-cloud-2-lobe-13558/lobehub/packages/builtin-tool-local-system/src/systemRole.desktop.ts';
+const PROSE_FIRST_ROW =
+    '  展示层要从服务端修: _responseBody 已收敛为 traceId, 但 lobehub/apps/server/src/modules/AgentRuntime/';
+const PROSE_CONTINUATION =
+    '  formatErrorForState.ts:79 又合入了上游原文。应保留原文供日志排查, 见 src/other.ts:3';
+const PROSE_TARGET = 'lobehub/apps/server/src/modules/AgentRuntime/formatErrorForState.ts';
 
 function context() {
     const openFile = vi.fn();
@@ -35,6 +40,32 @@ describe('joinCodexHardWrappedFileLink', () => {
         expect(joinCodexHardWrappedFileLink('/repo/one-', '  /repo/two.ts:9')).toBeUndefined();
         expect(joinCodexHardWrappedFileLink('/repo/one.ts', '  src/two.ts:9')).toBeUndefined();
         expect(joinCodexHardWrappedFileLink('/repo/one-', '  followed by prose')).toBeUndefined();
+    });
+
+    it('reconstructs a path whose continuation row carries more prose after the fragment', () => {
+        expect(joinCodexHardWrappedFileLink(PROSE_FIRST_ROW, PROSE_CONTINUATION)).toEqual({
+            continuationOffset: 2,
+            text: PROSE_FIRST_ROW + PROSE_CONTINUATION.slice(2),
+        });
+        expect(
+            joinCodexHardWrappedFileLink(
+                PROSE_FIRST_ROW,
+                '  formatErrorForState.ts:79，后面还有正文',
+            ),
+        ).toMatchObject({ continuationOffset: 2 });
+        expect(
+            joinCodexHardWrappedFileLink(
+                PROSE_FIRST_ROW,
+                '  formatErrorForState.ts 又合入了上游原文',
+            ),
+        ).toMatchObject({ continuationOffset: 2 });
+    });
+
+    it('rejects an inline prose word that lacks file syntax after a dangling path', () => {
+        expect(
+            joinCodexHardWrappedFileLink(PROSE_FIRST_ROW, '  formatErrorForState 又合入了上游原文'),
+        ).toBeUndefined();
+        expect(joinCodexHardWrappedFileLink('  └ Read src/', '  utils and more')).toBeUndefined();
     });
 });
 
@@ -139,6 +170,34 @@ describe('Codex hard-wrapped Terminal links', () => {
                 text: '/repo/two.ts:9',
             },
         ]);
+    });
+
+    it('links the joined path and later links when the continuation row carries prose', async () => {
+        const terminal = createTerminal(PROSE_FIRST_ROW, cellsFor(PROSE_FIRST_ROW));
+        terminal.setLine(1, PROSE_CONTINUATION);
+        terminal.setSize(160, 2);
+        const { openFile, value } = context();
+        registerTerminalLinks(terminal.terminal, value);
+
+        const firstRowLinks = await terminal.links(1);
+        const secondRowLinks = await terminal.links(2);
+        const fragmentEnd = '  formatErrorForState.ts:79'.length;
+        for (const links of [firstRowLinks, secondRowLinks]) {
+            expect(links?.map(({ text }) => text)).toEqual([
+                `${PROSE_TARGET}:79`,
+                'src/other.ts:3',
+            ]);
+            expect(links?.[0].range).toEqual({
+                start: { x: PROSE_FIRST_ROW.indexOf('lobehub') + 1, y: 1 },
+                end: { x: fragmentEnd, y: 2 },
+            });
+        }
+        secondRowLinks?.[0].activate({ metaKey: true } as MouseEvent, secondRowLinks[0].text);
+        expect(openFile).toHaveBeenCalledWith(PROSE_TARGET, {
+            mode: 'line',
+            startLine: 79,
+            endLine: 79,
+        });
     });
 
     it('keeps adjacent independent paths as separate links', () => {
