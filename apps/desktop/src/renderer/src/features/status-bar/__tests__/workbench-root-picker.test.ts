@@ -1,12 +1,12 @@
 import type { WorkbenchRootOption } from '@caxri/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { selectWorkbenchRoot } from './workbench-root-commands';
+import { selectWorkbenchRoot } from '../workbench-root-commands';
 import {
     visibleWorkbenchRoots,
     workbenchRootLabel,
     workbenchRootSearchScore,
-} from './workbench-root-options';
+} from '../workbench-root-options';
 
 const mocks = vi.hoisted(() => ({
     request: vi.fn(),
@@ -16,13 +16,13 @@ const mocks = vi.hoisted(() => ({
         >(),
     refresh: vi.fn(),
 }));
-vi.mock('../../lib/caxri', () => ({
+vi.mock('../../../lib/caxri', () => ({
     caxri: { request: mocks.request, window: { showConfirm: mocks.confirm } },
 }));
-vi.mock('../../stores/workbench', () => ({
+vi.mock('../../../stores/workbench', () => ({
     useWorkbenchStore: { getState: () => ({ refresh: mocks.refresh }) },
 }));
-vi.mock('../../stores/toasts', () => ({
+vi.mock('../../../stores/toasts', () => ({
     tryCommand: async (_message: string, operation: () => Promise<unknown>) => {
         try {
             return await operation();
