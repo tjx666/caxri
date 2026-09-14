@@ -266,6 +266,30 @@ describe('buildGitDecorationIndex', () => {
         expect(index.has('/worktree')).toBe(false);
     });
 
+    it('does not treat a sibling directory that shares the root’s name prefix as being inside it', () => {
+        const index = buildGitDecorationIndex(
+            nestedSummary([
+                { files: [], rootPath: '/repo' },
+                { files: [file({ path: 'app.ts' })], rootPath: '/repo-vendor/bar' },
+            ]),
+        );
+
+        expect(index.get('/repo-vendor/bar/app.ts')).toEqual({ kind: 'modified', letter: 'M' });
+        expect(index.has('/repo-vendor/bar')).toBe(false);
+        expect(index.has('/repo-vendor')).toBe(false);
+    });
+
+    it('still drops a gitlink letter at a child root when the summary names no primary one', () => {
+        const index = buildGitDecorationIndex(
+            nestedSummary([
+                { files: [gitlink('foo')], kind: 'nested', rootPath: '/repo' },
+                { files: [], kind: 'nested', rootPath: '/repo/foo' },
+            ]),
+        );
+
+        expect(index.get('/repo/foo')).toEqual({ kind: 'modified' });
+    });
+
     it('bounds each repository by its own root when the summary names no primary one', () => {
         const index = buildGitDecorationIndex(
             nestedSummary([
