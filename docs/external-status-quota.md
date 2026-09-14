@@ -107,6 +107,12 @@ free, so it bypasses the circuit entirely.
   produced. Surfaces keep rendering their last good snapshot because the store serves the stale
   record, not because the error is silent — a surface that has never loaded the pull request still
   reports the failure, which is honest: it genuinely has nothing to show.
+- That error also carries the circuit's own `resumeAt` as `ExternalStatusCliError.retryAt`, both when
+  the pause pre-empts the call and when the provider is the one that reported the limit. It travels
+  on the error rather than through a limiter reference threaded into every domain, because the
+  deadline is a property of the failure, not of the caller. It reaches the UI as the optional
+  `retryAt` on `ProjectStatusError`; see
+  [the deadline crosses the protocol](#the-deadline-crosses-the-protocol).
 - The pause is written to `~/.cache/caxri/external-status-limit.json` and merged back in at most
   every 5s, so parallel worktree Servers and a second window share one pause instead of each
   rediscovering it. Only the later resume time survives, on both read **and** write: `persist()`
@@ -118,6 +124,32 @@ free, so it bypasses the circuit entirely.
 
 Structured logs use `external_status.paused`, `external_status.resumed`, and `external_status.quota`;
 they carry the source, the reason, and the pause duration, never a repository, branch, or issue.
+
+## The deadline crosses the protocol
+
+A pause the user cannot see reads as a broken app: before this, every repository in the Project
+Status panel carried its own red "GitHub CLI rate limited" block with a Retry button that could only
+produce the same error, and the status bar said `PR unknown` for all eight unavailable reasons.
+
+- `ProjectStatusError` carries `reason: 'network' | 'rate-limited' | 'tls'` on a `failure`, plus an
+  optional `retryAt`. The discriminator is what lets a consumer tell an account-wide condition from a
+  repository-specific one; `retryAt` is the circuit's `resumeAt`, in epoch milliseconds.
+  `packages/extension-api/src/index.ts` mirrors this shape by hand — change both or extensions see a
+  different contract than the Renderer.
+- The Server owns the sentence. `projectStatusCliError` and `pullRequestUnavailable` both compose the
+  full recovery copy, including the clock time from `retryTimeLabel`, so the panel row, the status
+  bar tooltip, and the sidebar hover card cannot drift apart. `retryTimeLabel` refuses a deadline
+  already in the past, because a cached failure snapshot outlives its own pause.
+- The status extension coalesces `network` and `rate-limited` failures into root-level rows and hides
+  them from the per-repository lists: they belong to the account or the machine, not to a repository,
+  so repeating them once per repository was noise. Rate limits get one row per provider, since each
+  budget resets on its own schedule. `tls` is not coalesced yet.
+- A row whose `retryAt` is still in the future offers no action at all, and uses `hourglass` in the
+  muted tone rather than a danger icon: Caxri recovers on its own, and the view's title bar still
+  carries Refresh for a user who wants to try anyway. Once the deadline passes, the row's Retry
+  returns — that check runs against the current clock, not the clock the snapshot was written on.
+- The status bar chip names the reason (`PR rate limited`, `PR needs login`, `PR TLS error`, …) in
+  `pull-request-status-label.ts`. `other` is the only reason still called `unknown`.
 
 ## Interest is pull-based
 

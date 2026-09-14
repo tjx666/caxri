@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import type { ProjectStatusDeployment, ProjectStatusError } from '@caxri/protocol';
 
 import type { CliFailureKind, ExternalStatusSource } from './external-status';
+import { retryTimeLabel } from './retry-time';
 
 export interface VercelLink {
     project: string;
@@ -97,8 +98,15 @@ export function projectStatusNoDeploymentsError(): ProjectStatusError {
 export function projectStatusCliError(
     command: ExternalStatusSource,
     kind: CliFailureKind,
-    subject?: string,
+    options: {
+        /**
+         * The limiter's pause deadline, when this failure is a rate limit that carries one.
+         */
+        retryAt?: number;
+        subject?: string;
+    } = {},
 ): ProjectStatusError {
+    const { retryAt, subject } = options;
     const source = command === 'gh' ? 'github' : command === 'vc' ? 'vercel' : 'linear';
     const displayName =
         command === 'gh' ? 'GitHub CLI' : command === 'vc' ? 'Vercel CLI' : 'Linear CLI';
@@ -151,13 +159,24 @@ export function projectStatusCliError(
             message: `${displayName} secure connection failed`,
             hint: 'Check your proxy or certificates, then retry.',
         };
-    if (kind === 'rate-limited')
+    if (kind === 'rate-limited') {
+        /**
+         * A rate limit belongs to the provider's account budget, not to the CLI that happened to discover it, so this
+         * copy names the service while the prerequisites above keep naming the executable the user has to install.
+         */
+        const providerName = command === 'gh' ? 'GitHub' : command === 'vc' ? 'Vercel' : 'Linear';
+        const retryTime = retryTimeLabel(retryAt);
         return {
             source,
             kind: 'failure',
-            message: `${displayName} rate limited`,
-            hint: 'Refresh after the API limit resets.',
+            reason: 'rate-limited',
+            message: `${providerName} API limit reached`,
+            hint: `Caxri paused ${providerName} checks to protect the shared API budget. ${
+                retryTime ? `Retries after ${retryTime}.` : 'Refresh after the limit resets.'
+            }`,
+            ...(retryAt !== undefined && { retryAt }),
         };
+    }
     if (kind === 'timeout')
         return {
             source,

@@ -377,7 +377,10 @@ export class ProjectStatusService {
                 error instanceof ExternalStatusCliError
                     ? error
                     : new ExternalStatusCliError('gh', 'other', String(error));
-            return { linearIssues: [], errors: [projectStatusCliError('gh', failure.kind)] };
+            return {
+                linearIssues: [],
+                errors: [projectStatusCliError('gh', failure.kind, { retryAt: failure.retryAt })],
+            };
         }
     }
 
@@ -410,11 +413,10 @@ export class ProjectStatusService {
                         error instanceof ExternalStatusCliError
                             ? error
                             : new ExternalStatusCliError('linear', 'other', String(error));
-                    firstError ??= projectStatusCliError(
-                        'linear',
-                        failure.kind,
-                        reference.identifier,
-                    );
+                    firstError ??= projectStatusCliError('linear', failure.kind, {
+                        retryAt: failure.retryAt,
+                        subject: reference.identifier,
+                    });
                     return { identifier: reference.identifier };
                 }
             }),
@@ -520,7 +522,9 @@ export class ProjectStatusService {
                 error instanceof ExternalStatusCliError
                     ? error
                     : new ExternalStatusCliError('vc', 'other', String(error));
-            return { errors: [projectStatusCliError('vc', failure.kind)] };
+            return {
+                errors: [projectStatusCliError('vc', failure.kind, { retryAt: failure.retryAt })],
+            };
         }
     }
 

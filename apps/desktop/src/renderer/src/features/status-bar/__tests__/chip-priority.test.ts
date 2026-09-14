@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { CHIP_PRIORITY_BREAKPOINTS, resolveChipVisibility } from './chip-priority';
+import { CHIP_PRIORITY_BREAKPOINTS, resolveChipVisibility } from '../chip-priority';
 
 describe('status bar chip priority resolution', () => {
     it('shows every chip at ample width', () => {

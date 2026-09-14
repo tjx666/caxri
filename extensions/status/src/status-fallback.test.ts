@@ -50,7 +50,7 @@ describe('Project Status fallback', () => {
                 {
                     source: 'github',
                     kind: 'failure',
-                    message: 'GitHub CLI rate limited',
+                    message: 'GitHub CLI failed',
                     hint: 'Try again later.',
                 },
             ],
@@ -130,5 +130,81 @@ describe('Project Status fallback', () => {
         expect(nodes[0]?.item.label).toBe('Vercel CLI connection failed');
         expect(nodes[0]?.item.description).toContain('Vercel CLI');
         expect(nodes[0]?.item.description).not.toContain('GitHub');
+    });
+
+    it('states an account-level rate limit once for the whole Project', () => {
+        const now = 10_000;
+        const rateLimited = {
+            source: 'github' as const,
+            kind: 'failure' as const,
+            reason: 'rate-limited' as const,
+            message: 'GitHub API limit reached',
+            hint: 'Caxri paused GitHub checks to protect the shared API budget. Retries after 7:04 PM.',
+            retryAt: now + 60_000,
+        };
+        const repo = {
+            id: 'fixture',
+            kind: 'primary' as const,
+            name: 'project',
+            branch: 'main',
+            linearIssues: [],
+            errors: [rateLimited],
+        };
+        const nodes = buildStatusRootNodes(
+            {
+                repositories: [repo, { ...repo, id: 'submodule', kind: 'submodule' }],
+                refreshedAt: 1,
+            },
+            now,
+        );
+        const limitNodes = nodes.filter((node) => node.item.id?.startsWith('status:rate-limit'));
+        expect(limitNodes).toHaveLength(1);
+        expect(limitNodes[0]?.item).toMatchObject({
+            variant: 'message',
+            label: 'GitHub API limit reached',
+            description: rateLimited.hint,
+        });
+        expect(limitNodes[0]?.item.iconPath?.id).toBe('hourglass');
+        // Caxri resumes on its own inside the window, so there is no action to offer.
+        expect(limitNodes[0]?.item.command).toBeUndefined();
+        expect(
+            nodes
+                .flatMap((node) => node.children ?? [])
+                .some((node) => node.item.id?.includes(':error:')),
+        ).toBe(false);
+    });
+
+    it('offers Retry again once the recorded pause has elapsed', () => {
+        const now = 10_000;
+        const nodes = buildStatusRootNodes(
+            {
+                repositories: [
+                    {
+                        id: 'fixture',
+                        kind: 'primary',
+                        name: 'project',
+                        branch: 'main',
+                        linearIssues: [],
+                        errors: [
+                            {
+                                source: 'vercel',
+                                kind: 'failure',
+                                reason: 'rate-limited',
+                                message: 'Vercel API limit reached',
+                                hint: 'Caxri paused Vercel checks to protect the shared API budget. Refresh after the limit resets.',
+                                retryAt: now - 1,
+                            },
+                        ],
+                    },
+                ],
+                refreshedAt: 1,
+            },
+            now,
+        );
+        expect(nodes[0]?.item.id).toBe('status:rate-limit:vercel');
+        expect(nodes[0]?.item.command).toMatchObject({
+            command: 'caxri.project-status.refresh',
+            title: 'Retry',
+        });
     });
 });
