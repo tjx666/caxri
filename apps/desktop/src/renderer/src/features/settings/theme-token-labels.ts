@@ -12,6 +12,7 @@ const THEME_TOKEN_LABELS: Readonly<Record<string, string>> = {
     border: 'Border',
     danger: 'Danger',
     elevated: 'Elevated',
+    errorBadge: 'Error badge',
     foreground: 'Foreground',
     gitAdded: 'Added file',
     gitConflicting: 'Conflicting file',
@@ -24,6 +25,7 @@ const THEME_TOKEN_LABELS: Readonly<Record<string, string>> = {
     success: 'Success',
     surface: 'Surface',
     warning: 'Warning',
+    warningBadge: 'Warning badge',
     // terminal (ANSI palette plus terminal-only fields)
     black: 'Black',
     blue: 'Blue',

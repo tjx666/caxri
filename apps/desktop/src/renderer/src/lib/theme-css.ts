@@ -24,4 +24,12 @@ export function applyCssTheme(theme: ThemeTokens): void {
     root.style.setProperty('--accent-foreground', readableForeground(theme.colors.accent, theme));
     root.style.setProperty('--danger-foreground', readableForeground(theme.colors.danger, theme));
     root.style.setProperty('--badge-foreground', readableForeground(theme.colors.badge, theme));
+    root.style.setProperty(
+        '--error-badge-foreground',
+        readableForeground(theme.colors.errorBadge, theme),
+    );
+    root.style.setProperty(
+        '--warning-badge-foreground',
+        readableForeground(theme.colors.warningBadge, theme),
+    );
 }
