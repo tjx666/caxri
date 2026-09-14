@@ -2,6 +2,7 @@ import { isDirectoryEntry } from '../../lib/file-entry';
 import { isPathAtOrBelow } from '../../lib/file-path';
 
 export type PathBrowserMode = 'free' | 'project';
+export type PathBrowserResultKind = 'directory' | 'projectSearch';
 
 export interface PathBrowserInputState {
     input: string;
@@ -65,29 +66,36 @@ export function filterPathEntries<T extends { name: string }>(
 
 /**
  * Completes only an authoritative unique result and preserves every path segment before the final filter.
+ *
+ * A `projectSearch` row names a file somewhere else in the Project, so completing the input with it would produce a
+ * path relative to the current directory that does not exist. Those results are never completable.
  */
 export function completePathQuery(
     entries: ReadonlyArray<{ kind?: string; linkKind?: string; name: string }>,
     input: string,
     isTruncated = false,
+    resultKind: PathBrowserResultKind = 'directory',
 ): string | undefined {
-    if (isTruncated || entries.length !== 1) return undefined;
+    if (isTruncated || resultKind === 'projectSearch' || entries.length !== 1) return undefined;
     const parsed = parsePathBrowserInput(input);
     const [entry] = entries;
     return `${parsed.directoryPart}${entry.name}${isDirectoryEntry(entry) ? '/' : ''}`;
 }
 
 /**
- * Keeps an exhausted scan distinct from an authoritative empty directory result.
+ * Keeps an exhausted scan distinct from an authoritative empty result. A truncated Project search exhausted a file
+ * budget rather than one directory, so opening a narrower folder is not the advice that helps there.
  */
 export function pathBrowserEmptyMessage(
     matchCount: number,
     isTruncated: boolean,
+    resultKind: PathBrowserResultKind = 'directory',
 ): string | undefined {
     if (matchCount > 0) return;
-    return isTruncated
-        ? 'No match in the scanned items. Refine or open a narrower folder.'
-        : 'No matching file or folder.';
+    if (!isTruncated) return 'No matching file or folder.';
+    return resultKind === 'projectSearch'
+        ? 'No match in the scanned files. Refine the name.'
+        : 'No match in the scanned items. Refine or open a narrower folder.';
 }
 
 export interface PathBrowserCreateCandidate {
@@ -98,15 +106,19 @@ export interface PathBrowserCreateCandidate {
 /**
  * Creation stays an explicitly Project-local capability. A free-path result may point anywhere readable by the current
  * macOS user, so it must never expose a write action even when its text happens to resolve inside a Project.
+ *
+ * `directoryMatchCount` counts only entries of the current directory, which is where creation happens. Project-search
+ * rows live elsewhere and must not suppress the offer, or finding a same-named file in another folder would silently
+ * remove the user's ability to create one here.
  */
 export function pathBrowserCreateCandidate(
     mode: PathBrowserMode,
     query: string,
-    matchCount: number,
+    directoryMatchCount: number,
     isTruncated: boolean,
     isResultsReady: boolean,
 ): PathBrowserCreateCandidate | undefined {
-    if (mode !== 'project' || !isResultsReady || isTruncated || !query || matchCount > 0)
+    if (mode !== 'project' || !isResultsReady || isTruncated || !query || directoryMatchCount > 0)
         return undefined;
     const kind: PathBrowserCreateCandidate['kind'] = query.endsWith('/') ? 'directory' : 'file';
     const name = kind === 'directory' ? query.slice(0, -1) : query;

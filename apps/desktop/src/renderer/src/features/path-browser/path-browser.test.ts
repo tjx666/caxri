@@ -70,12 +70,29 @@ describe('path browser navigation', () => {
         expect(completePathQuery([entries[2]], 'read', true)).toBeUndefined();
     });
 
+    it('never completes the input with a Project-search row from another directory', () => {
+        expect(
+            completePathQuery([{ kind: 'file', name: 'target.ts' }], 'target', false, 'directory'),
+        ).toBe('target.ts');
+        expect(
+            completePathQuery(
+                [{ kind: 'file', name: 'target.ts' }],
+                'target',
+                false,
+                'projectSearch',
+            ),
+        ).toBeUndefined();
+    });
+
     it('distinguishes an exhausted scan from an authoritative empty result', () => {
         expect(pathBrowserEmptyMessage(0, true)).toBe(
             'No match in the scanned items. Refine or open a narrower folder.',
         );
         expect(pathBrowserEmptyMessage(0, false)).toBe('No matching file or folder.');
         expect(pathBrowserEmptyMessage(1, true)).toBeUndefined();
+        expect(pathBrowserEmptyMessage(0, true, 'projectSearch')).toBe(
+            'No match in the scanned files. Refine the name.',
+        );
     });
 
     it('returns to a parent without ever crossing the Project root', () => {
