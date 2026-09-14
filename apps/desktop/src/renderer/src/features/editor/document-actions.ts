@@ -89,6 +89,11 @@ function remapPendingDocumentOperations(
     }
 }
 
+/**
+ * Deliberately not narrowed by Workbench Root, unlike {@link remapPendingDocumentOperations} beside it. A rename is
+ * root-relative — the same absolute path means a different destination per root — but a Trash is not: the path names
+ * one file on disk, and an in-flight read or write of a file that just went to the Trash is stale under every root.
+ */
 function discardPendingDocumentOperations(sessionId: string, path: string): void {
     for (const operation of pendingDocumentOperations) {
         if (operation.sessionId === sessionId && isPathAtOrBelow(operation.path, path))
@@ -558,9 +563,8 @@ export async function remapOpenEditorsDurably(
  * way and therefore misses them; a dirty buffer left behind recreates a trashed file on the next save (issue #738).
  * `remapOpenEditorsDurably` already reconciles the same full set for renames.
  */
-function workbenchRootSessionIds(fallbackSessionId: string): string[] {
-    const sessionIds = getBootstrap()?.sessions.map((session) => session.id) ?? [];
-    return sessionIds.length > 0 ? sessionIds : [fallbackSessionId];
+function workbenchRootSessionIds(): string[] {
+    return getBootstrap()?.sessions.map((session) => session.id) ?? [];
 }
 
 function closeOpenEditorsUnderPathInSession(
@@ -594,11 +598,14 @@ function closeOpenEditorsUnderPathInSession(
 /**
  * Closes matching normal editors and drops matching cached documents in every Session holding state for the trashed
  * path's Workbench Root, after Main confirms Trash.
+ *
+ * `workbenchProjectId` is the root the caller resolved _before_ it awaited the Trash confirmation. Re-deriving it here
+ * would reintroduce the same defect from the other side: a Session can change roots while the dialog is open — an Agent
+ * creating a worktree does it without the user touching anything when `workbench.newWorktreeBehavior` is
+ * `continueAutomatically` — and the cleanup would then miss the root the confirmation was actually about.
  */
-export function closeOpenEditorsUnderPath(sessionId: string, path: string): void {
-    const workbenchProjectId = getSessionProjectId(sessionId);
-    if (!workbenchProjectId) return;
-    for (const rootSessionId of workbenchRootSessionIds(sessionId))
+export function closeOpenEditorsUnderPath(workbenchProjectId: string, path: string): void {
+    for (const rootSessionId of workbenchRootSessionIds())
         closeOpenEditorsUnderPathInSession(rootSessionId, workbenchProjectId, path);
 }
 
@@ -628,29 +635,19 @@ export function closeResolvedGitDiff(
  * Trash confirmation stop promising full recoverability when it would actually discard a dirty buffer that was never
  * written to disk.
  *
- * A Session currently on the root is judged by its live pane layout, because that is the state the confirmation is
- * about. A Session parked on another root has no layout for this one in memory, so its scoped document cache is the
- * only available evidence — and it is the right evidence, since that cache is what recreates the trashed file once the
- * user switches back and saves. Scoping both reads to the same root keeps this check's reach identical to
- * {@link closeOpenEditorsUnderPath}; the two disagreeing is the defect shape issue #738 reported.
+ * The evidence is the scoped document cache rather than the pane layout, deliberately: a Session parked on another root
+ * has no layout for this one in memory, and the cache is what recreates the trashed file once the user switches back
+ * and saves. Reading the same state {@link closeOpenEditorsUnderPath} evicts is the point — the confirmation promising
+ * one thing while the cleanup discards another is the defect shape issue #738 reported. A dirty document always has a
+ * cache entry, so this still covers every open dirty tab.
  */
-export function hasUnsavedChangesUnderPath(sessionId: string, path: string): boolean {
-    const workbenchProjectId = getSessionProjectId(sessionId);
-    if (!workbenchProjectId) return false;
-    return workbenchRootSessionIds(sessionId).some((rootSessionId) => {
-        const state = sessionStateOf(rootSessionId);
-        if (state?.workbenchProjectId === workbenchProjectId)
-            return layoutDocumentPaths(state.paneLayout).some(
-                (candidate) =>
-                    !isVirtualEditorTabPath(candidate) &&
-                    isPathAtOrBelow(candidate, path) &&
-                    isDocumentDirty(rootSessionId, candidate, workbenchProjectId),
-            );
-        return Object.entries(getSessionDocuments(rootSessionId, workbenchProjectId) ?? {}).some(
+export function hasUnsavedChangesUnderPath(workbenchProjectId: string, path: string): boolean {
+    return workbenchRootSessionIds().some((rootSessionId) =>
+        Object.entries(getSessionDocuments(rootSessionId, workbenchProjectId) ?? {}).some(
             ([candidate, document]) =>
                 document.dirty &&
                 !isVirtualEditorTabPath(candidate) &&
                 isPathAtOrBelow(candidate, path),
-        );
-    });
+        ),
+    );
 }

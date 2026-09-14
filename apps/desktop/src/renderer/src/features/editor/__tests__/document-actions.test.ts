@@ -338,7 +338,7 @@ describe('session-scoped file mutation completion', () => {
     it('closes only the origin Session tab after Trash confirmation returns', () => {
         installSessions('/project/trashed.ts');
 
-        closeOpenEditorsUnderPath('session-1', '/project/trashed.ts');
+        closeOpenEditorsUnderPath('project-1', '/project/trashed.ts');
 
         const states = useWorkbenchStore.getState().bootstrap?.sessionStates ?? [];
         const session1 = states.find((state) => state.sessionId === 'session-1')!;
@@ -369,7 +369,7 @@ describe('session-scoped file mutation completion', () => {
     it('closes the same trashed Project file in every Session', () => {
         installSessions('/project/trashed.ts', 'session-1', '/project/trashed.ts');
 
-        closeOpenEditorsUnderPath('session-1', '/project/trashed.ts');
+        closeOpenEditorsUnderPath('project-1', '/project/trashed.ts');
 
         const states = useWorkbenchStore.getState().bootstrap?.sessionStates ?? [];
         expect(states.map((state) => paneTabPaths(state))).toEqual([[], []]);
@@ -401,7 +401,7 @@ describe('session-scoped file mutation completion', () => {
         mocks.request.mockReturnValueOnce(read.promise);
 
         const opening = openFile('/project/trashed.ts');
-        closeOpenEditorsUnderPath('session-1', '/project/trashed.ts');
+        closeOpenEditorsUnderPath('project-1', '/project/trashed.ts');
         read.resolve({ content: 'disk', mtimeMs: 1, path: '/project/trashed.ts', size: 4 });
 
         await expect(opening).resolves.toBe(false);
@@ -780,7 +780,7 @@ describe('editing the pane tree through document actions', () => {
                 : undefined,
         }));
 
-        closeOpenEditorsUnderPath('session-1', '/project/dir');
+        closeOpenEditorsUnderPath('project-1', '/project/dir');
 
         const state = useWorkbenchStore.getState().bootstrap!.sessionStates[0];
         expect(paneTabPaths(state)).toEqual(['/project/keep.ts']);
