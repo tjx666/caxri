@@ -54,6 +54,11 @@ readback. Do not end again at local validation or PR creation. A status-only que
    subsequent runner status before diagnosing infrastructure failure. Keep following queued work
    through transient disconnects; do not mark the issue Blocked or end delivery solely because
    one status sample says offline. Inspect completed failed jobs even while the final gate queues.
+   A failed E2E case outside the change's own behavior gets two local repetitions of that exact
+   case, never a full-suite or repeated CI rerun: the suite shares one self-hosted runner, so
+   chasing an intermittent failure in place blocks this delivery and every sibling delivery behind
+   it. When both repetitions pass, record the case in `e2e-testing` and continue. Procedure:
+   [CI-only parity](../e2e-testing/SKILL.md#ci-only-parity).
 7. Merge only when explicitly authorized by the user or an active workflow such as `go`. Verify the
    remote merged state and merge commit before reporting completion.
 8. After the current task's PR is merged, inspect whether the task is running in the primary
