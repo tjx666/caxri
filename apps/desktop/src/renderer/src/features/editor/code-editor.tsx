@@ -4,7 +4,7 @@ import type { ThemeTokens } from '@caxri/protocol';
 import type { OnMount } from '@monaco-editor/react';
 import Editor from '@monaco-editor/react';
 
-import { useEditorFontFamily } from '@/hooks/use-editor-font-family';
+import { useEditorOptions } from '@/hooks/use-editor-options';
 
 import { applyEditorTheme } from '../../lib/editor-theme';
 import { monaco } from '../../lib/monaco';
@@ -67,7 +67,7 @@ export function CodeEditor({
     const programmaticChangeReference = useRef(false);
     const statusKeyReference = useRef(statusKey);
     const language = resolveEditorLanguage(path);
-    const fontFamily = useEditorFontFamily();
+    const editorOptions = useEditorOptions();
     const handleChange = useCallback(
         (content: string | undefined) => {
             if (!programmaticChangeReference.current) onChange(content);
@@ -176,12 +176,8 @@ export function CodeEditor({
             }}
             onChange={handleChange}
             options={{
-                automaticLayout: true,
-                minimap: { enabled: false },
-                ...(fontFamily && { fontFamily }),
-                fontSize: 13,
+                ...editorOptions,
                 wordWrap: 'off',
-                scrollBeyondLastLine: false,
                 readOnly: readOnly === true,
                 domReadOnly: readOnly === true,
                 find: { addExtraSpaceOnTop: false },

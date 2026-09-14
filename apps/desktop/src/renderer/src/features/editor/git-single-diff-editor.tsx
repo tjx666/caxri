@@ -7,7 +7,7 @@ import { gitDiffModelPath } from '@caxri/protocol';
 import Editor from '@monaco-editor/react';
 import type { editor as Monaco } from 'monaco-editor';
 
-import { useEditorFontFamily } from '@/hooks/use-editor-font-family';
+import { useEditorOptions } from '@/hooks/use-editor-options';
 
 import { bindSingleDiffEditor } from './git-single-diff-binding';
 
@@ -38,7 +38,7 @@ export function GitSingleDiffEditor({
     const isAdded = document.original === '';
     const kind = isAdded ? 'added' : 'deleted';
     const [editor, setEditor] = useState<Monaco.IStandaloneCodeEditor | null>(null);
-    const fontFamily = useEditorFontFamily();
+    const editorOptions = useEditorOptions();
     useLayoutEffect(() => {
         if (!editor) return;
         return bindSingleDiffEditor(editor, kind, {
@@ -61,13 +61,9 @@ export function GitSingleDiffEditor({
             theme="caxri-active"
             onMount={setEditor}
             options={{
+                ...editorOptions,
                 ariaLabel: kind === 'added' ? 'Added file contents' : 'Deleted file contents',
-                automaticLayout: true,
-                ...(fontFamily && { fontFamily }),
-                fontSize: 13,
-                minimap: { enabled: false },
                 readOnly: true,
-                scrollBeyondLastLine: false,
                 wordWrap: 'off',
                 ...(onContentHeightChange && {
                     scrollbar: { alwaysConsumeMouseWheel: false },
