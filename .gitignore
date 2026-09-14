@@ -10,6 +10,10 @@ test-results/
 playwright-report/
 coverage/
 .vitest/
+# oxlint resolves `overrides[].files` relative to its config, so the toolchain contract test must write its fixture
+# config at the repository root. It is removed in `afterAll`, but a concurrent or interrupted run would otherwise dirty
+# `git status` and block the release precheck.
+.oxlintrc.contract-*.json
 .cache/
 .records/
 *.tsbuildinfo
