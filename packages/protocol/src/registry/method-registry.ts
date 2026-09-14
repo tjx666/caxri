@@ -125,6 +125,13 @@ export const MAX_FILE_BROWSE_ENTRIES = MAX_PATH_BROWSER_ENTRIES;
  * explicit truncation bit so a large directory never silently appears complete.
  */
 export const MAX_FILE_LIST_ENTRIES = 1_024;
+/**
+ * Import links are resolved for the whole open document at once, so this caps how much filesystem probing one editor
+ * model can ask for. A file with more relative imports than this keeps links for the first ones it declares.
+ */
+export const MAX_RESOLVED_IMPORTS = 128;
+const resolvedImportSchema = z.object({ specifier: z.string(), path: pathSchema });
+const importSpecifierSchema = z.string().min(1).max(1_024);
 
 const settingsResult = z.object({ value: appSettingsSchema, source: configSourceSchema });
 /**
@@ -546,6 +553,26 @@ export const methods = {
         ...serverRead,
         params: z.object({ sessionId: identifierSchema, path: pathSchema }),
         result: z.enum(['file', 'directory']),
+    },
+    /**
+     * Turns the relative specifiers written in one open document (`'./foo'`, `'../../errors'`) into the files they
+     * name, so the editor can offer them as links. Batched per document because the editor asks on every model change
+     * and a request per import would multiply that by the import count.
+     *
+     * Only specifiers that resolve to a regular file inside the Session's authorized Project are returned; an
+     * unresolvable one is simply absent, which is what keeps an alias or a bare package name from rendering as a link
+     * that would jump somewhere wrong.
+     */
+    'files.resolveImports': {
+        ...serverRead,
+        params: z.object({
+            sessionId: identifierSchema,
+            from: pathSchema,
+            specifiers: z.array(importSpecifierSchema).max(MAX_RESOLVED_IMPORTS),
+        }),
+        result: z.object({
+            resolved: z.array(resolvedImportSchema).max(MAX_RESOLVED_IMPORTS),
+        }),
     },
     'files.browse': {
         ...serverRead,

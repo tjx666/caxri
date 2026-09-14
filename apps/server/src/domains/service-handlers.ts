@@ -29,6 +29,7 @@ type ServiceHandlerMethods =
     | 'agentActions.list'
     | 'agentActions.recordRecent'
     | 'files.list'
+    | 'files.resolveImports'
     | 'files.resolveKind'
     | 'files.browse'
     | 'files.locateDirectory'
@@ -199,6 +200,7 @@ export function createServiceHandlers(services: {
         },
         'files.authorizeTrash': (parameters) => files.authorizeTrash(parameters),
         'files.authorizeOpen': (parameters) => files.authorizeOpen(parameters),
+        'files.resolveImports': (parameters) => files.resolveImports(parameters),
         'files.resolveKind': async (parameters) => (await files.authorizeOpen(parameters)).kind,
         'files.read': ({ sessionId, path }) => files.read(sessionId, path),
         'files.write': ({ sessionId, path, content }) => files.write(sessionId, path, content),
