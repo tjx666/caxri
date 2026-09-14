@@ -30,6 +30,19 @@ export const workbenchMethods = {
         params: z.object({ sessionId: identifierSchema, worktreeId: identifierSchema }),
         result: z.union([canceled, sessionRecordSchema]),
     },
+    /**
+     * Drops the stored editor tabs for a trashed path from one Workbench Root, including the Sessions that are parked
+     * on another root and therefore hold that root's layout only on the Server (issue #909).
+     */
+    'session.workbenchRoot.forgetEditorPath': {
+        ...commandPolicy('server', 'write'),
+        params: z.object({
+            sessionId: identifierSchema,
+            workbenchProjectId: identifierSchema,
+            path: pathSchema,
+        }),
+        result: z.null(),
+    },
     'session.dismissWorkbenchCandidate': {
         ...commandPolicy('server', 'write'),
         params: z.object({ sessionId: identifierSchema, candidateId: identifierSchema }),

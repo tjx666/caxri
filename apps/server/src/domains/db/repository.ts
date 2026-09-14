@@ -764,14 +764,19 @@ export class CaxriDatabase {
         previousPath: string,
         nextPath: string,
     ): number {
-        return this.db.transaction(() =>
-            this.db.sessions.remapWorkbenchEditorState(
-                workbenchProjectId,
-                operationId,
-                previousPath,
-                nextPath,
-            ),
+        return this.db.remapWorkbenchEditorState(
+            workbenchProjectId,
+            operationId,
+            previousPath,
+            nextPath,
         );
+    }
+
+    /**
+     * Applied after Trash succeeds, scoped to the Workbench Root the confirmation was about.
+     */
+    removeWorkbenchEditorPath(workbenchProjectId: string, path: string): number {
+        return this.db.removeWorkbenchEditorPath(workbenchProjectId, path);
     }
 
     getAppState<K extends AppStateKey>(key: K): AppStateValue<K> | undefined {
