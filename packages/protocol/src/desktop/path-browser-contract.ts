@@ -22,6 +22,11 @@ const pathBrowserEntry = z.object({
     id: identifierSchema,
     kind: z.enum(['directory', 'file', 'symlink']),
     /**
+     * Display-only Project-relative directory of a `projectSearch` result, without a trailing slash and empty at the
+     * root. Directory listings omit it because every row already shares the snapshot's `directoryLabel`.
+     */
+    directoryLabel: z.string().max(4_096).optional(),
+    /**
      * Display-only symlink metadata, reused from the Server file entry so the dialog row carries the same folder/file
      * icon, tooltip, and screen-reader rationale as the Files tree. Main forwards what Server Core probed; it never
      * resolves or authorizes the target.
@@ -39,6 +44,12 @@ const pathBrowserSnapshot = z.object({
     entries: z.array(pathBrowserEntry).max(MAX_PATH_BROWSER_ENTRIES),
     input: z.string().max(4_096),
     mode: z.enum(['project', 'free']),
+    /**
+     * `directory` lists the browser's current directory. `projectSearch` is the fallback Main returns when a bare
+     * Project-mode filter matched nothing there: the rows come from anywhere under the Project root, so the Renderer
+     * must render each row's own directory and must not treat a lone row as a path completion.
+     */
+    resultKind: z.enum(['directory', 'projectSearch']),
     rootLabel: z.string().min(1).max(1_024).optional(),
     truncated: z.boolean(),
 });
