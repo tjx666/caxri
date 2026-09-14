@@ -42,25 +42,52 @@ async function expectRejection(fileName: string, source: string): Promise<CaxriE
  * replaces the user's theme with a renamed Dracula clone.
  */
 describe('theme import rejects documents with no theme data', () => {
+    // The document goes last so it never lands in the reported test name: several cases span lines, and a case name is
+    // the wrong place to reproduce the contents of a user's file.
     it.each([
-        ['sample.yaml', '', 'empty'],
-        ['sample.yaml', '   \n\n# only a comment\n', 'comment-only'],
-        ['sample.yaml', '---\n', 'document marker only'],
-        ['sample.yaml', '- one\n- two\n', 'sequence root'],
-        ['sample.yaml', '"scalar"\n', 'scalar root'],
-        ['sample.json', '', 'empty'],
-        ['sample.json', 'null', 'null root'],
-        ['sample.json', '5', 'scalar root'],
-        ['sample.json', '[]', 'array root'],
-        ['sample.json', '{}', 'object with no keys'],
-        ['sample.json', '{ "colors": ', 'truncated syntax'],
-        ['sample.itermcolors', '', 'empty'],
-        ['sample.itermcolors', '<plist version="1.0"></plist>', 'plist with no root dict'],
-        ['sample.itermcolors', '<plist version="1.0"><dict/></plist>', 'empty root dict'],
-    ])('rejects a %s that is %s (%s)', async (fileName, source) => {
+        ['sample.yaml', 'empty', ''],
+        ['sample.yaml', 'comment-only', '   \n\n# only a comment\n'],
+        ['sample.yaml', 'document marker only', '---\n'],
+        ['sample.yaml', 'a sequence root', '- one\n- two\n'],
+        ['sample.yaml', 'a scalar root', '"scalar"\n'],
+        ['sample.json', 'empty', ''],
+        ['sample.json', 'a null root', 'null'],
+        ['sample.json', 'a scalar root', '5'],
+        ['sample.json', 'an array root', '[]'],
+        ['sample.json', 'an object with no keys', '{}'],
+        ['sample.json', 'truncated syntax', '{ "colors": '],
+        ['sample.itermcolors', 'empty', ''],
+        ['sample.itermcolors', 'a plist with no root dict', '<plist version="1.0"></plist>'],
+        ['sample.itermcolors', 'an empty root dict', '<plist version="1.0"><dict/></plist>'],
+    ])('rejects a %s that is %s', async (fileName, _label, source) => {
         const error = await expectRejection(fileName, source);
         expect(error.code).toBe('VALIDATION');
         expect(error.message).toMatch(/theme file (could not be parsed|is empty or has no theme)/);
+    });
+
+    /**
+     * A VS Code theme may name a same-directory parent with `include`, so the parent is a second untrusted document on
+     * the same import. It used to be parsed bare, which made a broken parent the exact `INTERNAL` fault this issue is
+     * about, and a parent that parsed to an array was reported as `Theme include must be a file in the same directory.`
+     * — pointing at the one thing that was not wrong.
+     */
+    it.each([
+        ['broken syntax', '{ "colors": '],
+        ['an array root', '[]'],
+    ])('rejects an include parent with %s', async (_label, parentSource) => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-include-'));
+        temporaryDirectories.push(directory);
+        await writeFile(join(directory, 'base.json'), parentSource);
+        const childPath = join(directory, 'child.json');
+        await writeFile(childPath, JSON.stringify({ include: './base.json', name: 'Child' }));
+        let rejection: CaxriError | undefined;
+        try {
+            await importTheme(childPath, draculaTheme);
+        } catch (error_) {
+            rejection = error_ as CaxriError;
+        }
+        expect(rejection?.code).toBe('VALIDATION');
+        expect(rejection?.message).toMatch(/^JSON theme file (could not be parsed|is empty)/);
     });
 
     /**

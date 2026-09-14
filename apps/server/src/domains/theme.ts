@@ -737,11 +737,13 @@ async function resolveVsCodeInclude(
         beforeRead: testSeam?.beforeRead,
         capacityMessage: `Theme file exceeds the ${MAX_THEME_IMPORT_FILE_BYTES} byte import limit`,
     });
-    const parent = parseJsonc(parentSource);
-    if (!parent || typeof parent !== 'object' || Array.isArray(parent)) {
-        throw new CaxriError('VALIDATION', INCLUDE_DIRECTORY_MESSAGE);
-    }
-    return JSON.stringify(mergeVsCodeTheme(parent as Record<string, unknown>, document));
+    /**
+     * The included parent is a second untrusted document, so it needs the same guard as the file the user picked. It
+     * used to report a broken parent as `INCLUDE_DIRECTORY_MESSAGE`, which pointed at the wrong thing — the parent is
+     * in the right directory, it just does not parse.
+     */
+    const parent = parseThemeDocument(parentSource, 'JSON', parseJsonc);
+    return JSON.stringify(mergeVsCodeTheme(parent, document));
 }
 
 export async function importTheme(
