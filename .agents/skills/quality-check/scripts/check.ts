@@ -655,11 +655,35 @@ async function runLint(root: string, files: string[]): Promise<number> {
     return codeFiles.length + markdownFiles.length + otherFormatFiles.length;
 }
 
+/**
+ * A skill's own tests read its `SKILL.md` as a string and assert the wording of the contracts it publishes, so editing
+ * the document breaks them exactly the way editing source breaks a unit test. Import discovery cannot see that
+ * dependency: the test reads the file at runtime rather than importing it. Without this route a skill edit reaches CI
+ * having run only the repository-wide invocation contract, which is what let a reworded `e2e-testing` procedure pass
+ * the focused check and then stop full platform checks.
+ */
+async function skillContractTestCandidates(root: string, files: string[]): Promise<string[]> {
+    const directories = new Set(
+        files.flatMap((file) => {
+            const match = /^((?:\.agents|\.claude)\/skills\/[^/]+)\/SKILL\.md$/u.exec(
+                file.replaceAll('\\', '/'),
+            );
+            return match ? [match[1]] : [];
+        }),
+    );
+    if (directories.size === 0) return [];
+    const nested = await Promise.all(
+        [...directories].map((directory) => walkVitestTestFiles(root, directory)),
+    );
+    return nested.flat();
+}
+
 export async function selectedTestCandidates(root: string, files: string[]): Promise<string[]> {
     const candidates = [
         ...new Set([
             ...files.flatMap(testCandidatesForFile),
             ...(await directImportTestCandidates(root, files)),
+            ...(await skillContractTestCandidates(root, files)),
         ]),
     ];
     return existingFiles(root, candidates);

@@ -488,6 +488,17 @@ describe('direct import test selection', () => {
         expect(selected).toContain('apps/desktop/src/renderer/src/stores/session-view.test.ts');
     });
 
+    it('runs a skill\u{2019}s own contract tests when its SKILL.md changes', async () => {
+        const selected = await selectedTestCandidates(process.cwd(), [
+            '.agents/skills/e2e-testing/SKILL.md',
+        ]);
+        expect(selected).toContain('.agents/skills/e2e-testing/scripts/skill-routing.test.ts');
+        expect(selected).toContain('scripts/__tests__/skill-invocation.test.ts');
+        expect(selected.some((test) => test.startsWith('.agents/skills/quality-check/'))).toBe(
+            false,
+        );
+    });
+
     it('discovers direct-import tests inside workspace packages', async () => {
         const selected = await directImportTestCandidates(process.cwd(), [
             'apps/cli/src/application.ts',
