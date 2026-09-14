@@ -9,7 +9,7 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError, MAX_GIT_STATUS_FILES } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import { mapWithConcurrency } from '@caxri/system';
+import { fileIdentity, mapWithConcurrency } from '@caxri/system';
 
 import { isOutsideRoot } from '../path-security';
 import type { ProjectRootResolver } from '../project-roots';
@@ -53,16 +53,7 @@ async function untrackedIdentityFingerprint(
                     'Git path is outside the authorized repository',
                 );
             try {
-                const stats = await lstat(path, { bigint: true });
-                return [
-                    file.path,
-                    stats.dev,
-                    stats.ino,
-                    stats.mode,
-                    stats.size,
-                    stats.mtimeNs,
-                    stats.ctimeNs,
-                ].join('\0');
+                return `${file.path}\0${fileIdentity(await lstat(path, { bigint: true }))}`;
             } catch (error) {
                 if ((error as NodeJS.ErrnoException).code === 'ENOENT')
                     return `${file.path}\0missing`;

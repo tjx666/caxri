@@ -3,8 +3,14 @@
  * (issue #556). Runs below the Electron boundary because the probe is pure filesystem work; `agent.probe` in the
  * production log only surfaces samples above 250ms, so the full distribution needs this dedicated scenario.
  *
- * Usage: `bun run benchmark:agent-probe` (override with `CAXRI_BENCHMARK_AGENT_PROBE_FILES`,
- * `CAXRI_BENCHMARK_AGENT_PROBE_ITERATIONS`, and `CAXRI_BENCHMARK_AGENT_PROBE_P95_MS`).
+ * This is a trend tool, not a gate. It used to exit non-zero above a 50ms warm p95, which never protected anything: a
+ * wall-clock threshold moves with machine load, so a cache failing completely and falling back to reading all 512 files
+ * still finishes under 50ms on an idle machine, while a loaded one fails a run that changed nothing (issue #630). What
+ * does discriminate is the syscall accounting, which is independent of machine speed and is asserted in
+ * `metadata-cache.test.ts` — and, for a real run, printed here as the cache counters beside the timings.
+ *
+ * Usage: `bun run benchmark:agent-probe` (override with `CAXRI_BENCHMARK_AGENT_PROBE_FILES` and
+ * `CAXRI_BENCHMARK_AGENT_PROBE_ITERATIONS`).
  */
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -13,9 +19,18 @@ import { performance } from 'node:perf_hooks';
 import process from 'node:process';
 
 import { claudeProvider } from '../apps/server/src/domains/agents/providers/claude';
-import { clearClaudeMetadataCache } from '../apps/server/src/domains/agents/providers/claude/metadata-cache';
+import type { ClaudeMetadataCacheCounters } from '../apps/server/src/domains/agents/providers/claude/metadata-cache';
+import {
+    claudeMetadataCacheCounters,
+    clearClaudeMetadataCache,
+} from '../apps/server/src/domains/agents/providers/claude/metadata-cache';
 
 export interface AgentProbeBenchmarkResult {
+    /**
+     * The cache accounting for the whole run, which is what makes the timings readable: a warm p95 means nothing until
+     * you know whether those probes were hits.
+     */
+    cache: ClaudeMetadataCacheCounters;
     coldMs: number;
     files: number;
     iterations: number;
@@ -28,7 +43,6 @@ export interface AgentProbeBenchmarkResult {
 
 const DEFAULT_FILES = 512;
 const DEFAULT_ITERATIONS = 200;
-const DEFAULT_P95_THRESHOLD_MS = 50;
 const REWRITE_EVERY = 10;
 
 function integerEnvironment(name: string, fallback: number): number {
@@ -106,6 +120,7 @@ export async function runAgentProbeBenchmark(options: {
             samples.push(await probe());
         }
         return {
+            cache: claudeMetadataCacheCounters(),
             coldMs: round(coldMs),
             files: options.files,
             iterations: options.iterations,
@@ -131,13 +146,5 @@ if (import.meta.main) {
             DEFAULT_ITERATIONS,
         ),
     });
-    const thresholdMs = integerEnvironment(
-        'CAXRI_BENCHMARK_AGENT_PROBE_P95_MS',
-        DEFAULT_P95_THRESHOLD_MS,
-    );
-    console.log(`CAXRI_AGENT_PROBE_BENCHMARK ${JSON.stringify({ ...result, thresholdMs })}`);
-    if (result.warm.p95Ms > thresholdMs) {
-        console.error(`agent probe p95 ${result.warm.p95Ms}ms exceeds ${thresholdMs}ms`);
-        process.exit(1);
-    }
+    console.log(`CAXRI_AGENT_PROBE_BENCHMARK ${JSON.stringify(result)}`);
 }

@@ -1,6 +1,7 @@
 import { join, resolve } from 'node:path';
 
 import type { AgentActivityState } from '@caxri/protocol';
+import { mapWithConcurrency } from '@caxri/system';
 
 import { runExternalCommand } from '../../../executables';
 import type {
@@ -24,7 +25,7 @@ import { claudeDelegationAdapter } from './delegation';
 import { claudeHookAdapter } from './hooks';
 import { generateClaudeLowCostText } from './low-cost-generation';
 import type { ClaudeSessionMetadata } from './metadata-cache';
-import { readClaudeSessionMetadata } from './metadata-cache';
+import { claudeMetadataCacheCounters, readClaudeSessionMetadata } from './metadata-cache';
 import {
     claudeTranscriptBaseRoot,
     claudeTranscriptPath,
@@ -207,6 +208,13 @@ function timestamp(value: unknown): number {
     return 0;
 }
 
+/**
+ * Ceiling on concurrent `realpath` calls while matching Claude's recorded working directories. Before this the fan-out
+ * was an unbounded `Promise.all` over every recorded directory, which puts one libuv threadpool thread per entry behind
+ * a probe that fires after every burst of PTY activity. Matches the read concurrency the metadata cache already uses.
+ */
+const MAX_CONCURRENT_CLAUDE_CWD_READS = 8;
+
 function sessionStartedAt(metadata: ClaudeSessionMetadata): number {
     return timestamp(metadata.startedAt) || timestamp(metadata.updatedAt);
 }
@@ -286,32 +294,30 @@ async function readClaudeState(
         }
         return pending;
     };
-    const matched = await Promise.all(
-        entries.map(async (metadata) =>
-            typeof metadata.cwd === 'string' && (await canonicalCwd(metadata.cwd)) === requestedRoot
-                ? metadata
-                : undefined,
-        ),
+    /**
+     * The three in-memory predicates run before any `realpath`, because they are the ones that can reject most of the
+     * directory for free. A probe naming its own `agentSessionId` keeps exactly one candidate, so it resolves one path
+     * instead of every distinct working directory Claude has ever recorded.
+     */
+    const candidates = entries.filter(
+        (metadata): metadata is ClaudeSessionMetadata & { cwd: string } => {
+            if (typeof metadata.cwd !== 'string') return false;
+            if (context.agentSessionId) return metadata.sessionId === context.agentSessionId;
+            if (
+                typeof metadata.sessionId === 'string' &&
+                excludedSessionIds.has(metadata.sessionId)
+            )
+                return false;
+            return !(context.startedAt && sessionStartedAt(metadata) < context.startedAt);
+        },
     );
-    const matches = matched.flatMap((metadata) => {
-        if (!metadata) return [];
-        if (context.agentSessionId && metadata.sessionId !== context.agentSessionId) return [];
-        if (
-            !context.agentSessionId &&
-            typeof metadata.sessionId === 'string' &&
-            excludedSessionIds.has(metadata.sessionId)
-        ) {
-            return [];
-        }
-        if (
-            !context.agentSessionId &&
-            context.startedAt &&
-            sessionStartedAt(metadata) < context.startedAt
-        ) {
-            return [];
-        }
-        return [metadata];
-    });
+    const resolved = await mapWithConcurrency(
+        candidates,
+        MAX_CONCURRENT_CLAUDE_CWD_READS,
+        async (metadata) =>
+            (await canonicalCwd(metadata.cwd)) === requestedRoot ? metadata : undefined,
+    );
+    const matches = resolved.filter((metadata) => metadata !== undefined);
     let latest: ClaudeSessionMetadata | undefined;
     for (const metadata of matches) {
         const isPreferred =
@@ -383,6 +389,7 @@ export const claudeProvider: AgentProviderDescriptor = {
                 10_000,
             ),
     },
+    probeCacheCounters: claudeMetadataCacheCounters,
     readState: (context, environment) =>
         readClaudeState(context, resolveClaudeConfigDirectory(environment)),
     renameSession: renameClaudeSession,
