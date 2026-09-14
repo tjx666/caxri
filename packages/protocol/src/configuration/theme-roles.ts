@@ -1,6 +1,6 @@
 import type { ThemeTokens } from '../domain/domain.js';
 import { themeTokensSchema } from '../domain/domain.js';
-import { builtinThemes } from './builtin-themes/index.js';
+import { builtinThemes } from './builtin-themes/catalog.js';
 
 /**
  * The popup shadow a theme gets when it names no `widget.shadow`. `73` is 45% alpha, which is the value

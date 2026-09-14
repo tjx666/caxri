@@ -118,6 +118,11 @@ takes the correction; an imported theme is its author's and keeps the original v
 unfocused — inactive UI under WCAG 1.4.3, and the one case where the dimming is the message, which
 is how macOS and VS Code both fade an unfocused title.
 
+A preset must also leave the active tab distinguishable from its neighbours by fill or by label,
+because the accent line above an active tab is drawn only on the focused pane and the other pane in
+a split has nothing else to go on. A theme that paints both tab states one color has to give the
+difference back somewhere, since the contrast floor above is what pulls the two labels together.
+
 `--badge` and the five `--git-*` roles exist so the theme, not the component, decides these colors.
 Both mirror a VS Code key a theme author already writes — `activityBarBadge.background` and the Git
 extension's `gitDecoration.*ResourceForeground` — so a built-in preset carries the exact value VS

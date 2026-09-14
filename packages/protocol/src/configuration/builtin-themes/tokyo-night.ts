@@ -33,12 +33,15 @@ export const tokyoNightTheme: ThemeTokens = {
         gitConflicting: '#e0af68',
         tabActiveBackground: '#16161e',
         tabActiveForeground: '#a9b1d6',
-        tabInactiveBackground: '#16161e',
         /**
-         * Tokyo Night's `#787c99` is its comment grey, 4.40:1 on the tab fill. `muted` is the palette's own adjusted
-         * secondary text and reads 6.35:1 here.
+         * Tokyo Night paints both tab states `#16161e` and separates them with `tab.activeBorderTop` instead. Caxri
+         * draws that accent only on the focused pane, so in a split the unfocused pane had no cue left at all: same
+         * fill, and a label the contrast floor pushes up toward the active one. Dropping to the palette's darkest
+         * chrome value restores the fill step, and it also puts this theme's comment grey back above AA (4.65:1), which
+         * the shared `#16161e` fill was 4.40:1 short of.
          */
-        tabInactiveForeground: '#9699a8',
+        tabInactiveBackground: '#101014',
+        tabInactiveForeground: '#787c99',
         tabHoverBackground: '#202330',
         tabHoverForeground: '#a9b1d6',
         listHoverBackground: '#13131a',
