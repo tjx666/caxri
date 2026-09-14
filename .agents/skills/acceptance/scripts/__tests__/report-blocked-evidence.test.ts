@@ -11,6 +11,7 @@ import {
 } from '../case-lifecycle';
 import { finalizeReport, initializeReport } from '../report';
 import { PROJECT_ROOT } from '../report-paths';
+import { citeEvidenceList, writeProposal } from './evidence-fixture';
 
 const REQUIREMENT =
     '验证一个用例在无法取证时仍能如实记录为 blocked，并且真正跑过的用例不能少申报收据。';
@@ -44,6 +45,7 @@ async function seedRound(): Promise<void> {
         requirement: REQUIREMENT,
         title: '验收 blocked 用例的取证契约',
     });
+    await writeProposal(round.directory, '本轮说明 blocked 用例如何如实记录，请重点看取证边界。');
     await writeFile(
         join(round.directory, 'assets', 'ran-case.png'),
         Buffer.from([0x89, 0x50, 0x4e, 0x47]),
@@ -78,13 +80,13 @@ async function writeCases(
 ): Promise<void> {
     const path = join(round.directory, 'result.json');
     const report = JSON.parse(await readFile(path, 'utf8')) as {
-        cases: Array<{ evidence: string[]; id: string; observation: string; status: string }>;
+        cases: Array<{ evidence: unknown[]; id: string; observation: string; status: string }>;
     };
     for (const item of report.cases) {
         const update = cases.find(({ id }) => id === item.id);
         if (!update) continue;
         item.status = update.status;
-        item.evidence = update.evidence;
+        item.evidence = citeEvidenceList(update.evidence);
         item.observation =
             update.status === 'blocked'
                 ? '本轮未执行：断言已由本批提交的单元测试在最窄的拥有层覆盖。'

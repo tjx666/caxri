@@ -260,7 +260,7 @@ export async function createIntakeSnapshot(
         status,
     ] = await Promise.all([
         captureReadOnlyGitHub(runner, ['api', 'user', '--jq', '.login'], cwd),
-        runner.capture('lobehub', ['whoami', '--json'], cwd),
+        runner.capture('lh', ['whoami', '--json'], cwd),
         captureReadOnlyGitHub(
             runner,
             [

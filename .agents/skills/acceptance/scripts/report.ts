@@ -37,6 +37,7 @@ import {
     validateExistingReportDirectory,
     writeJsonAtomically,
 } from './report-paths';
+import { validateCaseVisualizations, visualizationCaseSchema } from './report-visualizations';
 import { assertUniqueAcceptanceCaseIds, isAcceptanceCaseId } from './runtime-state';
 import { validateHumanText, validateReportLanguage } from './validate-report';
 
@@ -93,7 +94,15 @@ const planItemSchema = z
             });
         }
     });
-const evidenceSchema = z.union([z.string().min(1), z.looseObject({ path: z.string().min(1) })]);
+/**
+ * Every file submission carries a reviewer-facing description. The legacy bare-path form is rejected rather than
+ * accepted for compatibility: ingest falls back to the filename, which tells a reviewer nothing about what the artifact
+ * shows, and Caxri has no released rounds to keep working.
+ */
+const evidenceSchema = z.looseObject({
+    description: z.string().trim().min(1),
+    path: z.string().min(1),
+});
 const caseSchema = z.looseObject({
     category: z.string().min(1),
     evidence: z.array(evidenceSchema).min(1),
@@ -136,6 +145,13 @@ export interface FinalizeReportInput {
     directory: string;
     requirement: string;
 }
+/**
+ * `lh acceptance run ingest` posts `proposal.md` into the acceptance discussion as this round's note to the reviewer,
+ * so it is the first thing a person reads and the place they answer. The scaffold writes this placeholder and
+ * `finalize` refuses it: an auto-generated "nothing to add" line would otherwise become a real message on the thread.
+ */
+const PROPOSAL_PLACEHOLDER = '待补充：本轮交付了什么，希望评审者重点看哪里。';
+
 function preflightEvidencePath(caseId: string): string {
     return `assets/${encodeURIComponent(caseId)}-fixture-preflight.json`;
 }
@@ -254,6 +270,7 @@ export async function initializeReport(input: InitializeReportInput): Promise<st
 
     const resultPath = join(directory, 'result.json');
     const notesPath = join(directory, 'report.md');
+    const proposalPath = join(directory, 'proposal.md');
 
     const result = {
         ...(input.branch && { branch: input.branch }),
@@ -282,6 +299,7 @@ export async function initializeReport(input: InitializeReportInput): Promise<st
             flag: 'wx',
         }),
         writeFile(notesPath, notes, { encoding: 'utf8', flag: 'wx' }),
+        writeFile(proposalPath, `${PROPOSAL_PLACEHOLDER}\n`, { encoding: 'utf8', flag: 'wx' }),
     ]);
     return resultPath;
 }
@@ -299,7 +317,7 @@ export async function rebindReportHead(input: RebindReportHeadInput): Promise<vo
 }
 
 function evidencePath(evidence: z.infer<typeof evidenceSchema>): string {
-    return typeof evidence === 'string' ? evidence : evidence.path;
+    return evidence.path;
 }
 
 function evidenceTypeForPath(path: string): RequiredEvidenceType {
@@ -519,9 +537,11 @@ export async function finalizeReport(input: FinalizeReportInput) {
     const directory = await validateExistingReportDirectory(input.directory);
     const resultPath = join(directory, 'result.json');
     const notesPath = join(directory, 'report.md');
-    const [rawResult, notes] = await Promise.all([
+    const proposalPath = join(directory, 'proposal.md');
+    const [rawResult, notes, proposal] = await Promise.all([
         readFile(resultPath, 'utf8'),
         readFile(notesPath, 'utf8'),
+        readFile(proposalPath, 'utf8'),
     ]);
     const rawReport: unknown = JSON.parse(rawResult);
     const reportCommit = z
@@ -607,6 +627,7 @@ export async function finalizeReport(input: FinalizeReportInput) {
         await validateCaseLifecycleEvidence(directory, planned, item);
         // eslint-disable-next-line no-await-in-loop
         await validateMobileDeviceEvidence(directory, planned, item, reportCommit);
+        validateCaseVisualizations(visualizationCaseSchema.parse(item));
     }
 
     await validateReportMediaEvidence({
@@ -614,6 +635,10 @@ export async function finalizeReport(input: FinalizeReportInput) {
         directory,
         plans: report.plan,
     });
+
+    if (proposal.trim() === PROPOSAL_PLACEHOLDER) {
+        throw new Error('proposal.md still holds the scaffold placeholder');
+    }
 
     const previousConclusion = report.summary?.conclusion?.trim();
     const customConclusion =
@@ -631,7 +656,7 @@ export async function finalizeReport(input: FinalizeReportInput) {
         ...summaryFor(report.cases, requestedConclusion ?? customConclusion),
     };
     const finalized = { ...report, summary };
-    validateReportLanguage({ notes, report: finalized, requirement });
+    validateReportLanguage({ notes, proposal, report: finalized, requirement });
     const temporaryPath = `${resultPath}.${process.pid}.tmp`;
     await writeFile(temporaryPath, `${JSON.stringify(finalized, null, 2)}\n`, 'utf8');
     await rename(temporaryPath, resultPath);

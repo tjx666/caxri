@@ -9,6 +9,7 @@ immutable `round-<n>` child:
 ├── requirement.txt
 └── round-<n>/
     ├── result.json
+    ├── proposal.md
     ├── report.md
     └── assets/
 ```
@@ -18,11 +19,23 @@ a visible Chinese “no additional notes” statement; replace it with concise r
 notes, follow-ups, or limitations when needed, and do not duplicate the case
 table there.
 
+`proposal.md` is this round's own note to the reviewer: what the round delivers
+and where you want their eyes, the way a person writes a pull request
+description — a few sentences, in Simplified Chinese. `ingest` posts it into the
+acceptance's discussion as a message on this round, so it is the first thing a
+reviewer reads and they can answer it in place. It is NOT the verification
+write-up: do not restate the checks or the verdict, those are `result.json` and
+`report.md`. The first round says what the delivery is; later ones say what
+changed since the feedback. `finalize` refuses the scaffolded placeholder, so
+every published round carries a real note.
+
 ## Contents
 
 - [Language contract](#language-contract)
 - [Initialize from the frozen plan](#initialize-from-the-frozen-plan)
 - [Record observations](#record-observations)
+- [Closed vocabularies](#closed-vocabularies)
+- [Structured visualizations](#structured-visualizations)
 - [Finalize before publication](#finalize-before-publication)
 - [Publish immutable history](#publish-immutable-history)
 - [Before and after evidence](#before-and-after-evidence)
@@ -31,9 +44,10 @@ table there.
 
 Write human-facing Acceptance content in Simplified Chinese. This includes the
 immutable requirement, report title and entry, plan title/category/method/
-expected behavior, case name/category/observation, summary conclusion,
-comparison labels, and `report.md` notes. Keep stable ids, enum values, code
-identifiers, branches, commits, commands, and artifact paths in English.
+expected behavior, case name/category/observation, summary conclusion, evidence
+descriptions, comparison labels, visualization titles, and the `report.md` and
+`proposal.md` prose. Keep stable ids, enum values, code identifiers, branches,
+commits, commands, and artifact paths in English.
 
 ## Initialize from the frozen plan
 
@@ -113,10 +127,11 @@ bun run .agents/skills/acceptance/scripts/report.ts init \
 ```
 
 The command refuses to overwrite an existing round. It creates `result.json`, a
-Chinese default `report.md`, `assets/`, and one visible `TODO` case placeholder
-per plan item. The round must be inside this repository's `.records/` directory
-and its name must match `round-<positive integer>`. The first round writes the
-shared `requirement.txt`; later rounds and finalization must match it exactly.
+Chinese default `report.md`, a `proposal.md` placeholder, `assets/`, and one
+visible `TODO` case placeholder per plan item. The round must be inside this
+repository's `.records/` directory and its name must match
+`round-<positive integer>`. The first round writes the shared `requirement.txt`;
+later rounds and finalization must match it exactly.
 
 If a non-product repair changes the exact delivery head before the round is
 finalized or published, rebind the generated scaffold through the structured
@@ -159,9 +174,24 @@ Replace each generated `cases[]` placeholder with the observed result:
   "surface": "desktop",
   "status": "pass",
   "observation": "终端与工作区使用对比色后，没有观察到未覆盖的背景色条",
-  "evidence": ["assets/terminal-layout.png", "assets/terminal-layout-dom.html"]
+  "evidence": [
+    {
+      "path": "assets/terminal-layout.png",
+      "description": "切换到首个 Session 后的终端截图，视口四周没有露出应用背景色条。"
+    },
+    {
+      "path": "assets/terminal-layout-dom.html",
+      "description": "同一时刻的终端 DOM 快照，用于核对视口尺寸与容器边界。"
+    }
+  ]
 }
 ```
+
+Every evidence entry is an object with `path` and a non-empty, reviewer-facing
+`description`. Describe the file's contents and why it matters for this check —
+a filename, path, id, or a generic word like “证据” is not sufficient, and the
+bare-path form is rejected rather than falling back to the filename. Describe
+each artifact separately instead of repeating the check title for every file.
 
 `status` is `pass`, `fail`, or `blocked`. A blocked case is not a pass. Every
 status needs evidence, and every artifact path is relative to the round directory.
@@ -210,6 +240,87 @@ bun run .agents/skills/acceptance/scripts/report.ts repair-lifecycle \
 For an isolated case the repair verifies the profile directory is already gone before it records
 cleanup; a restart launch is closed without claiming cleanup of its shared profile.
 
+## Closed vocabularies
+
+The pipeline acts on these values; they are not labels.
+
+| field                           | values                                                                | what it does                                                                                                         |
+| ------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `verifier`                      | `program` / `agent` / `llm` (default `agent`)                         | How the verdict is reached. A command-asserted check is `program`; calling it `agent` hides what actually judged it. |
+| `requiredEvidence`              | `screenshot` / `gif` / `video` / `text` / `markdown` / `dom_snapshot` | The artifact this check **must** produce. Finalization fails a `pass`/`fail` case whose required medium is missing.  |
+| `surfaces` / per-case `surface` | `desktop` / `mobile`                                                  | The product surface a check ran **on**. A test kind (`unit`, `e2e`) or runtime mode is not a surface.                |
+
+`category` names the user-facing requirement area (e.g. `终端布局`, `配对恢复`) —
+never a technical surface. `method` / `expected` stay free Chinese prose; they
+render under the check next to the outcome.
+
+### What is not an acceptance check
+
+The repo's own gates — Vitest, Playwright E2E, coverage, `type-check`, lint,
+format, a clean build, "CI passes" — are never `plan[]` / `cases[]` items, under
+any phrasing; they are one line in `report.md`. Treat a plan containing matching items as invalid,
+and reject it before publication; a
+gates-only plan fails local validation. Full rule: [SKILL.md](../SKILL.md).
+
+## Structured visualizations
+
+For metrics, time series, render-count or benchmark comparisons, distributions,
+matrices, and tables, use native Acceptance visualizations instead of generating
+a PNG: put review-sized values in `cases[].datasets`, declare the view in
+`cases[].visualizations`, and retain the raw CSV/JSON, benchmark output, trace,
+or profile in `evidence`. Native renderers preserve machine-readable values,
+accessibility, theme adaptation, and consistent comparison semantics. Generate a
+static chart only when no supported renderer can represent the result, and
+explain that limitation in the case observation.
+
+```json
+{
+  "id": "issue-51-session-switch-renders",
+  "datasets": [
+    {
+      "id": "render-counts",
+      "fields": [
+        { "key": "metric", "type": "string" },
+        { "key": "before", "type": "number" },
+        { "key": "after", "type": "number" }
+      ],
+      "rows": [{ "metric": "会话切换渲染次数", "before": 11, "after": 2 }]
+    }
+  ],
+  "visualizations": [
+    {
+      "id": "render-comparison",
+      "type": "metric-comparison",
+      "version": 1,
+      "dataset": "render-counts",
+      "title": "会话切换前后的渲染次数",
+      "encoding": { "label": "metric", "before": "before", "after": "after" }
+    }
+  ]
+}
+```
+
+Supported version-1 renderers and their encodings:
+
+| Renderer            | Required encoding                                              | Optional encoding                                                                         |
+| ------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `metric-comparison` | `label`, `before`, `after`                                     | `beforeSamples`, `afterSamples`, `direction`, `statistic`, `target`, `unit`               |
+| `line-chart`        | `x`, non-empty `series[]`; each series requires `field`        | series `label`, series `style` (`muted` \| `primary` \| `accent`), `xLabel`, `yLabel`     |
+| `bar-chart`         | `category`, non-empty `series[]`; each series requires `field` | series `label`, `valueLabel`                                                              |
+| `scatter-plot`      | `x`, `y`                                                       | `color`, `label`, `xLabel`, `yLabel`                                                      |
+| `heatmap`           | `x`, `y`, `value`                                              | none                                                                                      |
+| `table`             | none; `encoding` itself may be omitted                         | non-empty `columns[]`; `highlights[]` entries require `field` and `mode` (`min` \| `max`) |
+
+Dataset field `type` is one of `boolean`, `category`, `number`, `string`, or
+`temporal`; field keys and dataset/view ids must be unique, rows may contain only
+declared keys with string, number, boolean, or null values, and one case's
+combined inline rows are limited to 10,000. Every encoding key that names a field
+must reference a field that dataset declared; `xLabel`, `yLabel`, `valueLabel`,
+`unit`, `statistic`, and `direction` are free prose, not field names.
+Finalization checks all of this locally, so local validation rejects a
+malformed visualization shape before publication can degrade the
+evidence.
+
 ## Finalize before publication
 
 After every placeholder has an observed `pass`, `fail`, or `blocked` result,
@@ -223,9 +334,11 @@ bun run .agents/skills/acceptance/scripts/report.ts finalize \
 
 The finalizer requires case ids and order to match the frozen plan, verifies
 that referenced files exist under `assets/`, checks every declared evidence
-medium, validates Simplified Chinese report prose, and writes `summary` from the
-case statuses. Pass `--conclusion` only when the generic Chinese conclusion is
-not precise enough. It never writes observations or changes case verdicts.
+medium and its reviewer-facing description, validates any declared datasets and
+visualizations, refuses the scaffolded `proposal.md` placeholder, validates
+Simplified Chinese report prose, and writes `summary` from the case statuses.
+Pass `--conclusion` only when the generic Chinese conclusion is not precise
+enough. It never writes observations or changes case verdicts.
 
 Evidence for LobeHub publication follows Caxri's schema. Supported required
 types are `screenshot`, `gif`, `video`, `text`, `markdown`, and `dom_snapshot`.
@@ -245,17 +358,25 @@ if [ ! -s "$REQUIREMENT_PATH" ]; then
   false
 else
   FROZEN_REQUIREMENT="$(cat "$REQUIREMENT_PATH")"
-  lobehub acceptance run ingest "$ROUND_DIR" \
+  lh acceptance run ingest "$ROUND_DIR" \
     --source agent-testing \
     --requirement "$FROZEN_REQUIREMENT" \
     --json
 fi
 ```
 
+`--requirement` records the durable goal of the whole acceptance on the first
+ingest only; it is immutable afterwards. `--source agent-testing` is already the
+default and stays explicit here so the Go readback can match it. Do not pass
+`--subject`: Caxri rounds are standalone, and a subject is only for a Task,
+Topic, or Document the caller explicitly named. The command uploads cases,
+evidence, `report.md`, and `proposal.md`, and prints `/acceptance/<acceptanceId>`
+plus its `?r=<roundIndex>` snapshot form.
+
 Preserve the returned Acceptance id and URL. Append every repair as a new round:
 
 ```bash
-lobehub acceptance run ingest "$REPORT_DIR" \
+lh acceptance run ingest "$REPORT_DIR" \
   --source agent-testing \
   --acceptance "$ACCEPTANCE_ID" \
   --json
@@ -270,7 +391,7 @@ bun run .agents/skills/go/scripts/state.ts acceptance-publish \
 ```
 
 The wrapper persists `acceptanceId`, stable URL, immutable run id, round index,
-exact head, check ids, and verdict only after `lobehub acceptance view` returns
+exact head, check ids, and verdict only after `lh acceptance view` returns
 the same lineage. Empty stdout, network interruption, wrong id/index/head/checks,
 or verdict mismatch leaves the ledger unpublished. If ingest returns an immutable
 run before readback fails, resume stores that attempt and retries only `view`; it
@@ -288,9 +409,9 @@ actionable feedback. Avoid loading the full aggregate into chat context because
 it can contain unrelated identities and signed artifact URLs:
 
 ```bash
-lobehub acceptance view "$ACCEPTANCE_ID" --json |
+lh acceptance view "$ACCEPTANCE_ID" --json |
   jq '{status: .acceptance.status, userDecision: .rounds[-1].run.userDecision}'
-lobehub acceptance feedback "$ACCEPTANCE_ID" --actionable --json
+lh acceptance feedback "$ACCEPTANCE_ID" --actionable --json
 ```
 
 - Never overwrite a prior round or hide a failed attempt.
@@ -308,20 +429,22 @@ For the same view in two states, use a comparison pair with a shared id:
 [
   {
     "path": "assets/before.png",
+    "description": "修复前的终端视口，右侧和底部各露出一条应用背景色。",
     "comparison": {
       "id": "terminal-layout",
       "role": "before",
       "layout": "horizontal",
-      "label": "修复前"
+      "label": "修复前：残留 12px 背景色条"
     }
   },
   {
     "path": "assets/after.png",
+    "description": "同一 Session 修复后的终端视口，四周没有残留背景色条。",
     "comparison": {
       "id": "terminal-layout",
       "role": "after",
       "layout": "horizontal",
-      "label": "修复后"
+      "label": "修复后：无背景色条"
     }
   }
 ]

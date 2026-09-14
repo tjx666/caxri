@@ -25,12 +25,30 @@ Save `dom_snapshot` evidence as `.html` or `.htm`. The interactive
 report artifact; serialize the smallest relevant Renderer subtree by following
 [agent-browser.md](agent-browser.md), then inspect the saved document.
 
+## Description is mandatory for every artifact
+
+- Reference artifacts from `cases[].evidence` as
+  `{ "path": "...", "description": "..." }`, with the path relative to the report
+  directory, for example `assets/terminal-layout.png`. The bare-path form is
+  rejected: a filename alone tells a reviewer
+  nothing about what the artifact shows.
+- Write a concise, factual Simplified Chinese sentence identifying the file's
+  contents and their relevance to the check, including the action, observed
+  state, or target where useful. The reviewer should know why to open it without
+  inspecting the payload. A filename, path, id, “JSON”, or “证据” alone is
+  insufficient. Do not invent conclusions or put the verdict in the description.
+- Example: `assets/terminal-layout-dom.html` → “终端布局稳定后的 DOM 快照，用于核
+  对视口尺寸与容器边界。” Describe each artifact separately instead of repeating the
+  check title for every file.
+
 ## Artifact rules
 
-- Reference artifacts from `cases[].evidence` with paths relative to the report
-  directory, for example `assets/terminal-layout.png`.
 - Every pass, fail, or blocked observation needs the evidence that supports that
   status.
+- Structured data — render counts, startup timings, benchmark or before/after
+  metrics, distributions, tables — uses the native visualizations in
+  [report.md](report.md#structured-visualizations), not a generated PNG. Keep the
+  raw CSV/JSON, trace, or profile as `evidence` beside it.
 - Inspect every image, clip, and generated document before citing it.
 - Passing video evidence must survive the report finalizer's duration, frame-count,
   and visible-variation checks. A short or static frame sequence is not a recording.
