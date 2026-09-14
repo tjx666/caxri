@@ -17,6 +17,19 @@ import { describeFailure, pushToast } from '../stores/toasts';
 export const EXTENSION_TREE_GC_TIME_MS = 30 * 60_000;
 
 /**
+ * The two query-key namespaces more than one module has to agree on, owned here because the data layer owns key shapes.
+ *
+ * A cache predicate that spells the method out as a bare string never fails loudly: rename the method or reshape the
+ * key and the comparison simply stops matching anything, which is how two `viewContainers.treeChildren` predicates
+ * survived unnoticed after the shape they matched was gone (issue #799). `satisfies CaxriMethod` makes a typo or a
+ * removed method a type error, and sharing one constant between the key factory and every matcher makes the two move
+ * together.
+ */
+export const CONTROLLED_VIEW_QUERY_METHOD = 'viewContainers.viewOperation' satisfies CaxriMethod;
+export const EXTENSION_TREE_CHILDREN_QUERY_METHOD =
+    'viewContainers.treeChildren' satisfies CaxriMethod;
+
+/**
  * Server-state defaults tuned for a local-IPC app rather than a network API: there is no other client to race with over
  * `window.caxri`, so a background window-focus refetch only doubles Server work, and an IPC rejection is a real failure
  * (a bad path, a closed Session) rather than a transient network blip worth retrying. Individual queries override
@@ -35,7 +48,7 @@ export function createCaxriQueryClient(): QueryClient {
             },
         },
     });
-    client.setQueryDefaults(['viewContainers.treeChildren'], {
+    client.setQueryDefaults([EXTENSION_TREE_CHILDREN_QUERY_METHOD], {
         gcTime: EXTENSION_TREE_GC_TIME_MS,
     });
     return client;

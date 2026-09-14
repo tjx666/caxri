@@ -8,6 +8,7 @@ import type {
 import type { QueryClient } from '@tanstack/react-query';
 
 import { caxri } from '../../lib/caxri';
+import { CONTROLLED_VIEW_QUERY_METHOD } from '../../queries/client';
 
 export interface SourceControlClient {
     readonly viewId: string;
@@ -48,7 +49,12 @@ type ViewOperation =
     | 'source.historyPage'
     | 'source.snapshot';
 
-type ControlledViewQueryOperation = ViewOperation | 'files.list' | 'files.search';
+/**
+ * Every operation name {@link controlledViewQueryKey} can put in a cache key. Cache predicates match against this union
+ * rather than bare strings so an operation that no controlled view produces cannot sit in a matcher forever without
+ * matching anything (issue #799).
+ */
+export type ControlledViewQueryOperation = ViewOperation | 'files.list' | 'files.search';
 
 export function controlledViewQueryKey(
     viewId: string,
@@ -58,7 +64,7 @@ export function controlledViewQueryKey(
     cacheRevision?: string,
 ) {
     return [
-        'viewContainers.viewOperation',
+        CONTROLLED_VIEW_QUERY_METHOD,
         {
             viewId,
             operation,

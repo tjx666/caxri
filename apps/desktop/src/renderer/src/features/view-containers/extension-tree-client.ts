@@ -2,6 +2,7 @@ import type { TreeChildrenResult, TreeItemDto } from '@caxri/protocol';
 import type { QueryClient } from '@tanstack/react-query';
 
 import { caxri } from '../../lib/caxri';
+import { EXTENSION_TREE_CHILDREN_QUERY_METHOD } from '../../queries/client';
 
 /**
  * Sentinel parent for a view's root branch. The wire contract omits `parentHandle` for the root, so the sentinel never
@@ -44,7 +45,7 @@ function extensionTreeChildrenQueryKey(
     parentHandle: string,
 ): readonly [string, ExtensionTreeChildrenQueryParameters] {
     return [
-        'viewContainers.treeChildren',
+        EXTENSION_TREE_CHILDREN_QUERY_METHOD,
         { contextKey: extensionTreeContextKey(scope), parentHandle, viewId: scope.viewId },
     ] as const;
 }
@@ -54,7 +55,7 @@ function treeChildrenQueryParameters(
 ): ExtensionTreeChildrenQueryParameters | undefined {
     const [method, rawParameters] = queryKey;
     if (
-        method !== 'viewContainers.treeChildren' ||
+        method !== EXTENSION_TREE_CHILDREN_QUERY_METHOD ||
         typeof rawParameters !== 'object' ||
         rawParameters === null
     )
