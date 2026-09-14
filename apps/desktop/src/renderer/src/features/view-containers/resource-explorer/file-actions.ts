@@ -412,15 +412,23 @@ export async function didTrashFile(
     path: string,
 ): Promise<boolean> {
     /**
+     * Resolved once, before the confirmation, and reused for the cleanup afterwards. A Session can change its Workbench
+     * Root while the dialog is open — an Agent creating a worktree does it with no user action under
+     * `workbench.newWorktreeBehavior: continueAutomatically` — and re-deriving it after the await would clean a
+     * different root than the one the user was asked about.
+     */
+    const workbenchProjectId = getSessionProjectId(sessionId);
+    if (!workbenchProjectId) return false;
+    /**
      * Checked before the request so Main's confirmation copy can stop promising full recoverability: Trash can only
      * restore the last bytes written to disk, never an unsaved buffer.
      */
-    const hasUnsavedChanges = hasUnsavedChangesUnderPath(sessionId, path);
+    const hasUnsavedChanges = hasUnsavedChangesUnderPath(workbenchProjectId, path);
     const result = await tryCommand('Unable to move item to Trash', () =>
         client.trash(path, { hasUnsavedChanges }),
     );
     if (!result || 'canceled' in result) return false;
-    closeOpenEditorsUnderPath(sessionId, result.path);
+    closeOpenEditorsUnderPath(workbenchProjectId, result.path);
     await invalidateDirectory(client, parentDirectoryPath(result.path));
     pushToast('success', `Moved '${result.name}' to Trash`);
     /**

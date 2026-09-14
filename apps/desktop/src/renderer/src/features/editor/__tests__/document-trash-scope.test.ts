@@ -113,8 +113,8 @@ describe('Trash reconciliation across Workbench Roots', () => {
         // neither reported by the confirmation nor evicted, and recreated the file on the next save (#738).
         installParkedSession({ dirty: true });
 
-        expect(hasUnsavedChangesUnderPath('session-1', TRASHED)).toBe(true);
-        closeOpenEditorsUnderPath('session-1', TRASHED);
+        expect(hasUnsavedChangesUnderPath('project-1', TRASHED)).toBe(true);
+        closeOpenEditorsUnderPath('project-1', TRASHED);
 
         const documents = useSessionViewStore.getState().documents;
         expect(documents['session-1']).toEqual({});
@@ -130,6 +130,6 @@ describe('Trash reconciliation across Workbench Roots', () => {
     it('keeps a saved buffer under another root out of the Trash confirmation', () => {
         installParkedSession({ dirty: false });
 
-        expect(hasUnsavedChangesUnderPath('session-1', TRASHED)).toBe(false);
+        expect(hasUnsavedChangesUnderPath('project-1', TRASHED)).toBe(false);
     });
 });

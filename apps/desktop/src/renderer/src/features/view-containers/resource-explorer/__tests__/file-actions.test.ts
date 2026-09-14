@@ -326,6 +326,59 @@ describe('file action lifecycle', () => {
         );
     });
 
+    it('cleans the Workbench Root the confirmation was about, not the one in effect afterwards', async () => {
+        // An Agent creating a worktree switches a Session's root with no user action, and the confirmation dialog can be
+        // open for seconds. Re-deriving the root after the await would leave the trashed file's dirty buffer behind,
+        // which is exactly the resurrection #738 closed.
+        useWorkbenchStore.setState({
+            bootstrap: {
+                sessions: [session('session-a', 'project-1')],
+                sessionStates: [
+                    {
+                        sessionId: 'session-a',
+                        workbenchProjectId: 'project-1',
+                        desiredSecondarySidebarViewContainerId: 'caxri.files',
+                        paneLayout: paneLayout('/project/source.txt'),
+                    },
+                ],
+                terminals: [],
+            } as unknown as BootstrapState,
+        });
+        useSessionViewStore.getState().cacheDocument('session-a', {
+            path: '/project/source.txt',
+            content: 'unsaved',
+            dirty: true,
+            mtimeMs: 1,
+            size: 7,
+        });
+        mocks.request.mockImplementation((method: string) => {
+            if (method !== 'files.trash') return Promise.resolve(null);
+            useWorkbenchStore.setState((state) => ({
+                bootstrap: {
+                    ...state.bootstrap!,
+                    // Only the Workbench Root moves; a Session's owner Project is fixed for its lifetime.
+                    sessions: [
+                        { ...session('session-a', 'project-1'), workbenchProjectId: 'project-2' },
+                    ],
+                } as BootstrapState,
+            }));
+            return Promise.resolve({
+                kind: 'file',
+                name: 'source.txt',
+                path: '/project/source.txt',
+            });
+        });
+
+        await expect(didTrashFile(client, 'session-a', '/project/source.txt')).resolves.toBe(true);
+
+        expect(mocks.request).toHaveBeenCalledWith('files.trash', {
+            sessionId: 'session-a',
+            path: '/project/source.txt',
+            hasUnsavedChanges: true,
+        });
+        expect(useSessionViewStore.getState().documents['session-a']).toEqual({});
+    });
+
     it('reports no unsaved changes for a clean file', async () => {
         useWorkbenchStore.setState({
             bootstrap: {
