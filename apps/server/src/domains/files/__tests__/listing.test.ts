@@ -54,7 +54,7 @@ describe('directory listing helpers', () => {
     });
 
     it('stops probing symlink targets once one outlives the listing budget', async () => {
-        const probeTarget = createSymlinkTargetProbe(10);
+        const probeTarget = createSymlinkTargetProbe({ timeoutMs: 10 });
         // A target on an unresponsive mount blocks `fs.stat` indefinitely and cannot be cancelled.
         const hung = new Promise<never>(() => {});
         const attempted: string[] = [];
@@ -72,6 +72,60 @@ describe('directory listing helpers', () => {
         // The budget is spent, so the listing stops issuing follows that could pin more threadpool threads.
         expect(second).toBeUndefined();
         expect(attempted).toEqual(['first']);
+    });
+
+    /**
+     * The slow-but-alive mount, which is the case the per-probe timeout could never catch: at 200ms a target never
+     * reaches a 2s ceiling, so before the cumulative budget existed every keystroke in the Cmd+P path input re-issued
+     * the full round of uncancellable follows.
+     */
+    it('closes the budget once the probes it allowed have waited long enough in total', async () => {
+        const spent: Array<{ reason: string; waitedMs: number }> = [];
+        const probeTarget = createSymlinkTargetProbe({
+            budgetMs: 30,
+            onBudgetSpent: (reason, waitedMs) => spent.push({ reason, waitedMs }),
+            timeoutMs: 10_000,
+        });
+        const slow = <T>(value: T) =>
+            new Promise<T>((resolve) => setTimeout(() => resolve(value), 20));
+
+        const first = await probeTarget(() => slow('first'));
+        const second = await probeTarget(() => slow('second'));
+        const third = await probeTarget(() => slow('third'));
+
+        // Both answered: the budget bounds what a listing spends, it does not discard work already paid for.
+        expect([first, second]).toEqual(['first', 'second']);
+        expect(third).toBeUndefined();
+        expect(spent).toHaveLength(1);
+        expect(spent[0]?.reason).toBe('cumulative_wait');
+        expect(spent[0]?.waitedMs).toBeGreaterThanOrEqual(30);
+    });
+
+    it('names a hung target apart from a merely slow one, and reports it once', async () => {
+        const spent: string[] = [];
+        const probeTarget = createSymlinkTargetProbe({
+            onBudgetSpent: (reason) => spent.push(reason),
+            timeoutMs: 10,
+        });
+        const hung = new Promise<never>(() => {});
+
+        await probeTarget(() => hung);
+        await probeTarget(() => hung);
+
+        // One listing spends its budget once; the second follow is refused, not re-reported.
+        expect(spent).toEqual(['probe_timeout']);
+    });
+
+    it('leaves the budget open, and silent, for a listing whose targets answer promptly', async () => {
+        const spent: string[] = [];
+        const probeTarget = createSymlinkTargetProbe({
+            budgetMs: 1_000,
+            onBudgetSpent: (reason) => spent.push(reason),
+        });
+
+        expect(await probeTarget(() => Promise.resolve('a'))).toBe('a');
+        expect(await probeTarget(() => Promise.resolve('b'))).toBe('b');
+        expect(spent).toEqual([]);
     });
 
     it('reports a symlink without link metadata rather than guessing when the probe answers nothing', async () => {

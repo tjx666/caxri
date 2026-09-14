@@ -233,6 +233,59 @@ describe('Agent adapter fallback', () => {
         expect(call?.[2]?.correlationId).toBe('terminal-42');
     });
 
+    /**
+     * `durationMs` cannot say whether a provider's cache regressed, because it moves with machine load. The hit rate
+     * can, but only if it is on every record — including the 'debug' ones an idle Terminal produces, which are almost
+     * all of them. A provider with no cache must add nothing, so the field set stays exactly what it was.
+     */
+    it('carries a provider cache counter on every probe record, including debug ones', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-'));
+        temporaryDirectories.push(directory);
+        const snapshot = vi.fn<AgentAdapter['snapshot']>(() =>
+            Promise.resolve({
+                provider: 'claude',
+                status: 'unknown',
+                observedAt: Date.now(),
+                available: true,
+            }),
+        );
+        const logger = new StructuredLogger(join(directory, 'logs'));
+        loggers.push(logger);
+        const write = vi.spyOn(logger, 'write');
+        const service = createTestAgentService(
+            {
+                claude: {
+                    provider: 'claude',
+                    snapshot,
+                    probeCacheCounters: () => ({
+                        cold: 3,
+                        hits: 7,
+                        listingReads: 1,
+                        misses: 3,
+                    }),
+                },
+                codex: { provider: 'codex', snapshot },
+            },
+            logger,
+        );
+
+        await service.snapshot('claude');
+        await service.snapshot('claude');
+        await service.snapshot('codex');
+
+        const records = write.mock.calls.filter((entry) => entry[1] === 'agent.probe');
+        // The third is Codex's first probe, so it is a transition and stays at 'info'.
+        expect(records.map((entry) => entry[0])).toEqual(['info', 'debug', 'info']);
+        for (const record of records.slice(0, 2))
+            expect(record[2]?.fields).toMatchObject({
+                'cache.cold': 3,
+                'cache.hits': 7,
+                'cache.listingReads': 1,
+                'cache.misses': 3,
+            });
+        expect(Object.keys(records[2]?.[2]?.fields ?? {})).toEqual(['provider', 'available']);
+    });
+
     it('does not share a provider probe across Terminal process generations', async () => {
         const first = Promise.withResolvers<Awaited<ReturnType<AgentAdapter['snapshot']>>>();
         const second = Promise.withResolvers<Awaited<ReturnType<AgentAdapter['snapshot']>>>();

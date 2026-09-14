@@ -1,7 +1,7 @@
 import type { WorkbenchRootOption } from '@caxri/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { selectWorkbenchRoot } from './workbench-root-actions';
+import { selectWorkbenchRoot } from './workbench-root-commands';
 import {
     visibleWorkbenchRoots,
     workbenchRootLabel,

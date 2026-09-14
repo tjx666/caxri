@@ -31,6 +31,7 @@ import { useSelectedSession, useSettings, useTerminal, useTheme } from '../../st
 import { useWorkbenchStore } from '../../stores/workbench';
 import { useTerminalLinkPicker } from './hooks/use-terminal-link-picker';
 import { useTerminalPaneRuntime } from './hooks/use-terminal-pane-runtime';
+import { isAgentProcessRunning } from './terminal-agent-runtime';
 import {
     activateTerminal,
     clearActiveTerminal,
@@ -40,8 +41,7 @@ import {
     registerTerminalFocusHandler,
     restartTerminal,
     startNewAgentSession,
-} from './terminal-actions';
-import { isAgentProcessRunning } from './terminal-agent-runtime';
+} from './terminal-commands';
 import { getTerminalExitPresentation } from './terminal-exit-presentation';
 import { terminalFontFamily } from './terminal-fonts';
 import { openTerminalLinkPicker } from './terminal-link-actions';

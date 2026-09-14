@@ -17,14 +17,14 @@ import { useCaxriQuery } from '../../queries/client';
 import { setPaletteOpen, useDialogStore } from '../../stores/dialogs';
 import { useProjects, useSelectedSession, useSessions, useTerminals } from '../../stores/selectors';
 import { topLevelProjects } from '../primary-sidebar/project-visibility';
+import { activeSessionsInSidebarOrder } from '../session/session-activity-order';
 import {
     didSelectSession,
     hasDetachedAgentTerminal,
     hasLiveAgentTerminal,
     selectProject,
     SESSION_PULL_REQUESTS_REFETCH_INTERVAL_MS,
-} from '../session/session-actions';
-import { activeSessionsInSidebarOrder } from '../session/session-activity-order';
+} from '../session/session-commands';
 import { didExecuteViewCatalogCommand } from '../view-containers/view-container-commands';
 import {
     getPaletteExtensionCommands,

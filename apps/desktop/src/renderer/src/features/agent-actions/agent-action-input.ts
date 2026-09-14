@@ -66,3 +66,20 @@ export function agentActionTerminalInputSteps(
 export function canExecuteAgentAction(action: AgentAction): boolean {
     return !action.requiresArguments;
 }
+
+/**
+ * The chord that inserts the selected action into the Agent's draft instead of running it. Every other modifier must be
+ * absent: `Cmd+Shift+Enter` and `Cmd+Alt+Enter` belong to whatever else claims them, and cmdk would otherwise read them
+ * as a plain Enter and run the action the user meant to insert.
+ */
+export function isAlternateAgentActionChord(event: {
+    altKey: boolean;
+    ctrlKey: boolean;
+    key: string;
+    metaKey: boolean;
+    shiftKey: boolean;
+}): boolean {
+    return (
+        event.metaKey && !event.altKey && !event.ctrlKey && !event.shiftKey && event.key === 'Enter'
+    );
+}

@@ -49,6 +49,9 @@ describe('Go Acceptance planning contract', () => {
         // The five axis headings must exist for intake to route a label at all. Which labels each one declares is
         // pinned by `file-issue/scripts/__tests__/label-axes.test.ts`, beside the skill that owns them: the list used
         // to be hand-written here and silently went stale for four whole Surface labels (issue #820).
+        expect(fileIssueSkill).toContain(
+            'Labels are read as five independent axes: type, surface, area, priority, effort.',
+        );
         expect(fileIssueSkill).toContain('### Type — exactly one');
         expect(fileIssueSkill).toContain('### Surface — which app, zero or one');
         expect(fileIssueSkill).toContain('### Area — what it changes, one to three');

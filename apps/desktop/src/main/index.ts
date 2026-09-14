@@ -44,6 +44,7 @@ import { createMenuRefreshController } from './menu-refresh';
 import { kilobytesToMegabytes, ProcessExplorerSampler } from './process-explorer';
 import { ProcessExplorerWindowController } from './process-explorer-window';
 import { loadRendererEntry } from './renderer-entry';
+import { observeRendererHangs } from './renderer-hang-observer';
 import { RendererReadiness } from './renderer-readiness';
 import { ProjectRootGrants } from './root-grants';
 import { DesktopServerConnection, resolveDesktopLaunch, wirePowerWake } from './server-connection';
@@ -301,6 +302,7 @@ if (ownsProfileInstance) {
                 fields: { code: 'PRELOAD_ERROR' },
             });
         });
+        observeRendererHangs(window.webContents, logEventCatalog.window, () => mainLogger);
         window.webContents.on('render-process-gone', (_event, details) => {
             if (details.reason === 'clean-exit' || window.isDestroyed()) return;
             const { decision, crashTimestampsMs } = decideCrashRecovery(

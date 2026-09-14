@@ -12,7 +12,7 @@ import { gitDecorationClassName, gitDecorationDescription } from '../../lib/git-
 import { cn } from '../../lib/utilities';
 import { useGitDecoration } from '../../stores/git-decorations';
 import { sessionViewScope } from '../../stores/session-view';
-import { openFileForSession } from './document-actions';
+import { openFileForSession } from './document-commands';
 import { EditorBreadcrumbPicker } from './editor-breadcrumb-picker';
 import type { EditorBreadcrumbSegment } from './editor-breadcrumbs-model';
 import { editorBreadcrumbSegments } from './editor-breadcrumbs-model';

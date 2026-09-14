@@ -22,6 +22,19 @@ import {
     removeKeybindingSource,
     updateKeybindingSource,
 } from './keybinding-editor';
+import {
+    getAgentHookHealth,
+    getAgentSkillHealth,
+    getArgvConfig,
+    getKeybindings,
+    getSettings,
+    getTheme,
+    importThemeFile,
+    updateKeybindings,
+    updateSettings,
+    updateTheme,
+    writeArgvConfig,
+} from './settings-client';
 import type { ConfigAction, ConfigSourceError } from './settings-drafts';
 import { configReducer, initialConfigState, parseConfigSource } from './settings-drafts';
 import { settingsRows } from './settings-registry';
@@ -224,7 +237,7 @@ export function useSettingsDialogController() {
         },
         persist: async (kind, source) => {
             if (kind === 'settings') {
-                const result = await caxri.request('settings.update', { source });
+                const result = await updateSettings({ source });
                 return () =>
                     dispatchConfig({
                         type: 'settings/applied',
@@ -233,7 +246,7 @@ export function useSettingsDialogController() {
                     });
             }
             if (kind === 'keybindings') {
-                const result = await caxri.request('keybindings.update', { source });
+                const result = await updateKeybindings({ source });
                 return () =>
                     dispatchConfig({
                         type: 'keybindings/applied',
@@ -242,7 +255,7 @@ export function useSettingsDialogController() {
                         conflicts: result.conflicts,
                     });
             }
-            const result = await caxri.request('theme.update', { source });
+            const result = await updateTheme({ source });
             return () =>
                 dispatchConfig({
                     type: 'theme/applied',
@@ -252,7 +265,7 @@ export function useSettingsDialogController() {
         },
         read: async (kind) => {
             if (kind === 'settings') {
-                const result = await caxri.request('settings.get');
+                const result = await getSettings();
                 return () =>
                     dispatchConfig({
                         type: 'settings/reconciled',
@@ -261,7 +274,7 @@ export function useSettingsDialogController() {
                     });
             }
             if (kind === 'keybindings') {
-                const result = await caxri.request('keybindings.get');
+                const result = await getKeybindings();
                 return () =>
                     dispatchConfig({
                         type: 'keybindings/reconciled',
@@ -270,7 +283,7 @@ export function useSettingsDialogController() {
                         conflicts: result.conflicts,
                     });
             }
-            const result = await caxri.request('theme.get');
+            const result = await getTheme();
             return () =>
                 dispatchConfig({
                     type: 'theme/reconciled',
@@ -288,11 +301,11 @@ export function useSettingsDialogController() {
             try {
                 const [settingsResult, keybindingsResult, themeResult, hookHealth, argvResult] =
                     await Promise.all([
-                        caxri.request('settings.get'),
-                        caxri.request('keybindings.get'),
-                        caxri.request('theme.get'),
-                        caxri.request('agentHooks.get'),
-                        caxri.request('argv.get'),
+                        getSettings(),
+                        getKeybindings(),
+                        getTheme(),
+                        getAgentHookHealth(),
+                        getArgvConfig(),
                     ]);
                 dispatchConfig({
                     type: 'loaded',
@@ -319,7 +332,7 @@ export function useSettingsDialogController() {
     const loadAgentSkillHealth = useCallback((): void => {
         async function loadSkillHealth(): Promise<void> {
             try {
-                setAgentSkillHealth(await caxri.request('agentSkills.get'));
+                setAgentSkillHealth(await getAgentSkillHealth());
             } catch (error: unknown) {
                 onSettingsError(error, 'Unable to inspect Caxri CLI skills');
             }
@@ -573,7 +586,7 @@ export function useSettingsDialogController() {
         // eslint-disable-next-line no-void -- intentional floating-promise discard, the IIFE below reports its own errors via onSettingsError
         void (async (): Promise<void> => {
             try {
-                const result = await caxri.request('argv.update', { changes });
+                const result = await writeArgvConfig({ changes });
                 if (argvWriteGeneration.current !== generation) return;
                 setArgvConfig(result.value);
                 const notice = argvRestartNotice({
@@ -596,12 +609,12 @@ export function useSettingsDialogController() {
 
     const importTheme = async (): Promise<void> => {
         try {
-            const imported = await caxri.request('theme.import');
+            const imported = await importThemeFile();
             if (!imported) return;
             // The importer writes theme.json directly: drop any pending debounced write and bump
             // the generation so a stale response cannot clobber the just-imported theme afterward.
             writeCoordinator.supersede('theme');
-            const result = await caxri.request('theme.get');
+            const result = await getTheme();
             // The import response is the only source of transient warnings; theme.get reads saved tokens only.
             resetThemeImportWarningDismissals(imported.value.id);
             dispatchConfig({

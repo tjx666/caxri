@@ -4,8 +4,8 @@ import type { SessionRecord } from '@caxri/protocol';
 
 import { useOnVisible } from '@/hooks/use-on-visible';
 
-import { caxri } from '../../lib/caxri';
 import { useSelectedSession } from '../../stores/selectors';
+import { markSessionRead } from './session-commands';
 
 interface AttentionVisibility {
     documentVisible: boolean;
@@ -45,10 +45,7 @@ export function useSessionAttentionAcknowledgement(): void {
         isPendingReference.current = true;
         const acknowledgeAsync = async (): Promise<void> => {
             try {
-                await caxri.request('session.markRead', {
-                    sessionId: session.id,
-                    attentionEpoch: session.attentionEpoch,
-                });
+                await markSessionRead(session.id, session.attentionEpoch);
             } catch {
                 /**
                  * Server recovery or the next focus event can safely retry the same generation.

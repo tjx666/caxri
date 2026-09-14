@@ -38,7 +38,8 @@ Server `structure`, and Renderer `design-contract` tests already used.
 | protocol/CLI locked domain lists and barrels                                                     | `scripts/__tests__/workspace-contract.test.ts`                                      |
 | CLI tests live in `__tests__/`, not loose beside production files                                | `scripts/__tests__/workspace-contract.test.ts`                                      |
 | Server domains with 3+ modules need a barrel; no cross-domain deep import                        | `apps/server/src/domains/__tests__/structure.test.ts`                               |
-| Tailwind utilities are token-only, no literal colors, guarded arbitrary-value allowlist          | `apps/desktop/src/renderer/__tests__/renderer-design-contract.test.ts`              |
+| Tailwind arbitrary typography, spacing, and radius values stay on the DESIGN.md allowlist        | `apps/desktop/src/renderer/__tests__/renderer-design-contract.test.ts`              |
+| Tailwind color utilities name a token registered in `theme.css`'s `@theme inline` bridge         | `eslint.config.ts` `caxri/registered-color-utilities`                               |
 
 ### New in this stage (issue #177 stage 5)
 
@@ -54,10 +55,10 @@ Server `structure`, and Renderer `design-contract` tests already used.
 
 ### After stage 5
 
-| Convention                                                                                                                            | Enforcement                                                                                                                                                                        |
-| ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Class methods have a blank line on either side; consecutive fields and overload signatures may pack                                   | `eslint.config.ts` `@stylistic/lines-between-class-members` (Prettier never inserts these blank lines)                                                                             |
-| View Container server reads go through React Query, a `*-client.ts`, or a `*-commands.ts` module, never straight into component state | Local `caxri/server-reads-through-query` ESLint rule (`scripts/eslint-rules/server-reads-through-query.ts`), scoped to `apps/desktop/src/renderer/src/features/view-containers/**` |
+| Convention                                                                                                                      | Enforcement                                                                                                                                                               |
+| ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Class methods have a blank line on either side; consecutive fields and overload signatures may pack                             | `eslint.config.ts` `@stylistic/lines-between-class-members` (Prettier never inserts these blank lines)                                                                    |
+| Renderer server reads go through React Query, a `*-client.ts`, or a `*-commands.ts` module, never straight into component state | Local `caxri/server-reads-through-query` ESLint rule (`scripts/eslint-rules/server-reads-through-query.ts`), scoped to all of `apps/desktop/src/renderer/src/features/**` |
 
 Flat ESLint config objects replace, rather than merge, a later matching object's same-named rule
 for a given file. The two `no-restricted-imports` blocks above stay on non-overlapping `files`
@@ -98,10 +99,14 @@ and will fail CI on an unused file. Every new rule in this stage has a paired po
   stay silent for `@stylistic/lines-between-class-members` depending on whether adjacent methods
   have a blank line (packed consecutive fields and overload signatures stay allowed).
 - `view-container-reads/component-state-read-fixture.ts` (both `caxri.request` and the abortable
-  `caxri.requestWithSignal`) vs. `view-container-reads/query-function-read-fixture.ts` and
-  `view-container-reads/tree-branch-client.ts` — fire or stay silent for
+  `caxri.requestWithSignal`) and `view-container-reads/tree-branch-actions.ts` vs.
+  `view-container-reads/query-function-read-fixture.ts`,
+  `view-container-reads/tree-branch-client.ts`, and
+  `view-container-reads/tree-branch-commands.ts` — fire or stay silent for
   `caxri/server-reads-through-query`, asserted by
-  `scripts/__tests__/server-reads-through-query.test.ts` rather than the shared contract test.
+  `scripts/__tests__/server-reads-through-query.test.ts` rather than the shared contract test. The
+  `-actions.ts` fixture pins the filename convention itself: only `*-client.ts` and `*-commands.ts`
+  name a data layer, so a request relocated into a feature's UI-action module is still reported.
 
 The Renderer-only alias ban is asserted through `ESLint#calculateConfigForFile`
 (`effectiveConfigFor` in the same test file) instead of a fixture, mirroring how the pre-existing

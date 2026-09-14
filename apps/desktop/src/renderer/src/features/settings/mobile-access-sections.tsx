@@ -8,6 +8,15 @@ import { Button } from '../../components/ui/button';
 import { Checkbox } from '../../components/ui/checkbox';
 import type { MobilePairingState, useMobileAccessController } from './use-mobile-access-controller';
 
+/**
+ * The QR code's own two colors, and the only place in the Renderer where a color is not a theme token: a scanner reads
+ * the symbol's contrast, not the workbench's palette, and the light module color has to extend past the symbol as a
+ * quiet zone for the code to be found at all. Both the module colors and the padding around them therefore come from
+ * here rather than from `theme.css`, so a theme that darkens the surface cannot make the code unreadable.
+ */
+const QR_LIGHT = '#ffffff';
+const QR_DARK = '#111111';
+
 const expirationLabel = (expiresAt: number, now: number): string => {
     const seconds = Math.max(0, Math.ceil((expiresAt - now) / 1_000));
     if (seconds === 0) return 'Expired';
@@ -83,7 +92,7 @@ const MobileProjectAccessSection = ({
                 return (
                     <label
                         key={project.id}
-                        className="hover:bg-selection flex min-h-7 cursor-pointer items-center gap-2 rounded px-1.5"
+                        className="flex min-h-7 cursor-pointer items-center gap-2 rounded px-1.5 hover:bg-[var(--selection)]"
                     >
                         <Checkbox
                             aria-label={`Allow ${project.displayTitle}`}
@@ -125,17 +134,20 @@ const MobilePairingCard = ({
     pairing: MobilePairingState;
 }) => (
     <div className="flex flex-wrap items-center gap-4 rounded-md border border-border bg-elevated p-3">
-        <div className="bg-white rounded-md p-2">
+        <div className="rounded-md p-2" style={{ background: QR_LIGHT }}>
             {isActive ? (
                 <QRCode
-                    bgColor="#ffffff"
-                    fgColor="#111111"
+                    bgColor={QR_LIGHT}
+                    fgColor={QR_DARK}
                     level="Q"
                     size={152}
                     value={pairing.pairingLink}
                 />
             ) : (
-                <div className="text-black/60 flex size-38 items-center justify-center text-[12px]">
+                <div
+                    className="flex size-38 items-center justify-center text-[12px]"
+                    style={{ color: QR_DARK }}
+                >
                     Expired
                 </div>
             )}

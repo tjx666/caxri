@@ -18,7 +18,17 @@ import YAML from 'yaml';
 
 import type { BoundedRegularFileReadOptions } from './bounded-file-reader';
 import { readBoundedRegularFileText } from './bounded-file-reader';
-import { parseThemeDocument } from './theme-parse';
+import {
+    applyVsCodeControlColors,
+    applyVsCodeTokenColors,
+    firstHex,
+    formatMissingSyntaxWarning,
+    hasMappedVsCodeColor,
+    isLightVsCodeTheme,
+    normalizedHex,
+    SYNTAX_EDITOR_ROLES,
+} from './theme-colors';
+import { parseThemeDocument, themeDocumentRoot } from './theme-import-source';
 
 export { draculaTheme } from '@caxri/protocol';
 
@@ -36,62 +46,24 @@ const ZERO_HIT_THEME_MESSAGE =
     'This theme file does not define any colors Caxri can import. Check that you picked the theme JSON and not a package manifest.';
 const VSIX_THEME_MESSAGE =
     'Caxri cannot read a .vsix package yet. Unzip it and pick the theme JSON under themes/.';
+const ITERM_PARSE_MESSAGE =
+    'This file is not a readable iTerm2 color preset. Export it again from iTerm2 > Settings > Profiles > Colors > Color Presets.';
+const ITERM_ROOT_MESSAGE =
+    'This iTerm2 color preset is empty. Its property list must have a dictionary root holding the color entries.';
+const ITERM_ZERO_HIT_MESSAGE =
+    'This iTerm2 color preset does not define any colors Caxri can import. It needs at least one background, foreground, cursor, selection, or ANSI color.';
+const WARP_PARSE_MESSAGE =
+    'This file is not a readable Warp theme. Warp themes are YAML documents; check the file for an indentation or quoting error.';
+const WARP_ROOT_MESSAGE =
+    'This Warp theme is empty. A Warp theme is a YAML mapping with top-level color keys such as background, foreground, and terminal_colors.';
+const WARP_ZERO_HIT_MESSAGE =
+    'This Warp theme does not define any colors Caxri can import. It needs at least one of accent, background, foreground, cursor, or terminal_colors.';
+const JSON_THEME_PARSE_MESSAGE =
+    'This theme file is not readable JSON. Check it for a syntax error such as an unclosed brace or a missing comma.';
+const JSON_THEME_ROOT_MESSAGE =
+    'This theme file is not a JSON object. Pick the theme JSON that holds the "colors" object, not a list or a bare value.';
 const INCLUDE_DIRECTORY_MESSAGE = 'Theme include must be a file in the same directory.';
 
-/**
- * VS Code `colors` keys `parseVsCode` actually maps. Zero-hit rejection also counts syntax roles mapped from
- * `tokenColors`; semantic token colors are omitted because Caxri does not import them.
- */
-const VSCODE_MAPPED_COLOR_KEYS = new Set([
-    'editor.background',
-    'editor.foreground',
-    'editor.lineHighlightBackground',
-    'editor.selectionBackground',
-    'sideBar.background',
-    'activityBar.background',
-    'editorWidget.background',
-    'foreground',
-    'descriptionForeground',
-    'sideBar.border',
-    'tab.border',
-    'panel.border',
-    'tab.activeBorderTop',
-    'activityBar.activeBorder',
-    'progressBar.background',
-    'focusBorder',
-    'charts.green',
-    'charts.purple',
-    'editorWarning.foreground',
-    'editorError.foreground',
-    'activityBarBadge.background',
-    'activityErrorBadge.background',
-    'activityWarningBadge.background',
-    'gitDecoration.addedResourceForeground',
-    'gitDecoration.modifiedResourceForeground',
-    'gitDecoration.deletedResourceForeground',
-    'gitDecoration.untrackedResourceForeground',
-    'gitDecoration.conflictingResourceForeground',
-    'terminal.background',
-    'terminal.foreground',
-    'terminalCursor.foreground',
-    'terminal.selectionBackground',
-    'terminal.ansiBlack',
-    'terminal.ansiRed',
-    'terminal.ansiGreen',
-    'terminal.ansiYellow',
-    'terminal.ansiBlue',
-    'terminal.ansiMagenta',
-    'terminal.ansiCyan',
-    'terminal.ansiWhite',
-    'terminal.ansiBrightBlack',
-    'terminal.ansiBrightRed',
-    'terminal.ansiBrightGreen',
-    'terminal.ansiBrightYellow',
-    'terminal.ansiBrightBlue',
-    'terminal.ansiBrightMagenta',
-    'terminal.ansiBrightCyan',
-    'terminal.ansiBrightWhite',
-]);
 const MIN_MUTED_CONTRAST = 4.5;
 const APP_COLOR_SURFACES = ['background', 'surface', 'elevated'] as const;
 const APP_COLOR_SURFACE_LABELS = {
@@ -99,126 +71,6 @@ const APP_COLOR_SURFACE_LABELS = {
     elevated: 'raised panel background',
     surface: 'sidebar and status bar background',
 } satisfies Record<(typeof APP_COLOR_SURFACES)[number], string>;
-
-function normalizedHex(
-    value: unknown,
-    fallback: string,
-    options: { preserveAlpha?: boolean } = {},
-): string {
-    if (typeof value !== 'string') return fallback;
-    const candidate = value.startsWith('#') ? value : `#${value}`;
-    if (/^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/i.test(candidate)) {
-        const hex = candidate.toLowerCase();
-        return options.preserveAlpha ? hex : hex.slice(0, 7);
-    }
-    // VS Code themes may use CSS shorthand (`#fff`, `#fff8`); expand it rather than silently dropping the color.
-    const shorthand = /^#([0-9a-f]{3,4})$/i.exec(candidate);
-    if (!shorthand) return fallback;
-    const digits = shorthand[1].toLowerCase();
-    const [red, green, blue] = digits;
-    const rgb = `#${red}${red}${green}${green}${blue}${blue}`;
-    if (!options.preserveAlpha || digits.length === 3) return rgb;
-    const alpha = digits[3];
-    return `${rgb}${alpha}${alpha}`;
-}
-
-/**
- * First key the VS Code theme actually defines as a usable color, else `fallback`.
- *
- * Several Caxri roles have no single VS Code counterpart and have to walk an ordered preference list (see `border` and
- * `accent` below). Written as a helper rather than nested `normalizedHex` calls so the preference order reads as a list
- * instead of as nesting depth, and so a one-key read looks the same as a three-key one.
- */
-function firstHex(
-    colors: Record<string, unknown>,
-    keys: readonly string[],
-    fallback: string,
-    options: { preserveAlpha?: boolean } = {},
-): string {
-    for (const key of keys) {
-        const hex = normalizedHex(colors[key], '', options);
-        if (hex) return hex;
-    }
-    return fallback;
-}
-
-const SYNTAX_EDITOR_ROLES = ['comment', 'keyword', 'string', 'number'] as const;
-type SyntaxEditorRole = (typeof SYNTAX_EDITOR_ROLES)[number];
-
-const SYNTAX_SCOPE_PREFIX = {
-    comment: 'comment',
-    keyword: 'keyword',
-    string: 'string',
-    number: 'constant.numeric',
-} as const satisfies Record<SyntaxEditorRole, string>;
-
-function tokenColorScopes(scope: unknown): string[] {
-    const tokens = typeof scope === 'string' ? [scope] : Array.isArray(scope) ? scope : [];
-    const scopes: string[] = [];
-    for (const token of tokens) {
-        if (typeof token !== 'string') continue;
-        for (const part of token.split(',')) {
-            const trimmed = part.trim();
-            if (trimmed.length > 0) scopes.push(trimmed);
-        }
-    }
-    return scopes;
-}
-
-function assignMatchingSyntaxRoles(
-    theme: ThemeTokens,
-    scopes: readonly string[],
-    foreground: string,
-    assigned: Set<SyntaxEditorRole>,
-): void {
-    for (const role of SYNTAX_EDITOR_ROLES) {
-        if (!scopes.includes(SYNTAX_SCOPE_PREFIX[role])) continue;
-        theme.editor[role] = foreground;
-        assigned.add(role);
-    }
-}
-
-/**
- * Maps VS Code `tokenColors` onto Caxri's four editor syntax roles. Only exact selectors count — `keyword.operator`
- * must not overwrite `keyword`. Later exact rules still win. Report both missing roles and valid rules whose scopes
- * Caxri cannot represent so the import warns without counting them as effective mappings. See
- * https://code.visualstudio.com/api/extension-guides/color-theme#syntax-colors.
- */
-function applyVsCodeTokenColors(
-    theme: ThemeTokens,
-    tokenColors: unknown,
-): { missing: SyntaxEditorRole[]; hasOtherSyntaxRules: boolean } {
-    if (!Array.isArray(tokenColors))
-        return { missing: [...SYNTAX_EDITOR_ROLES], hasOtherSyntaxRules: false };
-    const assigned = new Set<SyntaxEditorRole>();
-    const mappedScopes = new Set<string>(Object.values(SYNTAX_SCOPE_PREFIX));
-    let hasOtherSyntaxRules = false;
-    for (const entry of tokenColors) {
-        if (!entry || typeof entry !== 'object') continue;
-        const rule = entry as { scope?: unknown; settings?: { foreground?: unknown } };
-        const scopes = tokenColorScopes(rule.scope);
-        const foreground = normalizedHex(rule.settings?.foreground, '');
-        if (!foreground) continue;
-        if (scopes.length === 0 || scopes.some((scope) => !mappedScopes.has(scope)))
-            hasOtherSyntaxRules = true;
-        assignMatchingSyntaxRoles(theme, scopes, foreground, assigned);
-    }
-    return {
-        missing: SYNTAX_EDITOR_ROLES.filter((role) => !assigned.has(role)),
-        hasOtherSyntaxRules,
-    };
-}
-
-function formatMissingSyntaxWarning(missing: readonly SyntaxEditorRole[]): string {
-    if (missing.length === SYNTAX_EDITOR_ROLES.length) return 'Syntax colors were not imported.';
-    const labels = {
-        comment: 'comments',
-        keyword: 'keywords',
-        string: 'strings',
-        number: 'numbers',
-    };
-    return `Syntax colors for ${missing.map((role) => labels[role]).join(', ')} were not imported.`;
-}
 
 function mixHex(from: string, toward: string, amount: number): string {
     const channel = (hex: string, start: number): number =>
@@ -314,20 +166,6 @@ const VSCODE_DEFAULTS = {
  * `type` is the theme author's own declaration; `uiTheme` is the older manifest field carrying the same information.
  * Falling back to the editor background's luminance covers a file that declares neither.
  */
-function isLightVsCodeTheme(value: Record<string, unknown>, editorBackground: string): boolean {
-    const declared = value.type ?? value.uiTheme;
-    if (declared === 'light' || declared === 'vs') return true;
-    if (declared === 'dark' || declared === 'vs-dark') return false;
-    return contrastRatio(editorBackground, '#000000') > contrastRatio(editorBackground, '#ffffff');
-}
-
-function hasMappedVsCodeColor(colors: Record<string, unknown>): boolean {
-    for (const key of VSCODE_MAPPED_COLOR_KEYS) {
-        if (normalizedHex(colors[key], '')) return true;
-    }
-    return false;
-}
-
 function parseVsCode(value: Record<string, unknown>, name: string): ParsedThemeImport {
     const theme = cloneFallback('vscode', name);
     const colors = (value.colors ?? {}) as Record<string, unknown>;
@@ -388,7 +226,16 @@ function parseVsCode(value: Record<string, unknown>, name: string): ParsedThemeI
         ],
         theme.colors.accent,
     );
-    theme.colors.success = firstHex(colors, ['charts.green'], defaults.success);
+    /**
+     * `testing.iconPassed` is the workbench's own "this passed" green and is what a theme tunes for a success glyph;
+     * `charts.green` is a data-series color that several themes leave at a saturated default. It stays as the second
+     * source because plenty of themes set only it.
+     */
+    theme.colors.success = firstHex(
+        colors,
+        ['testing.iconPassed', 'charts.green'],
+        defaults.success,
+    );
     theme.colors.warning = firstHex(colors, ['editorWarning.foreground'], defaults.warning);
     theme.colors.danger = firstHex(colors, ['editorError.foreground'], defaults.danger);
     /**
@@ -436,11 +283,17 @@ function parseVsCode(value: Record<string, unknown>, name: string): ParsedThemeI
         defaults.gitConflicting,
     );
     /**
-     * VS Code has no merged-pull-request color of its own — that lives in the GitHub PR extension — so the chart
-     * palette's purple is the closest workbench-native source. Absent it the value stays whatever `cloneFallback`
+     * VS Code core has no merged-pull-request color, but the GitHub Pull Requests extension declares
+     * `pullRequests.merged`, and real themes set it far more often than they tune `charts.purple` for this. The chart
+     * palette stays as the workbench-native second source. Absent both, the value stays whatever `cloneFallback`
      * seeded, i.e. Dracula's, which is the same fallback every unmapped app color here already uses.
      */
-    theme.colors.merged = firstHex(colors, ['charts.purple'], theme.colors.merged);
+    theme.colors.merged = firstHex(
+        colors,
+        ['pullRequests.merged', 'charts.purple'],
+        theme.colors.merged,
+    );
+    applyVsCodeControlColors(theme, colors);
     theme.editor.background = firstHex(colors, ['editor.background'], theme.editor.background);
     theme.editor.foreground = firstHex(colors, ['editor.foreground'], theme.editor.foreground);
     theme.editor.lineHighlight = firstHex(
@@ -507,15 +360,19 @@ interface PlistColor {
     'Blue Component'?: number;
 }
 
-function plistColor(value: unknown, fallback: string): string {
-    if (!value || typeof value !== 'object') return fallback;
+/**
+ * `undefined` rather than a fallback so `parseIterm` can tell an imported color from a seeded one: a preset that maps
+ * nothing must be rejected, not silently imported as a renamed copy of the fallback theme.
+ */
+function plistColor(value: unknown): string | undefined {
+    if (!value || typeof value !== 'object') return undefined;
     const color = value as PlistColor;
     if (
         [color['Red Component'], color['Green Component'], color['Blue Component']].some(
             (part) => typeof part !== 'number',
         )
     )
-        return fallback;
+        return undefined;
     return `#${[color['Red Component'], color['Green Component'], color['Blue Component']]
         .map((part) =>
             Math.round((part ?? 0) * 255)
@@ -526,13 +383,21 @@ function plistColor(value: unknown, fallback: string): string {
 }
 
 function parseIterm(source: string, name: string): ParsedThemeImport {
-    const value = parseThemeDocument(source, 'iTerm2', parsePlist);
+    const document = parseThemeDocument(() => parsePlist(source), ITERM_PARSE_MESSAGE);
+    const value = themeDocumentRoot(document, ITERM_ROOT_MESSAGE);
     const theme = cloneFallback('iterm2', name);
-    theme.terminal.background = plistColor(value['Background Color'], theme.terminal.background);
-    theme.terminal.foreground = plistColor(value['Foreground Color'], theme.terminal.foreground);
-    theme.terminal.cursor = plistColor(value['Cursor Color'], theme.terminal.cursor);
-    theme.terminal.selectionBackground = plistColor(
-        value['Selection Color'],
+    let mapped = 0;
+    const importColor = (key: string, fallback: string): string => {
+        const color = plistColor(value[key]);
+        if (color === undefined) return fallback;
+        mapped += 1;
+        return color;
+    };
+    theme.terminal.background = importColor('Background Color', theme.terminal.background);
+    theme.terminal.foreground = importColor('Foreground Color', theme.terminal.foreground);
+    theme.terminal.cursor = importColor('Cursor Color', theme.terminal.cursor);
+    theme.terminal.selectionBackground = importColor(
+        'Selection Color',
         theme.terminal.selectionBackground,
     );
     const targets: Array<keyof ThemeTokens['terminal']> = [
@@ -554,8 +419,9 @@ function parseIterm(source: string, name: string): ParsedThemeImport {
         'brightWhite',
     ];
     targets.forEach((target, index) => {
-        theme.terminal[target] = plistColor(value[`Ansi ${index} Color`], theme.terminal[target]);
+        theme.terminal[target] = importColor(`Ansi ${index} Color`, theme.terminal[target]);
     });
+    if (mapped === 0) throw new CaxriError('VALIDATION', ITERM_ZERO_HIT_MESSAGE);
     theme.warnings.push({
         id: 'iterm-terminal-only',
         message: 'iTerm2 is terminal-only; app and editor colors inherit from the active theme.',
@@ -564,12 +430,20 @@ function parseIterm(source: string, name: string): ParsedThemeImport {
 }
 
 function parseWarp(source: string, name: string): ParsedThemeImport {
-    const value = parseThemeDocument(source, 'Warp', (text) => YAML.parse(text) as unknown);
+    const document = parseThemeDocument(() => YAML.parse(source), WARP_PARSE_MESSAGE);
+    const value = themeDocumentRoot(document, WARP_ROOT_MESSAGE);
     const theme = cloneFallback('warp', typeof value.name === 'string' ? value.name : name);
-    theme.colors.accent = normalizedHex(value.accent, theme.colors.accent);
-    theme.terminal.background = normalizedHex(value.background, theme.terminal.background);
-    theme.terminal.foreground = normalizedHex(value.foreground, theme.terminal.foreground);
-    theme.terminal.cursor = normalizedHex(value.cursor, theme.colors.accent);
+    let mapped = 0;
+    const importColor = (raw: unknown, fallback: string): string => {
+        const hex = normalizedHex(raw, '');
+        if (!hex) return fallback;
+        mapped += 1;
+        return hex;
+    };
+    theme.colors.accent = importColor(value.accent, theme.colors.accent);
+    theme.terminal.background = importColor(value.background, theme.terminal.background);
+    theme.terminal.foreground = importColor(value.foreground, theme.terminal.foreground);
+    theme.terminal.cursor = importColor(value.cursor, theme.colors.accent);
     const terminalColors = (value.terminal_colors ?? {}) as Record<string, unknown>;
     const normal = (terminalColors.normal ?? {}) as Record<string, unknown>;
     const bright = (terminalColors.bright ?? {}) as Record<string, unknown>;
@@ -583,11 +457,12 @@ function parseWarp(source: string, name: string): ParsedThemeImport {
         'cyan',
         'white',
     ] as const) {
-        theme.terminal[key] = normalizedHex(normal[key], theme.terminal[key]);
+        theme.terminal[key] = importColor(normal[key], theme.terminal[key]);
         const brightKey =
             `bright${key[0].toUpperCase()}${key.slice(1)}` as keyof ThemeTokens['terminal'];
-        theme.terminal[brightKey] = normalizedHex(bright[key], theme.terminal[brightKey]);
+        theme.terminal[brightKey] = importColor(bright[key], theme.terminal[brightKey]);
     }
+    if (mapped === 0) throw new CaxriError('VALIDATION', WARP_ZERO_HIT_MESSAGE);
     theme.warnings.push({
         id: 'warp-visual-effects',
         message: 'Warp gradients and background images were ignored.',
@@ -630,9 +505,8 @@ function assertImportedThemeContrast(theme: ThemeTokens): void {
  * fails.
  */
 function parseVsCodeOrCustom(source: string, name: string): ParsedThemeImport {
-    // `JSON`, not `VS Code`: this path also accepts Caxri's own exported theme, so naming the other editor would
-    // mislabel the user's own file.
-    const value = parseThemeDocument(source, 'JSON', parseJsonc);
+    const document = parseThemeDocument(() => parseJsonc(source), JSON_THEME_PARSE_MESSAGE);
+    const value = themeDocumentRoot(document, JSON_THEME_ROOT_MESSAGE);
     // Upgrade first: a Caxri theme exported before a color role existed must still be recognized as one here, or it
     // would fall through to the VS Code mapping and import as a mangled theme rather than the one the user exported.
     const parsed = themeSchema.safeParse(upgradeThemeColors(value));
@@ -738,12 +612,14 @@ async function resolveVsCodeInclude(
         capacityMessage: `Theme file exceeds the ${MAX_THEME_IMPORT_FILE_BYTES} byte import limit`,
     });
     /**
-     * The included parent is a second untrusted document, so it needs the same guard as the file the user picked. It
-     * used to report a broken parent as `INCLUDE_DIRECTORY_MESSAGE`, which pointed at the wrong thing — the parent is
-     * in the right directory, it just does not parse.
+     * The included parent is a second untrusted document, so it gets the same two guards as the file the user picked. A
+     * parent that parsed to an array used to be reported as `INCLUDE_DIRECTORY_MESSAGE`, which pointed at the one thing
+     * that was not wrong — the parent is in the right directory, it just does not hold theme colors.
      */
-    const parent = parseThemeDocument(parentSource, 'JSON', parseJsonc);
-    return JSON.stringify(mergeVsCodeTheme(parent, document));
+    const parent = parseThemeDocument(() => parseJsonc(parentSource), JSON_THEME_PARSE_MESSAGE);
+    return JSON.stringify(
+        mergeVsCodeTheme(themeDocumentRoot(parent, JSON_THEME_ROOT_MESSAGE), document),
+    );
 }
 
 export async function importTheme(

@@ -3,14 +3,12 @@ import { useState } from 'react';
 import { FolderGit2 } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
-import { caxri } from '../../lib/caxri';
 import { useSelectedSession } from '../../stores/selectors';
-import { describeFailure, pushToast } from '../../stores/toasts';
-import { refreshWorkbench } from '../../stores/workbench';
 import {
-    dismissWorkbenchRootCandidate,
-    useWorkbenchRootPromptStore,
-} from './workbench-root-prompt-store';
+    continueSessionInWorktree,
+    dismissWorkbenchCandidate,
+} from './workbench-root-prompt-commands';
+import { useWorkbenchRootPromptStore } from './workbench-root-prompt-store';
 
 /**
  * Non-modal prompt: Terminal and Editor interaction remain available while the user decides.
@@ -23,39 +21,12 @@ export function WorkbenchRootPrompt() {
     const [pending, setPending] = useState(false);
     if (!candidate || !sessionId) return null;
 
-    const continueInWorktree = async (): Promise<void> => {
+    const runOnce = async (command: () => Promise<void>): Promise<void> => {
         if (pending) return;
         setPending(true);
         try {
-            await caxri.request('session.continueInWorktree', {
-                candidateId: candidate.candidateId,
-                sessionId: candidate.sessionId,
-            });
-            dismissWorkbenchRootCandidate(sessionId);
-            await refreshWorkbench();
-        } catch (error) {
-            dismissWorkbenchRootCandidate(sessionId);
-            pushToast('error', describeFailure(error, 'Unable to continue in worktree'));
+            await command();
         } finally {
-            setPending(false);
-        }
-    };
-
-    const dismiss = async (): Promise<void> => {
-        if (pending) return;
-        setPending(true);
-        try {
-            await caxri.request('session.dismissWorkbenchCandidate', {
-                candidateId: candidate.candidateId,
-                sessionId: candidate.sessionId,
-            });
-        } catch (error) {
-            pushToast('error', describeFailure(error, 'Unable to dismiss worktree suggestion'));
-        } finally {
-            /**
-             * An expired candidate is already inert in Server and must not strand the prompt.
-             */
-            dismissWorkbenchRootCandidate(sessionId);
             setPending(false);
         }
     };
@@ -79,8 +50,8 @@ export function WorkbenchRootPrompt() {
                     size="sm"
                     variant="ghost"
                     onClick={() => {
-                        // eslint-disable-next-line no-void -- intentional floating-promise discard, dismiss() reports its own errors
-                        void dismiss();
+                        // eslint-disable-next-line no-void -- intentional floating-promise discard, the command reports its own errors
+                        void runOnce(() => dismissWorkbenchCandidate(sessionId, candidate));
                     }}
                 >
                     Not Now
@@ -89,8 +60,8 @@ export function WorkbenchRootPrompt() {
                     disabled={pending}
                     size="sm"
                     onClick={() => {
-                        // eslint-disable-next-line no-void -- intentional floating-promise discard, continueInWorktree() reports its own errors
-                        void continueInWorktree();
+                        // eslint-disable-next-line no-void -- intentional floating-promise discard, the command reports its own errors
+                        void runOnce(() => continueSessionInWorktree(sessionId, candidate));
                     }}
                 >
                     Continue Session in Worktree

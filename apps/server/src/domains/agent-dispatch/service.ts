@@ -365,6 +365,7 @@ export class AgentDispatchService {
                 if (this.intentionalRestarts.get(terminal.id) === dispatchId)
                     this.intentionalRestarts.delete(terminal.id);
             }
+            if (shouldStart && !shouldStart()) return this.interrupt(dispatchId, terminal.id);
             await this.options.terminals.waitForAgentRunning(terminal.id);
             const running = this.options.database.getTerminal(terminal.id);
             const currentEndpoint = this.options.endpoints?.endpointForTerminal(terminal.id);
@@ -391,6 +392,7 @@ export class AgentDispatchService {
                     );
                 throw new CaxriError('UNAVAILABLE', 'Agent Endpoint did not become active');
             }
+            if (shouldStart && !shouldStart()) return this.interrupt(dispatchId, terminal.id);
             const receipt = this.update(dispatchId, {
                 status: 'running',
                 terminalId: terminal.id,
@@ -442,6 +444,31 @@ export class AgentDispatchService {
         if (!terminal || terminal.sessionId !== target.sessionId)
             throw new CaxriError('NOT_FOUND', 'Dispatch Terminal was not found in the Session');
         return terminal;
+    }
+
+    /**
+     * Settles a dispatch whose Terminal stopped being its own while the launch was in flight.
+     *
+     * `terminals.start`/`restart` joins a launch already under way, so a manual restart that wins the race still
+     * returns successfully here and the process that came up belongs to the user. Delegation already reports
+     * `interrupted`/`target_changed` for that case, but the receipt went on to claim `running` on the same Terminal,
+     * leaving `agent.dispatch.status` and the diagnostics disagreeing with the delegation they describe.
+     *
+     * The process is deliberately left running, unlike every other failure exit from `launch`: it is the user's Agent
+     * now, and killing it to tidy up a lost delegation is far worse than the stale receipt this fixes.
+     */
+    private interrupt(dispatchId: string, terminalId: string): AgentDispatchReceipt {
+        const settled = this.options.database.getAgentDispatch(dispatchId)?.receipt;
+        if (settled && isSettled(settled)) return settled;
+        return this.update(
+            dispatchId,
+            {
+                status: 'interrupted',
+                terminalId,
+                failure: { code: 'CONFLICT', reason: 'target_changed' },
+            },
+            'processInterrupted',
+        );
     }
 
     private fail(dispatchId: string, error: unknown, reason: DispatchReason): AgentDispatchReceipt {

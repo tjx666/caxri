@@ -35,7 +35,7 @@ Existing examples include `apps/desktop/src/main/__tests__/workbench-root-author
 `apps/desktop/src/main/__tests__/main-methods-dialogs.test.ts`, and the focused Electron specs
 that set `CAXRI_TEST_ROOT_PATHS`.
 
-For the three fixed theme Acceptance cases, the launcher and
+For the theme Acceptance cases named by `acceptanceThemeImportCaseIds`, the launcher and
 `apps/desktop/src/main/acceptance-theme-import.ts` provide the file-picker result through a
 per-profile command file. The command must name the active case, an increasing positive sequence,
 and a regular file relative to the first test root. Main records each accepted choice before

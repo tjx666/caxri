@@ -4,7 +4,7 @@ import { ArrowLeft, ArrowRight } from 'lucide-react';
 
 import { CommandTooltip } from '../../components/command-tooltip';
 import { Button } from '../../components/ui/button';
-import { navigateSessionHistory } from '../session/session-actions';
+import { navigateSessionHistory } from '../session/session-commands';
 import type { SessionNavigationDirection } from '../session/session-navigation-history';
 import { useSessionNavigationHistoryStore } from '../session/session-navigation-history';
 

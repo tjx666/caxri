@@ -59,6 +59,31 @@ describe('projectListForPrincipal', () => {
         });
     });
 
+    /**
+     * The CLI, unlike the PrimarySidebar, lists worktree Projects next to the ones the user added, so it is the one
+     * surface that needs `ownerProjectId` to tell two same-titled rows apart. A top-level Project omits the key rather
+     * than carrying a null, so ordinary output stays as it was.
+     */
+    it('carries ownerProjectId for a human CLI principal, and only on a worktree Project', () => {
+        const human: Principal = { kind: 'human-cli', id: 'cli-1' };
+        const result = projectListForPrincipal(
+            {
+                view: 'desktop',
+                projects: [projects[0], { ...projects[1], ownerProjectId: 'project-1' }],
+            },
+            human,
+        );
+        expect(result.projects).toEqual([
+            { id: 'project-1', displayTitle: 'Project One', rootPath: '/private/project-one' },
+            {
+                id: 'project-2',
+                displayTitle: 'Project Two',
+                rootPath: '/private/project-two',
+                ownerProjectId: 'project-1',
+            },
+        ]);
+    });
+
     it('scopes an agent principal to only its authorized project IDs, dropping rootPath', () => {
         const agent: Principal = {
             kind: 'agent',

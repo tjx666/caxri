@@ -16,12 +16,12 @@ import {
     useSettings,
     useTerminals,
 } from '../../stores/selectors';
+import { activeSessionsInSidebarOrder } from '../session/session-activity-order';
 import {
     archiveSession,
-    beginSessionCreation,
     SESSION_PULL_REQUESTS_REFETCH_INTERVAL_MS,
-} from '../session/session-actions';
-import { activeSessionsInSidebarOrder } from '../session/session-activity-order';
+} from '../session/session-commands';
+import { useCreateSessionRowFocus } from './hooks/use-create-session-row-focus';
 import { useProjectCollapse } from './hooks/use-project-collapse';
 import type { ProjectSessionWindow } from './hooks/use-project-session-windows';
 import { useProjectSessionWindows } from './hooks/use-project-session-windows';
@@ -155,22 +155,29 @@ export function PrimarySidebar() {
         [treeRows, focusedRowId, selectedSessionId, selectedProjectId],
     );
 
-    const handleTreeFocus = useCallback((event: FocusEvent<HTMLDivElement>): void => {
-        const target = event.target;
-        if (!(target instanceof HTMLElement)) return;
-        const rowId = target.closest<HTMLElement>('[data-row-id]')?.dataset.rowId;
-        if (rowId) setFocusedRowId(rowId);
+    const focusRow = useCallback((rowId: string): void => {
+        treeReference.current
+            ?.querySelector<HTMLElement>(`[data-row-id="${CSS.escape(rowId)}"]`)
+            ?.focus();
     }, []);
+
+    const noteFocusedRow = useCreateSessionRowFocus({ focusRow, rovingRowId, rows: treeRows });
+
+    const handleTreeFocus = useCallback(
+        (event: FocusEvent<HTMLDivElement>): void => {
+            const target = event.target;
+            if (!(target instanceof HTMLElement)) return;
+            const rowId = target.closest<HTMLElement>('[data-row-id]')?.dataset.rowId;
+            if (!rowId) return;
+            setFocusedRowId(rowId);
+            noteFocusedRow(rowId);
+        },
+        [noteFocusedRow],
+    );
 
     const toggleProject = (projectId: string): void => {
         setAnimatedProjectIds((current) => new Set(current).add(projectId));
         projectCollapse.toggleProject(projectId);
-    };
-
-    const focusRow = (rowId: string): void => {
-        treeReference.current
-            ?.querySelector<HTMLElement>(`[data-row-id="${CSS.escape(rowId)}"]`)
-            ?.focus();
     };
 
     const revealMoreSessions = (sessionWindow: ProjectSessionWindow): void => {
@@ -293,7 +300,6 @@ export function PrimarySidebar() {
                             onBlurRename={sessionRename.blurRename}
                             onCancelRename={sessionRename.cancelRename}
                             onCommitRename={sessionRename.commitRename}
-                            onCreateSession={() => beginSessionCreation(project.id)}
                             onDragEnd={projectOrder.endDrag}
                             onDragOver={(event) => projectOrder.updateDropTarget(event, project.id)}
                             onDragStart={(event) => projectOrder.startDrag(event, project.id)}

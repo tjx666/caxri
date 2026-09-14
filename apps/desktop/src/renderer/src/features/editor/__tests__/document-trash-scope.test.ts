@@ -15,7 +15,7 @@ vi.mock('../editor-reveal', () => ({
 
 import { useSessionViewStore } from '../../../stores/session-view';
 import { useWorkbenchStore } from '../../../stores/workbench';
-import { closeOpenEditorsUnderPath, hasUnsavedChangesUnderPath } from '../document-actions';
+import { closeOpenEditorsUnderPath, hasUnsavedChangesUnderPath } from '../document-commands';
 
 const TRASHED = '/project/trashed.ts';
 const PARKED_ROOT_FILE = '/other/session.ts';

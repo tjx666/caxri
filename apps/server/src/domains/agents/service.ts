@@ -14,6 +14,7 @@ import { SingleFlight } from '../single-flight';
 import type {
     AgentEnvironment,
     AgentPasteSummaryGenerationContext,
+    AgentProbeCacheCounters,
     AgentProbeSnapshot,
     AgentSessionRenameContext,
     AgentSessionRenameResult,
@@ -37,6 +38,11 @@ function reliableAttentionKind(
  */
 export interface AgentAdapter {
     generateTitle?(context: AgentPasteSummaryGenerationContext): Promise<string>;
+    /**
+     * Diagnostics only, kept off `snapshot()`'s result so cache accounting never travels with a probe answer to the
+     * Renderer. `snapshot()` reads it after the probe resolves.
+     */
+    probeCacheCounters?(): AgentProbeCacheCounters;
     provider: AgentProvider;
     renameSession(context: AgentSessionRenameContext): Promise<AgentSessionRenameResult>;
     snapshot(context: AgentSnapshotContext): Promise<AgentProbeSnapshot>;
@@ -62,6 +68,17 @@ function snapshotRequestKey(provider: AgentProvider, context: AgentSnapshotConte
     ]);
 }
 
+/**
+ * Log fields are flat scalars, so the counters are prefixed rather than nested. The prefix also keeps a provider's own
+ * miss-reason keys from colliding with an unrelated probe field as more providers gain caches.
+ */
+function cacheCounterFields(counters: AgentProbeCacheCounters | undefined): Record<string, number> {
+    if (!counters) return {};
+    return Object.fromEntries(
+        Object.entries(counters).map(([key, value]) => [`cache.${key}`, value]),
+    );
+}
+
 function createCliAdapter(
     provider: AgentProvider,
     environment: AgentEnvironment,
@@ -71,6 +88,9 @@ function createCliAdapter(
     const pasteSummary = providerDescriptor.pasteSummary;
     return {
         provider,
+        ...(providerDescriptor.probeCacheCounters && {
+            probeCacheCounters: providerDescriptor.probeCacheCounters,
+        }),
         ...(providerDescriptor.generateTitle && {
             async generateTitle(context: AgentPasteSummaryGenerationContext): Promise<string> {
                 const executable = await discoverExecutable(provider, launchSettings().executable);
@@ -225,7 +245,18 @@ export class AgentService {
             this.logger?.write(level, logEventCatalog.agent.probe, {
                 correlationId: resolvedContext.correlationId,
                 durationMs,
-                fields: { provider, available: snapshot.available },
+                /**
+                 * `durationMs` alone cannot say whether a cache regressed, because it moves with machine load; the hit
+                 * rate's slope across records can. The counters are cumulative precisely so that slope survives sparse
+                 * sampling — Server Core runs its logger at 'info', so in production only an availability transition, a
+                 * provider's first probe, and a slow probe keep their record. Any two surviving records still give the
+                 * rate between them, which a per-probe delta could not.
+                 */
+                fields: {
+                    provider,
+                    available: snapshot.available,
+                    ...cacheCounterFields(this.adapters[provider].probeCacheCounters?.()),
+                },
             });
             return snapshot;
         });

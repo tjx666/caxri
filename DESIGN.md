@@ -27,9 +27,14 @@ reference this file; deviations require updating this spec first.
 5. **Tailwind v4 utilities over the semantic runtime tokens — and only those tokens.** The color
    roles below are bridged to Tailwind via `@theme inline`, so utilities like `bg-surface` resolve
    to the runtime theme variables and imported themes restyle the whole app live — the standard
-   shadcn pattern. The default Tailwind palette is unregistered (`--color-*: initial`): `bg-blue-500`
-   or arbitrary color literals must not compile, which makes rule 4 a build-time guarantee instead
-   of a convention. Non-color scales (spacing, type, radius) use stock Tailwind defaults.
+   shadcn pattern. The default Tailwind palette is unregistered (`--color-*: initial`), so
+   `bg-blue-500` resolves to nothing. Unregistering does not reject it: Tailwind emits no rule and
+   says nothing, and the class name ships on the element styling nothing, which is how the pairing
+   QR code lost its white quiet zone. `caxri/registered-color-utilities` is what turns rule 4 into a
+   check — a color utility whose token is absent from the `@theme inline` bridge is a lint error,
+   including one that names a raw theme color such as `--selection`, which is referenced as
+   `bg-[var(--selection)]` instead. Non-color scales (spacing, type, radius) use stock Tailwind
+   defaults.
 6. **Say each meaning once.** An icon, a reserved slot, or a control that already names a state
    does not also get an adjacent visual label repeating that state. Accessible names and tooltips
    stay complete — they are not the duplication this rule forbids. The Panel caption that omits the
@@ -71,13 +76,52 @@ roles below.
 | `--badge`                              | neutral view-container count badge fill                                        |
 | `--badge-foreground`                   | text on `--badge` (derived, not hardcoded)                                     |
 | `--git-added` … `--git-conflicting`    | working-tree decorations: added, modified, deleted, untracked, conflicting     |
+| `--tab-*`                              | tab strip fill and label, per state: active, inactive, hover                   |
+| `--list-*`                             | tree and list rows, per state: hover, focus, active/inactive selection         |
+| `--title-bar-*`                        | window title bar fill and label, by whether the window is focused              |
 | `--overlay`                            | dialog backdrop: `color-mix(in srgb, var(--background) 60%, transparent)`      |
-| `--shadow`                             | elevation shadows: translucent black derived once                              |
+| `--shadow`                             | elevation shadows: a theme value, read from `widget.shadow` on import          |
 | `--indicator`                          | neutral (non-accent) selected-tab underline for secondarySidebar/settings tabs |
 
-Derive `--accent-foreground`, `--danger-foreground`, `--badge-foreground`, `--overlay`, and
-`--shadow` in one place from theme colors. The status bar uses `--surface` plus a top hairline —
-never an accent fill.
+Derive `--accent-foreground`, `--danger-foreground`, `--badge-foreground`, and `--overlay` in one
+place from theme colors. The status bar uses `--surface` plus a top hairline — never an accent fill.
+
+Tabs, list rows, and the title bar own their states rather than borrowing a surface: eighteen
+`--tab-*`, `--list-*`, and `--title-bar-*` tokens, plus `--shadow`, which became a theme value
+instead of a derived one. Each reads one VS Code key on import — `tab.activeBackground`,
+`list.hoverBackground`, `titleBar.activeBackground`, `widget.shadow`, and so on — and falls back to
+the role that surface borrowed before, so a theme naming none of them looks exactly as it did. The
+inactive list and title-bar states inherit from their active counterparts, which is VS Code's own
+rule: a theme that styles only the focused state means the unfocused one to match. Alpha survives
+the import, because `list.hoverBackground` is a translucent wash in most themes and flattening it
+would paint an opaque band over the row instead of tinting it. An explicitly given color is never
+rewritten just because it equals another role, and none of these states writes back into
+`--background`, `--surface`, or `--elevated` — those three stay the canvas, the chrome, and the
+popup fill. Read the decision on
+[issue caxri#852](https://github.com/tjx666/caxri/issues/852#issuecomment-5656606135) for why each
+key was chosen.
+
+The two inactive title-bar roles need to know whether this window is the focused one, and CSS cannot
+ask: `:window-inactive` is a WebKit pseudo-class and Chromium, which is what Electron runs, has no
+equivalent. `lib/window-active.ts` publishes the condition as `data-window-active` on the same
+`<html>` element the color variables land on, and `styles/theme.css` defines a `window-inactive:`
+variant over it, so every surface that paints a title bar switches together.
+
+A built-in preset fills these roles from its upstream theme only where that clears the contrast
+floor. Every label the focused window shows — the three tab states, the four list states, and
+`titleBarActiveForeground` — must reach WCAG AA on its own fill, asserted per theme and per role in
+`domains/__tests__/theme-control-colors.test.ts`. This is the same rule `--muted` already answers
+to, and for the same reason: several upstream themes set `tab.inactiveForeground` to their comment
+color, which is exactly the substitution that rule forbids. A preset is Caxri's own product, so it
+takes the correction; an imported theme is its author's and keeps the original values.
+`titleBarInactiveForeground` is the one exemption. It paints only while the whole window is
+unfocused — inactive UI under WCAG 1.4.3, and the one case where the dimming is the message, which
+is how macOS and VS Code both fade an unfocused title.
+
+A preset must also leave the active tab distinguishable from its neighbours by fill or by label,
+because the accent line above an active tab is drawn only on the focused pane and the other pane in
+a split has nothing else to go on. A theme that paints both tab states one color has to give the
+difference back somewhere, since the contrast floor above is what pulls the two labels together.
 
 `--badge` and the five `--git-*` roles exist so the theme, not the component, decides these colors.
 Both mirror a VS Code key a theme author already writes — `activityBarBadge.background` and the Git
@@ -269,13 +313,23 @@ complete, so a busy Project never buries the Projects below it. The selected Ses
 renders even when it sits below that window. The revealed count is per-Renderer-lifetime: a relaunch starts from the short list
 the same way it starts scrolled to the top.
 
-A Session working in a Git worktree rather than its Project root is marked by a `FolderSymlink`
-glyph in a leading fixed-width 14px column, reserved for the whole Project group at once so every
+A Session working in a Git worktree rather than its Project root is marked by the VS Code `worktree`
+codicon in a leading fixed-width 14px column, reserved for the whole Project group at once so every
 marker in a group lands on one vertical line and titles never shift sideways as Sessions come and
-go. A Project with no such Session reserves nothing. The glyph is deliberately not `FolderGit2`,
-which already means "Workbench Root" in the root picker and "repository" in Source Control: at 12px
-beside the trailing pull request glyph it read as a third Git mark on the same row. The full
-worktree name stays in the Session hover card.
+go. A Project with no such Session reserves nothing. It is a second fixed track rather than a share
+of the trailing one, which is sized for exactly one glyph and already arbitrates between lifecycle
+status and the pull request. The glyph is deliberately neither `FolderGit2`, which already means
+"Workbench Root" in the root picker and "repository" in Source Control, nor `FolderSymlink`: at 12px
+beside the trailing pull request glyph either one read as a third folder or Git mark on the same
+row. The full worktree name stays in the Session hover card.
+
+Adopting a worktree as a Workbench Root auto-registers a Project for it, and that Project never
+occupies a top-level slot in the PrimarySidebar. The list shows the Projects the user added; a
+worktree is a property of the Session working in it, which the marker above already says on the
+Session's own row. A second top-level row per worktree would double the list without naming
+anything new, and no PrimarySidebar affordance — reorder, delete, disclosure — applies to a row the
+user never created. The consequence is that such a Project is reachable only through its owner:
+deleting the owner deletes it, and the confirmation names the ones about to go.
 
 Pull request lifecycle owns the glyph color: open is `--success`, closed is `--danger`, merged
 is `--merged`, and draft is `--muted`. Checks appear as text in the hover card, with failures in
@@ -339,7 +393,10 @@ persisted settings, and they are deliberately not mirrored into Settings: they a
 controls that belong beside the diff being read. `Collapse Unchanged Regions` starts at each
 surface's own default — collapsed for a multi-file diff, expanded for a single file — and only
 becomes one shared value once the user sets it. Ordinary file and single-file diff tab menus offer `Copy Path` and `Copy Relative Path`;
-relative paths use the containing repository, falling back to the Workbench Project for non-Git files.
+relative paths measure from the Workbench Project root, so one file yields one path wherever it is copied from — the
+tab menu and the Files tree row agree, and a submodule or nested repository does not get a base of its own. The
+containing repository is only a fallback for a resource with no Project-relative path at all, such as a diff opened
+from a linked repository outside the Project.
 Internal virtual tab identifiers are never copied as filesystem paths.
 Session bootstrap and switching still mount without structural motion; actual close keeps the exit
 animation. Transient Agent operations may temporarily use the existing text accessory after the
@@ -356,14 +413,18 @@ the diff headers all render that letter from one component. Source Control still
 from the Extension API's generic `tone`. The staged column
 wins when both are set, so a file staged as added and then edited reads `A` everywhere. The file
 type icon keeps its own color: it identifies the language, not the change. A directory in the Files
-tree takes the color of the most severe change anywhere beneath it (conflicted > deleted > modified
-
-> renamed > added > untracked) but no letter, which would claim the folder itself changed; the
-> repository root is never decorated. Inactive tabs keep their decoration color — the point is to be
-> readable across the whole rail without selecting each tab. Ignored entries stay muted and italic
-> and take no decoration. The decoration is visual only: a row or tab is still named by its bare
-> filename, and the status reaches assistive technology as an accessible description
-> (`Git: modified.`) rather than being folded into that name.
+tree takes the color of the most severe change anywhere beneath it (conflicted, then deleted,
+modified, renamed, added, untracked) but no letter, which would claim the folder itself changed.
+Changes inside a submodule or a nested repository decorate that child repository's root and keep
+climbing through its ancestors, stopping below the selected Workbench Root's own repository root —
+its main checkout or a linked worktree, whichever the Workbench Root is. Only that one root is
+excluded; a child root is a decoration the user can act on, not a boundary. A child root a parent repository reports as a moved gitlink is still a folder row, so it
+takes the louder of that change and whatever is inside it, and still no letter. A directory's color
+says there are changes under it, not that the enclosing repository tracks them. Inactive tabs keep
+their decoration color — the point is to be readable across the whole rail without selecting each
+tab. Ignored entries stay muted and italic and take no decoration. The decoration is visual only: a
+row or tab is still named by its bare filename, and the status reaches assistive technology as an
+accessible description (`Git: modified.`) rather than being folded into that name.
 
 **Child repositories** — a directory that is a repository of its own takes the Git repository
 folder icon instead of the one its name would earn, so a submodule is never mistaken for an
@@ -371,7 +432,8 @@ ordinary folder. This covers both a `.gitmodules`-declared submodule and a direc
 in independently; the row's tooltip and its accessible description name which of the two it is,
 since only the submodule shows up as a change in the parent when its recorded commit moves. A
 linked worktree takes no mark: it is a peer checkout, not something nested in this tree. The mark
-is independent of the change decoration above — a submodule root can wear both at once.
+is independent of the change decoration above — a submodule or nested-repository root can carry the
+icon and a change color at the same time, and still no letter.
 
 **Editor breadcrumbs** — an ordinary Project file gets one 24px metadata row below the tab strip.
 Its Project-relative path sits on the left and the current file's last-change annotation sits on

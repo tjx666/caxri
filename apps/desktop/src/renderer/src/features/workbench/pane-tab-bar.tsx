@@ -28,7 +28,7 @@ import {
     useTerminal,
 } from '../../stores/selectors';
 import { sessionViewScope, useSessionViewStore } from '../../stores/session-view';
-import { closeDocumentTabs, pinDocumentTab } from '../editor/document-actions';
+import { closeDocumentTabs, pinDocumentTab } from '../editor/document-commands';
 import {
     documentTabPathMenuState,
     resolveDocumentTabPath,
@@ -36,11 +36,11 @@ import {
 import { DocumentTabPathMenu } from '../editor/document-tab-path-menu';
 import { documentTabPresentation } from '../editor/document-tab-presentation';
 import { EditorTabActions } from '../editor/editor-tab-actions';
-import { moveTerminalToNewSession } from '../session/session-actions';
+import { moveTerminalToNewSession } from '../session/session-commands';
 import { WorkTab } from '../tabs/work-tab';
 import type { WorkTabNavigationKey } from '../tabs/work-tab-accessibility';
 import { workTabId, workTabNavigationTarget } from '../tabs/work-tab-accessibility';
-import { closeTerminal, createTerminal } from '../terminal/terminal-actions';
+import { closeTerminal, createTerminal } from '../terminal/terminal-commands';
 import {
     terminalProgressAriaLabel,
     terminalProgressLabel,
@@ -325,19 +325,32 @@ function activeEditorPath(tab: PaneTab | undefined): string | undefined {
 }
 
 /**
- * The gradient cue for one end of the scrollable rail. It appears only on an edge that actually hides tabs, and fades
- * to whatever background the bar itself currently wears (the drop-target tint included) so the cue never draws a
- * visible seam against it. `motion-safe:` keeps the appear/disappear crossfade off entirely under reduced motion
- * (DESIGN.md's motion layer contract), leaving an instant show/hide.
+ * Which fill the scroll cue has to blend into, named in the bar's own precedence order: the drop-target tint covers
+ * everything, then the Workbench bar's title-bar fill, then an ordinary pane bar's surface.
  */
-function ScrollFade({ edge, onElevated }: { edge: 'end' | 'start'; onElevated: boolean }) {
+type ScrollFadeFill = 'dropTarget' | 'surface' | 'titleBar';
+
+const SCROLL_FADE_FILL_CLASS_NAME: Record<ScrollFadeFill, string> = {
+    dropTarget: 'from-elevated',
+    surface: 'from-surface',
+    // Tracks the root bar's own two states, so the cue stays seamless when the window loses focus.
+    titleBar: 'from-title-bar-active-background window-inactive:from-title-bar-inactive-background',
+};
+
+/**
+ * The gradient cue for one end of the scrollable rail. It appears only on an edge that actually hides tabs, and fades
+ * to whatever background the bar itself currently wears so the cue never draws a visible seam against it.
+ * `motion-safe:` keeps the appear/disappear crossfade off entirely under reduced motion (DESIGN.md's motion layer
+ * contract), leaving an instant show/hide.
+ */
+function ScrollFade({ edge, fill }: { edge: 'end' | 'start'; fill: ScrollFadeFill }) {
     return (
         <div
             aria-hidden="true"
             className={cn(
                 'pointer-events-none absolute inset-y-0 z-[4] w-6 to-transparent motion-safe:transition-opacity motion-safe:duration-150',
                 edge === 'start' ? 'left-0 bg-gradient-to-r' : 'right-0 bg-gradient-to-l',
-                onElevated ? 'from-elevated' : 'from-surface',
+                SCROLL_FADE_FILL_CLASS_NAME[fill],
             )}
         />
     );
@@ -359,7 +372,7 @@ function PaneTabActions({
 }) {
     if (!editorPath && !hasTabsToSwitch) return null;
     return (
-        <div className="tab-actions flex h-11 flex-none items-center bg-surface px-1 [-webkit-app-region:no-drag]">
+        <div className="tab-actions flex h-11 flex-none items-center px-1 [-webkit-app-region:no-drag]">
             {editorPath && <EditorTabActions paneId={paneId} path={editorPath} />}
             {hasTabsToSwitch && (
                 <CommandTooltip commandId="terminal.new">
@@ -472,13 +485,20 @@ export function PaneTabBar({
             ?.querySelector<HTMLElement>('[data-tab-active="true"]')
             ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     }, [activeTabId]);
+    const scrollFadeFill: ScrollFadeFill = isDropTarget
+        ? 'dropTarget'
+        : isRootBar
+          ? 'titleBar'
+          : 'surface';
     return (
         <div
             className={cn(
                 'work-tabs flex h-11 flex-none bg-surface',
                 // Only the Workbench-level bar carries the frameless window's drag region and the windowed traffic-light
-                // inset; a pane bar inside a split is an ordinary surface.
-                isRootBar && '[-webkit-app-region:drag]',
+                // inset; a pane bar inside a split is an ordinary surface. Being the drag region is also what earns it
+                // the title-bar fill — a pane bar inside a split is not a title bar and keeps `surface`.
+                isRootBar &&
+                    'bg-title-bar-active-background text-title-bar-active-foreground [-webkit-app-region:drag] window-inactive:bg-title-bar-inactive-background window-inactive:text-title-bar-inactive-foreground',
                 isRootBar && !isPrimarySidebarVisible && !isFullScreen && 'pl-[78px]',
                 isDropTarget && 'bg-elevated',
             )}
@@ -547,8 +567,8 @@ export function PaneTabBar({
                         />
                     </div>
                 </div>
-                {canScrollStart && <ScrollFade edge="start" onElevated={isDropTarget} />}
-                {canScrollEnd && <ScrollFade edge="end" onElevated={isDropTarget} />}
+                {canScrollStart && <ScrollFade edge="start" fill={scrollFadeFill} />}
+                {canScrollEnd && <ScrollFade edge="end" fill={scrollFadeFill} />}
             </div>
             <PaneTabActions
                 editorPath={editorPath}

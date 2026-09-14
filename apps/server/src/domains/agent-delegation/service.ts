@@ -124,6 +124,37 @@ export class AgentDelegationService {
             this.save({ ...record, receipt: { ...record.receipt, status: 'failed', failure } });
     }
 
+    /**
+     * Applies the Terminal Host's real answer for a follow-up whose prompt was admitted before it was delivered.
+     *
+     * A background delegation writes to a Terminal with no Renderer attachment, so the Host can still refuse the input
+     * — the launch changed while it was waiting, or the request was rejected outright. Reported as success, the task
+     * sat in `submitting` until its 15s timeout turned it into `submission_unconfirmed`, which names the wrong cause.
+     * Only a task still waiting for that prompt is settled; anything else already has an outcome of its own.
+     */
+    private settleSubmission(id: string, wasDelivered: boolean): void {
+        if (wasDelivered) return;
+        if (this.options.database.agentDelegations.get(id)?.receipt.status !== 'submitting') return;
+        clearTimeout(this.submissionTimers.get(id));
+        this.submissionTimers.delete(id);
+        this.fail(id, 'target_changed');
+    }
+
+    /**
+     * Corrects a Stop that reported `caller_stopped` before the Terminal Host refused its Esc. The task is interrupted
+     * either way; what changes is whether the Agent was actually told to stop.
+     */
+    private settleStop(id: string, wasDelivered: boolean): void {
+        if (wasDelivered) return;
+        const record = this.options.database.agentDelegations.get(id);
+        if (record?.receipt.status !== 'interrupted' || record.receipt.failure !== 'caller_stopped')
+            return;
+        this.save({
+            ...record,
+            receipt: { ...record.receipt, failure: 'target_changed' },
+        });
+    }
+
     private scheduleCollection(record: StoredAgentDelegation): void {
         const id = record.receipt.delegationId;
         if (this.isClosed || this.collectors.has(id)) return;
@@ -324,6 +355,7 @@ export class AgentDelegationService {
                 terminalId,
                 parent.launchId,
                 `\u{1B}[200~${prepared.pointer}\u{1B}[201~\r`,
+                (wasDelivered) => this.settleSubmission(id, wasDelivered),
             )
         )
             return reject('target_changed');
@@ -635,7 +667,9 @@ export class AgentDelegationService {
         const accepted =
             !terminalId ||
             !record.launchId ||
-            this.options.write?.(terminalId, record.launchId, '\u{1B}');
+            this.options.write?.(terminalId, record.launchId, '\u{1B}', (wasDelivered) =>
+                this.settleStop(id, wasDelivered),
+            );
         return this.save({
             ...record,
             receipt: {

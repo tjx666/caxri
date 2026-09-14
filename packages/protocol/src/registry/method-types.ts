@@ -218,3 +218,16 @@ export function getMethodSpec(method: string): MethodSpec | undefined {
     if (isInternalMethod(method)) return internalMethods[method];
     return undefined;
 }
+
+/**
+ * True for a method that carries no mutation ordering, so it may settle concurrently instead of waiting its turn in a
+ * connection's ordered admission lane.
+ *
+ * Lives here rather than beside either caller because both the Server's admission lane and the Desktop's
+ * command-callback guard have to agree on it: the guard refuses a request precisely because it would queue behind the
+ * command being serviced, which is only true for the requests this predicate excludes. An unknown method answers false,
+ * so anything outside the registry is ordered.
+ */
+export function isConcurrentRead(method: string): boolean {
+    return getMethodSpec(method)?.effect === 'read';
+}

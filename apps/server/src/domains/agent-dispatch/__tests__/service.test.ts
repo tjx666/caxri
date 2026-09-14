@@ -662,4 +662,57 @@ describe('AgentDispatchService', () => {
         service.observeTerminalState(receipt.terminalId!, 'interrupted', 'terminalRestart');
         expect(service.status(receipt.dispatchId, null)).toMatchObject({ status: 'interrupted' });
     });
+
+    /**
+     * `terminals.start` joins a launch already in flight, so a manual restart that wins the race still returns
+     * successfully to the dispatch that lost it. The delegation reports `interrupted`/`target_changed` for that case,
+     * and the receipt has to agree instead of claiming the user's process as its own running Agent.
+     */
+    it.each([
+        { basis: 'keeps the Terminal', isTakenOver: false, status: 'running' },
+        {
+            basis: 'loses the Terminal to a manual start',
+            failure: { code: 'CONFLICT', reason: 'target_changed' },
+            isTakenOver: true,
+            status: 'interrupted',
+        },
+    ])('settles a dispatch that $basis', async ({ failure, isTakenOver, status }) => {
+        const database = await openDatabase();
+        const project = database.createProject(join(temporaryDirectories.at(-1)!, 'project'));
+        const { session } = database.createSession(project.id, 'shell');
+        const base = fakeTerminals(database);
+        const signalAgentExact = vi.spyOn(base, 'signalAgentExact');
+        let isOwned = true;
+        const terminals = {
+            ...base,
+            start: async (terminal: TerminalRecord, options?: unknown) => {
+                const started = await (
+                    base as unknown as {
+                        start: (terminal: TerminalRecord, options?: unknown) => Promise<unknown>;
+                    }
+                ).start(terminal, options);
+                // The user's own start lands while this dispatch's launch is still in flight.
+                if (isTakenOver) isOwned = false;
+                return started;
+            },
+        } as unknown as TerminalManager;
+        const service = createService(database, terminals);
+
+        const receipt = await service.start(
+            'dispatch-manual-takeover',
+            PRINCIPAL,
+            { projectId: project.id, sessionId: session.id, provider: 'codex' },
+            {
+                launch: { executable: '/fixture/codex', args: [] },
+                prepared: () => {},
+                shouldStart: () => isOwned,
+            },
+        );
+
+        expect(receipt.status).toBe(status);
+        expect(receipt.failure).toEqual(failure);
+        // The process that came up is the user's, so settling the lost dispatch must not tear it down.
+        expect(signalAgentExact).not.toHaveBeenCalled();
+        expect(database.getTerminal(receipt.terminalId!)?.lastAgentProcessState).toBe('running');
+    });
 });

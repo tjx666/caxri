@@ -42,11 +42,16 @@ export const extensionCommandIdSchema = createNamespacedIdentifierSchema();
 export const extensionBuiltinIconIdSchema = z.enum(['beaker', 'files', 'git-branch', 'status']);
 
 export const viewContainerLocationSchema = z.enum(['secondarySidebar', 'panel']);
+/**
+ * Every member must be reachable by an `assertApiAccess` call in the extension service. A declared capability that no
+ * check consumes constrains nothing, so it reads as authority the extension does not actually hold. Session identity is
+ * part of the base API context an extension receives from its lifecycle `scopeId`, not a separate readable surface, so
+ * there is deliberately no `sessions.read`.
+ */
 export const extensionCapabilitySchema = z.enum([
     'git.read',
     'git.write',
     'projects.read',
-    'sessions.read',
     'settings.read',
 ]);
 
@@ -447,6 +452,13 @@ const sourceControlProviderModelSchema = z.object({
     kindLabel: z.string().min(1).max(1_024).optional(),
     icon: sourceControlViewIconSchema,
     tooltip: z.string().min(1).max(4_096),
+    /**
+     * Absolute filesystem root of the repository this provider owns, used only to resolve a provider-relative resource
+     * path back to an absolute one. `tooltip` is free display text and must never be read as a path. Omit it when the
+     * provider has no filesystem root; consumers then disable path-dependent affordances such as drag-to-Terminal
+     * instead of guessing.
+     */
+    rootPath: z.string().min(1).max(4_096).optional(),
     description: z.string().max(4_096),
     /**
      * Whether `description` is a `reference` — a branch name or short SHA, atomic enough that an ellipsis destroys it —

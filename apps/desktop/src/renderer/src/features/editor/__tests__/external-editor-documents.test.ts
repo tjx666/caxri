@@ -10,7 +10,7 @@ vi.mock('../../../lib/caxri', () => ({ caxri: { request: mocks.request } }));
 
 import { getSessionDocuments, useSessionViewStore } from '../../../stores/session-view';
 import { useWorkbenchStore } from '../../../stores/workbench';
-import { changeDocument, closeDocumentTabs, saveActiveEditor } from '../document-actions';
+import { changeDocument, closeDocumentTabs, saveActiveEditor } from '../document-commands';
 import { openExternalEditorDocument } from '../external-editor-documents';
 import { resetExternalEditorStateForTests } from '../external-editor-state';
 

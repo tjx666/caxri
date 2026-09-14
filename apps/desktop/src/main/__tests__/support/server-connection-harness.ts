@@ -3,7 +3,10 @@ import { connectDesktopToServer, ensureServer } from '@caxri/client/supervise';
 import type { Mock } from 'vitest';
 import { vi } from 'vitest';
 
-import type { DesktopServerSupervisor } from '../../server-connection';
+import type {
+    DesktopServerConnectionOptions,
+    DesktopServerSupervisor,
+} from '../../server-connection';
 import { DesktopServerConnection } from '../../server-connection';
 import type { ServerBuildIdentity } from '../../server-staleness';
 
@@ -108,7 +111,10 @@ export interface FakeConnection {
     serverSupervisor: FakeDesktopServerSupervisor;
 }
 
-export function createConnection(identity: ServerBuildIdentity = {}): FakeConnection {
+export function createConnection(
+    identity: ServerBuildIdentity = {},
+    handleCommand: DesktopServerConnectionOptions['handleCommand'] = () => Promise.resolve(null),
+): FakeConnection {
     const logger = { write: vi.fn() };
     let serverSupervisor!: FakeDesktopServerSupervisor;
     // Production computes `buildId` by fingerprinting the on-disk bundles; the test seam returns it directly.
@@ -145,7 +151,7 @@ export function createConnection(identity: ServerBuildIdentity = {}): FakeConnec
         cliPath: '/app/cli/caxri.cjs',
         desktopId: 'desktop-1',
         desktopLaunch: { executable: '/app/Caxri', args: [], cwd: '/app' },
-        handleCommand: () => Promise.resolve(null),
+        handleCommand,
         logger: logger as never,
         serverArtifactRoot: '/app/server',
         userDataPath: '/profile',

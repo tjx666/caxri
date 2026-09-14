@@ -33,6 +33,7 @@ import {
     CaxriError,
     errorMessage,
     isCaxriMethod,
+    isConcurrentRead,
     isDesktopServerOperation,
     SERVER_DESKTOP_LAUNCH_ENVIRONMENT_KEY,
 } from '@caxri/protocol';
@@ -40,6 +41,7 @@ import type { E2EAgentPolicy, StructuredLogger } from '@caxri/system';
 import { computeBuildFingerprint, e2eAgentPolicyEnvironment, logEventCatalog } from '@caxri/system';
 import type { PowerMonitor } from 'electron';
 
+import { activeDesktopCommand, runDesktopCommand } from './desktop-command-scope';
 import type { ServerBuildIdentity } from './server-staleness';
 import { isServerBuildStale } from './server-staleness';
 
@@ -226,7 +228,10 @@ export class DesktopServerConnection extends EventTarget {
         const client = await connectDesktopToServer(
             this.options.userDataPath,
             this.options.desktopId,
-            this.options.handleCommand,
+            (operation, consumeTarget) =>
+                runDesktopCommand(operation, () =>
+                    this.options.handleCommand(operation, consumeTarget),
+                ),
         );
         this.client = client;
         client.onClose((reason, closeCode) => this.handleConnectionLoss(client, reason, closeCode));
@@ -520,6 +525,42 @@ export class DesktopServerConnection extends EventTarget {
             : new CaxriError('UNAVAILABLE', 'Desktop is not connected to the Caxri Host');
     }
 
+    /**
+     * Refuses an ordinary Server request issued from inside a Desktop command handler, where it can only deadlock; see
+     * `desktop-command-scope.ts`. `forward` is deliberately not guarded: it carries a Renderer-originated request that
+     * already owns a request id, so it is unreachable from a handler.
+     *
+     * A read is exempt because the deadlock is an ordering fact, not a re-entrancy one: Server Core settles a read
+     * outside the connection's ordered admission lane (`isConcurrentRead`), so it never queues behind the command being
+     * serviced and answers while that command is still open. Refusing reads too would break a path Main already depends
+     * on — the `focus` and `open` commands reach `openMainWindow`, which reads `app.windowState.get` to restore the
+     * window's saved geometry, and a refusal there silently substitutes the hardcoded default size and then persists it
+     * over the user's own on the next close.
+     */
+    private desktopCommandCallbackError(method: string): CaxriError | undefined {
+        const command = activeDesktopCommand();
+        if (command === undefined || isConcurrentRead(method)) return undefined;
+        this.options.logger.write(
+            'error',
+            logEventCatalog.serverConnection.desktopCommandCallbackRejected,
+            {
+                fields: {
+                    method,
+                    operation: command,
+                    /**
+                     * Closed set; today a handler can only be refused for this one cause, and a second cause gets its
+                     * own member rather than widening this one.
+                     */
+                    reason: 'ordinaryRequestFromDesktopCommand',
+                },
+            },
+        );
+        return new CaxriError(
+            'INTERNAL',
+            `The ${command} Desktop command handler requested ${method} from Caxri Host. A Desktop command handler may only use its own target lane; an ordinary request queues behind the command it is servicing and deadlocks both sides.`,
+        );
+    }
+
     private disposeLifecycle(): void {
         if (this.lifecycle.status !== 'disposed')
             this.lifecycle = transitionServerConnection(this.lifecycle, { type: 'dispose' });
@@ -588,6 +629,8 @@ export class DesktopServerConnection extends EventTarget {
         method: M,
         ...arguments_: ServerOperationArguments<M>
     ): Promise<ServerOperationResult<M>> {
+        const callbackError = this.desktopCommandCallbackError(method);
+        if (callbackError) return Promise.reject(callbackError);
         const attached = this.client;
         if (!attached) return Promise.reject(this.disconnectedRequestError());
         const client = attached as unknown as UntypedServerClient;

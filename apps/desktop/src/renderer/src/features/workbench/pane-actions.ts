@@ -20,7 +20,7 @@ import {
 import { getSessionState, useSessionState } from '../../stores/selectors';
 import { patchSessionState } from '../../stores/workbench';
 import { workTabId } from '../tabs/work-tab-accessibility';
-import { focusTerminalById } from '../terminal/terminal-actions';
+import { focusTerminalById } from '../terminal/terminal-commands';
 
 /**
  * The single write path for every Workbench layout mutation. Callers describe the edit with the pure reducer in

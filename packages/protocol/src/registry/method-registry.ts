@@ -35,12 +35,12 @@ import {
     MAX_PATH_BROWSER_ENTRIES,
     pathBrowserContractMethods,
 } from '../desktop/path-browser-contract.js';
+import { bootstrapStateSchema } from '../domain/bootstrap.js';
 import { bugReportInternalMethods, bugReportMethods } from '../domain/bug-report-contract.js';
 import { businessInternalMethods, businessMethods } from '../domain/business-contract.js';
 import {
     agentHookHealthMapSchema,
     agentTranscriptSchema,
-    bootstrapStateSchema,
     canceledResultSchema,
     fileDocumentSchema,
     fileEntrySchema,

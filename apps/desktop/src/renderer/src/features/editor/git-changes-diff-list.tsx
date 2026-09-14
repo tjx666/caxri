@@ -8,7 +8,7 @@ import { Button } from '../../components/ui/button';
 import { openSettings } from '../../stores/dialogs';
 import { useSettings } from '../../stores/selectors';
 import { findPaneTabId } from '../workbench/pane-actions';
-import { closeDocumentTabs, openEditorTab } from './document-actions';
+import { closeDocumentTabs, openEditorTab } from './document-commands';
 import {
     describeHiddenGitDiffFiles,
     filterGitDiffFiles,

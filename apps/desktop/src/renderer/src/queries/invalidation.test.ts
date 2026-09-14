@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => {
 vi.mock('../lib/caxri', () => ({ caxri: mocks }));
 
 import { useWorkbenchStore } from '../stores/workbench';
+import { caxriQueryKey } from './client';
 import { removeSessionQueries, subscribeRuntimeQueryInvalidation } from './invalidation';
 
 afterEach(() => {
@@ -118,7 +119,7 @@ describe('subscribeRuntimeQueryInvalidation', () => {
     it('invalidates every cached read after private changefeed recovery uses a snapshot', () => {
         const queryClient = new QueryClient();
         const agentActions = ['agentActions.list', { terminalId: 'terminal-a' }] as const;
-        const files = ['files.browse', { sessionId: 'session-a' }] as const;
+        const files = caxriQueryKey('files.list', { sessionId: 'session-a' });
         const git = ['git.summary', { sessionId: 'session-a' }] as const;
         queryClient.setQueryData(agentActions, { actions: [] });
         queryClient.setQueryData(files, { entries: [] });
@@ -206,9 +207,13 @@ describe('subscribeRuntimeQueryInvalidation', () => {
     it('invalidates every Session currently routed to the changed Workbench Project, but never Git queries', () => {
         vi.useFakeTimers();
         const queryClient = new QueryClient();
-        queryClient.setQueryData(['files.browse', { sessionId: 'session-a' }], { entries: [] });
-        queryClient.setQueryData(['files.browse', { sessionId: 'session-b' }], { entries: [] });
-        queryClient.setQueryData(['files.browse', { sessionId: 'session-other' }], {
+        queryClient.setQueryData(caxriQueryKey('files.list', { sessionId: 'session-a' }), {
+            entries: [],
+        });
+        queryClient.setQueryData(caxriQueryKey('files.list', { sessionId: 'session-b' }), {
+            entries: [],
+        });
+        queryClient.setQueryData(caxriQueryKey('files.list', { sessionId: 'session-other' }), {
             entries: [],
         });
         queryClient.setQueryData(['git.summary', { sessionId: 'session-a' }], { status: 'clean' });
@@ -248,13 +253,15 @@ describe('subscribeRuntimeQueryInvalidation', () => {
         vi.advanceTimersByTime(150);
 
         expect(
-            queryClient.getQueryState(['files.browse', { sessionId: 'session-a' }])?.isInvalidated,
+            queryClient.getQueryState(caxriQueryKey('files.list', { sessionId: 'session-a' }))
+                ?.isInvalidated,
         ).toBe(true);
         expect(
-            queryClient.getQueryState(['files.browse', { sessionId: 'session-b' }])?.isInvalidated,
+            queryClient.getQueryState(caxriQueryKey('files.list', { sessionId: 'session-b' }))
+                ?.isInvalidated,
         ).toBe(true);
         expect(
-            queryClient.getQueryState(['files.browse', { sessionId: 'session-other' }])
+            queryClient.getQueryState(caxriQueryKey('files.list', { sessionId: 'session-other' }))
                 ?.isInvalidated,
         ).toBe(false);
         // `files.changed` no longer drives Git invalidation — that is `git.changed`'s job (see below).
@@ -267,23 +274,23 @@ describe('subscribeRuntimeQueryInvalidation', () => {
     it('invalidates every Files listing in the affected Workbench Project after watcher overflow', () => {
         vi.useFakeTimers();
         const queryClient = new QueryClient();
-        const firstBrowse = [
-            'files.browse',
-            { sessionId: 'session-a', directory: '/project/src' },
-        ] as const;
-        const firstList = [
-            'files.list',
-            { sessionId: 'session-a', directory: '/project/docs' },
-        ] as const;
-        const siblingList = [
-            'files.list',
-            { sessionId: 'session-b', directory: '/project/tests' },
-        ] as const;
-        const unrelatedList = [
-            'files.list',
-            { sessionId: 'session-other', directory: '/other' },
-        ] as const;
-        for (const key of [firstBrowse, firstList, siblingList, unrelatedList])
+        const observedList = caxriQueryKey('files.list', {
+            sessionId: 'session-a',
+            directory: '/project/src',
+        });
+        const firstList = caxriQueryKey('files.list', {
+            sessionId: 'session-a',
+            directory: '/project/docs',
+        });
+        const siblingList = caxriQueryKey('files.list', {
+            sessionId: 'session-b',
+            directory: '/project/tests',
+        });
+        const unrelatedList = caxriQueryKey('files.list', {
+            sessionId: 'session-other',
+            directory: '/other',
+        });
+        for (const key of [observedList, firstList, siblingList, unrelatedList])
             queryClient.setQueryData(key, { entries: [] });
         useWorkbenchStore.setState({
             bootstrap: {
@@ -310,7 +317,7 @@ describe('subscribeRuntimeQueryInvalidation', () => {
         });
         vi.advanceTimersByTime(150);
 
-        expect(queryClient.getQueryState(firstBrowse)?.isInvalidated).toBe(true);
+        expect(queryClient.getQueryState(observedList)?.isInvalidated).toBe(true);
         expect(queryClient.getQueryState(firstList)?.isInvalidated).toBe(true);
         expect(queryClient.getQueryState(siblingList)?.isInvalidated).toBe(true);
         expect(queryClient.getQueryState(unrelatedList)?.isInvalidated).toBe(false);

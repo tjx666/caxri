@@ -12,6 +12,7 @@ import { getSessionDocuments, useSessionViewStore } from '../../stores/session-v
 import { pushToast } from '../../stores/toasts';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { useFileOperationStore } from '../view-containers/resource-explorer/file-operation-state';
+import { readDocuments } from './document-commands';
 import { ExternalSyncDeferral } from './external-sync-deferral';
 
 /**
@@ -39,13 +40,6 @@ function isChangedOnDisk(cached: FileDocument, current: FileDocument): boolean {
  */
 function readCachedDocument<T>(cached: Record<string, T>, path: string): T | undefined {
     return Object.hasOwn(cached, path) ? cached[path] : undefined;
-}
-
-async function readDocuments(sessionId: string, paths: readonly string[]): Promise<FileDocument[]> {
-    const results = await Promise.allSettled(
-        paths.map((path) => caxri.request('files.read', { sessionId, path })),
-    );
-    return results.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []));
 }
 
 /**

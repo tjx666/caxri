@@ -40,7 +40,7 @@ import {
     deleteSessions,
     unarchiveSession,
     unarchiveSessions,
-} from './session-actions';
+} from './session-commands';
 
 const NO_RECORDS: never[] = [];
 const EMPTY_SELECTION: ReadonlySet<string> = new Set();

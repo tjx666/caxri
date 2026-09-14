@@ -1,6 +1,6 @@
 import { ContextMenuItem } from '../../components/ui/context-menu';
+import { copyFilePath } from '../../lib/copy-file-path';
 import type { DocumentTabPathResolution } from './document-tab-path-actions';
-import { copyDocumentTabPath } from './document-tab-path-actions';
 
 function discard(promise: Promise<unknown>): void {
     // eslint-disable-next-line no-void -- intentional floating-promise discard; the action reports its own errors via toast
@@ -26,7 +26,7 @@ export function DocumentTabPathMenu({
                 disabled={!resolution}
                 disabledReason={!resolution ? unavailableReason : undefined}
                 onClick={() => {
-                    if (resolution) discard(copyDocumentTabPath(resolution.absolutePath));
+                    if (resolution) discard(copyFilePath(resolution.absolutePath));
                 }}
             >
                 Copy Path
@@ -37,12 +37,7 @@ export function DocumentTabPathMenu({
                     disabledReason={!resolution?.relativeRoot ? unavailableReason : undefined}
                     onClick={() => {
                         if (resolution?.relativeRoot)
-                            discard(
-                                copyDocumentTabPath(
-                                    resolution.absolutePath,
-                                    resolution.relativeRoot,
-                                ),
-                            );
+                            discard(copyFilePath(resolution.absolutePath, resolution.relativeRoot));
                     }}
                 >
                     Copy Relative Path

@@ -6,7 +6,6 @@ import { clamp } from 'es-toolkit';
 
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 
-import { caxri } from '../../lib/caxri';
 import { isDirectoryEntry } from '../../lib/file-entry';
 import { setPathBrowserOpen } from '../../stores/dialogs';
 import { openExternalEditorDocument } from '../editor/external-editor-documents';
@@ -21,6 +20,13 @@ import {
     pathBrowserKeyIntent,
     projectDirectoryPath,
 } from './path-browser';
+import {
+    browsePath,
+    closePathBrowserSession,
+    navigatePathBrowser,
+    openPathBrowserEntry,
+    startPathBrowser,
+} from './path-browser-client';
 
 const PATH_BROWSER_QUERY_DEBOUNCE_MS = 120;
 const EMPTY_ENTRIES: MethodResult<'pathBrowser.start'>['entries'] = [];
@@ -81,10 +87,10 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
         const startingInputRevision = inputRevision.current;
         const startBrowser = async (): Promise<void> => {
             try {
-                const result = await caxri.request('pathBrowser.start', { sessionId });
+                const result = await startPathBrowser({ sessionId });
                 browserId = result.browserId;
                 if (isDisposed) {
-                    runPathBrowserDetached(caxri.request('pathBrowser.close', { browserId }));
+                    runPathBrowserDetached(closePathBrowserSession({ browserId }));
                     return;
                 }
                 setSnapshot(result);
@@ -104,8 +110,7 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
         return () => {
             isDisposed = true;
             requestGeneration.current += 1;
-            if (browserId)
-                runPathBrowserDetached(caxri.request('pathBrowser.close', { browserId }));
+            if (browserId) runPathBrowserDetached(closePathBrowserSession({ browserId }));
         };
     }, [sessionId]);
 
@@ -131,7 +136,7 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
         });
         const browse = async (): Promise<void> => {
             try {
-                const result = await caxri.request('pathBrowser.browse', {
+                const result = await browsePath({
                     browserId,
                     input: debouncedInputState.input,
                     mode: debouncedInputState.mode,
@@ -241,7 +246,7 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
         if (!snapshot || inputState.mode !== 'project') return;
         runPathBrowserDetached(
             applySnapshotOperation(
-                caxri.request('pathBrowser.navigate', {
+                navigatePathBrowser({
                     browserId: snapshot.browserId,
                     target: { kind: 'detachProject' },
                 }),
@@ -253,7 +258,7 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
         if (!snapshot?.canGoParent) return;
         runPathBrowserDetached(
             applySnapshotOperation(
-                caxri.request('pathBrowser.navigate', {
+                navigatePathBrowser({
                     browserId: snapshot.browserId,
                     target: { kind: 'parent' },
                 }),
@@ -267,7 +272,7 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
         setIsNavigating(true);
         setIsFetching(false);
         try {
-            const result = await caxri.request('pathBrowser.open', {
+            const result = await openPathBrowserEntry({
                 browserId: snapshot.browserId,
                 entryId: entry.id,
             });
@@ -292,7 +297,7 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
         if (entry.kind === 'symlink' || isDirectoryEntry(entry)) {
             runPathBrowserDetached(
                 applySnapshotOperation(
-                    caxri.request('pathBrowser.navigate', {
+                    navigatePathBrowser({
                         browserId: snapshot.browserId,
                         target: { entryId: entry.id, kind: 'entry' },
                     }),
@@ -321,7 +326,7 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
         );
         if (!created) return;
         if (candidateToCreate.kind === 'directory') {
-            const listed = await caxri.request('pathBrowser.browse', {
+            const listed = await browsePath({
                 browserId: snapshot.browserId,
                 input: candidateToCreate.name,
                 mode: 'project',
@@ -331,7 +336,7 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
             );
             if (!directory) throw new Error('Created folder could not be reopened');
             await applySnapshotOperation(
-                caxri.request('pathBrowser.navigate', {
+                navigatePathBrowser({
                     browserId: snapshot.browserId,
                     target: { entryId: directory.id, kind: 'entry' },
                 }),

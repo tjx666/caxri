@@ -17,6 +17,16 @@ export class SingleFlight<Key, Value> {
     }
 
     /**
+     * Forgets every in-flight and queued load without cancelling it, so the next caller starts a fresh one instead of
+     * joining work that began under the state a reset just discarded. For a test or benchmark resetting the cache this
+     * sits in front of; a load already running still settles and still resolves its original callers.
+     */
+    clear(): void {
+        this.pending.clear();
+        this.trailing.clear();
+    }
+
+    /**
      * Reports whether a trailing load is already waiting behind the in-flight load for `key`.
      */
     isQueued(key: Key): boolean {

@@ -13,7 +13,7 @@ import {
     ContextMenuItem,
     ContextMenuSeparator,
 } from '../../components/ui/context-menu';
-import { closeDocumentTabFamily } from '../editor/document-actions';
+import { closeDocumentTabFamily } from '../editor/document-commands';
 import { splitPaneTab } from './pane-actions';
 
 const closeLabels: Record<PaneTabCloseMode, string> = {

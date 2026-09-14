@@ -28,7 +28,7 @@ import {
     openFileForSession,
     remapOpenEditors,
     saveActiveEditor,
-} from '../document-actions';
+} from '../document-commands';
 
 type PaneLayoutTabSpec = { path: string; preview?: boolean } | { terminalId: string };
 

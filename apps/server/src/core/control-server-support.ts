@@ -21,7 +21,7 @@ import {
     CAXRI_PROTOCOL_VERSION,
     CaxriError,
     CONTROL_TRANSPORT_MAX_FRAME_BYTES,
-    getMethodSpec,
+    isConcurrentRead,
     localServerEventSchema,
     toWireError,
 } from '@caxri/protocol';
@@ -169,10 +169,6 @@ export function reserveControlRequest(state: ClientState): (() => void) | undefi
 export interface OrderedQueueTiming {
     enqueuedAt: number;
     queueDepth: number;
-}
-
-export function isConcurrentRead(method: string): boolean {
-    return getMethodSpec(method)?.effect === 'read';
 }
 
 const SELF_SERIALIZED_OPERATIONS = new Set(['files.copy', 'terminal.prepareLongPaste']);

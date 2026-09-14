@@ -63,29 +63,71 @@ export function compareFileEntries(a: FileEntry, b: FileEntry): number {
  * the only step that can block on an unresponsive mount such as a stale network share.
  */
 const SYMLINK_TARGET_PROBE_TIMEOUT_MS = 2_000;
+/**
+ * Ceiling on what one listing may spend waiting on symlink targets in total, across every link in it.
+ *
+ * A mount that is slow but alive never reaches the per-probe timeout, so before this existed the budget could not be
+ * spent at all: every browse re-issued up to `MAX_CONCURRENT_ENTRY_STATS` × 2 uncancellable `stat`/`readlink` calls,
+ * and `files.browse` runs on every keystroke in the Cmd+P path input. Half the single-probe ceiling: two probes that
+ * each take a second are already a listing nobody is waiting for.
+ */
+const SYMLINK_TARGET_PROBE_BUDGET_MS = 1_000;
+
+/**
+ * Why a listing stopped following symlink targets. `probe_timeout` is one target that never answered; `cumulative_wait`
+ * is many that each answered slowly. They call for different responses — a hung mount versus a slow one — so they are
+ * recorded apart rather than as one "budget spent".
+ */
+type SymlinkProbeBudgetReason = 'cumulative_wait' | 'probe_timeout';
 
 export type SymlinkTargetProbe = <T>(read: () => Promise<T>) => Promise<T | undefined>;
+
+export interface SymlinkTargetProbeOptions {
+    budgetMs?: number;
+    /**
+     * Called once, the first time a listing's budget closes. Not called when the listing stays inside it.
+     */
+    onBudgetSpent?: (reason: SymlinkProbeBudgetReason, waitedMs: number) => void;
+    timeoutMs?: number;
+}
 
 /**
  * Probes a symlink target for optional display metadata under a per-listing budget. A dangling or racing symlink is an
  * ordinary state to render, so a failed probe answers `undefined` instead of failing the surrounding listing.
  *
- * The timeout is load-bearing rather than defensive. `fs.stat` cannot be cancelled, so a target on a hung mount would
+ * The budget is load-bearing rather than defensive. `fs.stat` cannot be cancelled, so a target on a hung mount would
  * leave `loadList` pending forever; `SingleFlight` evicts a request only when it settles, so every later listing of
- * that directory would join the dead promise and time out, with no recovery short of restarting Server Core. The first
- * timeout also spends the budget for the rest of the listing, so one unhealthy mount cannot pin a libuv threadpool
- * thread per symlink and starve every other file operation. An unprobed link keeps the neutral icon it had before
- * target resolution existed.
+ * that directory would join the dead promise and time out, with no recovery short of restarting Server Core. Spending
+ * the budget for the rest of the listing keeps one unhealthy mount to a single wait instead of pinning a libuv
+ * threadpool thread per symlink and starving every other file operation. An unprobed link keeps the neutral icon it had
+ * before target resolution existed.
+ *
+ * Two things close it, because a mount can be unreachable or merely slow and only the first reaches a per-probe
+ * ceiling: one probe exceeding `timeoutMs`, or the probes so far having waited `budgetMs` in total.
  */
-export function createSymlinkTargetProbe(
-    timeoutMs: number = SYMLINK_TARGET_PROBE_TIMEOUT_MS,
-): SymlinkTargetProbe {
-    let isBudgetSpent = false;
+export function createSymlinkTargetProbe({
+    budgetMs = SYMLINK_TARGET_PROBE_BUDGET_MS,
+    onBudgetSpent,
+    timeoutMs = SYMLINK_TARGET_PROBE_TIMEOUT_MS,
+}: SymlinkTargetProbeOptions = {}): SymlinkTargetProbe {
+    // Held in one object, and read back through a function, because the timer callback writes both fields while the
+    // probe below is suspended at its `await`. Reading the property directly lets TypeScript narrow it to `undefined`
+    // across that suspension and then call the check in `finally` unreachable, which is the one mutation that does
+    // happen here.
+    const budget = { spentReason: undefined as SymlinkProbeBudgetReason | undefined, waitedMs: 0 };
+    const isBudgetSpent = (): boolean => budget.spentReason !== undefined;
+    const spend = (reason: SymlinkProbeBudgetReason): void => {
+        if (isBudgetSpent()) return;
+        budget.spentReason = reason;
+        onBudgetSpent?.(reason, budget.waitedMs);
+    };
     return async <T>(read: () => Promise<T>): Promise<T | undefined> => {
-        if (isBudgetSpent) return undefined;
+        if (isBudgetSpent()) return undefined;
+        const startedAt = performance.now();
         const expiry = Promise.withResolvers<undefined>();
         const timer = setTimeout(() => {
-            isBudgetSpent = true;
+            budget.waitedMs += performance.now() - startedAt;
+            spend('probe_timeout');
             expiry.resolve(undefined);
         }, timeoutMs);
         try {
@@ -94,6 +136,10 @@ export function createSymlinkTargetProbe(
             return undefined;
         } finally {
             clearTimeout(timer);
+            if (!isBudgetSpent()) {
+                budget.waitedMs += performance.now() - startedAt;
+                if (budget.waitedMs >= budgetMs) spend('cumulative_wait');
+            }
         }
     };
 }
@@ -169,9 +215,10 @@ export type GitIgnoreRulesListedListener = (
 export interface ListingServiceOptions {
     /**
      * Seam for tests: overriding the factory spends a listing's symlink budget in milliseconds instead of waiting out
-     * the real hung-mount timeout.
+     * the real hung-mount timeout. It still receives the service's `onBudgetSpent`, so an override exercises the same
+     * record a real budget produces.
      */
-    createSymlinkTargetProbe?: () => SymlinkTargetProbe;
+    createSymlinkTargetProbe?: (options: SymlinkTargetProbeOptions) => SymlinkTargetProbe;
 }
 
 /**
@@ -192,7 +239,14 @@ export class ListingService {
     /**
      * Factory behind every listing's single symlink budget; see {@link ListingServiceOptions}.
      */
-    private readonly createProbe: () => SymlinkTargetProbe;
+    private readonly createProbe: (options: SymlinkTargetProbeOptions) => SymlinkTargetProbe;
+
+    /**
+     * How many listings have spent their symlink budget since this process started. A per-listing record alone cannot
+     * answer "is this happening at all", which is the question a slow mount raises: each one looks isolated, and the
+     * volume is the symptom.
+     */
+    private symlinkProbeBudgetSpentCount = 0;
 
     constructor(
         private readonly resolveSessionPath: ResolveSessionPath,
@@ -205,6 +259,33 @@ export class ListingService {
         options: ListingServiceOptions = {},
     ) {
         this.createProbe = options.createSymlinkTargetProbe ?? createSymlinkTargetProbe;
+    }
+
+    /**
+     * One symlink budget for one listing, wired to the record that makes spending it visible.
+     *
+     * The record is the point of the closed reason enum and the running count: an unprobed link is invisible in the
+     * result — it just keeps the neutral icon — so without this a slow mount degrades the path browser silently, and
+     * "how often" is the only thing that distinguishes a stale share from a one-off.
+     *
+     * @param sessionId Session whose listing owns this budget.
+     * @param relativeDirectory The listed directory relative to the Project root, never the absolute path.
+     */
+    private createSymlinkProbe(sessionId: string, relativeDirectory: string): SymlinkTargetProbe {
+        return this.createProbe({
+            onBudgetSpent: (reason, waitedMs) => {
+                this.symlinkProbeBudgetSpentCount += 1;
+                this.logger.write('debug', logEventCatalog.file.symlinkProbeBudgetSpent, {
+                    durationMs: waitedMs,
+                    fields: {
+                        sessionId,
+                        path: relativeDirectory,
+                        reason,
+                        spentCount: this.symlinkProbeBudgetSpentCount,
+                    },
+                });
+            },
+        });
     }
 
     private async loadBrowse(
@@ -310,7 +391,10 @@ export class ListingService {
          * directories, so browse results now sort links the way the Files tree does instead of dropping every link into
          * the file group.
          */
-        const probeTarget = this.createProbe();
+        const probeTarget = this.createSymlinkProbe(
+            sessionId,
+            relative(root, workspacePath) || '.',
+        );
         const describedLinks = await mapWithConcurrency(
             linkPositions,
             MAX_CONCURRENT_ENTRY_STATS,
@@ -405,7 +489,10 @@ export class ListingService {
             )
             .slice(0, MAX_FILE_LIST_ENTRIES);
         // One budget per listing, so a hung mount stops being probed after the first slow symlink in this directory.
-        const probeTarget = this.createProbe();
+        const probeTarget = this.createSymlinkProbe(
+            sessionId,
+            relative(root, workspacePath) || '.',
+        );
         const [settled, gitIgnoreDecoration] = await Promise.all([
             mapWithConcurrency(boundedVisible, MAX_CONCURRENT_ENTRY_STATS, (entry) =>
                 this.describeEntry(path, entry.name, probeTarget),

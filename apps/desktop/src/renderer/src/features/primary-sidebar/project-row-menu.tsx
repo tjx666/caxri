@@ -9,7 +9,7 @@ import {
     ContextMenuTrigger,
 } from '../../components/ui/context-menu';
 import { copyFilePath } from '../../lib/copy-file-path';
-import { openProjectRoot } from './project-path-actions';
+import { openProjectRoot } from './project-path-commands';
 
 export function ProjectRowMenu({
     children,

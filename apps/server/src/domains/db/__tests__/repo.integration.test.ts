@@ -334,6 +334,14 @@ describe('CaxriDatabase', () => {
             /auto-registered worktree Project/,
         );
         expect(database.listSessions()).toEqual([]);
+
+        /**
+         * The negative control for that refusal. `owner` is top-level and, at this point, has no Session at all — the
+         * exact shape a guard that keyed on "empty Project" instead of "owned Project" would reject, turning an added
+         * Project into one the user can never start working in.
+         */
+        const created = database.createSession(owner.id, 'shell');
+        expect(created.session.projectId).toBe(owner.id);
         database.close();
     });
 

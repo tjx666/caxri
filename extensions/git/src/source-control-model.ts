@@ -566,6 +566,7 @@ export function buildSourceControlViewModel({
                 ...(repo.kind !== 'primary' && { kindLabel: repo.kind }),
                 icon: themeIcon(repoKindIcons[repo.kind]),
                 tooltip: repo.rootPath,
+                rootPath: repo.rootPath,
                 description,
                 descriptionKind,
                 descriptionAccessibilityLabel,
