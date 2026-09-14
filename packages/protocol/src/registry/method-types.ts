@@ -113,6 +113,7 @@ export const effectfulCommandRecovery = {
     'desktop.openProject': 'durable',
     'desktop.openFile': 'durable',
     'files.reveal': 'durable',
+    'files.openWithDefaultApp': 'durable',
     'project.openInEditor': 'durable',
     'project.openRoot': 'durable',
     'argv.update': 'memory',

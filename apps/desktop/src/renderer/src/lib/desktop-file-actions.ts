@@ -1,0 +1,47 @@
+import { CaxriError } from '@caxri/protocol';
+
+import { createTerminal } from '../features/terminal/terminal-commands';
+import { getSelectedSession } from '../stores/selectors';
+import { tryCommand } from '../stores/toasts';
+import { caxri } from './caxri';
+
+/**
+ * Hands one Workbench file to the desktop environment around it. Shared by the two menus that offer these actions — the
+ * Files tree row and the editor tab — the same way `copy-file-path` is shared, so a file exposes one behavior no matter
+ * which entry point the user right-clicks.
+ *
+ * The Session is read from the current selection instead of taken as an argument: both menus render inside the selected
+ * Session's Workbench, and the Resource Explorer's own client is constructed from that same selection. Server Core
+ * re-validates the path against that Session's authorized Project root before Main ever sees it, so this id is a scope
+ * selector, not an authority claim.
+ */
+function requireSelectedSessionId(): string {
+    const sessionId = getSelectedSession()?.id;
+    if (!sessionId) throw new CaxriError('UNAVAILABLE', 'No Session is selected');
+    return sessionId;
+}
+
+export function revealFile(path: string): Promise<void | undefined> {
+    return tryCommand('Unable to reveal item in Finder', async () => {
+        await caxri.request('files.reveal', { sessionId: requireSelectedSessionId(), path });
+    });
+}
+
+/**
+ * Opens one file with whatever application the operating system registers for its type, so an `.html` document lands in
+ * the browser rather than staying inside Caxri's editor. Main turns a refused launch — an unregistered file type, a
+ * missing application — into an error, so the failure reaches the user as a toast instead of a click that appears to do
+ * nothing.
+ */
+export function openFileWithDefaultApp(path: string): Promise<void | undefined> {
+    return tryCommand('Unable to open item with the default application', async () => {
+        await caxri.request('files.openWithDefaultApp', {
+            sessionId: requireSelectedSessionId(),
+            path,
+        });
+    });
+}
+
+export function openFileInTerminal(directory: string): Promise<void> {
+    return createTerminal('shell', { cwd: directory });
+}

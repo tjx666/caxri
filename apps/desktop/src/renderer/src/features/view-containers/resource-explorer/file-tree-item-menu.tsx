@@ -6,8 +6,12 @@ import {
     ContextMenuSeparator,
 } from '../../../components/ui/context-menu';
 import { copyFilePath } from '../../../lib/copy-file-path';
-import { useResourceExplorerClient } from '../controlled-view-context';
-import { openFileInTerminal, rememberFile, revealFile } from './file-actions';
+import {
+    openFileInTerminal,
+    openFileWithDefaultApp,
+    revealFile,
+} from '../../../lib/desktop-file-actions';
+import { rememberFile } from './file-actions';
 import { BUSY_DISABLED_REASON } from './file-tree-item-types';
 
 export interface FileTreeItemMenuProperties {
@@ -56,11 +60,15 @@ export function FileTreeItemMenu({
     startCreate,
     startRename,
 }: FileTreeItemMenuProperties) {
-    const client = useResourceExplorerClient();
     return (
         <ContextMenuContent>
             <ContextMenuItem onClick={openEntry}>Open</ContextMenuItem>
-            <ContextMenuItem onClick={() => discard(revealFile(client, entry.path))}>
+            {entry.kind === 'file' && (
+                <ContextMenuItem onClick={() => discard(openFileWithDefaultApp(entry.path))}>
+                    Open with Default App
+                </ContextMenuItem>
+            )}
+            <ContextMenuItem onClick={() => discard(revealFile(entry.path))}>
                 Reveal in Finder
             </ContextMenuItem>
             <ContextMenuItem

@@ -536,6 +536,12 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                     if (!desktopRouter)
                         throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
                     return desktopRouter.open('reveal', undefined, request.params);
+                case 'files.openWithDefaultApp':
+                    if (!desktopRouter)
+                        throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
+                    // Restricted to files: handing a directory to the default application only reopens Finder, which
+                    // `files.reveal` already does with a selection.
+                    return desktopRouter.open('openWithDefaultApp', 'file', request.params);
                 case 'project.openRoot':
                 case 'project.openInEditor': {
                     if (!desktopRouter)

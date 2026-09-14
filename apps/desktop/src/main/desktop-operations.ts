@@ -15,6 +15,7 @@ export interface DesktopOperationHandlers {
     focus(): Promise<void>;
     open(target: DesktopTargetPayload & { sessionId: string }): void;
     openInEditor(path: string, editorCommand: string | undefined): Promise<void>;
+    openWithDefaultApp(path: string): Promise<void>;
     reveal(path: string): void;
     status(): 'background' | 'window';
     trash(path: string): Promise<void>;
@@ -37,6 +38,11 @@ async function handleDesktopOperation(
         case 'reveal': {
             const target = await consumeTarget();
             handlers.reveal(target.path);
+            return null;
+        }
+        case 'openWithDefaultApp': {
+            const target = await consumeTarget();
+            await handlers.openWithDefaultApp(target.path);
             return null;
         }
         case 'open': {

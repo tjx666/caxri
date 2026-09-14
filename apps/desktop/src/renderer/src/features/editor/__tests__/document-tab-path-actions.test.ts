@@ -7,7 +7,11 @@ import {
 } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { documentTabPathMenuState, resolveDocumentTabPath } from '../document-tab-path-actions';
+import {
+    documentTabDesktopActionState,
+    documentTabPathMenuState,
+    resolveDocumentTabPath,
+} from '../document-tab-path-actions';
 
 const repositories = [
     { id: 'primary', rootPath: '/project' },
@@ -165,5 +169,34 @@ describe('resolveDocumentTabPath', () => {
                 projectRoot: '/project',
             }),
         ).toBeUndefined();
+    });
+});
+
+describe('documentTabDesktopActionState', () => {
+    const unavailableReason = 'The file path is unavailable';
+
+    it('hands an ordinary tab its absolute path', () => {
+        expect(
+            documentTabDesktopActionState(
+                { absolutePath: '/project/page.html', relativeRoot: '/project' },
+                { isExternal: false, unavailableReason },
+            ),
+        ).toEqual({ path: '/project/page.html' });
+    });
+
+    it('withholds an external document even though it resolved to a real path', () => {
+        const state = documentTabDesktopActionState(
+            { absolutePath: '/Users/tj/Downloads/report.html' },
+            { isExternal: true, unavailableReason },
+        );
+
+        expect(state.path).toBeUndefined();
+        expect(state.disabledReason).toBe('This document is outside every added Project');
+    });
+
+    it('falls back to the supplied reason when no path resolved at all', () => {
+        expect(
+            documentTabDesktopActionState(undefined, { isExternal: false, unavailableReason }),
+        ).toEqual({ disabledReason: unavailableReason });
     });
 });
