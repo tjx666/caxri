@@ -254,9 +254,10 @@ export function describeFailure(error: unknown, label: string): string {
  * A cancelled request is an expected outcome rather than a failure the user can act on, and often arrives when there is
  * no longer anywhere to show it: Main refuses queued Renderer work as soon as quit starts, and the Host client cancels
  * everything in flight when a lease is replaced or a connection is disposed. `shouldToastQueryError` applies the same
- * rule to reads; this keeps writes consistent with it.
+ * rule to reads; this keeps writes consistent with it. Exported so the Session-state write path — which reports its own
+ * failures instead of going through `tryCommand` — applies the identical rule.
  */
-function isCancelledRequest(error: unknown): boolean {
+export function isCancelledRequest(error: unknown): boolean {
     return isCaxriError(error) && error.code === 'CANCELLED';
 }
 

@@ -34,7 +34,7 @@ import {
     sessionSelection,
     workbenchProjects,
 } from './session-record';
-import { reconcileOwnedTerminalTabs } from './session-terminal-layout';
+import { reconcileOwnedTerminalTabs, resolveSessionPaneLayout } from './session-terminal-layout';
 import type { WorkbenchEditorStates } from './workbench-editor-state';
 import {
     parseWorkbenchEditorStates,
@@ -629,13 +629,17 @@ export class SessionsModel {
             .from(sessionStateTable)
             .where(eq(sessionStateTable.sessionId, state.sessionId))
             .get();
-        const paneLayout = reconcileOwnedTerminalTabs(
+        const storedStates = existing
+            ? parseWorkbenchEditorStates(existing.workbenchStateJson)
+            : undefined;
+        const paneLayout = resolveSessionPaneLayout(
             state.paneLayout,
+            storedStates?.[state.workbenchProjectId]?.paneLayout,
             terminalIds ?? this.orderedTerminalIds(state.sessionId),
         );
         // Only the selected Root's snapshot is rewritten; every other Root keeps the arrangement it was left in.
         const workbenchStates: WorkbenchEditorStates = {
-            ...(existing && parseWorkbenchEditorStates(existing.workbenchStateJson)),
+            ...storedStates,
             [state.workbenchProjectId]: {
                 paneLayout,
                 ...(state.extensionTreeViewStates && {

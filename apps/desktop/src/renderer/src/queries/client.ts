@@ -1,12 +1,11 @@
 import { useEffect } from 'react';
 
 import type { CaxriMethod, MethodResult, ParametersArgument } from '@caxri/protocol';
-import { isCaxriError } from '@caxri/protocol';
 import type { UseQueryOptions, UseQueryResult } from '@tanstack/react-query';
 import { QueryClient, useQuery } from '@tanstack/react-query';
 
 import { caxri } from '../lib/caxri';
-import { describeFailure, pushToast } from '../stores/toasts';
+import { describeFailure, isCancelledRequest, pushToast } from '../stores/toasts';
 
 /**
  * Extension Tree branches outlive React Query's five-minute default because the view that reads them is remounted by
@@ -135,5 +134,5 @@ export function useToastOnQueryError(isError: boolean, error: Error | null, labe
  * new controlled-view scope, so surfacing its typed cancellation as a persistent error would be a false failure.
  */
 export function shouldToastQueryError(isError: boolean, error: Error | null): boolean {
-    return isError && !(isCaxriError(error) && error.code === 'CANCELLED');
+    return isError && !isCancelledRequest(error);
 }
