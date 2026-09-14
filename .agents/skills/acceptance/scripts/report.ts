@@ -43,7 +43,7 @@ import { validateHumanText, validateReportLanguage } from './validate-report';
 
 export type { RebindReportHeadInput } from './report-head';
 const CASE_STATUSES = ['pass', 'fail', 'blocked'] as const;
-const PRODUCT_SURFACES = ['desktop', 'mobile'] as const;
+const PRODUCT_SURFACES = ['cli', 'desktop', 'mobile'] as const;
 const DEFAULT_CONCLUSIONS = {
     fail: '当前 PR 头提交未满足全部计划中的验收项。',
     partial: '当前 PR 头提交的验收尚未全部完成。',
@@ -86,10 +86,10 @@ const planItemSchema = z
                 path: ['mobileDevice'],
             });
         }
-        if (item.surface === 'desktop' && item.mobileDevice) {
+        if (item.surface !== 'mobile' && item.mobileDevice) {
             context.addIssue({
                 code: 'custom',
-                message: 'A desktop Acceptance case cannot declare mobileDevice',
+                message: `A ${item.surface} Acceptance case cannot declare mobileDevice`,
                 path: ['mobileDevice'],
             });
         }
