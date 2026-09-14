@@ -3,7 +3,6 @@ import { dirname, extname, isAbsolute, join, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-import { execFileAsync } from '@caxri/system';
 import { z } from 'zod';
 
 import { validateAgentFixtureEvidence } from './agent-fixture-lifecycle';
@@ -20,7 +19,12 @@ import {
     terminalFixturePreflightReceiptSchema,
 } from './fixture-preflight';
 import { validateReportMediaEvidence } from './media-integrity';
-import { mobileDeviceSchema, validateMobileEvidence } from './mobile-report';
+import {
+    hasMobileDeviceReceipt,
+    mobileDeviceSchema,
+    validateMobileEvidence,
+} from './mobile-report';
+import { changedPathsBetween } from './rebind-delta';
 import type { RebindReportHeadInput } from './report-head';
 import { rebindReportDocument } from './report-head';
 import { reportCliHelp } from './report-help';
@@ -134,6 +138,22 @@ export interface FinalizeReportInput {
 }
 function preflightEvidencePath(caseId: string): string {
     return `assets/${encodeURIComponent(caseId)}-fixture-preflight.json`;
+}
+
+/**
+ * Suffixes of the receipts that only record that the adapter's own machinery ran — which profile was used, that the
+ * fixture came up, that cleanup completed. They say nothing about what the product did, so they cannot stand in for an
+ * observation. The mobile device receipt is deliberately absent: it carries an `outcome`, which is a real record of
+ * what happened on the selected target.
+ */
+const LIFECYCLE_RECEIPT_SUFFIXES = [
+    '-state-isolation.json',
+    '-fixture-preflight.json',
+    '-agent-fixture.json',
+] as const;
+
+function isLifecycleReceipt(path: string): boolean {
+    return LIFECYCLE_RECEIPT_SUFFIXES.some((suffix) => path.endsWith(suffix));
 }
 export async function loadAcceptanceCasePlan(
     reportDirectory: string,
@@ -278,24 +298,6 @@ export async function rebindReportHead(input: RebindReportHeadInput): Promise<vo
     await writeJsonAtomically(resultPath, rebindReportDocument(raw, input));
 }
 
-/**
- * Lists what the two heads actually differ in, so a rebind is judged by the delta rather than by the caller's
- * description of it. Both heads must exist locally; an unresolved revision fails closed.
- */
-async function changedPathsBetween(fromCommit: string, commit: string): Promise<string[]> {
-    let stdout: string;
-    try {
-        ({ stdout } = await execFileAsync(
-            'git',
-            ['diff', '--name-only', '-z', `${fromCommit}..${commit}`],
-            { cwd: PROJECT_ROOT },
-        ));
-    } catch {
-        throw new Error(`Cannot compare ${fromCommit}..${commit} to check the rebind delta`);
-    }
-    return stdout.split('\0').filter(Boolean);
-}
-
 function evidencePath(evidence: z.infer<typeof evidenceSchema>): string {
     return typeof evidence === 'string' ? evidence : evidence.path;
 }
@@ -363,13 +365,15 @@ async function readExecutionReceipt(
     let rawReceipt: string;
     try {
         rawReceipt = await readFile(join(directory, evidence), 'utf8');
-    } catch (error) {
-        if (
-            acceptanceCase.status === 'blocked' &&
-            (error as NodeJS.ErrnoException).code === 'ENOENT'
-        )
-            return null;
-        throw error;
+    } catch (error: unknown) {
+        if (errorCode(error) !== 'ENOENT') throw error;
+        if (acceptanceCase.status === 'blocked') return null;
+        /**
+         * A case that reached a verdict but never produced the receipt is the ordinary authoring mistake, so it still
+         * gets the contract message rather than a bare ENOENT. A declared path that is missing on disk was already
+         * rejected by the per-file evidence check.
+         */
+        throw new Error(missingMessage, { cause: error });
     }
     if (acceptanceCase.evidence.every((item) => evidencePath(item) !== evidence)) {
         throw new Error(missingMessage);
@@ -463,6 +467,17 @@ async function validateMobileDeviceEvidence(
     if (plan.surface !== 'mobile') return;
     const expectedDevice = plan.mobileDevice;
     if (!expectedDevice) throw new Error(`Case ${plan.id} is missing its mobile device plan`);
+    /**
+     * A mobile case blocked before the selected target ever ran has no device receipt and no launch lifecycle to read,
+     * so demanding either would make the honest blocked round impossible to finalize on mobile exactly as it was on
+     * desktop. The receipt on disk is the proof it ran.
+     */
+    if (
+        acceptanceCase.status === 'blocked' &&
+        !(await hasMobileDeviceReceipt(directory, plan.id))
+    ) {
+        return;
+    }
     let evidenceBinding: { checkpointId: string } | { launchId: string };
     if (plan.stateIsolation.mode === 'readonly_checkpoint') {
         evidenceBinding = { checkpointId: plan.stateIsolation.checkpointId };
@@ -562,6 +577,20 @@ export async function finalizeReport(input: FinalizeReportInput) {
                 : requiredEvidenceTypes(planned).filter((required) => !actualTypes.has(required));
         if (missing.length > 0) {
             throw new Error(`Case ${item.id} is missing required evidence: ${missing.join(', ')}`);
+        }
+        /**
+         * The medium is waived for `blocked`, so without this the schema's `min(1)` could be met by an
+         * adapter-generated receipt alone. Those files record that the machinery ran; they say nothing about the
+         * behavior. A blocked case must still show why it could not observe it — the covering test's result, a log
+         * excerpt, the extracted copy.
+         */
+        if (
+            item.status === 'blocked' &&
+            item.evidence.every((evidence) => isLifecycleReceipt(evidencePath(evidence)))
+        ) {
+            throw new Error(
+                `Case ${item.id} is blocked and must cite evidence beyond its lifecycle receipts`,
+            );
         }
         // Sequential await preserves deterministic, plan-ordered failure reporting across cases;
         // see the evidence-file validation loop above for the same rationale.
@@ -675,6 +704,7 @@ async function main(argv: string[]): Promise<void> {
             throw new Error('Missing report head rebind input');
         }
         await rebindReportHead({
+            allowFinalized: options['allow-finalized'] === true,
             changedPaths: await changedPathsBetween(fromCommit, commit),
             commit,
             createdAt: option(options, 'created-at'),

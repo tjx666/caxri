@@ -4,6 +4,12 @@ import { validateHumanText } from './validate-report';
 
 export interface RebindReportHeadInput {
     /**
+     * Explicit `--allow-finalized`. Publication is recorded in the Go ledger, not in `result.json`, so this command
+     * cannot see it; the flag makes the caller state that this round has not been ingested, and keeps an
+     * already-published round from being moved by an unaware caller.
+     */
+    allowFinalized?: boolean;
+    /**
      * Every repository path that differs between `fromCommit` and `commit`, resolved from git by the caller. A
      * finalized round is rebound only when this proves the delta cannot change what the product does; a free-text
      * `reason` alone is not evidence.
@@ -51,10 +57,15 @@ export function rebindReportDocument(raw: unknown, input: RebindReportHeadInput)
      */
     const wasFinalized = 'summary' in report;
     if (wasFinalized) {
-        const drifted = (input.changedPaths ?? []).filter(
-            (path) => !path.startsWith(NON_PRODUCT_REBIND_PREFIX),
-        );
-        if (!input.changedPaths || drifted.length > 0) {
+        if (!input.allowFinalized) {
+            throw new Error(
+                'A finalized Acceptance report needs --allow-finalized and must be unpublished',
+            );
+        }
+        if (!input.changedPaths) {
+            throw new Error('A finalized Acceptance report needs the resolved rebind delta');
+        }
+        if (input.changedPaths.some((path) => !path.startsWith(NON_PRODUCT_REBIND_PREFIX))) {
             throw new Error(
                 'A finalized Acceptance report can only be rebound onto a non-product head',
             );

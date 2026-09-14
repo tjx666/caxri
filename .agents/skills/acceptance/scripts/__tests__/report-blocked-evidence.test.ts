@@ -151,7 +151,7 @@ describe('finalizeReport blocked-case evidence contract', () => {
         ).rejects.toThrow('Case blocked-case must include its state-isolation receipt');
     });
 
-    it('still requires the planned medium and the launch receipt for a passing case', async () => {
+    it('still requires the planned medium for a passing case', async () => {
         await seedRound();
         await recordLaunch('ran-case');
         await writeCases([
@@ -162,5 +162,41 @@ describe('finalizeReport blocked-case evidence contract', () => {
         await expect(
             finalizeReport({ directory: round.directory, requirement: REQUIREMENT }),
         ).rejects.toThrow('Case ran-case is missing required evidence: screenshot');
+    });
+
+    it('names the missing launch receipt for a passing case instead of a bare ENOENT', async () => {
+        await seedRound();
+        await writeCases([
+            { evidence: ['assets/ran-case.png'], id: 'ran-case', status: 'pass' },
+            { evidence: ['assets/covering-tests.txt'], id: 'blocked-case', status: 'blocked' },
+        ]);
+
+        await expect(
+            finalizeReport({ directory: round.directory, requirement: REQUIREMENT }),
+        ).rejects.toThrow('Case ran-case must include its state-isolation receipt');
+    });
+
+    it('rejects a blocked case whose only evidence is a lifecycle receipt', async () => {
+        await seedRound();
+        await recordLaunch('ran-case');
+        await recordLaunch('blocked-case');
+        await writeCases([
+            {
+                evidence: ['assets/ran-case.png', 'assets/ran-case-state-isolation.json'],
+                id: 'ran-case',
+                status: 'pass',
+            },
+            {
+                evidence: ['assets/blocked-case-state-isolation.json'],
+                id: 'blocked-case',
+                status: 'blocked',
+            },
+        ]);
+
+        await expect(
+            finalizeReport({ directory: round.directory, requirement: REQUIREMENT }),
+        ).rejects.toThrow(
+            'Case blocked-case is blocked and must cite evidence beyond its lifecycle receipts',
+        );
     });
 });
