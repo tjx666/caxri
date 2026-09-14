@@ -176,7 +176,13 @@ export function ExtensionTreeTrailingIcon({ icon }: { icon: TreeItemDto['trailin
     return (
         <Icon
             aria-hidden="true"
-            className="shrink-0 text-muted"
+            /**
+             * The same palette the leading slot uses. A glyph that carries a state — a pull request's merged, open, or
+             * draft lifecycle — means the same thing in either slot, so moving it here must not drain its color; the
+             * trailing slot's original occupant, a deployment environment, has no state and so still falls back to
+             * `--muted`.
+             */
+            className={cn('shrink-0', themeIconClassNames[iconId as ThemeIconId] ?? 'text-muted')}
             data-theme-icon={iconId}
             size={14}
         />
