@@ -22,13 +22,26 @@ import {
 } from './check';
 
 describe('dirty layer report', () => {
-    it('keeps domain-only tests off Renderer, knip, and E2E recommendations', () => {
+    it('keeps domain-only tests off knip and E2E recommendations but still routes them to React Doctor', () => {
         expect(
             dirtyLayerReportForFiles(['apps/server/src/domains/files/search.test.ts'], true),
         ).toEqual({
             layers: ['Domains'],
-            suggestedGates: [],
+            suggestedGates: ['bun run doctor:changed'],
         });
+    });
+
+    it('routes every changed TypeScript file to React Doctor, whatever layer owns it', () => {
+        /**
+         * CI runs React Doctor over all changed TypeScript, and its plain JavaScript rules are not Renderer-only.
+         */
+        expect(
+            dirtyLayerReportForFiles(['apps/server/src/domains/agents/title-generation.ts'], true)
+                .suggestedGates,
+        ).toEqual(['bun run doctor:changed']);
+        expect(
+            dirtyLayerReportForFiles(['docs/low-cost-generation.md'], true).suggestedGates,
+        ).toEqual([]);
     });
 
     it('recommends Renderer and shared-contract gates without claiming they ran', () => {
@@ -59,15 +72,15 @@ describe('dirty layer report', () => {
     it('suggests --e2e only for explicitly selected Playwright specs', () => {
         expect(dirtyLayerReportForFiles(['e2e/smoke.e2e.ts'], true)).toEqual({
             layers: ['e2e'],
-            suggestedGates: ['--e2e'],
+            suggestedGates: ['bun run doctor:changed', '--e2e'],
         });
         expect(dirtyLayerReportForFiles(['e2e/smoke.e2e.ts'], false)).toEqual({
             layers: ['e2e'],
-            suggestedGates: [],
+            suggestedGates: ['bun run doctor:changed'],
         });
         expect(dirtyLayerReportForFiles(['e2e/support/fixtures.ts'], true)).toEqual({
             layers: ['e2e'],
-            suggestedGates: [],
+            suggestedGates: ['bun run doctor:changed'],
         });
     });
 
@@ -80,6 +93,7 @@ describe('dirty layer report', () => {
         ).toEqual({
             layers: ['e2e'],
             suggestedGates: [
+                'bun run doctor:changed',
                 'bun run test:e2e:real-agent',
                 'bun run scripts/run-e2e-failure-isolation.ts',
             ],
@@ -472,6 +486,17 @@ describe('direct import test selection', () => {
             'apps/desktop/src/shared/editor-state.ts',
         ]);
         expect(selected).toContain('apps/desktop/src/renderer/src/stores/session-view.test.ts');
+    });
+
+    it('runs a skill\u{2019}s own contract tests when its SKILL.md changes', async () => {
+        const selected = await selectedTestCandidates(process.cwd(), [
+            '.agents/skills/e2e-testing/SKILL.md',
+        ]);
+        expect(selected).toContain('.agents/skills/e2e-testing/scripts/skill-routing.test.ts');
+        expect(selected).toContain('scripts/__tests__/skill-invocation.test.ts');
+        expect(selected.some((test) => test.startsWith('.agents/skills/quality-check/'))).toBe(
+            false,
+        );
     });
 
     it('discovers direct-import tests inside workspace packages', async () => {

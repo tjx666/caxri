@@ -122,12 +122,12 @@ evidence rather than automated test or Acceptance evidence.
 
 ## CI-only parity
 
-Reproduce only the exact failed cases against the production build with one worker and three
+Reproduce only the exact failed cases against the production build with one worker and two
 deterministic repetitions:
 
 ```bash
 bun run build
-bunx playwright test <failed-files...> -g '<failed test>' --workers=1 --repeat-each=3 --reporter=line
+bunx playwright test <failed-files...> -g '<failed test>' --workers=1 --repeat-each=2 --reporter=line
 ```
 
 When one local command launches more than one Electron instance, wrap the entire command in the
@@ -136,34 +136,43 @@ worktree from acquiring the root lease between Playwright launches:
 
 ```bash
 bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts desktop --label focused-repeat -- \
-  bunx playwright test <failed-files...> -g '<failed test>' --workers=1 --repeat-each=3 --reporter=line
+  bunx playwright test <failed-files...> -g '<failed test>' --workers=1 --repeat-each=2 --reporter=line
 ```
 
 Preserve the relevant CI viewport, font/locale/shell behavior, and long temporary-path conditions.
 Inject slowness at the owning async boundary or wait for an observable product invariant. Never use
 machine-wide throttling, fixed sleeps, random pressure, or a timeout-only change as the fix.
 
-If the exact CI-failing case passes three deterministic local repetitions and its failure is
-unrelated to the current change, preserve the case, CI run and failure evidence, local reproduction
-command, and result for [issue #877](https://github.com/tjx666/caxri/issues/877). Create or update
+If the exact CI-failing case passes two deterministic local repetitions and its failure is unrelated
+to the current change, stop investigating it inside this delivery. Preserve the case, CI run and
+failure evidence, local reproduction command, and result for
+[issue #877](https://github.com/tjx666/caxri/issues/877), then continue delivery. Create or update
 that remote record only when the current request or an active delivery workflow authorizes issue
 mutation; otherwise include copy-ready evidence in the local report. Search existing comments first
 when publication is authorized, and append a new occurrence to the matching case comment instead of
 creating another comment for the same test.
 
+Two repetitions are the entire local budget, and they cover the exact case only. Do not rerun the
+full E2E suite, and do not keep re-dispatching CI, to decide whether an unrelated case is
+intermittent. The suite shares one self-hosted runner with every other session, so chasing an
+intermittent failure in place blocks both the delivery it interrupted and every sibling delivery
+queued behind that runner. Intermittent cases are repaired collectively from the #877 record, where
+one investigation covers every occurrence, instead of once per pull request that happens to hit
+one.
+
 CI retains screenshots, traces, the final viewport/grid, fixture ready markers, and content-free
 Main/Runtime logs for failures. Keep the failed CI run red while diagnosing it.
 
-If the failed logical pool was `parallel-safe`, the serial repetitions are necessary but not
-sufficient. Run the exact failed specs again under the repository-owned namespaced two-worker pool,
-because loaded-runner races can expose stale async state and hidden warmup surfaces that one worker
-cannot reproduce. Prefer stable observable locators and explicit busy-to-ready transitions over
+A loaded-runner reproduction belongs to that collective work rather than to this delivery. A
+`parallel-safe` race can need the repository-owned namespaced two-worker pool to appear at all,
+because loaded-runner conditions expose stale async state and hidden warmup surfaces that one worker
+cannot reproduce. Run that pool while repairing the recorded case, not as a gate on the delivery
+that reported it. Prefer stable observable locators and explicit busy-to-ready transitions over
 arbitrary delays.
 
-Only after the applicable serial check and, for `parallel-safe`, the loaded-pool check both pass may
-an unrelated recorded case stop blocking the current delivery. Do not generalize this exception to
-an untested case, a local failure, or a failure in the changed behavior. Recording a failure does not
-replace the validation that covers its original execution conditions.
+The exception covers only a recorded case whose failure is unrelated to the current change. A case
+that reproduces locally, a case nobody reran, and any failure inside the changed behavior all still
+block delivery. Recording a failure never replaces the validation that covers the changed code.
 
 Issue #116 CI evidence uses the repository-owned workflow dispatch instead of an ad-hoc command.
 `docs/ci-performance.md` owns the current profile, pool, receipt, and comparison contract; use the
