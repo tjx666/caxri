@@ -6,6 +6,7 @@ import {
     clientTestFiles,
     cliTestFiles,
     desktopTestFiles,
+    markdownTestFiles,
     mobileTestFiles,
     mobileTransportTestFiles,
     protocolTestFiles,
@@ -54,6 +55,7 @@ describe('Vitest project partition', () => {
             'cli',
             'mobile',
             'mobile-transport',
+            'markdown',
         ]);
         expect(agentSkillsTestFiles).toEqual(['packages/agent-skills/{scripts,src}/**/*.test.ts']);
         expect(protocolTestFiles).toEqual(['packages/protocol/src/**/*.test.ts']);
@@ -65,6 +67,7 @@ describe('Vitest project partition', () => {
         expect(cliTestFiles).toEqual(['apps/cli/{scripts,src}/**/*.test.ts']);
         expect(mobileTestFiles).toEqual(['apps/mobile/{plugins,scripts,src}/**/*.test.ts']);
         expect(mobileTransportTestFiles).toEqual(['packages/mobile-transport/src/**/*.test.ts']);
+        expect(markdownTestFiles).toEqual(['packages/markdown/src/**/*.test.ts']);
         expect(desktopTestFiles).toContain('apps/desktop/src/**/*.test.ts');
         expect(desktopTestFiles).not.toContain('apps/server/src/**/*.test.ts');
         expect(workspaceAliases.caxri).toBe(

@@ -44,6 +44,7 @@ type ServiceHandlerMethods =
     | 'files.authorizeTrash'
     | 'files.authorizeOpen'
     | 'files.read'
+    | 'files.readAsset'
     | 'files.write'
     | 'files.search'
     | 'terminal.agentTranscript'
@@ -203,6 +204,8 @@ export function createServiceHandlers(services: {
         'files.resolveImports': (parameters) => files.resolveImports(parameters),
         'files.resolveKind': async (parameters) => (await files.authorizeOpen(parameters)).kind,
         'files.read': ({ sessionId, path }) => files.read(sessionId, path),
+        'files.readAsset': ({ sessionId, path }, signal) =>
+            files.readAsset(sessionId, path, signal),
         'files.write': ({ sessionId, path, content }) => files.write(sessionId, path, content),
         'files.search': (parameters, signal) => files.search(parameters, signal),
         'pathBrowser.start': () => mainOwned('pathBrowser.start'),

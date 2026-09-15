@@ -1,0 +1,281 @@
+/*
+ * Typography for the file preview surfaces (`features/preview/`).
+ *
+ * The preview body is one sanitized HTML string produced by `@caxri/markdown`, so its elements can carry no Tailwind
+ * utilities — this file is where they get their appearance, and every color comes from the same semantic theme tokens
+ * the rest of the Workbench uses so an imported theme moves the preview with it.
+ */
+
+.caxri-markdown {
+    font-size: 13px;
+    line-height: 1.65;
+
+    /*
+     * Containment, not decoration. A document can carry raw HTML, so it can carry a `class` or an inline `style` that
+     * asks for `position: fixed` — and unlike VS Code's preview, which lives in its own webview, this one renders
+     * inside the Workbench document. `contain` makes this element the containing block for positioned descendants and
+     * clips them to it, so the worst a document can lay out is its own pane.
+     */
+    contain: layout paint;
+}
+
+.caxri-markdown > :first-child {
+    margin-top: 0;
+}
+
+.caxri-markdown > :last-child {
+    margin-bottom: 0;
+}
+
+.caxri-markdown p,
+.caxri-markdown ul,
+.caxri-markdown ol,
+.caxri-markdown blockquote,
+.caxri-markdown table,
+.caxri-markdown pre,
+.caxri-markdown .caxri-markdown-diagram {
+    margin: 0 0 12px;
+}
+
+.caxri-markdown h1,
+.caxri-markdown h2,
+.caxri-markdown h3,
+.caxri-markdown h4,
+.caxri-markdown h5,
+.caxri-markdown h6 {
+    margin: 24px 0 10px;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.caxri-markdown h1 {
+    font-size: 24px;
+}
+
+.caxri-markdown h2 {
+    font-size: 19px;
+}
+
+.caxri-markdown h3 {
+    font-size: 16px;
+}
+
+.caxri-markdown h4 {
+    font-size: 14px;
+}
+
+.caxri-markdown h5,
+.caxri-markdown h6 {
+    font-size: 13px;
+    color: var(--muted);
+}
+
+/* The rule under a top-level heading is the document's own structure, not a chrome seam. */
+.caxri-markdown h1,
+.caxri-markdown h2 {
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+}
+
+.caxri-markdown a {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.caxri-markdown a:hover {
+    text-decoration: underline;
+}
+
+.caxri-markdown ul,
+.caxri-markdown ol {
+    padding-left: 22px;
+}
+
+.caxri-markdown li + li {
+    margin-top: 2px;
+}
+
+.caxri-markdown li > ul,
+.caxri-markdown li > ol {
+    margin: 2px 0 0;
+}
+
+.caxri-markdown blockquote {
+    padding: 2px 0 2px 12px;
+    border-left: 3px solid var(--selection);
+    color: var(--muted);
+}
+
+.caxri-markdown hr {
+    height: 1px;
+    margin: 20px 0;
+    border: 0;
+    background: var(--border);
+}
+
+.caxri-markdown table {
+    border-collapse: collapse;
+    display: block;
+    overflow-x: auto;
+    max-width: 100%;
+}
+
+.caxri-markdown th,
+.caxri-markdown td {
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    text-align: left;
+}
+
+.caxri-markdown th {
+    background: var(--surface);
+    font-weight: 600;
+}
+
+.caxri-markdown code {
+    font-family: var(--editor-font-family, ui-monospace, 'Caxri JetBrains Mono', monospace);
+    font-size: 12px;
+}
+
+/* Inline code only; a fenced block paints its own container below. */
+.caxri-markdown :not(pre) > code {
+    padding: 1px 5px;
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+}
+
+.caxri-markdown img {
+    max-width: 100%;
+}
+
+.caxri-markdown img[data-state='unresolved'] {
+    display: inline-block;
+    min-width: 120px;
+    padding: 6px 10px;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--muted);
+    font-style: italic;
+}
+
+.caxri-markdown-checkbox {
+    margin: 0 6px 0 0;
+    vertical-align: middle;
+    accent-color: var(--accent);
+}
+
+.caxri-markdown-task {
+    list-style: none;
+    margin-left: -18px;
+}
+
+.caxri-markdown-code {
+    position: relative;
+    padding: 10px 12px;
+    overflow-x: auto;
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    /* Monaco's `colorize` output keeps its own line breaks; preserve them without collapsing leading indentation. */
+    white-space: pre;
+    tab-size: 4;
+}
+
+.caxri-markdown-copy {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--elevated);
+    color: var(--muted);
+    opacity: 0;
+    transition: opacity var(--motion-tab-enter) var(--motion-ease-enter);
+    cursor: pointer;
+}
+
+.caxri-markdown-copy svg {
+    width: 13px;
+    height: 13px;
+}
+
+.caxri-markdown-copy:hover {
+    color: var(--foreground);
+}
+
+.caxri-markdown-copy[data-state='copied'] {
+    color: var(--success);
+}
+
+.caxri-markdown-copy[data-state='failed'] {
+    color: var(--danger);
+}
+
+/* Follows VS Code and GitHub: the affordance appears on approach and stays for keyboard users. */
+.caxri-markdown-code:hover .caxri-markdown-copy,
+.caxri-markdown-copy:focus-visible,
+.caxri-markdown-copy[data-state] {
+    opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .caxri-markdown-copy {
+        transition: none;
+    }
+}
+
+.caxri-markdown-diagram {
+    display: flex;
+    justify-content: center;
+    padding: 12px;
+    border-radius: var(--radius-md);
+    background: var(--surface);
+}
+
+.caxri-markdown-diagram svg {
+    max-width: 100%;
+    height: auto;
+}
+
+.caxri-markdown-diagram-error {
+    margin: 0;
+    color: var(--danger);
+    font-family: var(--editor-font-family, ui-monospace, 'Caxri JetBrains Mono', monospace);
+    font-size: 12px;
+    white-space: pre-wrap;
+}
+
+/*
+ * Transparency has to be visible for an image preview to be honest about the file: a transparent SVG on a flat fill is
+ * indistinguishable from an opaque one that happens to match. Two offset checker gradients are the standard way to
+ * express this without shipping a tile image.
+ */
+.caxri-image-preview-canvas {
+    --checker-size: 10px;
+
+    background-color: var(--surface);
+    background-image:
+        linear-gradient(
+            45deg,
+            var(--elevated) 25%,
+            transparent 25%,
+            transparent 75%,
+            var(--elevated) 75%
+        ),
+        linear-gradient(
+            45deg,
+            var(--elevated) 25%,
+            transparent 25%,
+            transparent 75%,
+            var(--elevated) 75%
+        );
+    background-position:
+        0 0,
+        var(--checker-size) var(--checker-size);
+    background-size: calc(var(--checker-size) * 2) calc(var(--checker-size) * 2);
+}

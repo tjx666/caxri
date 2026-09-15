@@ -4,6 +4,7 @@ import { basename, dirname, resolve } from 'node:path';
 
 import type {
     AppSettings,
+    FileAsset,
     FileDocument,
     FileEntry,
     ServerEvent,
@@ -401,6 +402,19 @@ export class FileService {
         await this.watcher.noteWorkspacePath(sessionId, operationPath);
         return this.operations.run(
             () => this.documents.read(sessionId, path, signal, operationPath),
+            {
+                maximumWaitMs: MAXIMUM_DOCUMENT_QUEUE_WAIT_MS,
+                paths: [operationPath.path],
+            },
+        );
+    }
+
+    async readAsset(sessionId: string, path: string, signal?: AbortSignal): Promise<FileAsset> {
+        signal?.throwIfAborted();
+        const operationPath = await this.projectRoots.resolveSessionPath(sessionId, path, true);
+        await this.watcher.noteWorkspacePath(sessionId, operationPath);
+        return this.operations.run(
+            () => this.documents.readAsset(sessionId, path, signal, operationPath),
             {
                 maximumWaitMs: MAXIMUM_DOCUMENT_QUEUE_WAIT_MS,
                 paths: [operationPath.path],

@@ -1,0 +1,16 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "declaration": true,
+        "declarationMap": true,
+        // The shipped engine must build without the DOM: a mobile client renders its HTML inside a WebView, and the
+        // renderer process it runs in has no `document`. Dropping the lib here is what keeps that a build error rather
+        // than a runtime one. Tests keep the DOM lib because Vitest's own types need it.
+        "lib": ["ES2025"],
+        "noEmit": false,
+        "outDir": "dist",
+        "rootDir": "src",
+        "sourceMap": true
+    },
+    "exclude": ["src/**/*.test.ts"]
+}

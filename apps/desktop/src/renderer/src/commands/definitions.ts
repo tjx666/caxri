@@ -191,6 +191,18 @@ export const commandDefinitions: CommandDefinition[] = [
             when: (context) => context.editor.canSendReferenceToTerminal(),
         },
     ),
+    /**
+     * `allowInEditable` so the chord fires while Monaco owns focus — opening the preview of the file you are editing is
+     * the entire point, and the source editor is where the caret almost always is.
+     */
+    fromCatalog('editor.openPreview', (context) => context.editor.openPreview(), {
+        allowInEditable: true,
+        when: (context) => context.editor.canOpenPreview(),
+    }),
+    fromCatalog('editor.openPreviewToSide', (context) => context.editor.openPreviewToSide(), {
+        allowInEditable: true,
+        when: (context) => context.editor.canOpenPreview(),
+    }),
     // A split is a pane operation, so the direction only chooses the split axis and which side the new pane takes.
     ...(
         [

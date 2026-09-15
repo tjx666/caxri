@@ -89,6 +89,20 @@
                 "rules": ["react-doctor/server-sequential-independent-await"],
             },
             {
+                // False positive: the rule looks for a revoke beside the create, and this module
+                // deliberately separates them. One preview asset is shared by every element that
+                // refers to it, so the URL is refcounted and `releaseAsset` revokes it when the
+                // last holder lets go — revoking beside `createObjectURL` would break the sharing
+                // the cache exists for. `__tests__/preview-asset-client.test.ts` covers every
+                // acquire/release path, including the revoke.
+                "files": [
+                    "apps/desktop/src/renderer/src/features/preview/preview-asset-client.ts",
+                    // `@caxri/desktop` reports its findings relative to its own root.
+                    "src/renderer/src/features/preview/preview-asset-client.ts",
+                ],
+                "rules": ["react-doctor/no-create-object-url-without-revoke"],
+            },
+            {
                 // Runtime domains deliberately expose index.ts boundaries. Cross-domain consumers
                 // must import those roots instead of reaching into implementation modules; the
                 // structure contract enforces this architecture rule.
