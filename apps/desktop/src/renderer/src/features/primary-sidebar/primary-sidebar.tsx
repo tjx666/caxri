@@ -181,7 +181,7 @@ export function PrimarySidebar() {
     };
 
     const revealMoreSessions = (sessionWindow: ProjectSessionWindow): void => {
-        sessionWindows.revealMore(sessionWindow.project.id, sessionWindow.visibleSessions.length);
+        sessionWindows.revealMore(sessionWindow.project.id, sessionWindow.windowCount);
         // The final step unmounts the reveal row itself, which would drop the tree's roving Tab stop onto the document
         // body. Hand focus to the Session row directly above it while that row still exists — the same pre-unmount
         // handoff the Delete/Backspace archive path performs.

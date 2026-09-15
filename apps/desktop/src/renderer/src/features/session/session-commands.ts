@@ -73,6 +73,22 @@ export async function didSelectSession(sessionId: string): Promise<boolean> {
 }
 
 /**
+ * "Open" for a Session row's activation gesture. Double-click opens the thing under the pointer in Finder, in the VS
+ * Code explorer, and on this app's own Workbench tab strip, so a Session row must not spend that gesture on rename;
+ * rename stays on the row's context menu and its Enter key.
+ *
+ * A Session owns the entire Workbench, so opening one is selecting it — there is no second surface to raise. A row that
+ * is already selected is therefore already open, and re-issuing `session.select` for it would push a redundant
+ * selection into the visit history for a gesture that changed nothing.
+ */
+export function openSession(sessionId: string): void {
+    if (getBootstrap()?.selectedSessionId === sessionId) return;
+    // Fire-and-forget: `didSelectSession` funnels its own failures into a toast via `tryCommand`.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+    void didSelectSession(sessionId);
+}
+
+/**
  * Records the logical selection synchronously so another quick-toggle can reverse direction before Server's full
  * snapshot refresh completes. Server remains authoritative: the pending link disappears when its refreshed selected
  * Session arrives, and a failed request or any ordinary Session selection clears it.
@@ -208,25 +224,47 @@ export async function didReorderSession(
 }
 
 /**
- * Longest Session title the archive notice quotes. Titles are user- and Agent-authored and effectively unbounded, so a
- * runaway one would push the notice's own verb and its Undo button out of the toast's fixed width.
+ * Longest Session title a lifecycle notice quotes. Titles are user- and Agent-authored and effectively unbounded, so a
+ * runaway one would push the notice's own verb and its action button out of the toast's fixed width.
  */
-const ARCHIVED_SESSION_TITLE_MAX_LENGTH = 48;
+const SESSION_NOTICE_TITLE_MAX_LENGTH = 48;
 
 /**
- * Copy for the notice that records an archive. An empty `displayTitle` is representable in the Session record — a
- * Shell-only Session has no Agent to name it — and quoting nothing reads as a rendering bug, so that case names the
- * noun instead of the title.
+ * Copy for a notice that records one Session lifecycle change. An empty `displayTitle` is representable in the Session
+ * record — a Shell-only Session has no Agent to name it — and quoting nothing reads as a rendering bug, so that case
+ * names the noun instead of the title.
  */
-export function describeArchivedSession(displayTitle: string | undefined): string {
+function describeSessionNotice(verb: string, displayTitle: string | undefined): string {
     const title = displayTitle?.trim() ?? '';
-    if (title.length === 0) return 'Archived Session';
+    if (title.length === 0) return `${verb} Session`;
     // Count and cut by code point: an Agent-authored title can end on an emoji, and a UTF-16 cut would leave a lone
     // surrogate that renders as the replacement character.
     const characters = [...title];
-    if (characters.length <= ARCHIVED_SESSION_TITLE_MAX_LENGTH) return `Archived "${title}"`;
-    const head = characters.slice(0, ARCHIVED_SESSION_TITLE_MAX_LENGTH).join('').trimEnd();
-    return `Archived "${head}…"`;
+    if (characters.length <= SESSION_NOTICE_TITLE_MAX_LENGTH) return `${verb} "${title}"`;
+    const head = characters.slice(0, SESSION_NOTICE_TITLE_MAX_LENGTH).join('').trimEnd();
+    return `${verb} "${head}…"`;
+}
+
+export function describeArchivedSession(displayTitle: string | undefined): string {
+    return describeSessionNotice('Archived', displayTitle);
+}
+
+/**
+ * Restore's counterpart to {@link describeArchivedSession}. Archive and restore are one reversible pair, so they report
+ * themselves in one shape; a restore that announced nothing was the only Session state change with no record at all,
+ * and it happens inside a dialog large enough to cover the PrimarySidebar row it just brought back.
+ */
+export function describeRestoredSession(displayTitle: string | undefined): string {
+    return describeSessionNotice('Restored', displayTitle);
+}
+
+/**
+ * Copy for a batch restore. Quoting a batch is not possible in a toast's width, so the count carries the record; a
+ * single-Session batch still names its Session, because there the title is the useful part.
+ */
+export function describeRestoredSessions(displayTitles: ReadonlyArray<string | undefined>): string {
+    if (displayTitles.length === 1) return describeRestoredSession(displayTitles[0]);
+    return `Restored ${displayTitles.length} Sessions`;
 }
 
 /**
@@ -407,6 +445,25 @@ export function hasLiveAgentTerminal(
     );
 }
 
+async function unarchiveSessionWithNotice(
+    sessionId: string,
+    placement: SessionRestorePlacement,
+): Promise<void> {
+    const restored = await tryCommand(
+        'Session restore failed',
+        () => caxri.request('session.unarchive', { placement, sessionId }),
+        { refresh: refreshWorkbench },
+    );
+    /**
+     * `unchanged` is the archive notice's Undo, and only that. It already named the Session it was reversing one toast
+     * ago, and it restores the row into a PrimarySidebar the user can see, so a second notice would report a change
+     * they just watched happen. An explicit restore has neither: it is issued from a dialog wide enough to cover the
+     * sidebar, so without this the row reappears somewhere the user cannot see and nothing says so.
+     */
+    if (!restored || placement === 'unchanged') return;
+    pushToast('info', describeRestoredSession(restored.displayTitle));
+}
+
 /**
  * Restoring puts the Session back on top of its Project by default, so the row the user just asked for is the one they
  * see. Only the archive notice's Undo passes `unchanged`: it reverses a single archive, and a row that jumped to the
@@ -416,24 +473,17 @@ export function unarchiveSession(
     sessionId: string,
     placement: SessionRestorePlacement = 'top',
 ): void {
-    // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
+    // Fire-and-forget: `unarchiveSessionWithNotice` funnels its own failures into a toast via `tryCommand`.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-    void tryCommand(
-        'Session restore failed',
-        () => caxri.request('session.unarchive', { placement, sessionId }),
-        { refresh: refreshWorkbench },
-    );
+    void unarchiveSessionWithNotice(sessionId, placement);
 }
 
 /**
  * Bulk restore from the Archived Sessions manager: one request, one bootstrap refresh, regardless of batch size. The
  * batch lands on top of its Projects in the order given, so the dialog's first row stays the first row afterwards.
  */
-export function unarchiveSessions(sessionIds: readonly string[]): void {
-    if (sessionIds.length === 0) return;
-    // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-    void tryCommand(
+async function unarchiveSessionsWithNotice(sessionIds: readonly string[]): Promise<void> {
+    const restored = await tryCommand(
         'Session restore failed',
         () =>
             caxri.request('session.unarchiveMany', {
@@ -442,6 +492,17 @@ export function unarchiveSessions(sessionIds: readonly string[]): void {
             }),
         { refresh: refreshWorkbench },
     );
+    // Reports what the Server actually restored rather than what was requested: a stale selection can name a Session
+    // that was deleted between opening the dialog and pressing Restore.
+    if (!restored || restored.length === 0) return;
+    pushToast('info', describeRestoredSessions(restored.map((session) => session.displayTitle)));
+}
+
+export function unarchiveSessions(sessionIds: readonly string[]): void {
+    if (sessionIds.length === 0) return;
+    // Fire-and-forget: `unarchiveSessionsWithNotice` funnels its own failures into a toast via `tryCommand`.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+    void unarchiveSessionsWithNotice(sessionIds);
 }
 
 export async function didRenameSession(sessionId: string, displayTitle: string): Promise<boolean> {

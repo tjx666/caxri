@@ -113,6 +113,8 @@ import {
     deleteSelectedSession,
     deleteSession,
     describeArchivedSession,
+    describeRestoredSession,
+    describeRestoredSessions,
     didReorderProject,
     didReorderSession,
     didSelectSession,
@@ -120,8 +122,11 @@ import {
     openProjectInExternalEditor,
     openSelectedProjectInExternalEditor,
     openSelectedSessionPullRequest,
+    openSession,
     selectAdjacentSession,
     selectProject,
+    unarchiveSession,
+    unarchiveSessions,
 } from '../session-commands';
 
 describe('Session actions', () => {
@@ -659,6 +664,70 @@ describe('Session actions', () => {
         expect(mocks.pushToast).toHaveBeenCalledWith('info', 'Archived "docs"', expect.anything());
     });
 
+    it('records an explicit restore as a named notice, the way an archive is recorded', async () => {
+        mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-1', displayTitle: 'api-fix' });
+
+        unarchiveSession('session-1');
+        await mocks.tryCommand.mock.results[0]?.value;
+
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('session.unarchive', {
+            placement: 'top',
+            sessionId: 'session-1',
+        });
+        expect(mocks.tryCommand.mock.calls[0]?.[2]).toEqual({ refresh: mocks.refreshWorkbench });
+        expect(mocks.pushToast).toHaveBeenCalledExactlyOnceWith('info', 'Restored "api-fix"');
+    });
+
+    it('leaves the archive notice Undo silent, since that notice already named the Session', async () => {
+        mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-1', displayTitle: 'api-fix' });
+
+        unarchiveSession('session-1', 'unchanged');
+        await mocks.tryCommand.mock.results[0]?.value;
+
+        expect(mocks.pushToast).not.toHaveBeenCalled();
+    });
+
+    it('stays silent when the restore request itself fails', async () => {
+        mocks.caxriRequest.mockRejectedValueOnce(new Error('Server is not ready'));
+
+        unarchiveSession('session-1');
+        await mocks.tryCommand.mock.results[0]?.value;
+
+        expect(mocks.pushToast).toHaveBeenCalledExactlyOnceWith(
+            'error',
+            'Session restore failed: Server is not ready',
+        );
+    });
+
+    it('counts a batch restore and reports what the Server actually restored', async () => {
+        mocks.caxriRequest.mockResolvedValueOnce([
+            { id: 'session-1', displayTitle: 'api-fix' },
+            { id: 'session-2', displayTitle: 'docs' },
+        ]);
+
+        unarchiveSessions(['session-1', 'session-2', 'session-3']);
+        await mocks.tryCommand.mock.results[0]?.value;
+
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('session.unarchiveMany', {
+            placement: 'top',
+            sessionIds: ['session-1', 'session-2', 'session-3'],
+        });
+        expect(mocks.pushToast).toHaveBeenCalledExactlyOnceWith('info', 'Restored 2 Sessions');
+    });
+
+    it('opens the Session a row double-click names, and leaves an open one alone', async () => {
+        mocks.getBootstrap.mockReturnValue({ selectedSessionId: 'session-2' });
+        mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-1' });
+
+        openSession('session-2');
+        openSession('session-1');
+        await vi.waitFor(() => expect(mocks.caxriRequest).toHaveBeenCalledOnce());
+
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('session.select', {
+            sessionId: 'session-1',
+        });
+    });
+
     it('does not request a Terminal move when it is the only work tab', () => {
         moveTerminalToNewSession('terminal-1', true);
 
@@ -714,5 +783,18 @@ describe('Archived Session notice copy', () => {
         expect(message).toBe(`Archived "${'🚀'.repeat(48)}…"`);
         expect(message).not.toContain('�');
         expect(message.split('\u{D83D}').length - 1).toBe(48);
+    });
+});
+
+describe('Restored Session notice copy', () => {
+    it('reports a restore in the same shape as the archive it reverses', () => {
+        expect(describeRestoredSession('api-fix')).toBe('Restored "api-fix"');
+        expect(describeRestoredSession(undefined)).toBe('Restored Session');
+        expect(describeRestoredSession('a'.repeat(400))).toBe(`Restored "${'a'.repeat(48)}…"`);
+    });
+
+    it('counts a batch and names a batch of one', () => {
+        expect(describeRestoredSessions(['api-fix', 'docs'])).toBe('Restored 2 Sessions');
+        expect(describeRestoredSessions(['api-fix'])).toBe('Restored "api-fix"');
     });
 });
