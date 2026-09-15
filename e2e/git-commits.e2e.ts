@@ -61,9 +61,10 @@ test('Git repositories lazy-load pageable commits and subtree history', async ()
         expect(
             await identityIcons.nth(0).evaluate((icon) => icon.getBoundingClientRect().width),
         ).toBe(13);
+        // The repository glyph matches the Project Status tree's own 14px rows.
         expect(
             await identityIcons.nth(1).evaluate((icon) => icon.getBoundingClientRect().width),
-        ).toBe(16);
+        ).toBe(14);
         await running.page
             .locator('.git-panel')
             .screenshot({ path: test.info().outputPath('repository-icons.png') });

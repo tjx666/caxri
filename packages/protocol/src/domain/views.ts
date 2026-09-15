@@ -459,13 +459,12 @@ const sourceControlProviderModelSchema = z.object({
      * instead of guessing.
      */
     rootPath: z.string().min(1).max(4_096).optional(),
-    description: z.string().max(4_096),
     /**
-     * Whether `description` is a `reference` — a branch name or short SHA, atomic enough that an ellipsis destroys it —
-     * or `prose`, a pull request or commit subject that stays useful truncated. The panel truncates whichever of the
-     * repository name and the description is the prose one, so a narrow panel never compresses a branch name.
+     * The repository's branch. Atomic enough that an ellipsis destroys it — `feat/thing` and `feat/thing-2` both
+     * truncate to `feat/thi…` — so the panel protects its width and truncates the repository name instead, which the
+     * row's path tooltip still carries. Prose that a provider wants beside the row belongs in `descriptionTooltip`.
      */
-    descriptionKind: z.enum(['reference', 'prose']),
+    description: z.string().max(4_096),
     descriptionAccessibilityLabel: z.string().min(1).max(4_096),
     descriptionTooltip: z.string().min(1).max(4_096),
     countLabel: z.string().min(1).max(1_024),

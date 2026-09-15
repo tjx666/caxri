@@ -42,7 +42,8 @@ describe('GitProvider', () => {
         expect(ready.modes.find(({ id }) => id === 'commit')?.label).toBe(
             'Commit Changes (abcdef0)',
         );
-        expect(ready.providers[0].description).toContain('abcdef0');
+        // The row's description is the branch in every mode; the selected commit reaches the user through the hover.
+        expect(ready.providers[0].descriptionTooltip).toContain('abcdef0');
         expect(changes).toContainEqual({ kind: 'selection', selectedModeId: 'commit' });
 
         provider.setMode('working', scopeId);
