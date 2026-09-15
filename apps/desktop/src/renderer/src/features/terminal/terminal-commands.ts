@@ -17,6 +17,7 @@ import { caxri } from '../../lib/caxri';
 import { getBootstrap, getSelectedSession, getSessionState } from '../../stores/selectors';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { patchSessionState, refreshWorkbench } from '../../stores/workbench';
+import { newTerminalCommandKind } from './new-terminal-agent';
 import type { TerminalCommandNavigationDirection } from './terminal-command-tracker';
 import { didNavigateTerminalCommand } from './terminal-command-tracker';
 import { clearTerminalProgress } from './terminal-progress';
@@ -63,6 +64,17 @@ export async function createTerminal(
     const session = getSelectedSession();
     if (!session) return;
     await createTerminalForSession(session.id, kind, options);
+}
+
+/**
+ * The `session.defaultAgent` reader for Terminals created inside a Session. Until this existed the setting was only
+ * consulted while creating a Session, so `Cmd+T` and the New Terminal button ignored the Agent the user had named.
+ */
+export async function createDefaultTerminal(options: CreateTerminalOptions = {}): Promise<void> {
+    await createTerminal(
+        newTerminalCommandKind(getBootstrap()?.settings['session.defaultAgent']),
+        options,
+    );
 }
 
 async function createTerminalForSession(

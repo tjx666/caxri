@@ -120,9 +120,11 @@ export const settingsSpec = [
     {
         kind: 'enum',
         key: 'session.defaultAgent',
-        title: 'Default agent for new sessions',
+        title: 'Default agent',
+        description:
+            'Starts new Sessions and new Terminals with this Agent. Ask each time opens the list instead, and the New Terminal button always offers the other Agents.',
         category: 'general',
-        keywords: [...agentProviderIds, 'shell', 'provider'],
+        keywords: [...agentProviderIds, 'shell', 'provider', 'terminal', 'session'],
         options: [
             ...agentProviderIds.map((provider) => ({
                 value: provider,

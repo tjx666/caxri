@@ -36,7 +36,7 @@ import {
     clearActiveTerminal,
     closeTerminal,
     copyActiveTerminalSelection,
-    createTerminal,
+    createDefaultTerminal,
     findInActiveTerminal,
     hasActiveTerminalSelection,
     navigateActiveTerminalCommand,
@@ -161,9 +161,9 @@ const commandContext: CommandContext = {
     },
     terminal: {
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-        create: () => void createTerminal('shell'),
+        create: () => void createDefaultTerminal(),
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-        createInSplit: () => void createTerminal('shell', { split: 'right' }),
+        createInSplit: () => void createDefaultTerminal({ split: 'right' }),
         clearActive: () => {
             const terminalId = activeTerminalId();
             if (terminalId) clearActiveTerminal(terminalId);

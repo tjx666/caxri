@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 import { useEffect } from 'react';
 
 import type { CommandId, ProjectRecord } from '@caxri/protocol';
+import { terminalKindSchema } from '@caxri/protocol';
 import { SquareDashed, SquarePen } from 'lucide-react';
 
 import { CommandTooltip } from '../../components/command-tooltip';
@@ -13,7 +14,6 @@ import { cn } from '../../lib/utilities';
 import type { CreateSessionAnchor } from '../../stores/dialogs';
 import { closeCreateSessionMenu, useDialogStore } from '../../stores/dialogs';
 import { beginSessionCreation, chooseSessionTerminalKind } from './session-commands';
-import { useTerminalKindRecencyStore } from './terminal-kind-recency';
 
 /**
  * The Terminal-choice menu for a new Session, hung from whichever control opened it.
@@ -44,7 +44,6 @@ function SessionCreationMenu({
             state.createSessionMenu?.projectId === project.id &&
             state.createSessionMenu.anchor === anchor,
     );
-    const order = useTerminalKindRecencyStore((state) => state.order);
     const menuTrigger = (
         <MenuTrigger
             /**
@@ -96,7 +95,7 @@ function SessionCreationMenu({
                 menuTrigger
             )}
             <MenuContent aria-label={`New Session in ${project.displayTitle}`}>
-                {order.map((kind) => (
+                {terminalKindSchema.options.map((kind) => (
                     <MenuItem
                         key={kind}
                         onClick={() => chooseSessionTerminalKind(project.id, kind)}
