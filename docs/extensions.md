@@ -225,21 +225,25 @@ Content and badge registrations are independent, so a tree or Source Control pro
 the same view ID with its badge provider.
 
 `provideBadge({ scopeId }, token)` returns a `kind` and a bounded plain-text `description`. A
-`count` badge is a plain tally and requires a nonnegative integer `count`; an `error` or `warning`
-badge is a severity whose `count` is optional, so a provider that knows something is failing but
-not how many things can still report it. Return `undefined` or `null` when unavailable; the Host
-normalizes that result to wire-safe `null`. An explicit zero is hidden.
+`count` badge is a plain tally and requires a nonnegative integer `count`. An `error` or `warning`
+badge is a severity and carries no `count` field at all; say how many in `description`. Return
+`undefined` or `null` when unavailable; the Host normalizes that result to wire-safe `null`. An
+explicit zero is hidden.
 
 An extension reports what the activity means and never how it looks — no color, icon, or priority
 crosses the API — so one container never shows two views' badges in two unrelated colors. The
 Workbench draws its own fixed glyph for `error` and `warning`, keeping severity legible without
 color, and paints each kind from its own theme role (`badge`, `errorBadge`, `warningBadge`).
 
-Within a container the Workbench takes the most severe kind present (`error` > `warning` >
-`count`) and totals only that kind, capped at `99+`; summing across kinds would let 20 ordinary
-items and 1 failure render as a red `21`. If any badge of the winning kind has no `count`, the
-badge shows the glyph alone rather than a total that silently omits it. Every contributing view's
-description is retained for the accessible name whatever the digit does.
+Within a container, severity takes the badge outright: `error` beats `warning`, and either beats
+every tally, which then does not appear on the chip at all. Only `count` badges are totalled, and
+their total is capped at `99+`; summing across kinds would let 20 ordinary items and 1 failure
+render as a red `21`. Severity and tally never share a chip, because a digit would displace the
+glyph and leave the fill as the only difference between "5 changes" and "5 failures" — nothing to a
+colorblind user or in a greyscale capture. This matches VS Code, whose composite-bar badges are a
+strict `progress` > `icon` > `number` ladder and whose `ErrorBadge`/`WarningBadge` have no number.
+The displaced tally is not lost: every contributing view's description is joined and published as
+the container tab's tooltip and accessible description, whatever the chip shows.
 
 The Renderer issues `badge.snapshot` before the view opens, activating declared providers and
 sharing concurrent activation by extension generation. Reads carry the same cancellation and
