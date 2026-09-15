@@ -100,6 +100,13 @@ directories.
   titles, bodies, and comments use Simplified Chinese; keep their code, identifiers, paths, and
   commands in English. Contributor issue tracking lives in GitHub issues (`gh issue`); do not file
   repository work in Linear.
+- Caxri is private today and will most likely be published, so write every tracked file, commit
+  message, issue, and CI artifact as if it were already public. Never commit a private
+  organization, repository, ticket identifier, tracker URL, internal hostname, internal file path,
+  real person, home path carrying a real account name, or credential — not in a fixture, not in a
+  comment, not in Chinese. Reference an upstream only after verifying it resolves without
+  authentication. History cannot be cleaned retroactively once published, so prevention is the only
+  lever: `open-source-readiness`.
 - Prefer JSDoc for non-obvious lifecycle or security behavior, and document why a workaround
   exists.
 - Coding agents reproduce the dominant precedent they see in neighboring code, so exemplar hygiene
@@ -178,20 +185,21 @@ directories.
 
 ## Skill routing
 
-| Work                                                      | Load                   |
-| --------------------------------------------------------- | ---------------------- |
-| Substantial new product feature; competing approaches     | `competitors`          |
-| Process, IPC, package, persistence, or toolchain contract | `project-architecture` |
-| File placement, naming, splits, test location             | `source-layout`        |
-| React composition, hooks, shared helpers                  | `react`                |
-| Renderer visual and interaction design                    | `DESIGN.md`            |
-| React render-count audit over CDP with react-scan         | `react-rerender-audit` |
-| Focused lint / type / test / knip; formatting             | `quality-check`        |
-| Vitest unit/integration regressions                       | `unit-testing`         |
-| Playwright Electron workflows                             | `e2e-testing`          |
-| Live inspection, CDP, stopping owned processes            | `debug`                |
-| Isolated worktrees and desktop lease                      | `switch-worktree`      |
-| GitHub issues                                             | `file-issue`           |
-| Commits                                                   | `commit`               |
-| Pull requests and CI watch                                | `pull-request`         |
-| Packaging, GitHub Release, local uninstall                | `$release`             |
+| Work                                                      | Load                    |
+| --------------------------------------------------------- | ----------------------- |
+| Substantial new product feature; competing approaches     | `competitors`           |
+| Process, IPC, package, persistence, or toolchain contract | `project-architecture`  |
+| File placement, naming, splits, test location             | `source-layout`         |
+| React composition, hooks, shared helpers                  | `react`                 |
+| Renderer visual and interaction design                    | `DESIGN.md`             |
+| React render-count audit over CDP with react-scan         | `react-rerender-audit`  |
+| Focused lint / type / test / knip; formatting             | `quality-check`         |
+| Vitest unit/integration regressions                       | `unit-testing`          |
+| Playwright Electron workflows                             | `e2e-testing`           |
+| Live inspection, CDP, stopping owned processes            | `debug`                 |
+| Fixtures, sample data, or anything a public reader sees   | `open-source-readiness` |
+| Isolated worktrees and desktop lease                      | `switch-worktree`       |
+| GitHub issues                                             | `file-issue`            |
+| Commits                                                   | `commit`                |
+| Pull requests and CI watch                                | `pull-request`          |
+| Packaging, GitHub Release, local uninstall                | `$release`              |
