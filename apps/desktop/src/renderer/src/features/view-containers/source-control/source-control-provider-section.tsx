@@ -50,11 +50,11 @@ function ProviderHeader({
         }
     };
     /**
-     * The "show Working Tree Changes" notice joins the row's context menu rather than `provider.actions`, because the
-     * protocol deliberately keeps it out of the action registry (`sourceControlProviderSchema.uncommittedNotice`): a
-     * mode change dispatched as an action id would give one state change two dispatch paths. Carrying it here is what
-     * gives a keyboard user any entry point at all — the inline button is `tabIndex={-1}` like every other inline
-     * action in the tree, so `Shift+F10` is how it is reached.
+     * The uncommitted notice joins the row's context menu rather than `provider.actions`, because the protocol
+     * deliberately keeps it out of the action registry (`sourceControlProviderSchema.uncommittedNotice`): a mode change
+     * dispatched as an action id would give one state change two dispatch paths. Carrying it here is what gives a
+     * keyboard user any entry point at all — the inline button is `tabIndex={-1}` like every other inline action in the
+     * tree, so `Shift+F10` is how it is reached.
      */
     const menuItems: SourceControlRowMenuItem[] = [
         ...(uncommittedMode && provider.uncommittedNotice
