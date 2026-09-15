@@ -1,3 +1,4 @@
+import { isGlobMatch } from '@caxri/utils';
 import { describe, expect, it } from 'vitest';
 
 import { defaultAgentProviderSettings } from '../../agent/agents.js';
@@ -28,7 +29,17 @@ describe('settings spec and schema agreement', () => {
             '**/*.test.*': true,
             '**/*.spec.*': true,
             '**/__tests__/**': true,
+            '**/locales/**': true,
         });
+        /**
+         * The default is only worth shipping if it reaches the paths it was written for: a localized repository keeps
+         * translations both at its root and inside a workspace package, and the source that drove the translation must
+         * stay visible.
+         */
+        const shipped = appSettingsFileSchema.parse({})['git.diffExclude'];
+        expect(isGlobMatch('locales/zh-CN/modelRuntime.json', shipped)).toBe(true);
+        expect(isGlobMatch('packages/locales/src/default/modelRuntime.ts', shipped)).toBe(true);
+        expect(isGlobMatch('packages/model-runtime/src/core/index.ts', shipped)).toBe(false);
         const parsed = appSettingsFileSchema.parse({ 'git.diffExclude': {} });
         expect(parsed['git.diffExclude']).toEqual({});
         expect(parsed['files.exclude']).toEqual(DEFAULT_FILES_EXCLUDE);
