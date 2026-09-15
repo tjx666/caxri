@@ -81,12 +81,12 @@ printf '{"body":"Related to https://linear.app/example/issue/TASK-42/project-sta
     );
     await writeFile(
         join(bin, 'vc'),
-        `#!/bin/sh
+        String.raw`#!/bin/sh
 case " $* " in
   *" teams ls "*) printf '%s' '{"teams":[{"slug":"tjx666"}]}' ;;
-  *"meta-githubCommitRef="*) printf '%s' '[{"uid":"dpl_Ready123","created":1700000000000,"name":"project","readyState":"READY","target":"preview","url":"project-8ykp416o7-tjx666.vercel.app"},{"uid":"dpl_Building123","name":"project","readyState":"BUILDING","target":"preview","url":"project-building-tjx666.vercel.app"},{"uid":"dpl_Queued123","name":"project","readyState":"QUEUED","target":"production","url":"project-queued-tjx666.vercel.app"}]' ;;
-  *"target=production"*) printf '%s' '[{"uid":"dpl_Production123","created":1700000000000,"name":"project","readyState":"READY","target":"production","url":"project-production-tjx666.vercel.app"}]' ;;
-  *"target=preview"*) printf '%s' '[{"uid":"dpl_Canceled123","name":"project","readyState":"CANCELED","target":"preview","url":"project-preview-tjx666.vercel.app"}]' ;;
+  *"meta-githubCommitRef="*) printf '%s' '[{"uid":"dpl_Ready123","created":1700000000000,"name":"project","readyState":"READY","target":"preview","url":"project-8ykp416o7-tjx666.vercel.app","meta":{"githubCommitSha":"a1b2c3d4e5f60718293a4b5c6d7e8f9012345678","githubCommitMessage":"feat: add the status rollup\n\nBody the row never shows.","githubCommitOrg":"tjx666","githubCommitRepo":"project","githubCommitAuthorLogin":"tjx666"}},{"uid":"dpl_Building123","name":"project","readyState":"BUILDING","target":"preview","url":"project-building-tjx666.vercel.app"},{"uid":"dpl_Queued123","name":"project","readyState":"QUEUED","target":"production","url":"project-queued-tjx666.vercel.app","meta":{"githubCommitSha":"b2c3d4e5f60718293a4b5c6d7e8f90123456789a","githubCommitMessage":"chore: bump the deploy target","githubCommitOrg":"tjx666","githubCommitRepo":"project"}}]' ;;
+  *"target=production"*) printf '%s' '[{"uid":"dpl_Production123","created":1700000000000,"name":"project","readyState":"READY","target":"production","url":"project-production-tjx666.vercel.app","meta":{"githubCommitSha":"c3d4e5f60718293a4b5c6d7e8f90123456789abc","githubCommitMessage":"fix: restore the production alias","githubCommitOrg":"tjx666","githubCommitRepo":"project"}}]' ;;
+  *"target=preview"*) printf '%s' '[{"uid":"dpl_Canceled123","name":"project","readyState":"CANCELED","target":"preview","url":"project-preview-tjx666.vercel.app","meta":{"githubCommitSha":"d4e5f60718293a4b5c6d7e8f90123456789abcde","githubCommitMessage":"refactor: split the status tree","githubCommitOrg":"tjx666","githubCommitRepo":"project"}}]' ;;
   *) printf '%s' '[{"name":"project","readyState":"READY","target":"production","url":"discovery.vercel.app"}]' ;;
 esac
 `,
@@ -402,15 +402,17 @@ esac
             exact: true,
         });
         await expect(deployments).toBeVisible();
+        const productionDeployment = tree.getByRole('treeitem', {
+            name: 'Production, success · fix: restore the production alias · project-production-tjx666.vercel.app',
+            exact: true,
+        });
+        await expect(productionDeployment).toBeVisible();
+        // The visible row trades the unreadable alias for the short SHA of the commit that produced it.
+        await expect(productionDeployment).toContainText('c3d4e5f');
+        await expect(productionDeployment).not.toContainText('vercel.app');
         await expect(
             tree.getByRole('treeitem', {
-                name: 'Production, success · project-production-tjx666.vercel.app',
-                exact: true,
-            }),
-        ).toBeVisible();
-        await expect(
-            tree.getByRole('treeitem', {
-                name: 'Preview, canceled · project-preview-tjx666.vercel.app',
+                name: 'Preview, canceled · refactor: split the status tree · project-preview-tjx666.vercel.app',
                 exact: true,
             }),
         ).toBeVisible();
@@ -450,9 +452,14 @@ esac
         await running.page.keyboard.press('Escape');
         await expect(running.page.locator('.tree-item-rich-tooltip:visible')).toHaveCount(0);
         const successfulDeployment = tree.getByRole('treeitem', {
-            name: 'project-8ykp416o7-tjx666.vercel.app, preview · success',
+            name: 'feat: add the status rollup, preview · success · project-8ykp416o7-tjx666.vercel.app',
             exact: true,
         });
+        // Only the commit subject and its short SHA: no message body, and no alias the reader cannot parse.
+        await expect(successfulDeployment).toContainText('feat: add the status rollup');
+        await expect(successfulDeployment).toContainText('a1b2c3d');
+        await expect(successfulDeployment).not.toContainText('Body the row never shows');
+        await expect(successfulDeployment).not.toContainText('vercel.app');
         await expect(successfulDeployment).not.toContainText('preview');
         await expect(
             successfulDeployment.locator('[data-theme-icon="deployment-preview"]'),
@@ -461,7 +468,7 @@ esac
         await expect(
             tree
                 .getByRole('treeitem', {
-                    name: 'project-queued-tjx666.vercel.app, production · pending',
+                    name: 'chore: bump the deploy target, production · pending · project-queued-tjx666.vercel.app',
                     exact: true,
                 })
                 .locator('[data-theme-icon="circle-arrow-up"]'),
@@ -481,9 +488,17 @@ esac
         await expect(richTooltip).toBeVisible();
         await expect(richTooltip).toContainText('preview');
         await expect(richTooltip).toContainText('success');
+        await expect(richTooltip).toContainText('commit:');
+        await expect(richTooltip).toContainText('author:');
         await expect(richTooltip).toContainText('alias:');
         await expect(richTooltip).toContainText('inspect:');
         await expect(richTooltip).toContainText('created:');
+        await expect(
+            richTooltip.getByRole('button', {
+                name: 'Open commit: a1b2c3d feat: add the status rollup',
+                exact: true,
+            }),
+        ).toBeVisible();
         await expect(
             richTooltip.getByRole('button', {
                 name: 'Open alias: project-8ykp416o7-tjx666.vercel.app',
@@ -512,9 +527,11 @@ esac
             richTooltipBounds.x >= deploymentPointer.x + 8 ||
                 richTooltipBounds.x + richTooltipBounds.width <= deploymentPointer.x - 8,
         ).toBe(true);
+        // A deployment without Git provenance — a direct CLI upload — still falls back to its alias.
         const buildingDeployment = tree.getByRole('treeitem', {
             name: /^project-building-tjx666\.vercel\.app, preview · /,
         });
+        await expect(buildingDeployment).toContainText('project-building-tjx666.vercel.app');
         const buildingDeploymentBounds = await buildingDeployment.boundingBox();
         if (!buildingDeploymentBounds)
             throw new Error('Building deployment bounds are unavailable');
@@ -543,6 +560,10 @@ esac
         await refreshButton.focus();
         await successfulDeployment.focus();
         await expect(richTooltip).toBeVisible();
+        const commitLink = richTooltip.getByRole('button', {
+            name: 'Open commit: a1b2c3d feat: add the status rollup',
+            exact: true,
+        });
         const aliasLink = richTooltip.getByRole('button', {
             name: 'Open alias: project-8ykp416o7-tjx666.vercel.app',
             exact: true,
@@ -551,6 +572,9 @@ esac
             name: 'Open inspect: details',
             exact: true,
         });
+        // The commit leads the card, so it is also the first link the keyboard reaches.
+        await running.page.keyboard.press('Tab');
+        await expect(commitLink).toBeFocused();
         await running.page.keyboard.press('Tab');
         await expect(aliasLink).toBeFocused();
         await running.page.keyboard.press('Tab');
@@ -562,7 +586,7 @@ esac
         await running.page.keyboard.press('Escape');
         await expect(richTooltip).toHaveCount(0);
         const production = tree.getByRole('treeitem', {
-            name: 'Production, success · project-production-tjx666.vercel.app',
+            name: 'Production, success · fix: restore the production alias · project-production-tjx666.vercel.app',
             exact: true,
         });
         await production.focus();
@@ -582,7 +606,7 @@ esac
         await running.page.keyboard.press('Escape');
         await expect(richTooltip).toHaveCount(0);
         const preview = tree.getByRole('treeitem', {
-            name: 'Preview, canceled · project-preview-tjx666.vercel.app',
+            name: 'Preview, canceled · refactor: split the status tree · project-preview-tjx666.vercel.app',
             exact: true,
         });
         await preview.focus();
@@ -609,11 +633,12 @@ esac
             .toBe('https://vercel.com/tjx666/project/Canceled123');
         await production.click();
         /**
-         * The environment rows print the environment and nothing else: the generated Vercel alias survives in the
-         * accessible name this locator matches on, and in the hover card's `alias` button asserted above.
+         * The environment rows print the environment and the short SHA of the commit they shipped, never the generated
+         * Vercel alias: that survives in the accessible name this locator matches on, and in the hover card's `alias`
+         * button asserted above.
          */
-        await expect(production).toHaveText('Production');
-        await expect(preview).toHaveText('Preview');
+        await expect(production).toHaveText('Productionc3d4e5f');
+        await expect(preview).toHaveText('Previewd4e5f60');
         await expect
             .poll(async () => (await treeCommandOpenedUrls(running))?.at(-1))
             .toBe('https://vercel.com/tjx666/project/Production123');
@@ -723,7 +748,7 @@ esac
         await expect(restoredDeployments).toHaveAttribute('aria-expanded', 'true');
         await expect(
             restoredTree.getByRole('treeitem', {
-                name: 'Production, success · project-production-tjx666.vercel.app',
+                name: 'Production, success · fix: restore the production alias · project-production-tjx666.vercel.app',
                 exact: true,
             }),
         ).toHaveAttribute('aria-selected', 'true');

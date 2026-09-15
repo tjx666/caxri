@@ -34,6 +34,20 @@ const projectStatusLinearIssueSchema = z.object({
     stateColor: hexColorSchema.optional(),
 });
 
+/**
+ * The Git commit a provider built, when the deployment came from a connected repository rather than a direct CLI
+ * upload. It identifies the deployment far better than the generated alias does, so the Status panel leads with it.
+ */
+const projectStatusDeploymentCommitSchema = z.object({
+    sha: z.string(),
+    /**
+     * Subject line only. Provider metadata carries the full message, and a body turns a one-line row into a paragraph.
+     */
+    message: z.string().optional(),
+    authorLogin: z.string().optional(),
+    url: z.url().optional(),
+});
+
 const projectStatusDeploymentSchema = z.object({
     environment: z.enum(['production', 'preview']),
     hostname: z.string(),
@@ -41,6 +55,7 @@ const projectStatusDeploymentSchema = z.object({
     url: z.url(),
     inspectorUrl: z.url().optional(),
     createdAt: z.number().optional(),
+    commit: projectStatusDeploymentCommitSchema.optional(),
 });
 
 const projectStatusErrorSchema = z.object({
@@ -153,6 +168,7 @@ export type ProjectStatusState = z.infer<typeof projectStatusStateSchema>;
 export type ProjectStatusCheck = z.infer<typeof projectStatusCheckSchema>;
 export type ProjectStatusLinearIssue = z.infer<typeof projectStatusLinearIssueSchema>;
 export type ProjectStatusDeployment = z.infer<typeof projectStatusDeploymentSchema>;
+export type ProjectStatusDeploymentCommit = z.infer<typeof projectStatusDeploymentCommitSchema>;
 export type ProjectStatusError = z.infer<typeof projectStatusErrorSchema>;
 // eslint-disable-next-line unicorn/name-replacements -- exported type is imported widely across apps/desktop and apps/server/src/domains, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
 export type ProjectStatusRepository = z.infer<typeof projectStatusRepoSchema>;

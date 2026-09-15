@@ -271,6 +271,20 @@ export interface ProjectStatusLinearIssue {
     stateColor?: string;
 }
 
+/**
+ * The Git commit a provider built. Absent when the deployment came from a direct CLI upload rather than a connected
+ * repository, so a view must keep a fallback identity for the deployment.
+ */
+export interface ProjectStatusDeploymentCommit {
+    sha: string;
+    /**
+     * Subject line only. Providers carry the full message, and a body turns a one-line row into a paragraph.
+     */
+    message?: string;
+    authorLogin?: string;
+    url?: string;
+}
+
 export interface ProjectStatusDeployment {
     environment: 'production' | 'preview';
     hostname: string;
@@ -278,6 +292,7 @@ export interface ProjectStatusDeployment {
     url: string;
     inspectorUrl?: string;
     createdAt?: number;
+    commit?: ProjectStatusDeploymentCommit;
 }
 
 export interface ProjectStatusError {

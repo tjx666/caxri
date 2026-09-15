@@ -40,10 +40,25 @@ export const githubPullRequestSchema = z.object({
     url: z.string().optional(),
 });
 
+/**
+ * Git provenance Vercel copies onto a deployment built from a connected repository. A direct CLI upload carries none of
+ * it, so every field stays optional and the deployment row falls back to its alias.
+ *
+ * @see https://vercel.com/docs/deployments/environments#system-environment-variables
+ */
+const vercelDeploymentMetaSchema = z.object({
+    githubCommitAuthorLogin: z.string().optional(),
+    githubCommitMessage: z.string().optional(),
+    githubCommitOrg: z.string().optional(),
+    githubCommitRepo: z.string().optional(),
+    githubCommitSha: z.string().optional(),
+});
+
 const vercelDeploymentSchema = z.object({
     uid: z.string().optional(),
     created: z.number().optional(),
     inspectorUrl: z.string().nullable().optional(),
+    meta: vercelDeploymentMetaSchema.optional(),
     name: z.string().optional(),
     readyState: z.string().optional(),
     state: z.string().optional(),
