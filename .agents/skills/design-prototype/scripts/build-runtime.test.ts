@@ -43,6 +43,12 @@ describe('inlineThemeCss', () => {
                 'utf8',
             ),
             stylesCss: await readFile(path.join(stylesDirectory, 'styles.css'), 'utf8'),
+            importedCss: {
+                './markdown-preview.css': await readFile(
+                    path.join(stylesDirectory, 'markdown-preview.css'),
+                    'utf8',
+                ),
+            },
         });
         // Semantic token bridge and the virtual tailwind import must survive inlining.
         expect(css).toContain('--color-background');

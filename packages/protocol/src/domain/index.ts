@@ -7,6 +7,7 @@ export * from './command-catalog.js';
 export * from './commands.js';
 export * from './domain.js';
 export * from './editor.js';
+export * from './file-preview.js';
 export * from './file-search.js';
 export * from './git-diff.js';
 export * from './logging.js';

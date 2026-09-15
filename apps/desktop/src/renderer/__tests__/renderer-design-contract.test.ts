@@ -78,7 +78,12 @@ function sourceLocation(path: string, sourceFile: ts.SourceFile, position: numbe
 /**
  * Global stylesheets whose rules cascade against Tailwind's layers.
  */
-const globalStylesheets = ['theme.css', 'styles.css', 'process-explorer.css'];
+const globalStylesheets = [
+    'theme.css',
+    'styles.css',
+    'markdown-preview.css',
+    'process-explorer.css',
+];
 /**
  * Bare form-control element selectors Tailwind preflight owns inside `@layer base`.
  */

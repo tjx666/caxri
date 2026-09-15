@@ -4,10 +4,18 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <!-- The pinned image addon compiles embedded WebAssembly decoders. This narrowly permits
-             WebAssembly compilation without enabling JavaScript eval. -->
+             WebAssembly compilation without enabling JavaScript eval.
+
+             `img-src blob:` carries file previews: a project image is read through the Session's
+             authorized file channel and mounted as an object URL, so no filesystem path ever
+             becomes a document's `src`. `https:` lets a previewed Markdown file show the remote
+             images real READMEs are written around (build badges, hosted diagrams) — the same
+             default VS Code's Markdown preview ships with, and the same trade-off: opening a
+             document tells whatever host it points at that it was opened. Plain `http:` stays
+             blocked. -->
         <meta
             http-equiv="Content-Security-Policy"
-            content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://avatars.githubusercontent.com; font-src 'self' data:; connect-src __CAXRI_CONNECT_SRC__; worker-src 'self' blob:"
+            content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src __CAXRI_CONNECT_SRC__; worker-src 'self' blob:"
         />
         <title>Caxri</title>
     </head>

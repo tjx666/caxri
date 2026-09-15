@@ -14,6 +14,7 @@ export interface PackageBoundary {
         | 'agent-skills'
         | 'client'
         | 'extension-api'
+        | 'markdown'
         | 'mobile-transport'
         | 'protocol'
         | 'system'
@@ -58,7 +59,7 @@ export const appBoundaries: readonly AppBoundary[] = [
         id: 'desktop',
         root: 'apps/desktop',
         packageNames: ['@caxri/desktop'],
-        allowedPackages: ['client', 'protocol', 'system', 'utils'],
+        allowedPackages: ['client', 'markdown', 'protocol', 'system', 'utils'],
     },
     {
         id: 'mobile',
@@ -110,6 +111,14 @@ export const packageBoundaries: readonly PackageBoundary[] = [
         browserSafe: true,
         allowedPackages: ['protocol', 'utils'],
         browserUnsafeSourceRoots: ['packages/client/src/supervise'],
+    },
+    {
+        id: 'markdown',
+        root: 'packages/markdown',
+        packageNames: ['@caxri/markdown'],
+        publicSubpaths: ['.'],
+        browserSafe: true,
+        allowedPackages: [],
     },
     {
         id: 'mobile-transport',

@@ -217,6 +217,7 @@ describe('pnpm workspace contract', () => {
         expect(packageBoundaries.map(({ root }) => root)).toEqual([
             'packages/agent-skills',
             'packages/client',
+            'packages/markdown',
             'packages/mobile-transport',
             'packages/protocol',
             'packages/extension-api',

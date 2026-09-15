@@ -28,6 +28,7 @@ export const coreForwardedMethods = [
     'files.operation.get',
     'files.operation.list',
     'files.read',
+    'files.readAsset',
     'files.rename',
     'files.search',
     'files.write',
