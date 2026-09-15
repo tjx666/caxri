@@ -656,27 +656,6 @@ export function closeOpenEditorsUnderPath(workbenchProjectId: string, path: stri
 }
 
 /**
- * Retires every pane occurrence of a resolved virtual diff. A late read from a previous Workbench Root must never close
- * tabs in the newly selected root, even when their virtual paths happen to match.
- */
-export function closeResolvedGitDiff(
-    sessionId: string,
-    workbenchProjectId: string,
-    path: string,
-): void {
-    const current = sessionStateOf(sessionId);
-    if (!current || current.workbenchProjectId !== workbenchProjectId) return;
-    const closingIds = findResourceTabs(current.paneLayout, { kind: 'file', path }).map(
-        ({ tab }) => tab.id,
-    );
-    if (closingIds.length === 0) return;
-    patchSessionState(
-        { ...current, paneLayout: closeTabs(current.paneLayout, closingIds) },
-        'Resolved Git diff tabs could not be closed',
-    );
-}
-
-/**
  * True when a file at or below `path` has unsaved edits in any Session holding state for this Workbench Root. Lets a
  * Trash confirmation stop promising full recoverability when it would actually discard a dirty buffer that was never
  * written to disk.

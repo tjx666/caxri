@@ -85,7 +85,9 @@ test('the PrimarySidebar reveals older Sessions on demand and always renders the
 
         /**
          * The oldest Session sits below the default window, which is exactly the case the selected-Session guarantee
-         * protects: Session order is activity recency, so selecting it does not pull it to the top.
+         * protects: Session order is activity recency, so selecting it does not pull it to the top. The guarantee is
+         * about that one row, so it is pinned to the end of the window rather than opened up to — the list stays five
+         * rows plus the selection, and `Show N more` survives (issue #993).
          */
         const oldestSessionId = await sessionCards.last().getAttribute('data-session-id');
         if (!oldestSessionId) throw new Error('Session rows carry no id');
@@ -101,12 +103,15 @@ test('the PrimarySidebar reveals older Sessions on demand and always renders the
                 `.session-row[aria-selected="true"] [data-session-id="${oldestSessionId}"]`,
             ),
         ).toBeVisible();
-        await expect(running.page.locator('.session-list .session-card')).toHaveCount(
-            SESSION_COUNT,
-        );
+        await expect(running.page.locator('.session-list .session-card')).toHaveCount(6);
         await expect(
             running.page.getByRole('button', { name: /^Show \d+ more Sessions? in / }),
-        ).toHaveCount(0);
+        ).toHaveAccessibleName(/^Show 10 more Sessions in /);
+        // The pinned row is last, below the five most recent Sessions rather than in its own activity position.
+        await expect(running.page.locator('.session-list .session-card').last()).toHaveAttribute(
+            'data-session-id',
+            oldestSessionId,
+        );
     } finally {
         await closeAppQuietly(running.app);
         await rm(testDirectory, { recursive: true, force: true });

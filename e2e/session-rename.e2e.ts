@@ -38,7 +38,12 @@ test('Session inline rename validates input and survives Renderer reload', async
         await createProjectSession(running.page);
         const sessionId = await selectedSessionId(running.page);
         const card = sessionCard(running.page, sessionId);
+        // Double-click opens a Session now (issue #993), the way Finder, VS Code, and this app's own tab strip do.
+        // Asserting it here is what keeps rename from quietly reclaiming the gesture a third time.
         await card.dblclick();
+        await expect(card.getByRole('textbox')).toHaveCount(0);
+        await card.focus();
+        await card.press('Enter');
         const input = card.getByRole('textbox', { name: 'Rename Untitled' });
         await expect(input).toBeFocused();
         expect(
@@ -57,7 +62,7 @@ test('Session inline rename validates input and survives Renderer reload', async
         await expect(card.locator('strong')).toHaveText('Untitled');
         await expect(card).toBeFocused();
 
-        await card.dblclick();
+        await card.press('Enter');
         const blurInput = card.getByRole('textbox', { name: 'Rename Untitled' });
         await blurInput.fill('Blurred investigation');
         const filesTab = running.page.getByRole('tab', { name: 'Files', exact: true });
@@ -66,7 +71,8 @@ test('Session inline rename validates input and survives Renderer reload', async
         await expect(card.locator('strong')).toHaveText('Blurred investigation');
         await expect(filesTab).toBeFocused();
 
-        await card.dblclick();
+        await card.focus();
+        await card.press('Enter');
         const emptyBlurInput = card.getByRole('textbox', {
             name: 'Rename Blurred investigation',
         });
@@ -105,10 +111,10 @@ test('Session inline rename validates input and survives Renderer reload', async
 });
 
 /**
- * Double-click and Enter already have coverage; the context menu's `Rename` had none, which is how #950 could be
- * reported against a shipped build with nothing to contradict it. The menu closes as the row swaps itself for the
- * input, so this asserts the input still holds focus once the popup is gone — the exact handoff a focus restore aimed
- * at the unmounted trigger, or a trap still alive through the exit animation, would break.
+ * Enter already has coverage; the context menu's `Rename` had none, which is how #950 could be reported against a
+ * shipped build with nothing to contradict it. The menu closes as the row swaps itself for the input, so this asserts
+ * the input still holds focus once the popup is gone — the exact handoff a focus restore aimed at the unmounted
+ * trigger, or a trap still alive through the exit animation, would break.
  */
 test('The Session context menu renames a selected and an unselected row', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-rename-menu-e2e-'));
