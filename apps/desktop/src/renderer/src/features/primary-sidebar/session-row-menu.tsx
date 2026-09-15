@@ -7,7 +7,6 @@ import type {
     SessionRecord,
     TerminalRecord,
 } from '@caxri/protocol';
-import { agentProviderCatalog } from '@caxri/protocol';
 
 import {
     ContextMenu,
@@ -34,6 +33,10 @@ import {
  * Right-click menu for one Session row. Every entry acts on the clicked row (not the selected Session), so the handlers
  * call the id-taking actions directly instead of the selected-Session commands the palette uses. Rename and Archive
  * show their sidebar key hints as literals: they are tree-local keys, not catalog keybindings.
+ *
+ * Rename is never disabled. A Session title belongs to Caxri, so the Server always commits it and only synchronizes it
+ * to the Agent when that provider can accept one; greying the entry out here made the menu disagree with the row's own
+ * double-click and Enter, which always opened the input.
  */
 export function SessionRowMenu({
     children,
@@ -60,9 +63,6 @@ export function SessionRowMenu({
     const primaryTerminal = terminals.find(
         (terminal) => terminal.id === session.primaryAgentTerminalId,
     );
-    const primaryProvider = primaryTerminal?.provider;
-    const canRename =
-        !primaryProvider || agentProviderCatalog[primaryProvider].capabilities.nativeRename;
     /**
      * Both copy entries read the Agent's durable identity, which only exists once the provider has created a
      * conversation — a Session whose Agent has not been bound yet has nothing to put on the clipboard.
@@ -100,16 +100,7 @@ export function SessionRowMenu({
                 aria-label={`${session.displayTitle} actions`}
                 finalFocus={!renameRequested}
             >
-                <ContextMenuItem
-                    hint="enter"
-                    disabled={!canRename}
-                    disabledReason={
-                        canRename
-                            ? undefined
-                            : 'This Agent does not support native Session renaming'
-                    }
-                    onClick={() => setRenameRequested(true)}
-                >
+                <ContextMenuItem hint="enter" onClick={() => setRenameRequested(true)}>
                     Rename
                 </ContextMenuItem>
                 <ContextMenuItem hint="delete" onClick={() => archiveSession(session.id)}>

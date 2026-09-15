@@ -321,3 +321,13 @@ export const logEventNames = Object.values(logEventCatalog).flatMap((group) =>
 ) as [LogEventName, ...LogEventName[]];
 
 export const logEventNameSchema = z.enum(logEventNames);
+
+/**
+ * Closed reason set for `session_rename.provider_sync_skipped`. Skipping the provider write is ordinary behavior — a
+ * Session title belongs to Caxri, so the rename always commits locally — which is exactly why the two causes have to
+ * stay apart in logs: an Agent that has not reported a session id yet will start synchronizing once it does, while a
+ * provider with no rename integration never will. Collapsing them into one string would hide a provider gap inside
+ * normal new-Session noise.
+ */
+export type SessionRenameProviderSyncSkipReason =
+    'agent-session-unidentified' | 'provider-rename-unsupported';
