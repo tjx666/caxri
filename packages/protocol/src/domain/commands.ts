@@ -38,6 +38,8 @@ export const commandIds = [
     'workbench.previousTab',
     'editor.save',
     'editor.sendReferenceToTerminal',
+    'editor.openPreview',
+    'editor.openPreviewToSide',
     'workbench.splitLeft',
     'workbench.splitRight',
     'workbench.splitUp',

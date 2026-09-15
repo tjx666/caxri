@@ -298,6 +298,20 @@ export const commandDefinitions: CommandDefinition[] = [
         keywords: ['mention', 'at', 'line', 'path', 'agent'],
     },
     {
+        id: 'editor.openPreview',
+        title: 'Open Preview',
+        category: 'Editor',
+        description: 'Show the active Markdown or SVG file as a rendered preview',
+        keywords: ['markdown', 'md', 'render', 'svg', 'image', 'mermaid'],
+    },
+    {
+        id: 'editor.openPreviewToSide',
+        title: 'Open Preview to the Side',
+        category: 'Editor',
+        description: 'Show the active Markdown or SVG file as a rendered preview beside its source',
+        keywords: ['markdown', 'md', 'render', 'svg', 'image', 'mermaid', 'split'],
+    },
+    {
         id: 'workbench.splitLeft',
         title: 'Split Left',
         category: 'Workbench',
@@ -586,6 +600,12 @@ export const defaultKeybindings: Keybinding[] = [
      * Monaco owns focus, so the command opts into `allowInEditable`.
      */
     { key: 'cmd+alt+k', command: 'editor.sendReferenceToTerminal' },
+    /**
+     * VS Code reaches the same command through the chord `Cmd+K V`, which this keybinding system does not model — a
+     * binding here is one key combination. `Cmd+Shift+V` is VS Code's own single-stroke Markdown preview chord and is
+     * otherwise free in Caxri, so it opens the preview in place; opening it beside the source stays palette-only.
+     */
+    { key: 'cmd+shift+v', command: 'editor.openPreview' },
     ...filesCoreKeybindings,
     { key: 'cmd+2', command: 'secondarySidebar.showGit' },
     { key: 'cmd+3', command: 'secondarySidebar.showStatus' },

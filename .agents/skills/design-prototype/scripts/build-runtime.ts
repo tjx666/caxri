@@ -87,6 +87,12 @@ async function buildThemeScript(): Promise<void> {
             'utf8',
         ),
         stylesCss: await readFile(path.join(stylesDirectory, 'styles.css'), 'utf8'),
+        importedCss: {
+            './markdown-preview.css': await readFile(
+                path.join(stylesDirectory, 'markdown-preview.css'),
+                'utf8',
+            ),
+        },
     });
     await writeFile(
         path.join(outDirectory, 'caxri-prototype-theme.js'),

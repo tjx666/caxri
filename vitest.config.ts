@@ -21,6 +21,7 @@ export const utilitiesTestFiles = ['packages/utils/src/**/*.test.ts'];
 export const cliTestFiles = ['apps/cli/{scripts,src}/**/*.test.ts'];
 export const mobileTestFiles = ['apps/mobile/{plugins,scripts,src}/**/*.test.ts'];
 export const mobileTransportTestFiles = ['packages/mobile-transport/src/**/*.test.ts'];
+export const markdownTestFiles = ['packages/markdown/src/**/*.test.ts'];
 export const testProjectNames = [
     'desktop-parallel',
     'agent-skills',
@@ -34,6 +35,7 @@ export const testProjectNames = [
     'cli',
     'mobile',
     'mobile-transport',
+    'markdown',
 ];
 const serialNativeTestPrefix = [
     'apps/server/src/domains/__tests__/agent-hooks.integration.test.ts',
@@ -107,6 +109,7 @@ export const workspaceAliases = {
         'packages/client/src/supervise/index.ts',
     ),
     '@caxri/client': resolve(import.meta.dirname, 'packages/client/src/index.ts'),
+    '@caxri/markdown': resolve(import.meta.dirname, 'packages/markdown/src/index.ts'),
     '@caxri/mobile-transport': resolve(
         import.meta.dirname,
         'packages/mobile-transport/src/index.ts',
@@ -222,6 +225,14 @@ export default defineConfig({
                 test: {
                     name: 'mobile-transport',
                     include: mobileTransportTestFiles,
+                    maxWorkers: parallelMaxWorkers,
+                },
+            },
+            {
+                extends: true,
+                test: {
+                    name: 'markdown',
+                    include: markdownTestFiles,
                     maxWorkers: parallelMaxWorkers,
                 },
             },

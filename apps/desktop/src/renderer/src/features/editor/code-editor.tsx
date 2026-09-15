@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 
 import type { ThemeTokens } from '@caxri/protocol';
+import { parseEditorModelPath } from '@desktop-shared/editor-state';
 import type { OnMount } from '@monaco-editor/react';
 import Editor from '@monaco-editor/react';
 
@@ -8,6 +9,7 @@ import { useEditorOptions } from '@/hooks/use-editor-options';
 
 import { applyEditorTheme } from '../../lib/editor-theme';
 import { monaco } from '../../lib/monaco';
+import { publishSourceScroll } from '../preview/preview-scroll-sync';
 import { resolveEditorLanguage } from './editor-language';
 import { synchronizeControlledEditorModel } from './editor-model-sync';
 import { markEditorBeforeMount, markEditorMounted } from './editor-performance';
@@ -52,6 +54,21 @@ function publishEditorStatus(editor: MonacoCodeEditor, statusKey: string | undef
     });
 }
 
+/**
+ * Reports the topmost visible line so an open preview of the same document can follow along. The document path is read
+ * back from the model URI rather than threaded through props, keeping this a scroll-time concern only.
+ */
+function publishScrollPosition(editor: MonacoCodeEditor): void {
+    const model = editor.getModel();
+    if (!model) return;
+    const source = parseEditorModelPath(model.uri);
+    if (!source) return;
+    const visible = editor.getVisibleRanges().at(0);
+    if (!visible) return;
+    // markdown-it reports zero-based source lines; Monaco counts from one.
+    publishSourceScroll(source.path, visible.startLineNumber - 1);
+}
+
 export function CodeEditor({
     editorInstanceId,
     path,
@@ -64,6 +81,7 @@ export function CodeEditor({
     const editorReference = useRef<Parameters<OnMount>[0] | null>(null);
     const registrationReference = useRef<(() => void) | undefined>(undefined);
     const cursorSubscriptionReference = useRef<{ dispose(): void } | undefined>(undefined);
+    const scrollSubscriptionReference = useRef<{ dispose(): void } | undefined>(undefined);
     const programmaticChangeReference = useRef(false);
     const statusKeyReference = useRef(statusKey);
     const language = resolveEditorLanguage(path);
@@ -144,6 +162,7 @@ export function CodeEditor({
     useEffect(
         () => () => {
             cursorSubscriptionReference.current?.dispose();
+            scrollSubscriptionReference.current?.dispose();
         },
         [],
     );
@@ -163,6 +182,10 @@ export function CodeEditor({
                 cursorSubscriptionReference.current?.dispose();
                 cursorSubscriptionReference.current = editor.onDidChangeCursorSelection(() =>
                     publishEditorStatus(editor, statusKeyReference.current),
+                );
+                scrollSubscriptionReference.current?.dispose();
+                scrollSubscriptionReference.current = editor.onDidScrollChange(() =>
+                    publishScrollPosition(editor),
                 );
                 restoreEditorViewState(editor, editorInstanceId);
                 registrationReference.current?.();

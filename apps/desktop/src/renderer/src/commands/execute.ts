@@ -8,6 +8,11 @@ import {
     canSendActiveFileReference,
     sendActiveFileReferenceToTerminal,
 } from '../features/editor/send-file-reference';
+import {
+    canOpenActivePreview,
+    openActiveFilePreview,
+    openActiveFilePreviewToSide,
+} from '../features/preview/preview-commands';
 import { toggleScreencastMode } from '../features/screencast/screencast';
 import {
     archiveSelectedSession,
@@ -253,6 +258,9 @@ const commandContext: CommandContext = {
         canSendReferenceToTerminal: canSendActiveFileReference,
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         sendReferenceToTerminal: () => void sendActiveFileReferenceToTerminal(),
+        canOpenPreview: canOpenActivePreview,
+        openPreview: openActiveFilePreview,
+        openPreviewToSide: openActiveFilePreviewToSide,
     },
     secondarySidebar: {
         activateViewContainer: activateSecondarySidebarViewContainer,

@@ -1,4 +1,6 @@
 @import './theme.css';
+/** File preview typography (`features/preview/`), which renders HTML no Tailwind utility can reach. */
+@import './markdown-preview.css';
 /*
  * shadcn's default overlay animation layer (base-nova style). Provides the `animate-in` /
  * `animate-out` keyframe utilities plus fade/zoom/slide parameter classes consumed by
