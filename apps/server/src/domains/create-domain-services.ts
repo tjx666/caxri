@@ -7,6 +7,7 @@ import process from 'node:process';
 import type {
     BootstrapState,
     PersistedWindowState,
+    SessionRestorePlacement,
     TerminalKind,
     TerminalRecord,
 } from '@caxri/protocol';
@@ -382,8 +383,11 @@ export async function createDomainServices(
         projectStatus.setPolledSession(sessionId);
         if (shouldRestoreFallback && sessionId) restoreInterruptedTerminalsInBackground(sessionId);
     };
-    const unarchiveSessions = (sessionIds: readonly string[]) => {
-        const restored = sessionIds.map((sessionId) => database.unarchiveSession(sessionId));
+    const unarchiveSessions = (
+        sessionIds: readonly string[],
+        placement: SessionRestorePlacement,
+    ) => {
+        const restored = database.unarchiveSessions(sessionIds, placement);
         send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.unarchive' } });
         return restored;
     };
@@ -669,8 +673,10 @@ export async function createDomainServices(
                 });
                 return database.getSession(sessionId)!;
             }),
-        'session.unarchive': ({ sessionId }) => unarchiveSessions([sessionId])[0],
-        'session.unarchiveMany': ({ sessionIds }) => unarchiveSessions([...new Set(sessionIds)]),
+        'session.unarchive': ({ placement, sessionId }) =>
+            unarchiveSessions([sessionId], placement)[0],
+        'session.unarchiveMany': ({ placement, sessionIds }) =>
+            unarchiveSessions([...new Set(sessionIds)], placement),
         ...createDeletionHandlers({
             database,
             delegations: agentCommands.delegationService,

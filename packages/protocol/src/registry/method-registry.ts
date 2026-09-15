@@ -55,8 +55,6 @@ import {
     persistedWindowStateSchema,
     projectRecordSchema,
     sessionRecordSchema,
-    sessionReorderParametersSchema,
-    sessionStateSchema,
     terminalKindSchema,
     terminalRecordSchema,
     terminalSnapshotSchema,
@@ -71,7 +69,7 @@ import {
     projectStatusOverviewSchema,
     projectStatusSummarySchema,
 } from '../domain/project-status.js';
-import { sessionRenameTitleSchema } from '../domain/session.js';
+import { sessionMethods } from '../domain/session-contract.js';
 import { sessionPullRequestMethods } from '../domain/session-pull-request.js';
 import {
     terminalFileLinkInternalMethods,
@@ -134,21 +132,6 @@ const resolvedImportSchema = z.object({ specifier: z.string(), path: pathSchema 
 const importSpecifierSchema = z.string().min(1).max(1_024);
 
 const settingsResult = z.object({ value: appSettingsSchema, source: configSourceSchema });
-/**
- * Bulk Session operations are bounded so one request cannot hold the mutation queue for an unbounded archive.
- */
-const sessionIdBatchSchema = z.array(identifierSchema).min(1).max(200);
-const sessionIdWrite = {
-    ...serverWrite,
-    params: z.object({ sessionId: identifierSchema }),
-    result: sessionRecordSchema,
-};
-const sessionAttentionReadResult = z.object({
-    acknowledged: z.boolean(),
-    sessionId: identifierSchema,
-    attentionEpoch: z.number().int().nonnegative(),
-    hasUnread: z.boolean(),
-});
 const keybindingsResult = z.object({
     value: z.array(keybindingSchema).max(MAX_KEYBINDINGS),
     source: configSourceSchema,
@@ -388,70 +371,7 @@ export const methods = {
         }),
         result: projectRecordSchema,
     },
-    'session.reorder': {
-        ...serverWrite,
-        params: sessionReorderParametersSchema,
-        result: z.null(),
-    },
-    'session.create': {
-        ...serverWrite,
-        params: z.object({
-            projectId: identifierSchema,
-            defaultAgent: terminalKindSchema.nullable(),
-        }),
-        result: z.object({
-            session: sessionRecordSchema,
-            terminal: terminalRecordSchema.nullable(),
-        }),
-    },
-    'session.delete': {
-        ...desktopWrite,
-        params: z.object({ sessionId: identifierSchema }),
-        result: z.union([canceledResultSchema, bootstrapStateSchema]),
-    },
-    /**
-     * Bulk variant used by the Archived Sessions manager: one native confirmation covers every listed Session.
-     */
-    'session.deleteMany': {
-        ...desktopWrite,
-        params: z.object({ sessionIds: sessionIdBatchSchema }),
-        result: z.union([canceledResultSchema, bootstrapStateSchema]),
-    },
-    'session.select': {
-        ...serverWrite,
-        params: z.object({ sessionId: identifierSchema }),
-        result: sessionRecordSchema,
-    },
-    'session.markRead': {
-        ...commandPolicy('server', 'write', ['sessions.write']),
-        params: z.object({
-            sessionId: identifierSchema,
-            attentionEpoch: z.number().int().nonnegative(),
-        }),
-        result: sessionAttentionReadResult,
-    },
-    'session.rename': {
-        ...serverWrite,
-        params: z.object({
-            sessionId: identifierSchema,
-            displayTitle: sessionRenameTitleSchema,
-        }),
-        result: sessionRecordSchema,
-    },
-    'session.archive': sessionIdWrite,
-    'session.unarchive': sessionIdWrite,
-    'session.unarchiveMany': {
-        ...serverWrite,
-        params: z.object({ sessionIds: sessionIdBatchSchema }),
-        result: z.array(sessionRecordSchema),
-    },
-    'session.detach': sessionIdWrite,
-    'session.resume': sessionIdWrite,
-    'session.updateState': {
-        ...serverWrite,
-        params: sessionStateSchema,
-        result: sessionStateSchema,
-    },
+    ...sessionMethods,
     'terminal.create': {
         ...serverControl,
         params: z.object({

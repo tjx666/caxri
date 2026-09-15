@@ -2,6 +2,7 @@ import type {
     MethodResult,
     ProjectRecord,
     SessionPullRequest,
+    SessionRestorePlacement,
     TerminalKind,
     TerminalRecord,
 } from '@caxri/protocol';
@@ -252,8 +253,11 @@ async function archiveSessionWithNotice(sessionId: string): Promise<void> {
              * The notice outlives the row it describes: the Session can be deleted, or the window navigated elsewhere,
              * inside those four seconds. `unarchiveSession` runs the request through `tryCommand`, so a stale Undo
              * reports one error toast instead of throwing out of the toast's click handler.
+             *
+             * `unchanged` keeps Undo an exact inverse: the row returns to the position it was archived from, not to the
+             * top of the Project the way an explicit restore does.
              */
-            onSelect: () => unarchiveSession(sessionId),
+            onSelect: () => unarchiveSession(sessionId, 'unchanged'),
         },
     });
 }
@@ -405,18 +409,27 @@ export function hasLiveAgentTerminal(
     );
 }
 
-export function unarchiveSession(sessionId: string): void {
+/**
+ * Restoring puts the Session back on top of its Project by default, so the row the user just asked for is the one they
+ * see. Only the archive notice's Undo passes `unchanged`: it reverses a single archive, and a row that jumped to the
+ * top would have rewritten the order the user arranged by dragging.
+ */
+export function unarchiveSession(
+    sessionId: string,
+    placement: SessionRestorePlacement = 'top',
+): void {
     // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void tryCommand(
         'Session restore failed',
-        () => caxri.request('session.unarchive', { sessionId }),
+        () => caxri.request('session.unarchive', { placement, sessionId }),
         { refresh: refreshWorkbench },
     );
 }
 
 /**
- * Bulk restore from the Archived Sessions manager: one request, one bootstrap refresh, regardless of batch size.
+ * Bulk restore from the Archived Sessions manager: one request, one bootstrap refresh, regardless of batch size. The
+ * batch lands on top of its Projects in the order given, so the dialog's first row stays the first row afterwards.
  */
 export function unarchiveSessions(sessionIds: readonly string[]): void {
     if (sessionIds.length === 0) return;
@@ -424,7 +437,11 @@ export function unarchiveSessions(sessionIds: readonly string[]): void {
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void tryCommand(
         'Session restore failed',
-        () => caxri.request('session.unarchiveMany', { sessionIds: [...sessionIds] }),
+        () =>
+            caxri.request('session.unarchiveMany', {
+                placement: 'top',
+                sessionIds: [...sessionIds],
+            }),
         { refresh: refreshWorkbench },
     );
 }

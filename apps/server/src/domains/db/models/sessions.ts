@@ -26,7 +26,7 @@ import {
     terminals,
 } from '../schema';
 import { didConsumeAttentionReply, didReleaseAttentionReply } from './attention-replies';
-import { sessionActivityUpdate } from './session-activity';
+import { sessionActivityUpdate, sidebarTopOrder } from './session-activity';
 import { didWriteAutomaticNaming, readAutomaticNaming } from './session-naming';
 import {
     effectiveWorkbenchProjectId,
@@ -427,6 +427,20 @@ export class SessionsModel {
     reorder(sessionIds: readonly string[]): void {
         for (const [sidebarOrder, id] of sessionIds.entries())
             this.database.update(sessions).set({ sidebarOrder }).where(eq(sessions.id, id)).run();
+    }
+
+    /**
+     * Lifts these Sessions above every other row in their Projects while keeping the batch's own order. Each statement
+     * re-reads the table's lower bound, so walking the batch backwards leaves its first entry with the lowest position
+     * — the same expression one activity promotion uses, rather than a second way of computing "top".
+     */
+    moveToSidebarTop(ids: readonly string[]): void {
+        for (const id of ids.toReversed())
+            this.database
+                .update(sessions)
+                .set({ sidebarOrder: sidebarTopOrder() })
+                .where(eq(sessions.id, id))
+                .run();
     }
 
     /**

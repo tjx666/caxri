@@ -104,6 +104,51 @@ describe('Session sidebar order', () => {
         expect(order()).toEqual([c.id, a.id]);
     });
 
+    it('lifts a restored Session above its Project without manufacturing activity', async () => {
+        const { database, a, b, c, order } = await fixture();
+        expect(order()).toEqual([c.id, b.id, a.id]);
+        database.archiveSession(a.id);
+        database.unarchiveSessions([a.id]);
+        expect(order()).toEqual([a.id, c.id, b.id]);
+        expect(database.getSession(a.id)).toMatchObject({
+            lastSessionActivityAt: a.lastSessionActivityAt,
+            lastSessionActivityReason: a.lastSessionActivityReason,
+        });
+    });
+
+    it('restores a batch in the order it was given and leaves other Projects alone', async () => {
+        const { database, directory, a, b, c, order } = await fixture();
+        const other = database.createProject(join(directory, 'other'));
+        const [first, second] = Array.from(
+            { length: 2 },
+            () => database.createSession(other.id, null).session,
+        );
+        const otherOrder = () =>
+            database
+                .listSessions(other.id)
+                .toSorted(compareSessionSidebarOrder)
+                .map((row) => row.id);
+        expect(otherOrder()).toEqual([second.id, first.id]);
+        database.archiveSession(a.id);
+        database.archiveSession(c.id);
+        database.unarchiveSessions([a.id, c.id]);
+        expect(order()).toEqual([a.id, c.id, b.id]);
+        expect(otherOrder()).toEqual([second.id, first.id]);
+    });
+
+    /**
+     * The archive notice's Undo reverses one archive, so it asks for `unchanged`: a row that came back on top would
+     * have quietly rewritten an order the user built by dragging.
+     */
+    it('keeps a dragged position when the restore asks to leave it unchanged', async () => {
+        const { database, a, b, c, order } = await fixture();
+        database.reorderSession(a.id, c.id, 'before');
+        expect(order()).toEqual([a.id, c.id, b.id]);
+        database.archiveSession(c.id);
+        database.unarchiveSessions([c.id], 'unchanged');
+        expect(order()).toEqual([a.id, c.id, b.id]);
+    });
+
     it('uses manual sidebar order for fallback after archiving the selected Session', async () => {
         const { database, a, b, c } = await fixture();
         database.reorderSession(a.id, c.id, 'before');
