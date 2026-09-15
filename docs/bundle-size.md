@@ -6,15 +6,15 @@ legitimately needs more bytes.
 
 ## Baseline (2026-09, arm64 dir target)
 
-| Artifact                  | Size       | Dominant contents                                                   |
-| ------------------------- | ---------- | ------------------------------------------------------------------- |
-| `Caxri.app` (total)       | ~470.5 MiB | Electron 44 framework + embedded standalone Server                  |
-| `Resources/server`        | ~137.6 MiB | Pinned runtime (~121 MiB), native dependencies, bundles, extensions |
-| `app.asar`                | ~90.4 MiB  | Desktop Main, Preload, and Renderer bundles plus their source maps  |
-| `out/renderer`            | ~86.8 MiB  | Monaco (~6.8 MiB JS + 15 MiB workers), fonts, vscode-icons, maps    |
-| `out/main`                | ~3.0 MiB   | Electron Desktop Main only                                          |
-| `out/preload`             | ~48 KiB    | Sandboxed preload bundles                                           |
-| `apps/server/dist/server` | ~137.6 MiB | Byte-identical source of the embedded Server artifact               |
+| Artifact                  | Size       | Dominant contents                                                         |
+| ------------------------- | ---------- | ------------------------------------------------------------------------- |
+| `Caxri.app` (total)       | ~497.5 MiB | Electron 44 framework + embedded standalone Server                        |
+| `Resources/server`        | ~137.6 MiB | Pinned runtime (~121 MiB), native dependencies, bundles, extensions       |
+| `app.asar`                | ~116.8 MiB | Desktop Main, Preload, and Renderer bundles plus their source maps        |
+| `out/renderer`            | ~113.2 MiB | Monaco (~6.8 MiB JS + 15 MiB workers), Mermaid, fonts, vscode-icons, maps |
+| `out/main`                | ~3.0 MiB   | Electron Desktop Main only                                                |
+| `out/preload`             | ~48 KiB    | Sandboxed preload bundles                                                 |
+| `apps/server/dist/server` | ~137.6 MiB | Byte-identical source of the embedded Server artifact                     |
 
 Roughly half of the JavaScript above is source maps, which ship in every build including the packaged
 one. This is the single largest deliberate size decision in the project and it is not drift: Caxri is
@@ -23,6 +23,15 @@ it. A minified packaged build cannot say which line threw, so every investigatio
 failure would start with a rebuild and an attempt to reproduce — the expensive part of the loop. The
 bytes buy that back, and the installer is dominated by the Electron runtime regardless. Turning maps
 off is a product decision to make at the first public release, not a way to pass the budget gate.
+
+Mermaid is ~23 MiB of the renderer with its source maps, added when the file preview shipped. It is
+loaded through a dynamic `import('mermaid')`, so a document without a diagram never executes any of
+it, but the chunks still occupy disk. Mermaid emits one lazy chunk per diagram type — almost all
+under 500 KiB — plus two large layout backends: ELK (~6.5 MiB) and Cytoscape (~2.5 MiB), each loaded
+only for the diagram kinds that need it. Aliasing those two to stubs would recover most of the
+growth by silently breaking `architecture` diagrams and ELK layouts in a user's README, which is not
+a trade this project wants to make invisibly; the renderer, asar, and app budgets were raised
+together instead.
 
 The renderer carries the full `@yutengjing/vscode-icons` SVG set (~4.5 MiB across 1553 files,
 emitted as individual assets). This is a conscious budget increase, not drift: the Files secondarySidebar

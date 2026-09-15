@@ -35,29 +35,34 @@ interface TimeBudget {
 
 /**
  * Byte ceilings for every packaged artifact this repository ships. Baseline (2026-09, with source maps shipped in every
- * build): standalone Server ≈ 137.6 MiB, out/main ≈ 3.0 MiB, out/preload ≈ 48 KiB, out/renderer ≈ 86.8 MiB, app.asar ≈
- * 90.4 MiB, Caxri.app ≈ 470.5 MiB. The Server deliberately includes its pinned Node runtime and bundled ripgrep binary
+ * build): standalone Server ≈ 137.6 MiB, out/main ≈ 3.0 MiB, out/preload ≈ 48 KiB, out/renderer ≈ 113.2 MiB, app.asar ≈
+ * 116.8 MiB, Caxri.app ≈ 497.5 MiB. The Server deliberately includes its pinned Node runtime and bundled ripgrep binary
  * so Desktop and platform deployments consume one identical, self-contained artifact.
  *
  * Source maps are roughly half of the JavaScript in these numbers and are a deliberate, permanent cost — a packaged
  * build has to be debuggable without a rebuild (docs/bundle-size.md, `.agents/skills/debug`). A drop in these figures
  * is therefore as suspicious as a rise: it usually means maps stopped being emitted or stopped being packaged.
+ *
+ * The Renderer, asar, and app ceilings were raised together for Mermaid (≈ 23 MiB of the Renderer with its maps), which
+ * the file preview loads on demand. Mermaid ships one lazy chunk per diagram type plus two large layout backends — ELK
+ * ≈ 6.5 MiB and Cytoscape ≈ 2.5 MiB — that only load for the diagram kinds that need them. Stubbing those out would
+ * save bytes by silently breaking `architecture` diagrams and ELK layouts, so the size is accepted instead.
  */
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/ci-bundle-budget.test.ts
 export const SIZE_BUDGETS: SizeBudget[] = [
     { path: 'apps/server/dist/server', maxBytes: 150 * MiB },
     { path: 'out/main', maxBytes: 4 * MiB },
     { path: 'out/preload', maxBytes: 256 * 1_024 },
-    { path: 'out/renderer', maxBytes: 96 * MiB },
+    { path: 'out/renderer', maxBytes: 126 * MiB },
     {
         path: 'release.noindex/mac-arm64/Caxri.app/Contents/Resources/app.asar',
-        maxBytes: 100 * MiB,
+        maxBytes: 130 * MiB,
     },
     {
         path: 'release.noindex/mac-arm64/Caxri.app/Contents/Resources/server',
         maxBytes: 150 * MiB,
     },
-    { path: 'release.noindex/mac-arm64/Caxri.app', maxBytes: 510 * MiB },
+    { path: 'release.noindex/mac-arm64/Caxri.app', maxBytes: 540 * MiB },
 ];
 
 /**
