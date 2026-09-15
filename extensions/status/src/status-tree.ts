@@ -244,11 +244,59 @@ function ignoredChecksLabel(count: number): string {
     return `${count} ignored check${count === 1 ? '' : 's'}`;
 }
 
+/**
+ * Seven hex characters is the abbreviation Git and GitHub both display, so a row and the commit page a reader compares
+ * it against agree without truncating a Vercel deployment's full 40-character SHA differently from either.
+ */
+function shortCommitSha(sha: string): string {
+    return sha.slice(0, 7);
+}
+
+/**
+ * What the deployment built, not where it landed. A Vercel alias is a generated hash that is already unreadable at
+ * SecondarySidebar width, while the commit subject answers the question a deployment list is actually asked. Falls back
+ * to the alias for a direct CLI upload, which carries no Git provenance.
+ */
+function deploymentRowLabel(deployment: ProjectStatusDeployment): string {
+    return deployment.commit?.message ?? deployment.hostname;
+}
+
+function deploymentRowDescription(deployment: ProjectStatusDeployment): string | undefined {
+    return deployment.commit ? shortCommitSha(deployment.commit.sha) : undefined;
+}
+
+/**
+ * Screen readers keep every identifier the visible row had to give up — the commit subject and the alias — while a part
+ * the label already announced is dropped rather than repeated.
+ */
+function deploymentAccessibilityLabel(
+    lead: string,
+    detail: string,
+    deployment: ProjectStatusDeployment,
+): string {
+    return [`${lead}, ${detail}`, deployment.commit?.message, deployment.hostname]
+        .filter((part) => part !== undefined && part !== lead)
+        .join(' · ');
+}
+
 function deploymentTooltip(title: string, deployment: ProjectStatusDeployment): StatusTooltip {
+    const { commit } = deployment;
     return {
         title,
         badge: { label: deploymentStateLabel(deployment), tone: stateTones[deployment.state] },
         rows: [
+            ...(commit
+                ? [
+                      {
+                          label: 'commit',
+                          value: [shortCommitSha(commit.sha), commit.message]
+                              .filter(Boolean)
+                              .join(' '),
+                          ...(commit.url && { url: commit.url }),
+                      },
+                  ]
+                : []),
+            ...(commit?.authorLogin ? [{ label: 'author', value: commit.authorLogin }] : []),
             { label: 'alias', value: deployment.hostname, url: deployment.url },
             ...(deployment.inspectorUrl
                 ? [{ label: 'inspect', value: 'details', url: deployment.inspectorUrl }]
@@ -438,12 +486,17 @@ function buildRepoChildren(
                     ],
                 },
                 children: branchDeployments.map((deployment, index) =>
-                    item(`${prefix}:branch-deployment:${index}`, deployment.hostname, {
+                    item(`${prefix}:branch-deployment:${index}`, deploymentRowLabel(deployment), {
                         trailingIcon:
                             deployment.environment === 'production'
                                 ? 'circle-arrow-up'
                                 : 'deployment-preview',
-                        accessibilityLabel: `${deployment.hostname}, ${deployment.environment} · ${deploymentStateLabel(deployment)}`,
+                        description: deploymentRowDescription(deployment),
+                        accessibilityLabel: deploymentAccessibilityLabel(
+                            deploymentRowLabel(deployment),
+                            `${deployment.environment} · ${deploymentStateLabel(deployment)}`,
+                            deployment,
+                        ),
                         icon: deploymentIcons[deployment.state],
                         tooltip: deploymentTooltip(deployment.environment, deployment),
                         url: deployment.inspectorUrl,
@@ -456,15 +509,17 @@ function buildRepoChildren(
             ['Preview', repo.deployments.preview],
         ] as const) {
             if (!deployment) continue;
+            const stateLabel = deploymentStateLabel(deployment);
             nodes.push(
                 item(`${prefix}:${deployment.environment}`, label, {
                     /**
-                     * No description: a Vercel alias is mostly a generated hash
-                     * (`lobehub-cloud-next-i06ixdxlq-lobehub-pro.vercel.app`), so the row spent half its width on a
-                     * string that was unreadable before it was even truncated. It stays on the hover card's `alias`
-                     * row, which opens the deployment, and in the accessible name.
+                     * The description carries the short commit SHA, never the alias: a Vercel alias is mostly a
+                     * generated hash (`project-next-i06ixdxlq-team.vercel.app`), so the row spent half its width on a
+                     * string that was unreadable before it was even truncated. The alias stays on the hover card's
+                     * `alias` row, which opens the deployment, and in the accessible name.
                      */
-                    accessibilityLabel: `${label}, ${deploymentStateLabel(deployment)} · ${deployment.hostname}`,
+                    description: deploymentRowDescription(deployment),
+                    accessibilityLabel: deploymentAccessibilityLabel(label, stateLabel, deployment),
                     icon: deploymentIcons[deployment.state],
                     tooltip: deploymentTooltip(label, deployment),
                     url: deployment.inspectorUrl,
