@@ -185,7 +185,22 @@ export const editorWorkerStallDiagnosticSchema = z.strictObject({
     waitMs: z.number().int().nonnegative().max(600_000),
     workerRoundTrip: z.enum(['construct-failed', 'no-reply', 'ok', 'skipped', 'worker-error']),
     workerRoundTripMs: z.number().int().nonnegative().max(600_000).nullable(),
+    /**
+     * The same probe Worker answers a second time over a `BroadcastChannel`, which leaves the renderer and returns
+     * brokered by the browser process. Read against `workerRoundTrip`, it separates three failures that otherwise look
+     * identical: a Worker that never ran (both silent), a renderer that lost only its internal return path (`no-reply`
+     * here but `ok` on the broadcast — the shape seen in issue #962), and healthy messaging with a slow diff (both
+     * `ok`).
+     */
+    workerBroadcast: z.enum(['no-reply', 'ok', 'skipped', 'unsupported']),
     documentVisible: z.boolean(),
+    /**
+     * How the surrounding document was loaded, and how long it has been alive. A reloaded page keeps its renderer
+     * process while a restart replaces it, which is why issue #962 survived reloads and only a restart recovered it;
+     * recording both lets a reader tell "broken from the start" from "degraded while running".
+     */
+    navigationType: z.enum(['back-forward', 'navigate', 'prerender', 'reload', 'unknown']),
+    pageAgeMs: z.number().int().nonnegative().max(2_592_000_000),
     originalLineCount: editorWorkerCountSchema,
     modifiedLineCount: editorWorkerCountSchema,
     identicalModels: z.boolean(),
@@ -336,6 +351,13 @@ export const rendererDiagnosticSchema = z
                 addAggregateIssue(context, 'stallCount');
             if (diagnostic.workerRoundTrip === 'ok' && diagnostic.workerRoundTripMs === null)
                 addAggregateIssue(context, 'workerRoundTripMs');
+            // The broadcast is only absent when nothing was probed at all; anything else must report what it observed,
+            // because a `skipped` that really meant `no-reply` would erase the one contrast this record exists for.
+            const isProbedNothing =
+                diagnostic.workerRoundTrip === 'construct-failed' ||
+                diagnostic.workerRoundTrip === 'skipped';
+            if ((diagnostic.workerBroadcast === 'skipped') !== isProbedNothing)
+                addAggregateIssue(context, 'workerBroadcast');
             return;
         }
 
