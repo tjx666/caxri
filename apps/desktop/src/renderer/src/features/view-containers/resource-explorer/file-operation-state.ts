@@ -1,6 +1,5 @@
-import { create } from 'zustand';
-
 import { isPathAtOrBelow } from '../../../lib/file-path';
+import { createStore } from '../../../lib/store';
 
 export interface PendingFileOperation {
     id: string;
@@ -40,34 +39,37 @@ interface FileOperationState {
 /**
  * Renderer lifecycle for long file mutations; Server remains the authority for every path.
  */
-export const useFileOperationStore = create<FileOperationState>((set, get) => ({
-    operations: [],
-    begin(operation) {
-        if (get().operations.some((current) => current.id === operation.id)) return false;
-        set((state) => ({
-            operations: [
-                ...state.operations,
-                {
-                    ...operation,
-                    cancelable: operation.cancelable === true,
-                    startedAt: Date.now(),
-                },
-            ],
-        }));
-        return true;
-    },
-    finish: (id) =>
-        set((state) => ({
-            operations: state.operations.filter((operation) => operation.id !== id),
-        })),
-    update: (id, label) =>
-        set((state) => ({
-            operations: state.operations.map((operation) =>
-                operation.id === id ? { ...operation, label } : operation,
-            ),
-        })),
-    clear: () => set({ operations: [] }),
-}));
+export const useFileOperationStore = createStore<FileOperationState>(
+    'file-operation',
+    (set, get) => ({
+        operations: [],
+        begin(operation) {
+            if (get().operations.some((current) => current.id === operation.id)) return false;
+            set((state) => ({
+                operations: [
+                    ...state.operations,
+                    {
+                        ...operation,
+                        cancelable: operation.cancelable === true,
+                        startedAt: Date.now(),
+                    },
+                ],
+            }));
+            return true;
+        },
+        finish: (id) =>
+            set((state) => ({
+                operations: state.operations.filter((operation) => operation.id !== id),
+            })),
+        update: (id, label) =>
+            set((state) => ({
+                operations: state.operations.map((operation) =>
+                    operation.id === id ? { ...operation, label } : operation,
+                ),
+            })),
+        clear: () => set({ operations: [] }),
+    }),
+);
 
 /**
  * True when a Project-scoped action targeting `path` overlaps a pending file operation's affected subtree. Used instead

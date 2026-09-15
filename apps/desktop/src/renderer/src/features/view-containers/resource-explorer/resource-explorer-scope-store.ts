@@ -1,5 +1,4 @@
-import { create } from 'zustand';
-
+import { createStore } from '../../../lib/store';
 import { queryClient } from '../../../queries/client';
 import { useWorkbenchStore } from '../../../stores/workbench';
 import {
@@ -22,11 +21,14 @@ interface ResourceExplorerScopeState {
     selectionByScope: Record<string, string | undefined>;
 }
 
-export const useResourceExplorerScopeStore = create<ResourceExplorerScopeState>(() => ({
-    expandedByScope: {},
-    focusByScope: {},
-    selectionByScope: {},
-}));
+export const useResourceExplorerScopeStore = createStore<ResourceExplorerScopeState>(
+    'resource-explorer-scope',
+    () => ({
+        expandedByScope: {},
+        focusByScope: {},
+        selectionByScope: {},
+    }),
+);
 
 export function useIsPathExpanded(scopeId: string, path: string): boolean {
     return useResourceExplorerScopeStore(

@@ -1,5 +1,4 @@
-import { create } from 'zustand';
-
+import { createStore } from '../../lib/store';
 import { selectSelectedSession } from '../../stores/selectors';
 import { useWorkbenchStore } from '../../stores/workbench';
 
@@ -310,7 +309,8 @@ function settledView(
     return { ...view(reconciled, retainValidRequests(reconciled, pending), inFlight), inFlight };
 }
 
-export const useSessionNavigationHistoryStore = create<SessionNavigationHistoryState>(
+export const useSessionNavigationHistoryStore = createStore<SessionNavigationHistoryState>(
+    'session-navigation-history',
     (set, get) => ({
         ...view(EMPTY_SESSION_HISTORY, [], 0),
         inFlight: 0,

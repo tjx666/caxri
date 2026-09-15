@@ -5,7 +5,13 @@ import { once } from 'node:events';
 import process from 'node:process';
 
 import type { CaxriErrorCode, TerminalSnapshot } from '@caxri/protocol';
-import { CaxriError, errorCodes, errorMessage } from '@caxri/protocol';
+import {
+    CaxriError,
+    errorCodes,
+    errorMessage,
+    inspectExecArgv,
+    logLevelEnvironment,
+} from '@caxri/protocol';
 import type { E2EAgentPolicy, StructuredLogger } from '@caxri/system';
 import {
     currentObservationContext,
@@ -268,10 +274,14 @@ export class TerminalHostSupervisor extends EventTarget {
             };
         });
         const child = (this.options.forkProcess ?? fork)(this.options.terminalHostPath, [], {
-            execArgv: TERMINAL_HOST_EXEC_ARGV,
+            execArgv: [
+                ...TERMINAL_HOST_EXEC_ARGV,
+                ...inspectExecArgv('terminal-host', process.env),
+            ],
             execPath: this.options.executable ?? process.execPath,
             env: {
                 ...safeProcessEnvironment(),
+                ...logLevelEnvironment(process.env),
                 CAXRI_APP_VERSION: this.options.appVersion,
                 CAXRI_BUILD_ID: this.options.buildId,
                 CAXRI_GIT_COMMIT: this.options.commit,

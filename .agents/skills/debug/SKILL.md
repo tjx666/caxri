@@ -157,3 +157,74 @@ window: `tab` lists the real Caxri page target and `eval`/`screenshot` run again
 attachment misbehaves (e.g. the UA check above fails), fall back to a raw CDP WebSocket: read the
 target list from `http://127.0.0.1:9223/json/list` (9224 for production), open the page target's
 `webSocketDebuggerUrl`, and drive it with `Runtime.evaluate` from a small Bun script.
+
+## Production debugging controls
+
+A packaged build is deliberately quiet and minified, so everything below is opt-in and read once at
+process start. Export the variable in the shell that starts the app; `open -a Caxri` inherits nothing:
+
+```bash
+CAXRI_LOG_LEVEL=debug /Applications/Caxri.app/Contents/MacOS/Caxri
+```
+
+Quit the app first. A Server Core whose build fingerprint still matches is reused rather than replaced,
+so relaunching only the window leaves `server-core.jsonl` at the level its Server already started with.
+
+### Node-side request records — `CAXRI_LOG_LEVEL`
+
+`debug`, `info`, `warn`, or `error`; anything else keeps the process default (`info` packaged, `debug`
+unpackaged for Desktop Main). Desktop Main hands the variable to Server Core and Server Core hands it
+to the Extension and Terminal Hosts, so one export moves all four logs together
+(`packages/protocol/src/desktop/debug-launch.ts`).
+
+`debug` is what makes per-request Server-side records exist at all. Every request the Renderer sent
+gets an `ipc.request` line in `<userData>/logs/server-core.jsonl` with its `method`, `durationMs`, and
+the request id as `correlationId`; the ones that came through the control relay add `queueMs`,
+`queueDepth`, and `principal`, which is where admission backlog shows up. A slow or failed request is
+already `warn` and visible without the override. Turn it back off afterwards — each record costs only
+a serialization and a batched async append, but high-frequency events rotate real incidents out of the
+5MB × 3 generation budget quickly.
+
+### Renderer state — `globalThis.__caxriStores`
+
+Present in every build, packaged included. Zustand stores are module-scoped singletons that nothing
+attaches to `window`, and a packaged Renderer carries no React DevTools hook, so this registry is the
+only way a CDP session reads UI state — walking React fibers from the DOM reaches components, not the
+stores behind them.
+
+```bash
+env -u HTTP_PROXY -u http_proxy -u HTTPS_PROXY -u https_proxy -u ALL_PROXY -u all_proxy \
+  agent-browser eval "JSON.stringify(__caxriStores.getState('workbench'), null, 2)"
+```
+
+`names()` lists the stores imported so far, `getState(name)` returns one store's values, `snapshot()`
+returns all of them. Actions are omitted because a function survives neither `JSON.stringify` nor CDP's
+`returnByValue`, and there is no `setState` on purpose. Create new Renderer stores with
+`createStore(name, initializer)` from `apps/desktop/src/renderer/src/lib/store.ts`; calling zustand's
+`create` directly leaves the store invisible here.
+
+### Node inspector on the Hosts — `CAXRI_INSPECT`
+
+The three Node Hosts run without an inspector by default. `CAXRI_INSPECT=1` gives each one its own port
+off Node's default base, so all three can be attached at once: Server Core 9229, Extension Host 9230,
+Terminal Host 9231. Any other port number moves the base (`CAXRI_INSPECT=9500` → 9500/9501/9502).
+Attach through `chrome://inspect` or read the target list from `http://127.0.0.1:9229/json/list`. Only
+Server Core and the Extension Host answer at startup; the Terminal Host is spawned on the first
+Terminal, so its port stays closed until one exists.
+
+Always `--inspect`, never `--inspect-brk`: a Host paused before its first line never answers the
+readiness handshake its supervisor waits on, so the app would look hung rather than debuggable. The
+inspector keeps Node's loopback bind. The Server bundles are built unminified
+(`apps/server/vite.config.ts`), so a session shows readable code without source maps.
+
+### A debuggable Desktop build — `CAXRI_SOURCEMAP`, `CAXRI_REACT_PROFILING`, `CAXRI_REACT_SCAN`
+
+Desktop Main, Preload, and Renderer ship minified with no source maps, so the DevTools Sources panel is
+unreadable. `CAXRI_SOURCEMAP=1 bun run build:desktop` emits them. This is a build an operator produces,
+never a shipped one: the maps inline every source file and take `out/renderer` from about 41 MiB to
+about 91 MiB.
+
+`CAXRI_REACT_PROFILING=1` swaps `react-dom/client` for `react-dom/profiling.js` so the React Profiler
+works outside development, and `CAXRI_REACT_SCAN=1` arms react-scan's render counting. Both make React
+measurably slower and belong only in a build made for measurement; `react-rerender-audit` owns the
+render-count workflow.

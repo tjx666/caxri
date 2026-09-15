@@ -1,5 +1,6 @@
 import { omit } from 'es-toolkit';
-import { create } from 'zustand';
+
+import { createStore } from '../../lib/store';
 
 export interface EditorStatus {
     line: number;
@@ -24,7 +25,7 @@ export function editorStatusKey(sessionId: string, path: string): string {
     return `${sessionId}:${path}`;
 }
 
-export const useEditorStatusStore = create<EditorStatusState>((set) => ({
+export const useEditorStatusStore = createStore<EditorStatusState>('editor-status', (set) => ({
     statuses: {},
     setStatus(key, status) {
         set((state) => ({ statuses: { ...state.statuses, [key]: status } }));

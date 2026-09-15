@@ -1,5 +1,6 @@
 import type { FileEntry } from '@caxri/protocol';
-import { create } from 'zustand';
+
+import { createStore } from '../../../lib/store';
 
 export type FileConflictChoice = 'cancel' | 'keep-both' | 'replace';
 
@@ -26,7 +27,10 @@ interface FileConflictDialogState {
  * one-instance-per-panel pattern the rest of the files feature already uses for clipboard and operation state
  * (`file-clipboard.ts`, `file-operation-state.ts`).
  */
-export const useFileConflictDialogStore = create<FileConflictDialogState>(() => ({}));
+export const useFileConflictDialogStore = createStore<FileConflictDialogState>(
+    'file-conflict-dialog',
+    () => ({}),
+);
 
 /**
  * Opens the Finder-style Replace/Keep Both/Cancel prompt and resolves once the user picks one (or the dialog is

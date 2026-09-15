@@ -1,5 +1,4 @@
 import type { GitSummary } from '@caxri/protocol';
-import { create } from 'zustand';
 
 import type {
     GitChildRepoIndex,
@@ -13,6 +12,7 @@ import {
     EMPTY_GIT_CHILD_REPO_INDEX,
     EMPTY_GIT_DECORATION_INDEX,
 } from '../lib/git-decorations';
+import { createStore } from '../lib/store';
 
 /**
  * What the selected Session's Git status says about individual paths: how each changed path differs from HEAD, and
@@ -28,7 +28,7 @@ interface GitDecorationState {
     index: GitDecorationIndex;
 }
 
-const useGitDecorationStore = create<GitDecorationState>(() => ({
+const useGitDecorationStore = createStore<GitDecorationState>('git-decorations', () => ({
     childRepositories: EMPTY_GIT_CHILD_REPO_INDEX,
     index: EMPTY_GIT_DECORATION_INDEX,
 }));

@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { createStore } from '../../lib/store';
 
 interface GitDiffViewState {
     inlineView: boolean;
@@ -12,7 +12,7 @@ interface GitDiffViewState {
 /**
  * Window-lifetime preferences shared by mounted and virtualized Git diff surfaces.
  */
-export const useGitDiffViewStore = create<GitDiffViewState>(() => ({
+export const useGitDiffViewStore = createStore<GitDiffViewState>('git-diff-view', () => ({
     inlineView: false,
     collapseUnchanged: null,
     showWhitespaceDifferences: false,

@@ -2,7 +2,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import { serverCredentialTokenSchema, serverProcessIdentitySchema } from '@caxri/protocol';
+import {
+    resolveLogLevel,
+    serverCredentialTokenSchema,
+    serverProcessIdentitySchema,
+} from '@caxri/protocol';
 import {
     installProcessErrorMonitor,
     logEventCatalog,
@@ -39,10 +43,12 @@ const credential = serverCredentialTokenSchema.parse(
     requiredEnvironment('CAXRI_TERMINAL_HOST_CREDENTIAL'),
 );
 const bootId = serverProcessIdentitySchema.parse(requiredEnvironment('CAXRI_SERVER_BOOT_ID'));
-const logger = new StructuredLogger(join(userDataPath, 'logs'), 'terminal-host', 'info', {
-    bootId,
-    buildId,
-});
+const logger = new StructuredLogger(
+    join(userDataPath, 'logs'),
+    'terminal-host',
+    resolveLogLevel({ environment: process.env, fallback: 'info' }),
+    { bootId, buildId },
+);
 const processManifest = new ObservationProcessManifestPublisher({
     context: { bootId, buildId },
     directory: observationProcessManifestDirectory(userDataPath),
