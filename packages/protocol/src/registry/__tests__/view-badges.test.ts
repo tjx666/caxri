@@ -40,14 +40,17 @@ describe('badge protocol', () => {
 
     /**
      * Severity is the extension's only say in appearance, so the wire has to reject anything outside the three kinds —
-     * including the pre-`kind` shape, whose `tone` let two views paint a container in two unrelated colors.
+     * including the pre-`kind` shape, whose `tone` let two views paint a container in two unrelated colors. A severity
+     * has no tally at all: the Workbench draws a glyph for it, and a chip cannot hold a glyph and a digit at once, so a
+     * `count` sent alongside one is stripped rather than carried to a renderer that would have to discard it anyway.
      */
-    it('accepts a severity without a count and rejects unknown or missing kinds', () => {
+    it('strips a count from a severity and rejects unknown or missing kinds', () => {
         for (const kind of ['error', 'warning'] as const) {
             expect(viewBadgeSchema.safeParse({ kind, description: 'Failing' }).success).toBe(true);
-            expect(
-                viewBadgeSchema.safeParse({ kind, count: 3, description: 'Failing' }).success,
-            ).toBe(true);
+            expect(viewBadgeSchema.parse({ kind, count: 3, description: 'Failing' })).toEqual({
+                kind,
+                description: 'Failing',
+            });
         }
         expect(viewBadgeSchema.safeParse({ kind: 'count', description: 'No tally' }).success).toBe(
             false,

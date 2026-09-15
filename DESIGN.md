@@ -61,27 +61,29 @@ roles below.
 
 ### Color roles (semantic layer over theme colors)
 
-| Token                                  | Role                                                                           |
-| -------------------------------------- | ------------------------------------------------------------------------------ |
-| `--background`                         | editor/terminal canvas                                                         |
-| `--surface`                            | chrome: primarySidebar, tab strip, secondarySidebar, status bar                |
-| `--elevated`                           | hover states, cards, popovers                                                  |
-| `--border`                             | 1px hairlines between regions                                                  |
-| `--foreground`                         | primary text                                                                   |
-| `--muted`                              | secondary text, inactive icons                                                 |
-| `--accent`                             | the single focus indicator + primary buttons                                   |
-| `--accent-foreground`                  | text/icons on accent fills (derived, not hardcoded)                            |
-| `--success` / `--warning` / `--danger` | status dots, exit banners, destructive buttons                                 |
-| `--merged`                             | landed work: the merged pull request glyph                                     |
-| `--badge`                              | neutral view-container count badge fill                                        |
-| `--badge-foreground`                   | text on `--badge` (derived, not hardcoded)                                     |
-| `--git-added` … `--git-conflicting`    | working-tree decorations: added, modified, deleted, untracked, conflicting     |
-| `--tab-*`                              | tab strip fill and label, per state: active, inactive, hover                   |
-| `--list-*`                             | tree and list rows, per state: hover, focus, active/inactive selection         |
-| `--title-bar-*`                        | window title bar fill and label, by whether the window is focused              |
-| `--overlay`                            | dialog backdrop: `color-mix(in srgb, var(--background) 60%, transparent)`      |
-| `--shadow`                             | elevation shadows: a theme value, read from `widget.shadow` on import          |
-| `--indicator`                          | neutral (non-accent) selected-tab underline for secondarySidebar/settings tabs |
+| Token                                                     | Role                                                                           |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `--background`                                            | editor/terminal canvas                                                         |
+| `--surface`                                               | chrome: primarySidebar, tab strip, secondarySidebar, status bar                |
+| `--elevated`                                              | hover states, cards, popovers                                                  |
+| `--border`                                                | 1px hairlines between regions                                                  |
+| `--foreground`                                            | primary text                                                                   |
+| `--muted`                                                 | secondary text, inactive icons                                                 |
+| `--accent`                                                | the single focus indicator + primary buttons                                   |
+| `--accent-foreground`                                     | text/icons on accent fills (derived, not hardcoded)                            |
+| `--success` / `--warning` / `--danger`                    | status dots, exit banners, destructive buttons                                 |
+| `--merged`                                                | landed work: the merged pull request glyph                                     |
+| `--badge`                                                 | neutral view-container count badge fill                                        |
+| `--badge-foreground`                                      | text on `--badge` (derived, not hardcoded)                                     |
+| `--error-badge` / `--warning-badge`                       | severity view-container badge fills: the glyph chip, never a text color        |
+| `--error-badge-foreground` / `--warning-badge-foreground` | glyph on the severity fills (derived, not hardcoded)                           |
+| `--git-added` … `--git-conflicting`                       | working-tree decorations: added, modified, deleted, untracked, conflicting     |
+| `--tab-*`                                                 | tab strip fill and label, per state: active, inactive, hover                   |
+| `--list-*`                                                | tree and list rows, per state: hover, focus, active/inactive selection         |
+| `--title-bar-*`                                           | window title bar fill and label, by whether the window is focused              |
+| `--overlay`                                               | dialog backdrop: `color-mix(in srgb, var(--background) 60%, transparent)`      |
+| `--shadow`                                                | elevation shadows: a theme value, read from `widget.shadow` on import          |
+| `--indicator`                                             | neutral (non-accent) selected-tab underline for secondarySidebar/settings tabs |
 
 Derive `--accent-foreground`, `--danger-foreground`, `--badge-foreground`, and `--overlay` in one
 place from theme colors. The status bar uses `--surface` plus a top hairline — never an accent fill.
@@ -347,28 +349,35 @@ yellow Session attention ring keeps its separate meaning and position.
 
 The Status tab carries a compact, static badge anchored to the heartbeat icon's lower-right
 corner, following VS Code's activity-bar badge placement. Use a 16px minimum circular surface that
-grows into a capsule, `badge` text, and a surface-colored ring separating it from the icon. It
-counts failed PR checks and current production/preview deployments across the selected Session's
-repositories, deduplicated by identity. PR rollups, historical deployments, pending work, and
-provider-fetch errors do not inflate the number. Zero or unavailable status hides the badge;
-tooltip and accessible description expose the full count and categories. Switching tabs does not
-clear failures; switching Sessions changes the badge scope.
+grows into a capsule and a surface-colored ring separating it from the icon. The tab reports a
+severity, so the badge is the Workbench's error glyph on `--error-badge`, never a digit. It fires
+on failed PR checks and current production/preview deployments across the selected Session's
+repositories, deduplicated by identity; PR rollups, historical deployments, pending work, and
+provider-fetch errors do not raise it. Zero or unavailable status hides the badge; tooltip and
+accessible description expose the full count and categories. Switching tabs does not clear
+failures; switching Sessions changes the badge scope.
 
 Badges are an extension view capability, and an extension reports only meaning: a plain-text
 description plus one of `count`, `error`, or `warning`. Appearance is the Workbench's, so two views
-can never paint one container in two unrelated colors. A `count` badge uses
-`--badge`/`--badge-foreground`; `error` and `warning` use `--error-badge` and `--warning-badge` with
-their derived foregrounds, and each carries a fixed Workbench glyph inside the badge so severity
-survives without color. Those two roles are separate from `--danger` and `--warning`, which are text
-colors imported from the editor's error and warning squiggles and are not fills.
+can never paint one container in two unrelated colors. A `count` badge is a digit on
+`--badge`/`--badge-foreground`. An `error` or `warning` badge is a fixed Workbench glyph — never a
+digit — on `--error-badge` or `--warning-badge` with their derived foregrounds, so severity survives
+greyscale and color blindness; the two glyphs differ in shape, not only in fill. Those two roles are
+separate from `--danger` and `--warning`, which are text colors imported from the editor's error and
+warning squiggles and are not fills.
 
-Within a container the Workbench keeps the most severe kind present and totals only that kind,
-capped at `99+`; a severity with any uncounted badge shows its glyph alone rather than a partial
-total. Git counts all working-tree changes across the current Workbench Root's repositories,
-including hidden and truncated entries. Every contributing view's description reaches the
-accessible name whatever the digit shows. Badge reads activate declared providers even before their
-views open. Zero, no selected Session, and unavailable extension states hide the badge; counts
-never carry across Workbench scopes.
+Within a container, severity takes the badge outright: `error` beats `warning`, and either beats
+every tally, which then does not appear on the chip at all. Only `count` badges are totalled, capped
+at `99+`; severities are never summed, because a severity carries no count. A glyph and a digit never
+share one chip — the digit would displace the glyph and leave the fill as the only difference between
+`5` changes and `5` failures, which is nothing to a colorblind user or in a greyscale capture. This
+is VS Code's rule: its composite-bar badges are a strict `progress` > `icon` > `number` ladder, and
+its `ErrorBadge`/`WarningBadge` have no number field. Git counts all working-tree changes across the
+current Workbench Root's repositories, including hidden and truncated entries. Every contributing
+view's description reaches the accessible description and the tab tooltip whatever the chip shows, so
+a displaced tally stays announced and stays hoverable. Badge reads activate declared providers even
+before their views open. Zero, no selected Session, and unavailable extension states hide the badge;
+counts never carry across Workbench scopes.
 
 **Tab strip** — active tab: `--background` fill joining it visually to the pane below,
 `--foreground` text, and a 2px `--accent` top border, VS Code style. Inactive: `--surface` +

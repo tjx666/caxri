@@ -1,14 +1,60 @@
 import type { ViewCatalogSnapshot } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { aggregateContainerBadges, badgeViews } from '../view-badges';
+import { aggregateContainerBadges, badgeViews, selectContainerBadge } from '../view-badges';
 
 describe('view badges', () => {
     /**
-     * The counts of the lesser kinds are deliberately dropped from the digit: a container holding 2 ordinary changes
-     * and 9 failures used to show `11` in the failure color, which reads as 11 failures. Their descriptions stay.
+     * The bug this replaced: a severity that also had a tally rendered the digit and let the fill carry the severity,
+     * so the Status tab's `9` and the Git tab's `120` were the same size, shape, and position and differed only by
+     * color. Severity now takes the chip outright and the displaced tallies stay in the description.
      */
-    it('tallies only the most severe kind in a container and keeps every description', () => {
+    it('lets a severity replace a tally and keeps every contributing description', () => {
+        expect(
+            selectContainerBadge([
+                { kind: 'count', count: 2, description: '2 changes' },
+                { kind: 'error', description: '9 failures' },
+                { kind: 'warning', description: '4 warnings' },
+            ]),
+        ).toEqual({ kind: 'error', description: '2 changes, 9 failures, 4 warnings' });
+    });
+
+    it('ranks error above warning above count and never blends two rungs', () => {
+        expect(
+            selectContainerBadge([
+                { kind: 'warning', description: 'Stale deployment' },
+                { kind: 'count', count: 3, description: '3 changes' },
+            ]),
+        ).toEqual({ kind: 'warning', description: 'Stale deployment, 3 changes' });
+        expect(
+            selectContainerBadge([{ kind: 'error', description: 'Pipeline failed' }]),
+        ).not.toHaveProperty('text');
+    });
+
+    it('totals only plain tallies, caps the digit, and hides an all-zero container', () => {
+        expect(
+            selectContainerBadge([
+                { kind: 'count', count: 2, description: '2 changes' },
+                { kind: 'count', count: 3, description: '3 more' },
+            ]),
+        ).toEqual({ kind: 'count', text: '5', description: '2 changes, 3 more' });
+        expect(
+            selectContainerBadge([{ kind: 'count', count: 120, description: '120 changes' }]),
+        ).toEqual({ kind: 'count', text: '99+', description: '120 changes' });
+        expect(selectContainerBadge([])).toBeUndefined();
+        expect(
+            selectContainerBadge([{ kind: 'count', count: 0, description: 'No changes' }]),
+        ).toBeUndefined();
+        // A zero tally alongside a severity drops out of the description too: it contributes nothing.
+        expect(
+            selectContainerBadge([
+                { kind: 'count', count: 0, description: 'No changes' },
+                { kind: 'error', description: 'Pipeline failed' },
+            ]),
+        ).toEqual({ kind: 'error', description: 'Pipeline failed' });
+    });
+
+    it('groups every view by container and drops containers with nothing to show', () => {
         expect(
             aggregateContainerBadges([
                 {
@@ -19,14 +65,7 @@ describe('view badges', () => {
                     containerId: 'status',
                     badge: { kind: 'count', count: 2, description: '2 changes' },
                 },
-                {
-                    containerId: 'status',
-                    badge: { kind: 'error', count: 9, description: '9 failures' },
-                },
-                {
-                    containerId: 'status',
-                    badge: { kind: 'warning', count: 4, description: '4 warnings' },
-                },
+                { containerId: 'status', badge: { kind: 'error', description: '9 failures' } },
                 { containerId: 'empty', badge: null },
                 {
                     containerId: 'zero',
@@ -34,31 +73,8 @@ describe('view badges', () => {
                 },
             ]),
         ).toEqual({
-            git: { text: '99+', description: '120 changes', kind: 'count' },
-            status: {
-                text: '9',
-                description: '2 changes, 9 failures, 4 warnings',
-                kind: 'error',
-            },
-        });
-    });
-
-    it('shows a severity with no tally as an icon-only badge instead of an incomplete total', () => {
-        expect(
-            aggregateContainerBadges([
-                { containerId: 'status', badge: { kind: 'error', description: 'Pipeline failed' } },
-                {
-                    containerId: 'status',
-                    badge: { kind: 'error', count: 3, description: '3 jobs' },
-                },
-                {
-                    containerId: 'other',
-                    badge: { kind: 'warning', description: 'Stale deployment' },
-                },
-            ]),
-        ).toEqual({
-            status: { text: '', description: 'Pipeline failed, 3 jobs', kind: 'error' },
-            other: { text: '', description: 'Stale deployment', kind: 'warning' },
+            git: { kind: 'count', text: '99+', description: '120 changes' },
+            status: { kind: 'error', description: '2 changes, 9 failures' },
         });
     });
 

@@ -28,5 +28,7 @@ export function statusBadge(summary: ProjectStatusSummary | undefined): ViewBadg
         parts.push(
             `${deployments.size} failed ${deployments.size === 1 ? 'deployment' : 'deployments'}`,
         );
-    return { kind: 'error', count, description: parts.join(', ') };
+    // A severity badge carries no tally: the Workbench draws its glyph, so the numbers travel in the description,
+    // which reaches the container tab's tooltip and accessible description.
+    return { kind: 'error', description: parts.join(', ') };
 }

@@ -57,12 +57,11 @@ describe('Status tab badge', () => {
         });
         expect(statusBadge(summary([repo, { ...repo, id: 'nested', kind: 'submodule' }]))).toEqual({
             kind: 'error',
-            count: 3,
             description: '2 failed checks, 1 failed deployment',
         });
     });
 
-    it('includes independent submodule failures without capping the provider count', () => {
+    it('includes independent submodule failures without capping the reported total', () => {
         const repos = Array.from({ length: 101 }, (_, index) =>
             repo_({
                 id: String(index),
@@ -79,7 +78,6 @@ describe('Status tab badge', () => {
         );
         expect(statusBadge(summary(repos))).toEqual({
             kind: 'error',
-            count: 101,
             description: '101 failed checks',
         });
         const healthy = summary([repo_()]);

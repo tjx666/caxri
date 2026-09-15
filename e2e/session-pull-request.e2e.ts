@@ -131,10 +131,12 @@ esac
             const statusTab = running.page.getByRole('tab', { name: 'Status', exact: true });
             const badge = statusTab.locator('[data-view-container-badge]');
             if (state === 'open') {
-                await expect(badge).toHaveText('1');
-                // A tally wins the chip outright, so an error badge is no wider than an ordinary count badge.
-                await expect(badge.locator('svg')).toHaveCount(0);
+                // Severity takes the chip outright: the glyph renders and the tally never appears beside it, so the
+                // badge stays readable in greyscale instead of leaving the fill to carry the severity alone.
+                await expect(badge).toHaveText('');
+                await expect(badge.locator('svg')).toHaveCount(1);
                 await expect(badge).toHaveAttribute('data-view-container-badge-kind', 'error');
+                // The displaced tally survives where a screen reader and a hover both still reach it.
                 await expect(statusTab).toHaveAccessibleDescription('1 failed check');
             } else await expect(badge).toHaveCount(0);
             await running.page
