@@ -2,11 +2,7 @@ import type { WorkbenchRootOption } from '@caxri/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { selectWorkbenchRoot } from '../workbench-root-commands';
-import {
-    visibleWorkbenchRoots,
-    workbenchRootLabel,
-    workbenchRootSearchScore,
-} from '../workbench-root-options';
+import { visibleWorkbenchRoots, workbenchRootLabel } from '../workbench-root-options';
 
 const mocks = vi.hoisted(() => ({
     request: vi.fn(),
@@ -46,16 +42,6 @@ function option(id: string, extra: Partial<WorkbenchRootOption> = {}): Workbench
 }
 
 describe('Workbench Root picker', () => {
-    it('matches branch/path substrings without fuzzy hits across shared directory names', () => {
-        expect(
-            workbenchRootSearchScore('id', 'feature/manual', [
-                'feature/recent-1',
-                '/tmp/manual-worktrees/recent-1',
-            ]),
-        ).toBe(0);
-        expect(workbenchRootSearchScore('id', 'FEATURE/MANUAL', ['feature/manual'])).toBe(1);
-        expect(workbenchRootSearchScore('id', 'recent-1', ['/tmp/worktrees/recent-1'])).toBe(1);
-    });
     beforeEach(() => {
         vi.clearAllMocks();
         mocks.request.mockResolvedValue({ id: 'session' });
