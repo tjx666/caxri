@@ -200,13 +200,13 @@ function ActiveSessionRow({
             </span>
         </SessionRowTrigger>
     );
+    /*
+     * Layout and the drop marker only. The `treeitem` role, `aria-level`, and `aria-selected` belong to
+     * `SessionRowTrigger` inside, which is the element that owns the roving `tabIndex`: semantics on a wrapper that
+     * focus never reaches describe nothing.
+     */
     const row = (
-        <div
-            aria-level={2}
-            aria-selected={selected}
-            className="session-row group/session-row relative"
-            role="treeitem"
-        >
+        <div className="session-row group/session-row relative">
             {sessionOrder.dropTarget?.anchorSessionId === session.id && (
                 <div
                     aria-hidden="true"
@@ -382,17 +382,14 @@ export function ProjectGroup({
                 </div>
             )}
             <ProjectRowMenu project={project}>
+                {/*
+                 * The Project drag source and the row's layout. Its tree semantics live on the `.project-select`
+                 * button below, which is the element that owns the roving Tab stop: `aria-level`, `aria-selected`, and
+                 * `aria-expanded` have to sit on the element focus reaches, not on the box around it.
+                 */}
                 <div
-                    aria-expanded={expanded}
-                    aria-level={1}
-                    aria-selected={active}
                     className="project-heading group/project-heading flex min-h-7 cursor-grab items-center gap-1 rounded-md text-foreground hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] active:cursor-grabbing"
                     data-project-id={project.id}
-                    role="treeitem"
-                    // Programmatically focusable only to satisfy the treeitem-with-drag-handlers
-                    // a11y contract (react-doctor/interactive-supports-focus); the roving Tab stop
-                    // stays on the inner `.project-select` button below, not on this wrapper.
-                    tabIndex={-1}
                     draggable
                     onDragOver={(event) => {
                         if (!hasProjectDragType(event.dataTransfer.types)) return;
@@ -426,9 +423,12 @@ export function ProjectGroup({
                         </button>
                     </Tooltip>
                     <button
-                        className="project-select flex min-h-7 min-w-0 flex-1 cursor-pointer items-center gap-1.5 border-0 bg-transparent px-1 text-left text-inherit"
+                        className="project-select flex min-h-7 min-w-0 flex-1 cursor-pointer items-center gap-1.5 border-0 bg-transparent px-1 text-left text-inherit focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
+                        role="treeitem"
                         aria-controls={projectDisclosureId}
                         aria-expanded={expanded}
+                        aria-level={1}
+                        aria-selected={active}
                         aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
                         // The visible digit is `aria-hidden`, so the count reaches assistive technology named rather
                         // than as a bare number trailing the title.
@@ -537,36 +537,29 @@ export function ProjectGroup({
                             />
                         ))}
                         {hiddenSessionCount > 0 && (
-                            <div
+                            /*
+                             * The button is the row: it holds the roving Tab stop, so it carries the tree semantics
+                             * itself instead of sitting inside a `treeitem` wrapper focus never reaches.
+                             */
+                            <button
+                                className="session-reveal flex h-7 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-muted hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
+                                role="treeitem"
+                                aria-label={`Show ${nextRevealCount} more ${nextRevealCount === 1 ? 'Session' : 'Sessions'} in ${project.displayTitle}`}
                                 aria-level={2}
                                 aria-selected={false}
-                                className="session-reveal-row"
-                                role="treeitem"
+                                data-row-id={revealRowId}
+                                tabIndex={revealRowId === rovingRowId ? 0 : -1}
+                                onClick={onRevealMoreSessions}
                             >
-                                <button
-                                    className="session-reveal flex h-7 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-muted hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
-                                    aria-label={`Show ${nextRevealCount} more ${nextRevealCount === 1 ? 'Session' : 'Sessions'} in ${project.displayTitle}`}
-                                    data-row-id={revealRowId}
-                                    tabIndex={revealRowId === rovingRowId ? 0 : -1}
-                                    onClick={onRevealMoreSessions}
-                                >
-                                    <ChevronDown size={13} /> Show {nextRevealCount} more
-                                </button>
-                            </div>
+                                <ChevronDown size={13} /> Show {nextRevealCount} more
+                            </button>
                         )}
                         {visibleSessions.length === 0 && (
-                            <div
-                                aria-level={2}
-                                aria-selected={false}
-                                className="empty-project-row"
-                                role="treeitem"
-                            >
-                                <EmptyProjectSessionMenu
-                                    project={project}
-                                    roving={createSessionRowId === rovingRowId}
-                                    rowId={createSessionRowId}
-                                />
-                            </div>
+                            <EmptyProjectSessionMenu
+                                project={project}
+                                roving={createSessionRowId === rovingRowId}
+                                rowId={createSessionRowId}
+                            />
                         )}
                     </div>
                 )}

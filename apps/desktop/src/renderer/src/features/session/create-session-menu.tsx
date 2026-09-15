@@ -164,8 +164,10 @@ export function CreateSessionMenu({ project }: { project: ProjectRecord }) {
  * It renders its own menu rather than reusing the heading's so the choice opens under the button the user clicked;
  * before that, this button borrowed the heading's menu and the popup appeared several rows above the pointer.
  *
- * It is also a row of the PrimarySidebar's ARIA tree: `rowId` is how arrow-key navigation finds and focuses it, and
- * `roving` is true while it owns the tree's single Tab stop.
+ * It is also a row of the PrimarySidebar's ARIA tree: `rowId` is how arrow-key navigation finds and focuses it,
+ * `roving` is true while it owns the tree's single Tab stop, and the button carries the `treeitem` role itself because
+ * it is the element focus lands on. The `aria-expanded` Base UI adds here reports this row's menu, which is what its
+ * companion `aria-haspopup="menu"` says it is; the row has no children of its own.
  */
 export function EmptyProjectSessionMenu({
     project,
@@ -188,7 +190,10 @@ export function EmptyProjectSessionMenu({
                      * Session" alone would read identically for every one of them.
                      */
                     aria-label={`New Session in ${project.displayTitle}`}
+                    aria-level={2}
+                    aria-selected={false}
                     data-row-id={rowId}
+                    role="treeitem"
                     tabIndex={roving ? 0 : -1}
                 >
                     <SquarePen size={13} /> New Session

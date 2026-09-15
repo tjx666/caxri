@@ -101,7 +101,9 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 deleteSelected: record('session.delete'),
                 detachSelected: record('session.detach'),
                 navigateHistory: record('session.navigateHistory'),
+                openArchived: record('session.openArchived'),
                 openPullRequestSelected: record('session.openPullRequest'),
+                renameSelected: record('session.rename'),
                 resumeSelected: record('session.resume'),
                 selectAdjacent: record('session.selectAdjacent'),
                 switchMru: record('session.switchMru'),
@@ -130,6 +132,8 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 focusPaneInDirection: record('workbench.focusPaneInDirection'),
                 canMoveActiveTerminalToNewSession: () => true,
                 moveActiveTerminalToNewSession: record('workbench.moveActiveTerminalToNewSession'),
+                canSelectRoot: () => true,
+                selectRoot: record('workbench.selectRoot'),
             },
             editor: {
                 saveActive: record('editor.save'),
@@ -138,6 +142,8 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 canOpenPreview: () => true,
                 openPreview: record('editor.openPreview'),
                 openPreviewToSide: record('editor.openPreviewToSide'),
+                canOpenImportLink: () => true,
+                openImportLink: record('editor.openImportLink'),
             },
             secondarySidebar: {
                 activateViewContainer: record('secondarySidebar.activateViewContainer'),
@@ -147,7 +153,14 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 activateViewContainer: record('panel.activateViewContainer'),
                 toggle: record('panel.toggle'),
             },
-            primarySidebar: { toggle: record('primarySidebar.toggle') },
+            primarySidebar: {
+                focus: record('primarySidebar.focus'),
+                toggle: record('primarySidebar.toggle'),
+            },
+            git: {
+                canSwitchBranch: () => true,
+                switchBranch: record('git.switchBranch'),
+            },
             dialogs: {
                 openSettings: record('dialogs.openSettings'),
                 openPalette: record('dialogs.openPalette'),

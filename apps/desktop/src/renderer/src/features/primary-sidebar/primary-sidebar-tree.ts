@@ -114,18 +114,42 @@ export interface PrimarySidebarHorizontalIntent {
 }
 
 /**
- * Resolves Left/Right on a tree row per the standard ARIA tree authoring pattern: Right opens a collapsed Project, Left
- * closes an open one. A Session, reveal, or "New Session" row has no children of its own, so Left instead moves focus
- * to its owning Project heading — only a Project is a collapse/expand target.
+ * Row id of the first row nested under a Project heading, or `undefined` when the Project renders none.
+ * `flattenPrimarySidebarRows` emits a Project's rows immediately after its heading, so the candidate is always the next
+ * row; it is still tested against the owning Project so a Project with nothing below it cannot step into the next
+ * Project's heading.
+ */
+function firstPrimarySidebarChildRowId(
+    rows: readonly PrimarySidebarTreeRow[],
+    projectRow: PrimarySidebarTreeRow,
+): string | undefined {
+    const index = rows.findIndex((candidate) => candidate.id === projectRow.id);
+    if (index === -1) return undefined;
+    const next = rows.at(index + 1);
+    if (!next) return undefined;
+    return next.kind !== 'project' && next.projectId === projectRow.projectId ? next.id : undefined;
+}
+
+/**
+ * Resolves Left/Right on a tree row per the standard ARIA tree authoring pattern: Right opens a collapsed Project and
+ * steps into the first row of an already open one, Left closes an open Project. A Session, reveal, or "New Session" row
+ * has no children of its own, so Left instead moves focus to its owning Project heading — only a Project is a
+ * collapse/expand target, and Right on one of those rows does nothing.
+ *
+ * Right on an already expanded Project used to be a dead key, which is the half of the pattern that leaves a user who
+ * opened a Project with the arrow keys no way to continue into it with the same key.
  */
 export function primarySidebarHorizontalIntent(
+    rows: readonly PrimarySidebarTreeRow[],
     row: PrimarySidebarTreeRow,
     isExpanded: boolean,
     key: 'ArrowLeft' | 'ArrowRight',
 ): PrimarySidebarHorizontalIntent {
     if (row.kind !== 'project') return key === 'ArrowLeft' ? { focusRowId: row.projectId } : {};
-    if (key === 'ArrowRight') return isExpanded ? {} : { expanded: true };
-    return isExpanded ? { expanded: false } : {};
+    if (key === 'ArrowLeft') return isExpanded ? { expanded: false } : {};
+    if (!isExpanded) return { expanded: true };
+    const firstChildRowId = firstPrimarySidebarChildRowId(rows, row);
+    return firstChildRowId ? { focusRowId: firstChildRowId } : {};
 }
 
 /**

@@ -121,10 +121,11 @@ describe('command registry', () => {
                 group.map((command) => command.id),
             ),
         ).toEqual([
-            ['session.create', 'session.delete', 'session.archive'],
+            ['session.create', 'session.rename', 'session.delete', 'session.archive'],
             ['session.selectPrevious', 'session.selectNext'],
             ['session.navigateBack', 'session.navigateForward'],
             ['session.detach', 'session.resume'],
+            ['session.openArchived'],
         ]);
         expect(
             getNativeMenuCommandGroups('help').map((group) => group.map((command) => command.id)),

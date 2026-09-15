@@ -108,7 +108,7 @@ export function ScreenshotAnnotationList({
             </div>
             {annotations.length === 0 ? (
                 <p className="m-0 text-[12px] text-muted">
-                    No marks yet. Drag on the screenshot to add one.
+                    No marks yet. Drag on the screenshot to add one, or press Enter on it.
                 </p>
             ) : (
                 <div className="grid max-h-[70vh] gap-1 overflow-auto">

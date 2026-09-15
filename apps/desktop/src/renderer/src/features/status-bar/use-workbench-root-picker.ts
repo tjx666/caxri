@@ -3,6 +3,7 @@ import { useState } from 'react';
 import type { WorkbenchRootOption } from '@caxri/protocol';
 
 import { useCaxriQuery, useToastOnQueryError } from '../../queries/client';
+import { useStatusBarPickerRequest } from './use-status-bar-picker-request';
 import { selectWorkbenchRoot } from './workbench-root-commands';
 
 export function useWorkbenchRootPicker(sessionId: string) {
@@ -24,6 +25,7 @@ export function useWorkbenchRootPicker(sessionId: string) {
             setSearch('');
         }
     };
+    useStatusBarPickerRequest('workbenchRoot', () => changeOpen(true));
     const select = async (root: WorkbenchRootOption) => {
         if (switching) return;
         setSwitching(true);

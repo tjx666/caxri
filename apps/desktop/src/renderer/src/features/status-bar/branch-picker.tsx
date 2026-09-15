@@ -19,6 +19,7 @@ import { useCaxriQuery, useToastOnQueryError } from '../../queries/client';
 import { switchBranch } from './branch-commands';
 import { pickerSearchScore } from './picker-search';
 import { statusItemClassName } from './status-item';
+import { useStatusBarPickerRequest } from './use-status-bar-picker-request';
 
 export function BranchPicker({
     branch,
@@ -31,6 +32,7 @@ export function BranchPicker({
 }) {
     const [open, setOpen] = useState(false);
     const [switching, setSwitching] = useState(false);
+    useStatusBarPickerRequest('branch', () => setOpen(true));
     const now = useNow(30_000);
     const branchesQuery = useCaxriQuery(
         'git.branches',

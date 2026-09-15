@@ -24,6 +24,11 @@ interface PanelHeaderProperties {
  * default size beside an icon, and Project Status was bold uppercase with tracking. Three treatments for one role read
  * as three unrelated surfaces. This settles on the Status panel's treatment, which is also VS Code's section caption —
  * small, bold, uppercase, letter-spaced — so a workspace name reads as a heading instead of a stray label.
+ *
+ * The caption is a real `<h3>`, not a styled `<span>`: the multi-view container in `view-container-surface.tsx` shipped
+ * its own `<h3>` before it was migrated here, and a screen reader's heading list is how a keyboard user jumps between
+ * the views stacked inside one container. Tailwind's preflight already resets heading margin and size, so the element
+ * change carries no visual weight of its own.
  */
 export function PanelHeader({
     actions,
@@ -40,12 +45,12 @@ export function PanelHeader({
                 className,
             )}
         >
-            <span
+            <h3
                 className="panel-caption-title min-w-0 flex-1 truncate text-[11px] font-bold tracking-[0.04em] text-foreground uppercase"
                 title={titleAttribute}
             >
                 {title}
-            </span>
+            </h3>
             {actions !== undefined && (
                 <span className="panel-caption-actions flex flex-none items-center gap-0.5">
                     {actions}

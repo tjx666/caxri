@@ -15,7 +15,7 @@ import { caxriQueryKey, queryClient } from '../../queries/client';
 import { removeSessionQueries } from '../../queries/invalidation';
 import { useChromeLayoutStore } from '../../stores/chrome-layout';
 import type { CreateSessionAnchor } from '../../stores/dialogs';
-import { clearPendingSession, useDialogStore } from '../../stores/dialogs';
+import { clearPendingSession, requestSessionRename, useDialogStore } from '../../stores/dialogs';
 import { getBootstrap, getSelectedSession, selectSelectedProject } from '../../stores/selectors';
 import { useSessionViewStore } from '../../stores/session-view';
 import { pushToast, tryCommand } from '../../stores/toasts';
@@ -307,6 +307,27 @@ export function archiveSession(sessionId: string): void {
 export function archiveSelectedSession(): void {
     const session = getSelectedSession();
     if (session) archiveSession(session.id);
+}
+
+/**
+ * Puts the selected Session's sidebar row into rename mode. The rename editor _is_ that row, so a hidden Primary Side
+ * Bar is revealed first rather than letting the command type into a surface nobody can see — the same reveal
+ * {@link beginSessionCreation} performs before opening its anchored menu.
+ */
+export function renameSelectedSession(): void {
+    const session = getSelectedSession();
+    if (!session) return;
+    if (!useChromeLayoutStore.getState().primarySidebarVisible)
+        useChromeLayoutStore.getState().setPrimarySidebarVisible(true);
+    requestSessionRename(session.id);
+}
+
+/**
+ * Opens the Archived Sessions manager. Its only other entry point is the Primary Side Bar footer button, which
+ * `Command+[` hides along with the rest of the side bar.
+ */
+export function openArchivedSessions(): void {
+    useDialogStore.getState().setArchivedSessionsOpen(true);
 }
 
 /**

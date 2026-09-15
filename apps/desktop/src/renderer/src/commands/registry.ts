@@ -25,7 +25,9 @@ export interface CommandContext {
         deleteSelected(): void;
         detachSelected(): void;
         navigateHistory(direction: SessionNavigationDirection): void;
+        openArchived(): void;
         openPullRequestSelected(): void;
+        renameSelected(): void;
         resumeSelected(): void;
         selectAdjacent(delta: 1 | -1): void;
         switchMru(invocation?: SessionMruShortcutInvocation): void;
@@ -70,6 +72,12 @@ export interface CommandContext {
          */
         canMoveActiveTerminalToNewSession(): boolean;
         moveActiveTerminalToNewSession(): void;
+        /**
+         * True only when a Session is selected, which is the condition under which the status bar renders the Workbench
+         * Root chip the command asks to open.
+         */
+        canSelectRoot(): boolean;
+        selectRoot(): void;
     };
     editor: {
         saveActive(): void;
@@ -85,13 +93,26 @@ export interface CommandContext {
         canOpenPreview(): boolean;
         openPreview(): void;
         openPreviewToSide(): void;
+        /**
+         * True only when an ordinary file editor is mounted, so there is a caret to read an import path from.
+         */
+        canOpenImportLink(): boolean;
+        openImportLink(): void;
     };
     secondarySidebar: {
         activateViewContainer(id: ViewContainerId): void;
         toggle(): void;
     };
     panel: { activateViewContainer(id: ViewContainerId): void; toggle(): void };
-    primarySidebar: { toggle(): void };
+    primarySidebar: { focus(): void; toggle(): void };
+    git: {
+        /**
+         * True only when the selected Session sits in a repository, which is when the status bar renders the branch
+         * chip.
+         */
+        canSwitchBranch(): boolean;
+        switchBranch(): void;
+    };
     dialogs: {
         openSettings(view?: SettingsView): void;
         openPalette(): void;
