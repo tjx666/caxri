@@ -4,7 +4,7 @@ import { useRender } from '@base-ui/react/use-render';
 import type { SessionRecord } from '@caxri/protocol';
 
 import { cn } from '../../lib/utilities';
-import { didSelectSession } from '../session/session-commands';
+import { didSelectSession, openSession } from '../session/session-commands';
 import type { SessionOrderController } from './hooks/use-session-order';
 
 interface SessionRowTriggerProperties extends ComponentProps<'div'> {
@@ -58,7 +58,11 @@ export function SessionRowTrigger({
                 // eslint-disable-next-line no-void -- intentional floating-promise discard
                 if (!renaming && !selected) void didSelectSession(session.id);
             }}
-            onDoubleClick={onBeginRename}
+            // Opens the Session, the way double-click opens an item in Finder, in the VS Code explorer, and on this
+            // app's own tab strip. It used to start a rename, which is the one meaning the gesture has nowhere else.
+            onDoubleClick={() => {
+                if (!renaming) openSession(session.id);
+            }}
             onKeyDown={(event) => {
                 if (!renaming) sessionOrder.keyDown(event, session, visibleSessions);
                 if (event.defaultPrevented) return;

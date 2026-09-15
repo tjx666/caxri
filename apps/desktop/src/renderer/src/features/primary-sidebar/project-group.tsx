@@ -8,7 +8,7 @@ import type {
     SessionRecord,
     TerminalRecord,
 } from '@caxri/protocol';
-import { Archive, ChevronDown, Paintbrush } from 'lucide-react';
+import { Archive, ChevronDown, ChevronRight, Paintbrush } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
 import { CommandTooltip } from '../../components/command-tooltip';
@@ -26,6 +26,7 @@ import {
     primarySidebarCreateSessionRowId,
     primarySidebarRevealRowId,
 } from './primary-sidebar-tree';
+import { describeProjectSessionCount } from './project-heading';
 import { ProjectIcon } from './project-icon';
 import type { ProjectDropTarget } from './project-order';
 import { hasProjectDragType } from './project-order';
@@ -408,21 +409,33 @@ export function ProjectGroup({
                         content={`${expanded ? 'Collapse' : 'Expand'} ${project.displayTitle}`}
                     >
                         <button
-                            className="project-disclosure grid h-7 w-6 flex-none cursor-pointer place-items-center border-0 bg-transparent p-0 text-inherit"
+                            className="project-disclosure grid h-7 w-4 flex-none cursor-pointer place-items-center border-0 bg-transparent p-0 text-muted hover:text-foreground"
                             aria-controls={projectDisclosureId}
                             aria-expanded={expanded}
                             aria-label={`${expanded ? 'Collapse' : 'Expand'} ${project.displayTitle}`}
                             tabIndex={-1}
                             onClick={onToggle}
                         >
-                            <ProjectIcon expanded={expanded} icon={project.icon} />
+                            {/*
+                             * The disclosure cue is this chevron, never the folder glyph beside it: a Project with a
+                             * custom icon keeps that icon in both states, so an open/closed icon swap tells a user who
+                             * customized their Projects nothing at all. Same twistie-then-icon order the Source
+                             * Control and extension trees already use.
+                             */}
+                            {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                         </button>
                     </Tooltip>
                     <button
-                        className="project-select flex min-h-7 min-w-0 flex-1 cursor-pointer items-center border-0 bg-transparent px-1 text-left text-inherit"
+                        className="project-select flex min-h-7 min-w-0 flex-1 cursor-pointer items-center gap-1.5 border-0 bg-transparent px-1 text-left text-inherit"
                         aria-controls={projectDisclosureId}
                         aria-expanded={expanded}
                         aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+                        // The visible digit is `aria-hidden`, so the count reaches assistive technology named rather
+                        // than as a bare number trailing the title.
+                        aria-label={describeProjectSessionCount(
+                            project.displayTitle,
+                            projectSessions.length,
+                        )}
                         data-row-id={project.id}
                         tabIndex={project.id === rovingRowId ? 0 : -1}
                         onClick={onToggle}
@@ -435,9 +448,25 @@ export function ProjectGroup({
                         }}
                         title={project.rootPath}
                     >
+                        <ProjectIcon
+                            className="flex-none"
+                            expanded={expanded}
+                            icon={project.icon}
+                        />
                         <strong className="min-w-0 flex-1 overflow-hidden text-sm font-semibold text-ellipsis whitespace-nowrap">
                             {project.displayTitle}
                         </strong>
+                        {/*
+                         * The Session count stays on the heading in both states: while the Project is collapsed — which
+                         * auto-collapse can cause without the user asking — it is the only thing that says how much is
+                         * inside. Mirrors the archived-count digit in the footer.
+                         */}
+                        <span
+                            aria-hidden="true"
+                            className="project-session-count flex-none text-[11px] text-muted tabular-nums"
+                        >
+                            {projectSessions.length}
+                        </span>
                     </button>
                     <CommandTooltip commandId="project.customizeIcon">
                         <Button

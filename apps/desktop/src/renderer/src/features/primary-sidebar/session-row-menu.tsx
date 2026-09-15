@@ -36,7 +36,10 @@ import {
  *
  * Rename is never disabled. A Session title belongs to Caxri, so the Server always commits it and only synchronizes it
  * to the Agent when that provider can accept one; greying the entry out here made the menu disagree with the row's own
- * double-click and Enter, which always opened the input.
+ * Enter key, which always opened the input.
+ *
+ * This menu and that Enter key are rename's two entry points: the row's double-click now opens the Session instead,
+ * because double-click means open everywhere else in this app and in the file managers it borrows from.
  */
 export function SessionRowMenu({
     children,
