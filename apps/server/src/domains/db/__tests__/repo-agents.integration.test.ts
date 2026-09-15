@@ -149,7 +149,7 @@ describe('CaxriDatabase Agent metadata', () => {
         database.archiveSession(created.session.id);
         database.close();
         const reopened = new CaxriDatabase(databasePath);
-        expect(reopened.unarchiveSession(created.session.id)).toMatchObject({
+        expect(reopened.unarchiveSessions([created.session.id])[0]).toMatchObject({
             attentionEpoch: 2,
             readAttentionEpoch: 2,
             lastAttentionKind: 'completed',

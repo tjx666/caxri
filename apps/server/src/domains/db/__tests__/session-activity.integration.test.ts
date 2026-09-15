@@ -48,7 +48,7 @@ describe('Session Activity persistence', () => {
         database.selectSession(first.id);
         database.renameSession(first.id, 'Renamed without activity');
         database.archiveSession(first.id);
-        database.unarchiveSession(first.id);
+        database.unarchiveSessions([first.id]);
         database.updateSessionState(database.getSessionState(first.id));
         expect(database.getSession(first.id)).toMatchObject({
             lastSessionActivityAt: first.createdAt,

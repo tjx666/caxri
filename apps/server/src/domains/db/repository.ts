@@ -10,6 +10,7 @@ import type {
     ProjectRecord,
     SessionActivityReason,
     SessionRecord,
+    SessionRestorePlacement,
     SessionState,
     TerminalFailureReason,
     TerminalKind,
@@ -44,6 +45,7 @@ import type {
 } from './models/agent-dispatch-receipts';
 import type { AppStateKey, AppStateValue } from './models/app-state';
 import type { SessionWorkbenchBinding } from './models/sessions';
+import { archiveOneSession, restoreArchivedSessions } from './session-archive';
 import { assertTerminalCapacity } from './terminal-capacity';
 
 /**
@@ -567,41 +569,15 @@ export class CaxriDatabase {
         });
     }
 
-    /**
-     * Archives a Session without touching its Terminal records or PTYs. If it was selected, active navigation moves to
-     * another non-archived Session in the same Project, or leaves that Project selected with no Session when none
-     * remain.
-     */
     archiveSession(sessionId: string, now = Date.now()): SessionRecord {
-        return this.db.transaction(() => {
-            const session = this.db.sessions.get(sessionId);
-            if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
-            if (session.archivedAt === undefined && !this.db.sessions.setArchived(sessionId, now))
-                throw new CaxriError('NOT_FOUND', 'Session not found');
-            if (this.db.appState.get('lastSelectedSessionId') === sessionId) {
-                const fallback = firstActiveSession(
-                    this.db.sessions.list(session.projectId),
-                    sessionId,
-                );
-                const selection = selectFallbackAfterDeletion(fallback, session.projectId);
-                this.db.appState.set('lastSelectedSessionId', selection.sessionId);
-                this.db.appState.set('lastSelectedProjectId', selection.projectId);
-            }
-            return this.db.sessions.get(sessionId)!;
-        });
+        return archiveOneSession(this.db, sessionId, now);
     }
 
-    /**
-     * Restores an archived Session to active navigation without selecting or restarting it.
-     */
-    unarchiveSession(sessionId: string): SessionRecord {
-        return this.db.transaction(() => {
-            const session = this.db.sessions.get(sessionId);
-            if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
-            if (session.archivedAt !== undefined && !this.db.sessions.setArchived(sessionId, null))
-                throw new CaxriError('NOT_FOUND', 'Session not found');
-            return this.db.sessions.get(sessionId)!;
-        });
+    unarchiveSessions(
+        sessionIds: readonly string[],
+        placement: SessionRestorePlacement = 'top',
+    ): SessionRecord[] {
+        return restoreArchivedSessions(this.db, sessionIds, placement);
     }
 
     listTerminals(sessionId?: string): TerminalRecord[] {
