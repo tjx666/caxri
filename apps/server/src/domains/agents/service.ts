@@ -128,10 +128,16 @@ function createCliAdapter(
             },
         }),
         async renameSession(context): Promise<AgentSessionRenameResult> {
+            /**
+             * Unreachable in the product: `SessionRenameService` decides not to synchronize before it asks for an
+             * adapter, because a Session title belongs to Caxri and is committed either way. Kept as an internal guard
+             * rather than user-facing copy — whether an Agent CLI can be renamed is not something to tell the user
+             * about their own Session name (issue #982).
+             */
             if (!providerDescriptor.renameSession)
                 throw new CaxriError(
-                    'UNAVAILABLE',
-                    `${agentProviderCatalog[provider].displayName} does not support native Session renaming`,
+                    'INTERNAL',
+                    `${provider} adapter has no renameSession implementation`,
                 );
             const executable = await discoverExecutable(provider, launchSettings().executable);
             if (!executable)
