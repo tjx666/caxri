@@ -35,6 +35,12 @@ const pathBrowserEntry = z.object({
     linkTarget: fileEntrySchema.shape.linkTarget,
     name: pathBrowserEntryName,
     size: z.number().int().nonnegative().optional(),
+    /**
+     * Which lookup produced this row. Both kinds arrive in one list, so the source has to travel per row: a
+     * `projectSearch` row names a file anywhere under the Project root and is never a completion of the typed path,
+     * while a `directory` row is a child of the listed directory.
+     */
+    source: z.enum(['directory', 'projectSearch']),
 });
 const pathBrowserSnapshot = z.object({
     browserId: identifierSchema,
@@ -45,11 +51,14 @@ const pathBrowserSnapshot = z.object({
     input: z.string().max(4_096),
     mode: z.enum(['project', 'free']),
     /**
-     * `directory` lists the browser's current directory. `projectSearch` is the fallback Main returns when a bare
-     * Project-mode filter matched nothing there: the rows come from anywhere under the Project root, so the Renderer
-     * must render each row's own directory and must not treat a lone row as a path completion.
+     * Outcome of the Project-wide name search that runs beside the directory listing for a bare Project-mode filter. It
+     * is reported separately from `truncated`, which describes the directory listing only, because the two lookups fail
+     * independently and the dialog shows both groups at once: a search that could not run has to say so in its own
+     * group rather than disappear into an apparently complete list.
+     *
+     * `skipped` means no search was asked for — free mode, an empty filter, or an input carrying a path separator.
      */
-    resultKind: z.enum(['directory', 'projectSearch']),
+    projectSearch: z.enum(['skipped', 'complete', 'incomplete', 'unavailable']),
     rootLabel: z.string().min(1).max(1_024).optional(),
     truncated: z.boolean(),
 });

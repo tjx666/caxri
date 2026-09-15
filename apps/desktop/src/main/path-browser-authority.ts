@@ -43,6 +43,7 @@ interface Candidate {
     directoryLabel?: string;
     id: string;
     kind: Entry['kind'];
+    source: Entry['source'];
     /**
      * Display-only symlink metadata forwarded from Server Core. Workspace opens are reauthorized by Server Core; links
      * encountered during free browsing remain unavailable.
@@ -202,14 +203,17 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
 
     function replaceCandidates(context: BrowserContext, candidates: Candidate[]): Entry[] {
         context.candidates = new Map(candidates.map((candidate) => [candidate.id, candidate]));
-        return candidates.map(({ directoryLabel, id, kind, linkKind, linkTarget, name }) => ({
-            id,
-            kind,
-            ...(directoryLabel !== undefined && { directoryLabel }),
-            ...(linkKind !== undefined && { linkKind }),
-            ...(linkTarget !== undefined && { linkTarget }),
-            name,
-        }));
+        return candidates.map(
+            ({ directoryLabel, id, kind, linkKind, linkTarget, name, source }) => ({
+                id,
+                kind,
+                ...(directoryLabel !== undefined && { directoryLabel }),
+                ...(linkKind !== undefined && { linkKind }),
+                ...(linkTarget !== undefined && { linkTarget }),
+                name,
+                source,
+            }),
+        );
     }
 
     function snapshot(
@@ -219,7 +223,7 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
         entries: Entry[],
         isTruncated: boolean,
         displayDirectory = context.currentDirectory,
-        resultKind: Snapshot['resultKind'] = 'directory',
+        projectSearch: Snapshot['projectSearch'] = 'skipped',
     ): Snapshot {
         context.input = input;
         context.listedDirectory = directory;
@@ -243,7 +247,7 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
             entries,
             input,
             mode: context.mode,
-            resultKind,
+            projectSearch,
             ...(context.mode === 'project' && { rootLabel: context.rootLabel }),
             truncated: isTruncated,
         };
@@ -268,58 +272,55 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
                 false,
                 displayDirectory,
             );
-        const result = await options.getServer().request('files.browse', {
-            sessionId: context.browseSessionId,
-            directory: directory.path,
-            query: filter,
-        });
-        const candidates = result.entries.map((entry) => ({
+        /**
+         * Both lookups run for a bare filter, and they run together. The directory listing answers "what is here"; the
+         * Project search answers "where else is this name". Gating the second on the first being empty hid it almost
+         * always, because a substring match inside one directory nearly always hits something — typing `app` at the
+         * repository root could never reach a deeper `app-menu.ts`. See issue #986.
+         */
+        const isSearchable = isBareFilter(input, filter);
+        const [result, search] = await Promise.all([
+            options.getServer().request('files.browse', {
+                sessionId: context.browseSessionId,
+                directory: directory.path,
+                query: filter,
+            }),
+            isSearchable
+                ? searchProject(context, filter)
+                : Promise.resolve({ matches: [], status: 'skipped' as const }),
+        ]);
+        const listed = result.entries.map((entry) => ({
             id: randomUUID(),
             kind: entry.kind,
             ...(entry.linkKind !== undefined && { linkKind: entry.linkKind }),
             ...(entry.linkTarget !== undefined && { linkTarget: entry.linkTarget }),
             name: entry.name,
             path: entry.path,
+            source: 'directory' as const,
         }));
-        if (candidates.length === 0 && !result.truncated && isBareFilter(input, filter))
-            return searchProject(context, directory, filter, input, displayDirectory);
+        const found = projectSearchCandidates(search.matches, filter, listed);
         return snapshot(
             context,
             directory,
             input,
-            replaceCandidates(context, candidates),
+            replaceCandidates(context, [...listed, ...found.candidates]),
             result.truncated,
             displayDirectory,
+            found.isComplete ? search.status : 'incomplete',
         );
     }
 
     /**
-     * Quick-open fallback: a bare filter that matched nothing in the current directory is far more likely to name a
-     * file somewhere else in the Project than a file the user wants to create, so list the Project-wide name hits and
-     * let the Renderer keep offering Create alongside them.
-     *
-     * Server Core owns the bounded search; Main refuses any returned path outside this browser's root and re-derives
-     * the displayed directory from that validated path before minting an entry ID, so nothing the Renderer sees rests
-     * on an unchecked Server string. This mirrors the `files.locateDirectory` subpath fallback.
+     * Runs the bounded Project-wide name search and reports how far it got. Server Core owns the traversal; Main
+     * refuses any returned path outside this browser's root, so nothing the Renderer sees rests on an unchecked Server
+     * string. This mirrors the `files.locateDirectory` subpath fallback.
      */
     async function searchProject(
         context: BrowserContext,
-        directory: RootIdentity,
         filter: string,
-        input: string,
-        displayDirectory?: string,
-    ): Promise<Snapshot> {
+    ): Promise<{ matches: readonly ProjectSearchMatch[]; status: Snapshot['projectSearch'] }> {
         const memoized = memoizedProjectSearch(context.searchedFilters, filter);
-        if (memoized)
-            return searchSnapshot(
-                context,
-                directory,
-                filter,
-                input,
-                memoized,
-                false,
-                displayDirectory,
-            );
+        if (memoized) return { matches: memoized, status: 'complete' };
         let result: MethodResult<'files.search'>;
         try {
             result = await options.getServer().request('files.search', {
@@ -328,16 +329,10 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
                 query: filter,
             });
         } catch {
-            // The empty directory listing is authoritative on its own; an unavailable search engine must not turn it
-            // into a dialog-wide error and hide the Create action.
-            return snapshot(
-                context,
-                directory,
-                input,
-                replaceCandidates(context, []),
-                false,
-                displayDirectory,
-            );
+            // The directory listing is authoritative on its own, so a search engine that cannot start must not turn
+            // into a dialog-wide error. It says so in its own group instead, because a group that simply vanished
+            // would read as "this name exists nowhere else".
+            return { matches: [], status: 'unavailable' };
         }
         const inRoot: ProjectSearchMatch[] = result.matches.flatMap((match) =>
             isSameOrInside(context.root.path, match.path)
@@ -358,43 +353,35 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
          */
         const isIncomplete = result.truncated || result.canceled;
         if (!isIncomplete) rememberProjectSearch(context.searchedFilters, filter, inRoot);
-        return searchSnapshot(
-            context,
-            directory,
-            filter,
-            input,
-            inRoot,
-            isIncomplete,
-            displayDirectory,
-        );
+        return { matches: inRoot, status: isIncomplete ? 'incomplete' : 'complete' };
     }
 
-    function searchSnapshot(
-        context: BrowserContext,
-        directory: RootIdentity,
-        filter: string,
-        input: string,
+    /**
+     * Ranks the search hits and drops the ones the directory listing already shows, so a file in the current directory
+     * appears once rather than in both groups. The two groups share one entry budget: the directory listing is what the
+     * user navigated to, so it is served first and the search fills whatever is left.
+     */
+    function projectSearchCandidates(
         matches: readonly ProjectSearchMatch[],
-        isIncomplete: boolean,
-        displayDirectory?: string,
-    ): Snapshot {
-        const ranked = rankProjectSearchMatches(matches, filter, MAX_PATH_BROWSER_ENTRIES);
-        const candidates = ranked.map((match) => ({
-            directoryLabel: match.directoryLabel,
-            id: randomUUID(),
-            kind: 'file' as const,
-            name: match.name,
-            path: match.path,
-        }));
-        return snapshot(
-            context,
-            directory,
-            input,
-            replaceCandidates(context, candidates),
-            isIncomplete || matches.length > ranked.length,
-            displayDirectory,
-            'projectSearch',
-        );
+        filter: string,
+        listed: readonly Candidate[],
+    ): { candidates: Candidate[]; isComplete: boolean } {
+        const budget = MAX_PATH_BROWSER_ENTRIES - listed.length;
+        if (budget <= 0) return { candidates: [], isComplete: matches.length === 0 };
+        const alreadyListed = new Set(listed.map((candidate) => candidate.path));
+        const elsewhere = matches.filter((match) => !alreadyListed.has(match.path));
+        const ranked = rankProjectSearchMatches(elsewhere, filter, budget);
+        return {
+            candidates: ranked.map((match) => ({
+                directoryLabel: match.directoryLabel,
+                id: randomUUID(),
+                kind: 'file' as const,
+                name: match.name,
+                path: match.path,
+                source: 'projectSearch' as const,
+            })),
+            isComplete: ranked.length === elsewhere.length,
+        };
     }
 
     /**
@@ -520,6 +507,7 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
                         name: entry.name,
                         path,
                         parent: directory,
+                        source: 'directory',
                         snapshot: { device: stats.dev.toString(), inode: stats.ino.toString() },
                     });
                 }

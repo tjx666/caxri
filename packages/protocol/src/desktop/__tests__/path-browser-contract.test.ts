@@ -42,20 +42,23 @@ describe('path browser contract', () => {
                     kind: 'file',
                     name: 'example.ts',
                     path: '/private/authorized/example.ts',
+                    source: 'directory',
                 },
             ],
             input: '',
             mode: 'project',
-            resultKind: 'directory',
+            projectSearch: 'skipped',
             rootLabel: 'Authorized Folder',
             truncated: false,
         });
 
+        // The lookup that produced the row survives; the filesystem path it came from does not.
         expect(parsed.entries).toEqual([
             {
                 id: '0ceead35-aa64-43c0-9e32-4cc16ec5342b',
                 kind: 'file',
                 name: 'example.ts',
+                source: 'directory',
             },
         ]);
     });
@@ -73,16 +76,18 @@ describe('path browser contract', () => {
                     linkKind: 'directory',
                     linkTarget: 'real-dir',
                     name: 'link-to-dir',
+                    source: 'directory',
                 },
                 {
                     id: '0ceead35-aa64-43c0-9e32-4cc16ec5342c',
                     kind: 'file',
                     name: 'plain.ts',
+                    source: 'projectSearch',
                 },
             ],
             input: '',
             mode: 'project',
-            resultKind: 'directory',
+            projectSearch: 'complete',
             truncated: false,
         });
 
@@ -92,12 +97,15 @@ describe('path browser contract', () => {
             linkKind: 'directory',
             linkTarget: 'real-dir',
             name: 'link-to-dir',
+            source: 'directory',
         });
-        // The fields stay optional, so an unprobed link and every non-link entry omit them entirely.
+        // The fields stay optional, so an unprobed link and every non-link entry omit them entirely. `source` is not
+        // optional: both lookups arrive in one list, so a row that cannot say where it came from cannot be placed.
         expect(parsed.entries[1]).toEqual({
             id: '0ceead35-aa64-43c0-9e32-4cc16ec5342c',
             kind: 'file',
             name: 'plain.ts',
+            source: 'projectSearch',
         });
         const schema = pathBrowserMethods['pathBrowser.start'].result;
         expect(
@@ -112,11 +120,12 @@ describe('path browser contract', () => {
                         kind: 'symlink',
                         linkKind: 'elsewhere',
                         name: 'link-to-dir',
+                        source: 'directory',
                     },
                 ],
                 input: '',
                 mode: 'project',
-                resultKind: 'directory',
+                projectSearch: 'skipped',
                 truncated: false,
             }).success,
         ).toBe(false);

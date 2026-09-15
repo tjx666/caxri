@@ -14,22 +14,27 @@ import {
 
 const temporaryDirectory = registerTemporaryDirectories();
 
-describe('path browser Project-wide name fallback', () => {
+interface BrowseResult {
+    entries: Array<{ kind: 'directory' | 'file'; name: string; path: string }>;
+    truncated: boolean;
+}
+
+describe('path browser Project-wide name search', () => {
     async function searchFixture(
         searchResult: (query: string) => unknown,
-        root?: string,
+        options: { browse?: BrowseResult; root?: string } = {},
     ): Promise<{
         browse: (input: string) => Promise<MethodResult<'pathBrowser.browse'>>;
         request: ReturnType<typeof vi.fn>;
     }> {
         const workbenchRoot =
-            root ?? (await realpath(await temporaryDirectory('caxri-path-search-')));
+            options.root ?? (await realpath(await temporaryDirectory('caxri-path-search-')));
         const { authority, request } = authorityOptions(workbenchRoot, workbenchRoot, {
             request(method, parameters) {
                 if (method === 'app.bootstrap')
                     return Promise.resolve(bootstrap(workbenchRoot, workbenchRoot));
                 if (method === 'files.browse')
-                    return Promise.resolve({ entries: [], truncated: false });
+                    return Promise.resolve(options.browse ?? { entries: [], truncated: false });
                 if (method === 'files.search')
                     return Promise.resolve(searchResult((parameters as { query: string }).query));
                 return Promise.reject(new Error(`Unexpected method: ${method}`));
@@ -43,9 +48,45 @@ describe('path browser Project-wide name fallback', () => {
         };
     }
 
+    it('runs both lookups for a bare name and says which one produced each row', async () => {
+        const root = await realpath(await temporaryDirectory('caxri-path-search-both-'));
+        const { browse, request } = await searchFixture(
+            () => ({
+                matches: [{ path: join(root, 'src/app-menu.ts'), relativePath: 'src/app-menu.ts' }],
+                canceled: false,
+                truncated: false,
+            }),
+            {
+                browse: {
+                    entries: [{ kind: 'file', name: 'app.ts', path: join(root, 'app.ts') }],
+                    truncated: false,
+                },
+                root,
+            },
+        );
+
+        const listed = await browse('app');
+
+        // The listed directory comes first: it is what the user navigated to, and the search only fills what is left.
+        expect(listed.entries).toEqual([
+            expect.objectContaining({ name: 'app.ts', source: 'directory' }),
+            expect.objectContaining({
+                directoryLabel: 'src',
+                name: 'app-menu.ts',
+                source: 'projectSearch',
+            }),
+        ]);
+        expect(listed.projectSearch).toBe('complete');
+        expect(request).toHaveBeenCalledWith('files.browse', expect.anything());
+        expect(request).toHaveBeenCalledWith(
+            'files.search',
+            expect.objectContaining({ mode: 'name', query: 'app' }),
+        );
+    });
+
     it('lists Project-wide name hits with their own directory when the directory has none', async () => {
         const root = await realpath(await temporaryDirectory('caxri-path-search-hit-'));
-        const { browse, request } = await searchFixture(
+        const { browse } = await searchFixture(
             () => ({
                 matches: [
                     {
@@ -60,28 +101,57 @@ describe('path browser Project-wide name fallback', () => {
                 canceled: false,
                 truncated: false,
             }),
-            root,
+            { root },
         );
 
         const listed = await browse('resolveSafeMaxTokens');
 
-        expect(listed.resultKind).toBe('projectSearch');
         expect(listed.entries).toEqual([
             expect.objectContaining({
                 directoryLabel: 'a/b',
                 kind: 'file',
                 name: 'resolveSafeMaxTokens.ts',
+                source: 'projectSearch',
             }),
             expect.objectContaining({
                 directoryLabel: 'a/b',
                 kind: 'file',
                 name: 'resolveSafeMaxTokens.test.ts',
+                source: 'projectSearch',
             }),
         ]);
-        expect(request).toHaveBeenCalledWith(
-            'files.search',
-            expect.objectContaining({ mode: 'name', query: 'resolveSafeMaxTokens' }),
+    });
+
+    it('shows a file the listed directory already holds once, not in both groups', async () => {
+        const root = await realpath(await temporaryDirectory('caxri-path-search-dedupe-'));
+        const { browse } = await searchFixture(
+            () => ({
+                matches: [
+                    { path: join(root, 'kept.ts'), relativePath: 'kept.ts' },
+                    { path: join(root, 'a/kept.ts'), relativePath: 'a/kept.ts' },
+                ],
+                canceled: false,
+                truncated: false,
+            }),
+            {
+                browse: {
+                    entries: [{ kind: 'file', name: 'kept.ts', path: join(root, 'kept.ts') }],
+                    truncated: false,
+                },
+                root,
+            },
         );
+
+        const listed = await browse('kept');
+
+        expect(listed.entries).toEqual([
+            expect.objectContaining({ name: 'kept.ts', source: 'directory' }),
+            expect.objectContaining({
+                directoryLabel: 'a',
+                name: 'kept.ts',
+                source: 'projectSearch',
+            }),
+        ]);
     });
 
     it('drops a searched path outside the browser root instead of minting an entry for it', async () => {
@@ -96,7 +166,7 @@ describe('path browser Project-wide name fallback', () => {
                 canceled: false,
                 truncated: false,
             }),
-            root,
+            { root },
         );
 
         const listed = await browse('s');
@@ -115,7 +185,7 @@ describe('path browser Project-wide name fallback', () => {
                 canceled: false,
                 truncated: false,
             }),
-            root,
+            { root },
         );
 
         const listed = await browse('kept');
@@ -134,9 +204,10 @@ describe('path browser Project-wide name fallback', () => {
 
         const listed = await browse('resolveSafeMaxTokens');
 
-        expect(listed.resultKind).toBe('projectSearch');
+        expect(listed.projectSearch).toBe('incomplete');
         expect(listed.entries).toEqual([]);
-        expect(listed.truncated).toBe(true);
+        // Only the directory listing may claim truncation; how far the scan got travels on its own field.
+        expect(listed.truncated).toBe(false);
     });
 
     it('refines a completed scan locally instead of searching again for a longer name', async () => {
@@ -153,13 +224,14 @@ describe('path browser Project-wide name fallback', () => {
                 canceled: false,
                 truncated: false,
             }),
-            root,
+            { root },
         );
 
         await browse('resolve');
         const refined = await browse('resolveSafe');
 
         expect(refined.entries.map((entry) => entry.name)).toEqual(['resolveSafeMaxTokens.ts']);
+        expect(refined.projectSearch).toBe('complete');
         expect(request.mock.calls.filter(([method]) => method === 'files.search')).toHaveLength(1);
     });
 
@@ -171,12 +243,13 @@ describe('path browser Project-wide name fallback', () => {
                 canceled: false,
                 truncated: true,
             }),
-            root,
+            { root },
         );
 
-        await browse('resolve');
+        const first = await browse('resolve');
         await browse('resolveSafe');
 
+        expect(first.projectSearch).toBe('incomplete');
         expect(request.mock.calls.filter(([method]) => method === 'files.search')).toHaveLength(2);
     });
 
@@ -187,43 +260,46 @@ describe('path browser Project-wide name fallback', () => {
 
         const listed = await browse('./missing');
 
-        expect(listed.resultKind).toBe('directory');
+        expect(listed.projectSearch).toBe('skipped');
         expect(listed.entries).toEqual([]);
         expect(request).not.toHaveBeenCalledWith('files.search', expect.anything());
     });
 
-    it('keeps the authoritative empty listing when the search engine is unavailable', async () => {
+    it('keeps the authoritative listing and says so when the search engine is unavailable', async () => {
         const { browse } = await searchFixture(() => {
             throw new CaxriError('UNAVAILABLE', 'Project search engine is unavailable');
         });
 
         const listed = await browse('anything');
 
-        expect(listed.resultKind).toBe('directory');
+        expect(listed.projectSearch).toBe('unavailable');
         expect(listed.entries).toEqual([]);
         expect(listed.truncated).toBe(false);
     });
 
-    it('skips the fallback when the directory listing itself was truncated', async () => {
-        const workbenchRoot = await realpath(await temporaryDirectory('caxri-path-search-trunc-'));
-        const { authority, request } = authorityOptions(workbenchRoot, workbenchRoot, {
-            request(method) {
-                if (method === 'app.bootstrap')
-                    return Promise.resolve(bootstrap(workbenchRoot, workbenchRoot));
-                if (method === 'files.browse')
-                    return Promise.resolve({ entries: [], truncated: true });
-                return Promise.reject(new Error(`Unexpected method: ${method}`));
+    it('still searches the Project when the directory listing itself was truncated', async () => {
+        const root = await realpath(await temporaryDirectory('caxri-path-search-trunc-'));
+        const { browse, request } = await searchFixture(
+            () => ({
+                matches: [{ path: join(root, 'a/name-here.ts'), relativePath: 'a/name-here.ts' }],
+                canceled: false,
+                truncated: false,
+            }),
+            {
+                browse: {
+                    entries: [{ kind: 'file', name: 'name.ts', path: join(root, 'name.ts') }],
+                    truncated: true,
+                },
+                root,
             },
-        });
-        const initial = await authority.start({ sessionId: 'session-1' });
+        );
 
-        const listed = await authority.browse({
-            browserId: initial.browserId,
-            mode: 'project',
-            input: 'name',
-        });
+        const listed = await browse('name');
 
-        expect(listed.resultKind).toBe('directory');
-        expect(request).not.toHaveBeenCalledWith('files.search', expect.anything());
+        // A truncated directory is the strongest case for the Project-wide group: what the user wants may be the part
+        // that was cut off.
+        expect(listed.truncated).toBe(true);
+        expect(listed.entries.map((entry) => entry.source)).toEqual(['directory', 'projectSearch']);
+        expect(request).toHaveBeenCalledWith('files.search', expect.anything());
     });
 });
