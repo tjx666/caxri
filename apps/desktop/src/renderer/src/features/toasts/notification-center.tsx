@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from 'react';
+
 import {
     Bell,
     BellOff,
@@ -21,6 +23,8 @@ import {
     notificationTypes,
     useNotificationStore,
 } from '../../stores/notifications';
+import type { ToastAction } from '../../stores/toast-actions';
+import { runToastAction, toastActionLabels } from '../../stores/toast-actions';
 import { muteNotification } from '../../stores/toasts';
 
 /**
@@ -53,7 +57,39 @@ function NotificationRow({ entry }: { entry: NotificationEntry }) {
             Boolean(entry.type && state.mutedTypes.includes(entry.type)) &&
             canMuteNotification(entry),
     );
+    /**
+     * Keyed by the follow-up it answers, not stored bare: a repeat of the same notification keeps this row's identity
+     * but replaces its action with the newest occurrence's, and a refusal earned by the old one must not go on hiding a
+     * button that would now work.
+     */
+    const [refused, setRefused] = useState<{ action: ToastAction; reason: string }>();
+    const reasonReference = useRef<HTMLParagraphElement>(null);
     const { Icon, tone } = notificationGlyph[entry.kind];
+    const action = entry.action;
+    const unavailableReason = refused && refused.action === action ? refused.reason : undefined;
+    /**
+     * Whether the follow-up still applies is answered on click, not on render: this list does not re-render when the
+     * Session or editor an old entry points at goes away, so a button disabled at render time would be judged against
+     * state that has since moved. The reason replaces the button in place — the honest alternative to a control that
+     * looks live and does nothing.
+     */
+    const runAction = (): void => {
+        if (!action) return;
+        const reason = runToastAction(action);
+        if (reason) {
+            setRefused({ action, reason });
+            return;
+        }
+        useNotificationStore.getState().setOpen(false);
+    };
+    /**
+     * The button the click started on has just been removed, which would drop focus to the document body and restart
+     * keyboard navigation from the top. Moving it to the reason keeps the sequence intact and is also what gets the
+     * sentence announced: a live region inserted together with its text is not reliably read.
+     */
+    useEffect(() => {
+        if (unavailableReason) reasonReference.current?.focus();
+    }, [unavailableReason]);
     return (
         <li className="flex gap-2 border-b border-border px-3 py-3 last:border-0">
             <Icon size={16} className={cn('mt-0.5 shrink-0', tone)} />
@@ -72,6 +108,27 @@ function NotificationRow({ entry }: { entry: NotificationEntry }) {
                     {entry.count > 1 && <span>{entry.count} occurrences</span>}
                     {muted && <span>Muted</span>}
                 </div>
+                {action &&
+                    (unavailableReason ? (
+                        <p
+                            ref={reasonReference}
+                            tabIndex={-1}
+                            className="mt-1 text-[11px] text-muted outline-none"
+                            role="status"
+                        >
+                            {unavailableReason}
+                        </p>
+                    ) : (
+                        <Button
+                            variant="secondary"
+                            size="sm"
+                            className="mt-2"
+                            aria-label={action.accessibleLabel}
+                            onClick={runAction}
+                        >
+                            {toastActionLabels[action.id]}
+                        </Button>
+                    ))}
                 {canMuteNotification(entry) && !muted && (
                     <Button
                         variant="ghost"

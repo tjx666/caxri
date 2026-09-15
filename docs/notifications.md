@@ -52,8 +52,12 @@ generate this history event. Both event types are transient and excluded from jo
 so reconnecting does not backfill missed notifications.
 
 Sonner remains the sole live toast queue. Opening a reminder's portaled options menu pauses its
-expiration; closing the menu restores a four-second timeout. History contains no action closures
-and cannot replay a popup's immediate action.
+expiration; closing the menu restores a four-second timeout. History still contains no closures: a
+popup's action is recorded as the name of a follow-up plus the plain data needed to replay it
+(`stores/toast-actions.ts` owns the closed set and its labels; `commands/toast-actions.ts` owns what
+each one does). The center rebuilds the same button from that record, and asks the handler at click
+time whether the follow-up still applies — a Session that was deleted, a Terminal somebody already
+restarted — replacing the button with that reason instead of running it.
 
 ## Persistence and retention
 

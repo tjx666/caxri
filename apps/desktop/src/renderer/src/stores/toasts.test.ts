@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../lib/caxri', () => ({ caxri: { request: mocks.request } }));
 
 import { syncNotificationSettings, useNotificationStore } from './notifications';
+import type { ToastActionHandler, ToastActionHandlers, ToastActionId } from './toast-actions';
+import { configureToastActions, toastActionLabels } from './toast-actions';
 import {
     describeFailure,
     dismissToast,
@@ -119,6 +121,18 @@ describe('Sonner notification adapter', () => {
     });
 
     /**
+     * Installs a complete handler table with inert defaults, so a test only has to state the one follow-up it is about.
+     */
+    function installToastActions(
+        overrides: Partial<{ [Id in ToastActionId]: ToastActionHandler<Id> }> = {},
+    ): void {
+        const handlers = {} as ToastActionHandlers;
+        for (const id of Object.keys(toastActionLabels))
+            Object.assign(handlers, { [id]: { run: () => {} } });
+        configureToastActions(Object.assign(handlers, overrides));
+    }
+
+    /**
      * Sonner hands the action handler the real click and decides whether the notification survives from
      * `event.defaultPrevented`. It types that handler as a React mouse event, but the handler only uses the DOM
      * contract the synthetic event forwards, so Node's global `Event` exercises it faithfully without a DOM.
@@ -141,9 +155,8 @@ describe('Sonner notification adapter', () => {
 
     it('keeps an optional follow-up action on the notification', () => {
         const onSelect = vi.fn();
-        pushToast('success', 'recovered', {
-            action: { label: 'Open Settings', onSelect },
-        });
+        installToastActions({ 'settings.open': { run: onSelect } });
+        pushToast('success', 'recovered', { action: { id: 'settings.open' } });
 
         expect(toastActionLabel()).toBe('Open Settings');
         const event = clickToastAction();
@@ -153,15 +166,33 @@ describe('Sonner notification adapter', () => {
     });
 
     /**
+     * A follow-up that can no longer run says so where the click happened, instead of the button doing nothing at all.
+     */
+    it('reports why a live follow-up can no longer run', () => {
+        const run = vi.fn();
+        installToastActions({
+            'session.unarchive': { run, unavailable: () => 'That Session no longer exists.' },
+        });
+        pushToast('info', 'archived', {
+            action: { id: 'session.unarchive', params: { sessionId: 'session-1' } },
+        });
+        clickToastAction();
+
+        expect(run).not.toHaveBeenCalled();
+        expect(getToasts().map((entry) => entry.title)).toContain('That Session no longer exists.');
+    });
+
+    /**
      * Sonner deletes a notification after its action unless the handler calls `preventDefault`. A `persist` card is
      * held until the user dismisses it, and its action routinely opens a confirmation the user can still cancel — so
      * deleting the card on click would take the only way back to the offer.
      */
     it('survives its own action when the notification is persistent', () => {
         const onSelect = vi.fn();
+        installToastActions({ 'settings.turnOffHardwareAcceleration': { run: onSelect } });
         pushToast('warning', 'drawing failed', {
             persist: true,
-            action: { label: 'Turn off hardware acceleration…', onSelect },
+            action: { id: 'settings.turnOffHardwareAcceleration' },
         });
 
         expect(onSelect).not.toHaveBeenCalled();
@@ -189,10 +220,8 @@ describe('Sonner notification adapter', () => {
     });
 
     it('updates persistence and clears an obsolete action on a repeated notification', () => {
-        pushToast('info', 'notice', {
-            persist: true,
-            action: { label: 'Review', onSelect: vi.fn() },
-        });
+        installToastActions();
+        pushToast('info', 'notice', { persist: true, action: { id: 'settings.open' } });
         pushToast('info', 'notice');
         expect(getToasts()).toHaveLength(1);
         expect(getToasts()[0]).toMatchObject({ duration: 4_000, action: undefined });
@@ -323,10 +352,11 @@ describe('Sonner notification adapter', () => {
     it('attaches the recovery action to the failed operation', async () => {
         const error = new Error('disk is full');
         const retry = vi.fn();
+        installToastActions({ 'terminal.refresh': { run: retry } });
         await tryCommand('Save failed', () => Promise.reject(error), {
             recovery: (failure) => {
                 expect(failure).toBe(error);
-                return { label: 'Retry', onSelect: retry };
+                return { id: 'terminal.refresh' };
             },
         });
 

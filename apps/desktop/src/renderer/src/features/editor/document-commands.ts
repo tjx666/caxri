@@ -34,7 +34,8 @@ import {
     sessionViewScope,
     useSessionViewStore,
 } from '../../stores/session-view';
-import { pushToast, tryCommand } from '../../stores/toasts';
+import type { ToastActionParameters } from '../../stores/toast-actions';
+import { tryCommand } from '../../stores/toasts';
 import { patchSessionState, persistSessionState, useWorkbenchStore } from '../../stores/workbench';
 import { closeTerminal } from '../terminal/terminal-commands';
 import { getActivePaneTab, getPaneLayout } from '../workbench/pane-actions';
@@ -392,27 +393,11 @@ async function didSaveDocumentAt(sessionId: string, path: string): Promise<boole
             },
             {
                 recovery: () => ({
-                    label: 'Retry',
-                    onSelect: () => {
-                        const state = sessionStateOf(sessionId);
-                        const tab =
-                            retryTabId && state
-                                ? findTab(state.paneLayout, retryTabId)?.tab
-                                : undefined;
-                        if (
-                            state?.workbenchProjectId !== operation.workbenchProjectId ||
-                            tab?.resource.kind !== 'file' ||
-                            tab.preview === true
-                        ) {
-                            pushToast(
-                                'error',
-                                'Save retry is no longer available because the editor was closed or its Project changed.',
-                            );
-                            return;
-                        }
-                        // Re-read the current buffer so a retry cannot overwrite edits made after the failed save.
-                        // eslint-disable-next-line no-void -- tryCommand reports retry failures through the toast
-                        void didSaveDocumentAt(sessionId, tab.resource.path);
+                    id: 'editor.retrySave',
+                    params: {
+                        sessionId,
+                        tabId: retryTabId,
+                        workbenchProjectId: operation.workbenchProjectId,
                     },
                 }),
             },
@@ -421,6 +406,45 @@ async function didSaveDocumentAt(sessionId: string, path: string): Promise<boole
         pendingDocumentOperations.delete(operation);
     }
     return isSaved;
+}
+
+type SaveRetryTarget = ToastActionParameters['editor.retrySave'];
+
+/**
+ * Which editor a failed save would be retried in, or undefined once there is no longer one.
+ *
+ * The buffer itself is deliberately not part of a retry's identity — it is re-read at retry time so a retry cannot
+ * overwrite edits made after the failure — so all that has to survive the notification is the tab. A preview tab is
+ * refused outright: recovering through a reusable slot would save a replacement document.
+ */
+function retrySaveTarget(target: SaveRetryTarget): FileTabTarget | undefined {
+    const state = sessionStateOf(target.sessionId);
+    const tab = state && target.tabId ? findTab(state.paneLayout, target.tabId)?.tab : undefined;
+    return state?.workbenchProjectId === target.workbenchProjectId &&
+        tab?.resource.kind === 'file' &&
+        tab.preview !== true
+        ? { path: tab.resource.path }
+        : undefined;
+}
+
+interface FileTabTarget {
+    path: string;
+}
+
+export function saveRetryUnavailableReason(target: SaveRetryTarget): string | undefined {
+    return retrySaveTarget(target)
+        ? undefined
+        : 'Save retry is no longer available because the editor was closed or its Project changed.';
+}
+
+/**
+ * Saves the document a failed save belonged to, from whatever its buffer holds now.
+ */
+export function retrySaveDocument(target: SaveRetryTarget): void {
+    const resolved = retrySaveTarget(target);
+    if (!resolved) return;
+    // eslint-disable-next-line no-void -- tryCommand reports retry failures through the toast
+    void didSaveDocumentAt(target.sessionId, resolved.path);
 }
 
 export async function saveActiveEditor(): Promise<void> {

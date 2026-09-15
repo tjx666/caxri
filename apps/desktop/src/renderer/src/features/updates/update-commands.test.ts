@@ -1,16 +1,14 @@
 import type { UpdateState } from '@caxri/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { ToastAction } from '../../stores/toast-actions';
+
 const mocks = vi.hoisted(() => ({
     caxriOnEvent: vi.fn(),
     caxriRequest: vi.fn((): Promise<unknown> => Promise.resolve(undefined)),
     pushToast: vi.fn(
         (
-            ...parameters: [
-                kind: string,
-                message: string,
-                options?: { action?: { label: string; onSelect: () => void } },
-            ]
+            ...parameters: [kind: string, message: string, options?: { action?: ToastAction }]
         ): unknown => parameters,
     ),
     tryCommand: vi.fn(
@@ -173,11 +171,16 @@ describe('automatic discovery', () => {
         const [kind, message, options] = mocks.pushToast.mock.calls[0] ?? [];
         expect(kind).toBe('info');
         expect(message).toBe('Caxri 1.1.0 is available. You are running 1.0.0.');
-        expect(options?.action?.label).toBe('Show Update');
+        // Recorded as a name plus the version it announces, so the notification center can still offer this route
+        // after the toast expired, and a screen reader hears which release three `Show Update` buttons each mean.
+        expect(options?.action).toEqual({
+            id: 'updates.show',
+            accessibleLabel: 'Show the update to Caxri 1.1.0',
+        });
         unsubscribe();
     });
 
-    it('opens the dialog only when the notification action is selected', async () => {
+    it('leaves the dialog closed until that follow-up is taken', async () => {
         setSkippedVersion(null);
         mocks.caxriRequest.mockResolvedValueOnce(availableState);
 
@@ -185,7 +188,8 @@ describe('automatic discovery', () => {
         await vi.waitFor(() => expect(mocks.pushToast).toHaveBeenCalled());
 
         expect(useUpdateStore.getState().open).toBe(false);
-        mocks.pushToast.mock.calls[0]?.[2]?.action?.onSelect();
+        // What `updates.show` runs; the handler table pairs the id above with exactly this entry point.
+        showUpdateDialog();
         expect(useUpdateStore.getState().open).toBe(true);
         unsubscribe();
     });

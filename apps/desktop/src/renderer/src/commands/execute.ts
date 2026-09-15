@@ -328,14 +328,9 @@ const commandContext: CommandContext = {
                 },
                 {
                     recovery: (error) => ({
-                        label: 'Copy details',
-                        onSelect: () => {
-                            // eslint-disable-next-line no-void -- tryCommand reports clipboard failures through the toast
-                            void tryCommand('Copy details failed', () =>
-                                navigator.clipboard.writeText(
-                                    errorMessage(error, 'Unknown diagnostics export error'),
-                                ),
-                            );
+                        id: 'diagnostics.copyFailure',
+                        params: {
+                            text: errorMessage(error, 'Unknown diagnostics export error'),
                         },
                     }),
                 },

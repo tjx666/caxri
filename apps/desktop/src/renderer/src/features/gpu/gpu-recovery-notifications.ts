@@ -1,10 +1,6 @@
 import type { ToastKind, ToastOptions } from '../../stores/toasts';
 import { pushToast } from '../../stores/toasts';
 import type { TerminalRendererStatus } from '../terminal/terminal-renderer';
-import {
-    confirmTurnOffHardwareAcceleration,
-    openHardwareAccelerationSettings,
-} from './gpu-commands';
 
 /**
  * One name for the degraded state across every notice, the confirmation, and the Settings row: the state is "software
@@ -35,10 +31,8 @@ interface RendererStatusInput {
 interface GpuRecoveryNotificationCoordinatorOptions {
     clearTimer(handle: number): void;
     now(): number;
-    openHardwareAccelerationSettings(): void;
     pushToast(kind: ToastKind, message: string, options?: ToastOptions): void;
     setTimer(callback: () => void, delayMs: number): number;
-    turnOffHardwareAcceleration(): void;
 }
 
 /**
@@ -106,10 +100,7 @@ export function createGpuRecoveryNotificationCoordinator(
      * is what separates this from the version that wrote the boot configuration on the first click.
      */
     function turnOffHardwareAccelerationAction(): NonNullable<ToastOptions['action']> {
-        return {
-            label: 'Turn off hardware acceleration…',
-            onSelect: () => options.turnOffHardwareAcceleration(),
-        };
+        return { id: 'settings.turnOffHardwareAcceleration' };
     }
 
     /**
@@ -120,10 +111,7 @@ export function createGpuRecoveryNotificationCoordinator(
      * also the only place that answer stays reachable after the card is dismissed.
      */
     function openSettingsAction(): NonNullable<ToastOptions['action']> {
-        return {
-            label: 'Open Settings',
-            onSelect: () => options.openHardwareAccelerationSettings(),
-        };
+        return { id: 'settings.openHardwareAcceleration' };
     }
 
     function notifyGpuProcessRecovery(correlationId: string): void {
@@ -203,13 +191,6 @@ export function createGpuRecoveryNotificationCoordinator(
 export const gpuRecoveryNotificationCoordinator = createGpuRecoveryNotificationCoordinator({
     clearTimer: (handle) => clearTimeout(handle),
     now: () => Date.now(),
-    openHardwareAccelerationSettings,
     pushToast,
     setTimer: (callback, delayMs) => setTimeout(callback, delayMs),
-    // Fire-and-forget by the Toast contract: a toast action is synchronous, and the confirmation plus the shared
-    // command funnel own everything that can fail after the click.
-    turnOffHardwareAcceleration: () => {
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-        void confirmTurnOffHardwareAcceleration();
-    },
 });

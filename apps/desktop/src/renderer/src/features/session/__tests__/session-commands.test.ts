@@ -598,7 +598,12 @@ describe('Session actions', () => {
         const [kind, message, options] = mocks.pushToast.mock.calls[0] ?? [];
         expect(kind).toBe('info');
         expect(message).toBe('Archived "api-fix"');
-        expect(options?.action?.label).toBe('Undo');
+        expect(options?.action).toEqual({
+            id: 'session.unarchive',
+            params: { sessionId: 'session-1' },
+            // A screen reader browsing the history by button hears only labels, so each Undo names its Session.
+            accessibleLabel: 'Undo archiving api-fix',
+        });
         // Archiving is reversible, so the notice takes the ordinary four-second expiry.
         expect(options?.persist).toBeUndefined();
     });
@@ -609,29 +614,24 @@ describe('Session actions', () => {
      */
     it('restores the archived Session in place when the notice Undo action is used', async () => {
         mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-1', displayTitle: 'api-fix' });
-        archiveSession('session-1');
-        await mocks.tryCommand.mock.results[0]?.value;
-        mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-1', displayTitle: 'api-fix' });
 
-        mocks.pushToast.mock.calls[0]?.[2]?.action?.onSelect();
-        await mocks.tryCommand.mock.results[1]?.value;
+        // What the notification center replays for `session.unarchive`.
+        unarchiveSession('session-1', 'unchanged');
+        await mocks.tryCommand.mock.results[0]?.value;
 
         expect(mocks.caxriRequest).toHaveBeenLastCalledWith('session.unarchive', {
             placement: 'unchanged',
             sessionId: 'session-1',
         });
-        expect(mocks.tryCommand.mock.calls[1]?.[2]).toEqual({ refresh: mocks.refreshWorkbench });
+        expect(mocks.tryCommand.mock.calls[0]?.[2]).toEqual({ refresh: mocks.refreshWorkbench });
     });
 
     it('reports a stale Undo as an error instead of throwing out of the notice', async () => {
-        mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-1', displayTitle: 'api-fix' });
-        archiveSession('session-1');
-        await mocks.tryCommand.mock.results[0]?.value;
-        // The Session was deleted, or the window navigated away, while the notice was still on screen.
+        // The Session was deleted, or the window navigated away, after the notice was raised.
         mocks.caxriRequest.mockRejectedValueOnce(new Error('Session not found'));
 
-        expect(() => mocks.pushToast.mock.calls[0]?.[2]?.action?.onSelect()).not.toThrow();
-        await mocks.tryCommand.mock.results[1]?.value;
+        expect(() => unarchiveSession('session-1', 'unchanged')).not.toThrow();
+        await mocks.tryCommand.mock.results[0]?.value;
 
         expect(mocks.pushToast).toHaveBeenLastCalledWith(
             'error',

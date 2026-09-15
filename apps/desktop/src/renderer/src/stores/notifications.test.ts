@@ -73,12 +73,26 @@ describe('notification history', () => {
         expect(isNotificationMuted(reminder)).toBe(false);
     });
 
-    it('does not retain action closures or unbounded message bodies', () => {
-        const input = { ...reminder, message: 'x'.repeat(5_000), action: { onSelect: () => {} } };
+    /**
+     * The retained follow-up is why the history can still offer `Undo` after the toast expired, and why it may only
+     * ever be a name plus plain data: a closure could not survive the entry, and a body could not safely be stored in
+     * it.
+     */
+    it('retains a follow-up as plain data and caps unbounded message bodies', () => {
+        const input = {
+            ...reminder,
+            message: 'x'.repeat(5_000),
+            action: { id: 'session.unarchive', params: { sessionId: 'session-1' } },
+        } as const;
         recordNotification(input);
         const entry = useNotificationStore.getState().entries[0];
         expect(entry.message).toHaveLength(4_096);
-        expect(entry).not.toHaveProperty('action');
+        expect(entry.action).toEqual({
+            id: 'session.unarchive',
+            params: { sessionId: 'session-1' },
+        });
+        // Cloning is the assertion: a closure hiding in the entry would make this throw, not merely differ.
+        expect(structuredClone(entry.action)).toEqual(entry.action);
     });
 
     it('preserves store and history identities when unrelated bootstrap settings refresh', () => {
