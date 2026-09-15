@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 
 import type { SourceControlViewState } from '@caxri/protocol';
 
-import { useSessionState } from '../../../stores/selectors';
+import { useSessionViewScope, useSourceControlViewState } from '../../../stores/selectors';
 import { useControlledView } from '../controlled-view-context';
 import { useSourceControlController } from './hooks/use-source-control-controller';
 import type { SourceControlNavigationScope } from './hooks/use-source-control-navigation';
@@ -14,9 +14,8 @@ import { SourceControlContent } from './source-control-content';
  */
 export function SourceControlView() {
     const { viewId } = useControlledView();
-    const sessionState = useSessionState();
-    const sessionId = sessionState?.sessionId;
-    const workbenchProjectId = sessionState?.workbenchProjectId;
+    const { sessionId, workbenchProjectId } = useSessionViewScope();
+    const persisted = useSourceControlViewState(viewId);
     const scope = useMemo<SourceControlNavigationScope | undefined>(
         () =>
             sessionId && workbenchProjectId
@@ -31,13 +30,7 @@ export function SourceControlView() {
     const scopeKey = scope
         ? `${scope.sessionId}\0${scope.workbenchProjectId}\0${scope.viewId}`
         : `empty\0${viewId}`;
-    return (
-        <ScopedSourceControlView
-            key={scopeKey}
-            persisted={sessionState?.sourceControlViewStates?.[viewId]}
-            scope={scope}
-        />
-    );
+    return <ScopedSourceControlView key={scopeKey} persisted={persisted} scope={scope} />;
 }
 
 function ScopedSourceControlView({

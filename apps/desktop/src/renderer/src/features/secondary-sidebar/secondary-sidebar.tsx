@@ -1,10 +1,9 @@
-import { useSessionState } from '../../stores/selectors';
+import { useDesiredSecondarySidebarView } from '../../stores/selectors';
 import { useSessionViewStore } from '../../stores/session-view';
 import { ViewContainerSurface } from '../view-containers/view-container-surface';
 
 export function SecondarySidebar() {
-    const sessionState = useSessionState();
-    const desiredId = sessionState?.desiredSecondarySidebarViewContainerId;
+    const { desiredId, hasSession } = useDesiredSecondarySidebarView();
     return (
         <aside
             aria-label="Secondary Side Bar"
@@ -14,7 +13,7 @@ export function SecondarySidebar() {
                 ariaLabel="Secondary Side Bar"
                 desiredId={desiredId}
                 location="secondarySidebar"
-                hasUnscopedSelection={!sessionState}
+                hasUnscopedSelection={!hasSession}
                 onSelect={(id) =>
                     useSessionViewStore.getState().setDesiredSecondarySidebarViewContainerId(id)
                 }

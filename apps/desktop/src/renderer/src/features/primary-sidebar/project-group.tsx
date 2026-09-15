@@ -1,13 +1,7 @@
 import type { DragEvent } from 'react';
 import { useState } from 'react';
 
-import type {
-    ProjectRecord,
-    PullRequestUnavailable,
-    SessionPullRequest,
-    SessionRecord,
-    TerminalRecord,
-} from '@caxri/protocol';
+import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
 import { Archive, ChevronDown, ChevronRight, Paintbrush } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
@@ -21,6 +15,7 @@ import { cn } from '../../lib/utilities';
 import { CreateSessionMenu, EmptyProjectSessionMenu } from '../session/create-session-menu';
 import { archiveSession } from '../session/session-commands';
 import type { SessionOrderController } from './hooks/use-session-order';
+import { useSessionPullRequest } from './hooks/use-session-pull-request';
 import { useSessionTitleScroll } from './hooks/use-session-title-scroll';
 import {
     primarySidebarCreateSessionRowId,
@@ -60,8 +55,6 @@ interface ActiveSessionRowProperties {
     onCommitRename: () => void;
     onRenameValueChange: (value: string) => void;
     project: ProjectRecord;
-    pullRequest?: SessionPullRequest;
-    pullRequestUnavailable?: PullRequestUnavailable;
     renameError?: string;
     renameValue: string;
     renaming: boolean;
@@ -96,8 +89,6 @@ function ActiveSessionRow({
     onCommitRename,
     onRenameValueChange,
     project,
-    pullRequest,
-    pullRequestUnavailable,
     renameError,
     renameValue,
     renaming,
@@ -109,6 +100,11 @@ function ActiveSessionRow({
     terminals,
     worktreeProject,
 }: ActiveSessionRowProperties) {
+    /**
+     * Read here rather than handed down from the sidebar root: the snapshot is refreshed on a timer, and a row that
+     * takes its own slice stays quiet through every refresh that did not touch this Session.
+     */
+    const { pullRequest, unavailable: pullRequestUnavailable } = useSessionPullRequest(session.id);
     /**
      * The HoverCard opens on a hover delay and would otherwise pop over an open context menu; closing it while the menu
      * is open keeps one popup on screen at a time.
@@ -292,11 +288,6 @@ interface ProjectGroupProperties {
      */
     projectSessions: readonly SessionRecord[];
     projectDropTarget?: ProjectDropTarget;
-    /**
-     * Discovered pull requests keyed by Session id; absent entries render no glyph.
-     */
-    pullRequests?: Record<string, SessionPullRequest>;
-    pullRequestUnavailable?: Record<string, PullRequestUnavailable>;
     renameError?: string;
     renameValue: string;
     renamingSessionId?: string;
@@ -341,8 +332,6 @@ export function ProjectGroup({
     project,
     projectSessions,
     projectDropTarget,
-    pullRequests,
-    pullRequestUnavailable,
     renameError,
     renameValue,
     renamingSessionId,
@@ -522,8 +511,6 @@ export function ProjectGroup({
                                 onCommitRename={onCommitRename}
                                 onRenameValueChange={onRenameValueChange}
                                 project={project}
-                                pullRequest={pullRequests?.[session.id]}
-                                pullRequestUnavailable={pullRequestUnavailable?.[session.id]}
                                 renameError={renameError}
                                 renameValue={renameValue}
                                 renaming={session.id === renamingSessionId}

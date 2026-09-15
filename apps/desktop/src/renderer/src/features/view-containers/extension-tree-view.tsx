@@ -7,7 +7,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { executeCommand } from '../../commands/execute';
 import { openExternalUrl } from '../../lib/external-link';
 import { cn } from '../../lib/utilities';
-import { useSessionState } from '../../stores/selectors';
+import { useExtensionTreeViewState, useSessionViewScope } from '../../stores/selectors';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { cancelTreeChildrenRequest, ROOT_HANDLE } from './extension-tree-client';
 import { ExtensionTreeHeader } from './extension-tree-header';
@@ -100,9 +100,8 @@ export function ExtensionTreeView({
     title: string;
     viewId: string;
 }) {
-    const sessionState = useSessionState();
-    const sessionId = sessionState?.sessionId;
-    const workbenchProjectId = sessionState?.workbenchProjectId;
+    const { sessionId, workbenchProjectId } = useSessionViewScope();
+    const persisted = useExtensionTreeViewState(viewId);
     const scope = useMemo(
         () =>
             sessionId && workbenchProjectId
@@ -133,7 +132,7 @@ export function ExtensionTreeView({
     return (
         <ExtensionTreeViewContent
             key={`${scope.sessionId}\0${scope.workbenchProjectId}\0${scope.extensionGeneration}\0${viewId}`}
-            persisted={sessionState?.extensionTreeViewStates?.[viewId]}
+            persisted={persisted}
             refreshAction={refreshAction}
             scope={scope}
             title={title}

@@ -6,7 +6,6 @@ import { defaultAppSettings } from '@caxri/protocol';
 import { Plus } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
-import { usePolledQuery } from '../../hooks/use-polled-query';
 import {
     useIsFullScreen,
     useProjects,
@@ -17,13 +16,13 @@ import {
     useTerminals,
 } from '../../stores/selectors';
 import { activeSessionsInSidebarOrder } from '../session/session-activity-order';
-import { SESSION_PULL_REQUESTS_REFETCH_INTERVAL_MS } from '../session/session-commands';
 import { useCreateSessionRowFocus } from './hooks/use-create-session-row-focus';
 import { useProjectCollapse } from './hooks/use-project-collapse';
 import { useProjectOrder } from './hooks/use-project-order';
 import type { ProjectSessionWindow } from './hooks/use-project-session-windows';
 import { useProjectSessionWindows } from './hooks/use-project-session-windows';
 import { useSessionOrder } from './hooks/use-session-order';
+import { useSessionPullRequestPoll } from './hooks/use-session-pull-request';
 import { useSessionRename } from './hooks/use-session-rename';
 import { PrimarySidebarFooter } from './primary-sidebar-footer';
 import { PrimarySidebarHeader } from './primary-sidebar-header';
@@ -72,10 +71,8 @@ export function PrimarySidebar() {
     const [focusedRowId, setFocusedRowId] = useState<string>();
     const treeReference = useRef<HTMLDivElement>(null);
     const sessionRename = useSessionRename(sessions);
-    const pullRequestSnapshot = usePolledQuery('session.pullRequests', undefined, {
-        label: 'session.pullRequests',
-        intervalMs: SESSION_PULL_REQUESTS_REFETCH_INTERVAL_MS,
-    }).data;
+    // Owns the cadence only; each Session row subscribes to its own slice of the snapshot this keeps fresh.
+    useSessionPullRequestPoll();
     const orderedSessions = useMemo(
         () => activeSessionsInSidebarOrder(projects, sessions),
         [projects, sessions],
@@ -256,8 +253,6 @@ export function PrimarySidebar() {
                                 onToggle={() => toggleProject(project.id)}
                                 project={project}
                                 projectSessions={projectSessions}
-                                pullRequests={pullRequestSnapshot?.pullRequests}
-                                pullRequestUnavailable={pullRequestSnapshot?.unavailable}
                                 projectDropTarget={
                                     projectOrder.projectDropTarget?.projectId === project.id
                                         ? projectOrder.projectDropTarget
