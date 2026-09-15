@@ -128,6 +128,15 @@ exec /bin/zsh -l
         ]);
 
         await branch.click();
+        const branchPopup = running.page.getByRole('dialog', { name: 'Branches', exact: true });
+        const branchSearch = running.page.getByRole('combobox', {
+            name: 'Search branches',
+            exact: true,
+        });
+        await expect(branchSearch).toBeFocused();
+        await expect(branchPopup.getByRole('option')).toHaveCount(2);
+        await branchSearch.fill('local');
+        await expect(branchPopup.getByRole('option')).toHaveCount(1);
         // The option's accessible name carries a relative-time affix (e.g. "feature/local-picker
         // 5 seconds ago") since the picker sorts by commit recency, so match on the prefix.
         await running.page.getByRole('option', { name: /^feature\/local-picker / }).click();

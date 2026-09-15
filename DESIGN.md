@@ -252,10 +252,19 @@ the rail's last child is the first thing an overflow hides.
 The Workbench Root picker shows branch labels on one line, with directory hints only for detached
 or duplicate branch labels and complete paths in shared tooltips. Its compact list pins the current
 root, includes the five newest other linked roots, and keeps the Git main worktree reachable with
-a `Main worktree` marker. `Show all worktrees…` expands the same popover into a searchable list.
+a `Main worktree` marker. `Show all worktrees…` expands the same popover into the full list.
 Unknown creation times sort last, deterministically. An `Authorize` label distinguishes discovered
 but unapproved roots; selecting one opens the shared in-app confirmation with its full destination
 and `Authorize and switch`. Cancel grants nothing. Approved roots switch directly without Finder.
+
+The Workbench Root and branch pickers both open on a focused search field, because a checkout with
+dozens of worktrees or hundreds of branches cannot be scrolled faster than it can be typed. Typing
+searches the entire set: the compact worktree list and the `Show all worktrees…` row exist to keep
+the resting menu short, not to withhold a root from a query the user already entered, so that row
+disappears while a query is active. Both fields match contiguous text — a branch, a directory name,
+a path segment — never a fuzzy subsequence, since shared branch prefixes and one common worktree
+parent directory make every row a fuzzy hit and rank the real answer below noise. An empty query
+shows the list unfiltered.
 
 **PrimarySidebar** — flatten the double-box nesting: project groups are a disclosure row
 (Folder/FolderOpen icon + name + count, no border, no card); sessions are flat rows indented 16px.

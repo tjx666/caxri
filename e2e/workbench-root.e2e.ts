@@ -419,13 +419,18 @@ test('Workbench Root selector authorizes a linked worktree when hooks are disabl
         ).toHaveCount(0);
         await expect(popup.getByRole('option')).toHaveCount(7);
         await popup.screenshot({ path: test.info().outputPath('worktree-recent.png') });
-        await running.page.getByRole('option', { name: /Show all worktrees/ }).click();
         const search = running.page.getByRole('combobox', {
             name: 'Search worktrees',
             exact: true,
         });
+        await expect(search).toBeFocused();
+        // Typing reaches a root the compact list hides, without expanding it first.
         await search.fill('feature/manual');
         await expect(popup.getByRole('option')).toHaveCount(1);
+        // The expand row is an answer to "show me everything", so an active query retires it.
+        await expect(running.page.getByRole('option', { name: /Show all worktrees/ })).toHaveCount(
+            0,
+        );
         await popup.screenshot({ path: test.info().outputPath('worktree-search.png') });
         await running.page
             .getByRole('option', { name: 'feature/manual, Authorize', exact: true })

@@ -8,6 +8,7 @@ import { selectWorkbenchRoot } from './workbench-root-commands';
 export function useWorkbenchRootPicker(sessionId: string) {
     const [open, setOpen] = useState(false);
     const [all, setAll] = useState(false);
+    const [search, setSearch] = useState('');
     const [switching, setSwitching] = useState(false);
     const rootsQuery = useCaxriQuery(
         'session.workbenchRoots',
@@ -18,7 +19,10 @@ export function useWorkbenchRootPicker(sessionId: string) {
     const changeOpen = (isOpen: boolean) => {
         if (switching) return;
         setOpen(isOpen);
-        if (isOpen) setAll(false);
+        if (isOpen) {
+            setAll(false);
+            setSearch('');
+        }
     };
     const select = async (root: WorkbenchRootOption) => {
         if (switching) return;
@@ -31,5 +35,5 @@ export function useWorkbenchRootPicker(sessionId: string) {
             setSwitching(false);
         }
     };
-    return { open, all, switching, rootsQuery, changeOpen, setAll, select };
+    return { open, all, search, switching, rootsQuery, changeOpen, setAll, setSearch, select };
 }

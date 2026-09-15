@@ -14,13 +14,10 @@ import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
 import { useSelectedSession, useSelectedWorkbenchProject } from '../../stores/selectors';
+import { pickerSearchScore } from './picker-search';
 import { statusItemClassName } from './status-item';
 import { useWorkbenchRootPicker } from './use-workbench-root-picker';
-import {
-    visibleWorkbenchRoots,
-    workbenchRootLabel,
-    workbenchRootSearchScore,
-} from './workbench-root-options';
+import { visibleWorkbenchRoots, workbenchRootLabel } from './workbench-root-options';
 
 function WorktreeOption({
     root,
@@ -84,7 +81,14 @@ function WorkbenchRootPickerContent({ branch, sessionId }: WorkbenchRootPickerPr
     if (!session || !workbenchProject) return null;
     const roots = picker.rootsQuery.data ?? [];
     const current = roots.find((root) => root.projectId === session.workbenchProjectId);
-    const visible = visibleWorkbenchRoots(roots, session.workbenchProjectId, picker.all);
+    // Typing searches every root: the compact list exists to keep the closed menu short, not to
+    // hide worktrees from a query the user already typed.
+    const isSearching = picker.search.trim().length > 0;
+    const visible = visibleWorkbenchRoots(
+        roots,
+        session.workbenchProjectId,
+        picker.all || isSearching,
+    );
     return (
         <Popover open={picker.open} onOpenChange={picker.changeOpen}>
             <Tooltip content={workbenchProject.rootPath}>
@@ -110,19 +114,20 @@ function WorkbenchRootPickerContent({ branch, sessionId }: WorkbenchRootPickerPr
             >
                 <Command
                     key={picker.all ? 'all' : 'recent'}
-                    label={picker.all ? 'Search worktrees' : 'Workbench Roots'}
-                    tabIndex={0}
+                    // `cmdk` points the input's `aria-labelledby` at this label, and
+                    // `aria-labelledby` outranks `aria-label`, so this string — not a prop on
+                    // `CommandInput` — is the search field's accessible name. The popup keeps
+                    // `Workbench Roots` as its own dialog name above.
+                    label="Search worktrees"
                     defaultValue={current?.worktreeId}
-                    shouldFilter={picker.all}
-                    filter={workbenchRootSearchScore}
+                    filter={pickerSearchScore}
                 >
-                    {picker.all && (
-                        <CommandInput
-                            autoFocus
-                            placeholder="Search worktrees…"
-                            aria-label="Search worktrees"
-                        />
-                    )}
+                    <CommandInput
+                        autoFocus
+                        value={picker.search}
+                        onValueChange={picker.setSearch}
+                        placeholder="Search worktrees…"
+                    />
                     <CommandList className="max-h-[min(360px,var(--available-height))]">
                         {picker.rootsQuery.isLoading && (
                             <div className="flex items-center gap-2 px-2 py-2 text-muted">
@@ -150,7 +155,7 @@ function WorkbenchRootPickerContent({ branch, sessionId }: WorkbenchRootPickerPr
                                 }}
                             />
                         ))}
-                        {!picker.all && visible.length < roots.length && (
+                        {!picker.all && !isSearching && visible.length < roots.length && (
                             <>
                                 <Separator className="my-1" />
                                 <CommandItem
