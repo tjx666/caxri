@@ -66,7 +66,7 @@ describe('external editor documents', () => {
             document: {
                 id: 'external-1',
                 name: 'doctor.config.jsonc',
-                displayPath: '/Users/tj/code/caxri/doctor.config.jsonc',
+                displayPath: '/Users/me/code/caxri/doctor.config.jsonc',
                 content: '{ "readOnly": true }',
                 mtimeMs: 10,
                 size: 20,
@@ -82,7 +82,7 @@ describe('external editor documents', () => {
         expect(getSessionDocuments('session-1', 'project-1')?.[path]).toMatchObject({
             content: '{ "readOnly": true }',
             dirty: false,
-            displayPath: '/Users/tj/code/caxri/doctor.config.jsonc',
+            displayPath: '/Users/me/code/caxri/doctor.config.jsonc',
             ephemeral: true,
             readOnly: true,
         });

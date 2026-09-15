@@ -76,7 +76,7 @@ afterEach(async () => {
 describe('resolveTerminalFileLink', () => {
     it('resolves a unique relative-path suffix inside the current Project', async () => {
         const { database, files, sourceRoot, terminalId } = await fixture();
-        const directory = join(sourceRoot, 'lobehub', 'apps', 'server', 'src', 'routers');
+        const directory = join(sourceRoot, 'example', 'apps', 'server', 'src', 'routers');
         const target = join(directory, 'message.ts');
         await mkdir(directory, { recursive: true });
         await writeFile(target, 'export {};\n');
@@ -141,7 +141,7 @@ describe('resolveTerminalFileLink', () => {
         'resolves a unique relative-path suffix after a Git %s prefix',
         async (prefix) => {
             const { database, files, sourceRoot, terminalId } = await fixture();
-            const directory = join(sourceRoot, 'lobehub', 'apps', 'server');
+            const directory = join(sourceRoot, 'example', 'apps', 'server');
             const target = join(directory, 'message.ts');
             await mkdir(directory, { recursive: true });
             await writeFile(target, 'export {};\n');
@@ -463,7 +463,7 @@ describe('resolveTerminalFileLink', () => {
         'marks an external %s trusted only when a Trusted Folder contains it',
         async (_kind, toTarget) => {
             const { database, sourceSessionId, terminalId, userHome } = await fixture();
-            const outsideTarget = join(userHome, '.lobehub', 'secrets', 'runtime.json');
+            const outsideTarget = join(userHome, '.example', 'secrets', 'runtime.json');
 
             await expect(
                 resolveTerminalFileLink(
@@ -481,7 +481,7 @@ describe('resolveTerminalFileLink', () => {
                 resolveTerminalFileLink(
                     database,
                     { terminalId, target: toTarget(outsideTarget) },
-                    { userHome, trustedFolders: [`${join(userHome, '.lobehub')}/`] },
+                    { userHome, trustedFolders: [`${join(userHome, '.example')}/`] },
                 ),
             ).resolves.toMatchObject({ status: 'external', trusted: true });
         },

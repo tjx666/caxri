@@ -8,7 +8,7 @@ import {
     worktreeProcessesToStop,
 } from './worktree-processes';
 
-const WORKTREE = '/Users/tj/code/caxri-worktrees/fix-example-1a2b3c4d';
+const WORKTREE = '/Users/me/code/caxri-worktrees/fix-example-1a2b3c4d';
 
 /**
  * Shapes taken from a real `ps -axo pid=,ppid=,command=` on macOS: an installed production app, an unrelated Electron
@@ -19,15 +19,15 @@ const TABLE = [
     `  501     1 /Applications/Caxri.app/Contents/MacOS/Caxri`,
     `  502   501 /Applications/Caxri.app/Contents/Frameworks/Caxri Helper (Renderer).app/Contents/MacOS/Caxri Helper (Renderer) --type=renderer`,
     `  503     1 /Applications/Visual Studio Code.app/Contents/MacOS/Electron ${WORKTREE}`,
-    `  504     1 /Users/tj/code/caxri-worktrees/fix-other-9z8y7x6w/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron`,
-    `  599     1 /Users/tj/.bun/bin/bun run dev`,
+    `  504     1 /Users/me/code/caxri-worktrees/fix-other-9z8y7x6w/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron`,
+    `  599     1 /Users/me/.bun/bin/bun run dev`,
     `  600   599 ${WORKTREE}/node_modules/.bin/electron-vite dev`,
     `  601   600 Caxri Dev`,
     `  602   601 Caxri Dev Helper (Renderer) --type=renderer`,
     `  603     1 /opt/homebrew/bin/node ${WORKTREE}/apps/server/dist/server/bundles/server-core.js`,
     `  604     1 ${WORKTREE}/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron --remote-debugging-port=0`,
     `  700     1 /bin/zsh -lc cd ${WORKTREE} && bun run stop`,
-    `  701   700 /Users/tj/.bun/bin/bun run ${WORKTREE}/.agents/skills/switch-worktree/scripts/switch-worktree.ts stop`,
+    `  701   700 /Users/me/.bun/bin/bun run ${WORKTREE}/.agents/skills/switch-worktree/scripts/switch-worktree.ts stop`,
 ].join('\n');
 
 function entries(): ProcessEntry[] {
@@ -72,7 +72,7 @@ describe('worktree process ownership', () => {
          * as the recorded launcher and its subtree instead.
          */
         expect(isWorktreeOwnedCommand('Caxri Dev', WORKTREE)).toBe(false);
-        expect(isWorktreeOwnedCommand('/Users/tj/.bun/bin/bun run dev', WORKTREE)).toBe(false);
+        expect(isWorktreeOwnedCommand('/Users/me/.bun/bin/bun run dev', WORKTREE)).toBe(false);
         expect(stoppedIds()).not.toContain(599);
         expect(stoppedIds(599)).toContain(599);
         expect(stoppedIds(599)).toContain(601);

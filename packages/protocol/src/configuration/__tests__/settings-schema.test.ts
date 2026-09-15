@@ -315,13 +315,13 @@ describe('wire schema versus file schema', () => {
     it('normalizes and deduplicates trusted-folder rules in the file parser', () => {
         const parsed = appSettingsFileSchema.parse({
             'security.trustedFolders': [
-                '/Users/me//.lobehub/',
-                '/Users/me/.lobehub',
+                '/Users/me//.example/',
+                '/Users/me/.example',
                 '/Users/me/other',
             ],
         });
         expect(parsed['security.trustedFolders']).toEqual([
-            '/Users/me/.lobehub',
+            '/Users/me/.example',
             '/Users/me/other',
         ]);
         const result = appSettingsFileSchema.safeParse({
@@ -336,9 +336,9 @@ describe('wire schema versus file schema', () => {
         const parsed = appSettingsFileSchema.parse({
             'terminal.referenceLinks': [
                 {
-                    prefix: 'LOBE-',
+                    prefix: 'TASK-',
                     title: 'Linear issue',
-                    url: 'https://linear.app/lobehub/issue/<num>',
+                    url: 'https://linear.app/example/issue/<num>',
                 },
             ],
         });
@@ -346,17 +346,17 @@ describe('wire schema versus file schema', () => {
             {
                 alphanumeric: false,
                 ignoreCase: false,
-                prefix: 'LOBE-',
+                prefix: 'TASK-',
                 title: 'Linear issue',
-                url: 'https://linear.app/lobehub/issue/<num>',
+                url: 'https://linear.app/example/issue/<num>',
             },
         ]);
 
         for (const invalid of [
-            { prefix: 'LOBE-', url: 'https://linear.app/lobehub/issue/no-placeholder' },
-            { prefix: 'LOBE-', url: 'javascript:alert(<num>)' },
-            { prefix: 'LOBE-', url: 'https://user:secret@example.com/<num>' },
-            { prefix: 'LOBE-', url: 'https://example.com/<num>/<num>' },
+            { prefix: 'TASK-', url: 'https://linear.app/example/issue/no-placeholder' },
+            { prefix: 'TASK-', url: 'javascript:alert(<num>)' },
+            { prefix: 'TASK-', url: 'https://user:secret@example.com/<num>' },
+            { prefix: 'TASK-', url: 'https://example.com/<num>/<num>' },
             { prefix: '', url: 'https://example.com/<num>' },
         ])
             expect(
@@ -366,8 +366,8 @@ describe('wire schema versus file schema', () => {
         expect(
             appSettingsFileSchema.safeParse({
                 'terminal.referenceLinks': [
-                    { prefix: 'LOBE-', url: 'https://one.example/<num>', ignoreCase: true },
-                    { prefix: 'lobe-', url: 'https://two.example/<num>' },
+                    { prefix: 'TASK-', url: 'https://one.example/<num>', ignoreCase: true },
+                    { prefix: 'task-', url: 'https://two.example/<num>' },
                 ],
             }).success,
         ).toBe(false);
@@ -383,7 +383,7 @@ describe('wire schema versus file schema', () => {
             appSettingsFileSchema.safeParse({
                 'terminal.referenceLinks': [
                     {
-                        prefix: 'LOBE-',
+                        prefix: 'TASK-',
                         url: 'https://example.com/<num>',
                         command: 'open-anything',
                     },

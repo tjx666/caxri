@@ -4,17 +4,17 @@ import type { ExternalStatusRunner } from '../command';
 import { ExternalStatusCliError } from '../command';
 import { GitHubPullRequestStore } from '../github';
 
-const OWNER = 'lobehub';
-const REPO = 'lobehub';
+const OWNER = 'example';
+const REPO = 'example';
 
 function pullRequest(overrides: Record<string, unknown> = {}): string {
     return JSON.stringify({
         number: 19_024,
         title: 'feat: migrate search',
-        url: 'https://github.com/lobehub/lobehub/pull/19024',
+        url: 'https://github.com/example/example/pull/19024',
         state: 'OPEN',
         isDraft: false,
-        body: 'Closes LOBE-123',
+        body: 'Closes TASK-123',
         statusCheckRollup: [{ name: 'ci', status: 'COMPLETED', conclusion: 'SUCCESS' }],
         baseRefName: 'main',
         headRefName: 'feat/search',
@@ -189,7 +189,7 @@ describe('GitHubPullRequestStore', () => {
             'view',
             'feat/search',
             '--repo',
-            'lobehub/lobehub',
+            'example/example',
             '--json',
             'number,title,url,state,isDraft,body,statusCheckRollup,baseRefName,headRefName,baseRefOid,headRefOid',
         ]);

@@ -4,7 +4,7 @@ import { pathBasename } from '../path-basename';
 
 describe('pathBasename', () => {
     it('returns the last segment of a posix path', () => {
-        expect(pathBasename('/Users/tj/code/caxri/README.md')).toBe('README.md');
+        expect(pathBasename('/Users/me/code/caxri/README.md')).toBe('README.md');
     });
 
     it('returns the last segment of a windows path', () => {
@@ -12,7 +12,7 @@ describe('pathBasename', () => {
     });
 
     it('ignores a trailing separator', () => {
-        expect(pathBasename('/Users/tj/code/caxri/')).toBe('caxri');
+        expect(pathBasename('/Users/me/code/caxri/')).toBe('caxri');
     });
 
     it('returns a bare name unchanged', () => {

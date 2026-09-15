@@ -268,7 +268,7 @@ describe('Session actions', () => {
 
     it('asks the Runtime for the transcript path without reading the transcript', async () => {
         mocks.caxriRequest.mockResolvedValueOnce({
-            path: '/Users/tj/.codex/sessions/2026/09/11/rollout-01a08fbe.jsonl',
+            path: '/Users/me/.codex/sessions/2026/09/11/rollout-01a08fbe.jsonl',
             exists: true,
             truncated: false,
         });
@@ -281,7 +281,7 @@ describe('Session actions', () => {
             withContent: false,
         });
         expect(mocks.copyFilePath).toHaveBeenCalledWith(
-            '/Users/tj/.codex/sessions/2026/09/11/rollout-01a08fbe.jsonl',
+            '/Users/me/.codex/sessions/2026/09/11/rollout-01a08fbe.jsonl',
         );
     });
 

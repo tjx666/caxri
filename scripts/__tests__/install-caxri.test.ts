@@ -14,7 +14,7 @@ import {
 const GUI = { command: '/Applications/Caxri.app/Contents/MacOS/Caxri', pid: 100 };
 const HELPER = {
     command:
-        '/Applications/Caxri.app/Contents/Frameworks/Caxri Helper.app/Contents/MacOS/Caxri Helper --type=utility --user-data-dir=/Users/tj/Library/Application Support/@caxri/desktop --shared-files',
+        '/Applications/Caxri.app/Contents/Frameworks/Caxri Helper.app/Contents/MacOS/Caxri Helper --type=utility --user-data-dir=/Users/me/Library/Application Support/@caxri/desktop --shared-files',
     pid: 101,
 };
 const HOST = {
@@ -110,7 +110,7 @@ describe('install-caxri', () => {
 
     it('resolves the packaged profile from Electron helpers before its safe default', () => {
         expect(resolveInstalledProfilePath([HELPER], undefined, '/Users/example')).toBe(
-            '/Users/tj/Library/Application Support/@caxri/desktop',
+            '/Users/me/Library/Application Support/@caxri/desktop',
         );
         expect(resolveInstalledProfilePath([], undefined, '/Users/example')).toBe(
             '/Users/example/Library/Application Support/@caxri/desktop',

@@ -10,9 +10,9 @@ describe('Terminal reference links', () => {
             {
                 alphanumeric: false,
                 ignoreCase: false,
-                prefix: 'LOBE-',
+                prefix: 'TASK-',
                 title: 'Linear issue',
-                url: 'https://linear.app/lobehub/issue/<num>',
+                url: 'https://linear.app/example/issue/<num>',
             },
         ],
     };
@@ -21,16 +21,16 @@ describe('Terminal reference links', () => {
         findTerminalLinks(text, TERMINAL_DEFAULT_WORD_SEPARATORS, undefined, undefined, context);
 
     it('expands a configured Linear marker without swallowing Chinese punctuation', () => {
-        const text = '原有 LOBE-13468 也已补了一条范围说明。';
+        const text = '原有 TASK-24680 也已补了一条范围说明。';
 
         expect(findReferences(text)).toMatchObject([
             {
-                accessibleName: 'Open Linear issue LOBE-13468',
+                accessibleName: 'Open Linear issue TASK-24680',
                 detail: 'Linear issue',
-                hint: '⌘ click to open Linear issue LOBE-13468',
+                hint: '⌘ click to open Linear issue TASK-24680',
                 kind: 'url',
-                target: 'https://linear.app/lobehub/issue/13468',
-                text: 'LOBE-13468',
+                target: 'https://linear.app/example/issue/24680',
+                text: 'TASK-24680',
             },
         ]);
     });
@@ -123,18 +123,18 @@ describe('Terminal reference links', () => {
     });
 
     it('does not match configured references inside ASCII words', () => {
-        expect(findReferences('XLOBE-123 LOBE-123ABC LOBE-123')).toMatchObject([
-            { target: 'https://linear.app/lobehub/issue/123', text: 'LOBE-123' },
+        expect(findReferences('XTASK-123 TASK-123ABC TASK-123')).toMatchObject([
+            { target: 'https://linear.app/example/issue/123', text: 'TASK-123' },
         ]);
     });
 
     it('preserves existing file-link priority over configured references', () => {
-        expect(findReferences('src/LOBE-123')).toMatchObject([
-            { kind: 'file', target: 'src/LOBE-123', text: 'src/LOBE-123' },
+        expect(findReferences('src/TASK-123')).toMatchObject([
+            { kind: 'file', target: 'src/TASK-123', text: 'src/TASK-123' },
         ]);
     });
 
     it('bounds configured identifiers before expanding a URL', () => {
-        expect(findReferences(`LOBE-${'1'.repeat(1_025)}`)).toEqual([]);
+        expect(findReferences(`TASK-${'1'.repeat(1_025)}`)).toEqual([]);
     });
 });

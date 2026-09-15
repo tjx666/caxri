@@ -25,8 +25,8 @@ describe('findTerminalLinks', () => {
     });
 
     it('stops a wrapped URL before an adjacent CJK label', () => {
-        const target = 'https://github.com/lobehub/lobehub/pull/18958';
-        const prefix = 'PR lobehub#18958 (';
+        const target = 'https://github.com/example/example/pull/18958';
+        const prefix = 'PR example#18958 (';
 
         expect(findTerminalLinks(`${prefix}${target})(目标 canary)。`)).toEqual([
             {
@@ -66,8 +66,8 @@ describe('findTerminalLinks', () => {
     });
 
     it('stops a plain-text URL before a closing wrapper and CJK prose', () => {
-        const target = 'https://github.com/lobehub-biz/lobehub-cloud/pull/1503';
-        const prefix = '已复用并推送 PR lobehub-cloud#1503 (';
+        const target = 'https://github.com/example-biz/example-cloud/pull/1234';
+        const prefix = '已复用并推送 PR example-cloud#1234 (';
 
         expect(findTerminalLinks(`${prefix}${target}），双仓 clean，PR 可合并。`)).toEqual([
             {

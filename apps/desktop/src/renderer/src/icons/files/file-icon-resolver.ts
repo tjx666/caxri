@@ -43,8 +43,8 @@ const GIT_REPOSITORY_FOLDER_OPENED = 'folder_type_git_opened.svg';
  * broken link deliberately keeps the neutral default icon: guessing a type from a name whose target is gone would
  * present a confident answer the filesystem cannot back.
  *
- * Being a repository of its own outranks the folder's name: that `lobehub` is a submodule matters more than that it is
- * called `lobehub`, and the name-derived icon for such a folder is almost always the generic one anyway.
+ * Being a repository of its own outranks the folder's name: that `example` is a submodule matters more than that it is
+ * called `example`, and the name-derived icon for such a folder is almost always the generic one anyway.
  *
  * @param entry The row this icon belongs to.
  * @param isExpanded Whether a directory row is open, which selects the matching `_opened` asset.

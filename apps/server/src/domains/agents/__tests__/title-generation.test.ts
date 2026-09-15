@@ -140,7 +140,7 @@ describe('Session title transcript reading', () => {
 
     it('keeps the opening request when megabytes of tool output separate it from the latest turn', async () => {
         const location = await writeTranscript([
-            codexUser('https://linear.app/lobehub/issue/LOBE-14090/bedrock-channel-errors'),
+            codexUser('https://linear.app/example/issue/TASK-24683/service-channel-errors'),
             codexAssistant('I will verify the Linear alert and the Bedrock channel routing.'),
             toolNoise(1_500_000),
             codexAssistant('The circuit breaker entries already cleared.'),
@@ -151,7 +151,7 @@ describe('Session title transcript reading', () => {
         expect(context.opening).toEqual([
             {
                 role: 'user',
-                text: 'https://linear.app/lobehub/issue/LOBE-14090/bedrock-channel-errors',
+                text: 'https://linear.app/example/issue/TASK-24683/service-channel-errors',
             },
             {
                 role: 'assistant',
