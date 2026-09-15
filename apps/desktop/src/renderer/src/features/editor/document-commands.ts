@@ -6,6 +6,7 @@ import type {
     SessionState,
 } from '@caxri/protocol';
 import {
+    CaxriError,
     closeTabs,
     findResourceTabs,
     findTab,
@@ -188,28 +189,58 @@ export function openEditorTab(path: string, options: { preview?: boolean } = {})
 }
 
 /**
- * Reads a file into the Session document cache without opening a tab for it.
+ * Reads a file into the Session document cache without opening a tab for it. Resolves to the rejection when the read
+ * fails instead of swallowing it: `tryCommand` still owns the toast, which expires after four seconds, while the editor
+ * surface needs the same cause to replace its spinner with a state the user can recover from (issue #979).
  */
-export async function cacheDocument(sessionId: string, path: string): Promise<void> {
-    if (isVirtualEditorTabPath(path)) return;
+export async function cacheDocument(
+    sessionId: string,
+    path: string,
+): Promise<{ error: unknown } | undefined> {
+    if (isVirtualEditorTabPath(path)) return undefined;
     const operation = trackDocumentOperation(sessionId, path);
+    let failure: { error: unknown } | undefined;
     try {
-        await tryCommand('Unable to restore file', async () => {
-            const document = await caxri.request('files.read', { sessionId, path });
-            if (!operation.discarded)
-                useSessionViewStore.getState().cacheDocument(
-                    sessionId,
-                    {
-                        ...document,
-                        path: operation.path,
-                        dirty: false,
-                    },
-                    operation.workbenchProjectId,
-                );
+        // The label matches the sentence the editor surface paints, so one failure is not described two ways.
+        await tryCommand("Couldn't open this file", async () => {
+            try {
+                const document = await caxri.request('files.read', { sessionId, path });
+                if (!operation.discarded) {
+                    useSessionViewStore.getState().cacheDocument(
+                        sessionId,
+                        {
+                            ...document,
+                            path: operation.path,
+                            dirty: false,
+                        },
+                        operation.workbenchProjectId,
+                    );
+                    /**
+                     * Admission is budgeted, and a freshly read document is the newest entry rather than a protected
+                     * one, so the very write that admits it can evict it again when the Session already holds more
+                     * unsaved work than the cache allows. Reporting success then left the editor on a spinner that
+                     * nothing re-triggers, which is the state issue #979 exists to remove.
+                     */
+                    const cached = getSessionDocuments(sessionId, operation.workbenchProjectId)?.[
+                        operation.path
+                    ];
+                    if (!cached)
+                        throw new CaxriError(
+                            'CAPACITY',
+                            'There is no room left for another open file. Save or close some files, then try again.',
+                        );
+                }
+            } catch (error) {
+                // Recorded and rethrown rather than handled here, so `tryCommand` keeps sole ownership of the toast
+                // and of the rule that a cancelled request is not a failure worth reporting.
+                failure = { error };
+                throw error;
+            }
         });
     } finally {
         pendingDocumentOperations.delete(operation);
     }
+    return failure;
 }
 
 /**
