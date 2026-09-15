@@ -209,10 +209,17 @@ export const appSettingsSchema = z.object({
         .default(spec['terminal.suspendIdleAgents'].default),
     'terminal.osc52ClipboardWrite': booleanField(spec['terminal.osc52ClipboardWrite']),
     'files.exclude': filesExcludeRecordSchema.default(DEFAULT_FILES_EXCLUDE),
+    /**
+     * Files a reviewer scrolls past rather than reads. Tests are the obvious ones; translation catalogs are the same
+     * shape of noise on a localized repository, where one product change rewrites `locales/<lang>/*.json` in every
+     * language it ships and buries the source files that actually changed. One recursive `locales` glob covers both a
+     * repository-root `locales/` and a `packages/locales/`. The eye button still shows them on demand.
+     */
     'git.diffExclude': filesExcludeRecordSchema.default({
         '**/*.test.*': true,
         '**/*.spec.*': true,
         '**/__tests__/**': true,
+        '**/locales/**': true,
     }),
     'files.maxFileBytes': integerField(spec['files.maxFileBytes']),
 } satisfies Record<SettingKey, z.ZodType>);

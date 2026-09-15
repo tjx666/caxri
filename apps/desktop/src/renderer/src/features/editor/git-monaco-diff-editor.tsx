@@ -54,6 +54,14 @@ export function GitMonacoDiffEditor(
         const viewModel = instance.createViewModel(models);
         instance.setModel(viewModel);
         editor.current = instance;
+        /**
+         * Monaco opens a diff at line 1. In a thousand-line file whose change is near the bottom, that is a full screen
+         * of identical imports and no visible diff at all — the file reads as unchanged until the user scrolls or
+         * presses F7. `revealFirstDiff` waits for the diff computation and then centers the first change, which is what
+         * every other diff viewer does on open. It runs on mount only: the in-place `setValue` path below is the same
+         * file refreshing, and re-revealing there would yank the scroll position out from under the reader.
+         */
+        instance.revealFirstDiff();
         properties.onMount?.(instance, monaco);
         return () => {
             editor.current = null;

@@ -104,8 +104,8 @@ test('Git diff exclusions hide changes, reveal on demand, and refresh from Setti
             settingRow.getByRole('group', { name: 'Excluded Git diff files', exact: true }),
         ).toBeVisible();
         const patterns = settingRow.getByRole('list', { name: 'Excluded file patterns' });
-        await expect(patterns.locator('li')).toHaveCount(3);
-        for (const pattern of ['**/*.test.*', '**/*.spec.*', '**/__tests__/**']) {
+        await expect(patterns.locator('li')).toHaveCount(4);
+        for (const pattern of ['**/*.test.*', '**/*.spec.*', '**/__tests__/**', '**/locales/**']) {
             // eslint-disable-next-line no-await-in-loop -- each removal re-renders the same persisted Settings row.
             await settingRow
                 .getByRole('button', {
@@ -134,6 +134,63 @@ test('Git diff exclusions hide changes, reveal on demand, and refresh from Setti
         } catch {
             // Ignore close errors during test cleanup.
         }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('The shipped exclusions hide translation catalogs and keep the source that drove them', async () => {
+    const testInfo = test.info();
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-git-locales-excludes-e2e-'));
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', join(root, 'locales', 'zh-CN')], { cwd: testDirectory });
+    await execFileAsync('mkdir', ['-p', join(root, 'packages', 'locales', 'src')]);
+    await execFileAsync('mkdir', ['-p', join(root, 'packages', 'runtime', 'src')]);
+    await execFileAsync('git', ['init', '-b', 'main'], { cwd: root });
+    await execFileAsync('git', ['config', 'user.email', 'caxri@example.com'], { cwd: root });
+    await execFileAsync('git', ['config', 'user.name', 'Caxri E2E'], { cwd: root });
+    /**
+     * The two shapes a localized repository actually has: generated catalogs at the root and the workspace package that
+     * declares them. One product change rewrites both, and neither is what a reviewer opens.
+     */
+    const catalog = join(root, 'locales', 'zh-CN', 'runtime.json');
+    const declaration = join(root, 'packages', 'locales', 'src', 'runtime.ts');
+    const source = join(root, 'packages', 'runtime', 'src', 'index.ts');
+    await writeFile(catalog, '{ "title": "before" }\n', 'utf8');
+    await writeFile(declaration, 'export const title = "before";\n', 'utf8');
+    await writeFile(source, 'export const runtime = "before";\n', 'utf8');
+    await execFileAsync('git', ['add', '.'], { cwd: root });
+    await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: root });
+    await writeFile(catalog, '{ "title": "after" }\n', 'utf8');
+    await writeFile(declaration, 'export const title = "after";\n', 'utf8');
+    await writeFile(source, 'export const runtime = "after";\n', 'utf8');
+
+    const running = await launchCaxri({
+        userDataDir: join(testDirectory, 'user-data'),
+        testRootPath: root,
+    });
+    try {
+        const { page } = running;
+        await createProjectSession(page);
+        await page.getByRole('tab', { name: 'Git', exact: true }).click();
+        const gitPanel = page.locator('.git-panel');
+        const files = gitPanel.locator('.git-repository-section .git-files');
+        await expect(
+            files.locator('.git-row[title="packages/runtime/src/index.ts"]'),
+        ).toBeVisible();
+        await expect(files.locator('.git-row[title="locales/zh-CN/runtime.json"]')).toHaveCount(0);
+        await expect(
+            files.locator('.git-row[title="packages/locales/src/runtime.ts"]'),
+        ).toHaveCount(0);
+        const showExcluded = gitPanel.getByRole('button', { name: /^Show excluded files/ });
+        await expect(showExcluded).toHaveAccessibleName(/^Show excluded files \(2\)$/);
+        await gitPanel.screenshot({ path: testInfo.outputPath('git-locales-excluded.png') });
+        await showExcluded.click();
+        await expect(files.locator('.git-row[title="locales/zh-CN/runtime.json"]')).toBeVisible();
+        await expect(
+            files.locator('.git-row[title="packages/locales/src/runtime.ts"]'),
+        ).toBeVisible();
+    } finally {
+        await running.app.close();
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
