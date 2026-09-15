@@ -89,8 +89,10 @@ jobs:
           install-dependencies: 'true'
           install-electron: 'true'
 
-      # A DMG left behind by an earlier build on this self-hosted runner would otherwise be eligible
-      # for publication below, with a checksum computed over that stale file.
+      # actions/checkout's default `clean: true` already runs `git clean -ffdx`, which removes the
+      # gitignored release.noindex, so a DMG from an earlier build on this self-hosted runner should
+      # never reach the packaging step. This makes the single-DMG precondition explicit next to the
+      # code that depends on it rather than relying on that default staying in place.
       - name: Clean previous packaging output
         run: rm -rf release.noindex
 
