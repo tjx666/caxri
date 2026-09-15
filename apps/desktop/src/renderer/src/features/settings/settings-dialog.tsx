@@ -27,7 +27,9 @@ function SettingsDialogView(controller: SettingsDialogController) {
     // keyboard shortcut that focus is keyboard-driven, so the tab's `focus-visible`
     // outline draws around it, which reads as a stray box rather than an intentional
     // affordance. Focusing the popup container itself instead avoids that, while Tab
-    // still moves focus into the dialog's controls normally.
+    // still moves focus into the dialog's controls normally. On the Settings tab the page
+    // then claims the caret for its search field through `searchFocusRequestId`, which it
+    // can only do after `settings.jsonc` has loaded and the field exists.
     const popupReference = useRef<HTMLDivElement>(null);
 
     const sourceView = state.theme.value && (
@@ -120,9 +122,8 @@ function SettingsDialogView(controller: SettingsDialogController) {
                                 agentSkillHealth={controller.agentSkillHealth}
                                 argvConfig={controller.argvConfig}
                                 gitExclusionsFocusRequestId={controller.gitExclusionsFocusRequestId}
-                                hardwareAccelerationFocusRequestId={
-                                    controller.hardwareAccelerationFocusRequestId
-                                }
+                                argvRowFocusRequest={controller.argvRowFocusRequest}
+                                searchFocusRequestId={controller.searchFocusRequestId}
                                 settings={state.settings.value}
                                 trustedDomainsFocusRequestId={
                                     controller.trustedDomainsFocusRequestId
@@ -165,9 +166,11 @@ function SettingsDialogView(controller: SettingsDialogController) {
                             sourceView
                         ) : (
                             <ThemeForm
+                                importResult={controller.themeImportResult}
                                 theme={state.theme.value}
                                 warnings={state.theme.warnings}
                                 onColorChange={controller.updateThemeColor}
+                                onDismissImportResult={controller.dismissThemeImportResult}
                                 onImport={() => {
                                     // eslint-disable-next-line no-void -- intentional floating-promise discard, importTheme() reports its own errors
                                     void controller.importTheme();

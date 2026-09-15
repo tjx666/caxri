@@ -29,6 +29,33 @@ describe('isRowModified', () => {
         ).toBe(false);
     });
 
+    /**
+     * The delegation row edits one field of a complex value the user also hand-writes presets into. A reset that took
+     * the whole value back to its default would delete that hand-written work without saying so.
+     */
+    it('tracks the delegation depth without touching hand-written presets', () => {
+        const current = settings();
+        const binding = { type: 'delegation-depth' } as const;
+        current['agents.delegation'] = {
+            ...current['agents.delegation'],
+            presets: [{ name: 'reviewer', provider: 'codex', useWhen: 'Reviewing a diff' }],
+        };
+        expect(isRowModified(binding, { settings: current })).toBe(false);
+        current['agents.delegation'] = { ...current['agents.delegation'], maxDepth: 5 };
+        expect(isRowModified(binding, { settings: current })).toBe(true);
+        expect(rowResetAction(binding, current)).toEqual({
+            kind: 'field',
+            key: 'agents.delegation',
+            // Narrows the JSONC write to the depth's own path; writing the whole key would replace its node and take
+            // any comment the user left beside those presets with it.
+            member: 'maxDepth',
+            value: {
+                ...current['agents.delegation'],
+                maxDepth: defaultAppSettings['agents.delegation'].maxDepth,
+            },
+        });
+    });
+
     it('flags a scalar setting only when it diverges from its default', () => {
         const current = settings();
         expect(

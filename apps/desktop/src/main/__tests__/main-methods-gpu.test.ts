@@ -16,6 +16,7 @@ import type { createWorkbenchRootAuthority } from '../workbench-root-authority';
 function handler(overrides: Partial<Parameters<typeof createMainMethodHandler>[0]> = {}) {
     return createMainMethodHandler({
         getProcessExplorer: () => ({}) as ProcessExplorerWindowController,
+        getRemoteDebugging: () => ({ port: '9223', transport: 'port' }) as const,
         getUserDataPath: () => '/user-data',
         getSupervisor: () => ({}) as DesktopServerConnection,
         getUpdateService: () => ({}) as UpdateService,

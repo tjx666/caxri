@@ -41,6 +41,7 @@ function options(overrides: {
     return {
         getProcessExplorer: () =>
             overrides.processExplorer ?? ({} as ProcessExplorerWindowController),
+        getRemoteDebugging: () => ({ port: '9223', transport: 'port' }) as const,
         getUserDataPath: () => '/user-data',
         getSupervisor: () =>
             ({

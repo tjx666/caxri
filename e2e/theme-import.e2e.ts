@@ -209,12 +209,14 @@ test('theme import contrast failure names the color roles and measured ratio', a
         await settings.getByRole('tab', { name: 'Theme', exact: true }).click();
         await settings.getByRole('button', { name: 'Import Theme' }).click();
 
-        const toast = running.page.locator('.toast', { hasText: 'Theme import failed.' });
-        await expect(toast).toContainText(
+        // Reported inside the dialog rather than as a toast: the dialog's focus trap keeps a toast out of Tab order,
+        // so the one surface that can act on the failure could not reach the message describing it.
+        const failure = settings.getByRole('alert').filter({ hasText: 'Theme import failed.' });
+        await expect(failure).toContainText(
             '--muted has 1.00:1 contrast against --background; at least 4.5:1 is required.',
         );
-        await expect(toast).not.toContainText(directory);
-        await toast.screenshot({ path: testInfo.outputPath('theme-contrast-failure.png') });
+        await expect(failure).not.toContainText(directory);
+        await failure.screenshot({ path: testInfo.outputPath('theme-contrast-failure.png') });
         await expect
             .poll(
                 async () =>

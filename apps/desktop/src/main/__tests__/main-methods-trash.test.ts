@@ -24,6 +24,7 @@ const authorizedItem = {
 function handler(request: (method: string, parameters?: unknown) => Promise<unknown>) {
     return createMainMethodHandler({
         getProcessExplorer: () => ({}) as ProcessExplorerWindowController,
+        getRemoteDebugging: () => ({ port: '9223', transport: 'port' }) as const,
         getUserDataPath: () => '/user-data',
         getSupervisor: () => ({ request }) as unknown as DesktopServerConnection,
         getUpdateService: () => ({}) as UpdateService,
