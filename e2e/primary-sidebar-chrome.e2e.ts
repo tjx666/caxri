@@ -250,18 +250,23 @@ test('Files actions stay visible while Project actions reveal on hover or focus'
             name: 'Collapse project',
         });
         await expect(projectHeading.locator('.project-disclosure')).toHaveCount(1);
-        await expect(projectDisclosure.locator('.project-folder-icon')).toHaveClass(
+        // The chevron carries the disclosure state; the folder glyph sits beside the Project name as identity and a
+        // custom icon replaces it there without taking the cue away (issue #993).
+        await expect(projectDisclosure.locator('svg')).toHaveClass(/lucide-chevron-down/);
+        await expect(projectHeading.locator('.project-select .project-folder-icon')).toHaveClass(
             /lucide-folder-open/,
         );
         await projectDisclosure.click();
         const collapsedDisclosure = projectHeading.getByRole('button', {
             name: 'Expand project',
         });
-        await expect(collapsedDisclosure.locator('.project-folder-icon')).toHaveClass(
+        await expect(collapsedDisclosure.locator('svg')).toHaveClass(/lucide-chevron-right/);
+        await expect(projectHeading.locator('.project-select .project-folder-icon')).toHaveClass(
             /lucide-folder-closed/,
         );
         await collapsedDisclosure.click();
-        const projectName = projectHeading.getByRole('button', { name: 'project', exact: true });
+        // The heading names its Session count, so the accessible name is never the bare title.
+        const projectName = projectHeading.getByRole('button', { name: 'project (1 Session)' });
         await projectName.click();
         await expect(projectHeading.getByRole('button', { name: 'Expand project' })).toBeVisible();
         await expect(running.page.locator('.project-session-disclosure')).toHaveAttribute(
@@ -337,10 +342,9 @@ test('Project titles toggle disclosure when no active Session can be selected', 
         const emptyHeading = running.page.locator(
             `.project-heading[data-project-id="${emptyProject.id}"]`,
         );
-        const emptyTitle = emptyHeading.getByRole('button', {
-            name: emptyProject.displayTitle,
-            exact: true,
-        });
+        // Located by class rather than accessible name: the name now carries a live Session count, which this test
+        // changes as it archives. `project-heading.test.ts` owns the wording.
+        const emptyTitle = emptyHeading.locator('.project-select');
         const emptyDisclosure = emptyHeading.locator('.project-disclosure');
         await expect(emptyTitle).toHaveAttribute('aria-expanded', 'true');
         await expect(emptyDisclosure).toHaveAttribute('aria-expanded', 'true');
@@ -370,10 +374,7 @@ test('Project titles toggle disclosure when no active Session can be selected', 
         const activeHeading = running.page.locator(
             `.project-heading[data-project-id="${activeProject.id}"]`,
         );
-        const activeTitle = activeHeading.getByRole('button', {
-            name: activeProject.displayTitle,
-            exact: true,
-        });
+        const activeTitle = activeHeading.locator('.project-select');
         const activeDisclosure = activeHeading.locator('.project-disclosure');
         await expect(activeTitle).toHaveAttribute('aria-expanded', 'true');
         await activeTitle.click();

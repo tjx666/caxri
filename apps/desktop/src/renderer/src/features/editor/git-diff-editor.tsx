@@ -20,11 +20,17 @@ import { monaco } from '../../lib/monaco';
 import { useCaxriQuery, useToastOnQueryError } from '../../queries/client';
 import { useSelectedSession, useTheme } from '../../stores/selectors';
 import { describeFailure } from '../../stores/toasts';
-import { closeResolvedGitDiff, openFile } from './document-commands';
+import { openFile } from './document-commands';
 import { resolveRegisteredEditorLanguage } from './editor-language';
+import { EditorLoadFailure } from './editor-load-failure';
 import { GitChangesDiffList } from './git-changes-diff-list';
 import { registerDiffEditorActions } from './git-diff-actions';
 import { observeGitEditorContentHeight } from './git-diff-model-lifecycle';
+import {
+    isResolvedGitDiff,
+    RESOLVED_GIT_DIFF_REASON,
+    resolvedGitDiffActionLabel,
+} from './git-diff-resolution';
 import { GitMonacoDiffEditor } from './git-monaco-diff-editor';
 import { GitSingleDiffEditor } from './git-single-diff-editor';
 
@@ -301,42 +307,35 @@ function WorkingFileDiffEditor({
     navigationKey: string;
     tab: Extract<GitDiffTab, { kind: 'file' }>;
 }) {
-    const session = useSelectedSession();
-    const sessionId = session?.id;
-    const workbenchProjectId = session?.workbenchProjectId;
+    const sessionId = useSelectedSession()?.id;
     const {
         data: document,
         isFetchedAfterMount,
         isFetching,
         isError,
         error,
+        refetch,
     } = useCaxriQuery(
         'git.diffDocument',
         { sessionId: sessionId ?? '', repositoryId: tab.repositoryId, path: tab.path },
         { enabled: Boolean(sessionId), refetchOnMount: 'always' },
     );
-    useEffect(() => {
-        /**
-         * A reopened file may have new changes while its cached diff still says it was resolved.
-         */
-        if (
-            document === null &&
-            isFetchedAfterMount &&
-            !isFetching &&
-            !isError &&
-            sessionId &&
-            workbenchProjectId
-        )
-            closeResolvedGitDiff(sessionId, workbenchProjectId, navigationKey);
-    }, [
-        document,
-        isFetchedAfterMount,
-        isFetching,
-        isError,
-        sessionId,
-        workbenchProjectId,
-        navigationKey,
-    ]);
+    if (document === null)
+        return isResolvedGitDiff({ document, isError, isFetchedAfterMount }) ? (
+            <EditorLoadFailure
+                actionLabel={resolvedGitDiffActionLabel(isFetching)}
+                reason={RESOLVED_GIT_DIFF_REASON}
+                tone="interrupted"
+                onAction={() => {
+                    // Fire-and-forget: the query's own state drives the label and the result, and a rejected refetch
+                    // already surfaces through `isError` below.
+                    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+                    void refetch();
+                }}
+            />
+        ) : (
+            <div className={emptyWorkClassName}>Loading diff…</div>
+        );
     return (
         <FileDiffResult
             document={document}
