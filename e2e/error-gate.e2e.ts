@@ -152,9 +152,16 @@ errorGateSelfTest(
     'error toast gate rejects an unexpected notification after dismissal',
     // eslint-disable-next-line no-empty-pattern -- Playwright requires object destructuring
     async ({}, testInfo) => {
+        /**
+         * A notification injected in the Renderer has no Main or Server partner by construction, so the gate appends
+         * its correlation clause. Asserting the exact message is the point of this self-test: it is what proves the
+         * clause reaches the reader rather than only the helper that builds it.
+         */
         await expectGateFailure(
             testInfo,
-            'Unexpected E2E errors: renderer/toast/ERROR_TOAST x1; toast categories: e2e.injected',
+            'Unexpected E2E errors: renderer/toast/ERROR_TOAST x1; toast categories: e2e.injected' +
+                ' (no Main or Server error was logged in this run, so the cause is Renderer-local' +
+                ' or a request cancelled at quit)',
             () => observeDismissedErrorToast(),
         );
     },

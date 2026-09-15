@@ -520,9 +520,13 @@ test('Terminal references open configured issues and an authorized Git commit', 
                 name: `Commit Changes (${sha.slice(0, 7)})`,
             }),
         ).toHaveAttribute('aria-pressed', 'true');
-        await expect(running.page.locator('.git-repository-section')).toContainText(
-            'first reference commit',
-        );
+        /**
+         * The repository row keeps the branch in its visible slot, so the subject of the commit the link selected is
+         * carried by the row's tooltip and accessible name instead of its text.
+         */
+        const repoMeta = running.page.locator('.git-repository-section .git-repository-meta');
+        await expect(repoMeta).toHaveAttribute('title', /first reference commit/);
+        await expect(repoMeta).toHaveAccessibleName(/first reference commit/);
         await expect(running.page.locator('.git-repository-section')).toContainText('first.txt');
     } finally {
         try {
