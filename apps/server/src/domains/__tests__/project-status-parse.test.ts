@@ -100,6 +100,65 @@ describe('Vercel deployment details', () => {
             ),
         ).toMatchObject({ inspectorUrl: 'https://vercel.com/team/project/Fallback123' });
     });
+
+    it('carries the triggering commit, reduced to its subject line', () => {
+        const [deployment] = parseVercelList(
+            JSON.stringify({
+                deployments: [
+                    {
+                        uid: 'dpl_Commit123',
+                        state: 'READY',
+                        url: 'project-commit-team.vercel.app',
+                        meta: {
+                            githubCommitAuthorLogin: 'octocat',
+                            githubCommitMessage: 'fix: stop the timeout\n\nLong body nobody reads.',
+                            githubCommitOrg: 'acme',
+                            githubCommitRepo: 'web',
+                            githubCommitSha: 'b5bae57a270864fdd9c238a8c1fc6a0d9f04d3c5',
+                        },
+                    },
+                ],
+            }),
+        );
+
+        expect(
+            mapProjectStatusDeployment(deployment, 'preview', { team: 'team', project: 'project' })
+                ?.commit,
+        ).toEqual({
+            sha: 'b5bae57a270864fdd9c238a8c1fc6a0d9f04d3c5',
+            message: 'fix: stop the timeout',
+            authorLogin: 'octocat',
+            url: 'https://github.com/acme/web/commit/b5bae57a270864fdd9c238a8c1fc6a0d9f04d3c5',
+        });
+    });
+
+    it('omits the commit for a direct upload and the commit link for an unusable repository', () => {
+        const link = { team: 'team', project: 'project' };
+
+        expect(
+            mapProjectStatusDeployment(
+                { uid: 'dpl_Cli123', state: 'READY', url: 'project-cli-team.vercel.app' },
+                'preview',
+                link,
+            )?.commit,
+        ).toBeUndefined();
+        expect(
+            mapProjectStatusDeployment(
+                {
+                    uid: 'dpl_Path123',
+                    state: 'READY',
+                    url: 'project-path-team.vercel.app',
+                    meta: {
+                        githubCommitOrg: '../evil',
+                        githubCommitRepo: 'web',
+                        githubCommitSha: 'b5bae57a270864fdd9c238a8c1fc6a0d9f04d3c5',
+                    },
+                },
+                'preview',
+                link,
+            )?.commit,
+        ).toEqual({ sha: 'b5bae57a270864fdd9c238a8c1fc6a0d9f04d3c5' });
+    });
 });
 
 describe('parseGitHubPullRequest', () => {
