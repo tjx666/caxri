@@ -182,8 +182,9 @@ test('theme import warnings can be dismissed and do not return after restart', a
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires object destructuring for its fixture argument
 test('theme import contrast failure names the color roles and measured ratio', async ({}, testInfo) => {
+    // No `ERROR_TOAST`: the failure is now reported inside the Settings dialog, so the only error that still crosses a
+    // process boundary is Server Core rejecting the theme.
     allowE2EErrors([
-        { source: 'renderer', event: 'toast', code: 'ERROR_TOAST', count: 1 },
         { source: 'server-core', event: 'ipc.request_failed', code: 'VALIDATION', count: 1 },
     ]);
     const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-contrast-e2e-'));
