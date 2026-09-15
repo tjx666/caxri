@@ -6,6 +6,8 @@ import {
     revealFile,
 } from '../../lib/desktop-file-actions';
 import { parentDirectoryPath } from '../../lib/file-path';
+import { useCommandShortcut } from '../../lib/keybindings';
+import { openFilePreview } from '../preview/preview-commands';
 import type { DocumentTabPathResolution } from './document-tab-path-actions';
 import { documentTabDesktopActionState } from './document-tab-path-actions';
 
@@ -25,14 +27,32 @@ export function DocumentTabPathMenu({
     resolution,
     unavailableReason,
     isExternal,
+    previewPath,
 }: {
     resolution?: DocumentTabPathResolution;
     unavailableReason: string;
     isExternal: boolean;
+    /**
+     * The file a preview of this tab would show, when a previewer claims it. Absent for every other tab, which hides
+     * the item instead of disabling it: "cannot preview a `.ts` file" is not a state worth explaining.
+     */
+    previewPath?: string;
 }) {
     const desktop = documentTabDesktopActionState(resolution, { isExternal, unavailableReason });
+    const previewShortcut = useCommandShortcut('editor.openPreview');
     return (
         <>
+            {previewPath && (
+                <>
+                    <ContextMenuItem
+                        hint={previewShortcut}
+                        onClick={() => openFilePreview(previewPath)}
+                    >
+                        Open Preview
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
+                </>
+            )}
             <ContextMenuItem
                 disabled={!desktop.path}
                 disabledReason={desktop.disabledReason}

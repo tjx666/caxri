@@ -36,6 +36,7 @@ import {
 import { DocumentTabPathMenu } from '../editor/document-tab-path-menu';
 import { documentTabPresentation } from '../editor/document-tab-presentation';
 import { EditorTabActions } from '../editor/editor-tab-actions';
+import { previewSourcePath } from '../preview/preview-commands';
 import { moveTerminalToNewSession } from '../session/session-commands';
 import { WorkTab } from '../tabs/work-tab';
 import type { WorkTabNavigationKey } from '../tabs/work-tab-accessibility';
@@ -277,6 +278,7 @@ function DocumentPaneTab({
                                 resolution={resolution}
                                 unavailableReason={pathMenu.unavailableReason}
                                 isExternal={pathMenu.isExternal}
+                                previewPath={previewSourcePath(path)}
                             />
                         )
                     }

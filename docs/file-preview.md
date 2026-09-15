@@ -10,14 +10,15 @@ where images come from.
 
 ## Using it
 
-| Action                               | How                                                  |
-| ------------------------------------ | ---------------------------------------------------- |
-| Open a preview for the active editor | `Cmd+Shift+V`, or **Editor: Open Preview**           |
-| Open it beside the source            | **Editor: Open Preview to the Side**                 |
-| Copy a fenced code block             | Hover the block, click the copy button               |
-| Jump to a heading                    | Click an in-page link                                |
-| Follow a link to another document    | Click it — Caxri opens that file as a new editor tab |
-| Follow an external link              | Click it — opens in the system browser               |
+| Action                               | How                                                                                |
+| ------------------------------------ | ---------------------------------------------------------------------------------- |
+| Open a preview for the active editor | `Cmd+Shift+V`, or **Editor: Open Preview**                                         |
+| Open it beside the source            | **Editor: Open Preview to the Side**, or the eye icon at the right of the tab rail |
+| Open it from a tab or the explorer   | Right-click the editor tab or the file in Files → **Open Preview**                 |
+| Copy a fenced code block             | Hover the block, click the copy button                                             |
+| Jump to a heading                    | Click an in-page link                                                              |
+| Follow a link to another document    | Click it — Caxri opens that file as a new editor tab                               |
+| Follow an external link              | Click it — opens in the system browser                                             |
 
 Double-clicking a Markdown or SVG file in the explorer still opens the source. Both formats are
 readable as text, so the preview stays an explicit command; VS Code makes the same call with
