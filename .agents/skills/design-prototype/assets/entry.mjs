@@ -37,6 +37,7 @@ import * as Progress from '@/components/ui/progress';
 import * as Select from '@/components/ui/select';
 import * as Separator from '@/components/ui/separator';
 import * as Spinner from '@/components/ui/spinner';
+import * as SplitButton from '@/components/ui/split-button';
 import * as Switch from '@/components/ui/switch';
 import * as Textarea from '@/components/ui/textarea';
 import * as ToastOutlet from '@/features/toasts/toast-outlet';
@@ -91,6 +92,7 @@ export default {
     '@/components/ui/select': Select,
     '@/components/ui/separator': Separator,
     '@/components/ui/spinner': Spinner,
+    '@/components/ui/split-button': SplitButton,
     '@/components/ui/switch': Switch,
     '@/components/ui/textarea': Textarea,
     '@/features/toasts/toast-outlet': ToastOutlet,
