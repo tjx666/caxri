@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import type { StructuredLogger } from '@caxri/system';
 
 import type { ExternalStatusRunner } from './command';
-import { runExternalStatusCommand } from './command';
+import { GITHUB_RATE_LIMIT_QUERY, runExternalStatusCommand } from './command';
 import { GitHubPullRequestStore } from './github';
 import type { ExternalStatusLimiterOptions, GitHubQuota } from './limiter';
 import { ExternalStatusLimiter, parseGitHubRateLimit } from './limiter';
@@ -51,12 +51,19 @@ export class ExternalStatusHub {
     }
 
     /**
-     * Reads GitHub's GraphQL budget over REST, which draws on a separate bucket and therefore never spends the quota it
-     * reports on. Deliberately calls the unguarded runner: this probe is how the circuit decides to open.
+     * Reads GitHub's GraphQL budget through the unbilled `rateLimit` self-query; see `GITHUB_RATE_LIMIT_QUERY` for why
+     * REST `/rate_limit` cannot report it. Deliberately calls the unguarded runner: this probe is how the circuit
+     * decides to open.
      */
     private async probeGitHubQuota(): Promise<GitHubQuota | undefined> {
         try {
-            return parseGitHubRateLimit(await this.base('gh', ['api', 'rate_limit'], homedir()));
+            return parseGitHubRateLimit(
+                await this.base(
+                    'gh',
+                    ['api', 'graphql', '-f', `query=${GITHUB_RATE_LIMIT_QUERY}`],
+                    homedir(),
+                ),
+            );
         } catch {
             return undefined;
         }

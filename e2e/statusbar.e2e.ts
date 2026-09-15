@@ -18,15 +18,16 @@ test('Status Bar switches the primary branch and shows changed line counts', asy
     await execFileAsync('mkdir', ['-p', root, bin]);
     /**
      * Logs its arguments, not a bare marker, so the assertion below can count pull-request reads without counting the
-     * Server's GraphQL-budget probe. That probe is a REST call on a separate quota, issued at most once every five
-     * minutes; answering it with a realistic payload keeps the Server from re-probing on every request.
+     * Server's GraphQL-budget probe. That probe is the unbilled `rateLimit` self-query, issued at most once every five
+     * minutes; answering it with a realistic payload keeps the Server from re-probing on every request. Matched on its
+     * `-f` flag so the branch-publication query, also `gh api graphql` but with `--hostname`, is not mistaken for it.
      */
     await writeFile(
         gh,
         String.raw`#!/bin/sh
 printf '%s\n' "$*" >> '${ghCalls}'
-if [ "$1" = "api" ] && [ "$2" = "rate_limit" ]; then
-  printf '%s' '{"resources":{"graphql":{"limit":5000,"remaining":5000,"reset":4102444800}}}'
+if [ "$1 $2 $3" = "api graphql -f" ]; then
+  printf '%s' '{"data":{"rateLimit":{"limit":5000,"remaining":5000,"used":0,"resetAt":"2100-01-01T00:00:00Z"}}}'
   exit 0
 fi
 printf '%s' '{"number":11,"title":"Linked Status Bar","url":"https://github.com/tjx666/status-project/pull/11"}'
@@ -174,7 +175,7 @@ exec /bin/zsh -l
         // One pull-request read per branch, not one per poll: the Server-wide projection is what the status bar reads.
         const ghArguments = (await readFile(ghCalls, 'utf8')).trim().split('\n');
         expect(ghArguments.filter((line) => line.startsWith('pr view'))).toHaveLength(2);
-        expect(ghArguments.filter((line) => line.startsWith('api rate_limit'))).toHaveLength(1);
+        expect(ghArguments.filter((line) => line.startsWith('api graphql -f'))).toHaveLength(1);
 
         // The status bar no longer offers an "open Files" chip, so reach the file tree through
         // the secondarySidebar's own Files tab (the secondarySidebar is already open from `changes.click()`).

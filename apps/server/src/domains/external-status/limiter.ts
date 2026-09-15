@@ -21,7 +21,7 @@ const GITHUB_POINT_RESERVE = 100;
  */
 const SECONDARY_PAUSE_MS = 60_000;
 /**
- * Used when the REST probe cannot report a GraphQL reset. GitHub's primary window is one hour, so this errs short and
+ * Used when the quota probe cannot report a GraphQL reset. GitHub's primary window is one hour, so this errs short and
  * lets the next failure re-pause rather than idling delivery metadata for an hour on a misread.
  */
 const GITHUB_FALLBACK_PAUSE_MS = 15 * 60_000;
@@ -37,8 +37,8 @@ const MAX_PAUSE_MS = 60 * 60_000;
  */
 const PAUSE_RELOAD_MS = 5_000;
 /**
- * `gh api rate_limit` reads the REST bucket, which is a different budget from the GraphQL calls it reports on, so the
- * probe never consumes the quota it is protecting. Twelve probes an hour is negligible against REST's 5,000.
+ * The probe is a GraphQL query whose only field is `rateLimit`. GitHub does not bill such a query, so twelve probes an
+ * hour spend none of the budget they protect (measured in #917: interleaved probes left `used` unchanged).
  */
 const QUOTA_PROBE_INTERVAL_MS = 5 * 60_000;
 
@@ -54,15 +54,14 @@ const graphqlBudgetSchema = z.object({
     limit: z.number().optional(),
     remaining: z.number(),
     /**
-     * Epoch seconds, per GitHub's REST contract.
+     * ISO 8601 timestamp, per the GraphQL `RateLimit` object.
      */
-    reset: z.number(),
+    resetAt: z.string(),
+    used: z.number().optional(),
 });
 
-const rateLimitResourcesSchema = z.object({ graphql: graphqlBudgetSchema.optional() });
-
 const githubRateLimitSchema = z.object({
-    resources: rateLimitResourcesSchema.optional(),
+    data: z.object({ rateLimit: graphqlBudgetSchema.nullable().optional() }).optional(),
 });
 
 export interface GitHubQuota {
@@ -338,8 +337,10 @@ export class ExternalStatusLimiter {
 }
 
 /**
- * Parses `gh api rate_limit` output into the GraphQL budget. Returns `undefined` when GitHub reports no GraphQL
- * resource, which is what an unauthenticated or proxied CLI does.
+ * Parses the `GITHUB_RATE_LIMIT_QUERY` response into the GraphQL budget. Returns `undefined` for malformed JSON, a
+ * response without `data.rateLimit` (an unauthenticated or proxied CLI), or a `resetAt` that does not parse: the caller
+ * treats every one of those as "no reading" and never pauses on it. The REST `/rate_limit` shape the probe used to read
+ * is rejected the same way rather than parsed into a placeholder value.
  */
 export function parseGitHubRateLimit(output: string): GitHubQuota | undefined {
     let parsed: unknown;
@@ -349,6 +350,8 @@ export function parseGitHubRateLimit(output: string): GitHubQuota | undefined {
         return undefined;
     }
     const result = githubRateLimitSchema.safeParse(parsed);
-    const graphql = result.success ? result.data.resources?.graphql : undefined;
-    return graphql ? { remaining: graphql.remaining, resetAt: graphql.reset * 1_000 } : undefined;
+    const rateLimit = result.success ? result.data.data?.rateLimit : undefined;
+    if (!rateLimit) return undefined;
+    const resetAt = Date.parse(rateLimit.resetAt);
+    return Number.isNaN(resetAt) ? undefined : { remaining: rateLimit.remaining, resetAt };
 }

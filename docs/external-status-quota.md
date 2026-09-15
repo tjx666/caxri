@@ -92,10 +92,13 @@ query's cost by every candidate returned.
 `ExternalStatusLimiter` (`limiter.ts`) wraps every `gh`, `linear`, and `vc` spawn. `git` is local and
 free, so it bypasses the circuit entirely.
 
-- **GitHub primary limit** — on a rate-limited failure, probe `gh api rate_limit` and pause until the
-  GraphQL `reset` GitHub itself reports. The probe reads the REST bucket, a different budget from the
-  GraphQL calls it reports on, so it never spends the quota it is protecting. Fallback when the probe
-  fails: 15 minutes.
+- **GitHub primary limit** — on a rate-limited failure, probe the GraphQL `rateLimit` self-query
+  (`gh api graphql -f query='query { rateLimit { limit remaining used resetAt } }'`) and pause until
+  the `resetAt` GitHub itself reports. GitHub does not bill a query whose only field is `rateLimit`,
+  so the probe never spends the quota it is protecting. REST `/rate_limit` is deliberately not used:
+  for the token class `gh` holds, its `resources.graphql` entry is a constant placeholder (`used` 0,
+  `remaining` equal to `limit`, `reset` sliding with the clock), which is why the reserve never fired
+  before #917. Fallback when the probe fails: 15 minutes.
 - **GitHub secondary (abuse) limit** — clears in seconds, not at the hourly reset, so it pauses for
   60s. See
   [GitHub's secondary rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#about-secondary-rate-limits).

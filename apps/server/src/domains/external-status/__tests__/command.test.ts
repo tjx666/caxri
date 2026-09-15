@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ExternalStatusCommandDependencies } from '../command';
-import { externalStatusCommandOperation, runExternalStatusCommand } from '../command';
+import {
+    externalStatusCommandOperation,
+    GITHUB_RATE_LIMIT_QUERY,
+    runExternalStatusCommand,
+} from '../command';
 
 describe('runExternalStatusCommand', () => {
     it('preserves numeric process exit codes for diagnostics', async () => {
@@ -94,8 +98,25 @@ describe('externalStatusCommandOperation', () => {
         expect(externalStatusCommandOperation('gh', ['api', 'PRIVATE_ENDPOINT'])).toBe('unknown');
         expect(externalStatusCommandOperation('gh', ['pr', 'PRIVATE_COMMAND'])).toBe('unknown');
     });
-    it('keeps the REST quota probe attributable without logging user content', () => {
-        expect(externalStatusCommandOperation('gh', ['api', 'rate_limit'])).toBe('api.rate_limit');
+    it('keeps the quota probe attributable without logging user content', () => {
+        expect(
+            externalStatusCommandOperation('gh', [
+                'api',
+                'graphql',
+                '-f',
+                `query=${GITHUB_RATE_LIMIT_QUERY}`,
+            ]),
+        ).toBe('graphql.rate_limit');
+        // Any other GraphQL document is user-shaped content and must not be named in a log.
+        expect(
+            externalStatusCommandOperation('gh', [
+                'api',
+                'graphql',
+                '-f',
+                'query { viewer { login } }',
+            ]),
+        ).toBe('unknown');
+        expect(externalStatusCommandOperation('gh', ['api', 'rate_limit'])).toBe('unknown');
     });
 
     it('reports a pull-request read without its repository or branch', () => {
