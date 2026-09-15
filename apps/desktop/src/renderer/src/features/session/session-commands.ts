@@ -29,7 +29,6 @@ import {
 } from './session-mru-switcher-state';
 import type { SessionNavigationDirection } from './session-navigation-history';
 import { useSessionNavigationHistoryStore } from './session-navigation-history';
-import { useTerminalKindRecencyStore } from './terminal-kind-recency';
 
 const mruNavigationState: { pendingSelection?: PendingSessionMruSelection } = {};
 
@@ -157,7 +156,6 @@ export function beginSessionCreation(
  */
 export function chooseSessionTerminalKind(projectId: string, kind: TerminalKind | null): void {
     useDialogStore.getState().closeCreateSessionMenu();
-    if (kind) useTerminalKindRecencyStore.getState().recordTerminalKind(kind);
     // Fire-and-forget: `createSession` funnels its own failures into a toast via `tryCommand`.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void createSession(projectId, kind);
@@ -472,7 +470,6 @@ export function cancelPendingSession(): void {
 
 export function confirmPendingSession(kind: TerminalKind | null): void {
     const { pendingRoot, pendingProjectId } = useDialogStore.getState();
-    if (kind) useTerminalKindRecencyStore.getState().recordTerminalKind(kind);
     // Fire-and-forget: both `createProjectSession` and `createSession` funnel their own failures
     // into a toast via `tryCommand`.
     if (pendingRoot) {

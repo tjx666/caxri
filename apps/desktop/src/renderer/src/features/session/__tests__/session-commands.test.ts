@@ -16,7 +16,6 @@ const mocks = vi.hoisted(() => {
         pendingProjectId: undefined as string | undefined,
         pendingRoot: undefined as string | undefined,
         primarySidebarVisible: true,
-        recordTerminalKind: vi.fn(),
         setPrimarySidebarVisible: vi.fn(),
         getQueryData: vi.fn(),
         getSelectedSession: vi.fn(),
@@ -83,11 +82,6 @@ vi.mock('../../../stores/dialogs', () => ({
         })),
     },
 }));
-vi.mock('../terminal-kind-recency', () => ({
-    useTerminalKindRecencyStore: {
-        getState: vi.fn(() => ({ recordTerminalKind: mocks.recordTerminalKind })),
-    },
-}));
 vi.mock('../../../stores/selectors', () => ({
     getBootstrap: mocks.getBootstrap,
     getSelectedSession: mocks.getSelectedSession,
@@ -151,7 +145,6 @@ describe('Session actions', () => {
         mocks.tryCommand.mockClear();
         mocks.closeCreateSessionMenu.mockClear();
         mocks.openCreateSessionMenu.mockClear();
-        mocks.recordTerminalKind.mockClear();
         mocks.setPrimarySidebarVisible.mockClear();
         mocks.pendingProjectId = undefined;
         mocks.pendingRoot = undefined;
@@ -218,40 +211,33 @@ describe('Session actions', () => {
         expect(mocks.setPrimarySidebarVisible).not.toHaveBeenCalled();
     });
 
-    it('closes the menu, records the chosen kind, and creates the Session', async () => {
+    it('closes the menu and creates the Session with the chosen kind', async () => {
         chooseSessionTerminalKind('project-1', 'grok');
         await mocks.tryCommand.mock.results[0]?.value;
 
         expect(mocks.closeCreateSessionMenu).toHaveBeenCalled();
-        expect(mocks.recordTerminalKind).toHaveBeenCalledWith('grok');
         expect(mocks.caxriRequest).toHaveBeenCalledWith('session.create', {
             projectId: 'project-1',
             defaultAgent: 'grok',
         });
     });
 
-    /**
-     * "Start without a Terminal" names no Terminal the menu could lead with next time, so recording it would push a
-     * real preference down the list in exchange for an entry that can never be the most-used choice.
-     */
-    it('does not record a preference when the user starts without a Terminal', async () => {
+    it('creates a Session with no Terminal when the user starts without one', async () => {
         chooseSessionTerminalKind('project-1', null);
         await mocks.tryCommand.mock.results[0]?.value;
 
-        expect(mocks.recordTerminalKind).not.toHaveBeenCalled();
         expect(mocks.caxriRequest).toHaveBeenCalledWith('session.create', {
             projectId: 'project-1',
             defaultAgent: null,
         });
     });
 
-    it('records the kind chosen in the centered fallback dialog too, so both surfaces feed one order', async () => {
+    it('creates the Session from the centered fallback dialog with the chosen kind', async () => {
         mocks.pendingProjectId = 'project-2';
 
         confirmPendingSession('codex');
         await mocks.tryCommand.mock.results[0]?.value;
 
-        expect(mocks.recordTerminalKind).toHaveBeenCalledWith('codex');
         expect(mocks.caxriRequest).toHaveBeenCalledWith('session.create', {
             projectId: 'project-2',
             defaultAgent: 'codex',

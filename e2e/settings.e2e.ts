@@ -76,7 +76,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         await dialog.getByRole('button', { name: 'UI' }).click();
         await expect(dialog.getByLabel('Search settings')).toBeVisible();
         const defaultAgent = dialog.getByRole('combobox', {
-            name: 'Default agent for new sessions',
+            name: 'Default agent',
         });
         await expect(defaultAgent).toContainText('Ask each time');
         await expect(defaultAgent.locator('[data-agent-icon="unknown"]')).toBeVisible();
@@ -216,15 +216,11 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         const searchInput = dialog.getByLabel('Search settings');
         await searchInput.fill('font size');
         await expect(dialog.getByRole('spinbutton', { name: 'Font size' })).toBeVisible();
-        await expect(
-            dialog.getByRole('combobox', { name: 'Default agent for new sessions' }),
-        ).toHaveCount(0);
+        await expect(dialog.getByRole('combobox', { name: 'Default agent' })).toHaveCount(0);
         await searchInput.fill('no-setting-matches-this');
         await expect(dialog.getByText(/No settings match/)).toBeVisible();
         await dialog.getByRole('button', { name: 'Clear settings search' }).click();
-        await expect(
-            dialog.getByRole('combobox', { name: 'Default agent for new sessions' }),
-        ).toBeVisible();
+        await expect(dialog.getByRole('combobox', { name: 'Default agent' })).toBeVisible();
 
         // "Keeps actions visible" now means the header's UI/Source toggle stays pinned above the
         // scrollable tab content instead of scrolling out of view with it (there is no footer).
