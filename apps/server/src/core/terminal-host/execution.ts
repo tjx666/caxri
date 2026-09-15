@@ -21,6 +21,11 @@ import type {
     TerminalExecutionPort,
 } from '../../domains/terminal';
 import { canSendAgentInput, deliverAgentInput, sendAgentInput } from './agent-input';
+import {
+    attachFailureLog,
+    didRestorePublishedAttachment,
+    restoreRequestedView,
+} from './attach-failure';
 import type {
     RemoteResizeQueue,
     RemoteTerminalIdentity,
@@ -266,17 +271,26 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
             await settleHotPaths(this.inputQueues, this.resizeQueues, [identity.record.id]);
         }
         // Published before the request resolves, so bytes the host emits after taking the snapshot are forwarded again.
+        const published = identity.attachmentId;
         identity.attachmentId = view.attachmentId;
-        return (await this.supervisor.request(
-            {
-                method: 'terminal.attach',
-                params: {
-                    attachmentId: view.attachmentId,
-                    ...(view.size !== undefined && { size: view.size }),
+        try {
+            return (await this.supervisor.request(
+                {
+                    method: 'terminal.attach',
+                    params: {
+                        attachmentId: view.attachmentId,
+                        ...(view.size !== undefined && { size: view.size }),
+                    },
                 },
-            },
-            terminalScope(identity, 'terminal.view', view.attachmentId),
-        )) as { snapshot: TerminalSnapshot | null; wasAttached: boolean };
+                terminalScope(identity, 'terminal.view', view.attachmentId),
+            )) as { snapshot: TerminalSnapshot | null; wasAttached: boolean };
+        } catch (error) {
+            // The host kept `published`, so input and the output gate must name it again; see `attach-failure.ts`.
+            const isRolledBack = didRestorePublishedAttachment(identity, view, published);
+            const log = attachFailureLog(identity, published, error, isRolledBack);
+            this.logger.write('warn', logEventCatalog.terminalHost.attachFailed, log);
+            throw error;
+        }
     }
 
     private acceptInput(
@@ -576,8 +590,14 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         this.views.set(terminalId, view);
         const identity = this.identities.get(terminalId);
         if (!identity) return { snapshot: null, wasAttached: Boolean(previous) };
-        await identity.ready;
-        return this.attachReserved(identity, view);
+        try {
+            await identity.ready;
+            return await this.attachReserved(identity, view);
+        } catch (error) {
+            // The output gate reads this map, so a rejected view left here mutes the host's live frames (#938).
+            restoreRequestedView(this.views, terminalId, view, previous);
+            throw error;
+        }
     }
 
     async snapshot(terminalId: string): Promise<TerminalSnapshot | null> {

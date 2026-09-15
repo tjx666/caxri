@@ -22,9 +22,10 @@ export interface RemoteTerminalIdentity {
      * is replayed _after_ the snapshot the same re-attach fetches — and the snapshot already contains it, because the
      * host writes to the live screen before enqueueing. Dropping the forward is what keeps it rendering once (#740).
      *
-     * The gap's bytes are therefore not delivered when the re-attach itself fails. That path is already broken for a
-     * larger reason — `attachReserved` publishes this field before the request, so a rejected `terminal.attach` leaves
-     * it naming an attachment Terminal Host never accepted and mutes the Terminal outright — and is tracked by #910.
+     * The gap's bytes are therefore not delivered when the re-attach itself fails. Because `attachReserved` publishes
+     * this field before the request, a rejected `terminal.attach` restores the attachment Terminal Host still holds so
+     * live output and input keep flowing under it (#910, #938); the frames muted during the gap stay on the host's live
+     * screen and arrive with the next successful snapshot.
      */
     attachmentId?: string;
     generation: number;
