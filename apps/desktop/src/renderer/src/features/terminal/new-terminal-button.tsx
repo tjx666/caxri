@@ -47,8 +47,13 @@ export function NewTerminalButton({
         // eslint-disable-next-line no-void -- intentional floating-promise discard, createTerminal() reports its own errors via tryCommand
         void createTerminal(kind, paneId ? { paneId } : {});
     };
+    /**
+     * Unlabelled on purpose: Base UI points the popup's `aria-labelledby` at whichever trigger opened it (`MenuRoot`),
+     * and `aria-labelledby` outranks `aria-label`, so naming the popup here would be inert. Both triggers already say
+     * what the list is for — `New Terminal` when the control is collapsed, `MENU_LABEL` on the split button's chevron.
+     */
     const menu = (
-        <MenuContent align="end" aria-label={MENU_LABEL}>
+        <MenuContent align="end">
             {newTerminalAgentChoices(defaultAgent).map(({ isDefault, kind }) => (
                 <MenuItem key={kind} onClick={() => create(kind)}>
                     <AgentIdentityIcon identity={kind} size={14} />
