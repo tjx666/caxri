@@ -9,6 +9,14 @@
 .caxri-markdown {
     font-size: 13px;
     line-height: 1.65;
+
+    /*
+     * Containment, not decoration. A document can carry raw HTML, so it can carry a `class` or an inline `style` that
+     * asks for `position: fixed` — and unlike VS Code's preview, which lives in its own webview, this one renders
+     * inside the Workbench document. `contain` makes this element the containing block for positioned descendants and
+     * clips them to it, so the worst a document can lay out is its own pane.
+     */
+    contain: layout paint;
 }
 
 .caxri-markdown > :first-child {

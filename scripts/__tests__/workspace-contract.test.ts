@@ -188,7 +188,7 @@ describe('pnpm workspace contract', () => {
             'unrs-resolver': true,
         });
         expect(workspace.overrides).toEqual({
-            'dompurify': '3.4.14',
+            'dompurify': '3.4.15',
             'vitest@5.0.0>tinybench': '6.1.6',
         });
         expect(rootManifest.devDependencies?.['@oxlint/plugins']).toBe(workspace.catalog?.oxlint);

@@ -26,6 +26,11 @@ const README = [
     '',
     'See the [guide](./guide.md).',
     '',
+    // Raw HTML reaches the preview by design (`<details>`, banners), so the sanitizer is what has to hold here.
+    '<details><summary>Kept</summary>inline HTML survives</details>',
+    '<style>body { visibility: hidden; }</style>',
+    '<script>globalThis.caxriPreviewEscaped = true;</script>',
+    '',
 ].join('\n');
 
 const BADGE_SVG =
@@ -71,6 +76,29 @@ test('previews Markdown and SVG in a virtual editor tab', async () => {
         await expect
             .poll(() => image.evaluate((element: HTMLImageElement) => element.naturalWidth))
             .toBe(64);
+
+        /**
+         * The preview renders inside the Workbench document rather than a separate webview, so a document-supplied
+         * `<style>` would restyle the whole application. Useful inline HTML still has to survive that sanitizer.
+         */
+        await expect(preview.getByText('inline HTML survives')).toBeAttached();
+        await expect(preview.locator('script')).toHaveCount(0);
+        // Not a bare `style` count: Mermaid's own SVG carries one, scoped to that diagram's generated id.
+        expect(
+            await running.page.evaluate(() =>
+                [...document.querySelectorAll('style')].some((element) =>
+                    element.textContent.includes('visibility: hidden'),
+                ),
+            ),
+        ).toBe(false);
+        expect(
+            await running.page.evaluate(
+                () => (globalThis as { caxriPreviewEscaped?: boolean }).caxriPreviewEscaped,
+            ),
+        ).toBeUndefined();
+        expect(await preview.evaluate((element) => getComputedStyle(element).contain)).toContain(
+            'paint',
+        );
 
         // Monaco colorization replaces the escaped source with spans painted from the live theme.
         const code = preview.locator('.caxri-markdown-code code');

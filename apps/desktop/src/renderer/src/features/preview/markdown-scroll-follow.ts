@@ -13,9 +13,6 @@ export interface PreviewScrollAnchor {
 
 /**
  * Reads the position of every top-level block the engine annotated with its source line.
- *
- * Collected once per render because each entry forces layout; the source editor then scrolls many times against the
- * same table.
  */
 function collectScrollAnchors(container: HTMLElement): PreviewScrollAnchor[] {
     const anchors: PreviewScrollAnchor[] = [];
@@ -60,15 +57,29 @@ export function previewScrollTop(anchors: readonly PreviewScrollAnchor[], line: 
  * two-way link has to arbitrate which side moved first on every frame, and gets it wrong exactly when the user is
  * scrolling one side quickly.
  */
-export function followSourceScroll(container: HTMLElement, documentPath: string): () => void {
-    const state = { anchors: collectScrollAnchors(container), frame: 0 };
+export function followSourceScroll(
+    container: HTMLElement,
+    documentPath: string,
+    { shouldRevealLastPosition }: { shouldRevealLastPosition: boolean },
+): () => void {
+    const state = { frame: 0 };
     const scrollTo = (line: number): void => {
         cancelAnimationFrame(state.frame);
         state.frame = requestAnimationFrame(() => {
-            container.scrollTop = previewScrollTop(state.anchors, line);
+            /**
+             * Measured inside the frame rather than once per render: images, diagrams, and Monaco colorization all land
+             * asynchronously after the HTML mounts, so a table collected at render time describes a layout that no
+             * longer exists by the time anyone scrolls against it.
+             */
+            container.scrollTop = previewScrollTop(collectScrollAnchors(container), line);
         });
     };
-    const initial = lastSourceScroll(documentPath);
+    /**
+     * Replayed only when this preview first attaches to the document, so a preview opened after the editor already
+     * scrolled starts in the right place. Repeating it on every re-render would yank a reader back to the editor's line
+     * on each keystroke, which is not what "the editor drives the preview" means.
+     */
+    const initial = shouldRevealLastPosition ? lastSourceScroll(documentPath) : undefined;
     if (initial !== undefined) scrollTo(initial);
     const unsubscribe = subscribeSourceScroll(documentPath, scrollTo);
     return () => {

@@ -67,7 +67,14 @@ Two properties of that package are load-bearing and enforced, not conventions:
   webview. In the Renderer that step is
   [`markdown-sanitize.ts`](../apps/desktop/src/renderer/src/features/preview/markdown-sanitize.ts),
   a DOMPurify pass that forbids `script`, `iframe`, `object`, `embed`, `form`, `link`, `meta`,
-  `base`, and `srcdoc`.
+  `base`, `style`, and `srcdoc`.
+
+  `style` is on that list for a reason VS Code does not have: its preview owns a separate webview
+  document, while this one renders inside the Workbench, so a document-supplied stylesheet would
+  restyle the whole application. The other half of that containment is `contain: layout paint` on
+  `.caxri-markdown`, which makes the preview the containing block for positioned descendants — a
+  document can still ask for `position: fixed` through a `class` or an inline `style`, and the
+  worst it can then cover is its own pane.
 
 ### Decoration after mount
 
@@ -125,7 +132,7 @@ Everything format-specific lives in two places.
 The commands, the tab scheme, split-to-the-side, persistence, and the explorer's open behavior all
 read from the registry and need no change. A format that renders from text reads it with
 `useDocument` like `MarkdownPreviewSurface`; a binary format reads bytes with `files.readAsset`
-like `ImagePreviewSurface`, and extends `previewAssetMediaTypes` if its type is not on the
+like `ImagePreview`, and extends `previewAssetMediaTypes` if its type is not on the
 allowlist yet.
 
 If a future format needs its own rendering engine, put the engine in a `packages/*` package under
