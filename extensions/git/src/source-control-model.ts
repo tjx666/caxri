@@ -489,23 +489,26 @@ export function buildSourceControlViewModel({
              * modes. State the count on the repository row and make it the way back to it.
              */
             const uncommittedCount = mode === 'working' ? 0 : repo.changedFileCount;
-            const description = pullRequest
-                ? `#${pullRequest.number} ${pullRequest.title}`
+            /**
+             * The branch owns this slot in every mode. A pull request or commit subject used to replace it, and cost
+             * more than it returned: the identifier it led with is already the group caption one row below (`PR #1738
+             * Changes`), the subject behind that identifier never survived the row's width, and while either was
+             * showing, the branch — which appears nowhere else in the panel — was simply gone. Both move to the hover,
+             * where the width is not scarce.
+             */
+            const description = repo.branch;
+            const aheadBehindLabel = `${repo.ahead} ahead, ${repo.behind} behind`;
+            const revisionSummary = pullRequest
+                ? `Pull request #${pullRequest.number} into ${pullRequest.baseRefName}: ${pullRequest.title}`
                 : details
                   ? `${details.commit.shortSha} ${details.commit.subject}`
-                  : repo.branch;
-            /**
-             * A bare branch name is the one description the panel must never ellipsize: `feat/thing` and `feat/thing-2`
-             * both truncate to `feat/thi…`, and unlike the repository name it appears nowhere else on the row. A pull
-             * request or commit subject leads with its own identifier and reads fine clipped.
-             */
-            const descriptionKind = pullRequest || details ? 'prose' : 'reference';
-            const descriptionAccessibilityLabel = pullRequest
-                ? `Pull request #${pullRequest.number}: ${pullRequest.title}`
-                : `${repo.ahead} ahead, ${repo.behind} behind`;
-            const descriptionTooltip = pullRequest
-                ? `Pull request #${pullRequest.number}: ${pullRequest.baseRefName} ← ${pullRequest.headRefName}`
-                : `${repo.ahead} ahead, ${repo.behind} behind`;
+                  : undefined;
+            const descriptionAccessibilityLabel = [repo.branch, aheadBehindLabel, revisionSummary]
+                .filter(Boolean)
+                .join(', ');
+            const descriptionTooltip = [repo.branch, aheadBehindLabel, revisionSummary]
+                .filter(Boolean)
+                .join(' · ');
             const groupLabel = pullRequest
                 ? `PR #${pullRequest.number} Changes`
                 : mode === 'commit'
@@ -568,7 +571,6 @@ export function buildSourceControlViewModel({
                 tooltip: repo.rootPath,
                 rootPath: repo.rootPath,
                 description,
-                descriptionKind,
                 descriptionAccessibilityLabel,
                 descriptionTooltip,
                 countLabel:

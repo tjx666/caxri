@@ -139,13 +139,12 @@ export interface SourceControlProviderModel {
      * instead of guessing.
      */
     rootPath?: string;
-    description: string;
     /**
-     * Whether `description` is a `reference` — a branch name or short SHA, atomic enough that an ellipsis destroys it —
-     * or `prose`, a pull request or commit subject that stays useful truncated. The panel gives the narrow header's
-     * spare width to whichever of the two can survive losing it.
+     * The repository's branch. Atomic enough that an ellipsis destroys it — `feat/thing` and `feat/thing-2` both
+     * truncate to `feat/thi…` — so the panel protects its width and truncates the repository name instead, which the
+     * row's path tooltip still carries. Prose that a provider wants beside the row belongs in `descriptionTooltip`.
      */
-    descriptionKind: 'reference' | 'prose';
+    description: string;
     descriptionAccessibilityLabel: string;
     descriptionTooltip: string;
     countLabel: string;

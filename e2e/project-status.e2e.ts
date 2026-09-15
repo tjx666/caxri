@@ -152,7 +152,8 @@ esac
                 iconFlexShrink: '0',
             });
         const branchRow = tree.getByRole('treeitem', {
-            name: 'feature/status, default · Synced',
+            // The branch row also names the pull request whose lifecycle glyph it now wears.
+            name: 'feature/status, default · Synced, pull request #42 Merged',
             exact: true,
         });
         await expect(branchRow).toBeVisible();
@@ -218,9 +219,9 @@ esac
         await expect(refreshButton).not.toHaveAttribute('aria-busy', 'true');
         expect(await refreshRequestCount()).toBe(beforeInitialRefresh + 1);
         await expect(pullRequestA).toHaveAttribute('aria-expanded', 'true');
-        await expect(pullRequestA.locator('[data-theme-icon="git-merge"]')).toHaveClass(
-            /text-merged/,
-        );
+        // The lifecycle glyph lives on the branch row, in GitHub's merged purple, and only there.
+        await expect(branchRow.locator('[data-theme-icon="git-merge"]')).toHaveClass(/text-merged/);
+        await expect(pullRequestA.locator('[data-theme-icon="git-merge"]')).toHaveCount(0);
         const appCheck = tree.getByRole('treeitem', { name: 'Test / App, 2m 5s', exact: true });
         const packagesCheck = tree.getByRole('treeitem', {
             name: 'Test / Packages, 1m',
@@ -607,8 +608,12 @@ esac
             .poll(async () => (await treeCommandOpenedUrls(running))?.at(-1))
             .toBe('https://vercel.com/tjx666/project/Canceled123');
         await production.click();
-        await expect(production).toHaveText('Productionproject-production-tjx666.vercel.app');
-        await expect(preview).toHaveText('Previewproject-preview-tjx666.vercel.app');
+        /**
+         * The environment rows print the environment and nothing else: the generated Vercel alias survives in the
+         * accessible name this locator matches on, and in the hover card's `alias` button asserted above.
+         */
+        await expect(production).toHaveText('Production');
+        await expect(preview).toHaveText('Preview');
         await expect
             .poll(async () => (await treeCommandOpenedUrls(running))?.at(-1))
             .toBe('https://vercel.com/tjx666/project/Production123');
@@ -731,7 +736,7 @@ esac
             cwd: root,
         });
         const unpublishedBranch = restoredTree.getByRole('treeitem', {
-            name: 'feature/status, default · Not on origin',
+            name: 'feature/status, default · Not on origin, pull request #42 Merged',
             exact: true,
         });
         await expect(unpublishedBranch).toBeVisible();
@@ -752,7 +757,7 @@ esac
             .click();
         await expect(
             restoredTree.getByRole('treeitem', {
-                name: 'feature/status, default · Unknown',
+                name: 'feature/status, default · Unknown, pull request #42 Merged',
                 exact: true,
             }),
         ).toBeVisible();

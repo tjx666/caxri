@@ -94,10 +94,13 @@ function CatalogIcon({ icon }: { icon: ViewIcon }) {
 /**
  * The container tab's aggregated badge.
  *
- * Severity is drawn as a fixed glyph and not only as a fill, so `error` stays distinguishable from an ordinary count
- * for a reader who cannot use color — two containers painting differently-colored plain digits is exactly the ambiguity
- * this replaces. The glyph is the Workbench's, never the extension's: a badge reports meaning and the Workbench owns
- * how meaning looks. `text` is empty when the winning severity had no countable tally, leaving a glyph-only badge.
+ * A badge draws a glyph or a tally, never both. That is VS Code's own composite-bar rule — its `progress`, `icon`, and
+ * `number` badges are mutually exclusive, and the winning kind renders alone (`compositeBarActions.ts`,
+ * `getVisibleBadges`). Packing `✕ 2` into one chip made the Status tab half again as wide as the Git tab beside it and
+ * read as an alarm rather than a count, so the tally wins whenever there is one and severity rides on the fill; the
+ * glyph appears only when the winning severity had no countable tally and the chip would otherwise be blank. The glyph
+ * is the Workbench's, never the extension's: a badge reports meaning and the Workbench owns how meaning looks. The
+ * cause stays reachable without color through the tab's own accessible description.
  */
 function ContainerBadgeChip({
     badge,
@@ -114,17 +117,18 @@ function ContainerBadgeChip({
     return (
         <span
             aria-hidden="true"
-            className={`absolute -right-2 -bottom-1 flex h-4 min-w-4 items-center justify-center gap-px rounded-full px-1 text-[10px] leading-none font-semibold ring-2 ring-surface ${fill}`}
+            className={`absolute -right-2 -bottom-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none font-semibold ring-2 ring-surface ${fill}`}
             data-view-container-badge={containerId}
             data-view-container-badge-kind={badge.kind}
         >
             {/* The glyph is drawn at 9px, far below the size Lucide's stroke scaling assumes, so the stroke has to stay
                 in screen pixels or it renders as a barely visible hairline. */}
-            {badge.kind === 'error' && <X nonScalingStroke size={9} strokeWidth={3} />}
-            {badge.kind === 'warning' && (
-                <AlertTriangle nonScalingStroke size={9} strokeWidth={2.5} />
-            )}
-            {badge.text}
+            {badge.text ||
+                (badge.kind === 'error' ? (
+                    <X nonScalingStroke size={9} strokeWidth={3} />
+                ) : badge.kind === 'warning' ? (
+                    <AlertTriangle nonScalingStroke size={9} strokeWidth={2.5} />
+                ) : null)}
         </span>
     );
 }

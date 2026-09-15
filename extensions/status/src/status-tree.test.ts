@@ -43,9 +43,10 @@ describe('Status extension tree', () => {
                 const stateLabel = state === 'neutral' ? 'canceled' : state;
                 expect(row.item.accessibilityInformation?.label).toContain(stateLabel);
                 expect(row.item.tooltip).toMatchObject({ badge: { label: stateLabel } });
-                if (row.item.label !== deployment.hostname) {
-                    expect(row.item.description).toBe(deployment.hostname);
-                }
+                // The environment rows keep the hash-heavy alias out of the row, never out of reach.
+                if (row.item.label !== deployment.hostname)
+                    expect(row.item.description).toBeUndefined();
+                expect(row.item.accessibilityInformation?.label).toContain(deployment.hostname);
                 if (state === 'neutral') {
                     expect(row.item.iconPath?.id).toBe('circle-slash');
                     expect(row.item.accessibilityInformation?.label).toContain('canceled');
@@ -97,8 +98,10 @@ describe('Status extension tree', () => {
                     },
                 });
                 const pr = root.children!.find((node) => node.item.id?.endsWith(':pr'))!;
+                const branch = root.children!.find((node) => node.item.id?.endsWith(':branch'))!;
                 expect(iconId(pr)).toBe(checkIcon);
-                expect(pr.item.trailingIcon?.id).toBe('git-merge');
+                expect(iconId(branch)).toBe('git-merge');
+                expect(pr.item.trailingIcon).toBeUndefined();
                 expect(pr.item.description).toBeUndefined();
                 expect(pr.item.accessibilityInformation?.label).toBe(
                     `#42 Lifecycle fixture, Merged, ${checkLabel}`,
@@ -138,12 +141,14 @@ describe('Status extension tree', () => {
         });
         const pr = node.children?.find((child) => child.item.id === 'status:repo:repo:pr');
         /**
-         * The PR row's leading icon carries the aggregate check state while its trailing icon and badge carry the
-         * lifecycle, so a cancellation surfaces on the leading icon and the `checks` row. Both stay neutral — a check
-         * cancelled by concurrency is not a closed PR and not a failure.
+         * The PR row's leading icon carries the aggregate check state while the branch row's icon and this row's badge
+         * carry the lifecycle, so a cancellation surfaces on the leading icon and the `checks` row. Both stay neutral —
+         * a check cancelled by concurrency is not a closed PR and not a failure.
          */
         expect(pr?.item.iconPath?.id).toBe('circle-slash');
-        expect(pr?.item.trailingIcon?.id).toBe('git-pull-request-open');
+        expect(pr?.item.trailingIcon).toBeUndefined();
+        const branch = node.children?.find((child) => child.item.id?.endsWith(':branch'));
+        expect(branch?.item.iconPath?.id).toBe('git-pull-request-open');
         expect(pr?.item.description).toBeUndefined();
         expect(pr?.item.accessibilityInformation?.label).toBe('#1 Cancelled, Open, CI cancelled');
         expect((pr?.item.tooltip as TreeItemRichTooltip).rows).toContainEqual({
@@ -159,9 +164,10 @@ describe('Status extension tree', () => {
         ['open', 'git-pull-request-open', 'Open'],
         ['draft', 'git-pull-request-draft', 'Draft'],
         ['closed', 'git-pull-request-closed', 'Closed'],
-        [undefined, 'circle-dot', 'Unknown'],
+        // An unreported lifecycle leaves the branch row on its own glyph rather than asserting a state.
+        [undefined, 'git-branch', 'Unknown'],
     ] as const)(
-        'shows %s lifecycle without treating CI success as an open PR',
+        'shows %s lifecycle on the branch row without treating CI success as an open PR',
         (lifecycle, icon, label) => {
             const root = buildRepoNode({
                 id: 'fixture',
@@ -181,15 +187,20 @@ describe('Status extension tree', () => {
                 },
             });
             const pr = root.children!.find((node) => node.item.id?.endsWith(':pr'))!;
+            const branch = root.children!.find((node) => node.item.id?.endsWith(':branch'))!;
             expect(iconId(pr)).toBe('circle-check');
-            expect(pr.item.trailingIcon?.id).toBe(icon);
+            expect(pr.item.trailingIcon).toBeUndefined();
+            expect(iconId(branch)).toBe(icon);
             /**
-             * Neither status is spelled out in the row — the two icons carry them in GitHub's own colors — so both have
-             * to remain reachable through the accessible name for a reader who cannot use color.
+             * Neither status is spelled out in either row — the two icons carry them in GitHub's own colors — so both
+             * have to remain reachable through the accessible names for a reader who cannot use color.
              */
             expect(pr.item.description).toBeUndefined();
             expect(pr.item.accessibilityInformation?.label).toBe(
                 `#42 Lifecycle fixture, ${label}, CI passed`,
+            );
+            expect(branch.item.accessibilityInformation?.label).toBe(
+                lifecycle ? `feature/status, pull request #42 ${label}` : 'feature/status',
             );
         },
     );
@@ -361,6 +372,10 @@ describe('Status extension tree', () => {
             'linear-started',
             'linear-backlog',
         ]);
+        // The glyph already carries the workflow state in the workspace's own color, so no row repeats it as text.
+        expect(children.slice(1, 6).every(({ item }) => item.description === undefined)).toBe(true);
+        expect(children[1].item.accessibilityInformation?.label).toBe('CAX-1, Completed, Done');
+        expect(children[1].item.tooltip).toMatchObject({ badge: { label: 'Done' } });
         expect(children[6].children?.[1]?.item.iconPath?.id).toBe('loading');
         expect(children[6].item).toMatchObject({
             id: 'status:repo:repo-1:deployments',
@@ -396,13 +411,20 @@ describe('Status extension tree', () => {
             badge: { label: 'pending', tone: 'warning' },
             rows: [{ label: 'alias', value: 'preview-branch.vercel.app' }],
         });
-        expect(children[7].item.description).toBe('caxri.app');
+        /**
+         * The environment rows print no alias: a Vercel hostname is mostly a generated hash, so it stays on the hover
+         * card and in the accessible name instead of taking half the row's width to be truncated.
+         */
+        expect(children[7].item.description).toBeUndefined();
+        expect(children[7].item.accessibilityInformation?.label).toBe(
+            'Production, success · caxri.app',
+        );
         expect(children[7].item.tooltip).toMatchObject({
             title: 'Production',
             badge: { label: 'success', tone: 'success' },
             rows: [{ label: 'alias' }, { label: 'inspect', value: 'details' }],
         });
-        expect(children[8].item.description).toBe('preview.caxri.app');
+        expect(children[8].item.description).toBeUndefined();
         expect(children[9].item.collapsibleState).toBe(TreeItemCollapsibleState.Expanded);
         expect(children[9].children?.map(({ item }) => item.label)).toEqual([
             'Test / App',

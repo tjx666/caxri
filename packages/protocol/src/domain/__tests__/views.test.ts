@@ -620,7 +620,6 @@ describe('extension view contracts', () => {
             tooltip: '/authorized/project (2 changes)',
             rootPath: '/authorized/project',
             description: 'main',
-            descriptionKind: 'reference' as const,
             descriptionAccessibilityLabel: 'On branch main',
             descriptionTooltip: 'main',
             countLabel: ' · 2',
