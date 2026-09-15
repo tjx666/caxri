@@ -18,6 +18,7 @@ function BugReportDialogContent() {
         applyAnnotations,
         backToForm,
         busy,
+        canDiscardDraft,
         canPreview,
         captureHidden,
         captureScreenshot,
@@ -25,8 +26,10 @@ function BugReportDialogContent() {
         closeAnnotator,
         contextError,
         copyReport,
+        discardDraft,
         draft,
         imageDeliveryNotice,
+        isRestoredDraft,
         openAnnotator,
         preview,
         previewDataUrl,
@@ -57,6 +60,17 @@ function BugReportDialogContent() {
                         Capture, annotate, and send a redacted Markdown bug report to a running
                         Agent in the current Session.
                     </DialogDescription>
+                    {/**
+                     * Closing this dialog keeps the draft, so a reopened dialog that is already full of text has to say where that text
+                     * came from. A plain line rather than an Alert: nothing is wrong, and a live region would announce a non-event every
+                     * time the dialog opens.
+                     */}
+                    {isRestoredDraft && !report && (
+                        <p className="mt-2 mb-0 text-[11px] leading-[1.45] text-muted">
+                            Restored your unsent draft, including the screenshot and its
+                            annotations. Use Discard Draft below to start over.
+                        </p>
+                    )}
                 </DialogHeader>
                 {report ? (
                     <BugReportPreview
@@ -85,6 +99,7 @@ function BugReportDialogContent() {
                     <BugReportForm
                         annotationCount={screenshot?.annotations.length ?? 0}
                         busy={busy}
+                        canDiscardDraft={canDiscardDraft}
                         canPreview={canPreview}
                         capturing={capturing}
                         contextError={contextError}
@@ -98,6 +113,10 @@ function BugReportDialogContent() {
                         onCapture={() => {
                             // eslint-disable-next-line no-void -- intentional floating-promise discard, captureScreenshot() reports its own errors
                             void captureScreenshot();
+                        }}
+                        onDiscardDraft={() => {
+                            // eslint-disable-next-line no-void -- intentional floating-promise discard, discardDraft() only awaits the confirmation
+                            void discardDraft();
                         }}
                         onPreview={() => {
                             // eslint-disable-next-line no-void -- intentional floating-promise discard, preview() reports its own errors

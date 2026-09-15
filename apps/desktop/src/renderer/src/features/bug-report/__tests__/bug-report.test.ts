@@ -2,15 +2,15 @@ import type { TerminalRecord } from '@caxri/protocol';
 import { bugReportText } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import type { BugReportContext, BugReportDraft } from './bug-report';
+import type { BugReportContext, BugReportDraft } from '../bug-report';
 import {
     bugReportImageDeliveryNotice,
     buildBugReport,
     chooseBugReportTarget,
     runningAgentTargets,
-} from './bug-report';
-import type { ScreenshotAnnotation } from './screenshot-annotations';
-import { ANNOTATION_NOTE_MAX_LENGTH, MAX_ANNOTATIONS } from './screenshot-annotations';
+} from '../bug-report';
+import type { ScreenshotAnnotation } from '../screenshot-annotations';
+import { ANNOTATION_NOTE_MAX_LENGTH, MAX_ANNOTATIONS } from '../screenshot-annotations';
 
 function terminal(id: string, overrides: Partial<TerminalRecord> = {}): TerminalRecord {
     return {

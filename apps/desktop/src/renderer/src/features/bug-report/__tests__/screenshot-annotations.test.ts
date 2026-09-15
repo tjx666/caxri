@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { AnnotationRenderingContext, ScreenshotAnnotation } from './screenshot-annotations';
+import type { AnnotationRenderingContext, ScreenshotAnnotation } from '../screenshot-annotations';
 import {
     ANNOTATION_BADGE_RADIUS,
     ANNOTATION_COLOR,
@@ -11,7 +11,7 @@ import {
     formatAnnotationLines,
     isNegligibleDrag,
     normalizeBox,
-} from './screenshot-annotations';
+} from '../screenshot-annotations';
 
 function box(overrides: Partial<ScreenshotAnnotation> = {}): ScreenshotAnnotation {
     return {

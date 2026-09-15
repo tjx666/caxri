@@ -10,6 +10,10 @@ import { BugReportScreenshotField } from './bug-report-screenshot-field';
 interface BugReportFormProperties {
     annotationCount: number;
     busy: boolean;
+    /**
+     * Whether the form holds work a discard would actually destroy; the action is hidden until it does.
+     */
+    canDiscardDraft: boolean;
     canPreview: boolean;
     capturing: boolean;
     contextError: string | undefined;
@@ -18,6 +22,7 @@ interface BugReportFormProperties {
     imageDeliveryNotice: string;
     onAnnotate: () => void;
     onCapture: () => void;
+    onDiscardDraft: () => void;
     onPreview: () => void;
     onRemoveScreenshot: () => void;
     screenshotDataUrl: string | undefined;
@@ -31,6 +36,7 @@ interface BugReportFormProperties {
 export function BugReportForm({
     annotationCount,
     busy,
+    canDiscardDraft,
     canPreview,
     capturing,
     contextError,
@@ -39,6 +45,7 @@ export function BugReportForm({
     imageDeliveryNotice,
     onAnnotate,
     onCapture,
+    onDiscardDraft,
     onPreview,
     onRemoveScreenshot,
     screenshotDataUrl,
@@ -140,7 +147,19 @@ export function BugReportForm({
                     onChange={(event) => updateDraft('steps', event.target.value)}
                 />
             </Field>
-            <div className="flex justify-end gap-2">
+            <div className="flex items-center justify-end gap-2">
+                {/* Closing keeps the draft, so this is the only way to throw it away; `mr-auto` keeps it clear of the primary action. */}
+                {canDiscardDraft && (
+                    <Button
+                        className="mr-auto"
+                        disabled={busy}
+                        id="bug-report-discard-draft"
+                        variant="ghost"
+                        onClick={onDiscardDraft}
+                    >
+                        Discard Draft
+                    </Button>
+                )}
                 <Button disabled={!canPreview || busy} onClick={onPreview}>
                     {busy ? 'Preparing…' : 'Preview Report'}
                 </Button>

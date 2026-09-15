@@ -4,6 +4,7 @@ import type { MethodResult } from '@caxri/protocol';
 import { errorMessage } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 
+import { caxri } from '../../lib/caxri';
 import { setBugReportOpen } from '../../stores/dialogs';
 import { getBootstrap } from '../../stores/selectors';
 import { pushToast } from '../../stores/toasts';
@@ -22,28 +23,23 @@ import {
     saveBugReportScreenshot,
     sendBugReport,
 } from './bug-report-client';
+import type { BugReportDraftContent, BugReportScreenshot } from './bug-report-draft';
+import {
+    clearBugReportDraft,
+    EMPTY_BUG_REPORT_DRAFT,
+    hasBugReportDraftInput,
+    openBugReportDraft,
+    retainBugReportDraft,
+} from './bug-report-draft';
 import type { ScreenshotAnnotation } from './screenshot-annotations';
 
 type DiagnosticsContext = MethodResult<'bugReport.context'>;
-type CapturedScreenshot = MethodResult<'bugReport.captureScreenshot'>;
-
-/**
- * The original capture is never overwritten: re-opening the annotator has to redraw the marks over a clean image, so
- * `annotatedDataUrl` is a derived rasterization that is thrown away and rebuilt on every edit.
- */
-interface BugReportScreenshot {
-    annotatedDataUrl: string | undefined;
-    annotations: ScreenshotAnnotation[];
-    original: CapturedScreenshot;
-}
 
 interface ReportSource {
     project: BugReportContext['project'];
     session: BugReportContext['session'];
     visibleWork: BugReportContext['visibleWork'];
 }
-
-const EMPTY_DRAFT: BugReportDraft = { actual: '', expected: '', steps: '' };
 
 function visibleWorkContext(): BugReportContext['visibleWork'] {
     const bootstrap = getBootstrap();
@@ -99,6 +95,10 @@ interface BugReportDialogState {
     contextError: string | undefined;
     diagnostics: DiagnosticsContext | undefined;
     draft: BugReportDraft;
+    /**
+     * True while the open dialog is showing a draft handed back by a previous close.
+     */
+    isRestoredDraft: boolean;
     report: string | undefined;
     screenshot: BugReportScreenshot | undefined;
     screenshotError: string | undefined;
@@ -111,19 +111,26 @@ type BugReportDialogUpdate =
     | Partial<BugReportDialogState>
     | ((state: BugReportDialogState) => Partial<BugReportDialogState>);
 
+/**
+ * Seeds a freshly mounted dialog. A draft retained by an earlier close is restored here rather than re-entered by the
+ * user, and it suppresses the automatic capture: the retained screenshot and its annotations are part of the draft, and
+ * a fresh capture would replace them with a picture of whatever is on screen now.
+ */
 function createBugReportDialogState(): BugReportDialogState {
     const initial = initialReportState();
+    const retained = openBugReportDraft();
     return {
         annotatorOpen: false,
         busy: false,
         // The dialog mounts hidden so the automatic capture below never photographs itself.
-        captureHidden: true,
-        capturing: true,
+        captureHidden: !retained.isRestored,
+        capturing: !retained.isRestored,
         contextError: initial.contextError,
         diagnostics: undefined,
-        draft: EMPTY_DRAFT,
+        draft: retained.draft,
+        isRestoredDraft: retained.isRestored,
         report: undefined,
-        screenshot: undefined,
+        screenshot: retained.screenshot,
         screenshotError: undefined,
         selectedTargetId: initial.selectedTargetId,
         sendError: undefined,
@@ -159,6 +166,7 @@ export function useBugReportDialog() {
         contextError,
         diagnostics,
         draft,
+        isRestoredDraft,
         report,
         screenshot,
         screenshotError,
@@ -192,7 +200,11 @@ export function useBugReportDialog() {
      * Hides the dialog, waits two frames so the compositor has actually painted without it, and captures. Both frames
      * are required: the first commits the `invisible` class, the second is the paint that class produces.
      */
-    const captureScreenshot = async (): Promise<void> => {
+    /**
+     * `isRetaken` separates the capture the user asked for from the one the dialog takes on open, which is what lets a
+     * screenshot-only draft survive a close without making every automatic capture look like unfinished work.
+     */
+    const captureScreenshot = async (isRetaken = true): Promise<void> => {
         updateState({
             capturing: true,
             captureHidden: true,
@@ -205,6 +217,7 @@ export function useBugReportDialog() {
                 screenshot: {
                     annotatedDataUrl: undefined,
                     annotations: [],
+                    isRetaken,
                     original: await captureBugReportScreenshot(),
                 },
             });
@@ -219,15 +232,41 @@ export function useBugReportDialog() {
 
     /**
      * React StrictMode double-invokes mount effects in development; a ref (which survives that remount, unlike reducer
-     * state, which has not re-rendered yet when the effect runs again) keeps the window from being captured twice.
+     * state, which has not re-rendered yet when the effect runs again) keeps the window from being captured twice. It
+     * starts already-requested for a restored draft, whose screenshot — including the marks drawn on it — is the one
+     * the user wants back, not a fresh photograph of the workbench they have since navigated away from.
      */
-    const hasRequestedCapture = useRef(false);
+    const hasRequestedCapture = useRef(isRestoredDraft);
     useEffect(() => {
         if (hasRequestedCapture.current) return;
         hasRequestedCapture.current = true;
         // eslint-disable-next-line no-void -- intentional floating-promise discard, captureScreenshot() reports its own errors
-        void captureScreenshot();
+        void captureScreenshot(false);
     }, []);
+
+    /**
+     * The draft as it stands right now, mirrored into a ref because the unmount below has to read it synchronously.
+     * Escape, the close button, and an outside click all unmount this hook's owner in the same commit as the state
+     * update that preceded them, so reducer state read from a closure can be one render stale; a ref cannot.
+     */
+    const latestContent = useRef<BugReportDraftContent>({ draft, screenshot });
+    useEffect(() => {
+        latestContent.current = { draft, screenshot };
+    });
+
+    /**
+     * Whether closing should keep the draft. False only after a successful send, which is the one exit that already
+     * delivered the work — everything else (Escape, the close button, an outside click) means "not now", not "delete
+     * what I wrote". A ref rather than reducer state for the same commit-timing reason as {@link latestContent}.
+     */
+    const shouldRetainOnClose = useRef(true);
+    useEffect(
+        () => () => {
+            if (shouldRetainOnClose.current) retainBugReportDraft(latestContent.current);
+            else clearBugReportDraft();
+        },
+        [],
+    );
 
     /**
      * The image bytes last written by `bugReport.saveScreenshot` and the file they landed in. Preview → Back → Preview
@@ -265,6 +304,31 @@ export function useBugReportDialog() {
 
     const removeScreenshot = (): void => {
         updateState({ screenshot: undefined, screenshotError: undefined });
+    };
+
+    /**
+     * The one path that actually throws the draft away. It is irreversible — the text, the capture, and every mark on
+     * it go at once — so it asks first through the shared confirmation modal (DESIGN.md "Confirmations") instead of
+     * letting a stray click do what closing the dialog deliberately no longer does.
+     */
+    const discardDraft = async (): Promise<void> => {
+        const isConfirmed = await caxri.window.showConfirm({
+            cancelLabel: 'Keep Draft',
+            confirmLabel: 'Discard Draft',
+            message:
+                'The text you wrote, the screenshot, and every annotation on it are deleted. This cannot be undone.',
+            title: 'Discard this bug report draft?',
+        });
+        if (!isConfirmed) return;
+        clearBugReportDraft();
+        updateState({
+            draft: EMPTY_BUG_REPORT_DRAFT,
+            isRestoredDraft: false,
+            report: undefined,
+            screenshot: undefined,
+            screenshotError: undefined,
+            sendError: undefined,
+        });
     };
 
     const openAnnotator = (): void => {
@@ -370,6 +434,9 @@ export function useBugReportDialog() {
                 sessionId: source.session.id,
                 terminalId: liveTarget.id,
             });
+            // The draft has been delivered, so closing must not hand it back to the next open.
+            shouldRetainOnClose.current = false;
+            clearBugReportDraft();
             setBugReportOpen(false);
             pushToast('success', `Bug report sent to ${liveTarget.title}`);
         } catch (error) {
@@ -384,6 +451,7 @@ export function useBugReportDialog() {
         applyAnnotations,
         backToForm,
         busy,
+        canDiscardDraft: hasBugReportDraftInput({ draft, screenshot }),
         canPreview,
         captureHidden,
         captureScreenshot,
@@ -391,8 +459,10 @@ export function useBugReportDialog() {
         closeAnnotator,
         contextError,
         copyReport,
+        discardDraft,
         draft,
         imageDeliveryNotice,
+        isRestoredDraft,
         openAnnotator,
         preview,
         previewDataUrl,
