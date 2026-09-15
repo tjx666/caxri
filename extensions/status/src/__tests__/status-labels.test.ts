@@ -7,7 +7,7 @@ import {
     projectStatusStateLabel,
     publicationDescription,
     publicationLabel,
-} from './status-labels';
+} from '../status-labels';
 
 const STATES = [
     'success',

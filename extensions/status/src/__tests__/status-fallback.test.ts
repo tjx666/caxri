@@ -1,7 +1,7 @@
 import { ProjectStatusSummaryErrorMessage, TreeItemCollapsibleState } from 'caxri';
 import { describe, expect, it } from 'vitest';
 
-import { buildRepoNode, buildStatusRootNodes } from './status-tree';
+import { buildRepoNode, buildStatusRootNodes } from '../status-tree';
 
 function iconId(node: ReturnType<typeof buildRepoNode>): string | undefined {
     return node.item.iconPath?.id;
