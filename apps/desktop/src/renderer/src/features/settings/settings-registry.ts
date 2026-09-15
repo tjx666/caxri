@@ -228,14 +228,20 @@ const rows: SettingRowDescriptor[] = [
         id: 'general.hardwareAcceleration',
         category: 'general',
         title: 'Hardware acceleration',
+        /**
+         * Says what turning it off actually costs and what takes it back. The previous wording promised "Caxri never
+         * changes this automatically", which stopped being true the moment a crash card could write it; the promise is
+         * now the accurate one — Caxri only changes it behind a confirmation the user answered.
+         */
         description:
-            'Uses the GPU for Caxri rendering. Turn it off to use GPU Safe Mode; Caxri never changes this automatically. Changes take effect after restarting Caxri',
+            'Draws Caxri with your graphics hardware. Turn it off to use software rendering, which is slower but keeps working when graphics fail. Caxri only changes this after you confirm it, and a change takes effect the next time Caxri starts.',
         binding: { type: 'hardware-acceleration' },
         haystack: lower([
             'hardware acceleration',
             'gpu',
-            'gpu safe mode',
+            'graphics',
             'software rendering',
+            'slow',
             'restart',
         ]),
     },

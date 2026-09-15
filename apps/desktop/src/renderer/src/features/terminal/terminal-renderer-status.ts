@@ -28,15 +28,15 @@ export interface TerminalRendererIndicatorAction {
 const ENABLE_GPU_ACCELERATION: TerminalRendererIndicatorAction = {
     confirmLabel: 'Turn On',
     message:
-        'Terminals switch from the DOM renderer to WebGL immediately, without restarting Caxri or the Terminal. You can turn it off again in Settings.',
+        'Terminals start drawing with the GPU immediately, without restarting Caxri or the Terminal. You can turn it off again in Settings.',
     preference: 'on',
-    title: 'Turn on GPU acceleration?',
+    title: 'Turn on GPU acceleration for Terminals?',
 };
 
 const RETRY_GPU_ACCELERATION: TerminalRendererIndicatorAction = {
     confirmLabel: 'Retry GPU',
     message:
-        'Retry GPU rendering for this Terminal and reset the GPU failure limit for this window. Your Terminal and Agent keep running, and settings stay unchanged. If the attempt fails, the Terminal keeps using DOM rendering.',
+        'Retry GPU rendering for this Terminal and reset the graphics failure limit for this window. Your Terminal and Agent keep running, and settings stay unchanged. If the attempt fails, the Terminal keeps using software rendering.',
     title: 'Retry GPU rendering?',
 };
 
@@ -57,27 +57,30 @@ export function terminalRendererIndicator(
               ? RETRY_GPU_ACCELERATION
               : undefined;
     // An actionable chip leads with what clicking does, matching the `Open Process Explorer — …` chips beside it, so
-    // the accessible name and the tooltip promise exactly the same thing.
+    // the accessible name and the tooltip promise exactly the same thing. A confirming action's title is already a
+    // question, so it reads as the promise directly.
     const lead = action ? `${action.title} — ` : '';
     return {
         ...(action && { action }),
-        ariaLabel: `${lead}Terminal renderer: DOM. ${detail}`,
-        label: 'DOM',
-        title: `${lead}Terminal is using the DOM renderer. ${detail}`,
+        ariaLabel: `${lead}Terminal is using software rendering. ${detail}`,
+        label: 'Software',
+        title: `${lead}Terminal is using software rendering. ${detail}`,
     };
 }
 
 function terminalRendererDetail(status: TerminalRendererStatus): string {
     if (status.reason === 'disabled') return 'GPU acceleration is turned off in Settings.';
-    if (status.reason === 'unsupported') return 'WebGL2 is unavailable in this window.';
+    if (status.reason === 'unsupported') return 'The GPU is unavailable in this window right now.';
     if (status.reason === 'context-loss-limit')
-        return 'WebGL was lost repeatedly. Automatic recovery is paused; click to retry GPU rendering.';
+        return 'Drawing failed repeatedly. Automatic recovery is paused; click to retry GPU rendering.';
     const cause =
-        status.reason === 'context-loss' ? 'The WebGL context was lost.' : 'WebGL failed to load.';
+        status.reason === 'context-loss'
+            ? 'GPU drawing was interrupted.'
+            : 'GPU drawing failed to start.';
     if (status.retryState === 'exhausted')
         return `${cause} Retries exhausted; click to retry GPU rendering.`;
     if (['deferred', 'failed', 'scheduled', 'trying'].includes(status.retryState))
-        return `${cause} Retrying WebGL (${status.retryAttemptCount}/${status.retryLimit}).`;
+        return `${cause} Trying the GPU again (${status.retryAttemptCount}/${status.retryLimit}).`;
     return cause;
 }
 

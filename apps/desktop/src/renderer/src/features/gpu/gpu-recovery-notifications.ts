@@ -1,14 +1,27 @@
 import type { ToastKind, ToastOptions } from '../../stores/toasts';
 import { pushToast } from '../../stores/toasts';
 import type { TerminalRendererStatus } from '../terminal/terminal-renderer';
-import { restartInGpuSafeMode } from './gpu-commands';
+import {
+    confirmTurnOffHardwareAcceleration,
+    openHardwareAccelerationSettings,
+} from './gpu-commands';
 
+/**
+ * One name for the degraded state across every notice, the confirmation, and the Settings row: the state is "software
+ * rendering" and the setting that decides it is "hardware acceleration". The same condition used to answer to five
+ * names at once (GPU process crash, GPU acceleration, DOM renderer, WebGL2, GPU Safe Mode), which made one physical
+ * event read as several unrelated problems. Implementation words stay out of the copy entirely (DESIGN.md principle 3):
+ * the user never sees a renderer name, a graphics API, or a configuration file.
+ *
+ * Each message also states that Terminals keep working, because a notice that only reports a failure reads as data loss
+ * (DESIGN.md principle 9).
+ */
 const GPU_PROCESS_RECOVERY_MESSAGE =
-    'A GPU process crash interrupted rendering. Caxri switched affected Terminals to software rendering.';
-const GPU_ACCELERATION_PINNED_MESSAGE =
-    'Caxri turned off GPU acceleration for Terminals in this window after repeated graphics failures. Restart Caxri to try again.';
+    'A graphics failure interrupted drawing. Caxri switched the affected Terminals to software rendering; they keep working, but drawing may feel slower.';
+const SOFTWARE_RENDERING_PINNED_MESSAGE =
+    'Caxri switched to software rendering after repeated graphics failures, and stays there until it restarts. Terminals keep working, but drawing may feel slower. Settings can turn hardware acceleration off for every launch, or leave it on to try the GPU again next time.';
 const TERMINAL_GPU_FALLBACK_MESSAGE =
-    'GPU rendering failed in a Terminal. Caxri switched it to software rendering.';
+    'A graphics failure interrupted drawing in one Terminal. Caxri switched it to software rendering; it keeps working.';
 const GPU_INCIDENT_MERGE_MS = 500;
 const MAX_REMEMBERED_GPU_INCIDENTS = 64;
 const MAX_REMEMBERED_FAILED_TERMINALS = 256;
@@ -22,9 +35,10 @@ interface RendererStatusInput {
 interface GpuRecoveryNotificationCoordinatorOptions {
     clearTimer(handle: number): void;
     now(): number;
+    openHardwareAccelerationSettings(): void;
     pushToast(kind: ToastKind, message: string, options?: ToastOptions): void;
-    restartInGpuSafeMode(): void;
     setTimer(callback: () => void, delayMs: number): number;
+    turnOffHardwareAcceleration(): void;
 }
 
 /**
@@ -87,42 +101,58 @@ export function createGpuRecoveryNotificationCoordinator(
     }
 
     /**
-     * Both GPU notices offer the same way out, so the action is described once.
+     * The escape hatch offered while hardware acceleration is still on: stop using it, from the next launch onward. The
+     * trailing ellipsis is the standard promise that a question comes first — the click itself changes nothing, which
+     * is what separates this from the version that wrote the boot configuration on the first click.
      */
-    function restartInGpuSafeModeAction(): NonNullable<ToastOptions['action']> {
+    function turnOffHardwareAccelerationAction(): NonNullable<ToastOptions['action']> {
         return {
-            label: 'Restart in GPU Safe Mode',
-            onSelect: () => options.restartInGpuSafeMode(),
+            label: 'Turn off hardware acceleration…',
+            onSelect: () => options.turnOffHardwareAcceleration(),
+        };
+    }
+
+    /**
+     * The route offered once this window has already stopped using the GPU. Repeating "turn it off" there would ask the
+     * user to buy relief they already have for this session; what is left to decide is the durable preference for later
+     * launches, and a preference belongs in Settings. Hardware acceleration itself is still on — the pin is a
+     * Renderer-session state and never writes the boot configuration — so the copy must not claim otherwise. This is
+     * also the only place that answer stays reachable after the card is dismissed.
+     */
+    function openSettingsAction(): NonNullable<ToastOptions['action']> {
+        return {
+            label: 'Open Settings',
+            onSelect: () => options.openHardwareAccelerationSettings(),
         };
     }
 
     function notifyGpuProcessRecovery(correlationId: string): void {
         if (!didClaimGpuIncident(correlationId)) return;
         beginGlobalIncident();
-        options.pushToast('info', GPU_PROCESS_RECOVERY_MESSAGE, {
-            // Restarting in GPU Safe Mode is reachable from nowhere else: notification history deliberately keeps no
-            // action callbacks, so once this card expires the recovery route is gone even though the crash it reports
-            // has not been undone. A four-second window also assumes the user was watching the moment the GPU died.
-            // The card therefore stays until it is dismissed, which is the choice `persist` exists to express.
+        options.pushToast('warning', GPU_PROCESS_RECOVERY_MESSAGE, {
+            // The offer is reachable from nowhere else: notification history deliberately keeps no action callbacks, so
+            // once this card expires the route is gone even though the crash it reports has not been undone. A
+            // four-second window also assumes the user was watching the moment drawing failed. The card therefore stays
+            // until it is dismissed, which is the choice `persist` exists to express.
             persist: true,
-            action: restartInGpuSafeModeAction(),
+            action: turnOffHardwareAccelerationAction(),
         });
     }
 
     /**
-     * The pinned transition is the only consequential state change in this feature: WebGL is now off for every Terminal
-     * for the rest of this window's lifetime, and only restarting Caxri or changing the Settings preference brings it
-     * back. Without its own notice the user sees a third copy of the same transient crash toast and never learns that
-     * anything became permanent, so this one persists and carries the recovery action with it.
+     * The pinned transition is the only consequential state change in this feature: every Terminal now draws with
+     * software rendering for the rest of this window's lifetime, and only restarting Caxri or changing the Settings
+     * preference moves it. Without its own notice the user sees a third copy of the same transient crash toast and
+     * never learns that the session changed, so this one persists and carries the Settings route with it.
      */
-    function notifyGpuAccelerationPinned(correlationId?: string): void {
+    function notifySoftwareRenderingPinned(correlationId?: string): void {
         // Main records the incident against the budget before it asks for the crash notice, so claiming the correlation
         // here turns the crash that tripped the budget into this single escalated notice instead of a pair.
         if (correlationId) didClaimGpuIncident(correlationId);
         beginGlobalIncident();
-        options.pushToast('info', GPU_ACCELERATION_PINNED_MESSAGE, {
+        options.pushToast('warning', SOFTWARE_RENDERING_PINNED_MESSAGE, {
             persist: true,
-            action: restartInGpuSafeModeAction(),
+            action: openSettingsAction(),
         });
     }
 
@@ -130,8 +160,8 @@ export function createGpuRecoveryNotificationCoordinator(
         disposeTerminal(terminalId: string): void {
             cancelPendingLocalFallback(terminalId);
         },
-        notifyGpuAccelerationPinned,
         notifyGpuProcessRecovery,
+        notifySoftwareRenderingPinned,
         observeTerminalRendererStatus(input: RendererStatusInput): void {
             if (input.status.mode === 'webgl' && input.status.reason === 'active') {
                 cancelPendingLocalFallback(input.terminalId);
@@ -163,7 +193,7 @@ export function createGpuRecoveryNotificationCoordinator(
             const handle = options.setTimer(() => {
                 pendingLocalFallbacks.delete(input.terminalId);
                 rememberFailedTerminal(input.terminalId);
-                options.pushToast('info', TERMINAL_GPU_FALLBACK_MESSAGE);
+                options.pushToast('warning', TERMINAL_GPU_FALLBACK_MESSAGE);
             }, GPU_INCIDENT_MERGE_MS);
             pendingLocalFallbacks.set(input.terminalId, handle);
         },
@@ -173,7 +203,13 @@ export function createGpuRecoveryNotificationCoordinator(
 export const gpuRecoveryNotificationCoordinator = createGpuRecoveryNotificationCoordinator({
     clearTimer: (handle) => clearTimeout(handle),
     now: () => Date.now(),
+    openHardwareAccelerationSettings,
     pushToast,
-    restartInGpuSafeMode,
     setTimer: (callback, delayMs) => setTimeout(callback, delayMs),
+    // Fire-and-forget by the Toast contract: a toast action is synchronous, and the confirmation plus the shared
+    // command funnel own everything that can fail after the click.
+    turnOffHardwareAcceleration: () => {
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        void confirmTurnOffHardwareAcceleration();
+    },
 });

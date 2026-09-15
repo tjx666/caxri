@@ -31,7 +31,7 @@ export async function confirmTerminalRendererSwitch(
                 return Promise.resolve();
             if (!retry())
                 throw new Error(
-                    'GPU rendering is unavailable. This Terminal is still using DOM rendering.',
+                    'GPU rendering is unavailable. This Terminal is still using software rendering; if hardware acceleration is turned off, turn it back on in Settings.',
                 );
             return Promise.resolve();
         });

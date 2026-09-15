@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-import { CircleCheck, CircleX, Info, X } from 'lucide-react';
+import { CircleCheck, CircleX, Info, TriangleAlert, X } from 'lucide-react';
 import { Toaster } from 'sonner';
 
 import { configureReminderPresentation } from '../../stores/toasts';
@@ -28,6 +28,7 @@ export function ToastOutlet() {
             icons={{
                 info: <Info size={16} />,
                 success: <CircleCheck size={16} />,
+                warning: <TriangleAlert size={16} />,
                 error: <CircleX size={16} />,
                 close: <X size={14} />,
             }}

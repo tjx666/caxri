@@ -39,7 +39,13 @@ export function configureReminderPresentation(
     };
 }
 
-export type ToastKind = 'info' | 'success' | 'error';
+/**
+ * `info` states a fact, `success` confirms what the user asked for happened, `warning` says the feature still works but
+ * on reduced terms and needs no immediate answer, and `error` says the thing the user wanted did not happen. The split
+ * between the last two is load-bearing: calling a degradation `error` is a lie while the feature still runs, and
+ * calling it `info` hides that it is still in force (DESIGN.md "Toasts").
+ */
+export type ToastKind = 'info' | 'success' | 'warning' | 'error';
 
 interface ToastAction {
     label: string;

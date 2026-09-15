@@ -501,6 +501,18 @@ function rowControl(properties: SettingRowProperties): {
         case 'hardware-acceleration':
             return {
                 labelFor: controlId,
+                /**
+                 * The switch position alone says "off"; it does not say that the consequence is already in force on
+                 * every launch. A degradation the user opted into is still a degradation (DESIGN.md principle 9), and
+                 * after the restart that applied it there is nowhere else in the product that names it — so the row
+                 * states it in the warning tone, in the same words the notice used.
+                 */
+                status:
+                    argvConfig?.hardwareAcceleration === false ? (
+                        <FieldDescription role="status" tone="warning">
+                            Caxri starts with software rendering until this is turned back on.
+                        </FieldDescription>
+                    ) : undefined,
                 control: (
                     <Switch
                         id={controlId}

@@ -240,11 +240,16 @@ instead of being duplicated here. Diff tabs show neither file nor Terminal detai
 Caxri status appears ONLY when degraded (`Reconnecting…` / `Caxri stopped`) as a
 `--warning`/`--danger` chip; healthy state shows nothing. The chip is informational — recovery
 lives in the native Relaunch dialog, so the chip never fakes an action it cannot perform. The same
-rule decides when a degraded chip becomes clickable: the Terminal's `DOM` renderer chip is a button
-when GPU acceleration is disabled or a failure has settled. Confirmation either enables acceleration
-in Settings or retries the current Terminal's GPU renderer without changing settings or restarting
-the Terminal. An explicit retry resets the window's GPU incident budget; subsequent failures still
-use the normal limits. Automatic recovery in progress stays informational to avoid duplicate retries.
+rule decides when a degraded chip becomes clickable: the Terminal's `Software` renderer chip is a
+button when GPU acceleration is disabled or a failure has settled. Confirmation either enables
+acceleration in Settings or retries the current Terminal's GPU renderer without changing settings or
+restarting the Terminal. A chip must never name a cause the Renderer cannot observe: a failed GPU
+probe says the GPU is unavailable right now and keeps offering the retry that recovers it, because
+the same probe passes again once a restarting GPU process is back. An explicit retry resets the
+window's GPU incident budget; subsequent failures still use the normal limits. Automatic recovery in
+progress stays informational to avoid duplicate retries. User-facing copy names the setting `hardware acceleration` and the
+state `software rendering`; implementation vocabulary (`DOM renderer`, `WebGL2`, `GPU Safe Mode`,
+`argv.json`) never reaches a label, tooltip, toast, or confirmation.
 Persistent metrics use concise icon-plus-value labels; explanatory prose belongs in their
 accessible names and hover tooltips. The notification bell is pinned to the far bottom-right corner,
 outside the right-hand chip rail, VS Code style: every chip beside it follows the active tab and
@@ -709,10 +714,16 @@ disagree, and it moves only the approval tokens — a confinement argument such 
 untouched in both directions. Where a plain-language control and a raw field describe the same
 state, the raw field stays authoritative and the control reads from it.
 
-**Toasts** — three variants (`info`/`success`/`error`) with a 3px left bar in the status color and
-matching icon; `info` uses `--muted` for its bar (an accent bar would be a second accent). Sonner
-owns the queue, timers, keyboard access, and swipe dismissal. All three variants auto-dismiss after
-4s of visible, non-interacting time; only explicit `persist` notices stay until dismissed. Stack
+**Toasts** — four variants (`info`/`success`/`warning`/`error`) with a 3px left bar in the status
+color and matching icon; `info` uses `--muted` for its bar (an accent bar would be a second accent),
+`warning` uses `--warning`, `error` uses `--danger`. The last two are not degrees of the same thing
+and are not interchangeable: `warning` says the feature still works but on reduced terms and needs
+no immediate answer; `error` says the thing the user asked for did not happen. A degradation the
+user can keep working through is never an `error` — that would be a lie while the feature still
+runs — and never an `info` either, because neutral phrasing hides that the reduced terms are still
+in force. Do not add a fifth variant. Sonner owns the queue, timers, keyboard access, and swipe
+dismissal. Every variant auto-dismisses after 4s of visible, non-interacting time; only explicit
+`persist` notices stay until dismissed. Stack
 bottom-right above the status bar, with three visible cards. Hover or keyboard focus pauses expiry.
 Use the close or action button to dismiss; clicking the message body does not dismiss it. Sonner's
 internal transition/removal timing is a third-party exception to the motion token layers above;
@@ -736,10 +747,18 @@ same ordinary four-second reminder as fallback — naming the destination and ca
 status bar. A switch the user performed themselves stays silent; the wire reason (`followed`)
 carries that distinction, since the picker and an Agent otherwise reach the same commit path.
 
-Some notices are held until dismissed rather than expiring. A GPU process crash and the moment
-repeated failures turn GPU acceleration off for the window both carry `Restart in GPU Safe Mode`,
-which is reachable from nowhere else — history stores no action callbacks — so a four-second expiry
-would remove the recovery route while the condition it reports still holds.
+Some notices are held until dismissed rather than expiring. A graphics failure and the moment
+repeated failures pin the whole window to software rendering are both `warning` notices held until
+dismissed: each carries the only route out of the state it reports, and history stores no action
+callbacks, so a four-second expiry would take the route away while the condition still holds. The
+two carry different routes because they leave the user with different decisions. While hardware
+acceleration is still on, the crash notice offers `Turn off hardware acceleration…` — the ellipsis
+is the standard promise that a question comes first, and the click itself changes nothing. Once the
+window is already pinned, repeating that offer would sell relief the user already has, so the
+escalated notice offers `Open Settings` instead: what is left to decide there is the durable
+preference. Turning hardware acceleration off is the one click in the product that changes how
+every future launch draws, so it passes the shared confirmation modal first, and that modal has to
+say all three consequences — it restarts now, it lasts past this session, Settings takes it back.
 
 A boot-flag write that only the next launch picks up is held for the same reason: the user is still
 inside the modal Settings dialog, and the notice carries the only statement of what the restart is

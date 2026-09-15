@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createGpuIncidentBudget, GPU_INCIDENT_PIN_THRESHOLD } from './gpu-incident-budget';
+import { createGpuIncidentBudget, GPU_INCIDENT_PIN_THRESHOLD } from '../gpu-incident-budget';
 
 describe('GPU incident budget', () => {
     it('records an explicit retry reset and probes WebGL again instead of using a cached success', () => {

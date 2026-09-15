@@ -31,23 +31,20 @@ describe('terminalRendererIndicator', () => {
         ).toBeUndefined();
     });
 
-    it('explains why the DOM renderer is active', () => {
+    it('explains why the Terminal fell back to software rendering', () => {
         expect(terminalRendererIndicator(status({ mode: 'dom', reason: 'disabled' }))).toEqual({
             action: {
                 confirmLabel: 'Turn On',
                 message:
-                    'Terminals switch from the DOM renderer to WebGL immediately, without restarting Caxri or the Terminal. You can turn it off again in Settings.',
+                    'Terminals start drawing with the GPU immediately, without restarting Caxri or the Terminal. You can turn it off again in Settings.',
                 preference: 'on',
-                title: 'Turn on GPU acceleration?',
+                title: 'Turn on GPU acceleration for Terminals?',
             },
             ariaLabel:
-                'Turn on GPU acceleration? — Terminal renderer: DOM. GPU acceleration is turned off in Settings.',
-            label: 'DOM',
-            title: 'Turn on GPU acceleration? — Terminal is using the DOM renderer. GPU acceleration is turned off in Settings.',
+                'Turn on GPU acceleration for Terminals? — Terminal is using software rendering. GPU acceleration is turned off in Settings.',
+            label: 'Software',
+            title: 'Turn on GPU acceleration for Terminals? — Terminal is using software rendering. GPU acceleration is turned off in Settings.',
         });
-        expect(
-            terminalRendererIndicator(status({ mode: 'dom', reason: 'unsupported' }))?.title,
-        ).toContain('WebGL2 is unavailable');
         expect(
             terminalRendererIndicator(
                 status({
@@ -59,7 +56,7 @@ describe('terminalRendererIndicator', () => {
                 }),
             )?.title,
         ).toBe(
-            'Terminal is using the DOM renderer. The WebGL context was lost. Retrying WebGL (1/3).',
+            'Terminal is using software rendering. GPU drawing was interrupted. Trying the GPU again (1/3).',
         );
         expect(
             terminalRendererIndicator(
@@ -73,11 +70,11 @@ describe('terminalRendererIndicator', () => {
         ).toContain('Retries exhausted');
     });
 
-    it('explains a session pinned to DOM after repeated GPU incidents', () => {
+    it('explains a session pinned to software rendering after repeated GPU incidents', () => {
         expect(
             terminalRendererIndicator(status({ mode: 'dom', reason: 'context-loss-limit' }))?.title,
         ).toBe(
-            'Retry GPU rendering? — Terminal is using the DOM renderer. WebGL was lost repeatedly. Automatic recovery is paused; click to retry GPU rendering.',
+            'Retry GPU rendering? — Terminal is using software rendering. Drawing failed repeatedly. Automatic recovery is paused; click to retry GPU rendering.',
         );
         // A pane whose own retries ran out before the session pinned must not keep promising that a reopened tab
         // retries WebGL; the pin's closed reason wins over the exhausted retry state.
@@ -109,6 +106,18 @@ describe('terminalRendererIndicator', () => {
             expect(indicator?.action?.preference).toBeUndefined();
             expect(indicator?.ariaLabel).toContain('Retry GPU rendering?');
         }
+    });
+
+    /**
+     * `unsupported` is published by a live `getContext('webgl2')` probe, which a pane mounted during a GPU process
+     * restart fails and a later re-probe passes. The chip must therefore keep offering the retry that recovers it, and
+     * must not name a cause it cannot observe.
+     */
+    it('keeps a transient probe failure retryable instead of blaming the setting', () => {
+        const indicator = terminalRendererIndicator(status({ mode: 'dom', reason: 'unsupported' }));
+        expect(indicator?.title).toBe(
+            'Retry GPU rendering? — Terminal is using software rendering. The GPU is unavailable in this window right now.',
+        );
     });
 
     it('does not offer duplicate attempts during automatic recovery', () => {
