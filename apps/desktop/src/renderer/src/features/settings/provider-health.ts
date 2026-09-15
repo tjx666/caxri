@@ -22,9 +22,9 @@ export function hookHealthLabel(
             case 'unsupported':
                 return 'Not available on this platform';
             case 'notInstalled':
-                return 'Waiting for the agent CLI to be installed';
+                return 'Not in effect — install the agent CLI first';
             case 'installedPending':
-                return 'Installed — activates once you start a session';
+                return 'Not in effect until your next Agent session';
             case 'incompatible':
                 return 'Newer installation is incomplete';
             case 'active':
@@ -51,7 +51,6 @@ export function hookHealthTone(
 ): 'danger' | 'muted' | 'warning' {
     if (!isEnabled || !health) return 'muted';
     switch (health.kind) {
-        case 'notInstalled':
         case 'incompatible':
         case 'stale':
         case 'drifted':
@@ -59,10 +58,42 @@ export function hookHealthTone(
         case 'conflict':
         case 'error':
             return 'danger';
+        case 'notInstalled':
         case 'unsupported':
         case 'installedPending':
         case 'active':
             return 'muted';
+    }
+}
+
+/**
+ * Whether flipping this toggle can achieve anything. A platform that cannot run the adapter at all is the only state
+ * where the answer is no; a missing CLI is a prerequisite the user can still go and satisfy, so the preference stays
+ * theirs to record. The switch renders its real availability rather than a stored `true` the platform will never honor
+ * — a control that reads "on" beside a caption saying it cannot work is the contradiction this resolves.
+ */
+export function isHookAdapterAvailable(
+    health: AgentHookHealthMap[AgentProvider] | undefined,
+): boolean {
+    return health?.kind !== 'unsupported';
+}
+
+/**
+ * Tone for one bundled-skill installation line. `missing` and `stale` both have a repair command right under them, so
+ * they read as warnings; a conflicting installation is somebody else's file in our place, which the user has to resolve
+ * before anything works.
+ */
+export function skillScopeTone(
+    installation: AgentSkillInstallationHealth | undefined,
+): 'danger' | 'neutral' | 'warning' {
+    switch (installation?.status) {
+        case 'conflict':
+            return 'danger';
+        case 'missing':
+        case 'stale':
+            return 'warning';
+        default:
+            return 'neutral';
     }
 }
 

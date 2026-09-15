@@ -1,0 +1,85 @@
+import type { ProjectStatusDeployment, ProjectStatusRepository, ProjectStatusState } from 'caxri';
+
+type ProjectStatusPublication = NonNullable<ProjectStatusRepository['publication']>;
+
+/**
+ * Every row that offers `caxri.project-status.refresh` says the same word. The command has one registered title
+ * ("Refresh Project Status"), so a row calling it `Retry` and the next one calling it `Recheck` invented a second and a
+ * third name for it, and the user had no way to know the three buttons ran the same thing.
+ */
+export const REFRESH_ACTION_LABEL = 'Refresh';
+
+/**
+ * The product word for a provider state, and the only place one is written. Every surface that shows a state — a check
+ * badge, a deployment row, the `CI …` labels — reads it from here, so the raw provider enum (`success`, `failure`,
+ * `cancelled`) never reaches a user and one spelling of "canceled" survives.
+ */
+const stateLabels: Record<ProjectStatusState, string> = {
+    success: 'passed',
+    failure: 'failed',
+    cancelled: 'canceled',
+    pending: 'pending',
+    neutral: 'neutral',
+    unknown: 'unknown',
+};
+
+export function projectStatusStateLabel(state: ProjectStatusState): string {
+    return stateLabels[state];
+}
+
+/**
+ * What a pull request's aggregated check state is called.
+ */
+export function checkLabel(state: ProjectStatusState): string {
+    return `CI ${stateLabels[state]}`;
+}
+
+export function deploymentStateLabel(deployment: ProjectStatusDeployment): string {
+    // Vercel reports a cancellation as `neutral`; the row has to keep saying which one it was.
+    return deployment.state === 'neutral' ? 'canceled' : stateLabels[deployment.state];
+}
+
+/**
+ * The branch row's trailing word for how the branch stands against origin.
+ *
+ * `unknown` and `unsupported` deliberately do not share one: a probe that failed and a remote nobody can probe are
+ * different answers, and neither is "there is nothing to report". Collapsing both into `Unknown` is the pattern
+ * `7763bd34` removed from the status-bar chip, and it survived here.
+ */
+export function publicationLabel(publication: ProjectStatusPublication): string {
+    const labels: Record<ProjectStatusPublication['state'], string> = {
+        'checking': 'Checking origin…',
+        'unpublished': 'Not on origin',
+        'published': 'On origin',
+        'synced': 'Synced',
+        'ahead': `↑${publication.ahead ?? 0}`,
+        'behind': `↓${publication.behind ?? 0}`,
+        'diverged': `↑${publication.ahead ?? 0} ↓${publication.behind ?? 0}`,
+        'unknown': 'Check failed',
+        'no-origin': 'No origin',
+        'unsupported': 'Not supported',
+        'detached': 'Detached HEAD',
+        'unborn': 'No commits',
+    };
+    return labels[publication.state];
+}
+
+export function publicationDescription(state: ProjectStatusPublication['state']): string {
+    const descriptions: Record<ProjectStatusPublication['state'], string> = {
+        'unpublished':
+            'No same-named branch exists on origin. It may exist on another remote or under another name.',
+        'published':
+            'The branch exists on origin, but local history is insufficient to compare commits. This does not confirm that every local commit has been pushed.',
+        'synced': 'Local and origin branch tips match at the checked time.',
+        'ahead': 'Local commits not on the compared origin branch at the checked time.',
+        'behind': 'Origin commits not on the local branch at the checked time.',
+        'diverged': 'Both branches have commits absent from the other at the checked time.',
+        'unknown': 'Could not verify the branch on origin. Refresh Project Status to check again.',
+        'unsupported': 'Remote verification currently supports GitHub origins only.',
+        'no-origin': 'This repository has no origin remote.',
+        'detached': 'HEAD is not attached to a local branch.',
+        'unborn': 'This branch has no commits yet.',
+        'checking': 'Checking the same-named branch on origin.',
+    };
+    return descriptions[state];
+}

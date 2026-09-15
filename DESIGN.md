@@ -235,7 +235,10 @@ creates a Project or Session or enters durable Session state.
 **Status bar** — `--surface` background, top hairline, `meta` text in `--muted`. The left side
 shows Project and Git context. The right side follows the active tab: a normal file shows
 current-line blame, selection, cursor position, and language; a Terminal shows Terminal progress,
-process-tree memory, and child count. Transient Agent operations stay with the owning work tab
+process-tree memory, and child count. Blame lives here and nowhere else. The editor header once
+carried the file's last commit too, and on any line belonging to that commit the two read
+word-for-word the same; the status bar's is the finer answer, it follows the cursor, and it does not
+take width from the breadcrumbs. Transient Agent operations stay with the owning work tab
 instead of being duplicated here. Diff tabs show neither file nor Terminal details.
 Caxri status appears ONLY when degraded (`Reconnecting…` / `Caxri stopped`) as a
 `--warning`/`--danger` chip; healthy state shows nothing. The chip is informational — recovery
