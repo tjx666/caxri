@@ -27,7 +27,10 @@ function sessionRow(sessionId: string): HTMLElement | null {
  * roving-tabindex tree layout stays the only concern left in that component. Owns the renaming Session id, the draft
  * value/error, and the focus-restore behavior after rename ends.
  */
-export function useSessionRename(sessions: SessionRecord[]): SessionRenameController {
+export function useSessionRename(
+    sessions: SessionRecord[],
+    expandProject: (projectId: string) => void,
+): SessionRenameController {
     const [renamingSessionId, setRenamingSessionId] = useState<string>();
     const [renameValue, setRenameValue] = useState('');
     const [renameError, setRenameError] = useState<string>();
@@ -118,13 +121,20 @@ export function useSessionRename(sessions: SessionRecord[]): SessionRenameContro
      */
     const renameRequest = useDialogStore((state) => state.renameSessionRequest);
     const latestBeginRename = useLatestReference(beginRename);
+    const latestExpandProject = useLatestReference(expandProject);
     const latestSessions = useLatestReference(sessions);
     useEffect(() => {
         if (!renameRequest) return;
         const session = latestSessions.current.find(
             (candidate) => candidate.id === renameRequest.sessionId,
         );
-        if (session) latestBeginRename.current(session.id, session.displayTitle);
+        if (session) {
+            // The rename editor _is_ the Session row, and a collapsed Project unmounts it. Without this the command
+            // would put a Session nobody can see into rename mode: nothing happens on screen, and the row opens in an
+            // editor the user never asked for whenever they later expand that Project.
+            latestExpandProject.current(session.projectId);
+            latestBeginRename.current(session.id, session.displayTitle);
+        }
         // Consumed, not just observed. `Cmd+[` unmounts the whole side bar, so a request left standing would run again
         // on the next reveal and drop the row back into an editor nobody asked for. A mount-time revision baseline
         // cannot replace this: `renameSelectedSession` reveals the side bar and bumps the revision in one synchronous

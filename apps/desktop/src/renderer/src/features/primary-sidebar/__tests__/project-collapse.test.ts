@@ -6,6 +6,7 @@ import {
     isProjectCollapsed,
     parseProjectCollapseState,
     projectCollapseAfterAutoPass,
+    projectCollapseAfterReveal,
     projectCollapseAfterToggle,
     reconcileProjectCollapse,
 } from '../project-collapse';
@@ -152,6 +153,25 @@ describe('Project disclosure toggle', () => {
         expect(isProjectCollapsed({ alpha: 'user-collapsed' }, 'alpha')).toBe(true);
         expect(isProjectCollapsed({ alpha: 'user-expanded' }, 'alpha')).toBe(false);
         expect(isProjectCollapsed({}, 'alpha')).toBe(false);
+    });
+});
+
+describe('Project disclosure reveal', () => {
+    it('opens a Project the user had closed by hand', () => {
+        const next = projectCollapseAfterReveal({ alpha: 'user-collapsed' }, 'alpha');
+        expect(next).toEqual({ alpha: 'user-expanded' });
+    });
+
+    it('records the expansion so the next auto-collapse pass cannot close it again', () => {
+        const next = projectCollapseAfterReveal({ alpha: 'automatic' }, 'alpha');
+        expect(isProjectCollapsed(next, 'alpha')).toBe(false);
+        expect(next.alpha).toBe('user-expanded');
+    });
+
+    it('answers with the same state when the Project is already open, so nothing re-renders', () => {
+        const current = { alpha: 'user-expanded' } as const;
+        expect(projectCollapseAfterReveal(current, 'alpha')).toBe(current);
+        expect(projectCollapseAfterReveal(current, 'beta')).toBe(current);
     });
 });
 

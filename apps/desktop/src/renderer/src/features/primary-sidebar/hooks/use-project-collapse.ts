@@ -9,6 +9,7 @@ import {
     isProjectCollapsed,
     parseProjectCollapseState,
     projectCollapseAfterAutoPass,
+    projectCollapseAfterReveal,
     projectCollapseAfterToggle,
     reconcileProjectCollapse,
 } from '../project-collapse';
@@ -113,12 +114,23 @@ export function useProjectCollapse(input: UseProjectCollapseInput) {
         [disclosure],
     );
 
+    const expandProject = useCallback(
+        (projectId: string): void => {
+            // Reveals against the reconciled view for the same reason `toggleProject` does: an automatic collapse the
+            // reconciliation already dropped is open on screen, and re-recording it would be a decision the user never
+            // made.
+            setStoredDisclosure(projectCollapseAfterReveal(disclosure, projectId));
+        },
+        [disclosure],
+    );
+
     const isProjectExpanded = useCallback(
         (projectId: string): boolean => !isProjectCollapsed(disclosure, projectId),
         [disclosure],
     );
 
     return {
+        expandProject,
         isProjectExpanded,
         setHasFocus,
         setIsHovered,
