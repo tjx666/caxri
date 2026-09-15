@@ -46,7 +46,7 @@ const bootId = serverProcessIdentitySchema.parse(requiredEnvironment('CAXRI_SERV
 const logger = new StructuredLogger(
     join(userDataPath, 'logs'),
     'terminal-host',
-    resolveLogLevel({ environment: process.env, fallback: 'info' }),
+    resolveLogLevel(process.env),
     { bootId, buildId },
 );
 const processManifest = new ObservationProcessManifestPublisher({

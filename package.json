@@ -298,8 +298,7 @@
             "out/**",
             "package.json",
             "THIRD_PARTY_NOTICES.md",
-            "licenses/**",
-            "!**/*.map"
+            "licenses/**"
         ],
         "electronLanguages": [
             "en",

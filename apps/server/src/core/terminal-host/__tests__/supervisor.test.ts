@@ -125,7 +125,9 @@ describe('architecture-a3b-terminal-host: TerminalHostSupervisor', () => {
             env: Record<string, string>;
             execArgv: string[];
         };
-        expect(launchOptions.execArgv).toEqual(['--max-semi-space-size=8']);
+        // The inspector port is on by default (`packages/protocol/src/desktop/debug-launch.ts`); the Terminal Host
+        // takes offset 2 off the base so it never collides with Server Core or the Extension Host.
+        expect(launchOptions.execArgv).toEqual(['--max-semi-space-size=8', '--inspect=9231']);
         expect(launchOptions.env.CAXRI_TERMINAL_HOST_CREDENTIAL).toMatch(/^[0-9a-f]{64}$/u);
         expect(launchOptions.env.CAXRI_SERVER_BOOT_ID).toBe(bootId);
         expect(launchOptions.env.CAXRI_E2E).toBe('1');

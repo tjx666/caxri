@@ -7,7 +7,10 @@ import process from 'node:process';
 import { describe, expect, it } from 'vitest';
 
 import { runWithObservationContext } from '../context';
-import { logEventCatalog, StructuredLogger } from '../logger';
+import { logEventCatalog, MAX_LOG_BYTES, StructuredLogger } from '../logger';
+
+// Payload that makes four records fill one generation, whatever `MAX_LOG_BYTES` currently is.
+const RECORD_PAYLOAD_BYTES = MAX_LOG_BYTES / 5;
 
 describe('StructuredLogger', () => {
     it('rejects unregistered event names at typecheck time', () => {
@@ -195,7 +198,7 @@ describe('StructuredLogger', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-logger-'));
         try {
             const logger = new StructuredLogger(directory);
-            const bigField = 'y'.repeat(1024 * 1024);
+            const bigField = 'y'.repeat(RECORD_PAYLOAD_BYTES);
             for (let index = 0; index < 6; index++) {
                 logger.write('info', logEventCatalog.file.search, {
                     fields: { index, payload: bigField },
@@ -217,11 +220,11 @@ describe('StructuredLogger', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-logger-'));
         try {
             const logger = new StructuredLogger(directory);
-            const bigField = 'y'.repeat(1024 * 1024);
+            const bigField = 'y'.repeat(RECORD_PAYLOAD_BYTES);
             /**
-             * 20 ~1MB records against a 5MB cap rotate at indices 4, 8, 12, and 16 (see the per-record byte budget
-             * computed against `MAX_LOG_BYTES`), leaving four populated epochs (current, `.1`, `.2`, `.3`) and evicting
-             * the oldest ([0..3]) once a fifth rotation would otherwise be needed for `.4`.
+             * Each record is a fifth of `MAX_LOG_BYTES` plus JSON overhead, so four fill a generation and 20 rotate at
+             * indices 4, 8, 12, and 16 — leaving four populated epochs (current, `.1`, `.2`, `.3`) and evicting the
+             * oldest ([0..3]) once a fifth rotation would otherwise be needed for `.4`.
              */
             for (let index = 0; index < 20; index++) {
                 logger.write('info', logEventCatalog.file.search, {

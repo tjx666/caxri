@@ -60,7 +60,8 @@ export default defineConfig(async () => {
                     paths: nativeModulePaths,
                 },
             },
-            sourcemap: false,
+            // Source maps ship in every build for the same reason the Desktop's do; see electron.vite.config.ts.
+            sourcemap: true,
             ssr: true,
             target: 'node24',
         },

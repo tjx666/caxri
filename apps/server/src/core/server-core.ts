@@ -69,7 +69,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         new StructuredLogger(
             join(options.userDataPath, 'logs'),
             'server-core',
-            resolveLogLevel({ environment: process.env, fallback: 'info' }),
+            resolveLogLevel(process.env),
         );
     const stopEventLoopMonitor = startEventLoopMonitor(logger);
     const lease = await acquireServerProfile({

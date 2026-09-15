@@ -69,7 +69,7 @@ const userDataPath = requiredEnvironment('CAXRI_USER_DATA_PATH');
 const logger = new StructuredLogger(
     requiredEnvironment('CAXRI_LOG_DIRECTORY'),
     'extension-host',
-    resolveLogLevel({ environment: process.env, fallback: 'info' }),
+    resolveLogLevel(process.env),
     { bootId, buildId, serverId },
 );
 const processManifest = new ObservationProcessManifestPublisher({
