@@ -59,8 +59,12 @@ export async function acquireAsset(sessionId: string, path: string): Promise<str
         if (!objectUrl) return undefined;
         const existing = cache.get(key);
         if (existing) {
-            // A concurrent caller won the race; drop this duplicate rather than leaking it.
-            URL.revokeObjectURL(objectUrl);
+            /**
+             * Callers that shared one in-flight read all resolve to the _same_ URL, so revoking unconditionally here
+             * would kill the very entry every one of them is about to render. Only a genuinely separate read — one that
+             * started after the cached entry was dropped — produces a duplicate worth revoking.
+             */
+            if (existing.objectUrl !== objectUrl) URL.revokeObjectURL(objectUrl);
             existing.users += 1;
             return existing.objectUrl;
         }

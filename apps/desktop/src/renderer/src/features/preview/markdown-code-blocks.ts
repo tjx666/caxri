@@ -122,6 +122,12 @@ export function decorateCodeBlocks(
     for (const block of blocks) {
         const element = container.querySelector(`[data-caxri-code="${CSS.escape(block.id)}"]`);
         if (!(element instanceof HTMLElement)) continue;
+        /**
+         * React only replaces the body when the sanitized HTML string itself changed, so this pass can run against a
+         * block that already carries a button — a theme switch, or an edit that sanitizes to the same bytes. Without
+         * this the buttons stack invisibly, one per re-render, since they all sit at the same offset.
+         */
+        element.querySelector('.caxri-markdown-copy')?.remove();
         attachCopyButton(element, block.code, signal);
         // Fire-and-forget: an unhighlightable block simply keeps its plain-text rendering.
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above

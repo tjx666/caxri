@@ -47,6 +47,7 @@ export function MarkdownPreview({
         return { ...result, html: sanitizeMarkdownHtml(result.html) };
     }, [deferredSource, documentPath, projectRoot]);
     const linksReference = useRef(rendered.links);
+    const followedPathReference = useRef<string | undefined>(undefined);
 
     useEffect(() => {
         const container = containerReference.current;
@@ -74,7 +75,11 @@ export function MarkdownPreview({
         );
         decorateCodeBlocks(container, rendered.codeBlocks, controller.signal);
         renderDiagrams(container, rendered.diagrams, theme, controller.signal);
-        const stopFollowing = followSourceScroll(container, documentPath);
+        const shouldRevealLastPosition = followedPathReference.current !== documentPath;
+        followedPathReference.current = documentPath;
+        const stopFollowing = followSourceScroll(container, documentPath, {
+            shouldRevealLastPosition,
+        });
         return () => {
             controller.abort();
             stopFollowing();

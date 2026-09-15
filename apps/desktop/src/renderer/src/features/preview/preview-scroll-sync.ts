@@ -10,10 +10,11 @@ const listeners = new Map<string, Set<ScrollListener>>();
 const latest = new Map<string, number>();
 
 export function publishSourceScroll(path: string, topLine: number): void {
+    const subscribers = listeners.get(path);
+    // Every open editor publishes on every scroll frame; a file nobody is previewing must not accumulate a map entry.
+    if (!subscribers) return;
     if (latest.get(path) === topLine) return;
     latest.set(path, topLine);
-    const subscribers = listeners.get(path);
-    if (!subscribers) return;
     for (const listener of subscribers) listener(topLine);
 }
 
