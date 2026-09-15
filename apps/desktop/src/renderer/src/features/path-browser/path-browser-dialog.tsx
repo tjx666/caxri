@@ -47,7 +47,6 @@ function PathBrowserContent({
         createFromQuery,
         displayedError,
         effectiveSelectedIndex,
-        emptyMessage,
         goToParent,
         handleKeyDown,
         inputReference,
@@ -55,9 +54,7 @@ function PathBrowserContent({
         isNavigating,
         isResultsReady,
         isStarting,
-        isTruncated,
         listboxId,
-        resultKind,
         rows,
         input,
         mode,
@@ -67,7 +64,11 @@ function PathBrowserContent({
         updateInput,
     } = usePathBrowser(projectRoot, sessionId, workbenchProjectId);
     const createDirectoryLabel = `${snapshot?.rootLabel ?? 'Project'}/${snapshot?.directoryLabel ?? ''}`;
-    const isProjectSearch = resultKind === 'projectSearch';
+    /**
+     * Tab completes the typed path, which only a row of the listed directory can do. The list now mixes both lookups,
+     * so the hint follows the highlighted row rather than a mode the whole list is in.
+     */
+    const isCompletable = selectedRow?.kind !== 'entry' || selectedRow.entry.source === 'directory';
 
     return (
         <PickerDialogContent className="w-[min(620px,calc(100vw-32px))]">
@@ -93,13 +94,11 @@ function PathBrowserContent({
                     isNavigating={isNavigating}
                     displayedError={displayedError}
                     isResultsReady={isResultsReady}
-                    emptyMessage={emptyMessage}
                 />
                 {isListboxRendered && !displayedError && (
                     <PathBrowserResults
                         createDirectoryLabel={createDirectoryLabel}
                         isFreeBrowsing={snapshot?.mode === 'free'}
-                        isProjectSearch={isProjectSearch}
                         listboxId={listboxId}
                         rows={rows}
                         selectedIndex={effectiveSelectedIndex}
@@ -108,16 +107,9 @@ function PathBrowserContent({
                         onSelectIndex={selectIndex}
                     />
                 )}
-                {isListboxRendered && isTruncated && rows.length > 0 && (
-                    <p className="px-2 py-1 text-[10px] text-muted" role="status">
-                        {isProjectSearch
-                            ? 'Only part of this Project was searched. Refine the name.'
-                            : 'Only part of this directory is shown. Refine or open a narrower folder.'}
-                    </p>
-                )}
             </div>
             <PathBrowserHelp
-                isCompletable={!isProjectSearch}
+                isCompletable={isCompletable}
                 isCreateSelected={selectedRow?.kind === 'create'}
                 isProject={mode === 'project'}
             />
@@ -210,7 +202,6 @@ function PathBrowserQueryField({
 function PathBrowserResults({
     createDirectoryLabel,
     isFreeBrowsing,
-    isProjectSearch,
     listboxId,
     rows,
     selectedIndex,
@@ -220,7 +211,6 @@ function PathBrowserResults({
 }: {
     createDirectoryLabel: string;
     isFreeBrowsing: boolean;
-    isProjectSearch: boolean;
     listboxId: string;
     rows: readonly PathBrowserRow[];
     selectedIndex: number;
@@ -229,13 +219,36 @@ function PathBrowserResults({
     onSelectIndex: (index: number) => void;
 }) {
     return (
-        <div
-            aria-label={isProjectSearch ? 'Files in this Project' : 'Files in current directory'}
-            id={listboxId}
-            role="listbox"
-        >
-            {rows.map((row, index) =>
-                row.kind === 'create' ? (
+        <div aria-label="Files" id={listboxId} role="listbox">
+            {rows.map((row, index) => {
+                // Hidden from assistive technology on purpose: each option repeats its group in its own name, which
+                // is the only place the keyboard's `aria-activedescendant` will ever read it from.
+                if (row.kind === 'group')
+                    return (
+                        <div
+                            key={row.id}
+                            aria-hidden="true"
+                            className="px-2 pt-2 pb-1 text-[10px] font-bold tracking-[0.06em] text-muted uppercase"
+                        >
+                            {row.label}
+                        </div>
+                    );
+                // A notice is the answer to what the user typed, so it is announced when it appears rather than
+                // waiting to be arrowed onto — which, being no option, it never would be.
+                if (row.kind === 'notice')
+                    return (
+                        <p
+                            key={row.id}
+                            className={cn(
+                                'm-0 px-2 py-1 text-[11px]',
+                                row.tone === 'danger' ? 'text-danger' : 'text-muted',
+                            )}
+                            role="status"
+                        >
+                            {row.text}
+                        </p>
+                    );
+                return row.kind === 'create' ? (
                     <PathBrowserCreateOption
                         key="create"
                         id={`${listboxId}-option-${index}`}
@@ -250,13 +263,14 @@ function PathBrowserResults({
                         key={row.entry.id}
                         id={`${listboxId}-option-${index}`}
                         entry={row.entry}
+                        groupLabel={row.group}
                         isFreeBrowsing={isFreeBrowsing}
                         isSelected={index === selectedIndex}
                         onClick={() => onChoose(row.entry)}
                         onMouseMove={() => onSelectIndex(index)}
                     />
-                ),
-            )}
+                );
+            })}
         </div>
     );
 }
@@ -307,6 +321,7 @@ function PathBrowserCreateOption({
 
 function PathBrowserOption({
     entry,
+    groupLabel,
     id,
     isFreeBrowsing,
     isSelected,
@@ -314,6 +329,7 @@ function PathBrowserOption({
     onMouseMove,
 }: {
     entry: PathBrowserEntry;
+    groupLabel: string | undefined;
     id: string;
     isFreeBrowsing: boolean;
     isSelected: boolean;
@@ -343,6 +359,7 @@ function PathBrowserOption({
         >
             <FileTypeIcon entry={entry} />
             <span className="min-w-0 shrink truncate">{entry.name}</span>
+            {groupLabel && <span className="sr-only">{groupLabel}</span>}
             {/* `flex-1` with a zero basis makes the Project-relative directory give up width before the file name does. */}
             <span className="min-w-0 flex-1 truncate text-[11px] text-muted">
                 {entry.directoryLabel ?? ''}
