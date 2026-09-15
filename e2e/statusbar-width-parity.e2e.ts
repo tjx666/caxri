@@ -91,14 +91,15 @@ test('Status Bar drops the lowest-priority chips as the window narrows', async (
     ]);
     /**
      * The pull request is one of the three priority chips, so the fixed state has to own one. The stub answers the
-     * Server's REST GraphQL-budget probe with a realistic payload first, otherwise the Server re-probes on every
-     * request.
+     * Server's GraphQL-budget probe, the unbilled `rateLimit` self-query, with a realistic payload first, otherwise the
+     * Server re-probes on every request. Matched on its `-f` flag so the branch-publication query, also `gh api
+     * graphql` but with `--hostname`, is not mistaken for it.
      */
     await writeFile(
         gh,
         `#!/bin/sh
-if [ "$1" = "api" ] && [ "$2" = "rate_limit" ]; then
-  printf '%s' '{"resources":{"graphql":{"limit":5000,"remaining":5000,"reset":4102444800}}}'
+if [ "$1 $2 $3" = "api graphql -f" ]; then
+  printf '%s' '{"data":{"rateLimit":{"limit":5000,"remaining":5000,"used":0,"resetAt":"2100-01-01T00:00:00Z"}}}'
   exit 0
 fi
 printf '%s' '{"number":11,"title":"Status Bar width parity","url":"https://github.com/tjx666/width-project/pull/11"}'
