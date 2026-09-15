@@ -14,6 +14,7 @@ import {
 } from '../features/editor/editor-language';
 import { registerImportLinks } from '../features/editor/import-link-commands';
 import { configureTypeScriptDiagnostics } from './editor-diagnostics';
+import { recordEditorWorkerCreated } from './monaco-worker-count';
 
 declare global {
     interface Window {
@@ -32,6 +33,7 @@ monacoGlobalScope.MonacoEnvironment = {
      * Language services require their matching worker; the generic worker lacks their RPC methods.
      */
     getWorker: (_moduleId: string, label: string): Worker => {
+        recordEditorWorkerCreated();
         if (label === 'json') return new JsonWorker();
         if (['css', 'less', 'scss'].includes(label)) return new CssWorker();
         if (['handlebars', 'html', 'razor'].includes(label)) return new HtmlWorker();
