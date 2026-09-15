@@ -93,12 +93,7 @@ describe('Git source-control view model', () => {
             selectedModeId: 'working',
             providers: [{ id: 'repo-1', label: 'project' }],
         });
-        /**
-         * A bare branch name is the one description the panel must never ellipsize, so Working mode marks it a
-         * `reference` and the narrow header spends its spare width on the repository name instead.
-         */
-        expect(model.providers[0].description).toContain('feature/product-extensions');
-        expect(model.providers[0].descriptionKind).toBe('reference');
+        expect(model.providers[0].description).toBe('feature/product-extensions');
         const group = model.providers[0].groups[0];
         expect(group).toMatchObject({ id: 'repo-1:changes', label: 'Changes', count: 1 });
         expect(group.resources[0]).toMatchObject({
@@ -231,8 +226,10 @@ describe('Git source-control view model', () => {
         });
 
         expect(model.providers[0]).toMatchObject({
-            description: '0123456 Move Git projection',
-            descriptionKind: 'prose',
+            // The branch keeps the row's description in every mode; the commit it is showing moves to the hover.
+            description: 'feature/product-extensions',
+            descriptionTooltip:
+                'feature/product-extensions · 1 ahead, 2 behind · 0123456 Move Git projection',
             // The repository's own uncommitted work is invisible in this mode, so the row keeps a route back to it.
             uncommittedNotice: {
                 modeId: 'working',
@@ -280,9 +277,11 @@ describe('Git source-control view model', () => {
         });
 
         expect(model.providers[0]).toMatchObject({
-            description: '#42 Make Source Control generic',
-            descriptionKind: 'prose',
-            descriptionAccessibilityLabel: 'Pull request #42: Make Source Control generic',
+            description: 'feature/product-extensions',
+            descriptionAccessibilityLabel:
+                'feature/product-extensions, 1 ahead, 2 behind, Pull request #42 into main: Make Source Control generic',
+            descriptionTooltip:
+                'feature/product-extensions · 1 ahead, 2 behind · Pull request #42 into main: Make Source Control generic',
             groups: [
                 {
                     label: 'PR #42 Changes',
