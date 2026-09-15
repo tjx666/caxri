@@ -92,7 +92,7 @@ function pullRequestJson(overrides: Record<string, unknown> = {}): string {
     return JSON.stringify({
         number: 19024,
         title: 'feat: migrate search',
-        url: 'https://github.com/lobehub/lobehub/pull/19024',
+        url: 'https://github.com/example/example/pull/19024',
         state: 'MERGED',
         isDraft: false,
         statusCheckRollup: [{ name: 'ci', status: 'COMPLETED', conclusion: 'SUCCESS' }],
@@ -134,7 +134,7 @@ async function harness(options: {
     const sessions = options.sessions ?? [session({ primaryAgentTerminalId: terminal.id })];
     const emitted: ServerEvent[] = [];
     const runner = vi.fn<ExternalStatusRunner>((command, arguments_) => {
-        if (command === 'git') return Promise.resolve('git@github.com:lobehub/lobehub.git\n');
+        if (command === 'git') return Promise.resolve('git@github.com:example/example.git\n');
         if (command === 'gh' && options.gh) return options.gh(arguments_);
         return Promise.reject(new ExternalStatusCliError('gh', 'other', 'no pull requests found'));
     });
@@ -187,7 +187,7 @@ const createdPullRequestLines = [
                 {
                     type: 'tool_result',
                     tool_use_id: 'toolu_1',
-                    content: 'https://github.com/lobehub/lobehub/pull/19024',
+                    content: 'https://github.com/example/example/pull/19024',
                 },
             ],
         },
@@ -229,7 +229,7 @@ const codexCreatedPullRequestLines = [
         payload: {
             type: 'function_call_output',
             call_id: 'call_1',
-            output: 'Output:\nhttps://github.com/lobehub/lobehub/pull/19024\n',
+            output: 'Output:\nhttps://github.com/example/example/pull/19024\n',
         },
     }),
 ];
@@ -309,7 +309,7 @@ describe('SessionPullRequestService', () => {
                         : pullRequestJson({
                               number,
                               state: 'OPEN',
-                              url: `https://github.com/lobehub/lobehub/pull/${number}`,
+                              url: `https://github.com/example/example/pull/${number}`,
                           }),
                 );
             },
@@ -394,7 +394,7 @@ describe('SessionPullRequestService', () => {
                         : pullRequestJson({
                               number,
                               state: 'OPEN',
-                              url: `https://github.com/lobehub/lobehub/pull/${number}`,
+                              url: `https://github.com/example/example/pull/${number}`,
                           }),
                 );
             },
@@ -453,7 +453,7 @@ describe('SessionPullRequestService', () => {
         });
         const runner = vi.fn<ExternalStatusRunner>((command, arguments_) =>
             command === 'git'
-                ? Promise.resolve('git@github.com:lobehub/lobehub.git\n')
+                ? Promise.resolve('git@github.com:example/example.git\n')
                 : gh(arguments_),
         );
         const service = new SessionPullRequestService(
@@ -485,7 +485,7 @@ describe('SessionPullRequestService', () => {
                 'view',
                 '19024',
                 '--repo',
-                'lobehub/lobehub',
+                'example/example',
             ]);
             return Promise.resolve(pullRequestJson());
         });
@@ -498,7 +498,7 @@ describe('SessionPullRequestService', () => {
         expect(service.snapshot().pullRequests['session-1']).toEqual({
             number: 19024,
             title: 'feat: migrate search',
-            url: 'https://github.com/lobehub/lobehub/pull/19024',
+            url: 'https://github.com/example/example/pull/19024',
             state: 'merged',
             checks: 'success',
             source: 'agent',
@@ -520,7 +520,7 @@ describe('SessionPullRequestService', () => {
                     'pr',
                     'list',
                     '--repo',
-                    'lobehub/lobehub',
+                    'example/example',
                     '--head=feat/x',
                 ]);
                 /**
@@ -541,7 +541,7 @@ describe('SessionPullRequestService', () => {
                 'view',
                 '2',
                 '--repo',
-                'lobehub/lobehub',
+                'example/example',
             ]);
             return Promise.resolve(
                 pullRequestJson({
@@ -679,7 +679,7 @@ describe('SessionPullRequestService', () => {
 
         await setTranscript([
             mention('https://github.com/stranger/repo/pull/7'),
-            mention('https://github.com/lobehub/lobehub/pull/7'),
+            mention('https://github.com/example/example/pull/7'),
         ]);
         await service.refresh();
         expect(service.snapshot().pullRequests['session-1']).toMatchObject({

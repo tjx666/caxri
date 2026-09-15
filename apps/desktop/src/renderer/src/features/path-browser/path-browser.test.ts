@@ -63,8 +63,8 @@ describe('path browser navigation', () => {
         expect(completePathQuery([{ kind: 'directory', name: 'Documents' }], '~/Do')).toBe(
             '~/Documents/',
         );
-        expect(completePathQuery([{ kind: 'directory', name: 'code' }], '/Users/tj/co')).toBe(
-            '/Users/tj/code/',
+        expect(completePathQuery([{ kind: 'directory', name: 'code' }], '/Users/me/co')).toBe(
+            '/Users/me/code/',
         );
         expect(completePathQuery(entries, 's')).toBeUndefined();
         expect(completePathQuery([entries[2]], 'read', true)).toBeUndefined();
@@ -108,7 +108,7 @@ describe('path browser navigation', () => {
         expect(projectDirectoryPath('/project', '')).toBe('/project/');
         expect(projectDirectoryPath('/project', 'src/nested/')).toBe('/project/src/nested/');
         expect(projectDirectoryPath('/', '')).toBe('/');
-        expect(projectDirectoryPath('/', 'Users/tj/')).toBe('/Users/tj/');
+        expect(projectDirectoryPath('/', 'Users/me/')).toBe('/Users/me/');
     });
 
     it('offers Project-local file and folder creation only', () => {
@@ -172,7 +172,7 @@ describe('path browser keyboard intent', () => {
     it('keeps Left and Right as caret movement inside text', () => {
         expect(
             keyIntent({
-                input: '/Users/tj',
+                input: '/Users/me',
                 key: 'ArrowLeft',
                 selectionEnd: 5,
                 selectionStart: 5,
@@ -180,7 +180,7 @@ describe('path browser keyboard intent', () => {
         ).toBeUndefined();
         expect(
             keyIntent({
-                input: '/Users/tj',
+                input: '/Users/me',
                 key: 'ArrowRight',
                 selectionEnd: 5,
                 selectionStart: 5,

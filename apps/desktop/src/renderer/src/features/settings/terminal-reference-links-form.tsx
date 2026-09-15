@@ -151,7 +151,7 @@ export function TerminalReferenceLinksForm({
                 <Input
                     aria-label="Reference prefix"
                     className="bg-elevated font-mono"
-                    placeholder="LOBE-"
+                    placeholder="TASK-"
                     value={draft.prefix}
                     onChange={(event) => {
                         setDraft((current) => ({ ...current, prefix: event.target.value }));

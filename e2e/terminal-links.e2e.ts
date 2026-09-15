@@ -57,7 +57,7 @@ test('Terminal links open Project files and confirm URLs through Main', async ()
     const isolatedHome = join(userData, 'e2e-agents', 'home');
     const root = join(isolatedHome, 'project');
     const file = join(root, 'link-target.ts');
-    const inferredFile = join(root, 'lobehub', 'apps', 'server', 'message.ts');
+    const inferredFile = join(root, 'example', 'apps', 'server', 'message.ts');
     const lineFile = join(root, '.local-config', 'router-runtime.json');
     const rangeFile = join(root, 'doctor.config.jsonc');
     const shortenedFile = join(
@@ -464,7 +464,7 @@ test('Terminal references open configured issues and an authorized Git commit', 
             name: 'Terminal Reference Links editor',
         });
         await editor.getByLabel('Reference title').fill('Linear issue');
-        await editor.getByLabel('Reference prefix').fill('LOBE-');
+        await editor.getByLabel('Reference prefix').fill('TASK-');
         await editor.getByLabel('Reference URL template').fill('javascript:alert(<num>)');
         await editor.getByRole('button', { name: 'Add', exact: true }).click();
         await expect(editor.getByRole('alert')).toContainText(
@@ -472,11 +472,11 @@ test('Terminal references open configured issues and an authorized Git commit', 
         );
         await editor
             .getByLabel('Reference URL template')
-            .fill('https://linear.app/lobehub/issue/<num>');
+            .fill('https://linear.app/example/issue/<num>');
         await editor.getByRole('button', { name: 'Add', exact: true }).click();
         await expect(
             editor.getByRole('list', { name: 'Terminal reference link rules' }),
-        ).toContainText('LOBE-');
+        ).toContainText('TASK-');
         await expect
             .poll(async () => {
                 const result = await pageRequest<{
@@ -484,7 +484,7 @@ test('Terminal references open configured issues and an authorized Git commit', 
                 }>(running.page, 'settings.get');
                 return result.value['terminal.referenceLinks'].map(({ prefix }) => prefix);
             })
-            .toEqual(['LOBE-']);
+            .toEqual(['TASK-']);
         await settings.getByRole('button', { name: 'Close' }).click();
 
         await running.app.evaluate(({ dialog, shell }) => {
@@ -499,16 +499,16 @@ test('Terminal references open configured issues and an authorized Git commit', 
             };
         });
 
-        const output = `原有 LOBE-13468 也已补了一条范围说明。GitHub #439; commit ${shortSha}`;
+        const output = `原有 TASK-24680 也已补了一条范围说明。GitHub #439; commit ${shortSha}`;
         await typeTerminal(running.page, String.raw`printf '%s\n' '${output}'`);
         await expect(running.page.locator('.xterm-rows')).toContainText(output);
 
-        await clickTerminalLink(running.page, 'LOBE-13468');
+        await clickTerminalLink(running.page, 'TASK-24680');
         await clickTerminalLink(running.page, '#439');
         await expect
             .poll(() => linkProbeField(running.app, 'caxriReferenceProbe', 'opened'))
             .toEqual([
-                'https://linear.app/lobehub/issue/13468',
+                'https://linear.app/example/issue/24680',
                 'https://github.com/tjx666/caxri/issues/439',
             ]);
 

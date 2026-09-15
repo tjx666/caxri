@@ -71,8 +71,8 @@ describe('projectStatusCliError', () => {
     });
 
     it('names the failing subject and directs users to Logs without internal jargon', () => {
-        const error = projectStatusCliError('linear', 'other', { subject: 'LOBE-14029' });
-        expect(error.message).toBe('Linear CLI: LOBE-14029 failed');
+        const error = projectStatusCliError('linear', 'other', { subject: 'TASK-24682' });
+        expect(error.message).toBe('Linear CLI: TASK-24682 failed');
         expect(error.hint).toBe(
             'Something went wrong while loading linked issues. Open Logs for details.',
         );

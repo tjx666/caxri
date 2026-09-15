@@ -167,7 +167,7 @@ test('Agent output refreshes the Session title without opening Info', async () =
         INSERT INTO threads VALUES (
             'stale-agent-session',
             '${canonicalRoot}',
-            '$debug https://github.com/lobehub/lobehub/issues/123',
+            '$debug https://github.com/example/example/issues/123',
             NULL,
             ${Date.now() - 60_000},
             ${Date.now() - 60_000},

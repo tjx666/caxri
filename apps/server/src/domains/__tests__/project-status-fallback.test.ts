@@ -66,7 +66,7 @@ async function loadFallback(
     const refreshed = Promise.withResolvers<void>();
     const runner = vi.fn<ExternalStatusRunner>((command, arguments_) => {
         if (command === 'git' && arguments_[0] === 'remote')
-            return Promise.resolve('https://github.com/lobehub/project.git');
+            return Promise.resolve('https://github.com/example/project.git');
         if (command === 'git') return Promise.resolve('');
         if (command === 'gh')
             return (
@@ -126,7 +126,7 @@ it('shows an unavailable PR after a previously successful lookup fails', async (
                       JSON.stringify({
                           number: 42,
                           title: 'Fix status',
-                          url: 'https://github.com/lobehub/project/pull/42',
+                          url: 'https://github.com/example/project/pull/42',
                           state: 'OPEN',
                           isDraft: false,
                           body: '',

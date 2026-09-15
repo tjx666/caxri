@@ -73,15 +73,15 @@ describe('codex transcript pull request scan', () => {
         scanTranscriptPullRequestLine(
             codexCommandOutput(
                 'call_1',
-                'remote: Create a pull request for feat/x on GitHub by visiting:\nremote: https://github.com/lobehub-biz/lobehub-cloud/pull/new/feat/x\nhttps://github.com/lobehub-biz/lobehub-cloud/pull/881\n',
+                'remote: Create a pull request for feat/x on GitHub by visiting:\nremote: https://github.com/example-biz/example-cloud/pull/new/feat/x\nhttps://github.com/example-biz/example-cloud/pull/421\n',
             ),
             scan,
         );
         expect(scan.created).toEqual({
-            owner: 'lobehub-biz',
-            repo: 'lobehub-cloud',
-            number: 881,
-            url: 'https://github.com/lobehub-biz/lobehub-cloud/pull/881',
+            owner: 'example-biz',
+            repo: 'example-cloud',
+            number: 421,
+            url: 'https://github.com/example-biz/example-cloud/pull/421',
         });
         expect(scan.pendingCreateToolUseIds.size).toBe(0);
     });
@@ -92,7 +92,7 @@ describe('codex transcript pull request scan', () => {
             codexResponseItem({
                 type: 'custom_tool_call',
                 name: 'exec',
-                input: 'const r = await tools.exec_command({ cmd: "gh -R lobehub/lobehub pr create --base main --fill" });',
+                input: 'const r = await tools.exec_command({ cmd: "gh -R example/example pr create --base main --fill" });',
                 call_id: 'call_custom',
             }),
             scan,
@@ -101,7 +101,7 @@ describe('codex transcript pull request scan', () => {
             codexResponseItem({
                 type: 'function_call_output',
                 call_id: 'call_other',
-                output: 'https://github.com/lobehub/lobehub/pull/1',
+                output: 'https://github.com/example/example/pull/1',
             }),
             scan,
         );
@@ -113,7 +113,7 @@ describe('codex transcript pull request scan', () => {
                 output: [
                     {
                         type: 'input_text',
-                        text: 'Script completed\nhttps://github.com/lobehub/lobehub/pull/2\n',
+                        text: 'Script completed\nhttps://github.com/example/example/pull/2\n',
                     },
                 ],
             }),
@@ -131,7 +131,7 @@ describe('codex transcript pull request scan', () => {
                 content: [
                     {
                         type: 'input_text',
-                        text: 'look at https://github.com/lobehub/lobehub/pull/5',
+                        text: 'look at https://github.com/example/example/pull/5',
                     },
                 ],
             }),
@@ -142,7 +142,7 @@ describe('codex transcript pull request scan', () => {
                 type: 'event_msg',
                 payload: {
                     type: 'agent_message',
-                    message: 'https://github.com/lobehub/lobehub/pull/6',
+                    message: 'https://github.com/example/example/pull/6',
                 },
             }),
             scan,
@@ -150,15 +150,15 @@ describe('codex transcript pull request scan', () => {
         expect(scan.mentioned).toBe(undefined);
         scanTranscriptPullRequestLine(
             codexAssistantText(
-                'Opened [PR #263](https://github.com/lobehub-biz/lobehub-cloud/pull/263).',
+                'Opened [PR #137](https://github.com/example-biz/example-cloud/pull/137).',
             ),
             scan,
         );
         expect(scan.mentioned).toEqual({
-            owner: 'lobehub-biz',
-            repo: 'lobehub-cloud',
-            number: 263,
-            url: 'https://github.com/lobehub-biz/lobehub-cloud/pull/263',
+            owner: 'example-biz',
+            repo: 'example-cloud',
+            number: 137,
+            url: 'https://github.com/example-biz/example-cloud/pull/137',
         });
     });
 });
@@ -173,15 +173,15 @@ describe('transcript pull request scan', () => {
         scanTranscriptPullRequestLine(
             toolResult(
                 'toolu_1',
-                'Warning: 1 uncommitted change\nhttps://github.com/lobehub-biz/lobehub-cloud/pull/1319',
+                'Warning: 1 uncommitted change\nhttps://github.com/example-biz/example-cloud/pull/2468',
             ),
             scan,
         );
         expect(scan.created).toEqual({
-            owner: 'lobehub-biz',
-            repo: 'lobehub-cloud',
-            number: 1319,
-            url: 'https://github.com/lobehub-biz/lobehub-cloud/pull/1319',
+            owner: 'example-biz',
+            repo: 'example-cloud',
+            number: 2468,
+            url: 'https://github.com/example-biz/example-cloud/pull/2468',
         });
         expect(scan.pendingCreateToolUseIds.size).toBe(0);
     });
@@ -189,7 +189,7 @@ describe('transcript pull request scan', () => {
     it('prefers a created PR over a later mention, and a mention over nothing', () => {
         const scan = createTranscriptPullRequestScan();
         scanTranscriptPullRequestLine(
-            assistantText('Similar to https://github.com/lobehub/lobehub/pull/1 from last week.'),
+            assistantText('Similar to https://github.com/example/example/pull/1 from last week.'),
             scan,
         );
         expect(scan.created).toBeUndefined();
@@ -198,12 +198,12 @@ describe('transcript pull request scan', () => {
         scanTranscriptPullRequestLine(assistantToolUse('toolu_2', 'gh pr create -f'), scan);
         scanTranscriptPullRequestLine(
             toolResult('toolu_2', [
-                { type: 'text', text: 'https://github.com/lobehub/lobehub/pull/19024\n' },
+                { type: 'text', text: 'https://github.com/example/example/pull/19024\n' },
             ]),
             scan,
         );
         scanTranscriptPullRequestLine(
-            assistantText('Also see https://github.com/lobehub/lobehub/pull/2.'),
+            assistantText('Also see https://github.com/example/example/pull/2.'),
             scan,
         );
         expect(scan.created?.number).toBe(19024);
@@ -217,7 +217,7 @@ describe('transcript pull request scan', () => {
                 type: 'user',
                 message: {
                     content: [
-                        { type: 'text', text: 'look at https://github.com/lobehub/lobehub/pull/5' },
+                        { type: 'text', text: 'look at https://github.com/example/example/pull/5' },
                     ],
                 },
             }),
@@ -225,7 +225,7 @@ describe('transcript pull request scan', () => {
         );
         scanTranscriptPullRequestLine(assistantToolUse('toolu_3', 'gh pr view 7 --json url'), scan);
         scanTranscriptPullRequestLine(
-            toolResult('toolu_3', '{"url":"https://github.com/lobehub/lobehub/pull/7"}'),
+            toolResult('toolu_3', '{"url":"https://github.com/example/example/pull/7"}'),
             scan,
         );
         scanTranscriptPullRequestLine('not json {', scan);
@@ -235,7 +235,7 @@ describe('transcript pull request scan', () => {
     it('resets harvested links when the transcript is rewritten', () => {
         const scan = createTranscriptPullRequestScan();
         scanTranscriptPullRequestLine(
-            assistantText('https://github.com/lobehub/lobehub/pull/9'),
+            assistantText('https://github.com/example/example/pull/9'),
             scan,
         );
         resetTranscriptPullRequestScan(scan);

@@ -309,7 +309,7 @@ export const settingsSpec = [
         kind: 'complex',
         key: 'terminal.referenceLinks',
         title: 'Reference links',
-        description: 'Open issue markers such as LOBE-123 with a bounded HTTP(S) URL template',
+        description: 'Open issue markers such as TASK-123 with a bounded HTTP(S) URL template',
         category: 'terminal',
         keywords: ['link', 'issue', 'linear', 'jira', 'prefix', 'autolink'],
     },

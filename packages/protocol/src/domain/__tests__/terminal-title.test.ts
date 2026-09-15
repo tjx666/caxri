@@ -27,7 +27,7 @@ describe('terminalTabLabel', () => {
         expect(terminalTabLabel('tj@macbook:~/code/caxri-worktrees/feat-work-tab-layout')).toBe(
             '~/…/feat-work-tab-layout',
         );
-        expect(terminalTabLabel('/Users/tj/code/caxri')).toBe('/…/caxri');
+        expect(terminalTabLabel('/Users/me/code/caxri')).toBe('/…/caxri');
         expect(terminalTabLabel('../code/caxri-worktrees/feat-x')).toBe('../…/feat-x');
     });
 

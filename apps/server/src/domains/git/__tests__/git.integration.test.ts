@@ -104,11 +104,11 @@ describe('GitService', () => {
 
         await execFileAsync(
             'git',
-            ['remote', 'set-url', 'origin', 'https://github.com/lobehub/lobe-chat.git'],
+            ['remote', 'set-url', 'origin', 'https://github.com/example/lobe-chat.git'],
             { cwd: directory },
         );
         await expect(git.referenceContext(session.id)).resolves.toEqual({
-            githubRepositories: [{ owner: 'lobehub', repo: 'lobe-chat' }],
+            githubRepositories: [{ owner: 'example', repo: 'lobe-chat' }],
         });
         database.close();
     });

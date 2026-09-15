@@ -28,11 +28,11 @@ describe('ConfigurationService trusted folders', () => {
 `;
         await service.updateSettings(source);
 
-        await service.trustFolder('/Users/me/.lobehub/');
-        await service.trustFolder('/Users/me/.lobehub');
+        await service.trustFolder('/Users/me/.example/');
+        await service.trustFolder('/Users/me/.example');
 
         expect(service.getSettings().value['security.trustedFolders']).toEqual([
-            '/Users/me/.lobehub',
+            '/Users/me/.example',
         ]);
         expect(await readFile(service.settingsPath, 'utf8')).toContain(
             '// Keep this explanation when Main trusts a folder.',

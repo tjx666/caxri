@@ -5,16 +5,16 @@ import type { TerminalLinkContext } from '../terminal-links';
 import { joinCodexHardWrappedFileLink, registerTerminalLinks } from '../terminal-links';
 import { cellsFor, createTerminal } from './terminal-links-test-helpers';
 
-const FIRST_FRAGMENT = '/Users/tj/code/lobehub-cloud-2-';
+const FIRST_FRAGMENT = '/Users/me/code/example-cloud-2-';
 const CONTINUATION =
-    '  lobe-13558/lobehub/packages/builtin-tool-local-system/src/systemRole.desktop.ts:56:7';
+    '  task-24680/example/packages/builtin-tool-local-system/src/systemRole.desktop.ts:56:7';
 const COMPLETE_TARGET =
-    '/Users/tj/code/lobehub-cloud-2-lobe-13558/lobehub/packages/builtin-tool-local-system/src/systemRole.desktop.ts';
+    '/Users/me/code/example-cloud-2-task-24680/example/packages/builtin-tool-local-system/src/systemRole.desktop.ts';
 const PROSE_FIRST_ROW =
-    '  展示层要从服务端修: _responseBody 已收敛为 traceId, 但 lobehub/apps/server/src/modules/AgentRuntime/';
+    '  展示层要从服务端修: _responseBody 已收敛为 traceId, 但 example/apps/server/src/modules/AgentRuntime/';
 const PROSE_CONTINUATION =
     '  formatErrorForState.ts:79 又合入了上游原文。应保留原文供日志排查, 见 src/other.ts:3';
-const PROSE_TARGET = 'lobehub/apps/server/src/modules/AgentRuntime/formatErrorForState.ts';
+const PROSE_TARGET = 'example/apps/server/src/modules/AgentRuntime/formatErrorForState.ts';
 
 function context() {
     const openFile = vi.fn();
@@ -121,8 +121,8 @@ describe('Codex hard-wrapped Terminal links', () => {
     });
 
     it('reconstructs a path split across three explicit physical rows', async () => {
-        const first = '/repo/lobehub-cloud-2-';
-        const middle = '  lobe-13558/packages/builtin-';
+        const first = '/repo/example-cloud-2-';
+        const middle = '  task-24680/packages/builtin-';
         const last = '  tool-local-system/src/file.ts:56';
         const terminal = createTerminal(first, cellsFor(first));
         terminal.setLine(1, middle);
@@ -132,7 +132,7 @@ describe('Codex hard-wrapped Terminal links', () => {
         registerTerminalLinks(terminal.terminal, value);
 
         const complete =
-            '/repo/lobehub-cloud-2-lobe-13558/packages/builtin-tool-local-system/src/file.ts:56';
+            '/repo/example-cloud-2-task-24680/packages/builtin-tool-local-system/src/file.ts:56';
         const linksByRow = await Promise.all([
             terminal.links(1),
             terminal.links(2),
@@ -148,7 +148,7 @@ describe('Codex hard-wrapped Terminal links', () => {
 
         linksByRow[2]?.[0].activate({ metaKey: true } as MouseEvent, complete);
         expect(openFile).toHaveBeenCalledWith(
-            '/repo/lobehub-cloud-2-lobe-13558/packages/builtin-tool-local-system/src/file.ts',
+            '/repo/example-cloud-2-task-24680/packages/builtin-tool-local-system/src/file.ts',
             { mode: 'line', startLine: 56, endLine: 56 },
         );
     });
@@ -188,7 +188,7 @@ describe('Codex hard-wrapped Terminal links', () => {
                 'src/other.ts:3',
             ]);
             expect(links?.[0].range).toEqual({
-                start: { x: PROSE_FIRST_ROW.indexOf('lobehub') + 1, y: 1 },
+                start: { x: PROSE_FIRST_ROW.indexOf('example') + 1, y: 1 },
                 end: { x: fragmentEnd, y: 2 },
             });
         }

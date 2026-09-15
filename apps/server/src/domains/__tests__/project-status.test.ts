@@ -45,7 +45,7 @@ function githubOnlyRunner(
 ): ExternalStatusRunner {
     return vi.fn<ExternalStatusRunner>((command, arguments_) => {
         if (command === 'git' && arguments_[0] === 'remote')
-            return Promise.resolve('git@github.com:lobehub/project.git\n');
+            return Promise.resolve('git@github.com:example/project.git\n');
         if (command === 'git') return Promise.resolve('');
         if (command === 'gh') return Promise.resolve(JSON.stringify(pullRequest()));
         if (hasLinkedVercel && command === 'vc') {
@@ -64,7 +64,7 @@ function checkPayload(check: Record<string, unknown>): unknown {
     return {
         number: 7,
         title: 'Ship status panel',
-        url: 'https://github.com/lobehub/project/pull/7',
+        url: 'https://github.com/example/project/pull/7',
         statusCheckRollup: [check],
     };
 }
@@ -97,7 +97,7 @@ describe('ProjectStatusService', () => {
         const refreshed = Promise.withResolvers<void>();
         const runner = vi.fn<ExternalStatusRunner>((command, arguments_) => {
             if (command === 'git' && arguments_[0] === 'remote') {
-                return Promise.resolve('git@github.com:lobehub/project.git\n');
+                return Promise.resolve('git@github.com:example/project.git\n');
             }
             if (command === 'git') return Promise.resolve('');
             return external.promise;
@@ -121,7 +121,7 @@ describe('ProjectStatusService', () => {
             JSON.stringify({
                 number: 7,
                 title: 'Ship status panel',
-                url: 'https://github.com/lobehub/project/pull/7',
+                url: 'https://github.com/example/project/pull/7',
             }),
         );
         await refreshed.promise;
@@ -136,7 +136,7 @@ describe('ProjectStatusService', () => {
         const emitted = vi.fn();
         const runner = vi.fn<ExternalStatusRunner>((command, arguments_) => {
             if (command === 'git' && arguments_[0] === 'remote') {
-                return Promise.resolve('git@github.com:lobehub/project.git\n');
+                return Promise.resolve('git@github.com:example/project.git\n');
             }
             if (command === 'git') return Promise.resolve('');
             if (command === 'gh') {
@@ -145,7 +145,7 @@ describe('ProjectStatusService', () => {
                     JSON.stringify({
                         number: pullRequestNumber,
                         title: `Pull request ${pullRequestNumber}`,
-                        url: `https://github.com/lobehub/project/pull/${pullRequestNumber}`,
+                        url: `https://github.com/example/project/pull/${pullRequestNumber}`,
                     }),
                 );
             }
@@ -178,7 +178,7 @@ describe('ProjectStatusService', () => {
             JSON.stringify({
                 number: 8,
                 title: 'Pull request 8',
-                url: 'https://github.com/lobehub/project/pull/8',
+                url: 'https://github.com/example/project/pull/8',
             }),
         );
         await forcedSettlement;
@@ -201,7 +201,7 @@ describe('ProjectStatusService', () => {
         const emitted = vi.fn();
         const runner = vi.fn<ExternalStatusRunner>((command, arguments_) => {
             if (command === 'git' && arguments_[0] === 'remote') {
-                return Promise.resolve('git@github.com:lobehub/project.git\n');
+                return Promise.resolve('git@github.com:example/project.git\n');
             }
             if (command === 'git') return Promise.resolve('');
             if (command === 'gh') {
@@ -224,7 +224,7 @@ describe('ProjectStatusService', () => {
             JSON.stringify({
                 number: 9,
                 title: 'Late pull request',
-                url: 'https://github.com/lobehub/project/pull/9',
+                url: 'https://github.com/example/project/pull/9',
             }),
         );
 
@@ -285,13 +285,13 @@ describe('ProjectStatusService', () => {
             ],
         };
         const runner = vi.fn<ExternalStatusRunner>((command, arguments_) => {
-            if (command === 'git') return Promise.resolve('git@github.com:lobehub/project.git\n');
+            if (command === 'git') return Promise.resolve('git@github.com:example/project.git\n');
             if (command === 'gh') {
                 return Promise.resolve(
                     JSON.stringify({
                         number: 11,
                         title: 'Status Bar context',
-                        url: 'https://github.com/lobehub/project/pull/11',
+                        url: 'https://github.com/example/project/pull/11',
                     }),
                 );
             }
@@ -314,14 +314,14 @@ describe('ProjectStatusService', () => {
         expect(overview.repository).toEqual({
             id: 'repo-1',
             branch: 'feature/status',
-            branchUrl: 'https://github.com/lobehub/project/tree/feature%2Fstatus',
+            branchUrl: 'https://github.com/example/project/tree/feature%2Fstatus',
             changedFileCount: 1,
             additions: 2,
             deletions: 1,
             pullRequest: {
                 number: 11,
                 title: 'Status Bar context',
-                url: 'https://github.com/lobehub/project/pull/11',
+                url: 'https://github.com/example/project/pull/11',
             },
         });
         expect(runner.mock.calls.filter(([command]) => command === 'gh')).toHaveLength(1);
@@ -333,7 +333,7 @@ describe('ProjectStatusService', () => {
             'view',
             'feature/status',
             '--repo',
-            'lobehub/project',
+            'example/project',
             '--json',
             'number,title,url,state,isDraft,body,statusCheckRollup,baseRefName,headRefName,baseRefOid,headRefOid',
         ]);
@@ -343,7 +343,7 @@ describe('ProjectStatusService', () => {
         const refreshed = Promise.withResolvers<void>();
         const runner = vi.fn<ExternalStatusRunner>((command, arguments_) => {
             if (command === 'git' && arguments_[0] === 'remote') {
-                return Promise.resolve('git@github.com:lobehub/project.git\n');
+                return Promise.resolve('git@github.com:example/project.git\n');
             }
             if (command === 'git' && arguments_[0] === 'symbolic-ref') {
                 return Promise.resolve('origin/main\n');
@@ -357,10 +357,10 @@ describe('ProjectStatusService', () => {
             if (command === 'gh') {
                 return Promise.resolve(
                     JSON.stringify({
-                        body: 'Fixes LOBE-42',
+                        body: 'Fixes TASK-42',
                         number: 7,
                         title: 'Ship status panel',
-                        url: 'https://github.com/lobehub/project/pull/7',
+                        url: 'https://github.com/example/project/pull/7',
                         statusCheckRollup: [
                             {
                                 conclusion: 'SUCCESS',
@@ -377,9 +377,9 @@ describe('ProjectStatusService', () => {
                     JSON.stringify({
                         data: {
                             issue: {
-                                identifier: 'LOBE-42',
+                                identifier: 'TASK-42',
                                 title: 'Project Status',
-                                url: 'https://linear.app/lobehub/issue/LOBE-42',
+                                url: 'https://linear.app/example/issue/TASK-42',
                                 state: { name: 'In Progress', type: 'started' },
                             },
                         },
@@ -387,7 +387,7 @@ describe('ProjectStatusService', () => {
                 );
             }
             if (command === 'vc' && arguments_[0] === 'teams') {
-                return Promise.resolve(JSON.stringify({ teams: [{ slug: 'lobehub' }] }));
+                return Promise.resolve(JSON.stringify({ teams: [{ slug: 'example' }] }));
             }
             if (command === 'vc' && arguments_[1]?.includes('target=')) {
                 const environment = new URL(
@@ -402,7 +402,7 @@ describe('ProjectStatusService', () => {
                             name: 'project',
                             readyState: 'READY',
                             target: environment,
-                            url: `project-${environment}-lobehub.vercel.app`,
+                            url: `project-${environment}-example.vercel.app`,
                         },
                     ]),
                 );
@@ -463,7 +463,7 @@ describe('ProjectStatusService', () => {
             },
             linearIssues: [
                 {
-                    identifier: 'LOBE-42',
+                    identifier: 'TASK-42',
                     title: 'Project Status',
                     state: 'In Progress',
                     stateType: 'started',
@@ -475,15 +475,15 @@ describe('ProjectStatusService', () => {
         expect(repo.deployments?.production).toMatchObject({
             environment: 'production',
             createdAt: 1_700_000_000_000,
-            inspectorUrl: 'https://vercel.com/lobehub/project/production',
+            inspectorUrl: 'https://vercel.com/example/project/production',
         });
         expect(repo.deployments?.preview).toMatchObject({
             environment: 'preview',
-            inspectorUrl: 'https://vercel.com/lobehub/project/preview',
+            inspectorUrl: 'https://vercel.com/example/project/preview',
         });
         expect(runner.mock.calls.filter(([command]) => command === 'gh')).toHaveLength(2);
         expect(runner.mock.calls.find(([command]) => command === 'linear')?.[1]).toContain(
-            'id=LOBE-42',
+            'id=TASK-42',
         );
     });
 
@@ -492,7 +492,7 @@ describe('ProjectStatusService', () => {
         const emitted = vi.fn();
         const runner = vi.fn<ExternalStatusRunner>((command, arguments_) => {
             if (command === 'git' && arguments_[0] === 'remote') {
-                return Promise.resolve('git@github.com:lobehub/project.git\n');
+                return Promise.resolve('git@github.com:example/project.git\n');
             }
             if (command === 'git') return Promise.resolve('');
             if (command === 'gh') {
@@ -505,7 +505,7 @@ describe('ProjectStatusService', () => {
                     JSON.stringify({
                         number: 7,
                         title: 'Pull request 7',
-                        url: 'https://github.com/lobehub/project/pull/7',
+                        url: 'https://github.com/example/project/pull/7',
                     }),
                 );
             }
@@ -537,7 +537,7 @@ describe('ProjectStatusService', () => {
         const refreshed = Promise.withResolvers<void>();
         const runner = vi.fn<ExternalStatusRunner>((command, arguments_) => {
             if (command === 'git' && arguments_[0] === 'remote') {
-                return Promise.resolve('https://github.com/lobehub/project.git');
+                return Promise.resolve('https://github.com/example/project.git');
             }
             if (command === 'git') return Promise.resolve('');
             return Promise.reject(new Error(`${command} unavailable`));
@@ -698,7 +698,7 @@ describe('ProjectStatusService', () => {
                         branch: 'feature/status',
                         name: 'unit',
                         // No `detailsUrl`, so the alert falls back to the pull request itself.
-                        url: 'https://github.com/lobehub/project/pull/7',
+                        url: 'https://github.com/example/project/pull/7',
                     },
                 },
             ]),
@@ -735,12 +735,12 @@ describe('ProjectStatusService', () => {
 
 describe('Project Status parsers', () => {
     it('accepts HTTPS and SSH GitHub remotes', () => {
-        expect(parseGitHubRemote('git@github.com:lobehub/caxri.git')).toEqual({
-            owner: 'lobehub',
+        expect(parseGitHubRemote('git@github.com:example/caxri.git')).toEqual({
+            owner: 'example',
             repo: 'caxri',
         });
-        expect(parseGitHubRemote('https://github.com/lobehub/caxri')).toEqual({
-            owner: 'lobehub',
+        expect(parseGitHubRemote('https://github.com/example/caxri')).toEqual({
+            owner: 'example',
             repo: 'caxri',
         });
     });
@@ -748,33 +748,33 @@ describe('Project Status parsers', () => {
     it('extracts deliberate Linear references without treating bare mentions as links', () => {
         expect(
             extractLinearReferences(
-                'Follow-up LOBE-1\nFixes LOBE-2, LOBE-3\nhttps://linear.app/lobehub/issue/LOBE-4/title',
+                'Follow-up TASK-1\nFixes TASK-2, TASK-3\nhttps://linear.app/example/issue/TASK-4/title',
             ),
         ).toEqual([
-            { identifier: 'LOBE-4', workspace: 'lobehub' },
-            { identifier: 'LOBE-2', workspace: undefined },
-            { identifier: 'LOBE-3', workspace: undefined },
+            { identifier: 'TASK-4', workspace: 'example' },
+            { identifier: 'TASK-2', workspace: undefined },
+            { identifier: 'TASK-3', workspace: undefined },
         ]);
     });
 
     it('keeps prose out of the reference list when a keyword appears mid-sentence', () => {
         expect(
             extractLinearReferences(
-                'Fixes LOBE-14029\n\nThis fixes local installs creating a root pnpm-lock.yaml. The packageManager SHA-512 value matches the published npm artifact.\n\nTracked in https://linear.app/lobehub/issue/LOBE-14028.',
+                'Fixes TASK-24682\n\nThis fixes local installs creating a root pnpm-lock.yaml. The packageManager SHA-512 value matches the published npm artifact.\n\nTracked in https://linear.app/example/issue/TASK-24681.',
             ),
         ).toEqual([
-            { identifier: 'LOBE-14028', workspace: 'lobehub' },
-            { identifier: 'LOBE-14029', workspace: undefined },
+            { identifier: 'TASK-24681', workspace: 'example' },
+            { identifier: 'TASK-24682', workspace: undefined },
         ]);
     });
 
     it('accepts the connectors Linear magic words actually use', () => {
-        expect(extractLinearReferences('Closes LOBE-1 and LOBE-2')).toEqual([
-            { identifier: 'LOBE-1', workspace: undefined },
-            { identifier: 'LOBE-2', workspace: undefined },
+        expect(extractLinearReferences('Closes TASK-1 and TASK-2')).toEqual([
+            { identifier: 'TASK-1', workspace: undefined },
+            { identifier: 'TASK-2', workspace: undefined },
         ]);
-        expect(extractLinearReferences('Resolves issue LOBE-3')).toEqual([
-            { identifier: 'LOBE-3', workspace: undefined },
+        expect(extractLinearReferences('Resolves issue TASK-3')).toEqual([
+            { identifier: 'TASK-3', workspace: undefined },
         ]);
         expect(extractLinearReferences('Fixes #12 and pnpm-12 regressions')).toEqual([]);
     });

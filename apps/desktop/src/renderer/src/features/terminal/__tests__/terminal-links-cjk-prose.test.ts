@@ -111,14 +111,14 @@ describe('findTerminalLinks with CJK prose', () => {
     it('cuts glued full-width prose after the final path segment', () => {
         // Regression: Claude Code prose such as `path（后者含密钥）。` produced no link at all because the
         // full-width bracket is neither a word separator nor trailing punctuation.
-        const glued = '.local-config/lobehub_router_runtime_config.assembled.json（后者含密钥）。';
+        const glued = '.local-config/example_router_runtime_config.assembled.json（后者含密钥）。';
         expect(findTerminalLinks(`    ${glued}`)).toEqual([
             {
                 endIndex: 62,
                 kind: 'file',
                 startIndex: 4,
-                target: '.local-config/lobehub_router_runtime_config.assembled.json',
-                text: '.local-config/lobehub_router_runtime_config.assembled.json',
+                target: '.local-config/example_router_runtime_config.assembled.json',
+                text: '.local-config/example_router_runtime_config.assembled.json',
             },
         ]);
         expect(findTerminalLinks('见（src/a.ts）和')).toMatchObject([

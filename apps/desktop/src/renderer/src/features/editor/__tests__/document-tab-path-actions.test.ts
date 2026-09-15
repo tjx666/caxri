@@ -186,7 +186,7 @@ describe('documentTabDesktopActionState', () => {
 
     it('withholds an external document even though it resolved to a real path', () => {
         const state = documentTabDesktopActionState(
-            { absolutePath: '/Users/tj/Downloads/report.html' },
+            { absolutePath: '/Users/me/Downloads/report.html' },
             { isExternal: true, unavailableReason },
         );
 

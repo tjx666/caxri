@@ -400,7 +400,7 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
     /**
      * VS Code-style subpath fallback: when the typed directory does not exist under the current directory, look for a
      * Project-local directory whose path ends with those segments (for example `packages/x/` copied from Agent output
-     * while the Project holds `lobehub/packages/x/`). Server Core bounds and excludes the traversal and picks the
+     * while the Project holds `example/packages/x/`). Server Core bounds and excludes the traversal and picks the
      * shallowest match so the breadcrumb stays predictable; Main revalidates that directory before listing it.
      */
     async function locateProjectDirectory(

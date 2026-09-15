@@ -23,8 +23,8 @@ test('Codex hard-wrapped file paths open as one trusted Terminal link', async ()
     const root = join(userData, 'e2e-agents', 'home', 'project');
     const target = join(
         root,
-        'lobehub-cloud-2-lobe-13558',
-        'lobehub',
+        'example-cloud-2-task-24680',
+        'example',
         'packages',
         'builtin-tool-local-system',
         'src',
@@ -55,7 +55,7 @@ test('Codex hard-wrapped file paths open as one trusted Terminal link', async ()
             realpath(secondIndependent),
             realpath(outsideTarget),
         ]);
-    const splitIndex = emittedTarget.indexOf('lobe-13558');
+    const splitIndex = emittedTarget.indexOf('task-24680');
     const firstFragment = emittedTarget.slice(0, splitIndex);
     const continuation = `${emittedTarget.slice(splitIndex)}:56:7`;
     const fullLink = `${emittedTarget}:56:7`;
