@@ -74,7 +74,10 @@ const validEditorWorkerStallDiagnostic = {
     waitMs: 8_000,
     workerRoundTrip: 'no-reply',
     workerRoundTripMs: null,
+    workerBroadcast: 'ok',
     documentVisible: true,
+    navigationType: 'reload',
+    pageAgeMs: 3_600_000,
     originalLineCount: 240,
     modifiedLineCount: 252,
     identicalModels: false,
@@ -251,14 +254,47 @@ describe('Renderer diagnostic contract', () => {
         );
     });
 
+    it('carries every combination of the two Worker return paths', () => {
+        // Each pair is a different conclusion for a reader of desktop.jsonl, which is the whole reason both are
+        // recorded: the Worker never ran, only the Renderer-internal reply was lost (issue #962), or messaging was
+        // healthy and the diff computation itself was slow.
+        for (const paths of [
+            { workerRoundTrip: 'no-reply', workerRoundTripMs: null, workerBroadcast: 'no-reply' },
+            { workerRoundTrip: 'no-reply', workerRoundTripMs: null, workerBroadcast: 'ok' },
+            { workerRoundTrip: 'ok', workerRoundTripMs: 4, workerBroadcast: 'ok' },
+            { workerRoundTrip: 'ok', workerRoundTripMs: 4, workerBroadcast: 'unsupported' },
+            // The recovery record probes nothing, so both paths report that rather than inventing a silence.
+            { workerRoundTrip: 'skipped', workerRoundTripMs: null, workerBroadcast: 'skipped' },
+        ]) {
+            const diagnostic = { ...validEditorWorkerStallDiagnostic, ...paths };
+            expect(rendererDiagnosticSchema.parse(diagnostic)).toEqual(diagnostic);
+        }
+    });
+
     it('rejects sensitive, unbounded, and inconsistent editor Worker stall fields', () => {
         for (const invalid of [
             { ...validEditorWorkerStallDiagnostic, repositoryPath: '/Users/someone/repo' },
             { ...validEditorWorkerStallDiagnostic, outcome: 'unknown' },
             { ...validEditorWorkerStallDiagnostic, waitMs: -1 },
             { ...validEditorWorkerStallDiagnostic, workerRoundTrip: 'maybe' },
+            { ...validEditorWorkerStallDiagnostic, workerBroadcast: 'maybe' },
+            { ...validEditorWorkerStallDiagnostic, navigationType: 'refresh' },
+            { ...validEditorWorkerStallDiagnostic, pageAgeMs: -1 },
             // An `ok` round trip without its duration would report a reply nobody can time.
             { ...validEditorWorkerStallDiagnostic, workerRoundTrip: 'ok', workerRoundTripMs: null },
+            // A broadcast reported as `skipped` while the direct path was really probed would erase the one contrast
+            // this record exists for, and the reverse would claim an observation nothing made.
+            { ...validEditorWorkerStallDiagnostic, workerBroadcast: 'skipped' },
+            {
+                ...validEditorWorkerStallDiagnostic,
+                workerRoundTrip: 'skipped',
+                workerRoundTripMs: null,
+            },
+            {
+                ...validEditorWorkerStallDiagnostic,
+                workerRoundTrip: 'construct-failed',
+                workerRoundTripMs: null,
+            },
             // More stalls than opened diffs is arithmetically impossible and would mislead triage.
             { ...validEditorWorkerStallDiagnostic, diffOpenCount: 1, stallCount: 2 },
         ])

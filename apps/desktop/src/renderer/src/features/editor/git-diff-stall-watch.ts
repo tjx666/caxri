@@ -22,11 +22,46 @@ interface DiffModelShape {
     identicalModels: boolean;
 }
 
+interface PageLoadShape {
+    navigationType: EditorWorkerStallDiagnostic['navigationType'];
+    pageAgeMs: number;
+}
+
+/**
+ * Guards against a browser reporting a navigation type outside the set this diagnostic may carry, so an unexpected
+ * value degrades to `unknown` instead of failing validation once it reaches the Main process.
+ */
+const NAVIGATION_TYPES = new Set<string>(['back-forward', 'navigate', 'prerender', 'reload']);
+
+/**
+ * The diagnostic contract's own ceilings, applied where the record is built so no source of a duration can push one out
+ * of range. A window or a wait that outlives its ceiling is saturated rather than sent as-is, because an out-of-range
+ * number costs the whole record — and a rejected record is exactly the silence this watcher exists to end.
+ */
+const MAXIMUM_PAGE_AGE_MS = 2_592_000_000;
+const MAXIMUM_WAIT_MS = 600_000;
+
+/**
+ * A reload rebuilds the document but keeps the renderer process, which is why the failure behind issue #962 survived
+ * reloads and only an app restart cleared it. Recording how this document was loaded, and how long ago, is what lets a
+ * later reader tell a page that was broken from its first frame from one that degraded while running.
+ */
+function readPageLoad(): PageLoadShape {
+    const entry = performance.getEntriesByType('navigation')[0] as
+        PerformanceNavigationTiming | undefined;
+    const type = entry?.type === 'back_forward' ? 'back-forward' : entry?.type;
+    return {
+        navigationType: type && NAVIGATION_TYPES.has(type) ? type : 'unknown',
+        pageAgeMs: Math.round(performance.now()),
+    };
+}
+
 export interface GitDiffStallWatchDependencies {
     reportDiagnostic: (diagnostic: EditorWorkerStallDiagnostic) => void;
     probeRoundTrip?: () => Promise<WorkerRoundTripResult>;
     countEditorWorkers?: () => number;
     isDocumentVisible?: () => boolean;
+    readPageLoad?: () => PageLoadShape;
     now?: () => number;
     createDiagnosticId?: () => string;
     timeoutMs?: number;
@@ -79,15 +114,19 @@ export class GitDiffStallWatch {
         const isDocumentVisible =
             this.dependencies.isDocumentVisible ?? (() => document.visibilityState === 'visible');
         const countEditorWorkers = this.dependencies.countEditorWorkers ?? editorWorkersCreated;
+        const pageLoad = (this.dependencies.readPageLoad ?? readPageLoad)();
         this.dependencies.reportDiagnostic({
             kind: 'editor-worker-stall',
             diagnosticId: createDiagnosticId(),
             surface: 'git-diff',
             outcome,
-            waitMs: Math.max(0, waitMs),
+            waitMs: Math.min(MAXIMUM_WAIT_MS, Math.max(0, waitMs)),
             workerRoundTrip: roundTrip.outcome,
             workerRoundTripMs: roundTrip.durationMs,
+            workerBroadcast: roundTrip.broadcast,
             documentVisible: isDocumentVisible(),
+            navigationType: pageLoad.navigationType,
+            pageAgeMs: Math.min(MAXIMUM_PAGE_AGE_MS, Math.max(0, pageLoad.pageAgeMs)),
             originalLineCount: models?.originalLineCount ?? 0,
             modifiedLineCount: models?.modifiedLineCount ?? 0,
             identicalModels: models?.identicalModels ?? false,
@@ -154,6 +193,7 @@ export class GitDiffStallWatch {
             this.report(observation, 'recovered', Math.round(now() - startedAt), {
                 outcome: 'skipped',
                 durationMs: null,
+                broadcast: 'skipped',
             });
         })();
 

@@ -1,5 +1,11 @@
 type WorkerRoundTripOutcome = 'construct-failed' | 'no-reply' | 'ok' | 'skipped' | 'worker-error';
 
+/**
+ * Result of the second, independent return path. `unsupported` means this renderer has no `BroadcastChannel` at all,
+ * which is a different statement from the channel existing and staying silent.
+ */
+type WorkerBroadcastOutcome = 'no-reply' | 'ok' | 'skipped' | 'unsupported';
+
 export interface WorkerRoundTripResult {
     outcome: WorkerRoundTripOutcome;
     /**
@@ -7,21 +13,26 @@ export interface WorkerRoundTripResult {
      * confused with an instant one.
      */
     durationMs: number | null;
+    broadcast: WorkerBroadcastOutcome;
 }
 
 export interface WorkerRoundTripOptions {
     timeoutMs?: number;
     createWorker?: () => Worker;
+    createBroadcastChannel?: (name: string) => BroadcastChannel;
     now?: () => number;
 }
 
 const DEFAULT_ROUND_TRIP_TIMEOUT_MS = 2_000;
 
 /**
- * Smallest possible Worker: it echoes whatever it receives. The probe only asks whether a message can travel Renderer →
- * Worker → Renderer, so the script deliberately does no work of its own.
+ * Smallest possible Worker: on receipt it answers twice over two independent return paths — the Worker's own port, and
+ * a `BroadcastChannel`. It deliberately does no work of its own, so a missing answer can only mean the path is broken.
  */
-const ECHO_WORKER_SOURCE = 'self.onmessage = (event) => postMessage(event.data);';
+const ECHO_WORKER_SOURCE = `self.onmessage = (event) => {
+    try { new BroadcastChannel(event.data.channel).postMessage(event.data.token); } catch {}
+    postMessage(event.data.token);
+};`;
 
 function createEchoWorker(): Worker {
     const url = URL.createObjectURL(new Blob([ECHO_WORKER_SOURCE], { type: 'text/javascript' }));
@@ -39,15 +50,20 @@ function createEchoWorker(): Worker {
 }
 
 /**
- * Answers one question: can this renderer still receive a message from a Worker?
+ * Asks whether a Worker's answer can still reach this renderer, over two paths at once.
  *
- * Monaco's diff, its language services, and every other Worker-backed feature fail identically and silently when the
- * answer is no — the request goes out, nothing comes back, and no error is raised anywhere. Diagnosing that without
- * this probe means attaching a debugger to a live window and hand-writing the same echo Worker, which is exactly how
- * the failure behind issue #962 had to be identified.
+ * A Worker's own port is delivered thread-to-thread inside the renderer process. A `BroadcastChannel` leaves the
+ * renderer and comes back brokered by the browser process. Because the same Worker answers on both in response to the
+ * same message, comparing them separates failures that otherwise look identical:
  *
- * `no-reply` therefore means something far broader than the caller's own Worker being broken, and is the signal worth
- * acting on; `ok` narrows the fault to the caller's Worker.
+ * - `ok` + `ok` — messaging is healthy; a stalled diff is then the diff computation's own problem.
+ * - `no-reply` + `ok` — the Worker started, received the page's message, and answered; only the renderer-internal return
+ *   path dropped it. This is the exact shape observed in issue #962, where a live window kept losing every Worker reply
+ *   while timers, fetch, and same-thread ports all kept working, and only an app restart recovered it.
+ * - `no-reply` + `no-reply` — the Worker never ran, or both return paths are gone.
+ *
+ * Without the contrast, all three collapse into a bare `no-reply` and the next occurrence again needs a debugger
+ * attached to a live window.
  */
 export async function probeWorkerRoundTrip(
     options: WorkerRoundTripOptions = {},
@@ -59,31 +75,64 @@ export async function probeWorkerRoundTrip(
     try {
         worker = (options.createWorker ?? createEchoWorker)();
     } catch {
-        return { outcome: 'construct-failed', durationMs: null };
+        return { outcome: 'construct-failed', durationMs: null, broadcast: 'skipped' };
     }
+
+    // A per-probe channel name keeps two concurrent probes from reading each other's answer as their own.
+    const token = `caxri-round-trip-${Math.random().toString(36).slice(2)}`;
+    let channel: BroadcastChannel | undefined;
+    try {
+        channel = (options.createBroadcastChannel ?? ((name) => new BroadcastChannel(name)))(token);
+    } catch {
+        channel = undefined;
+    }
+
+    /**
+     * Owned outside the executor so the cleanup below can cancel a deadline that an answer already beat, without
+     * `settle` and the timer having to refer to each other.
+     */
+    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
         return await new Promise<WorkerRoundTripResult>((resolve) => {
-            const timer = setTimeout(
-                () => resolve({ outcome: 'no-reply', durationMs: null }),
-                timeoutMs,
-            );
-            const settle = (result: WorkerRoundTripResult) => {
-                clearTimeout(timer);
-                resolve(result);
+            let direct: Omit<WorkerRoundTripResult, 'broadcast'> | undefined;
+            let isBroadcastSeen = false;
+            const settle = () => {
+                resolve({
+                    outcome: direct?.outcome ?? 'no-reply',
+                    durationMs: direct?.durationMs ?? null,
+                    broadcast: channel ? (isBroadcastSeen ? 'ok' : 'no-reply') : 'unsupported',
+                });
             };
+            timer = setTimeout(settle, timeoutMs);
+            /**
+             * Both paths are observed over the same window: settling early on the first answer would report the other
+             * as silent when it was merely a moment behind.
+             */
+            const settleWhenComplete = () => {
+                if (direct && (isBroadcastSeen || !channel)) settle();
+            };
+
+            if (channel)
+                channel.addEventListener('message', () => {
+                    isBroadcastSeen = true;
+                    settleWhenComplete();
+                });
             worker.addEventListener('message', () => {
                 const elapsedMs = Math.round(now() - startedAt);
-                settle({ outcome: 'ok', durationMs: Math.max(0, elapsedMs) });
+                direct = { outcome: 'ok', durationMs: Math.max(0, elapsedMs) };
+                settleWhenComplete();
             });
-            worker.addEventListener('error', () =>
-                settle({ outcome: 'worker-error', durationMs: null }),
-            );
-            worker.addEventListener('messageerror', () =>
-                settle({ outcome: 'worker-error', durationMs: null }),
-            );
-            worker.postMessage('caxri-round-trip');
+            const failDirect = () => {
+                direct = { outcome: 'worker-error', durationMs: null };
+                settleWhenComplete();
+            };
+            worker.addEventListener('error', failDirect);
+            worker.addEventListener('messageerror', failDirect);
+            worker.postMessage({ channel: token, token });
         });
     } finally {
+        if (timer !== undefined) clearTimeout(timer);
         worker.terminate();
+        channel?.close();
     }
 }
