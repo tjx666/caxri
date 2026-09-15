@@ -11,7 +11,7 @@ import type { AppSettings, ProjectRecord, SessionRecord } from '@caxri/protocol'
  * auto-collapse pass closes it again — and because the record is persisted while the in-memory override was not, the
  * machine's decision outlived the user's across a reload.
  */
-export type ProjectDisclosure = 'automatic' | 'user-collapsed' | 'user-expanded';
+type ProjectDisclosure = 'automatic' | 'user-collapsed' | 'user-expanded';
 export type ProjectCollapseState = Partial<Record<string, ProjectDisclosure>>;
 
 const PROJECT_DISCLOSURES: ReadonlySet<unknown> = new Set<ProjectDisclosure>([
