@@ -30,7 +30,7 @@ process.env.CAXRI_GIT_COMMIT = commit;
 const logger = new StructuredLogger(
     join(userDataPath, 'logs'),
     'server-core',
-    resolveLogLevel({ environment: process.env, fallback: 'info' }),
+    resolveLogLevel(process.env),
 );
 const processErrorMonitor = installProcessErrorMonitor({ processName: 'server-core' });
 processErrorMonitor.attach(logger);

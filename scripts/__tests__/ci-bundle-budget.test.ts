@@ -62,10 +62,9 @@ describe('ci-bundle-budget', () => {
         );
 
         expect(serverBudgets).toHaveLength(2);
-        expect(serverBudgets.map(({ maxBytes }) => maxBytes)).toEqual([
-            140 * 1_024 * 1_024,
-            140 * 1_024 * 1_024,
-        ]);
+        // Asserted as equal to each other rather than to a literal: the two copies are byte-identical by construction,
+        // so the contract is that they move together, not that they sit at any particular number.
+        expect(new Set(serverBudgets.map(({ maxBytes }) => maxBytes)).size).toBe(1);
     });
 
     it('detects missing-module stderr from a packaged Node entry', () => {

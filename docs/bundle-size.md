@@ -4,17 +4,25 @@ Caxri ships a packaged macOS app whose size is protected by a CI gate. This docu
 optimized baseline, the rules that keep it small, and how to analyze and re-budget when a change
 legitimately needs more bytes.
 
-## Baseline (2026-08, arm64 dir target)
+## Baseline (2026-09, arm64 dir target)
 
-| Artifact                  | Size      | Dominant contents                                                   |
-| ------------------------- | --------- | ------------------------------------------------------------------- |
-| `Caxri.app` (total)       | ~411 MiB  | Electron 44 framework + embedded standalone Server                  |
-| `Resources/server`        | ~133 MiB  | Pinned runtime (~121 MiB), native dependencies, bundles, extensions |
-| `app.asar`                | ~36.9 MiB | Desktop Main, Preload, and Renderer bundles                         |
-| `out/renderer`            | ~35.6 MiB | Monaco (~6.8 MiB JS + 15 MiB workers), fonts, vscode-icons (below)  |
-| `out/main`                | ~831 KiB  | Electron Desktop Main only                                          |
-| `out/preload`             | ~12 KiB   | Sandboxed preload bundles                                           |
-| `apps/server/dist/server` | ~133 MiB  | Byte-identical source of the embedded Server artifact               |
+| Artifact                  | Size       | Dominant contents                                                   |
+| ------------------------- | ---------- | ------------------------------------------------------------------- |
+| `Caxri.app` (total)       | ~470.5 MiB | Electron 44 framework + embedded standalone Server                  |
+| `Resources/server`        | ~137.6 MiB | Pinned runtime (~121 MiB), native dependencies, bundles, extensions |
+| `app.asar`                | ~90.4 MiB  | Desktop Main, Preload, and Renderer bundles plus their source maps  |
+| `out/renderer`            | ~86.8 MiB  | Monaco (~6.8 MiB JS + 15 MiB workers), fonts, vscode-icons, maps    |
+| `out/main`                | ~3.0 MiB   | Electron Desktop Main only                                          |
+| `out/preload`             | ~48 KiB    | Sandboxed preload bundles                                           |
+| `apps/server/dist/server` | ~137.6 MiB | Byte-identical source of the embedded Server artifact               |
+
+Roughly half of the JavaScript above is source maps, which ship in every build including the packaged
+one. This is the single largest deliberate size decision in the project and it is not drift: Caxri is
+built and debugged by coding agents, whose only view of a past failure is the artifact that produced
+it. A minified packaged build cannot say which line threw, so every investigation of a production-only
+failure would start with a rebuild and an attempt to reproduce — the expensive part of the loop. The
+bytes buy that back, and the installer is dominated by the Electron runtime regardless. Turning maps
+off is a product decision to make at the first public release, not a way to pass the budget gate.
 
 The renderer carries the full `@yutengjing/vscode-icons` SVG set (~4.5 MiB across 1553 files,
 emitted as individual assets). This is a conscious budget increase, not drift: the Files secondarySidebar
@@ -23,9 +31,8 @@ subset to tree-shake, and shipping the complete set is what makes icons match VS
 vscode-icons extension.
 
 The Server runtime also carries the bundled ripgrep executable (~4.3 MiB) so project search uses a
-known binary without relying on the host environment. An exact `origin/main` measurement after that
-binary landed was 132.82 MiB; the 140 MiB ceiling preserves roughly the same five-percent headroom
-as the previous 123/130 MiB baseline while the job-summary delta still exposes incremental growth.
+known binary without relying on the host environment. The 150 MiB ceiling keeps roughly nine percent
+headroom over the measured 137.6 MiB while the job-summary delta still exposes incremental growth.
 
 Pre-optimization the app was ~367 MiB on disk: 220 Electron locales (47 MiB), whole-package
 `node_modules` copies in the asar (drizzle-orm 14 MiB, zod 5.7 MiB, xterm 5 MiB, archiver's
@@ -54,9 +61,8 @@ CAXRI_BUNDLE_ANALYZE=1 bun run build:desktop
 ```
 
 Writes interactive HTML + JSON [Sonda](https://sonda.dev) reports per process under
-`.cache/bundle-analysis/` (source maps are enabled automatically for accurate package
-attribution). Use the JSON report to aggregate bytes per npm package or find modules duplicated
-across chunks.
+`.cache/bundle-analysis/`. Use the JSON report to aggregate bytes per npm package or find modules
+duplicated across chunks. Sonda attributes bytes through the source maps every build already emits.
 
 ## The CI budget gate
 

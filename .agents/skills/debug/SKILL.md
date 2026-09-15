@@ -160,30 +160,35 @@ target list from `http://127.0.0.1:9223/json/list` (9224 for production), open t
 
 ## Production debugging controls
 
-A packaged build is deliberately quiet and minified, so everything below is opt-in and read once at
-process start. Export the variable in the shell that starts the app; `open -a Caxri` inherits nothing:
+Every build, packaged included, is already fully instrumented: debug logs, source maps, the Renderer
+store registry, and a Node inspector on each Host are all on by default and cost nothing until read.
+An agent investigating a failure never needs a rebuild or a relaunch with the right environment
+variable set — the evidence is already there. The variables below only narrow that default.
+
+### Node-side request records — always on
+
+Every Caxri process records at `debug`, so `<userData>/logs/*.jsonl` already holds per-request detail.
+Each request the Renderer sent has an `ipc.request` line in `server-core.jsonl` with its `method`,
+`durationMs`, and the request id as `correlationId`; the ones that came through the control relay add
+`queueMs`, `queueDepth`, and `principal`, which is where admission backlog shows up.
+
+`CAXRI_LOG_LEVEL=info` (or `warn`/`error`) quiets a process — useful when reproducing something that
+floods the log and you want the incident to survive rotation. Anything unrecognized stays at `debug`,
+so a typo never silences a log. Desktop Main hands the variable to Server Core and Server Core hands
+it to the Extension and Terminal Hosts, so one export moves all four logs together
+(`packages/protocol/src/desktop/debug-launch.ts`). Export it in the shell that starts the app;
+`open -a Caxri` inherits nothing:
 
 ```bash
-CAXRI_LOG_LEVEL=debug /Applications/Caxri.app/Contents/MacOS/Caxri
+CAXRI_LOG_LEVEL=info /Applications/Caxri.app/Contents/MacOS/Caxri
 ```
 
 Quit the app first. A Server Core whose build fingerprint still matches is reused rather than replaced,
 so relaunching only the window leaves `server-core.jsonl` at the level its Server already started with.
 
-### Node-side request records — `CAXRI_LOG_LEVEL`
-
-`debug`, `info`, `warn`, or `error`; anything else keeps the process default (`info` packaged, `debug`
-unpackaged for Desktop Main). Desktop Main hands the variable to Server Core and Server Core hands it
-to the Extension and Terminal Hosts, so one export moves all four logs together
-(`packages/protocol/src/desktop/debug-launch.ts`).
-
-`debug` is what makes per-request Server-side records exist at all. Every request the Renderer sent
-gets an `ipc.request` line in `<userData>/logs/server-core.jsonl` with its `method`, `durationMs`, and
-the request id as `correlationId`; the ones that came through the control relay add `queueMs`,
-`queueDepth`, and `principal`, which is where admission backlog shows up. A slow or failed request is
-already `warn` and visible without the override. Turn it back off afterwards — each record costs only
-a serialization and a batched async append, but high-frequency events rotate real incidents out of the
-5MB × 3 generation budget quickly.
+Retention is 20MB × 3 generations per process log. High-frequency `debug` events still rotate real
+incidents out within hours, so a noisy new event belongs behind an aggregate rather than one record
+per occurrence.
 
 ### Renderer state — `globalThis.__caxriStores`
 
@@ -203,28 +208,36 @@ returns all of them. Actions are omitted because a function survives neither `JS
 `createStore(name, initializer)` from `apps/desktop/src/renderer/src/lib/store.ts`; calling zustand's
 `create` directly leaves the store invisible here.
 
-### Node inspector on the Hosts — `CAXRI_INSPECT`
+### Node inspector on the Hosts — always on
 
-The three Node Hosts run without an inspector by default. `CAXRI_INSPECT=1` gives each one its own port
-off Node's default base, so all three can be attached at once: Server Core 9229, Extension Host 9230,
-Terminal Host 9231. Any other port number moves the base (`CAXRI_INSPECT=9500` → 9500/9501/9502).
-Attach through `chrome://inspect` or read the target list from `http://127.0.0.1:9229/json/list`. Only
-Server Core and the Extension Host answer at startup; the Terminal Host is spawned on the first
-Terminal, so its port stays closed until one exists.
+Each Node Host runs with its own inspector port, so all three can be attached at once without
+colliding: Server Core 9229, Extension Host 9230, Terminal Host 9231. Attach through `chrome://inspect`
+or read the target list from `http://127.0.0.1:9229/json/list`. Only Server Core and the Extension Host
+answer at startup; the Terminal Host is spawned on the first Terminal, so its port stays closed until
+one exists.
+
+`CAXRI_INSPECT=9500` moves the whole range to 9500/9501/9502, which is how two checkouts' Hosts stay
+separately attachable. A port already taken by a sibling costs one warning line on stderr and the Host
+keeps running, so a collision is a nuisance rather than a failure. `CAXRI_INSPECT=0` opens no port at
+all.
 
 Always `--inspect`, never `--inspect-brk`: a Host paused before its first line never answers the
 readiness handshake its supervisor waits on, so the app would look hung rather than debuggable. The
-inspector keeps Node's loopback bind. The Server bundles are built unminified
-(`apps/server/vite.config.ts`), so a session shows readable code without source maps.
+inspector binds to loopback and does nothing until a client attaches. The Server bundles are built
+unminified (`apps/server/vite.config.ts`), so a session shows readable code either way.
 
-### A debuggable Desktop build — `CAXRI_SOURCEMAP`, `CAXRI_REACT_PROFILING`, `CAXRI_REACT_SCAN`
+### Source maps — always on
 
-Desktop Main, Preload, and Renderer ship minified with no source maps, so the DevTools Sources panel is
-unreadable. `CAXRI_SOURCEMAP=1 bun run build:desktop` emits them. This is a build an operator produces,
-never a shipped one: the maps inline every source file and take `out/renderer` from about 41 MiB to
-about 91 MiB.
+Desktop Main, Preload, Renderer, and the Server all ship source maps, in the packaged build too, so
+DevTools Sources and a Node inspector session show real files and a stack trace names a real line. The
+maps roughly double the JavaScript payload (`out/renderer` ≈ 91 MiB against ≈ 41 MiB without them);
+`scripts/ci-bundle-budget.ts` carries budgets sized for that, and `docs/bundle-size.md` explains the
+trade. Nothing needs to be rebuilt to make a packaged crash readable.
 
-`CAXRI_REACT_PROFILING=1` swaps `react-dom/client` for `react-dom/profiling.js` so the React Profiler
-works outside development, and `CAXRI_REACT_SCAN=1` arms react-scan's render counting. Both make React
-measurably slower and belong only in a build made for measurement; `react-rerender-audit` owns the
+### Builds made for measurement — `CAXRI_REACT_PROFILING`, `CAXRI_REACT_SCAN`
+
+`CAXRI_REACT_PROFILING=1 bun run build:desktop` swaps `react-dom/client` for `react-dom/profiling.js`
+so the React Profiler works outside development, and `CAXRI_REACT_SCAN=1` arms react-scan's render
+counting. Unlike everything above these are off by default, because both make React measurably slower
+and would distort the timings the rest of this section is used to read. `react-rerender-audit` owns the
 render-count workflow.

@@ -90,7 +90,7 @@ if (ownsProfileInstance) {
     let mainRenderer: WebContents | undefined;
     let supervisor: DesktopServerConnection;
     let mainLogger: ReturnType<typeof createDesktopLogger> | undefined;
-    const createMainLogger = () => createDesktopLogger(desktopProfile.logDirectory, app.isPackaged);
+    const createMainLogger = () => createDesktopLogger(desktopProfile.logDirectory);
     const gpuDiagnostics = createGpuDiagnostics({
         app,
         logger: () => mainLogger,

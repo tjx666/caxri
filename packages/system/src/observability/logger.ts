@@ -67,13 +67,21 @@ export interface LogWriteOptions extends Pick<
     failure?: Omit<CausalCapsuleInput, 'context' | 'timestamp'>;
 }
 
-const MAX_LOG_BYTES = 5 * 1024 * 1024;
+/**
+ * Live-file ceiling before rotation. Sized against a `debug` default, which is what every Caxri process records unless
+ * `CAXRI_LOG_LEVEL` says otherwise: per-request `ipc.request` records fill a 5MB file within hours of ordinary use, and
+ * a log that rotated away the incident an agent was sent to investigate is the same as no log at all.
+ *
+ * Exported so the rotation tests can size their records against the live cap instead of restating it, which would make
+ * them silently stop exercising rotation the next time this number moves.
+ */
+export const MAX_LOG_BYTES = 20 * 1024 * 1024;
 /**
  * Rotated generations kept alongside the live file (`.1` through `.3`, oldest last). Production evidence: with a single
- * 5MB generation, high-volume routine events (`agent.probe`, `pty.throughput`) rotated real incidents out of the log
- * within hours. Three generations (~20MB total per process log) buy meaningfully more retention while staying bounded;
- * raising it further is a tradeoff against disk usage, not a fix for noisy events, which the logging call sites should
- * already keep to 'debug'/'warn' as appropriate.
+ * generation, high-volume routine events (`agent.probe`, `pty.throughput`) rotated real incidents out of the log within
+ * hours. Three generations (~80MB total per process log) buy meaningfully more retention while staying bounded; raising
+ * it further is a tradeoff against disk usage, not a fix for noisy events, which the logging call sites should already
+ * keep to 'debug'/'warn' as appropriate.
  */
 export const MAX_LOG_GENERATIONS = 3;
 /**
