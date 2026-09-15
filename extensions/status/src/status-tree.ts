@@ -79,9 +79,9 @@ const stateTones: Record<ProjectStatusState, 'danger' | 'neutral' | 'success' | 
 };
 
 /**
- * `label` is deliberately absent from the row's own description: the leading icon already says the lifecycle in the
- * same colors GitHub uses — green open, grey draft, purple merged, red closed — so repeating "Open" beside it spent the
- * row's scarce width restating the glyph. It stays on the hover card's badge and in the accessible name, which is where
+ * `label` is deliberately absent from either row's own description: the glyph already says the lifecycle in the same
+ * colors GitHub uses — green open, grey draft, purple merged, red closed — so repeating "Open" beside it spent the
+ * row's scarce width restating the icon. It stays on the hover card's badge and in the accessible name, which is where
  * a reader who cannot use the color needs it.
  */
 const pullRequestPresentation = {
@@ -291,6 +291,16 @@ function buildRepoChildren(
     const prefix = `status:repo:${repo.id}`;
     const isDefaultBranch = repo.defaultBranch === repo.branch;
     const publication = repo.publication;
+    /**
+     * The branch row wears its pull request's lifecycle glyph in place of the generic `git-branch`, so the subtree
+     * answers "does this branch have a pull request, and where is it?" at the branch itself. The pull request row below
+     * drops the trailing copy it used to carry: the same glyph twice in one subtree taught the eye nothing while
+     * spending the row's right edge on it. An absent lifecycle keeps the branch glyph rather than asserting a state the
+     * provider never reported.
+     */
+    const lifecycle = repo.pullRequest?.lifecycle
+        ? pullRequestPresentation[repo.pullRequest.lifecycle]
+        : undefined;
     const publicationLabels = {
         'checking': 'Checking origin…',
         'unpublished': 'Not on origin',
@@ -330,7 +340,16 @@ function buildRepoChildren(
     const nodes: StatusNode[] = [
         item(`${prefix}:branch`, repo.branch, {
             description: branchDescription.length > 0 ? branchDescription : undefined,
-            icon: 'git-branch',
+            icon: lifecycle?.icon ?? 'git-branch',
+            accessibilityLabel: [
+                repo.branch,
+                branchDescription.length > 0 ? branchDescription : undefined,
+                lifecycle && repo.pullRequest
+                    ? `pull request #${repo.pullRequest.number} ${lifecycle.label}`
+                    : undefined,
+            ]
+                .filter(Boolean)
+                .join(', '),
             url: repo.branchUrl,
             tooltip: {
                 ...((publicationLabel !== undefined || isDefaultBranch) && {
@@ -338,6 +357,14 @@ function buildRepoChildren(
                 }),
                 description: publication ? publicationDescriptions[publication.state] : undefined,
                 rows: [
+                    ...(lifecycle && repo.pullRequest
+                        ? [
+                              {
+                                  label: 'pull request',
+                                  value: `#${repo.pullRequest.number} ${lifecycle.label}`,
+                              },
+                          ]
+                        : []),
                     ...(publication?.remoteBranch
                         ? [{ label: 'compared branch', value: publication.remoteBranch }]
                         : []),
@@ -365,7 +392,14 @@ function buildRepoChildren(
                 `${prefix}:linear:${issue.identifier}`,
                 issue.title ? `${issue.identifier} ${issue.title}` : issue.identifier,
                 {
-                    description: issue.state,
+                    /**
+                     * No description: the leading glyph already carries the workflow state in the workspace's own
+                     * color, so printing "In Progress" beside it spent the row's width restating the icon while
+                     * squeezing the issue title. The state stays on the hover card's badge and the accessible name.
+                     */
+                    accessibilityLabel: [issue.identifier, issue.title, issue.state]
+                        .filter(Boolean)
+                        .join(', '),
                     icon: linearIcon(issue.stateType),
                     iconColor: issue.stateColor,
                     url: issue.url,
@@ -424,7 +458,12 @@ function buildRepoChildren(
             if (!deployment) continue;
             nodes.push(
                 item(`${prefix}:${deployment.environment}`, label, {
-                    description: deployment.hostname,
+                    /**
+                     * No description: a Vercel alias is mostly a generated hash
+                     * (`lobehub-cloud-next-i06ixdxlq-lobehub-pro.vercel.app`), so the row spent half its width on a
+                     * string that was unreadable before it was even truncated. It stays on the hover card's `alias`
+                     * row, which opens the deployment, and in the accessible name.
+                     */
                     accessibilityLabel: `${label}, ${deploymentStateLabel(deployment)} · ${deployment.hostname}`,
                     icon: deploymentIcons[deployment.state],
                     tooltip: deploymentTooltip(label, deployment),
@@ -435,9 +474,7 @@ function buildRepoChildren(
     }
     if (repo.pullRequest) {
         const pullRequest = repo.pullRequest;
-        const presentation = pullRequest.lifecycle
-            ? pullRequestPresentation[pullRequest.lifecycle]
-            : { icon: 'circle-dot', label: 'Unknown', tone: 'neutral' as const };
+        const lifecycleLabel = lifecycle?.label ?? 'Unknown';
         const children = pullRequest.checks.map((check, index) => {
             const duration = durationLabel(check.durationMs);
             return item(`${prefix}:check:${index}`, check.name, {
@@ -467,17 +504,15 @@ function buildRepoChildren(
         nodes.push(
             item(`${prefix}:pr`, `#${pullRequest.number} ${pullRequest.title}`, {
                 /**
-                 * The row carries two independent statuses, so each gets its own slot instead of spending the
-                 * description on a `CI failed` string that competed with the title for width: the leading icon
-                 * aggregates the check states shown by the child rows, and the trailing icon is the pull request's own
-                 * lifecycle.
+                 * The leading icon aggregates the check states shown by the child rows, rather than spending the
+                 * description on a `CI failed` string that competed with the title for width. The lifecycle moved up to
+                 * the branch row (see `lifecycle` above), so this row no longer repeats it in the trailing slot.
                  */
                 icon: stateIcons[pullRequest.state],
-                trailingIcon: presentation.icon,
-                accessibilityLabel: `#${pullRequest.number} ${pullRequest.title}, ${presentation.label}, ${checkLabels[pullRequest.state]}`,
+                accessibilityLabel: `#${pullRequest.number} ${pullRequest.title}, ${lifecycleLabel}, ${checkLabels[pullRequest.state]}`,
                 url: pullRequest.url,
                 tooltip: {
-                    badge: { label: presentation.label, tone: presentation.tone },
+                    badge: { label: lifecycleLabel, tone: lifecycle?.tone ?? 'neutral' },
                     rows: [
                         { label: 'checks', value: checkLabels[pullRequest.state] },
                         ...(pullRequest.hiddenCheckCount > 0

@@ -132,6 +132,9 @@ esac
             const badge = statusTab.locator('[data-view-container-badge]');
             if (state === 'open') {
                 await expect(badge).toHaveText('1');
+                // A tally wins the chip outright, so an error badge is no wider than an ordinary count badge.
+                await expect(badge.locator('svg')).toHaveCount(0);
+                await expect(badge).toHaveAttribute('data-view-container-badge-kind', 'error');
                 await expect(statusTab).toHaveAccessibleDescription('1 failed check');
             } else await expect(badge).toHaveCount(0);
             await running.page

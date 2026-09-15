@@ -63,25 +63,20 @@ function ProviderHeader({
                 onClick={() => controller.setProviderExpanded(provider.id, !expanded)}
             >
                 {/*
-                 * Exactly one of the identity and the meta span gives way, and it is always the one holding prose.
-                 * A bare branch name (`descriptionKind: 'reference'`) is unreadable ellipsized and appears nowhere
-                 * else on the row, so it holds its width and the repository name — recoverable from the row's path
-                 * tooltip — truncates instead; under a pull request or commit subject the roles swap. The 60% cap
-                 * keeps the protected side from starving the other, and the counts stay `shrink-0` inside the meta
-                 * span: before `min-w-0` was added there they overflowed leftward and printed on top of the name.
+                 * The identity span is the one that gives way. `description` is always the branch, unreadable
+                 * ellipsized and present nowhere else on the row, so it holds its width and the repository name —
+                 * recoverable from the row's path tooltip — truncates instead. The 60% cap keeps the branch from
+                 * starving the name, and the counts stay `shrink-0` inside the meta span: before `min-w-0` was added
+                 * there they overflowed leftward and printed on top of the name.
                  */}
-                <span
-                    className={cn(
-                        'git-repository-identity flex min-w-0 items-center gap-1',
-                        provider.descriptionKind === 'prose' && 'max-w-[60%] shrink-0',
-                    )}
-                >
+                <span className="git-repository-identity flex min-w-0 items-center gap-1">
                     {expanded ? (
                         <ChevronDown className="shrink-0" size={13} />
                     ) : (
                         <ChevronRight className="shrink-0" size={13} />
                     )}
-                    <SourceControlIcon className="shrink-0" icon={provider.icon} size={16} />
+                    {/* 14px matches the Project Status tree rows, so the two sidebar panels agree on repository glyph size. */}
+                    <SourceControlIcon className="shrink-0" icon={provider.icon} size={14} />
                     <strong className="git-repository-name min-w-0 truncate font-semibold">
                         {provider.label}
                     </strong>
@@ -92,12 +87,7 @@ function ProviderHeader({
                     )}
                 </span>
                 <span
-                    className={cn(
-                        'git-repository-meta flex min-w-0 items-center justify-end gap-1 text-[11px] text-muted',
-                        provider.descriptionKind === 'reference'
-                            ? 'ml-auto max-w-[60%] shrink-0'
-                            : 'flex-auto',
-                    )}
+                    className="git-repository-meta ml-auto flex max-w-[60%] min-w-0 shrink-0 items-center justify-end gap-1 text-[11px] text-muted"
                     aria-label={provider.descriptionAccessibilityLabel}
                     title={provider.descriptionTooltip}
                 >
