@@ -1,7 +1,6 @@
 import type { ReactElement } from 'react';
 
 import type { SourceControlHistoryDescriptor, SourceControlHistoryPage } from '@caxri/protocol';
-import { relativeTime } from '@caxri/utils';
 
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '../../../components/ui/hover-card';
 import { SourceControlHistoryAvatar } from './source-control-history-avatar';
@@ -13,15 +12,20 @@ export function SourceControlHistoryHoverCard({
     descriptor,
     detailsEnabled = true,
     item,
-    now,
     path,
+    timeLabel,
     trigger,
 }: {
     descriptor: SourceControlHistoryDescriptor;
     detailsEnabled?: boolean;
     item: SourceControlHistoryItem;
-    now: number;
     path?: string;
+    /**
+     * The commit's "3 minutes ago" wording, resolved by the list so one live clock serves every row and the row and its
+     * hover card can never word the same commit differently. Required so a caller that forgets it is a type error
+     * rather than a card that silently opens on " · 2026-…".
+     */
+    timeLabel: string;
     trigger: ReactElement<Record<string, unknown>>;
 }) {
     return (
@@ -47,7 +51,7 @@ export function SourceControlHistoryHoverCard({
                             className="truncate text-[11px] text-muted"
                             title={item.tooltipTimestamp}
                         >
-                            {relativeTime(item.timestamp, now)} · {item.tooltipTimestamp}
+                            {timeLabel} · {item.tooltipTimestamp}
                         </div>
                     </div>
                 </div>

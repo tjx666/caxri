@@ -1,11 +1,7 @@
 import type { AgentActivityState } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import {
-    formatSessionRelativeTime,
-    sessionActivityPresentation,
-    sessionUnreadTone,
-} from '../session-activity';
+import { sessionActivityPresentation, sessionUnreadTone } from '../session-activity';
 
 describe('Session activity presentation', () => {
     it.each<
@@ -64,12 +60,5 @@ describe('Session activity presentation', () => {
         ['failed', 'danger'],
     ])('resolves the %s unread detail to a non-neutral tone', (kind, tone) => {
         expect(sessionUnreadTone(kind)).toBe(tone);
-    });
-
-    it('labels Session recency as last-opened relative time', () => {
-        const now = Date.UTC(2026, 7, 11, 8);
-
-        expect(formatSessionRelativeTime(now - 2 * 3_600_000, now)).toBe('2 hours ago');
-        expect(formatSessionRelativeTime(now + 60_000, now)).toBe('in 1 minute');
     });
 });

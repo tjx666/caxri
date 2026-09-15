@@ -1,7 +1,9 @@
-import type { SessionPullRequest } from '@caxri/protocol';
+import type { SessionPullRequest, SessionPullRequests } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
+    NO_SESSION_PULL_REQUEST,
+    selectSessionPullRequest,
     sessionPullRequestPresentation,
     sessionPullRequestToneClassName,
 } from '../session-pull-request';
@@ -101,5 +103,75 @@ describe('Session pull request presentation', () => {
             label: 'Draft',
             tone: 'neutral',
         });
+    });
+});
+
+describe('Session pull request row selection', () => {
+    function snapshot(overrides: Partial<SessionPullRequests> = {}): SessionPullRequests {
+        return {
+            pullRequests: { 'session-a': pullRequest() },
+            unavailable: {
+                'session-b': { reason: 'not-logged-in', hint: 'Sign in to the delivery CLI.' },
+            },
+            refreshedAt: 1_700_000_000_000,
+            ...overrides,
+        };
+    }
+
+    it('gives a Session only its own pull request', () => {
+        expect(selectSessionPullRequest(snapshot(), 'session-a')).toEqual({
+            pullRequest: pullRequest(),
+        });
+    });
+
+    it('gives a Session only its own failed lookup', () => {
+        expect(selectSessionPullRequest(snapshot(), 'session-b')).toEqual({
+            unavailable: { reason: 'not-logged-in', hint: 'Sign in to the delivery CLI.' },
+        });
+    });
+
+    it('answers a Session with neither, and an absent snapshot, with the same shared empty slice', () => {
+        expect(selectSessionPullRequest(snapshot(), 'session-c')).toBe(NO_SESSION_PULL_REQUEST);
+        expect(selectSessionPullRequest(undefined, 'session-a')).toBe(NO_SESSION_PULL_REQUEST);
+    });
+
+    /**
+     * The reason this selector exists. `refreshedAt` moves on every poll, so the snapshot itself is never deeply equal
+     * to the previous one and structural sharing cannot reuse its reference — but a row's slice has to stay equal, or
+     * the sidebar repaints once a minute for data nobody changed.
+     */
+    it('leaves a row equal across a refresh that only moved the timestamp', () => {
+        const before = selectSessionPullRequest(snapshot(), 'session-a');
+        const after = selectSessionPullRequest(
+            snapshot({ refreshedAt: 1_700_000_060_000 }),
+            'session-a',
+        );
+
+        expect(after).toEqual(before);
+    });
+
+    it('changes a row whose own pull request moved', () => {
+        const before = selectSessionPullRequest(snapshot(), 'session-a');
+        const after = selectSessionPullRequest(
+            snapshot({ pullRequests: { 'session-a': pullRequest({ state: 'merged' }) } }),
+            'session-a',
+        );
+
+        expect(after).not.toEqual(before);
+    });
+
+    it('leaves a row equal when a different Session got a new pull request', () => {
+        const before = selectSessionPullRequest(snapshot(), 'session-a');
+        const after = selectSessionPullRequest(
+            snapshot({
+                pullRequests: {
+                    'session-a': pullRequest(),
+                    'session-d': pullRequest({ number: 7 }),
+                },
+            }),
+            'session-a',
+        );
+
+        expect(after).toEqual(before);
     });
 });

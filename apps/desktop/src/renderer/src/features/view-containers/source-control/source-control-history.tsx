@@ -3,10 +3,9 @@ import type {
     SourceControlFileHistory,
     SourceControlHistoryDescriptor,
 } from '@caxri/protocol';
-import { relativeTime } from '@caxri/utils';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 
-import { useNow } from '@/hooks/use-now';
+import { useRelativeTimes } from '@/hooks/use-relative-time';
 
 import { DisclosureMotion } from '../../../components/disclosure-motion';
 import { Spinner } from '../../../components/ui/spinner';
@@ -54,7 +53,6 @@ export function SourceControlHistory({
     runAction: (action: SourceControlAction) => void;
     scope?: FileHistoryScope;
 }) {
-    const now = useNow(30_000);
     const {
         areActionsCurrent,
         debouncedPath,
@@ -71,6 +69,7 @@ export function SourceControlHistory({
         setPath,
         setSelectedId,
     } = useSourceControlHistory(descriptor, scope, expansion, enabled);
+    const timeLabels = useRelativeTimes(items.map((item) => item.timestamp));
     const toggleExpanded = () => {
         setExpanded((value) => !value);
         if (!expanded) {
@@ -154,14 +153,14 @@ export function SourceControlHistory({
                                     : descriptor.emptyMessage}
                             </div>
                         ) : (
-                            items.map((item) => (
+                            items.map((item, index) => (
                                 <div key={item.id}>
                                     <SourceControlHistoryHoverCard
                                         descriptor={descriptor}
                                         detailsEnabled={areActionsCurrent}
                                         item={item}
-                                        now={now}
                                         path={scopePath}
+                                        timeLabel={timeLabels[index]}
                                         trigger={
                                             <SourceControlTreeRow
                                                 rowId={`${rowIdPrefix}:commit:${item.id}`}
@@ -214,7 +213,7 @@ export function SourceControlHistory({
                                                             ).toISOString()}
                                                             title={item.tooltipTimestamp}
                                                         >
-                                                            {relativeTime(item.timestamp, now)}
+                                                            {timeLabels[index]}
                                                         </time>
                                                     </span>
                                                     {item.decorations.length > 0 && (

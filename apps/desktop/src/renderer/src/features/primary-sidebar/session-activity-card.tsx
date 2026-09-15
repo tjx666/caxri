@@ -10,7 +10,7 @@ import type {
 } from '@caxri/protocol';
 import { Circle } from 'lucide-react';
 
-import { useNow } from '@/hooks/use-now';
+import { useRelativeTime } from '@/hooks/use-relative-time';
 
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '../../components/ui/hover-card';
 import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
@@ -22,7 +22,6 @@ import { pullRequestUnavailableLabel } from '../status-bar/pull-request-status-l
 import { ProjectIcon } from './project-icon';
 import type { SessionActivityPresentation } from './session-activity';
 import {
-    formatSessionRelativeTime,
     sessionActivityPresentation,
     sessionToneCalloutClassName,
     sessionUnreadTone,
@@ -154,14 +153,13 @@ export function SessionActivityCard({
 }) {
     const accessibleDescriptionId = useId();
     const [open, setOpen] = useState(false);
-    const now = useNow(30_000);
     const activity =
         terminal?.lastProcessState === 'detached'
             ? detachedActivityPresentation
             : sessionActivityPresentation(session.lastActivityState, terminal?.agentOperation);
     const agent = terminal?.kind ?? 'shell';
     const agentLabel = resolveAgentIcon(agent).label;
-    const lastOpened = formatSessionRelativeTime(session.lastOpenedAt, now);
+    const lastOpened = useRelativeTime(session.lastOpenedAt);
     const unreadAttention = unreadAttentionPresentation(session);
     const unread = unreadAttention ? `Unread attention: ${unreadAttention.label}` : undefined;
     const pullRequestPresentation = pullRequest
