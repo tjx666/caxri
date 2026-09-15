@@ -1,6 +1,10 @@
 import process from 'node:process';
 
-import { durableServerIdentitySchema, serverBootIdentitySchema } from '@caxri/protocol';
+import {
+    durableServerIdentitySchema,
+    resolveLogLevel,
+    serverBootIdentitySchema,
+} from '@caxri/protocol';
 import {
     installProcessErrorMonitor,
     logEventCatalog,
@@ -65,7 +69,7 @@ const userDataPath = requiredEnvironment('CAXRI_USER_DATA_PATH');
 const logger = new StructuredLogger(
     requiredEnvironment('CAXRI_LOG_DIRECTORY'),
     'extension-host',
-    'info',
+    resolveLogLevel({ environment: process.env, fallback: 'info' }),
     { bootId, buildId, serverId },
 );
 const processManifest = new ObservationProcessManifestPublisher({

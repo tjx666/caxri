@@ -9,7 +9,6 @@ import type {
 } from '@caxri/protocol';
 import { agentProviderCatalog, assertNever } from '@caxri/protocol';
 import { isEqual } from 'es-toolkit';
-import { create } from 'zustand';
 
 import {
     mergeExternalEditorTabs,
@@ -24,6 +23,7 @@ import {
     showWorkbenchRootCandidate,
 } from '../features/workbench/workbench-root-prompt-store';
 import { caxri } from '../lib/caxri';
+import { createStore } from '../lib/store';
 import { reportAutomaticNamingNotices } from './automatic-naming-notice';
 import { openSettings } from './dialogs';
 import { recordNotification, syncNotificationSettings } from './notifications';
@@ -112,7 +112,7 @@ function sessionPatchKey(state: Pick<SessionState, 'sessionId' | 'workbenchProje
     return `${state.sessionId}\0${state.workbenchProjectId}`;
 }
 
-export const useWorkbenchStore = create<WorkbenchState>((set, get) => ({
+export const useWorkbenchStore = createStore<WorkbenchState>('workbench', (set, get) => ({
     bootstrap: undefined,
     attachEpoch: 0,
     isFullScreen: false,

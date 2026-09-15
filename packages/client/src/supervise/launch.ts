@@ -3,7 +3,13 @@ import { mkdir } from 'node:fs/promises';
 import process from 'node:process';
 
 import type { AgentProvider } from '@caxri/protocol';
-import { agentProviderIds, CaxriError } from '@caxri/protocol';
+import {
+    agentProviderIds,
+    CaxriError,
+    INSPECT_ENVIRONMENT_KEY,
+    inspectExecArgv,
+    LOG_LEVEL_ENVIRONMENT_KEY,
+} from '@caxri/protocol';
 
 import { resolveServerArtifact } from './artifact.js';
 
@@ -27,6 +33,13 @@ const LAUNCH_ENVIRONMENT_KEYS = [
     'XDG_CONFIG_HOME',
     'XDG_CACHE_HOME',
     'XDG_DATA_HOME',
+    /**
+     * Debugging controls the launcher must hand down, or the Hosts would silently keep their shipped defaults while the
+     * operator believes the export took effect. `CAXRI_INSPECT` continues from Server Core to the Extension and
+     * Terminal Hosts, which compute their own inspector ports from it.
+     */
+    LOG_LEVEL_ENVIRONMENT_KEY,
+    INSPECT_ENVIRONMENT_KEY,
     ...agentProviderIds.flatMap((provider) => AGENT_LAUNCH_ENVIRONMENT_KEYS[provider]),
 ] as const;
 
@@ -55,15 +68,21 @@ export async function launchServer(
 ): Promise<ServerLaunchReceipt> {
     await mkdir(userDataPath, { recursive: true });
     const artifact = await resolveServerArtifact(options.artifactRoot);
+    /**
+     * Resolved before the spawn because the inspector flag and the child's environment must agree on one answer: the
+     * allow-list decides whether `CAXRI_INSPECT` survives into the child at all, and that same value decides whether
+     * this Server Core gets an inspector port.
+     */
+    const environment = {
+        ...safeLaunchEnvironment(options.environment),
+        CAXRI_USER_DATA_PATH: userDataPath,
+    };
     return new Promise<ServerLaunchReceipt>((resolve, reject) => {
-        const child = spawn(artifact.executablePath, [artifact.entryPath], {
-            detached: true,
-            env: {
-                ...safeLaunchEnvironment(options.environment),
-                CAXRI_USER_DATA_PATH: userDataPath,
-            },
-            stdio: 'ignore',
-        });
+        const child = spawn(
+            artifact.executablePath,
+            [...inspectExecArgv('server-core', environment), artifact.entryPath],
+            { detached: true, env: environment, stdio: 'ignore' },
+        );
         child.once('error', () =>
             reject(new CaxriError('UNAVAILABLE', 'Caxri Host process failed to launch')),
         );

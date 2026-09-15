@@ -2,10 +2,10 @@ import type { ViewContainerId } from '@caxri/protocol';
 import type { EditorDocument, SessionDocuments } from '@desktop-shared/editor-state';
 import { setSessionDocument } from '@desktop-shared/editor-state';
 import { omit, omitBy } from 'es-toolkit';
-import { create } from 'zustand';
 
 import { dropExternalEditorSessions } from '../features/editor/external-editor-state';
 import { isPathAtOrBelow, remapPath } from '../lib/file-path';
+import { createStore } from '../lib/store';
 import { getBootstrap, getSessionState } from './selectors';
 import { patchSessionState } from './workbench';
 
@@ -190,7 +190,7 @@ function withDocuments(
     );
 }
 
-export const useSessionViewStore = create<SessionViewState>((set, get) => ({
+export const useSessionViewStore = createStore<SessionViewState>('session-view', (set, get) => ({
     documents: {},
     recentDocuments: {},
 

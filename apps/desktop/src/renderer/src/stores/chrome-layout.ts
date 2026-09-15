@@ -3,9 +3,9 @@ import { useEffect } from 'react';
 import type { ViewContainerId } from '@caxri/protocol';
 import { viewContainerIdSchema } from '@caxri/protocol';
 import { clamp } from 'es-toolkit';
-import { create } from 'zustand';
 
 import { readLocalStorageJson, writeLocalStorageJson } from '../lib/local-storage';
+import { createStore } from '../lib/store';
 
 /**
  * Renderer-local chrome layout: PrimarySidebar/SecondarySidebar widths, Panel height, their visibility, and the Panel's
@@ -238,7 +238,7 @@ function pickLayout(state: ChromeLayout): ChromeLayout {
     };
 }
 
-export const useChromeLayoutStore = create<ChromeLayoutState>((set, get) => ({
+export const useChromeLayoutStore = createStore<ChromeLayoutState>('chrome-layout', (set, get) => ({
     ...readPersistedLayout(),
     setPrimarySidebarWidth(width) {
         const primarySidebarWidth = clampWidth(

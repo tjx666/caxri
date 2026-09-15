@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { createStore } from '../../../lib/store';
 
 export interface FileClipboardEntry {
     mode: 'copy' | 'cut';
@@ -15,7 +15,7 @@ interface FileClipboardState {
 /**
  * Application-local clipboard; filesystem authority is rechecked by Server on every paste.
  */
-export const useFileClipboardStore = create<FileClipboardState>((set) => ({
+export const useFileClipboardStore = createStore<FileClipboardState>('file-clipboard', (set) => ({
     clear: () => set({ entry: undefined }),
     set: (entry) => set({ entry }),
 }));

@@ -19,6 +19,7 @@ import {
     isTransientServerEvent,
     projectObservableEventRecovery,
     protocolFeatures,
+    resolveLogLevel,
 } from '@caxri/protocol';
 import { logEventCatalog, startEventLoopMonitor, StructuredLogger } from '@caxri/system';
 
@@ -65,7 +66,11 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
     const startedAt = Date.now();
     const logger =
         options.logger ??
-        new StructuredLogger(join(options.userDataPath, 'logs'), 'server-core', 'info');
+        new StructuredLogger(
+            join(options.userDataPath, 'logs'),
+            'server-core',
+            resolveLogLevel({ environment: process.env, fallback: 'info' }),
+        );
     const stopEventLoopMonitor = startEventLoopMonitor(logger);
     const lease = await acquireServerProfile({
         startedAt,

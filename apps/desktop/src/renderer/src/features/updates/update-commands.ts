@@ -1,7 +1,7 @@
 import type { UpdateState } from '@caxri/protocol';
-import { create } from 'zustand';
 
 import { caxri } from '../../lib/caxri';
+import { createStore } from '../../lib/store';
 import { tryCommand } from '../../stores/toasts';
 
 interface UpdateStoreState {
@@ -11,7 +11,7 @@ interface UpdateStoreState {
     setState(state: UpdateState): void;
 }
 
-export const useUpdateStore = create<UpdateStoreState>((set) => ({
+export const useUpdateStore = createStore<UpdateStoreState>('update', (set) => ({
     open: false,
     state: undefined,
     setOpen: (isOpen) => set({ open: isOpen }),

@@ -1,7 +1,7 @@
 import type { SessionRecord } from '@caxri/protocol';
-import { create } from 'zustand';
 
 import type { SessionMruShortcutInvocation } from '../../commands/registry';
+import { createStore } from '../../lib/store';
 
 const SWITCHER_REVEAL_DELAY_MS = 120;
 
@@ -89,71 +89,75 @@ const closedState = {
     triggerCode: undefined,
 };
 
-export const useSessionMruSwitcherStore = create<SessionMruSwitcherState>((set, get) => {
-    let revealTimer: ReturnType<typeof setTimeout> | undefined;
-    const clearRevealTimer = (): void => {
-        if (revealTimer !== undefined) clearTimeout(revealTimer);
-        revealTimer = undefined;
-    };
+export const useSessionMruSwitcherStore = createStore<SessionMruSwitcherState>(
+    'session-mru-switcher',
+    (set, get) => {
+        let revealTimer: ReturnType<typeof setTimeout> | undefined;
+        const clearRevealTimer = (): void => {
+            if (revealTimer !== undefined) clearTimeout(revealTimer);
+            revealTimer = undefined;
+        };
 
-    return {
-        ...closedState,
-        beginOrCycle: (candidateIds, invocation) => {
-            if (get().isOpen) {
-                get().cycle(invocation?.direction ?? 1);
+        return {
+            ...closedState,
+            beginOrCycle: (candidateIds, invocation) => {
+                if (get().isOpen) {
+                    get().cycle(invocation?.direction ?? 1);
+                    return;
+                }
+                if (candidateIds.length === 0) return;
+                if (!invocation) return candidateIds[0];
+                const selectedIndex = invocation.direction === -1 ? candidateIds.length - 1 : 0;
+                if (invocation.heldModifiers.length === 0) return candidateIds[selectedIndex];
+                clearRevealTimer();
+                set({
+                    candidateIds,
+                    heldModifiers: invocation.heldModifiers,
+                    isOpen: true,
+                    isVisible: false,
+                    selectedIndex,
+                    triggerCode: invocation.triggerCode,
+                });
+                revealTimer = setTimeout(() => {
+                    revealTimer = undefined;
+                    if (get().isOpen) set({ isVisible: true });
+                }, SWITCHER_REVEAL_DELAY_MS);
                 return;
-            }
-            if (candidateIds.length === 0) return;
-            if (!invocation) return candidateIds[0];
-            const selectedIndex = invocation.direction === -1 ? candidateIds.length - 1 : 0;
-            if (invocation.heldModifiers.length === 0) return candidateIds[selectedIndex];
-            clearRevealTimer();
-            set({
-                candidateIds,
-                heldModifiers: invocation.heldModifiers,
-                isOpen: true,
-                isVisible: false,
-                selectedIndex,
-                triggerCode: invocation.triggerCode,
-            });
-            revealTimer = setTimeout(() => {
-                revealTimer = undefined;
-                if (get().isOpen) set({ isVisible: true });
-            }, SWITCHER_REVEAL_DELAY_MS);
-            return;
-        },
-        cancel: () => {
-            clearRevealTimer();
-            set(closedState);
-        },
-        commit: (availableCandidateIds) => {
-            const state = get();
-            const candidates = availableCandidateIds ?? state.candidateIds;
-            const selectedIndex = Math.min(state.selectedIndex, candidates.length - 1);
-            const sessionId = state.isOpen ? candidates.at(selectedIndex) : undefined;
-            clearRevealTimer();
-            set(closedState);
-            return sessionId;
-        },
-        cycle: (delta) =>
-            set((state) => {
-                if (!state.isOpen || state.candidateIds.length === 0) return state;
-                return {
-                    selectedIndex:
-                        (state.selectedIndex + delta + state.candidateIds.length) %
-                        state.candidateIds.length,
-                };
-            }),
-        /**
-         * Pointer-driven highlight. The index addresses the rendered candidate list, which `resolveSessionMruView`
-         * derives from `candidateIds` with the same archived filter `commit` applies, so a hovered row commits to the
-         * Session the user actually pointed at. Out-of-range indexes are ignored rather than clamped: a stale row under
-         * the cursor must never silently retarget the keyboard selection.
-         */
-        select: (index) =>
-            set((state) => {
-                if (!state.isOpen || index < 0 || index >= state.candidateIds.length) return state;
-                return { selectedIndex: index };
-            }),
-    };
-});
+            },
+            cancel: () => {
+                clearRevealTimer();
+                set(closedState);
+            },
+            commit: (availableCandidateIds) => {
+                const state = get();
+                const candidates = availableCandidateIds ?? state.candidateIds;
+                const selectedIndex = Math.min(state.selectedIndex, candidates.length - 1);
+                const sessionId = state.isOpen ? candidates.at(selectedIndex) : undefined;
+                clearRevealTimer();
+                set(closedState);
+                return sessionId;
+            },
+            cycle: (delta) =>
+                set((state) => {
+                    if (!state.isOpen || state.candidateIds.length === 0) return state;
+                    return {
+                        selectedIndex:
+                            (state.selectedIndex + delta + state.candidateIds.length) %
+                            state.candidateIds.length,
+                    };
+                }),
+            /**
+             * Pointer-driven highlight. The index addresses the rendered candidate list, which `resolveSessionMruView`
+             * derives from `candidateIds` with the same archived filter `commit` applies, so a hovered row commits to
+             * the Session the user actually pointed at. Out-of-range indexes are ignored rather than clamped: a stale
+             * row under the cursor must never silently retarget the keyboard selection.
+             */
+            select: (index) =>
+                set((state) => {
+                    if (!state.isOpen || index < 0 || index >= state.candidateIds.length)
+                        return state;
+                    return { selectedIndex: index };
+                }),
+        };
+    },
+);

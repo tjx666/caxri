@@ -1,12 +1,12 @@
 import type { Keybinding } from '@caxri/protocol';
 import { commandDefinitions } from '@caxri/protocol';
-import { create } from 'zustand';
 
 import {
     buildShortcutMap,
     keyboardEventShortcut,
     resolveShortcutBinding,
 } from '../../lib/keybindings';
+import { createStore } from '../../lib/store';
 import { pushToast } from '../../stores/toasts';
 
 export interface ScreencastKeyboardInput {
@@ -89,7 +89,7 @@ interface ScreencastState {
 /**
  * Window-local by design: this store has no persistence or Server synchronization.
  */
-export const useScreencastStore = create<ScreencastState>((set) => ({
+export const useScreencastStore = createStore<ScreencastState>('screencast', (set) => ({
     enabled: false,
     toggle: () => set((state) => ({ enabled: !state.enabled })),
 }));

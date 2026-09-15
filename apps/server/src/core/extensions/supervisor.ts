@@ -13,7 +13,9 @@ import {
     extensionViewChangeSchema,
     extensionViewEventContextSchema,
     extensionViewEventIdSchema,
+    inspectExecArgv,
     isNonExpiringViewOperation,
+    logLevelEnvironment,
     MAX_VIEW_TREE_ITEMS,
     MAX_VIEW_TREE_PAYLOAD_BYTES,
     treeItemSchema,
@@ -445,9 +447,11 @@ export class ExtensionHostSupervisor extends EventTarget {
             };
         });
         const child = fork(this.options.extensionHostPath, [], {
+            execArgv: [...process.execArgv, ...inspectExecArgv('extension-host', process.env)],
             execPath: this.options.executable ?? process.execPath,
             env: {
                 ...safeProcessEnvironment(),
+                ...logLevelEnvironment(process.env),
                 CAXRI_APP_VERSION: this.options.appVersion,
                 CAXRI_BUILD_ID: this.options.buildId,
                 CAXRI_GIT_COMMIT: this.options.commit,
