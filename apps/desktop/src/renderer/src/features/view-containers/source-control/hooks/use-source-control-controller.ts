@@ -40,6 +40,17 @@ import { useSourceControlNavigation } from './use-source-control-navigation';
 
 type SourceControlMode = SourceControlViewModel['modes'][number];
 
+/**
+ * Why a revision-bound action is refused mid-refresh.
+ *
+ * The panel stays fully interactive while Git re-reads the working tree, so the refusal has to happen at execution time
+ * and has to say why — a click that silently does nothing reads as a broken button. Renderer-owned rather than a
+ * `presentation` field because every field of `controlledViewPresentationSchema` is required, so adding one would break
+ * every provider that already ships a presentation.
+ */
+const REFRESHING_ACTION_MESSAGE =
+    'Source Control is refreshing. Try that action again in a moment.';
+
 function applyActionEffect(
     effect: SourceControlActionEffect,
     focusProvider: (targetId: string) => void,
@@ -285,7 +296,11 @@ export function useSourceControlController(
     );
     const runAction = useCallback(
         async (action: SourceControlAction): Promise<void> => {
-            if (action.disabled || snapshot.isFetching || !snapshot.data) return;
+            if (action.disabled || !snapshot.data) return;
+            if (snapshot.isFetching) {
+                pushToast('warning', REFRESHING_ACTION_MESSAGE);
+                return;
+            }
             const revision = snapshot.data.revision;
             const result = await tryCommand(
                 action.errorMessage ??

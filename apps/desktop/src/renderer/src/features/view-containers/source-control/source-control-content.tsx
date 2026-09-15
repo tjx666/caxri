@@ -1,4 +1,4 @@
-import type { KeyboardEvent } from 'react';
+import type { FocusEvent, KeyboardEvent } from 'react';
 import { useLayoutEffect, useRef, useState } from 'react';
 
 import { FolderGit2, GitBranch, TriangleAlert } from 'lucide-react';
@@ -11,19 +11,30 @@ import {
     focusFirstChildTreeItem,
     focusParentTreeItem,
     focusTreeItemEdge,
+    NAVIGABLE_TREE_ITEM_SELECTOR,
     treeNavigationAction,
 } from '../resource-explorer/file-tree-navigation';
 import type { SourceControlController } from './hooks/use-source-control-controller';
 import { SourceControlHeader } from './source-control-header';
 import { SourceControlHistory } from './source-control-history';
 import { SourceControlProviderSection } from './source-control-provider-section';
-import { SourceControlTreeFocusProvider } from './source-control-tree-row';
+import {
+    isTextEntryElement,
+    resolveActiveTreeRowId,
+    shouldTreeClaimKeyInTextField,
+    SourceControlTreeFocusProvider,
+} from './source-control-tree-focus';
 
 export function SourceControlContent({ controller }: { controller: SourceControlController }) {
     return (
         <div
             className="secondary-sidebar-content git-panel flex min-h-0 flex-1 flex-col overflow-hidden"
-            aria-busy={controller.isRefreshing || controller.status === 'loading' || undefined}
+            /*
+             * Once a model is mounted the tree carries `aria-busy` itself, because the tree is the widget a background
+             * refresh updates. Before that there is no tree, so the panel carries it. Exactly one element is busy at a
+             * time, and neither of them stops taking input while it is.
+             */
+            aria-busy={(controller.status !== 'ready' && controller.isRefreshing) || undefined}
         >
             <SourceControlHeader controller={controller} />
             {controller.status === 'ready' ? (
@@ -97,6 +108,8 @@ function handleTreeKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
     if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
+    // The commit path filter is a text field inside a row; its editing keys outrank the tree's navigation keys.
+    if (isTextEntryElement(target) && !shouldTreeClaimKeyInTextField(event.key)) return;
     const row = target.closest<HTMLElement>('[role="treeitem"]');
     if (!row || row.closest('[role="tree"]') !== event.currentTarget) return;
     const isExpandable = row.hasAttribute('aria-expanded');
@@ -138,23 +151,62 @@ function SourceControlReadyContent({
     controller: Extract<SourceControlController, { status: 'ready' }>;
 }) {
     const treeReference = useRef<HTMLDivElement>(null);
-    const [activeRowId, setActiveRowId] = useState<string | undefined>(
-        () => controller.model.providers[0] && `provider:${controller.model.providers[0].id}`,
-    );
+    const [activeRowId, setActiveRowId] = useState<string>();
     useLayoutEffect(() => {
-        const rows = treeReference.current?.querySelectorAll<HTMLElement>('[role="treeitem"]');
-        if (!rows?.length) return;
-        if ([...rows].some((row) => row.dataset.rowId === activeRowId)) return;
-        setActiveRowId(rows[0].dataset.rowId);
-    }, [activeRowId, controller.model]);
+        const tree = treeReference.current;
+        if (!tree) return;
+        const reconcile = (): void => {
+            const rowIds = [...tree.querySelectorAll<HTMLElement>(NAVIGABLE_TREE_ITEM_SELECTOR)]
+                .map((row) => row.dataset.rowId)
+                .filter((rowId): rowId is string => rowId !== undefined);
+            setActiveRowId((current) => resolveActiveTreeRowId(rowIds, current));
+        };
+        reconcile();
+        /*
+         * Rows arrive from sections this component does not own and cannot depend on: File History and each
+         * repository's `Commits` fetch their own pages, and a disclosure can drop the row that currently holds the
+         * Tab stop. A dependency list built from this component's props never sees either, which would leave the
+         * tree with zero tabbable rows. Observing the subtree is what keeps the single Tab stop on a rendered row.
+         */
+        const observer = new MutationObserver(reconcile);
+        // `disabled` is watched too: a commit row the current revision invalidated stops being focusable without the
+        // row itself being added or removed, and the Tab stop must move off it.
+        observer.observe(tree, {
+            attributeFilter: ['disabled'],
+            attributes: true,
+            childList: true,
+            subtree: true,
+        });
+        return () => observer.disconnect();
+    }, []);
+    /**
+     * Focusing the tree container itself — which is how a view hands focus over from the chrome that opened it, and
+     * what a click on the empty area below the last row does — lands on the row that owns the Tab stop instead of
+     * parking focus on a container the arrow keys cannot move.
+     */
+    const forwardFocusToActiveRow = (event: FocusEvent<HTMLDivElement>): void => {
+        if (event.target !== event.currentTarget) return;
+        const tree = event.currentTarget;
+        const rows = [...tree.querySelectorAll<HTMLElement>(NAVIGABLE_TREE_ITEM_SELECTOR)];
+        const active = rows.find((row) => row.dataset.rowId === activeRowId) ?? rows.at(0);
+        active?.focus();
+    };
     return (
         <SourceControlTreeFocusProvider activeRowId={activeRowId} focusRow={setActiveRowId}>
             <div
                 ref={treeReference}
-                className="git-repositories min-h-0 flex-1 overflow-auto border-b border-border"
+                className="git-repositories min-h-0 flex-1 overflow-auto border-b border-border outline-none"
                 aria-label={controller.model.accessibilityLabel}
-                inert={controller.isRefreshing}
+                /*
+                 * A background refresh announces itself and never blocks input. `inert` used to sit here, which
+                 * dropped focus to `<body>`, lost the roving position, and made arrow navigation skip the whole tree
+                 * several times a minute; VS Code's SCM view blocks nothing while `git status` re-runs. A
+                 * revision-bound action is refused at execution time instead (`use-source-control-controller.ts`).
+                 */
+                aria-busy={controller.isRefreshing || undefined}
                 role="tree"
+                tabIndex={-1}
+                onFocus={forwardFocusToActiveRow}
                 onKeyDown={handleTreeKeyDown}
             >
                 {controller.model.fileHistory && (
@@ -169,6 +221,8 @@ function SourceControlReadyContent({
                             controller.model.fileHistory.history.id,
                             controller.model.fileHistory.path ?? null,
                         ])}
+                        level={1}
+                        rowIdPrefix="file-history"
                         runAction={controller.runAction}
                         scope={{ kind: 'file', ...controller.model.fileHistory }}
                     />

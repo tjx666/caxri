@@ -90,13 +90,13 @@ test('Git repositories lazy-load pageable commits and subtree history', async ()
             });
         expect(countsFit).toBe(true);
 
-        await primary.getByRole('button', { name: /Commits/ }).click();
+        await primary.getByRole('treeitem', { name: /Commits/ }).click();
         await expect(primary.locator('.commit-row')).toHaveCount(5);
         await expect(primary.locator('.commit-row').first()).toContainText('latest scoped commit');
         await expect(primary.locator('.commit-row').first()).toContainText('Caxri Test');
         await expect(primary.locator('.commit-row').first()).toContainText('HEAD -> main');
-        await expect(primary.getByRole('button', { name: 'Load more' })).toBeVisible();
-        await primary.getByRole('button', { name: 'Load more' }).click();
+        await expect(primary.getByRole('treeitem', { name: 'Load more' })).toBeVisible();
+        await primary.getByRole('treeitem', { name: 'Load more' }).click();
         await expect(primary.locator('.commit-row')).toHaveCount(7);
 
         await primary.locator('.commit-row').first().click();
@@ -127,7 +127,7 @@ test('Git repositories lazy-load pageable commits and subtree history', async ()
         ).toBeVisible();
         await expect(primary.locator('.commit-row').filter({ hasText: 'commit 1' })).toBeVisible();
 
-        await nestedSection.getByRole('button', { name: /Commits/ }).click();
+        await nestedSection.getByRole('treeitem', { name: /Commits/ }).click();
         await expect(nestedSection.locator('.commit-row')).toHaveCount(1);
         await expect(nestedSection.locator('.commit-row')).toContainText('nested commit');
         await expect(primary.locator('.commit-row')).toHaveCount(2);
@@ -184,12 +184,12 @@ test('File History follows the active editor and opens a committed file diff', a
         await expect(repositories.locator(':scope > section').first()).toHaveClass(
             /file-history-section/,
         );
-        await expect(fileHistory.getByRole('button', { name: /File History/ })).toContainText(
+        await expect(fileHistory.getByRole('treeitem', { name: /File History/ })).toContainText(
             'empty',
         );
         await expect(fileHistory.locator('.commit-row')).toHaveCount(0);
 
-        await fileHistory.getByRole('button', { name: /File History/ }).click();
+        await fileHistory.getByRole('treeitem', { name: /File History/ }).click();
         await expect(fileHistory.locator('.commit-row')).toHaveCount(2);
         await expect(fileHistory.locator('.commit-row').first()).toContainText(
             'update tracked file',
@@ -198,7 +198,7 @@ test('File History follows the active editor and opens a committed file diff', a
         await nestedTab.click();
         const nestedFileHistory = repositories.locator(':scope > .file-history-section');
         await expect(
-            nestedFileHistory.getByRole('button', { name: 'File History: src/nested.txt' }),
+            nestedFileHistory.getByRole('treeitem', { name: 'File History: src/nested.txt' }),
         ).toHaveAttribute('aria-expanded', 'true');
         await expect(nestedFileHistory.locator('.commit-row')).toHaveCount(2);
         await expect(nestedFileHistory.locator('.commit-row').first()).toContainText(
@@ -209,7 +209,7 @@ test('File History follows the active editor and opens a committed file diff', a
         await rootFileTab.click();
         const rootFileHistory = repositories.locator(':scope > .file-history-section');
         await expect(
-            rootFileHistory.getByRole('button', { name: 'File History: empty' }),
+            rootFileHistory.getByRole('treeitem', { name: 'File History: empty' }),
         ).toHaveAttribute('aria-expanded', 'true');
         await expect(rootFileHistory.locator('.commit-row').first()).toContainText(
             'update tracked file',
@@ -224,7 +224,7 @@ test('File History follows the active editor and opens a committed file diff', a
 
         await rootFileTab.click();
         await expect(
-            repositories.getByRole('button', { name: 'File History: empty' }),
+            repositories.getByRole('treeitem', { name: 'File History: empty' }),
         ).toHaveAttribute('aria-expanded', 'true');
     } finally {
         try {

@@ -1,7 +1,5 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
-import { createContext, useContext, useMemo, useState } from 'react';
-
-import type { SourceControlAction } from '@caxri/protocol';
+import type { ButtonHTMLAttributes } from 'react';
+import { useState } from 'react';
 
 import {
     ContextMenu,
@@ -10,41 +8,32 @@ import {
     ContextMenuTrigger,
 } from '../../../components/ui/context-menu';
 import { cn } from '../../../lib/utilities';
+import type { SourceControlRowMenuItem } from './source-control-row-menu';
+import { treeRowTabIndex, useSourceControlTreeFocus } from './source-control-tree-focus';
 
-interface TreeFocusContextValue {
-    activeRowId: string | undefined;
-    focusRow: (rowId: string) => void;
-}
-
-const TreeFocusContext = createContext<TreeFocusContextValue | undefined>(undefined);
-
-export function SourceControlTreeFocusProvider({
-    activeRowId,
-    children,
-    focusRow,
-}: TreeFocusContextValue & { children: ReactNode }) {
-    const value = useMemo(() => ({ activeRowId, focusRow }), [activeRowId, focusRow]);
-    return <TreeFocusContext.Provider value={value}>{children}</TreeFocusContext.Provider>;
-}
-
+/**
+ * One `treeitem` of the Source Control tree: a row that participates in the single roving tabindex, in arrow-key
+ * navigation, and — when it has actions — in `Shift+F10`.
+ *
+ * Every focusable row in the panel goes through here. Commit rows, `Load more`, and the File History and `Commits`
+ * headers used to be plain buttons, which put a Tab stop on each one and left those sections unreachable by the arrow
+ * keys, because arrow navigation only walks `[role="treeitem"]`.
+ */
 export function SourceControlTreeRow({
     children,
     level,
-    menuActions,
+    menuItems,
     onFocus,
     onKeyDown,
-    onMenuAction,
     rowId,
     ...properties
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
     level: number;
-    menuActions?: readonly SourceControlAction[];
-    onMenuAction?: (action: SourceControlAction) => void;
+    menuItems?: readonly SourceControlRowMenuItem[];
     rowId: string;
 }) {
-    const focus = useContext(TreeFocusContext);
+    const focus = useSourceControlTreeFocus();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
-    if (!focus) throw new Error('Source Control tree row has no focus owner');
     const row = (
         <button
             {...properties}
@@ -53,10 +42,10 @@ export function SourceControlTreeRow({
                 properties.className,
             )}
             aria-level={level}
-            aria-description={menuActions?.length ? 'Press Shift+F10 for actions' : undefined}
+            aria-description={menuItems?.length ? 'Press Shift+F10 for actions' : undefined}
             data-row-id={rowId}
             role="treeitem"
-            tabIndex={focus.activeRowId === rowId ? 0 : -1}
+            tabIndex={treeRowTabIndex(focus.activeRowId, rowId)}
             type="button"
             onFocus={(event) => {
                 focus.focusRow(rowId);
@@ -64,7 +53,7 @@ export function SourceControlTreeRow({
             }}
             onKeyDown={(event) => {
                 onKeyDown?.(event);
-                if (!onMenuAction || !menuActions?.length || event.defaultPrevented) return;
+                if (!menuItems?.length || event.defaultPrevented) return;
                 if (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)) {
                     event.preventDefault();
                     setIsMenuOpen(true);
@@ -74,18 +63,14 @@ export function SourceControlTreeRow({
             {children}
         </button>
     );
-    if (!onMenuAction || !menuActions?.length) return row;
+    if (!menuItems?.length) return row;
     return (
         <ContextMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
             <ContextMenuTrigger render={row} />
             <ContextMenuContent>
-                {menuActions.map((action) => (
-                    <ContextMenuItem
-                        key={action.id}
-                        disabled={action.disabled}
-                        onClick={() => onMenuAction(action)}
-                    >
-                        {action.label}
+                {menuItems.map((item) => (
+                    <ContextMenuItem key={item.id} disabled={item.disabled} onClick={item.run}>
+                        {item.label}
                     </ContextMenuItem>
                 ))}
             </ContextMenuContent>

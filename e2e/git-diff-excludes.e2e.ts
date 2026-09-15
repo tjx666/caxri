@@ -41,7 +41,7 @@ test('Git diff exclusions hide changes, reveal on demand, and refresh from Setti
         await expect(excludedFile).toHaveCount(0);
         await expect(showExcluded).toHaveAccessibleName(/^Show excluded files \(1\)$/);
         await gitPanel.screenshot({ path: testInfo.outputPath('git-diff-excluded-files.png') });
-        const commits = repo.getByRole('button', { name: /Commits/ });
+        const commits = repo.getByRole('treeitem', { name: /Commits/ });
         await commits.click();
         await repo.locator('.commit-row').first().click();
         const historyDetails = repo.locator('.commit-details');

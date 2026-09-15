@@ -4,15 +4,12 @@ import type {
     SourceControlHistoryDescriptor,
 } from '@caxri/protocol';
 import { relativeTime } from '@caxri/utils';
-import { ChevronDown, ChevronRight, X } from 'lucide-react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 
 import { useNow } from '@/hooks/use-now';
 
 import { DisclosureMotion } from '../../../components/disclosure-motion';
-import { Button } from '../../../components/ui/button';
-import { Input, InputGroup } from '../../../components/ui/input';
 import { Spinner } from '../../../components/ui/spinner';
-import { Tooltip } from '../../../components/ui/tooltip';
 import { cn } from '../../../lib/utilities';
 import { executeViewCatalogShortcut } from '../view-container-commands';
 import type { SourceControlHistoryExpansion } from './hooks/use-source-control-history';
@@ -20,23 +17,40 @@ import { useSourceControlHistory } from './hooks/use-source-control-history';
 import { SourceControlHistoryAvatar } from './source-control-history-avatar';
 import { SourceControlHistoryDetails } from './source-control-history-details';
 import { SourceControlHistoryHoverCard } from './source-control-history-hover-card';
+import { SourceControlHistoryPathFilter } from './source-control-history-path-filter';
 import { SourceControlIcon } from './source-control-icon';
+import { SourceControlTreeRow } from './source-control-tree-row';
 
 type FileHistoryScope = Pick<
     SourceControlFileHistory,
     'description' | 'emptyMessage' | 'label' | 'path' | 'tooltip'
 > & { kind: 'file' };
 
+/**
+ * A commit-history disclosure inside the Source Control `role="tree"`.
+ *
+ * Every row it renders is a real `treeitem` in the tree's single roving tabindex — the section header, each commit, the
+ * path filter, and `Load more`. They used to be plain buttons, which put a Tab stop on every commit and left the
+ * section itself unreachable by arrow keys.
+ *
+ * `level` is the `aria-level` of the section header; its rows sit one level deeper, and a commit's changed files one
+ * deeper again. `rowIdPrefix` namespaces this section's row ids: File History and a repository's `Commits` share one
+ * `descriptor.id` (the repository id), so the prefix is what keeps their rows distinct.
+ */
 export function SourceControlHistory({
     descriptor,
     enabled = true,
     expansion,
+    level,
+    rowIdPrefix,
     runAction,
     scope,
 }: {
     descriptor: SourceControlHistoryDescriptor;
     enabled?: boolean;
     expansion?: SourceControlHistoryExpansion;
+    level: number;
+    rowIdPrefix: string;
     runAction: (action: SourceControlAction) => void;
     scope?: FileHistoryScope;
 }) {
@@ -78,8 +92,9 @@ export function SourceControlHistory({
             )}
         >
             {scope ? (
-                <button
-                    type="button"
+                <SourceControlTreeRow
+                    rowId={`${rowIdPrefix}:header`}
+                    level={level}
                     className="file-history-row flex w-full cursor-pointer items-center gap-2 overflow-hidden border-0 bg-transparent p-2 text-left text-foreground hover:bg-elevated"
                     aria-label={scope.tooltip ? `${scope.label}: ${scope.tooltip}` : scope.label}
                     aria-expanded={expanded}
@@ -98,10 +113,11 @@ export function SourceControlHistory({
                             {scope.description}
                         </span>
                     )}
-                </button>
+                </SourceControlTreeRow>
             ) : (
-                <button
-                    type="button"
+                <SourceControlTreeRow
+                    rowId={`${rowIdPrefix}:header`}
+                    level={level}
                     className="flex h-7 w-full cursor-pointer items-center gap-1 border-0 bg-transparent px-2 text-left text-[10px] font-bold tracking-[0.06em] text-muted uppercase hover:text-foreground"
                     aria-expanded={expanded}
                     onClick={toggleExpanded}
@@ -109,37 +125,21 @@ export function SourceControlHistory({
                     {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                     <span className="truncate">{descriptor.label}</span>
                     {expanded && <span className="ml-auto">{items.length}</span>}
-                </button>
+                </SourceControlTreeRow>
             )}
             <DisclosureMotion animate expanded={expanded} kind="git-history">
                 {() => (
                     <div>
                         {!scope && (
-                            <div className="border-y border-border p-1.5">
-                                <InputGroup appearance="workbench" size="dense">
-                                    <Input
-                                        appearance="embedded"
-                                        className="flex-1 text-foreground"
-                                        aria-label={descriptor.pathInputLabel}
-                                        placeholder={descriptor.pathInputPlaceholder}
-                                        size="dense"
-                                        value={path}
-                                        onChange={(event) => setPath(event.currentTarget.value)}
-                                    />
-                                    {path.length > 0 && (
-                                        <Tooltip content={descriptor.clearPathLabel}>
-                                            <button
-                                                type="button"
-                                                className="grid size-5 shrink-0 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 text-muted hover:bg-elevated hover:text-foreground"
-                                                aria-label={descriptor.clearPathLabel}
-                                                onClick={() => setPath('')}
-                                            >
-                                                <X size={12} />
-                                            </button>
-                                        </Tooltip>
-                                    )}
-                                </InputGroup>
-                            </div>
+                            <SourceControlHistoryPathFilter
+                                clearPathLabel={descriptor.clearPathLabel}
+                                inputLabel={descriptor.pathInputLabel}
+                                level={level + 1}
+                                placeholder={descriptor.pathInputPlaceholder}
+                                rowId={`${rowIdPrefix}:path`}
+                                setPath={setPath}
+                                path={path}
+                            />
                         )}
                         {error ? (
                             <div className="px-3 py-2 text-[11px] text-danger">{error}</div>
@@ -163,13 +163,17 @@ export function SourceControlHistory({
                                         now={now}
                                         path={scopePath}
                                         trigger={
-                                            <button
-                                                type="button"
+                                            <SourceControlTreeRow
+                                                rowId={`${rowIdPrefix}:commit:${item.id}`}
+                                                level={level + 1}
                                                 className={cn(
                                                     'commit-row flex w-full cursor-pointer gap-2 border-0 bg-surface px-3 py-1.5 text-left hover:bg-elevated',
                                                     selectedId === item.id && 'bg-elevated',
                                                 )}
                                                 aria-label={`${descriptor.itemAccessibilityLabelPrefix} ${item.label}`}
+                                                {...(descriptor.itemActivation !== 'action' && {
+                                                    'aria-expanded': selectedId === item.id,
+                                                })}
                                                 disabled={
                                                     !areActionsCurrent ||
                                                     (descriptor.itemActivation === 'action' &&
@@ -226,7 +230,7 @@ export function SourceControlHistory({
                                                         </span>
                                                     )}
                                                 </span>
-                                            </button>
+                                            </SourceControlTreeRow>
                                         }
                                     />
                                     {areActionsCurrent &&
@@ -235,7 +239,9 @@ export function SourceControlHistory({
                                             <SourceControlHistoryDetails
                                                 descriptor={descriptor}
                                                 itemId={item.id}
+                                                level={level + 2}
                                                 path={scopePath}
+                                                rowIdPrefix={`${rowIdPrefix}:commit:${item.id}`}
                                                 runAction={runAction}
                                             />
                                         )}
@@ -243,10 +249,10 @@ export function SourceControlHistory({
                             ))
                         )}
                         {nextOffset !== undefined && (
-                            <Button
-                                className="load-more-commits h-7 w-full gap-1.5 rounded-none text-[11px] text-muted hover:text-foreground"
-                                size="sm"
-                                variant="ghost"
+                            <SourceControlTreeRow
+                                rowId={`${rowIdPrefix}:load-more`}
+                                level={level + 1}
+                                className="load-more-commits flex h-7 w-full cursor-pointer items-center justify-center gap-1.5 border-0 bg-transparent text-[11px] text-muted hover:bg-elevated hover:text-foreground disabled:cursor-default disabled:opacity-50"
                                 disabled={
                                     loading ||
                                     !areActionsCurrent ||
@@ -264,7 +270,7 @@ export function SourceControlHistory({
                                 ) : (
                                     descriptor.loadMoreLabel
                                 )}
-                            </Button>
+                            </SourceControlTreeRow>
                         )}
                     </div>
                 )}

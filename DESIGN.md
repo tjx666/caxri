@@ -432,8 +432,10 @@ chrome. This does not govern the Session list's right-edge running spinner.
 **Git decorations** — a file with working-tree changes reads the same wherever its name appears.
 The name takes the `--git-*` color of its change, and a single status letter (`M`, `A`, `D`, `U`…)
 sits at the trailing edge of the row or tab in the same color — the Files tree, the tab strip, and
-the diff headers all render that letter from one component. Source Control still paints its own
-from the Extension API's generic `tone`. The staged column
+the diff headers all render that letter from one component. Source Control resolves the same roles
+from the same table by reading its decoration's `identifier` back as a change kind; the Extension
+API's generic `tone` survives only as the fallback for a provider that is not Git, because three
+tones cannot hold five roles. The staged column
 wins when both are set, so a file staged as added and then edited reads `A` everywhere. The file
 type icon keeps its own color: it identifies the language, not the change. A directory in the Files
 tree takes the color of the most severe change anywhere beneath it (conflicted, then deleted,
@@ -537,7 +539,21 @@ section caption). One shared `PanelHeader` owns it, so a Project name, `Source C
 `Project Status` read as one system rather than three. The caption title carries no icon — the
 owning tab already shows one two pixels above, and repeating it there is the duplication this rule
 exists to prevent. Trailing toolbar actions may be hover-revealed, but only where the caption row
-has free space; an action that would sit on top of live text takes its own slot instead.
+has free space; an action that would sit on top of live text takes its own slot instead. A
+destructive action is never easier to reach than the narrower action it dwarfs: where a row's own
+`Discard Changes` is hover-revealed, the group's `Discard All Changes` is hover-revealed from the
+same rule, the way VS Code reveals both from one selector (`scm.css`, `.resource-group > .actions`
+beside `.resource … > .actions`).
+
+**Background refresh** — a panel that re-reads its own data never stops taking input while it does.
+The widget being refreshed carries `aria-busy`; `inert` is not a refresh state, because it drops
+focus to `<body>`, loses the roving position, and makes arrow navigation skip the whole widget for
+as long as the read lasts. An action bound to a revision the refresh may invalidate is refused at
+execution time with a readable reason, not disabled in advance — a control that vanishes and
+returns several times a minute is harder to use than one that explains itself once. Inside a
+`role="tree"`, every focusable element is either a real `treeitem` holding that tree's single
+roving Tab stop or lives outside the tree; the one exception is a text field, which a `treeitem`
+may contain but cannot be.
 
 **Content placement** — the SecondarySidebar holds hierarchical, navigable surfaces that read well
 in a narrow vertical rail (Files, Source Control, Project Status). Stream- and record-shaped
