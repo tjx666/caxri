@@ -2,6 +2,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { join, matchesGlob, relative, resolve } from 'node:path';
 
 import { ESLint } from 'eslint';
+import { format, resolveConfig } from 'prettier';
 import { describe, expect, it } from 'vitest';
 
 const root = resolve(import.meta.dirname, '../..');
@@ -60,6 +61,37 @@ describe('shared ESLint preset toolchain contract', () => {
         const ruleIds = result.messages.map((message) => message.ruleId);
 
         expect(ruleIds).toContain('unicorn/filename-case');
+    });
+
+    it('converges with Prettier on a wrapped JSDoc tag description', async () => {
+        // `lint-staged` runs `eslint --fix` before `prettier --write`, so the committed layout of a
+        // multi-line `@returns` description is whatever Prettier leaves behind; ESLint must accept
+        // that layout, or a locally green commit reaches CI carrying a `--max-warnings=0` failure.
+        const path = 'scripts/fixtures/eslint/wrapped-jsdoc-tag.ts';
+        const filePath = resolve(root, path);
+        const source = [
+            '/**',
+            ' * @returns A cancel function to call when the editor unmounts, so a diff the user navigated away from cannot report',
+            ' * a recovery for a surface that no longer exists.',
+            ' */',
+            'export function probe(): () => void {',
+            '    return () => {};',
+            '}',
+            '',
+        ].join('\n');
+        const fixer = new ESLint({ cwd: root, fix: true, ignore: false });
+        const [fixed] = await fixer.lintText(source, { filePath });
+        const prettierOptions = { ...(await resolveConfig(filePath)), filepath: filePath };
+        const formatted = await format(fixed.output ?? source, prettierOptions);
+
+        const [relinted] = await new ESLint({ cwd: root, ignore: false }).lintText(formatted, {
+            filePath,
+        });
+        expect(relinted.messages.map(({ ruleId }) => ruleId)).not.toContain(
+            'jsdoc/check-line-alignment',
+        );
+        // Both tools must agree on one layout: another Prettier pass changes nothing.
+        await expect(format(formatted, prettierOptions)).resolves.toBe(formatted);
     });
 
     it('keeps Caxri-specific boundary rules active on a representative renderer file', async () => {
