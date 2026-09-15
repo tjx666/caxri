@@ -9,8 +9,8 @@ import { logLevelSchema } from '../domain/business-contract.js';
 export const LOG_LEVEL_ENVIRONMENT_KEY = 'CAXRI_LOG_LEVEL';
 
 /**
- * Environment variable that attaches Node's inspector to the Hosts. `1` uses Node's own default base port, any other
- * port number moves the base, and unset or `0` leaves every Host without an inspector — which is the shipped behavior.
+ * Environment variable that moves or disables the Hosts' Node inspector. Unset or `1` uses the default base port, any
+ * other port number moves the base, and `0` turns the inspector off.
  */
 export const INSPECT_ENVIRONMENT_KEY = 'CAXRI_INSPECT';
 
@@ -28,26 +28,23 @@ const INSPECT_PORT_OFFSETS = {
 
 export type InspectableHost = keyof typeof INSPECT_PORT_OFFSETS;
 
-export interface ResolveLogLevelOptions {
-    environment: Record<string, string | undefined>;
-    /**
-     * Level to keep when the environment asks for nothing usable. This stays the process's compiled-in default, so a
-     * packaged build is never noisier than it is today unless an operator opts in.
-     */
-    fallback: LogLevel;
-}
+/**
+ * Level every Caxri process records when nothing asks for another one. `debug` keeps the per-request `ipc.request`
+ * records — the timing and queue-depth detail that a failure report is useless without — and Caxri is built by coding
+ * agents whose only view of a past failure is the log it left behind, so a build that has to be relaunched with an
+ * environment variable before it explains itself costs an entire iteration.
+ */
+const DEFAULT_LOG_LEVEL: LogLevel = 'debug';
 
 /**
- * A packaged build records `info` and above, which silently drops every per-request `ipc.request` record — exactly the
- * timing and queue-depth detail a production-only failure needs. Reading the level from the environment makes that
- * detail recoverable without a rebuild, and an unrecognized value keeps the shipped default, so the extra serialization
- * and log volume are only ever paid by a session that asked for them.
+ * Log level for one process, from the environment. An unrecognized value falls back to {@link DEFAULT_LOG_LEVEL}, so a
+ * typo never silently quiets a log; `CAXRI_LOG_LEVEL=info` (or higher) is how a session opts out of the detail.
  */
-export function resolveLogLevel({ environment, fallback }: ResolveLogLevelOptions): LogLevel {
+export function resolveLogLevel(environment: Record<string, string | undefined>): LogLevel {
     const requested = logLevelSchema.safeParse(
         environment[LOG_LEVEL_ENVIRONMENT_KEY]?.trim().toLowerCase(),
     );
-    return requested.success ? requested.data : fallback;
+    return requested.success ? requested.data : DEFAULT_LOG_LEVEL;
 }
 
 /**
@@ -65,18 +62,24 @@ function resolveInspectBasePort(
     environment: Record<string, string | undefined>,
 ): number | undefined {
     const requested = environment[INSPECT_ENVIRONMENT_KEY]?.trim();
-    if (!requested || requested === '0') return undefined;
-    if (requested === '1') return DEFAULT_INSPECT_BASE_PORT;
+    if (requested === '0') return undefined;
+    if (!requested || requested === '1') return DEFAULT_INSPECT_BASE_PORT;
     const port = Number(requested);
-    return Number.isSafeInteger(port) && port >= 1024 && port <= 65_535 ? port : undefined;
+    return Number.isSafeInteger(port) && port >= 1024 && port <= 65_535
+        ? port
+        : DEFAULT_INSPECT_BASE_PORT;
 }
 
 /**
- * Node inspector argv for one Host, or nothing when no operator asked for one.
+ * Node inspector argv for one Host, unless `CAXRI_INSPECT=0` turned it off.
+ *
+ * On by default because attaching a debugger otherwise costs a full relaunch, and a Host only reproduces the state
+ * worth inspecting after the session that produced it — by the time an agent knows it needs the inspector, the process
+ * it wanted is gone. Node binds the inspector to loopback and does nothing until a client attaches, and a port already
+ * taken by a sibling checkout only logs one line and keeps running, so an always-open port costs nothing until used.
  *
  * Always `--inspect`, never `--inspect-brk`: a Host paused before its first line never answers the readiness handshake
- * its supervisor is waiting on, so the app would look hung rather than debuggable. The inspector keeps Node's default
- * loopback bind, so enabling it never opens a port to the network.
+ * its supervisor is waiting on, so the app would look hung rather than debuggable.
  */
 export function inspectExecArgv(
     host: InspectableHost,

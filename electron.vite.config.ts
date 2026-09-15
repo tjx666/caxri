@@ -14,16 +14,17 @@ import type { PluginOption } from 'vite';
 
 /**
  * Opt-in bundle analysis: `CAXRI_BUNDLE_ANALYZE=1 bun run build:desktop` writes an interactive HTML + JSON report per
- * process (main/preload/renderer) under `.cache/bundle-analysis/`. Sonda needs source maps to attribute minified bytes
- * to packages, so the flag also turns them on.
+ * process (main/preload/renderer) under `.cache/bundle-analysis/`.
  */
 const isBundleAnalysisEnabled = process.env.CAXRI_BUNDLE_ANALYZE === '1';
 /**
- * Opt-in production source maps (`CAXRI_SOURCEMAP=1 bun run build:desktop`). Minified production output is unreadable
- * in DevTools and in a Node inspector session, so a debuggable build emits maps; the shipped build does not, because
- * the maps inline every source file and would add more bytes to the installer than the code they describe.
+ * Source maps ship in every build, including the packaged one. Minified production output is unreadable in DevTools and
+ * in a Node inspector session, and a stack trace that points at `index-a91f.js:1:284713` cannot be acted on, so a build
+ * that cannot explain its own crash costs an agent a full rebuild-and-reproduce cycle. The maps roughly double the
+ * JavaScript payload, which is a deliberate trade: Caxri is distributed to one maintainer and the installer is
+ * dominated by the Electron runtime, not by these bytes.
  */
-const isSourcemapEnabled = isBundleAnalysisEnabled || process.env.CAXRI_SOURCEMAP === '1';
+const IS_SOURCEMAP_ENABLED = true;
 const isReactProfilingEnabled = process.env.CAXRI_REACT_PROFILING === '1';
 /**
  * Opt-in react-scan render counting for development audits (`CAXRI_REACT_SCAN=1`). The boot module must be the first
@@ -88,7 +89,7 @@ export default defineConfig(async ({ command }) => {
                 __CAXRI_COMMIT__: JSON.stringify(gitCommit),
             },
             build: {
-                sourcemap: isSourcemapEnabled,
+                sourcemap: IS_SOURCEMAP_ENABLED,
                 /**
                  * Native modules and the shared `ws` transport stay external and are packaged from `dependencies`;
                  * every other pure-JS dependency lives in `devDependencies` so electron-vite bundles it.
@@ -109,7 +110,7 @@ export default defineConfig(async ({ command }) => {
         },
         preload: {
             build: {
-                sourcemap: isSourcemapEnabled,
+                sourcemap: IS_SOURCEMAP_ENABLED,
                 externalizeDeps: true,
                 // Knip's electron-vite plugin only discovers build entries under `rollupOptions.input`;
                 // renaming to the non-deprecated `rolldownOptions` breaks that discovery and makes knip
@@ -142,7 +143,7 @@ export default defineConfig(async ({ command }) => {
              */
             publicDir: resolve('apps/desktop/node_modules/@yutengjing/vscode-icons/assets'),
             build: {
-                sourcemap: isSourcemapEnabled,
+                sourcemap: IS_SOURCEMAP_ENABLED,
                 // Knip's electron-vite plugin only discovers build entries under `rollupOptions.input`;
                 // renaming to the non-deprecated `rolldownOptions` breaks that discovery and makes knip
                 // report the whole process-explorer entry chain as unused. Keep the deprecated name until

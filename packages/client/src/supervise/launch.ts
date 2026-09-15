@@ -34,9 +34,9 @@ const LAUNCH_ENVIRONMENT_KEYS = [
     'XDG_CACHE_HOME',
     'XDG_DATA_HOME',
     /**
-     * Debugging controls the launcher must hand down, or the Hosts would silently keep their shipped defaults while the
-     * operator believes the export took effect. `CAXRI_INSPECT` continues from Server Core to the Extension and
-     * Terminal Hosts, which compute their own inspector ports from it.
+     * Debugging controls the launcher must hand down, or a Host would keep the defaults (debug logging, an open
+     * inspector port) while the operator believes their narrowing export took effect. `CAXRI_INSPECT` continues from
+     * Server Core to the Extension and Terminal Hosts, which compute their own inspector ports from it.
      */
     LOG_LEVEL_ENVIRONMENT_KEY,
     INSPECT_ENVIRONMENT_KEY,
