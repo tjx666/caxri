@@ -197,6 +197,20 @@ describe('E2E pools', () => {
         });
         expect(crashed.receipt.missingSpecs).toBeUndefined();
 
+        // A census re-run is dispatched as `path:line`; its crash counts like any other child's, and the
+        // line suffix must not make the spec look missing from the merged receipt.
+        const censusCrashed = resolvePoolOutcome(
+            passed,
+            [...invocations, { specs: ['e2e/settings-safe.e2e.ts:12'] }],
+            [0, 0, 1],
+        );
+        expect(censusCrashed.result).toBe(1);
+        expect(censusCrashed.receipt).toMatchObject({
+            abortedInvocations: [{ exitCode: 1, specs: ['e2e/settings-safe.e2e.ts:12'] }],
+            status: 'failed',
+        });
+        expect(censusCrashed.receipt.missingSpecs).toBeUndefined();
+
         const failedReceipt = receipt('parallel-safe', [
             testReceipt('safe', 'fail', 'x'),
             testReceipt('settings-safe'),

@@ -234,15 +234,17 @@ async function runPool(
     );
     const receipt = combinePoolReceipts(pool, receipts);
     const censusReceipts: E2EPoolReceipt[] = [];
+    const censusInvocations: E2EPoolInvocation[] = [];
     const unknownTests = receipt.tests.filter(({ verdict }) => verdict === 'unknown').entries();
     for (const [index, test] of unknownTests) {
         const censusPath = `test-results/receipts/${pool}-census-${index}.json`;
         const file = test.location.replace(/:\d+:\d+$/u, '');
         const location = isAbsolute(file) ? relative(projectRoot, file) : file;
         const line = /:(\d+):\d+$/u.exec(test.location)?.[1];
+        const censusInvocation = { specs: [`${location}:${line ?? '1'}`] };
         // eslint-disable-next-line no-await-in-loop -- sequential Electron desktop invocations only
-        await runInvocation(
-            { specs: [`${location}:${line ?? '1'}`] },
+        const censusCode = await runInvocation(
+            censusInvocation,
             pool,
             1,
             censusPath,
@@ -250,12 +252,16 @@ async function runPool(
             true,
             `census-${index}`,
         );
+        // A census child is held to the same rule as the pool children: a crash after its receipt is written
+        // must not let the receipt's verdicts stand.
+        censusInvocations.push(censusInvocation);
+        exitCodes.push(censusCode);
         // eslint-disable-next-line no-await-in-loop -- reads the receipt just written by the preceding sequential invocation
         censusReceipts.push(JSON.parse(await readFile(censusPath, 'utf8')) as E2EPoolReceipt);
     }
     const outcome = resolvePoolOutcome(
         mergeCensusReceipts(receipt, censusReceipts),
-        invocations,
+        [...invocations, ...censusInvocations],
         exitCodes,
     );
     await writeReceipt(`test-results/receipts/${pool}.json`, outcome.receipt);
