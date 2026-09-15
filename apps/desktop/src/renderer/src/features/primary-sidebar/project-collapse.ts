@@ -103,6 +103,21 @@ export function projectCollapseAfterToggle(
     };
 }
 
+/**
+ * The state after a Project is opened for a reason other than the user clicking its row — revealing a Session a
+ * keyboard command is about to act on, for instance. Recorded as `user-expanded` rather than simply dropped, because a
+ * dropped entry reads as "no opinion" and the next idle auto-collapse pass would close the Project again while the user
+ * is still working inside it. Returns the input untouched when the Project is already open, so a caller can hand the
+ * result straight to a state setter without forcing a render.
+ */
+export function projectCollapseAfterReveal(
+    collapsedProjects: Readonly<ProjectCollapseState>,
+    projectId: string,
+): Readonly<ProjectCollapseState> {
+    if (!isProjectCollapsed(collapsedProjects, projectId)) return collapsedProjects;
+    return { ...collapsedProjects, [projectId]: 'user-expanded' };
+}
+
 interface ProjectCollapseReconciliation {
     collapsedProjects: Readonly<ProjectCollapseState>;
     projects: readonly ProjectRecord[] | undefined;

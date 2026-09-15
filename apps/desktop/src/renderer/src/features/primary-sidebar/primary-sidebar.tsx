@@ -70,7 +70,7 @@ export function PrimarySidebar() {
      */
     const [focusedRowId, setFocusedRowId] = useState<string>();
     const treeReference = useRef<HTMLDivElement>(null);
-    const sessionRename = useSessionRename(sessions);
+    const sessionRename = useSessionRename(sessions, projectCollapse.expandProject);
     // Owns the cadence only; each Session row subscribes to its own slice of the snapshot this keeps fresh.
     useSessionPullRequestPoll();
     const orderedSessions = useMemo(
