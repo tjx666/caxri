@@ -222,7 +222,7 @@ describe('path browser authority', () => {
         const ownerRoot = await temporaryDirectory('caxri-path-owner-');
         const workbenchRoot = await temporaryDirectory('caxri-path-worktree-');
         const canonicalWorkbenchRoot = await realpath(workbenchRoot);
-        const shallow = join(canonicalWorkbenchRoot, 'lobehub', 'packages', 'bank');
+        const shallow = join(canonicalWorkbenchRoot, 'example', 'packages', 'bank');
         const deep = join(canonicalWorkbenchRoot, 'apps', 'web', 'vendor', 'packages', 'bank');
         await mkdir(shallow, { recursive: true });
         await mkdir(deep, { recursive: true });
@@ -250,7 +250,7 @@ describe('path browser authority', () => {
             input: 'packages/bank/index.ts',
         });
         expect(located).toMatchObject({
-            directoryLabel: 'lobehub/',
+            directoryLabel: 'example/',
             input: 'packages/bank/index.ts',
             mode: 'project',
         });
@@ -271,7 +271,7 @@ describe('path browser authority', () => {
             mode: 'project',
             input: 'packages/bank/src/',
         });
-        expect(deeper).toMatchObject({ directoryLabel: 'lobehub/', input: 'packages/bank/src/' });
+        expect(deeper).toMatchObject({ directoryLabel: 'example/', input: 'packages/bank/src/' });
         expect(request).not.toHaveBeenCalledWith('files.locateDirectory', expect.anything());
 
         await expect(

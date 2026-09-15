@@ -70,7 +70,7 @@ fi
 sleep "$(cat ${JSON.stringify(statusDelayPath)})"
 printf 'request\n' >> ${JSON.stringify(statusRequestLogPath)}
 status_title=$(cat ${JSON.stringify(statusTitlePath)})
-printf '{"body":"Related to https://linear.app/lobehub/issue/LOBE-42/project-status","state":"MERGED","isDraft":false,"number":42,"title":"%s","url":"https://github.com/tjx666/project/pull/42","statusCheckRollup":[{"workflowName":"Test","name":"App","status":"COMPLETED","conclusion":"FAILURE","startedAt":"2026-08-23T00:00:00.000Z","completedAt":"2026-08-23T00:02:05.000Z"},{"workflowName":"Test","name":"Packages","status":"COMPLETED","conclusion":"SUCCESS","startedAt":"2026-08-23T00:00:00.000Z","completedAt":"2026-08-23T00:01:00.000Z","detailsUrl":${JSON.stringify(longCheckUrl)}}]}' "$status_title"
+printf '{"body":"Related to https://linear.app/example/issue/TASK-42/project-status","state":"MERGED","isDraft":false,"number":42,"title":"%s","url":"https://github.com/tjx666/project/pull/42","statusCheckRollup":[{"workflowName":"Test","name":"App","status":"COMPLETED","conclusion":"FAILURE","startedAt":"2026-08-23T00:00:00.000Z","completedAt":"2026-08-23T00:02:05.000Z"},{"workflowName":"Test","name":"Packages","status":"COMPLETED","conclusion":"SUCCESS","startedAt":"2026-08-23T00:00:00.000Z","completedAt":"2026-08-23T00:01:00.000Z","detailsUrl":${JSON.stringify(longCheckUrl)}}]}' "$status_title"
 `,
         'utf8',
     );
@@ -414,11 +414,11 @@ esac
             }),
         ).toBeVisible();
 
-        const linearError = tree.getByRole('treeitem', { name: /^Linear CLI: LOBE-42 failed,/ });
+        const linearError = tree.getByRole('treeitem', { name: /^Linear CLI: TASK-42 failed,/ });
         await expect(linearError).toBeVisible();
         await expect(linearError).toHaveAttribute('data-tree-item-variant', 'message');
         await expect(linearError.locator('[data-slot="empty-title"]')).toHaveText(
-            'Linear CLI: LOBE-42 failed',
+            'Linear CLI: TASK-42 failed',
         );
         await expect(linearError.locator('[data-slot="empty-description"]')).toHaveText(
             'Something went wrong while loading linked issues. Open Logs for details.',

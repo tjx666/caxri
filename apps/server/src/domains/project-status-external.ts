@@ -32,7 +32,7 @@ const REFERENCE_MARKERS = [
 ] as const;
 
 /**
- * A Linear magic word owns only the identifiers attached to it (`Fixes LOBE-1, LOBE-2`), so the scan stops at the first
+ * A Linear magic word owns only the identifiers attached to it (`Fixes TASK-1, TASK-2`), so the scan stops at the first
  * token that is neither an identifier nor a connector. Sweeping every `word-digits` token out of the rest of the line
  * instead — the previous behavior — pulled ordinary prose into the reference list: "This fixes local installs … The
  * packageManager SHA-512 value matches the published npm artifact" yielded a `SHA-512` lookup that failed and marked

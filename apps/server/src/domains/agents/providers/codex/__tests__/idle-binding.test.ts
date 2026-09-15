@@ -58,8 +58,8 @@ async function createIdleTerminalFixture(): Promise<CodexFixture> {
         .run(
             siblingThreadId,
             root,
-            'https://linear.app/lobehub/issue/LOBE-14029 handle this',
-            'handle LOBE-14029',
+            'https://linear.app/example/issue/TASK-24682 handle this',
+            'handle TASK-24682',
             startedAt + 360_000,
             startedAt + 360_000,
             1200,

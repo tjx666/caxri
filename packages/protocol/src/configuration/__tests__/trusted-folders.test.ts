@@ -9,7 +9,7 @@ import {
 
 describe('normalizeTrustedFolderRule', () => {
     it('accepts a plain absolute folder path', () => {
-        expect(normalizeTrustedFolderRule('/Users/me/.lobehub')).toBe('/Users/me/.lobehub');
+        expect(normalizeTrustedFolderRule('/Users/me/.example')).toBe('/Users/me/.example');
     });
 
     it('strips a trailing slash, `.` segments, and duplicate separators', () => {
@@ -17,7 +17,7 @@ describe('normalizeTrustedFolderRule', () => {
     });
 
     it('trims surrounding whitespace', () => {
-        expect(normalizeTrustedFolderRule('  /Users/me/.lobehub  ')).toBe('/Users/me/.lobehub');
+        expect(normalizeTrustedFolderRule('  /Users/me/.example  ')).toBe('/Users/me/.example');
     });
 
     it('rejects an empty or whitespace-only rule', () => {
@@ -56,26 +56,26 @@ describe('normalizeTrustedFolderRule', () => {
 
 describe('isPathInTrustedFolder', () => {
     it('matches the exact trusted folder', () => {
-        expect(isPathInTrustedFolder('/Users/me/.lobehub', ['/Users/me/.lobehub'])).toBe(true);
+        expect(isPathInTrustedFolder('/Users/me/.example', ['/Users/me/.example'])).toBe(true);
     });
 
     it('matches a descendant of the trusted folder', () => {
-        expect(isPathInTrustedFolder('/Users/me/.lobehub/projects/x', ['/Users/me/.lobehub'])).toBe(
+        expect(isPathInTrustedFolder('/Users/me/.example/projects/x', ['/Users/me/.example'])).toBe(
             true,
         );
     });
 
     it('rejects a sibling path that merely shares a prefix', () => {
-        expect(isPathInTrustedFolder('/Users/me/.lobehub-other', ['/Users/me/.lobehub'])).toBe(
+        expect(isPathInTrustedFolder('/Users/me/.example-other', ['/Users/me/.example'])).toBe(
             false,
         );
     });
 
     it('ignores an invalid rule in the list', () => {
         expect(
-            isPathInTrustedFolder('/Users/me/.lobehub', ['relative/path', '/Users/me/.lobehub']),
+            isPathInTrustedFolder('/Users/me/.example', ['relative/path', '/Users/me/.example']),
         ).toBe(true);
-        expect(isPathInTrustedFolder('/Users/me/.lobehub', ['relative/path'])).toBe(false);
+        expect(isPathInTrustedFolder('/Users/me/.example', ['relative/path'])).toBe(false);
     });
 
     it('ignores rules beyond the bounded rule count', () => {
@@ -83,8 +83,8 @@ describe('isPathInTrustedFolder', () => {
             { length: MAX_TRUSTED_FOLDERS },
             (_unused, index) => `/Users/me/folder-${index}`,
         );
-        rules.push('/Users/me/.lobehub');
-        expect(isPathInTrustedFolder('/Users/me/.lobehub', rules)).toBe(false);
+        rules.push('/Users/me/.example');
+        expect(isPathInTrustedFolder('/Users/me/.example', rules)).toBe(false);
         expect(isPathInTrustedFolder('/Users/me/folder-0', rules)).toBe(true);
     });
 });

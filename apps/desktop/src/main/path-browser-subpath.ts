@@ -1,6 +1,6 @@
 /**
  * Pure helpers behind the path browser's VS Code-style subpath fallback (`packages/x/` typed while the Project holds
- * `lobehub/packages/x/`). Filesystem validation stays in the authority.
+ * `example/packages/x/`). Filesystem validation stays in the authority.
  */
 
 /**

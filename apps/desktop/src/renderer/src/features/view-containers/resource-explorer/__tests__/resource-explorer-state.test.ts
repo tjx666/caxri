@@ -176,11 +176,11 @@ describe('Resource Explorer state', () => {
             fileTreeRowTooltip({
                 kind: 'symlink',
                 linkKind: 'directory',
-                linkTarget: '../../lobehub/.agents/skills/acceptance',
+                linkTarget: '../../example/.agents/skills/acceptance',
                 path: '/project/.agents/skills/acceptance',
             }),
         ).toBe(
-            '/project/.agents/skills/acceptance → ../../lobehub/.agents/skills/acceptance (symlink)',
+            '/project/.agents/skills/acceptance → ../../example/.agents/skills/acceptance (symlink)',
         );
         expect(
             fileTreeRowTooltip({
@@ -218,8 +218,8 @@ describe('Resource Explorer state', () => {
 
     it('names a child repository in the tooltip, alongside any other qualifier', () => {
         expect(
-            fileTreeRowTooltip({ kind: 'directory', path: '/project/lobehub' }, 'submodule'),
-        ).toBe('/project/lobehub (Git submodule)');
+            fileTreeRowTooltip({ kind: 'directory', path: '/project/example' }, 'submodule'),
+        ).toBe('/project/example (Git submodule)');
         expect(fileTreeRowTooltip({ kind: 'directory', path: '/project/vendor' }, 'nested')).toBe(
             '/project/vendor (nested Git repository)',
         );
@@ -247,7 +247,7 @@ describe('Resource Explorer state', () => {
     it('keeps filesystem-root captions blank on POSIX and Windows paths', () => {
         expect(fileTreeRootCaption('/')).toBe('');
         expect(fileTreeRootCaption('\\')).toBe('');
-        expect(fileTreeRootCaption('/Users/tj/project')).toBe('project');
+        expect(fileTreeRootCaption('/Users/me/project')).toBe('project');
         expect(fileTreeRootCaption(String.raw`C:\work\project`)).toBe('project');
     });
 });

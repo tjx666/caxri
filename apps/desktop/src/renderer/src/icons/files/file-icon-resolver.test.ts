@@ -74,7 +74,7 @@ describe('resolveFileIcon', () => {
     });
 
     it('gives a child repository the Git folder icon over the one its name earns', () => {
-        expect(resolveFileIcon({ kind: 'directory', name: 'lobehub' }, false, true).id).toBe(
+        expect(resolveFileIcon({ kind: 'directory', name: 'example' }, false, true).id).toBe(
             'folder_type_git',
         );
         // The name would otherwise win: `src` has an icon of its own, and being a submodule outranks it.

@@ -18,11 +18,11 @@ describe('projectSubpathSuffix', () => {
 describe('memoizedSubpathPrefix', () => {
     it('extends positive and negative memo entries to deeper suffixes', () => {
         const memo = new Map<string, string | null>([
-            ['packages', '/root/lobehub'],
-            ['packages/bank', '/root/lobehub'],
+            ['packages', '/root/example'],
+            ['packages/bank', '/root/example'],
             ['nowhere', null],
         ]);
-        expect(memoizedSubpathPrefix(memo, 'packages/bank/src')).toBe('/root/lobehub');
+        expect(memoizedSubpathPrefix(memo, 'packages/bank/src')).toBe('/root/example');
         expect(memoizedSubpathPrefix(memo, 'nowhere/deeper')).toBeNull();
         expect(memoizedSubpathPrefix(memo, 'packagesx')).toBeUndefined();
         expect(memoizedSubpathPrefix(memo, 'other')).toBeUndefined();
