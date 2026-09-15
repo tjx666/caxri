@@ -22,7 +22,6 @@ import { describeFailure, isCancelledRequest } from '../../stores/toasts';
 import type { CodeEditorProperties } from './code-editor';
 import { cacheDocument, changeDocument } from './document-commands';
 import { EditorBreadcrumbs } from './editor-breadcrumbs';
-import { EditorHeadBlame } from './editor-head-blame';
 import { EditorLoadFailure } from './editor-load-failure';
 import type { EditorLoadTone } from './editor-load-state';
 import { editorLoadReducer, initialEditorLoadState } from './editor-load-state';
@@ -216,7 +215,6 @@ function FileEditorSurface({ paneId, path }: { paneId: string; path: string }) {
                             workbenchProjectId={session.workbenchProjectId}
                         />
                     )}
-                    <EditorHeadBlame path={path} sessionId={sessionId} />
                 </div>
             )}
             <div className="min-h-0 flex-1">

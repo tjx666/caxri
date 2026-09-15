@@ -14,7 +14,9 @@ export function TrustedFoldersForm({ rules, onChange }: TrustedFoldersFormProper
     return (
         <RuleListForm
             ariaLabel="Trusted Folders editor"
-            description="Terminal file links under these folders open as read-only tabs without a confirmation prompt. Paths must be absolute."
+            // The row above already says what trusting a folder does; repeating it here left the same sentence printed
+            // twice on one screen. This line carries only what the row cannot: the shape of an entry.
+            description="Paths must be absolute. A trusted folder covers everything under it."
             placeholder="/Users/me/.config"
             inputLabel="Trusted folder rule"
             listLabel="Trusted folder rules"

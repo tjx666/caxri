@@ -9,7 +9,6 @@ import {
 
 import { FieldDescription, FieldLabel } from '../../components/ui/field';
 import { Input } from '../../components/ui/input';
-import { Switch } from '../../components/ui/switch';
 import { Textarea } from '../../components/ui/textarea';
 import { parseRecoveryDelay, parseRecoveryPatterns } from './provider-recovery-values';
 
@@ -127,12 +126,6 @@ export function ProviderRecoveryEditor({
     };
     return (
         <div className="flex flex-col gap-3">
-            <Switch
-                id={id}
-                aria-label={`${providerName} network error recovery`}
-                checked={value.enabled}
-                onCheckedChange={(enabled) => onChange({ ...value, enabled })}
-            />
             {value.enabled && (
                 <div className="flex flex-col gap-3 rounded-md border border-border bg-elevated p-3">
                     <div className="flex flex-col gap-1">
