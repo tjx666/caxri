@@ -59,6 +59,15 @@ export async function createRootServices({
             logger.write('warn', logEventCatalog.database.sessionStateRepaired, {
                 fields: { reason, sessionId, stateVersion },
             }),
+        onSessionStateUnchanged: ({
+            sessionId,
+            workbenchProjectId,
+            unchangedWrites,
+            totalWrites,
+        }) =>
+            logger.write('debug', logEventCatalog.database.sessionStateUnchanged, {
+                fields: { sessionId, workbenchProjectId, unchangedWrites, totalWrites },
+            }),
         onTransaction: ({ durationMs, outcome }) => {
             const metricOutcome = outcome === 'success' ? 'success' : 'failure';
             logger.recordMetric('persistence.latency', durationMs, {

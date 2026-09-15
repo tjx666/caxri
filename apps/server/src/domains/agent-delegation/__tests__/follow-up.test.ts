@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { StructuredLogger } from '@caxri/system';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import type { AgentDispatchService } from '../../agent-dispatch';
@@ -45,9 +46,11 @@ async function fixture(submissionTimeoutMs = 1000) {
             ReturnType<AgentDispatchService['resume']>
         >);
     });
+    const loggerWrite = vi.fn<StructuredLogger['write']>();
     const service = new AgentDelegationService({
         database,
         dispatch: { start, resume },
+        logger: { write: loggerWrite } as unknown as StructuredLogger,
         userDataPath: directory,
         launchSettings: () => settings,
         verifyLaunch,
@@ -116,8 +119,16 @@ async function fixture(submissionTimeoutMs = 1000) {
      * learns after its input was already admitted.
      */
     const deliver = (wasAccepted: boolean) => write.mock.calls.at(-1)![3]!(wasAccepted);
+    /**
+     * The closed reasons this service recorded for admissions it refused, oldest first.
+     */
+    const rejections = () =>
+        loggerWrite.mock.calls
+            .filter((call) => call[1] === 'agent_delegation.admission_rejected')
+            .map((call) => call[2]?.fields);
     return {
         deliver,
+        rejections,
         directory,
         database,
         terminal: terminal!,
@@ -241,15 +252,18 @@ describe('Visible same-Terminal follow-up', () => {
     });
 
     it.each([
-        ['human_input', { epoch: 1 }],
-        ['target_changed', { launch: 'unrelated-launch' }],
-    ] as const)('rejects unsafe resume after %s', async (failure, patch) => {
+        ['human_input', 'input_epoch_moved', { epoch: 1 }],
+        ['target_changed', 'launch_replaced', { launch: 'unrelated-launch' }],
+    ] as const)('rejects unsafe resume after %s', async (failure, reason, patch) => {
         const f = await fixture();
         Object.assign(f.state, patch);
-        expect(
-            await f.service.create(randomUUID(), owner, { ...f.input, resumeFrom: f.id }),
-        ).toMatchObject({ status: 'failed', failure });
+        const id = randomUUID();
+        expect(await f.service.create(id, owner, { ...f.input, resumeFrom: f.id })).toMatchObject({
+            status: 'failed',
+            failure,
+        });
         expect(f.resume).not.toHaveBeenCalled();
+        expect(f.rejections()).toEqual([{ delegationId: id, phase: 'resume', reason, failure }]);
     });
 
     it('submits once in the original native session and frozen configuration, preserving both answers', async () => {
@@ -289,18 +303,44 @@ describe('Visible same-Terminal follow-up', () => {
         );
     });
 
+    /**
+     * The reason is asserted beside the failure because the failure alone cannot be investigated: three of these four
+     * rejections arrive at the caller as the same word, and separating them is the whole point of the closed reason
+     * enum (github.com/tjx666/caxri/issues/933).
+     */
     it.each([
-        ['human_input', { epoch: 1 }],
-        ['target_not_ready', { isIdle: false }],
-        ['target_changed', { launch: 'new-launch' }],
-        ['target_changed', { launch: undefined }],
-    ] as const)('rejects %s without writing into the native UI', async (failure, patch) => {
+        ['human_input', 'input_epoch_moved', { epoch: 1 }],
+        ['target_not_ready', 'target_not_idle', { isIdle: false }],
+        ['target_changed', 'launch_replaced', { launch: 'new-launch' }],
+        ['target_changed', 'launch_replaced', { launch: undefined }],
+    ] as const)('rejects %s without writing into the native UI', async (failure, reason, patch) => {
         const f = await fixture();
         Object.assign(f.state, patch);
-        expect(
-            await f.service.create(randomUUID(), owner, { ...f.input, followUpOf: f.id }),
-        ).toMatchObject({ status: 'failed', failure });
+        const id = randomUUID();
+        expect(await f.service.create(id, owner, { ...f.input, followUpOf: f.id })).toMatchObject({
+            status: 'failed',
+            failure,
+        });
         expect(f.write).not.toHaveBeenCalled();
+        expect(f.rejections()).toEqual([{ delegationId: id, phase: 'follow_up', reason, failure }]);
+    });
+
+    it('separates a Host-refused write from a launch that changed before admission', async () => {
+        const f = await fixture();
+        f.write.mockReturnValueOnce(false);
+        const id = randomUUID();
+        expect(await f.service.create(id, owner, { ...f.input, followUpOf: f.id })).toMatchObject({
+            status: 'failed',
+            failure: 'target_changed',
+        });
+        expect(f.rejections()).toEqual([
+            {
+                delegationId: id,
+                phase: 'follow_up',
+                reason: 'write_refused',
+                failure: 'target_changed',
+            },
+        ]);
     });
 
     it('admits one child of a settled task when two different follow-ups race', async () => {

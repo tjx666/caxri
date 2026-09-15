@@ -1,0 +1,165 @@
+import type { AgentDelegationReceipt } from '@caxri/protocol';
+import type { StructuredLogger } from '@caxri/system';
+import { logEventCatalog } from '@caxri/system';
+
+type DelegationFailure = NonNullable<AgentDelegationReceipt['failure']>;
+
+/**
+ * Why a follow-up prompt was refused at admission, as a closed enum.
+ *
+ * The receipt only carries the coarse `failure` the caller is shown, and five separate conditions collapse into
+ * `target_changed` alone. An intermittent CI failure (#877, tracked in #933) stalled for exactly that reason: the
+ * record named the category but never the condition, so each investigation had to re-derive which of the five had
+ * fired, and none of them could. Every branch names itself here, and the service reports the name beside the failure.
+ */
+const delegationFollowUpRejections = {
+    /**
+     * The parent already handed its Terminal to another follow-up.
+     */
+    parent_chained: 'target_busy',
+    /**
+     * Another task is still running on the parent's Terminal.
+     */
+    terminal_busy: 'target_busy',
+    /**
+     * The parent never had, or no longer has, a Terminal.
+     */
+    no_terminal: 'target_changed',
+    /**
+     * The parent recorded that its Terminal stopped being the task's target.
+     */
+    target_lost: 'target_changed',
+    /**
+     * The parent has no launch to write to.
+     */
+    no_launch: 'target_changed',
+    /**
+     * The parent has no provider Session, so a follow-up has nothing to continue.
+     */
+    no_provider_session: 'target_changed',
+    /**
+     * The Terminal is running a different Agent launch than the parent's.
+     */
+    launch_replaced: 'target_changed',
+    /**
+     * The parent recorded a human typing into its Terminal.
+     */
+    human_intervened: 'human_input',
+    /**
+     * The parent never captured an input epoch, so human input cannot be ruled out.
+     */
+    no_input_epoch: 'human_input',
+    /**
+     * The Terminal's input epoch advanced since the parent captured it.
+     */
+    input_epoch_moved: 'human_input',
+    /**
+     * The parent has no turn, so there is no idle proof to check.
+     */
+    no_turn: 'target_not_ready',
+    /**
+     * The Agent is not idle at the parent's turn.
+     */
+    target_not_idle: 'target_not_ready',
+    /**
+     * The Terminal Host refused the write after admission.
+     */
+    write_refused: 'target_changed',
+} as const satisfies Record<string, DelegationFailure>;
+
+/**
+ * Why an exact resume was refused at admission, as a closed enum.
+ *
+ * Kept separate from {@link delegationFollowUpRejections} because the same words mean different outcomes here: a resume
+ * without a Terminal is a changed Session, while a follow-up without one is a changed target. The report carries the
+ * phase so a reader never has to guess which table a name came from.
+ */
+const delegationResumeRejections = {
+    /**
+     * The parent never had, or no longer has, a Terminal.
+     */
+    no_terminal: 'session_changed',
+    /**
+     * The parent has no provider Session to resume.
+     */
+    no_provider_session: 'session_changed',
+    /**
+     * The Terminal is attached to a different provider Session than the parent's.
+     */
+    provider_session_replaced: 'session_changed',
+    /**
+     * The parent already handed its Terminal to another follow-up.
+     */
+    parent_chained: 'target_busy',
+    /**
+     * Another task is still running on the parent's Terminal.
+     */
+    terminal_busy: 'target_busy',
+    /**
+     * The parent recorded that its Terminal stopped being the task's target.
+     */
+    target_lost: 'target_changed',
+    /**
+     * The Terminal is running a different Agent launch than the parent's.
+     */
+    launch_replaced: 'target_changed',
+    /**
+     * The parent recorded a human typing into its Terminal.
+     */
+    human_intervened: 'human_input',
+    /**
+     * The parent never captured an input epoch, so human input cannot be ruled out.
+     */
+    no_input_epoch: 'human_input',
+    /**
+     * The Terminal's input epoch advanced since the parent captured it.
+     */
+    input_epoch_moved: 'human_input',
+    /**
+     * The parent's own receipt already ended in human input.
+     */
+    parent_human_intervened: 'human_input',
+    /**
+     * This build has no resume dispatcher, so an exact resume cannot be attempted.
+     */
+    resume_unsupported: 'target_not_ready',
+} as const satisfies Record<string, DelegationFailure>;
+
+export type DelegationFollowUpRejection = keyof typeof delegationFollowUpRejections;
+export type DelegationResumeRejection = keyof typeof delegationResumeRejections;
+
+/**
+ * Resolves the caller-visible failure for a refused admission and records the condition that produced it.
+ *
+ * The phase travels with the reason because the two tables reuse names for different outcomes, so a reader never has to
+ * guess which one a record came from. The logger is optional for the same reason the service's is: a unit test builds
+ * the service without the Server around it.
+ */
+function report(
+    logger: StructuredLogger | undefined,
+    delegationId: string,
+    phase: 'follow_up' | 'resume',
+    reason: string,
+    failure: DelegationFailure,
+): DelegationFailure {
+    logger?.write('info', logEventCatalog.agentDelegation.admissionRejected, {
+        fields: { delegationId, phase, reason, failure },
+    });
+    return failure;
+}
+
+export function reportFollowUpRejection(
+    logger: StructuredLogger | undefined,
+    delegationId: string,
+    reason: DelegationFollowUpRejection,
+): DelegationFailure {
+    return report(logger, delegationId, 'follow_up', reason, delegationFollowUpRejections[reason]);
+}
+
+export function reportResumeRejection(
+    logger: StructuredLogger | undefined,
+    delegationId: string,
+    reason: DelegationResumeRejection,
+): DelegationFailure {
+    return report(logger, delegationId, 'resume', reason, delegationResumeRejections[reason]);
+}

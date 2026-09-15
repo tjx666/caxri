@@ -97,6 +97,21 @@ interface E2ELaunch {
     userDataDirectory: string;
 }
 
+/**
+ * Says whether the run recorded any Main or Server error at all beside its notifications.
+ *
+ * A notification names a symptom; the structured log names the cause. When both are present the failure text already
+ * pairs them — that is how `session.updateState` was identified as the `NOT_FOUND` behind a `terminal.activate`
+ * notification. When the log side is empty the reader has to know that this is itself evidence rather than a gap in
+ * capture: the remaining sources are a Renderer-local failure, and a request refused after quit began, which
+ * `apps/desktop/src/main/workbench-ipc.ts` deliberately does not log because a cancellation is an expected outcome. Two
+ * intermittent cases (#877) stalled on rediscovering that by hand, so state it in the failure instead.
+ */
+function describeToastCorrelation(logErrors: readonly E2EErrorEvent[]): string {
+    if (logErrors.length > 0) return '';
+    return ' (no Main or Server error was logged in this run, so the cause is Renderer-local or a request cancelled at quit)';
+}
+
 class E2EErrorGate {
     private readonly allowances: E2EErrorAllowance[] = [];
     private readonly attachedPages = new WeakSet<Page>();
@@ -245,9 +260,10 @@ class E2EErrorGate {
         } catch (error) {
             if (this.toastCategories.length === 0) throw error;
             const message = error instanceof Error ? error.message : String(error);
-            throw new Error(`${message}; toast categories: ${this.toastCategories.join(', ')}`, {
-                cause: error,
-            });
+            throw new Error(
+                `${message}; toast categories: ${this.toastCategories.join(', ')}${describeToastCorrelation(logErrors)}`,
+                { cause: error },
+            );
         }
     }
 }

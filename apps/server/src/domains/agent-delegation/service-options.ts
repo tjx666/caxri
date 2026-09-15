@@ -1,4 +1,5 @@
 import type { AgentDelegationSettings, AgentLaunchSettings, AgentProvider } from '@caxri/protocol';
+import type { StructuredLogger } from '@caxri/system';
 
 import type { AgentDispatchService } from '../agent-dispatch';
 import type { CaxriDatabase } from '../db';
@@ -12,6 +13,11 @@ export interface AgentDelegationServiceOptions extends DelegationTranscriptReade
     database: CaxriDatabase;
     dispatch: Pick<AgentDispatchService, 'start'> & Partial<Pick<AgentDispatchService, 'resume'>>;
     userDataPath: string;
+    /**
+     * Optional for the same reason the Terminal callbacks are: a unit test constructs this service without the Server
+     * around it. The composed Server always passes one, so a real refused admission is always recorded.
+     */
+    logger?: StructuredLogger;
     launchSettings(provider: AgentProvider): AgentLaunchSettings;
     delegationSettings?(): AgentDelegationSettings;
     verifyLaunch(launch: AgentLaunchSettings, provider: AgentProvider): Promise<void>;

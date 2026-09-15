@@ -524,6 +524,45 @@ describe('CaxriDatabase', () => {
         database.close();
     });
 
+    /**
+     * A write nobody can see is the hardest defect to find. A Terminal regaining focus rebuilt an identical pane layout
+     * and wrote it back, and because nothing recorded that the write changed nothing, the resulting "Unable to activate
+     * Terminal" notification reached unrelated E2E specs for weeks before anyone could name its source
+     * (github.com/tjx666/caxri/issues/877).
+     */
+    it('reports a Session state write that stored exactly the row it found', async () => {
+        const directory = await temporaryDirectory('caxri-db-unchanged-state-write-');
+        const unchanged: unknown[] = [];
+        const database = new CaxriDatabase(join(directory, 'state.db'), {
+            onSessionStateUnchanged: (report) => unchanged.push(report),
+        });
+        const created = database.createSession(database.createProject(directory).id, 'shell');
+        const state = database.getSessionState(created.session.id);
+
+        database.updateSessionState(state);
+        database.updateSessionState(state);
+        database.updateSessionState({
+            ...state,
+            desiredSecondarySidebarViewContainerId: 'caxri.sourceControl',
+        });
+
+        expect(unchanged).toEqual([
+            {
+                sessionId: created.session.id,
+                workbenchProjectId: state.workbenchProjectId,
+                unchangedWrites: 1,
+                totalWrites: 1,
+            },
+            {
+                sessionId: created.session.id,
+                workbenchProjectId: state.workbenchProjectId,
+                unchangedWrites: 2,
+                totalWrites: 2,
+            },
+        ]);
+        database.close();
+    });
+
     it('never reuses a Terminal order_index after closing a middle Terminal and creating a new one', async () => {
         const directory = await temporaryDirectory('caxri-db-order-index-');
         const database = new CaxriDatabase(join(directory, 'state.db'));
