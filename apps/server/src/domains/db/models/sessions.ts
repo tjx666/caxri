@@ -70,6 +70,23 @@ export interface SessionStateRepair {
 }
 
 /**
+ * One `session.updateState` that stored exactly the row it found, reported with this lifetime's running totals.
+ *
+ * A write nobody can see is the hardest kind of defect to find: it costs a round trip and a SQLite write per
+ * occurrence, and it turns an ordinary interaction into a failure surface, because the Session behind it may have been
+ * deleted or the application may be quitting by the time the write lands. That is exactly how "Unable to activate
+ * Terminal" reached unrelated E2E specs (#877) — a Terminal regaining focus rebuilt an identical pane layout and wrote
+ * it back, and nothing anywhere recorded that the write changed nothing. Each report carries both the occurrence and
+ * the totals so the real volume stays readable without one client having to sample it.
+ */
+export interface SessionStateUnchangedWrite {
+    sessionId: string;
+    workbenchProjectId: string;
+    unchangedWrites: number;
+    totalWrites: number;
+}
+
+/**
  * `fallbackPaneLayout` covers a Workbench Root the Session has never arranged: the row itself is healthy, so this is an
  * ordinary first visit rather than a repair.
  */
@@ -115,9 +132,15 @@ function parseSessionState(
  * the full domain-service composition root.
  */
 export class SessionsModel {
+    /**
+     * Per-lifetime totals behind {@link SessionStateUnchangedWrite}.
+     */
+    private readonly stateWrites = { total: 0, unchanged: 0 };
+
     constructor(
         private readonly database: CaxriDrizzleDatabase,
         private readonly onStateRepair?: (repair: SessionStateRepair) => void,
+        private readonly onStateUnchanged?: (report: SessionStateUnchangedWrite) => void,
     ) {}
 
     /**
@@ -625,7 +648,12 @@ export class SessionsModel {
         if (binding.workbenchProjectId !== state.workbenchProjectId)
             throw new CaxriError('CONFLICT', 'Session state belongs to a stale Workbench Root');
         const existing = this.database
-            .select({ workbenchStateJson: sessionStateTable.workbenchStateJson })
+            .select({
+                stateVersion: sessionStateTable.stateVersion,
+                workbenchStateJson: sessionStateTable.workbenchStateJson,
+                desiredSecondarySidebarViewContainerId:
+                    sessionStateTable.desiredSecondarySidebarViewContainerId,
+            })
             .from(sessionStateTable)
             .where(eq(sessionStateTable.sessionId, state.sessionId))
             .get();
@@ -659,6 +687,22 @@ export class SessionsModel {
             workbenchStateJson: JSON.stringify(workbenchStates),
             desiredSecondarySidebarViewContainerId: state.desiredSecondarySidebarViewContainerId,
         };
+        this.stateWrites.total += 1;
+        if (
+            existing !== undefined &&
+            existing.stateVersion === values.stateVersion &&
+            existing.workbenchStateJson === values.workbenchStateJson &&
+            existing.desiredSecondarySidebarViewContainerId ===
+                values.desiredSecondarySidebarViewContainerId
+        ) {
+            this.stateWrites.unchanged += 1;
+            this.onStateUnchanged?.({
+                sessionId: state.sessionId,
+                workbenchProjectId: state.workbenchProjectId,
+                unchangedWrites: this.stateWrites.unchanged,
+                totalWrites: this.stateWrites.total,
+            });
+        }
         this.database
             .insert(sessionStateTable)
             .values(values)

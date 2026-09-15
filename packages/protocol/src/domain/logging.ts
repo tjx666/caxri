@@ -15,6 +15,9 @@ export const logEventCatalog = {
         processProbeFailed: 'agent.process_probe_failed',
         sessionActivityChanged: 'agent.session_activity_changed',
     },
+    agentDelegation: {
+        admissionRejected: 'agent_delegation.admission_rejected',
+    },
     agentDispatch: {
         transitioned: 'agent_dispatch.transitioned',
     },
@@ -59,6 +62,7 @@ export const logEventCatalog = {
     },
     database: {
         sessionStateRepaired: 'db.session_state_repaired',
+        sessionStateUnchanged: 'db.session_state_unchanged',
     },
     diagnostics: {
         exported: 'diagnostics.exported',

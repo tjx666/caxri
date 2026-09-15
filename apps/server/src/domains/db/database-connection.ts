@@ -12,7 +12,7 @@ import { AgentDispatchReceiptsModel } from './models/agent-dispatch-receipts';
 import { AppStateModel } from './models/app-state';
 import { ProjectsModel } from './models/projects';
 import { ProtocolStateModel } from './models/protocol-state';
-import type { SessionStateRepair } from './models/sessions';
+import type { SessionStateRepair, SessionStateUnchangedWrite } from './models/sessions';
 import { SessionsModel } from './models/sessions';
 import { SnapshotsModel } from './models/snapshots';
 import { TerminalsModel } from './models/terminals';
@@ -23,6 +23,7 @@ import {
 
 export interface CaxriDatabaseConnectionOptions {
     onSessionStateRepair?: (repair: SessionStateRepair) => void;
+    onSessionStateUnchanged?: (report: SessionStateUnchangedWrite) => void;
     onTransaction?: (observation: DatabaseTransactionObservation) => void;
 }
 
@@ -71,7 +72,11 @@ export class CaxriDatabaseConnection {
         this.database = opened.database;
         this.db = opened.db;
         this.projects = new ProjectsModel(this.db);
-        this.sessions = new SessionsModel(this.db, options.onSessionStateRepair);
+        this.sessions = new SessionsModel(
+            this.db,
+            options.onSessionStateRepair,
+            options.onSessionStateUnchanged,
+        );
         this.terminals = new TerminalsModel(this.db);
         this.snapshots = new SnapshotsModel(this.db);
         this.appState = new AppStateModel(this.db);

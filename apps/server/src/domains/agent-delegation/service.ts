@@ -28,6 +28,8 @@ import { readDelegationCompletion } from './collection';
 import { prepareDelegationFollowUp, prepareDelegationLaunch } from './launch';
 import { assertDelegationLayout, delegationLayout } from './layout';
 import { applyDelegationLifecycle, isDelegationActive } from './lifecycle';
+import type { DelegationFollowUpRejection, DelegationResumeRejection } from './rejection';
+import { reportFollowUpRejection, reportResumeRejection } from './rejection';
 import { applyDelegationCompletion, shouldCollectDelegation } from './result';
 import type { AgentDelegationServiceOptions } from './service-options';
 import { removeDelegationFiles } from './storage';
@@ -221,34 +223,36 @@ export class AgentDelegationService {
             [record.frozenInstructions, record.input.prompt].filter(Boolean).join('\n\n'),
         );
         const parent = this.owned(previous.receipt.delegationId, authority);
-        const reject = (failure: AgentDelegationReceipt['failure']) => {
-            this.fail(id, failure);
+        const reject = (reason: DelegationResumeRejection) => {
+            this.fail(id, reportResumeRejection(this.options.logger, id, reason));
             return this.owned(id, authority).receipt;
         };
         if (!isDelegationActive(this.owned(id, authority).receipt))
             return this.owned(id, authority).receipt;
         const terminalId = parent.receipt.terminalId;
+        if (!terminalId) return reject('no_terminal');
+        if (!parent.providerSessionId) return reject('no_provider_session');
         if (
-            !terminalId ||
-            !parent.providerSessionId ||
             this.options.database.getTerminal(terminalId)?.agentSessionId !==
-                parent.providerSessionId
+            parent.providerSessionId
         )
-            return reject('session_changed');
-        if (parent.nextDelegationId || this.activeForTerminal(terminalId))
-            return reject('target_busy');
+            return reject('provider_session_replaced');
+        if (parent.nextDelegationId) return reject('parent_chained');
+        if (this.activeForTerminal(terminalId)) return reject('terminal_busy');
+        if (parent.hasLostTarget) return reject('target_lost');
         const expectedLaunchId = this.options.currentLaunchId?.(terminalId);
-        if (parent.hasLostTarget || (expectedLaunchId && expectedLaunchId !== parent.launchId))
-            return reject('target_changed');
+        if (expectedLaunchId && expectedLaunchId !== parent.launchId)
+            return reject('launch_replaced');
+        if (parent.hasHumanIntervention) return reject('human_intervened');
+        if (parent.inputEpoch === undefined) return reject('no_input_epoch');
+        if (this.options.inputEpoch?.(terminalId) !== parent.inputEpoch)
+            return reject('input_epoch_moved');
         if (
-            parent.hasHumanIntervention ||
-            parent.inputEpoch === undefined ||
-            this.options.inputEpoch?.(terminalId) !== parent.inputEpoch ||
             parent.receipt.status === 'human_intervened' ||
             parent.receipt.failure === 'human_input'
         )
-            return reject('human_input');
-        if (!this.options.dispatch.resume) return reject('target_not_ready');
+            return reject('parent_human_intervened');
+        if (!this.options.dispatch.resume) return reject('resume_unsupported');
         this.save({ ...parent, nextDelegationId: id });
         this.save({
             ...record,
@@ -316,28 +320,25 @@ export class AgentDelegationService {
         if (!isDelegationActive(current.receipt)) return current.receipt;
         const parent = this.owned(previous.receipt.delegationId, authority);
         const terminalId = parent.receipt.terminalId;
-        const reject = (failure: AgentDelegationReceipt['failure']) => {
-            this.fail(id, failure);
+        const reject = (reason: DelegationFollowUpRejection) => {
+            this.fail(id, reportFollowUpRejection(this.options.logger, id, reason));
             return this.owned(id, authority).receipt;
         };
-        if (parent.nextDelegationId || (terminalId && this.activeForTerminal(terminalId)))
-            return reject('target_busy');
-        if (
-            !terminalId ||
-            parent.hasLostTarget ||
-            !parent.launchId ||
-            !parent.providerSessionId ||
-            this.options.currentLaunchId?.(terminalId) !== parent.launchId
-        )
-            return reject('target_changed');
-        if (
-            parent.hasHumanIntervention ||
-            parent.inputEpoch === undefined ||
-            this.options.inputEpoch?.(terminalId) !== parent.inputEpoch
-        )
-            return reject('human_input');
-        if (!parent.turnId || !this.options.isIdle?.(terminalId, parent.launchId, parent.turnId))
-            return reject('target_not_ready');
+        if (parent.nextDelegationId) return reject('parent_chained');
+        if (terminalId && this.activeForTerminal(terminalId)) return reject('terminal_busy');
+        if (!terminalId) return reject('no_terminal');
+        if (parent.hasLostTarget) return reject('target_lost');
+        if (!parent.launchId) return reject('no_launch');
+        if (!parent.providerSessionId) return reject('no_provider_session');
+        if (this.options.currentLaunchId?.(terminalId) !== parent.launchId)
+            return reject('launch_replaced');
+        if (parent.hasHumanIntervention) return reject('human_intervened');
+        if (parent.inputEpoch === undefined) return reject('no_input_epoch');
+        if (this.options.inputEpoch?.(terminalId) !== parent.inputEpoch)
+            return reject('input_epoch_moved');
+        if (!parent.turnId) return reject('no_turn');
+        if (!this.options.isIdle?.(terminalId, parent.launchId, parent.turnId))
+            return reject('target_not_idle');
         /**
          * No await may split admission, the durable chain claim and exact-generation write. Human input must either
          * invalidate the preceding epoch or arrive after the new task owns the Terminal.
@@ -358,7 +359,7 @@ export class AgentDelegationService {
                 (wasDelivered) => this.settleSubmission(id, wasDelivered),
             )
         )
-            return reject('target_changed');
+            return reject('write_refused');
         if (this.options.database.agentDelegations.get(id)?.receipt.status === 'submitting') {
             const timer = setTimeout(() => {
                 this.submissionTimers.delete(id);

@@ -106,6 +106,15 @@ evidence rather than automated test or Acceptance evidence.
 - An `expect.poll` callback must return a pending sentinel for an expected transient state instead
   of throwing. Use `e2e/support/polling.ts` only when callback errors are explicitly classified as
   retryable; its timeout keeps the most recent callback error in the failure text.
+- An assertion that already holds before the awaited work happens is not a wait. Counting cards,
+  checking visibility, or reading the first row all pass in both the ready and the not-ready state,
+  so the spec proceeds one step early and only loses the race on a loaded runner. Wait on the value
+  that separates the two: capture the identity the mutation returned and assert the UI carries it,
+  as `session-list-window.e2e.ts` does with `data-session-id` before it sends a key.
+- Do not mutate the filesystem while a menu, popover, or other transient surface is open. A watched
+  filesystem event refreshes the Files tree, which can re-render the very row the open menu is
+  anchored to and make its items unreachable for the full click timeout. Change permissions or
+  contents first, then open the surface; see the comment in `error-toast-recovery.e2e.ts`.
 - Match Terminal text across rendered rows when long CI paths or narrow panes can wrap it. Do not
   assume a logical token belongs to one DOM row.
 - Publish repository and desktop ownership only after complete owner metadata is durable. Await
@@ -163,12 +172,36 @@ one.
 CI retains screenshots, traces, the final viewport/grid, fixture ready markers, and content-free
 Main/Runtime logs for failures. Keep the failed CI run red while diagnosing it.
 
+### Diagnosing an error-gate notification
+
+`toast categories:` in a gate failure names the notification's product copy, never its cause. Read
+the cause out of the retained logs instead of guessing from the category:
+
+1. Download the run's artifacts and open the attached `caxri-desktop-*.jsonl` and
+   `caxri-server-core-*.jsonl` beside the failing test's output.
+2. Line up the notification against `ipc.request_failed` entries by timestamp. A pairing gives the
+   request name and error code behind the notification — that is how a `terminal.activate`
+   notification was traced to a `NOT_FOUND` on `session.updateState`.
+3. No pairing is evidence, not a capture gap. The gate says so in the failure text. Only two
+   sources produce a notification with no logged error: a Renderer-local failure, and a request
+   refused after quit began, which `apps/desktop/src/main/workbench-ipc.ts` deliberately does not
+   log because a cancellation at quit is an expected outcome. Check the Renderer's own handler for
+   that copy before assuming the log is incomplete.
+
 A loaded-runner reproduction belongs to that collective work rather than to this delivery. A
 `parallel-safe` race can need the repository-owned namespaced two-worker pool to appear at all,
 because loaded-runner conditions expose stale async state and hidden warmup surfaces that one worker
 cannot reproduce. Run that pool while repairing the recorded case, not as a gate on the delivery
-that reported it. Prefer stable observable locators and explicit busy-to-ready transitions over
-arbitrary delays.
+that reported it:
+
+```bash
+bun run build
+CAXRI_E2E_PARALLEL_WORKERS=2 bun run scripts/run-e2e-pools.ts --pool parallel-safe
+```
+
+Build first and leave the sources alone until the pool ends; editing a source mid-run trips the
+build-freshness guard and turns unrelated specs red with `Error: Build output is stale`. Prefer
+stable observable locators and explicit busy-to-ready transitions over arbitrary delays.
 
 The exception covers only a recorded case whose failure is unrelated to the current change. A case
 that reproduces locally, a case nobody reran, and any failure inside the changed behavior all still

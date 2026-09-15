@@ -31,6 +31,7 @@ export function createAgentCommandRuntime(
         database: options.database,
         delegationSettings: () => options.delegationSettings(),
         dispatch: dispatchService,
+        logger: options.logger,
         userDataPath: options.userDataPath,
         dimensions: (terminalId) => options.terminals.dimensions(terminalId),
         inputEpoch: (terminalId) => options.terminals.inputEpoch(terminalId),
