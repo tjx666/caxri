@@ -31,6 +31,7 @@ import {
 import { subscribeViewEvents } from '../../view-event-bridge';
 import type { SourceControlClient } from '../../view-operation-client';
 import { controlledViewQueryKey } from '../../view-operation-client';
+import { REFRESHING_ACTION_MESSAGE } from '../source-control-history-state';
 import type { SourceControlPanelState } from '../source-control-panel-state';
 import { resolveSourceControlPanelState } from '../source-control-panel-state';
 import type { SourceControlViewNavigation } from '../source-control-state';
@@ -39,17 +40,6 @@ import type { SourceControlNavigationScope } from './use-source-control-navigati
 import { useSourceControlNavigation } from './use-source-control-navigation';
 
 type SourceControlMode = SourceControlViewModel['modes'][number];
-
-/**
- * Why a revision-bound action is refused mid-refresh.
- *
- * The panel stays fully interactive while Git re-reads the working tree, so the refusal has to happen at execution time
- * and has to say why — a click that silently does nothing reads as a broken button. Renderer-owned rather than a
- * `presentation` field because every field of `controlledViewPresentationSchema` is required, so adding one would break
- * every provider that already ships a presentation.
- */
-const REFRESHING_ACTION_MESSAGE =
-    'Source Control is refreshing. Try that action again in a moment.';
 
 function applyActionEffect(
     effect: SourceControlActionEffect,

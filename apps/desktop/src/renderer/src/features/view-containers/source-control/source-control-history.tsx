@@ -10,6 +10,7 @@ import { useRelativeTimes } from '@/hooks/use-relative-time';
 import { DisclosureMotion } from '../../../components/disclosure-motion';
 import { Spinner } from '../../../components/ui/spinner';
 import { cn } from '../../../lib/utilities';
+import { pushToast } from '../../../stores/toasts';
 import { executeViewCatalogShortcut } from '../view-container-commands';
 import type { SourceControlHistoryExpansion } from './hooks/use-source-control-history';
 import { useSourceControlHistory } from './hooks/use-source-control-history';
@@ -17,6 +18,7 @@ import { SourceControlHistoryAvatar } from './source-control-history-avatar';
 import { SourceControlHistoryDetails } from './source-control-history-details';
 import { SourceControlHistoryHoverCard } from './source-control-history-hover-card';
 import { SourceControlHistoryPathFilter } from './source-control-history-path-filter';
+import { REFRESHING_ACTION_MESSAGE } from './source-control-history-state';
 import { SourceControlIcon } from './source-control-icon';
 import { SourceControlTreeRow } from './source-control-tree-row';
 
@@ -174,12 +176,21 @@ export function SourceControlHistory({
                                                     'aria-expanded': selectedId === item.id,
                                                 })}
                                                 disabled={
-                                                    !areActionsCurrent ||
-                                                    (descriptor.itemActivation === 'action' &&
-                                                        !item.action)
+                                                    descriptor.itemActivation === 'action' &&
+                                                    !item.action
                                                 }
                                                 onClick={() => {
-                                                    if (!areActionsCurrent) return;
+                                                    // Refused here rather than disabled above: a page whose revision
+                                                    // the refresh has moved on from comes back several times a minute,
+                                                    // and `disabled` drops the row out of the tree's single roving Tab
+                                                    // stop each time — DESIGN.md's `Background refresh` rule.
+                                                    if (!areActionsCurrent) {
+                                                        pushToast(
+                                                            'warning',
+                                                            REFRESHING_ACTION_MESSAGE,
+                                                        );
+                                                        return;
+                                                    }
                                                     if (descriptor.itemActivation === 'action') {
                                                         if (item.action) runAction(item.action);
                                                         return;
@@ -251,13 +262,18 @@ export function SourceControlHistory({
                             <SourceControlTreeRow
                                 rowId={`${rowIdPrefix}:load-more`}
                                 level={level + 1}
-                                className="load-more-commits flex h-7 w-full cursor-pointer items-center justify-center gap-1.5 border-0 bg-transparent text-[11px] text-muted hover:bg-elevated hover:text-foreground disabled:cursor-default disabled:opacity-50"
-                                disabled={
-                                    loading ||
-                                    !areActionsCurrent ||
-                                    (!scope && path !== debouncedPath)
-                                }
+                                className="load-more-commits flex h-7 w-full cursor-pointer items-center justify-center gap-1.5 border-0 bg-transparent text-[11px] text-muted hover:bg-elevated hover:text-foreground"
                                 onClick={() => {
+                                    // Every reason this row cannot act right now is transient, and this row is where
+                                    // the keyboard usually is when a page lands — disabling it would hand the tree's
+                                    // one Tab stop back to the first commit mid-scroll. The spinner already says a page
+                                    // is in flight, and a filter the debounce has not caught up with corrects itself
+                                    // within the same second, so only the stale-revision case is worth a sentence.
+                                    if (loading || (!scope && path !== debouncedPath)) return;
+                                    if (!areActionsCurrent) {
+                                        pushToast('warning', REFRESHING_ACTION_MESSAGE);
+                                        return;
+                                    }
                                     // eslint-disable-next-line no-void -- loadPage owns its loading and error state
                                     void loadPage(nextOffset, false);
                                 }}

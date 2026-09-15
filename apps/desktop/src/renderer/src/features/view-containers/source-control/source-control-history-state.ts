@@ -2,6 +2,18 @@ import type { SourceControlHistoryPage } from '@caxri/protocol';
 
 type SourceControlHistoryItem = SourceControlHistoryPage['items'][number];
 
+/**
+ * Why a revision-bound action is refused mid-refresh.
+ *
+ * The panel stays fully interactive while Git re-reads the working tree, so the refusal has to happen at execution time
+ * and has to say why — a click that silently does nothing reads as a broken button, and disabling the control instead
+ * would take it out of the tree's roving Tab stop several times a minute. Renderer-owned rather than a `presentation`
+ * field because every field of `controlledViewPresentationSchema` is required, so adding one would break every provider
+ * that already ships a presentation.
+ */
+export const REFRESHING_ACTION_MESSAGE =
+    'Source Control is refreshing. Try that action again in a moment.';
+
 export interface SourceControlHistoryPageIdentity {
     path: string | undefined;
     revision: string | undefined;
