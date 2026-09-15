@@ -1,8 +1,8 @@
 import type { TerminalKind } from '@caxri/protocol';
 import { agentProviderIds, terminalKindSchema } from '@caxri/protocol';
-import { create } from 'zustand';
 
 import { readLocalStorageJson, writeLocalStorageJson } from '../../lib/local-storage';
+import { createStore } from '../../lib/store';
 
 const STORAGE_KEY = 'caxri.terminal-kind-recency';
 
@@ -58,13 +58,16 @@ interface TerminalKindRecencyState {
  * device-local presentation preference rather than Session state, so it persists to `localStorage` and is never written
  * through to the Server — the same boundary `stores/chrome-layout.ts` sits on.
  */
-export const useTerminalKindRecencyStore = create<TerminalKindRecencyState>((set, get) => ({
-    order: readPersistedOrder(),
-    recordTerminalKind: (kind) => {
-        const previous = get().order;
-        if (previous[0] === kind) return;
-        const order = promoteTerminalKind(previous, kind);
-        writeLocalStorageJson(STORAGE_KEY, order);
-        set({ order });
-    },
-}));
+export const useTerminalKindRecencyStore = createStore<TerminalKindRecencyState>(
+    'terminal-kind-recency',
+    (set, get) => ({
+        order: readPersistedOrder(),
+        recordTerminalKind: (kind) => {
+            const previous = get().order;
+            if (previous[0] === kind) return;
+            const order = promoteTerminalKind(previous, kind);
+            writeLocalStorageJson(STORAGE_KEY, order);
+            set({ order });
+        },
+    }),
+);

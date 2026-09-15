@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { createStore } from '../../../lib/store';
 
 interface FileSearchState {
     activeSessionId?: string;
@@ -10,7 +10,7 @@ interface FileSearchState {
 /**
  * Renderer-local source of truth shared by the command and the Session-scoped Resource Explorer surface.
  */
-export const useFileSearchStore = create<FileSearchState>((set) => ({
+export const useFileSearchStore = createStore<FileSearchState>('file-search', (set) => ({
     activeSessionId: undefined,
     focusRevision: 0,
     close: (sessionId) =>

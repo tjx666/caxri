@@ -18,6 +18,12 @@ import type { PluginOption } from 'vite';
  * to packages, so the flag also turns them on.
  */
 const isBundleAnalysisEnabled = process.env.CAXRI_BUNDLE_ANALYZE === '1';
+/**
+ * Opt-in production source maps (`CAXRI_SOURCEMAP=1 bun run build:desktop`). Minified production output is unreadable
+ * in DevTools and in a Node inspector session, so a debuggable build emits maps; the shipped build does not, because
+ * the maps inline every source file and would add more bytes to the installer than the code they describe.
+ */
+const isSourcemapEnabled = isBundleAnalysisEnabled || process.env.CAXRI_SOURCEMAP === '1';
 const isReactProfilingEnabled = process.env.CAXRI_REACT_PROFILING === '1';
 /**
  * Opt-in react-scan render counting for development audits (`CAXRI_REACT_SCAN=1`). The boot module must be the first
@@ -82,7 +88,7 @@ export default defineConfig(async ({ command }) => {
                 __CAXRI_COMMIT__: JSON.stringify(gitCommit),
             },
             build: {
-                sourcemap: isBundleAnalysisEnabled,
+                sourcemap: isSourcemapEnabled,
                 /**
                  * Native modules and the shared `ws` transport stay external and are packaged from `dependencies`;
                  * every other pure-JS dependency lives in `devDependencies` so electron-vite bundles it.
@@ -103,7 +109,7 @@ export default defineConfig(async ({ command }) => {
         },
         preload: {
             build: {
-                sourcemap: isBundleAnalysisEnabled,
+                sourcemap: isSourcemapEnabled,
                 externalizeDeps: true,
                 // Knip's electron-vite plugin only discovers build entries under `rollupOptions.input`;
                 // renaming to the non-deprecated `rolldownOptions` breaks that discovery and makes knip
@@ -136,7 +142,7 @@ export default defineConfig(async ({ command }) => {
              */
             publicDir: resolve('apps/desktop/node_modules/@yutengjing/vscode-icons/assets'),
             build: {
-                sourcemap: isBundleAnalysisEnabled,
+                sourcemap: isSourcemapEnabled,
                 // Knip's electron-vite plugin only discovers build entries under `rollupOptions.input`;
                 // renaming to the non-deprecated `rolldownOptions` breaks that discovery and makes knip
                 // report the whole process-explorer entry chain as unused. Keep the deprecated name until

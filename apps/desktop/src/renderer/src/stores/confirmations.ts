@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { createStore } from '../lib/store';
 
 /**
  * One modal question. The copy contract mirrors VS Code's modal message: the title asks the question, the message names
@@ -38,7 +38,7 @@ interface ConfirmationState {
  * Backs the single `ConfirmationDialog` mounted by `App`, the same one-instance-per-app pattern `ToastOutlet` uses for
  * notifications, so no feature has to mount (or style) its own confirmation surface.
  */
-export const useConfirmationStore = create<ConfirmationState>(() => ({}));
+export const useConfirmationStore = createStore<ConfirmationState>('confirmations', () => ({}));
 
 /**
  * Opens the shared confirmation modal and resolves with the user's answer: `true` for the confirming action, `false`

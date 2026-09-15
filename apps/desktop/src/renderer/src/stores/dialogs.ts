@@ -1,5 +1,6 @@
 import type { AgentProvider } from '@caxri/protocol';
-import { create } from 'zustand';
+
+import { createStore } from '../lib/store';
 
 export type SettingsView =
     | 'ui'
@@ -85,7 +86,7 @@ interface DialogState {
     isModalOpen(): boolean;
 }
 
-export const useDialogStore = create<DialogState>((set, get) => ({
+export const useDialogStore = createStore<DialogState>('dialogs', (set, get) => ({
     archivedSessionsOpen: false,
     settingsOpen: false,
     settingsRequest: { id: 0, view: 'ui' },

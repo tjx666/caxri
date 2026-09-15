@@ -1,5 +1,6 @@
 import type { AppSettings } from '@caxri/protocol';
-import { create } from 'zustand';
+
+import { createStore } from '../lib/store';
 
 /**
  * Stable event identities keep preferences independent of message text and Project names.
@@ -45,7 +46,7 @@ interface NotificationState {
 /**
  * History is intentionally memory-only: never persist arbitrary notification bodies or action closures.
  */
-export const useNotificationStore = create<NotificationState>((set) => ({
+export const useNotificationStore = createStore<NotificationState>('notifications', (set) => ({
     entries: [],
     isOpen: false,
     mutedTypes: [],
