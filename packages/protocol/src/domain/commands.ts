@@ -10,6 +10,7 @@ export const commandIds = [
     'project.openInEditor',
     'project.customizeIcon',
     'session.create',
+    'session.rename',
     'session.delete',
     'session.archive',
     'session.detach',
@@ -20,6 +21,7 @@ export const commandIds = [
     'session.switchMru',
     'session.navigateBack',
     'session.navigateForward',
+    'session.openArchived',
     'agentActions.open',
     'terminal.new',
     'terminal.newInSplit',
@@ -40,6 +42,7 @@ export const commandIds = [
     'editor.sendReferenceToTerminal',
     'editor.openPreview',
     'editor.openPreviewToSide',
+    'editor.openImportLink',
     'workbench.splitLeft',
     'workbench.splitRight',
     'workbench.splitUp',
@@ -49,6 +52,7 @@ export const commandIds = [
     'workbench.focusPaneUp',
     'workbench.focusPaneDown',
     'workbench.moveActiveTerminalToNewSession',
+    'workbench.selectRoot',
     'secondarySidebar.showFiles',
     'secondarySidebar.showGit',
     'secondarySidebar.showStatus',
@@ -58,6 +62,7 @@ export const commandIds = [
     'panel.showInfo',
     'panel.toggle',
     'primarySidebar.toggle',
+    'primarySidebar.focus',
     'settings.open',
     'settings.openSource',
     'settings.openKeybindings',
@@ -70,6 +75,7 @@ export const commandIds = [
     'developer.toggleScreencastMode',
     'developer.reportBug',
     'diagnostics.export',
+    'git.switchBranch',
 ] as const;
 
 export type CommandId = (typeof commandIds)[number];

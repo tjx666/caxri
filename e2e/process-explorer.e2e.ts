@@ -51,13 +51,13 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
         await expect(grid.getByRole('columnheader')).toHaveCount(4);
         await expect(grid).toContainText('caxri');
         await expect(
-            grid.locator('button.process-name[data-process-name="server-core"]'),
+            grid.locator('.process-name-cell[data-process-name="server-core"]'),
         ).toHaveCount(1);
         await expect(
-            grid.locator('button.process-name[data-process-name="extension-host"]'),
+            grid.locator('.process-name-cell[data-process-name="extension-host"]'),
         ).toHaveCount(1);
         await expect(
-            grid.locator('button.process-name[data-process-name="terminal-host"]'),
+            grid.locator('.process-name-cell[data-process-name="terminal-host"]'),
         ).toHaveCount(1);
         await expect(grid).not.toContainText('/bundles/extension-host.js');
         await expect(grid).not.toContainText('/bundles/terminal-host.js');
@@ -65,7 +65,7 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
         const expandedRowCount = await processPage.locator('.process-row').count();
         expect(expandedRowCount).toBeGreaterThan(3);
 
-        const rootProcess = processPage.locator('button.process-name[data-process-name="caxri"]');
+        const rootProcess = processPage.locator('.process-name-cell[data-process-name="caxri"]');
         await rootProcess.click({ modifiers: ['Alt'] });
         await expect(processPage.locator('.process-row')).toHaveCount(1);
         await rootProcess.click();
@@ -156,10 +156,10 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
         await expect.poll(nameColumnWidth).toBe(autoFittedNameWidth);
 
         /**
-         * A leaf row has no children to expand, and used to render as a `disabled` button — which Chromium never sends
-         * pointer events to, so its hover explanation silently never appeared.
+         * A leaf row has no children to expand and therefore renders no control at all: the tooltip carrying its
+         * untruncated command line hangs off the row, so hovering anywhere on the row still explains it.
          */
-        await grid.locator('button.process-name[data-process-name="extension-host"]').hover();
+        await grid.locator('.process-name-cell[data-process-name="extension-host"]').hover();
         await expect(processPage.locator('.tooltip-popup')).toHaveText('extension-host');
         await processPage.mouse.move(4, 4);
         await expect(processPage.locator('.tooltip-popup')).toHaveCount(0);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { findRelativeImportSpecifiers } from '../import-links';
+import { findRelativeImportSpecifiers, importSpecifierAtPosition } from '../import-links';
 
 function specifiers(source: string): string[] {
     return findRelativeImportSpecifiers(source.split('\n'), 128).map((match) => match.specifier);
@@ -58,5 +58,26 @@ describe('findRelativeImportSpecifiers', () => {
             ['./a', 1],
             ['./b', 3],
         ]);
+    });
+});
+
+describe('importSpecifierAtPosition', () => {
+    const matches = findRelativeImportSpecifiers(
+        ["import a from './a';", "import b from '../b/c';"],
+        128,
+    );
+
+    it('claims the caret anywhere on the specifier, including both edges', () => {
+        // `./a` occupies columns 16-18; column 19 is the caret resting just past its last character.
+        expect(importSpecifierAtPosition(matches, 1, 16)?.specifier).toBe('./a');
+        expect(importSpecifierAtPosition(matches, 1, 17)?.specifier).toBe('./a');
+        expect(importSpecifierAtPosition(matches, 1, 19)?.specifier).toBe('./a');
+    });
+
+    it('claims nothing outside the specifier or on another line', () => {
+        expect(importSpecifierAtPosition(matches, 1, 15)).toBeUndefined();
+        expect(importSpecifierAtPosition(matches, 1, 20)).toBeUndefined();
+        expect(importSpecifierAtPosition(matches, 2, 18)?.specifier).toBe('../b/c');
+        expect(importSpecifierAtPosition(matches, 3, 18)).toBeUndefined();
     });
 });

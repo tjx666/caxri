@@ -43,7 +43,13 @@ interface VisibleEmptyRow {
     parentHandle: string;
 }
 
-export type VisibleRow = VisibleItemRow | VisibleLoadingRow | VisibleErrorRow | VisibleEmptyRow;
+/**
+ * The three rows a lazy branch renders in place of children it does not have yet. They own no provider item, so they
+ * carry no handle, no command, and no focus.
+ */
+export type VisiblePlaceholderRow = VisibleLoadingRow | VisibleErrorRow | VisibleEmptyRow;
+
+export type VisibleRow = VisibleItemRow | VisiblePlaceholderRow;
 
 export function visibleRowKey(row: VisibleRow): string {
     return row.kind === 'item'

@@ -394,6 +394,33 @@ a displaced tally stays announced and stays hoverable. Badge reads activate decl
 before their views open. Zero, no selected Session, and unavailable extension states hide the badge;
 counts never carry across Workbench scopes.
 
+**Trees** — a tree is `role="tree"` with `role="treeitem"` rows, and the role sits on the element
+that takes focus, never on a layout wrapper around it: `aria-level`, `aria-selected`, and the roving
+`tabIndex` have to describe the thing the user is actually on. One tree is one Tab stop — exactly one
+row carries `tabIndex={0}`, the row focus would return to, and every other row carries `-1` — so Tab
+enters the tree once and arrows move inside it instead of walking every row in the document. A row
+being renamed is the one allowed exception: it keeps its `treeitem` role and hands its `tabIndex` to
+the input inside it for as long as the edit lasts. Anything that is not a row lives outside the tree
+element — an empty-state action, a live region — because inside `role="tree"` a focusable element has
+to be a real row holding that single Tab stop, and a static notice is not a row. The corollary runs
+both ways: a "show more" control renders _inside_ the tree as a real row, because it is focusable and
+therefore cannot be anything else. The one notice that cannot be lifted out is a lazy branch's
+in-place placeholder (loading, error, empty). It renders where that branch's children would, so it
+stays a `treeitem` — `aria-disabled`, never focusable, wrapping a `role="status"` region so its
+arrival is still announced — and arrow keys step over it to the next real row rather than parking
+focus on text. Right on an already-open branch whose first row is a placeholder does not step into
+it for the same reason: there is no row there to land on yet. Focus and hover are different states and never share a fill: hover is the
+pointer's guess, focus is where the keyboard is, and a tree that paints them identically leaves a
+keyboard user unable to see where they are. Which fill each tree draws still follows its surface —
+the PrimarySidebar's neutral rule means its focus ring is `--foreground`, not the accent the
+workbench's own trees use.
+
+**Treegrids** — a table whose rows nest is a `treegrid`, not a `tree`: sortable `columnheader`s and
+several data columns per row are only legal under a grid, and a `tree` would flatten them into one
+label. It follows the tree rules above with the row itself as the focus target — one roving Tab stop
+across all rows, arrows to move, Left/Right to collapse and expand — and a leaf renders no control
+of its own, because a row that is already focusable does not need a button inside it to be reached.
+
 **Tab strip** — active tab: `--background` fill joining it visually to the pane below,
 `--foreground` text, and a 2px `--accent` top border, VS Code style. Inactive: `--surface` +
 `--muted`. The active tab always shows its close button; an inactive tab reveals a `--muted` one
@@ -758,6 +785,13 @@ bottom-right above the status bar, with three visible cards. Hover or keyboard f
 Use the close or action button to dismiss; clicking the message body does not dismiss it. Sonner's
 internal transition/removal timing is a third-party exception to the motion token layers above;
 its built-in reduced-motion media rule disables animation. Theme overrides live in `styles/styles.css`.
+Notifications are the one floating surface that deliberately outranks a modal: the toaster stacks
+above the dialog popup instead of under its backdrop, because every failure raised inside the
+Settings dialog is reported through this channel and nowhere else, so sinking it there would turn
+each of those failures into silence. The dialog still owns Escape, the backdrop, and the pointer.
+What the exception does not buy is operability — the dialog's focus trap keeps the toast's own
+buttons out of Tab order — so a failure the dialog can report in place belongs in the dialog, not in
+a toast.
 
 **Notifications** — the status bar bell opens a 384px-wide, viewport-constrained popover with
 recent messages, Project context, occurrence counts, removal, clear-all, and a Settings shortcut.
@@ -848,6 +882,20 @@ popup itself hold focus until then.
   exactly what the user wants while an Agent Terminal holds focus. Its chords stay in the same
   `Control+Option` family as the MRU switcher so the whole Session-navigation set is one gesture
   family, and none of them shadow a Terminal control sequence.
+- Revealing a chrome surface with a keybinding moves focus into it, and hiding it hands focus back to
+  wherever the reveal took it from. `Command+J` and `Command+]` carry the editable-target opt-in, so
+  they fire while a Terminal owns the keyboard; a toggle that changed only visibility would leave the
+  revealed surface unreachable (xterm swallows Tab) and, on the way back, drop the focused element so
+  the next Tab restarts from the top of the document. Hiding a surface while focus sits somewhere
+  else entirely is the one case that must not move focus: the user asked for screen space, not to
+  leave the Terminal they are typing in. Each surface names exactly one keyboard entry point — a
+  chrome tab bar's selected tab, a tree's roving row — and every command that focuses that surface
+  uses that same one.
+- `Command+0` moves focus into the PrimarySidebar tree, revealing the side bar first when it is
+  hidden, and `F2` renames the selected Session. Both exist because the keyboard otherwise had no way
+  in: showing the side bar has never moved focus into it, and the row's own `Enter`-to-rename works
+  only while that row already holds focus, so neither the context menu nor the command palette could
+  advertise a chord that worked from anywhere.
 
 ## Known gaps
 
@@ -859,9 +907,22 @@ resolving one requires updating the sections above in the same change.
   dedicated state tokens land, reuse the closest existing recipe instead of inventing another
   formula.
 - **Panel toggle shortcuts** — `Command+[` / `Command+]` collide with editor indent/navigate muscle
-  memory and, per the global-shortcut rule, cannot fire while focus is in Monaco or xterm — where
-  focus usually rests. Rebinding (e.g. `Command+B` for the PrimarySidebar) is an open product
-  decision.
+  memory. They do fire from Monaco and xterm (all three chrome toggles take the editable-target
+  opt-in, which is what makes the focus handoff above necessary), so what remains open is the
+  collision itself: rebinding, e.g. `Command+B` for the PrimarySidebar, is a product decision nobody
+  has made.
+- **Trees that can leave the Tab order** — a virtualized tree's single Tab stop lives on the roving
+  row, and the tree element itself is not focusable, so scrolling that row out of the virtual window
+  takes the whole tree out of Tab order until it scrolls back. Fixing it needs the roving model and
+  virtualization reconciled, not a `tabIndex` somewhere.
+- **Tree rows that are not treeitems** — four known violations of the Trees rule above survive
+  because removing them would cost a user-visible affordance: the extension tree's error row keeps a
+  focusable `Retry` button inside `role="tree"` (dropping it would make recovery unreachable), the
+  process `treegrid`'s column-header sort buttons and column resize separators are extra Tab stops
+  beside its single row stop, the PrimarySidebar still has two generic wrappers standing between
+  `role="tree"` and its rows, and clicking a Project's disclosure arrow moves focus to that arrow —
+  a `tabIndex={-1}` button, so never a Tab stop, but still a non-`treeitem` focus owner inside the
+  tree. Fixing any of them needs a real interaction design, not a role swap.
 - **Bug Report annotation ink** — `screenshot-annotations.ts` hard-codes `#f43f5e` and `#ffffff`
   instead of theme tokens. The same color has to appear in the live SVG overlay and in the
   rasterized JPEG the Agent opens, and no token can repaint bytes already written to a file.

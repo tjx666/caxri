@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 
 import { ChromeTabPanel, ChromeTabs } from '../../components/chrome-tabs';
+import { PanelHeader } from '../../components/panel-header';
 import { Button } from '../../components/ui/button';
 import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
@@ -392,11 +393,8 @@ export function ViewContainerSurface({
                                               key={view.id}
                                               className="flex min-h-0 flex-1 flex-col overflow-hidden"
                                           >
-                                              {!isOnlyView && (
-                                                  <h3 className="border-b border-border px-3 py-1.5 text-xs font-medium">
-                                                      {view.title}
-                                                  </h3>
-                                              )}
+                                              {/* One caption row for every panel title; see `components/panel-header.tsx`. */}
+                                              {!isOnlyView && <PanelHeader title={view.title} />}
                                               {content}
                                           </div>
                                       );

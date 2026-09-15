@@ -266,7 +266,7 @@ test('Files actions stay visible while Project actions reveal on hover or focus'
         );
         await collapsedDisclosure.click();
         // The heading names its Session count, so the accessible name is never the bare title.
-        const projectName = projectHeading.getByRole('button', { name: 'project (1 Session)' });
+        const projectName = projectHeading.getByRole('treeitem', { name: 'project (1 Session)' });
         await projectName.click();
         await expect(projectHeading.getByRole('button', { name: 'Expand project' })).toBeVisible();
         await expect(running.page.locator('.project-session-disclosure')).toHaveAttribute(

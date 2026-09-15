@@ -192,7 +192,7 @@ test('Session MRU default reaches through Monaco and form focus without intercep
          */
         await expect(
             running.page.locator(
-                `.session-row[aria-selected="true"] [data-session-id="${sessionA}"]`,
+                `.session-card[aria-selected="true"][data-session-id="${sessionA}"]`,
             ),
         ).toBeVisible();
         await running.page.keyboard.press('Meta+Shift+F');

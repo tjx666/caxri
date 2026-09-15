@@ -59,6 +59,7 @@ export function SessionRowMenu({
     terminals: TerminalRecord[];
 }) {
     const deleteShortcut = useCommandShortcut('session.delete');
+    const renameShortcut = useCommandShortcut('session.rename');
     const openInEditorShortcut = useCommandShortcut('project.openInEditor');
     const openPullRequestShortcut = useCommandShortcut('session.openPullRequest');
     const detached = hasDetachedAgentTerminal(session.id, terminals);
@@ -103,7 +104,14 @@ export function SessionRowMenu({
                 aria-label={`${session.displayTitle} actions`}
                 finalFocus={!renameRequested}
             >
-                <ContextMenuItem hint="enter" onClick={() => setRenameRequested(true)}>
+                {/*
+                 * Rename's hint is read from the live keybinding table now that `session.rename` is a real command. It
+                 * used to print the literal `enter`, which was true only while this row held keyboard focus and stayed
+                 * wrong forever for anyone who rebound the command. Archive keeps a literal on purpose: `Delete` is a
+                 * tree key, not a keybinding — it archives the row focus is on, which is not necessarily the selected
+                 * Session, so it cannot become a command binding without changing which Session it would take.
+                 */}
+                <ContextMenuItem hint={renameShortcut} onClick={() => setRenameRequested(true)}>
                     Rename
                 </ContextMenuItem>
                 <ContextMenuItem hint="delete" onClick={() => archiveSession(session.id)}>

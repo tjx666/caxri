@@ -16,6 +16,22 @@
     --normal-border: var(--border);
     --border-radius: var(--radius-md);
     font-family: inherit;
+
+    /*
+     * Notifications are the one floating surface that deliberately outranks a modal, so this value is load-bearing
+     * rather than arbitrary. DESIGN.md's rule is that a modal owns the screen and everything standing on top of the
+     * workbench hides while one is open — but every failure raised inside the Settings dialog is reported through this
+     * channel and nowhere else, so hiding it (or sinking it under the z-50 backdrop, where the blur would make it
+     * unreadable) would turn each of those failures into silence. Sitting above the dialog popup (z-51) keeps the
+     * report perceivable while the dialog still owns Escape, the backdrop, and the pointer.
+     *
+     * That exception is honest to assistive technology as well: Base UI's `markOthers`
+     * (`@base-ui/react/floating-ui-react/utils/markOthers`) collects `body [aria-live]` into its keep set before
+     * applying `aria-hidden`/`inert`, and Sonner's toaster root is `<section aria-live="polite">`, so an open dialog
+     * does not hide the region from a screen reader. What the exception does not buy is operability: the dialog's focus
+     * trap still keeps the toast's own buttons out of Tab order, which is why a Settings failure ultimately belongs in
+     * the dialog rather than in a toast. Do not lower this value without moving Settings' failure reporting first.
+     */
     z-index: 80;
 }
 

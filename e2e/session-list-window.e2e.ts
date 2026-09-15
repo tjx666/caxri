@@ -100,7 +100,7 @@ test('the PrimarySidebar reveals older Sessions on demand and always renders the
         await pageRequest(running.page, 'session.select', { sessionId: oldestSessionId });
         await expect(
             running.page.locator(
-                `.session-row[aria-selected="true"] [data-session-id="${oldestSessionId}"]`,
+                `.session-card[aria-selected="true"][data-session-id="${oldestSessionId}"]`,
             ),
         ).toBeVisible();
         await expect(running.page.locator('.session-list .session-card')).toHaveCount(6);
