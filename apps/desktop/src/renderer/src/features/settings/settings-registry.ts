@@ -224,6 +224,7 @@ const rows: SettingRowDescriptor[] = [
     specRow('workbench.newWorktreeBehavior'),
     specRow('workbench.fontFamily'),
     specRow('workbench.externalEditor'),
+    specRow('updates.skippedVersion'),
     {
         id: 'general.hardwareAcceleration',
         category: 'general',

@@ -250,6 +250,13 @@ window's GPU incident budget; subsequent failures still use the normal limits. A
 progress stays informational to avoid duplicate retries. User-facing copy names the setting `hardware acceleration` and the
 state `software rendering`; implementation vocabulary (`DOM renderer`, `WebGL2`, `GPU Safe Mode`,
 `argv.json`) never reaches a label, tooltip, toast, or confirmation.
+A downloaded or downloading update is the one non-degraded chip on that rail, and it is `--muted`
+like Screencast Mode for exactly that reason: a release being available is not a degradation, and
+colouring it would spend the vocabulary reserved for a Caxri that is not working. It earns a
+permanent slot because the two states it carries — a download in flight, an install waiting — outlive
+any dialog the user closed, and automatic discovery raises a notification that expires rather than a
+modal that holds the screen. Clicking it opens the same dialog `Check for Updates` does.
+
 Persistent metrics use concise icon-plus-value labels; explanatory prose belongs in their
 accessible names and hover tooltips. The notification bell is pinned to the far bottom-right corner,
 outside the right-hand chip rail, VS Code style: every chip beside it follows the active tab and
@@ -596,7 +603,9 @@ submodule otherwise printed the same account-level sentence twice, each with its
 limit is a wait rather than a fault, so it takes the hourglass instead of the danger tone, names the
 clock time Caxri resumes, and shows no action while that pause is still running — the retry it would
 offer is exactly the request the limiter is refusing. It keeps one row per provider, because each
-budget resets on its own schedule. The status bar's pull-request chip follows the same rule: it names
+budget resets on its own schedule. The update check is the deliberate counter-example: its
+pause is local bookkeeping and a manual check is defined to bypass it, so that surface names the
+resume time and keeps the action live, because there the button is not the request being refused. The status bar's pull-request chip follows the same rule: it names
 the reason it has no pull request to show (`PR rate limited`, `PR needs login`, `PR offline`) rather
 than the single `PR unknown` that was true of all eight reasons and useful for none, and its hover
 card carries the full recovery sentence.
@@ -755,6 +764,19 @@ that event type across all Projects; muted events remain in history without an u
 Settings → Notifications restores those preferences and groups the existing native notification
 controls. Failures and persistent data-loss notices cannot be muted. Worktree fallback is an
 ordinary four-second reminder now that its record remains available in the center.
+
+**Software update** — a release Caxri finds on its own raises a notification and nothing more. A
+modal belongs to a user who asked; Caxri is opened while someone is already doing something else,
+and taking the screen and the Escape key for news that can wait is the nag this rule exists to
+prevent. The notification carries a `Show Update` action while it is on screen, and the status-bar
+chip is what keeps the release reachable after it expires.
+
+The dialog offers two dismissals, side by side, because they are different answers rather than two
+strengths of one. `Close` means "not now": this app process stops offering the release, and the next
+launch offers it again. `Skip this version` is recorded in `updates.skippedVersion` and outlives the
+process, silencing the offer only until something newer appears — and it has a row in Settings, so
+the one durable consequence of the decision is visible where it can be taken back. A reflexive
+Escape must never be read as the second one.
 
 A workbench change the user did not perform announces itself. An Agent that moves a Session into a
 linked worktree re-roots Files, Source Control, Project Status, and the Editor, so it raises the

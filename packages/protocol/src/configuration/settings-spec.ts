@@ -191,6 +191,24 @@ export const settingsSpec = [
     },
     {
         kind: 'string',
+        key: 'updates.skippedVersion',
+        title: 'Skipped update version',
+        /**
+         * The one durable consequence of `Skip this version`, surfaced where the user can undo it. A persisted state
+         * with no visible home is a trap: without this row, someone who skipped a release once would have no way to
+         * learn why Caxri stopped offering it, or to ask for it again.
+         */
+        description:
+            'Caxri stops offering this release until a newer one appears. Clear the field to be offered it again.',
+        category: 'general',
+        keywords: ['update', 'upgrade', 'skip', 'skipped', 'version', 'release', 'ignore'],
+        nullable: true,
+        maxLength: 64,
+        default: null,
+        placeholder: 'No version skipped',
+    },
+    {
+        kind: 'string',
         key: 'terminal.fontFamily',
         title: 'Font family',
         description: 'Used before the bundled JetBrains Mono fallback stack',

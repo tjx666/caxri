@@ -24,5 +24,6 @@ export * from './terminal-preview.js';
 export * from './terminal-reference.js';
 export * from './terminal-reference-contract.js';
 export * from './terminal-title.js';
+export * from './update-version.js';
 export * from './views.js';
 export * from './virtual-tabs.js';

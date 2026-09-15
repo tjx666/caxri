@@ -168,6 +168,7 @@ export const appSettingsSchema = z.object({
         .default(spec['primarySidebar.autoCollapseProjects'].default),
     'workbench.fontFamily': nullableStringField(spec['workbench.fontFamily']),
     'workbench.externalEditor': nullableStringField(spec['workbench.externalEditor']),
+    'updates.skippedVersion': nullableStringField(spec['updates.skippedVersion']),
     'agents.providers': agentProvidersSchema,
     'agents.delegation': agentDelegationSettingsSchema,
     'agents.notifications.enabled': booleanField(spec['agents.notifications.enabled']),

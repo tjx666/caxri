@@ -377,6 +377,7 @@ describe('updates.* delegation', () => {
     it.each([
         ['updates.getState', 'getState'],
         ['updates.check', 'check'],
+        ['updates.acknowledge', 'acknowledge'],
         ['updates.download', 'download'],
         ['updates.cancel', 'cancel'],
         ['updates.open', 'open'],

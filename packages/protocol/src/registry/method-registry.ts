@@ -335,6 +335,13 @@ export const methods = {
     },
     'updates.getState': { ...desktopRead, params: noParameters, result: updateStateSchema },
     'updates.check': { ...desktopRead, params: noParameters, result: updateStateSchema },
+    /**
+     * Records that a window has already offered the currently available version in this app process, so a reload does
+     * not prompt a second time. Deliberately an explicit Renderer call rather than a side effect of publishing the
+     * state: an `available` state pushed before any window subscribed would otherwise be marked as delivered to a
+     * listener that never existed, and the user would never hear about the release at all.
+     */
+    'updates.acknowledge': { ...desktopControl, params: noParameters, result: updateStateSchema },
     'updates.download': { ...desktopWrite, params: noParameters, result: updateStateSchema },
     'updates.cancel': { ...desktopControl, params: noParameters, result: updateStateSchema },
     'updates.open': { ...desktopControl, params: noParameters, result: updateStateSchema },

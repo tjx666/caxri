@@ -6,12 +6,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import {
-    compareStableVersions,
-    shouldStartAutomaticUpdateCheck,
-    UpdateService,
-    updateStateLogFields,
-} from '../updates';
+import { shouldStartAutomaticUpdateCheck, UpdateService, updateStateLogFields } from '../updates';
 
 const temporaryDirectories: string[] = [];
 
@@ -77,15 +72,6 @@ function releaseFetch(
     });
 }
 
-describe('stable version comparison', () => {
-    it('orders Caxri release versions without a dependency on prerelease semantics', () => {
-        expect(compareStableVersions('0.0.3', '0.0.4')).toBe(-1);
-        expect(compareStableVersions('1.2.0', '1.1.9')).toBe(1);
-        expect(compareStableVersions('v2.0.0', '2.0.0')).toBe(0);
-        expect(() => compareStableVersions('2.0.0-beta.1', '2.0.0')).toThrow('unsupported version');
-    });
-});
-
 describe('automatic update policy', () => {
     it('does not make external requests from a packaged E2E profile', () => {
         expect(
@@ -128,6 +114,22 @@ describe('update state log fields', () => {
         ).toEqual({
             status: 'unavailable',
             reason: 'The Caxri release feed is not publicly available yet.',
+            rateLimited: 'false',
+            retryAt: null,
+        });
+        expect(
+            updateStateLogFields({
+                status: 'unavailable',
+                currentVersion: '0.0.3',
+                reason: 'Update checks are rate limited by GitHub right now.',
+                rateLimited: true,
+                retryAt: Date.UTC(2026, 0, 2, 12, 0, 0),
+            }),
+        ).toEqual({
+            status: 'unavailable',
+            reason: 'Update checks are rate limited by GitHub right now.',
+            rateLimited: 'true',
+            retryAt: '2026-01-02T12:00:00.000Z',
         });
         expect(
             updateStateLogFields({
@@ -266,6 +268,10 @@ describe('UpdateService', () => {
         expect(result.status).toBe('unavailable');
         if (result.status !== 'unavailable') throw new Error('Expected an unavailable state');
         expect(result.reason).toContain('rate limited');
+        // The resume time reaches the Renderer instead of being computed and dropped: it is the only thing that turns
+        // an unexplained disabled button into a wait the user can plan around.
+        expect(result.rateLimited).toBe(true);
+        expect(result.retryAt).toBe(resetEpochSeconds * 1_000);
 
         // A second check inside the reset window must not call fetch again.
         const secondResult = await service.check();
@@ -273,6 +279,7 @@ describe('UpdateService', () => {
         expect(secondResult.status).toBe('unavailable');
         if (secondResult.status !== 'unavailable') throw new Error('Expected an unavailable state');
         expect(secondResult.reason).toContain('rate limited');
+        expect(secondResult.retryAt).toBe(resetEpochSeconds * 1_000);
 
         // A user-initiated check bypasses the local window and hits the network again.
         await service.check({ manual: true });
@@ -298,6 +305,8 @@ describe('UpdateService', () => {
         expect(result.status).toBe('unavailable');
         if (result.status !== 'unavailable') throw new Error('Expected an unavailable state');
         expect(result.reason).toContain('rate limited');
+        expect(result.rateLimited).toBe(true);
+        expect(result.retryAt).toBe(nowMs + 30_000);
         expect(fetch).toHaveBeenCalledOnce();
     });
 
@@ -424,5 +433,100 @@ describe('UpdateService', () => {
 
         await expect(service.check()).resolves.toMatchObject({ status: 'unavailable' });
         expect(fetch).not.toHaveBeenCalled();
+    });
+});
+
+describe('UpdateService announcement bookkeeping', () => {
+    it('marks a fresh release unannounced, and every later read of it announced', async () => {
+        const directory = await temporaryDirectory();
+        const dmg = new TextEncoder().encode('dmg fixture');
+        const onState = vi.fn();
+        const service = new UpdateService({
+            currentVersion: '0.0.3',
+            downloadDirectory: directory,
+            enabled: true,
+            fetch: releaseFetch('0.0.4', dmg),
+            openPath: () => Promise.resolve(''),
+            onState,
+        });
+
+        const discovered = await service.check();
+        expect(discovered).toMatchObject({ status: 'available', announced: false });
+        expect(onState).toHaveBeenCalledWith(expect.objectContaining({ announced: false }));
+
+        await expect(service.acknowledge()).resolves.toMatchObject({ announced: true });
+        // A window reload re-reads the same state and must not find a fresh discovery.
+        expect(service.getState()).toMatchObject({ status: 'available', announced: true });
+    });
+
+    it('does not turn a cancelled download back into a fresh prompt', async () => {
+        const directory = await temporaryDirectory();
+        const dmg = new TextEncoder().encode('dmg fixture');
+        const baseFetch = releaseFetch('0.0.4', dmg);
+        const fetch = vi.fn(async (input: string, init?: RequestInit): Promise<Response> => {
+            if (!input.endsWith('.dmg')) return baseFetch(input);
+            return new Promise<Response>((_resolve, reject) => {
+                init?.signal?.addEventListener(
+                    'abort',
+                    () => reject(new DOMException('Canceled', 'AbortError')),
+                    { once: true },
+                );
+            });
+        });
+        const service = new UpdateService({
+            currentVersion: '0.0.3',
+            downloadDirectory: directory,
+            enabled: true,
+            fetch,
+            openPath: () => Promise.resolve(''),
+        });
+
+        await service.check();
+        await service.acknowledge();
+        const download = service.download();
+        await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(3));
+        await expect(service.cancel()).resolves.toMatchObject({
+            status: 'available',
+            announced: true,
+        });
+        await download;
+    });
+
+    it('announces a newer release again after the previous one was acknowledged', async () => {
+        const directory = await temporaryDirectory();
+        const dmg = new TextEncoder().encode('dmg fixture');
+        let version = '0.0.4';
+        const fetch = vi.fn((input: string): Promise<Response> =>
+            releaseFetch(version, dmg)(input),
+        );
+        const service = new UpdateService({
+            currentVersion: '0.0.3',
+            downloadDirectory: directory,
+            enabled: true,
+            fetch,
+            openPath: () => Promise.resolve(''),
+        });
+
+        await service.check();
+        await service.acknowledge();
+        version = '0.0.5';
+        await expect(service.check()).resolves.toMatchObject({
+            status: 'available',
+            version: '0.0.5',
+            announced: false,
+        });
+    });
+
+    it('leaves a non-available status untouched', async () => {
+        const service = new UpdateService({
+            currentVersion: '0.0.3',
+            downloadDirectory: await temporaryDirectory(),
+            enabled: false,
+            fetch: vi.fn(),
+            openPath: () => Promise.resolve(''),
+        });
+
+        await service.check();
+        await expect(service.acknowledge()).resolves.toMatchObject({ status: 'unavailable' });
     });
 });
