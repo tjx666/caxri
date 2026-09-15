@@ -11,6 +11,7 @@ import type {
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Search, X } from 'lucide-react';
 
+import { useFocusOnRevision } from '@/hooks/use-focus-on-revision';
 import { cn } from '@/lib/utilities';
 
 import { Input, InputGroup } from '../../components/ui/input';
@@ -30,11 +31,26 @@ export interface SettingsPageProperties {
     agentSkillHealth?: AgentSkillHealth;
     agentActionsFocusRequest?: { id: number; provider: AgentProvider };
     gitExclusionsFocusRequestId?: number;
-    hardwareAccelerationFocusRequestId?: number;
+    /**
+     * Scrolls one `argv.jsonc` boot-flag row into view. One request for both flags, because they differ only by which
+     * row they land on.
+     */
+    argvRowFocusRequest?: { id: number; rowId: string };
     trustedDomainsFocusRequestId?: number;
     notificationsFocusRequestId?: number;
+    /**
+     * Bumped when Settings is opened without a target, which lands the caret in the search field the way VS Code and
+     * macOS System Settings do. This is a revision request rather than the dialog's own `initialFocus` because the
+     * field does not exist yet when Base UI resolves that: the page renders only once `settings.jsonc` has loaded, so
+     * on the first open of a session the dialog's focus resolution runs against a tab panel that is still empty.
+     */
+    searchFocusRequestId?: number;
     onArgvConfigChange: (changes: ArgvConfigChanges) => void;
-    onFieldChange: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
+    onFieldChange: <K extends keyof AppSettings>(
+        key: K,
+        value: AppSettings[K],
+        member?: string,
+    ) => void;
 }
 
 const clearSearchButtonClassName =
@@ -163,11 +179,14 @@ export function SettingsPage(properties: SettingsPageProperties) {
     const [query, setQuery] = useState('');
     const isSearching = query.trim().length > 0;
     const scrollParentReference = useRef<HTMLDivElement>(null);
+    const searchInputReference = useRef<HTMLInputElement>(null);
     const handledFocusRequest = useRef(0);
     const handledAgentActionsFocusRequest = useRef(0);
     const handledGitExclusionsFocusRequest = useRef(0);
-    const handledHardwareAccelerationFocusRequest = useRef(0);
+    const handledArgvRowFocusRequest = useRef(0);
     const handledNotificationsFocusRequest = useRef(0);
+
+    useFocusOnRevision(properties.searchFocusRequestId, searchInputReference);
 
     const visibleRows = useMemo(() => filterSettingsRows(settingsRows, query), [query]);
     const list = useMemo(() => buildSettingsList(settingsCategories, visibleRows), [visibleRows]);
@@ -246,14 +265,25 @@ export function SettingsPage(properties: SettingsPageProperties) {
     }, [list, properties.gitExclusionsFocusRequestId, virtualizer, virtualItems.length]);
 
     useEffect(() => {
-        const requestId = properties.hardwareAccelerationFocusRequestId;
-        if (!requestId || handledHardwareAccelerationFocusRequest.current === requestId) return;
-        handledHardwareAccelerationFocusRequest.current = requestId;
+        const request = properties.argvRowFocusRequest;
+        if (
+            !request ||
+            handledArgvRowFocusRequest.current === request.id ||
+            virtualItems.length === 0
+        )
+            return;
         const index = list.findIndex(
-            (item) => item.kind === 'row' && item.row.id === 'general.hardwareAcceleration',
+            (item) => item.kind === 'row' && item.row.id === request.rowId,
         );
-        if (index !== -1) virtualizer.scrollToIndex(index, { align: 'start' });
-    }, [list, properties.hardwareAccelerationFocusRequestId, virtualizer]);
+        if (index === -1) return;
+        /**
+         * Same wait for measured items as the two requests below: a request that opens the dialog mounts an unmeasured
+         * list, and scrolling it before the virtualizer has a range silently does nothing — which is exactly how this
+         * arrives from the status bar's debugging chip and the GPU crash card.
+         */
+        handledArgvRowFocusRequest.current = request.id;
+        virtualizer.scrollToIndex(index, { align: 'start' });
+    }, [list, properties.argvRowFocusRequest, virtualizer, virtualItems.length]);
 
     useEffect(() => {
         const requestId = properties.notificationsFocusRequestId;
@@ -281,7 +311,7 @@ export function SettingsPage(properties: SettingsPageProperties) {
             const action = rowResetAction(row.binding, settings);
             if (!action) return;
             if (action.kind === 'argv') properties.onArgvConfigChange(action.changes);
-            else properties.onFieldChange(action.key, action.value);
+            else properties.onFieldChange(action.key, action.value, action.member);
         },
     };
 
@@ -291,6 +321,7 @@ export function SettingsPage(properties: SettingsPageProperties) {
                 <InputGroup appearance="workbench" size="dense">
                     <Search aria-hidden="true" className="shrink-0 text-muted" size={14} />
                     <Input
+                        ref={searchInputReference}
                         appearance="embedded"
                         aria-label="Search settings"
                         placeholder="Search settings"

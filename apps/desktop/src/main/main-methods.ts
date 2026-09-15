@@ -4,7 +4,12 @@ import { lstat, mkdir, opendir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import type { ArgvConfig, ArgvConfigChanges, MainRequest } from '@caxri/protocol';
+import type {
+    ArgvConfig,
+    ArgvConfigChanges,
+    MainRequest,
+    RemoteDebuggingState,
+} from '@caxri/protocol';
 import {
     agentProviderCatalog,
     BUG_REPORT_JPEG_DATA_URL_PREFIX,
@@ -40,6 +45,12 @@ interface MainMethodHandlerOptions {
     acceptanceThemeImportFixture?: ReturnType<typeof createAcceptanceThemeImportFixture>;
     allowGpuTestInjection?: boolean;
     getProcessExplorer(): ProcessExplorerWindowController;
+    /**
+     * What this instance actually exposes, resolved once at boot by `configureDesktopProfile`. It is not derivable from
+     * `argv.jsonc`: an unpackaged launch ignores the stored preference, and a window whose switch was just flipped
+     * still holds the port it started with.
+     */
+    getRemoteDebugging(): RemoteDebuggingState;
     getUserDataPath(): string;
     getSupervisor(): DesktopServerConnection;
     getUpdateService(): UpdateService;
@@ -167,7 +178,10 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
         const mainWindow = options.getWindow();
         switch (request.method) {
             case 'argv.get':
-                return { value: await readArgvConfig(options.getUserDataPath()) };
+                return {
+                    remoteDebugging: options.getRemoteDebugging(),
+                    value: await readArgvConfig(options.getUserDataPath()),
+                };
             case 'argv.update':
                 return {
                     value: await (options.updateArgvConfig

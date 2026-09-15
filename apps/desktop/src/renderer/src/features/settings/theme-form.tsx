@@ -15,6 +15,7 @@ import {
     SelectValue,
 } from '../../components/ui/select';
 import { Tooltip } from '../../components/ui/tooltip';
+import type { ThemeImportResult } from './theme-import-error';
 import {
     dismissThemeImportWarning,
     readThemeImportWarningDismissals,
@@ -26,7 +27,9 @@ import { humanizeThemeTokenLabel } from './theme-token-labels';
 interface ThemeFormProperties {
     theme: ThemeTokens;
     warnings: readonly ThemeImportWarning[];
+    importResult?: ThemeImportResult;
     onColorChange: (section: 'colors' | 'terminal' | 'editor', key: string, value: string) => void;
+    onDismissImportResult: () => void;
     onImport: () => void;
     onSelectBuiltin: (id: string) => void;
 }
@@ -37,7 +40,9 @@ interface ThemeFormProperties {
 export function ThemeForm({
     theme,
     warnings,
+    importResult,
     onColorChange,
+    onDismissImportResult,
     onImport,
     onSelectBuiltin,
 }: ThemeFormProperties) {
@@ -50,6 +55,38 @@ export function ThemeForm({
                 </Button>
             </div>
             <div className="theme-editor structured-editor min-h-0 flex-1 overflow-auto p-3">
+                {/*
+                 * Every answer about an import renders here, directly under the button that asked for it. They used to
+                 * sit after three fieldsets and some thirty swatch rows, which put them below the fold on arrival: a
+                 * warning nobody scrolled to is the same as no warning at all. A failure keeps `Alert`'s assertive
+                 * `role="alert"` — a theme that was rejected is exactly the case worth interrupting for — while a
+                 * success downgrades to `status` so a screen reader finishes the sentence it was on.
+                 */}
+                {importResult && (
+                    <Alert
+                        variant={importResult.kind === 'failed' ? 'danger' : 'info'}
+                        className="mb-3 flex items-start justify-between gap-2"
+                        {...(importResult.kind === 'imported' && { role: 'status' })}
+                    >
+                        <span>
+                            {importResult.kind === 'failed'
+                                ? importResult.message
+                                : `Imported ${importResult.themeName}.`}
+                        </span>
+                        <Tooltip content="Dismiss">
+                            <Button
+                                size="icon"
+                                variant="ghost"
+                                className="size-6 shrink-0"
+                                aria-label="Dismiss theme import result"
+                                onClick={onDismissImportResult}
+                            >
+                                <X aria-hidden="true" size={12} />
+                            </Button>
+                        </Tooltip>
+                    </Alert>
+                )}
+                <ThemeImportWarnings key={theme.id} themeId={theme.id} warnings={warnings} />
                 <Field orientation="horizontal" className="mb-3">
                     <FieldLabel htmlFor="theme-preset">Theme preset</FieldLabel>
                     <Select
@@ -110,7 +147,6 @@ export function ThemeForm({
                         ))}
                     </fieldset>
                 ))}
-                <ThemeImportWarnings key={theme.id} themeId={theme.id} warnings={warnings} />
             </div>
         </div>
     );
@@ -140,7 +176,7 @@ function ThemeImportWarnings({
                     <Alert
                         key={warning.id}
                         variant="warning"
-                        className="flex items-start justify-between gap-2 text-[11px]"
+                        className="mb-3 flex items-start justify-between gap-2 text-[11px]"
                     >
                         <span>{warning.message}</span>
                         <Tooltip content="Dismiss warning">

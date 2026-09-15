@@ -27,6 +27,15 @@ export function isDelegationEffortSupported(
     return delegationEffortSchema.safeParse(effort).success;
 }
 
+/**
+ * Delegation depth bounds, shared by this schema and the Settings row that edits `maxDepth`, so the field and its
+ * control cannot drift apart. Depth 1 is the first delegation: the Agent the user started may bring in one helper, and
+ * that helper works alone.
+ */
+export const MIN_DELEGATION_DEPTH = 1;
+export const MAX_DELEGATION_DEPTH = 8;
+export const DEFAULT_DELEGATION_DEPTH = 2;
+
 const descriptionSchema = z.string().trim().min(1).max(2048);
 const instructionsSchema = z.string().trim().min(1).max(8192);
 const selectionShape = {
@@ -61,7 +70,12 @@ const callerSchema = z.strictObject({
 
 export const agentDelegationSettingsSchema = z
     .strictObject({
-        maxDepth: z.number().int().min(1).max(8).default(2),
+        maxDepth: z
+            .number()
+            .int()
+            .min(MIN_DELEGATION_DEPTH)
+            .max(MAX_DELEGATION_DEPTH)
+            .default(DEFAULT_DELEGATION_DEPTH),
         presets: z.array(delegationPresetSchema).max(32).default([]),
         callers: z.partialRecord(delegationProviderSchema, callerSchema).default({}),
     })
@@ -87,10 +101,10 @@ export const agentDelegationSettingsSchema = z
             }
         }
     })
-    .default({ maxDepth: 2, presets: [], callers: {} });
+    .default({ maxDepth: DEFAULT_DELEGATION_DEPTH, presets: [], callers: {} });
 
 export const delegationRosterSchema = z.strictObject({
-    maxDepth: z.number().int().min(1).max(8),
+    maxDepth: z.number().int().min(MIN_DELEGATION_DEPTH).max(MAX_DELEGATION_DEPTH),
     presets: z.array(delegationPresetSchema.omit({ instructions: true })).max(32),
     prepend: instructionsSchema.optional(),
     append: instructionsSchema.optional(),

@@ -9,6 +9,7 @@ export type SettingsView =
     | 'trusted-domains'
     | 'agent-actions'
     | 'hardware-acceleration'
+    | 'remote-debugging'
     | 'notifications'
     | 'git-exclusions';
 

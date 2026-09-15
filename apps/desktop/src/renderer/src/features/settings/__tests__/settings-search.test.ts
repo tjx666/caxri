@@ -56,6 +56,31 @@ describe('filterSettingsRows', () => {
             'mobile.access',
         ]);
     });
+
+    /**
+     * `agents.delegation` is a complex value with no scalar spec, so for a long time it declared search keywords while
+     * rendering no row at all — searching the word that names the feature returned nothing. A row now owns the depth,
+     * and the words a user would actually type for it have to keep reaching that row.
+     */
+    it('finds the Agent delegation row by the words that name the feature', () => {
+        for (const query of ['delegation', 'delegate', 'preset', 'depth', 'caller', 'effort'])
+            expect(
+                filterSettingsRows(settingsRows, query).map((r) => r.id),
+                query,
+            ).toContain('agents.delegation.maxDepth');
+    });
+
+    /**
+     * The debugging-port row used to be titled and described in protocol vocabulary, so the words a worried user types
+     * did not reach it. The rewrite has to stay reachable by both the old jargon and the plain words.
+     */
+    it('finds the debugging port row by both its jargon and its plain words', () => {
+        for (const query of ['cdp', 'remote debugging', 'devtools', 'debugging port'])
+            expect(
+                filterSettingsRows(settingsRows, query).map((r) => r.id),
+                query,
+            ).toContain('security.remoteDebugging');
+    });
 });
 
 describe('buildSettingsList', () => {

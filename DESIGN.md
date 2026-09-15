@@ -259,6 +259,12 @@ colouring it would spend the vocabulary reserved for a Caxri that is not working
 permanent slot because the two states it carries — a download in flight, an install waiting — outlive
 any dialog the user closed, and automatic discovery raises a notification that expires rather than a
 modal that holds the screen. Clicking it opens the same dialog `Check for Updates` does.
+An open debugging channel earns the same kind of permanent muted slot, for the opposite reason: Caxri
+ships accepting Chrome DevTools Protocol connections on loopback, and a capability that lets any local
+program read every window and act as the user must be disclosed where the user can see it without
+going looking. It is a mode the build or the user chose, not a degradation, so it stays `--muted`; it
+reports what the process is actually doing rather than what `argv.jsonc` now says, because turning the
+switch off leaves the channel open until the next launch (principle 9). Clicking it opens its setting.
 
 Persistent metrics use concise icon-plus-value labels; explanatory prose belongs in their
 accessible names and hover tooltips. The notification bell is pinned to the far bottom-right corner,

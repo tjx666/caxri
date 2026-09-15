@@ -30,6 +30,7 @@ export type SettingRowBinding =
     | { type: 'files-exclude'; key: 'files.exclude' | 'git.diffExclude' }
     | { type: 'archived-sessions' }
     | { type: 'mobile-access' }
+    | { type: 'delegation-depth' }
     | { type: 'remote-debugging' }
     | { type: 'hardware-acceleration' };
 
@@ -301,18 +302,24 @@ const rows: SettingRowDescriptor[] = [
     {
         id: 'security.remoteDebugging',
         category: 'security',
-        title: 'Remote debugging (CDP)',
+        title: 'Debugging port',
         description:
-            'Expose Chrome DevTools Protocol on 127.0.0.1:9224 (9223 in dev launches) for agent ' +
-            'tooling; takes effect after restarting Caxri',
+            'On, Caxri listens on 127.0.0.1:9224 and any program running on this Mac can attach ' +
+            'to it over the Chrome DevTools Protocol. Whatever attaches can read every window, ' +
+            'run code in it, and act as you. Nothing on another machine can reach that address. ' +
+            'Off, nothing is listening. Applies to the installed app the next time it starts; a ' +
+            'Caxri started from source always listens, on 127.0.0.1:9223.',
         binding: { type: 'remote-debugging' },
         haystack: lower([
             'remote debugging',
             'cdp',
             'chrome devtools protocol',
+            'devtools',
             'port 9224',
             'port 9223',
             'inspect',
+            'attach',
+            'automation',
         ]),
     },
     {
@@ -331,6 +338,29 @@ const rows: SettingRowDescriptor[] = [
     specRow('notifications.worktreeFallback'),
     specRow('notifications.agentRecovery'),
     specRow('projectStatus.notifications.enabled'),
+    {
+        id: 'agents.delegation.maxDepth',
+        category: 'agents',
+        title: 'Delegation depth',
+        description:
+            'An Agent can hand part of its job to a second Agent, and that one can hand part of ' +
+            'its own job to a third. This is how many times in a row that may happen: 1 lets the ' +
+            'Agent you started bring in one helper, which then finishes alone; 2 lets that helper ' +
+            'bring in one more. Nothing is handed on until the delegation presets name which ' +
+            'Agents may be brought in, which is done in the Source view.',
+        binding: { type: 'delegation-depth' },
+        /**
+         * Derived from the one spec that already describes this key, so the words it lists — `model`, `effort`,
+         * `caller` — keep finding the row instead of dying with the complex editor this row replaced.
+         */
+        haystack: specHaystack(settingsSpecByKey['agents.delegation'], [
+            'delegate',
+            'max depth',
+            'subagent',
+            'helper',
+            'hand off',
+        ]),
+    },
     specRow('agents.notifications.enabled'),
     specRow('agents.notifications.completionThresholdSeconds'),
     ...agentProviderIds.flatMap((provider) => providerRows(provider)),

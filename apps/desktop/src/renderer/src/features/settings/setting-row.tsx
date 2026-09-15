@@ -5,8 +5,15 @@ import type {
     AgentSkillHealth,
     AppSettings,
     ArgvConfigChanges,
+    IntegerSettingSpec,
 } from '@caxri/protocol';
-import { agentProviderCatalog, settingsSpecByKey } from '@caxri/protocol';
+import {
+    agentProviderCatalog,
+    DEFAULT_DELEGATION_DEPTH,
+    MAX_DELEGATION_DEPTH,
+    MIN_DELEGATION_DEPTH,
+    settingsSpecByKey,
+} from '@caxri/protocol';
 import { Archive, RotateCcw } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
@@ -42,7 +49,11 @@ import { TrustedDomainsForm } from './trusted-domains-form';
 import { TrustedFoldersForm } from './trusted-folders-form';
 
 interface SettingRowHandlers {
-    onFieldChange: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
+    onFieldChange: <K extends keyof AppSettings>(
+        key: K,
+        value: AppSettings[K],
+        member?: string,
+    ) => void;
     onArgvConfigChange: (changes: ArgvConfigChanges) => void;
     onResetRow: (row: SettingRowDescriptor) => void;
 }
@@ -169,6 +180,21 @@ function RowChrome({
         </div>
     );
 }
+
+/**
+ * `agents.delegation` is one complex value, so its depth has no entry in `settingsSpecByKey` to render from. The bounds
+ * come from the schema that validates the write, not from numbers retyped here, so the control can never offer a value
+ * the write would reject.
+ */
+const DELEGATION_DEPTH_SPEC: IntegerSettingSpec = {
+    kind: 'integer',
+    key: 'agents.delegation',
+    title: 'Delegation depth',
+    category: 'agents',
+    min: MIN_DELEGATION_DEPTH,
+    max: MAX_DELEGATION_DEPTH,
+    default: DEFAULT_DELEGATION_DEPTH,
+};
 
 function rowControl(properties: SettingRowProperties): {
     control: ReactNode;
@@ -511,6 +537,25 @@ function rowControl(properties: SettingRowProperties): {
             };
         case 'mobile-access':
             return { control: <MobileAccessForm /> };
+        case 'delegation-depth':
+            return {
+                labelFor: controlId,
+                control: (
+                    <IntegerControl
+                        id={controlId}
+                        label={row.title}
+                        spec={DELEGATION_DEPTH_SPEC}
+                        value={settings['agents.delegation'].maxDepth}
+                        onChange={(value) =>
+                            onFieldChange(
+                                'agents.delegation',
+                                { ...settings['agents.delegation'], maxDepth: value },
+                                'maxDepth',
+                            )
+                        }
+                    />
+                ),
+            };
         case 'remote-debugging':
             return {
                 labelFor: controlId,

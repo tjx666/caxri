@@ -40,6 +40,7 @@ import { configReducer, initialConfigState, parseConfigSource } from './settings
 import { settingsRows } from './settings-registry';
 import { createSettingsWriteCoordinator } from './settings-write-coordinator';
 import { applyBuiltinTheme, applyThemeColorEdit } from './theme-edit';
+import type { ThemeImportResult } from './theme-import-error';
 import { describeThemeImportFailure } from './theme-import-error';
 import { resetThemeImportWarningDismissals } from './theme-import-warnings';
 
@@ -49,9 +50,28 @@ import { resetThemeImportWarningDismissals } from './theme-import-warnings';
  */
 const scrolledSettingsViews: ReadonlySet<SettingsView> = new Set([
     'hardware-acceleration',
+    'remote-debugging',
     'notifications',
     'git-exclusions',
 ]);
+
+/**
+ * Both `argv.jsonc` boot flags are reached by scrolling their own row into view, so one request carries the row id
+ * rather than one prop per flag. `settingTitleForArgvKey` already ties a boot flag to its row through the binding type;
+ * this is the same convention on the navigation side.
+ */
+const ARGV_ROW_IDS: Partial<Record<SettingsView, string>> = {
+    'hardware-acceleration': 'general.hardwareAcceleration',
+    'remote-debugging': 'security.remoteDebugging',
+};
+
+function argvRowFocusRequest(request: {
+    id: number;
+    view: SettingsView;
+}): { id: number; rowId: string } | undefined {
+    const rowId = ARGV_ROW_IDS[request.view];
+    return rowId ? { id: request.id, rowId } : undefined;
+}
 
 /**
  * A boot flag and the Settings row that owns it share one name: the row backing `argv.jsonc`'s `hardwareAcceleration`
@@ -133,13 +153,22 @@ const onSettingsError = (error: unknown, label: string): void =>
 export function useSettingsDialogController() {
     const isOpen = useDialogStore((state) => state.settingsOpen);
     const request = useDialogStore((state) => state.settingsRequest);
-    const onOpenChange = setSettingsOpen;
     const [tab, setTab] = useState<ConfigKind>('settings');
     const [view, setView] = useState<'ui' | 'source'>('ui');
     const [sourceErrors, setSourceErrors] = useState<
         Partial<Record<ConfigKind, ConfigSourceError>>
     >({});
     const [loaded, setLoaded] = useState(false);
+    const [themeImportResult, setThemeImportResult] = useState<ThemeImportResult | undefined>();
+    /**
+     * The dialog stays mounted for the whole app session, so a result left behind would still be sitting at the top of
+     * the theme editor the next time it is opened — reporting an import the user made minutes ago as if it just
+     * happened.
+     */
+    const onOpenChange = (isNextOpen: boolean): void => {
+        if (!isNextOpen) setThemeImportResult(undefined);
+        setSettingsOpen(isNextOpen);
+    };
     const [agentHookHealth, setAgentHookHealth] = useState<AgentHookHealthMap>();
     const [agentSkillHealth, setAgentSkillHealth] = useState<AgentSkillHealth>();
     const [argvConfig, setArgvConfig] = useState<ArgvConfig>();
@@ -468,6 +497,11 @@ export function useSettingsDialogController() {
                 setView('ui');
                 return;
             }
+            /**
+             * An untargeted open is the Settings tab. Leaving the tab wherever the last open left it would hand `Cmd+,`
+             * to Theme or Keybindings, where the search field this request focuses does not exist.
+             */
+            setTab('settings');
             setView('ui');
         });
         return () => {
@@ -500,12 +534,25 @@ export function useSettingsDialogController() {
         setSourceError(kind, parsed.ok ? undefined : parsed);
     };
 
+    /**
+     * `member` names the one field inside a complex setting that actually changed. Without it the whole key is written,
+     * which replaces that key's JSONC node and takes every comment the user wrote inside it along with it. `value`
+     * stays the complete new value so call sites keep their types; only the source edit narrows.
+     */
     const updateSettingsField = <K extends keyof AppSettings>(
         key: K,
         value: AppSettings[K],
+        member?: string,
     ): void => {
         if (!state.settings.value) return;
-        const nextSource = applyFormEdit(state.settings.source, [key], value);
+        const nextSource =
+            member === undefined
+                ? applyFormEdit(state.settings.source, [key], value)
+                : applyFormEdit(
+                      state.settings.source,
+                      [key, member],
+                      (value as Record<string, unknown>)[member],
+                  );
         dispatchConfig({
             type: 'settings/changed',
             value: { ...state.settings.value, [key]: value },
@@ -608,6 +655,8 @@ export function useSettingsDialogController() {
     };
 
     const importTheme = async (): Promise<void> => {
+        // Cleared first so a second attempt cannot leave the previous answer standing while the native picker is open.
+        setThemeImportResult(undefined);
         try {
             const imported = await importThemeFile();
             if (!imported) return;
@@ -624,8 +673,9 @@ export function useSettingsDialogController() {
                 warnings: imported.warnings,
             });
             onApplied();
+            setThemeImportResult({ kind: 'imported', themeName: imported.value.name });
         } catch (error) {
-            pushToast('error', describeThemeImportFailure(error));
+            setThemeImportResult({ kind: 'failed', message: describeThemeImportFailure(error) });
         }
     };
 
@@ -641,9 +691,15 @@ export function useSettingsDialogController() {
         changeTab,
         commitSource,
         gitExclusionsFocusRequestId: request.view === 'git-exclusions' ? request.id : undefined,
-        hardwareAccelerationFocusRequestId:
-            request.view === 'hardware-acceleration' ? request.id : undefined,
+        argvRowFocusRequest: argvRowFocusRequest(request),
+        /**
+         * Only an untargeted open claims the caret. Every other view either scrolls to a row or hands focus to the
+         * editor it opened, and a search field that grabbed focus over those would undo the request the user made.
+         */
+        searchFocusRequestId: request.view === 'ui' ? request.id : undefined,
         importTheme,
+        themeImportResult,
+        dismissThemeImportResult: () => setThemeImportResult(undefined),
         keybindingsFocusRequestId: request.view === 'keybindings' ? request.id : undefined,
         onOpenChange,
         open: isOpen,

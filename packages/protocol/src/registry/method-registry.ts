@@ -24,7 +24,11 @@ import { appSettingsSchema } from '../configuration/settings-schema.js';
 import { MAX_CONFIGURABLE_FILE_BYTES } from '../configuration/settings-spec.js';
 import { MAX_TRUSTED_DOMAIN_LENGTH } from '../configuration/trusted-domains.js';
 import { MAX_TRUSTED_FOLDER_LENGTH } from '../configuration/trusted-folders.js';
-import { argvConfigChangesSchema, argvConfigSchema } from '../desktop/argv-config.js';
+import {
+    argvConfigChangesSchema,
+    argvConfigSchema,
+    remoteDebuggingStateSchema,
+} from '../desktop/argv-config.js';
 import {
     desktopHostMethods,
     desktopRootIdentitySchema,
@@ -299,7 +303,11 @@ export const methods = {
     'argv.get': {
         ...desktopRead,
         params: noParameters,
-        result: z.object({ value: argvConfigSchema }),
+        /**
+         * `value` is the stored preference; `remoteDebugging` is what this instance is actually doing about it right
+         * now. A live disclosure must read the second one — see `remoteDebuggingStateSchema`.
+         */
+        result: z.object({ remoteDebugging: remoteDebuggingStateSchema, value: argvConfigSchema }),
     },
     'argv.update': {
         ...desktopWrite,

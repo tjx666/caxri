@@ -131,7 +131,7 @@ expose `127.0.0.1:9224` (`CAXRI_DEV_CDP_PORT` overrides either), so an installed
 instance can run and be inspected concurrently. A production-build issue can usually be inspected
 by connecting to the running installed app on 9224 directly; whether that suffices or a dev
 relaunch is still needed depends on the problem. The `remoteDebugging` field in the Main-owned boot
-config `<userData>/config/argv.jsonc` (Settings → "Remote debugging") turns the endpoint off on
+config `<userData>/config/argv.jsonc` (Settings → "Debugging port") turns the endpoint off on
 the next launch (`apps/desktop/src/main/desktop-profile.ts`).
 
 Connect with `agent-browser`, always stripping proxy environment variables:
