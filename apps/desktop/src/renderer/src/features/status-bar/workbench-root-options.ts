@@ -1,18 +1,6 @@
 import type { WorkbenchRootOption } from '@caxri/protocol';
 
 /**
- * Match contiguous branch/path text; fuzzy matching across a shared parent path surfaces unrelated worktrees.
- */
-export function workbenchRootSearchScore(
-    _value: string,
-    search: string,
-    keywords: string[] = [],
-): number {
-    const query = search.trim().toLocaleLowerCase();
-    return keywords.some((keyword) => keyword.toLocaleLowerCase().includes(query)) ? 1 : 0;
-}
-
-/**
  * Current and main roots remain reachable without displacing the five newest linked worktrees.
  */
 export function visibleWorkbenchRoots(

@@ -1,21 +1,23 @@
 import { useState } from 'react';
 
 import { relativeTime } from '@caxri/utils';
-import { GitBranch } from 'lucide-react';
+import { Check, GitBranch } from 'lucide-react';
 
 import { useNow } from '@/hooks/use-now';
 
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '../../components/ui/select';
+    Command,
+    CommandEmpty,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from '../../components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { Spinner } from '../../components/ui/spinner';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery, useToastOnQueryError } from '../../queries/client';
 import { switchBranch } from './branch-commands';
+import { pickerSearchScore } from './picker-search';
 import { statusItemClassName } from './status-item';
 
 export function BranchPicker({
@@ -44,9 +46,10 @@ export function BranchPicker({
         ...loadedBranches.filter((candidate) => candidate.name !== branch),
     ];
 
-    const selectBranch = async (nextBranch: string | null): Promise<void> => {
-        if (!nextBranch || nextBranch === branch || switching) return;
+    const selectBranch = async (nextBranch: string): Promise<void> => {
+        if (nextBranch === branch || switching) return;
         setSwitching(true);
+        setOpen(false);
         try {
             await switchBranch(sessionId, repositoryId, nextBranch);
         } finally {
@@ -55,18 +58,18 @@ export function BranchPicker({
     };
 
     return (
-        <Select
-            value={branch}
+        <Popover
             open={open}
-            disabled={switching}
-            onOpenChange={setOpen}
-            onValueChange={(value) => {
-                // eslint-disable-next-line no-void -- intentional floating-promise discard, switchBranch() reports its own errors via tryCommand
-                void selectBranch(value);
+            onOpenChange={(isOpen) => {
+                if (switching) return;
+                setOpen(isOpen);
             }}
         >
-            <SelectTrigger
-                showIcon={false}
+            <PopoverTrigger
+                role="combobox"
+                aria-expanded={open}
+                aria-haspopup="listbox"
+                disabled={switching}
                 aria-label={`Switch branch from ${branch}`}
                 title={`Switch branch from ${branch}`}
                 className={cn(
@@ -74,31 +77,65 @@ export function BranchPicker({
                     'h-5 w-auto max-w-full justify-start px-[5px] text-[11px]',
                 )}
             >
-                <GitBranch size={13} />
-                <SelectValue>{branch}</SelectValue>
-            </SelectTrigger>
-            <SelectContent className="max-w-96 min-w-48">
-                {branches.map(({ name, committedAt }) => (
-                    <SelectItem key={name} value={name} className="max-w-96">
-                        <span className="flex min-w-0 items-baseline gap-2">
-                            <span className="overflow-hidden text-ellipsis whitespace-nowrap">
-                                {name}
-                            </span>
-                            {committedAt !== undefined && (
-                                <span className="flex-none text-[11px] text-muted">
-                                    {relativeTime(committedAt, now)}
-                                </span>
-                            )}
-                        </span>
-                    </SelectItem>
-                ))}
-                {branchesQuery.isLoading && (
-                    <div className="flex items-center gap-1.5 px-2 py-1.5 text-[12px] text-muted">
-                        <Spinner aria-hidden="true" className="size-3" />
-                        Loading branches…
-                    </div>
-                )}
-            </SelectContent>
-        </Select>
+                <GitBranch size={13} className="flex-none" />
+                <span className="min-w-0 truncate">{branch}</span>
+            </PopoverTrigger>
+            <PopoverContent
+                side="top"
+                className="w-96 max-w-[calc(100vw-16px)]"
+                aria-label="Branches"
+            >
+                <Command
+                    // `cmdk` points the input's `aria-labelledby` at this label, and
+                    // `aria-labelledby` outranks `aria-label`, so this string — not a prop on
+                    // `CommandInput` — is the search field's accessible name. The popup keeps
+                    // `Branches` as its own dialog name above.
+                    label="Search branches"
+                    defaultValue={branch}
+                    filter={pickerSearchScore}
+                >
+                    <CommandInput autoFocus placeholder="Search branches…" />
+                    <CommandList className="max-h-[min(360px,var(--available-height))]">
+                        {branchesQuery.isLoading && (
+                            <div className="flex items-center gap-2 px-2 py-2 text-muted">
+                                <Spinner aria-hidden="true" className="size-3" />
+                                Loading branches…
+                            </div>
+                        )}
+                        {!branchesQuery.isLoading && (
+                            <CommandEmpty>
+                                {branchesQuery.isError
+                                    ? 'Unable to load branches. Reopen to retry.'
+                                    : 'No matching branches.'}
+                            </CommandEmpty>
+                        )}
+                        {branches.map(({ name, committedAt }) => (
+                            <CommandItem
+                                key={name}
+                                value={name}
+                                disabled={switching}
+                                className="items-center text-[13px]"
+                                onSelect={() => {
+                                    // eslint-disable-next-line no-void -- intentional floating-promise discard, switchBranch() reports its own errors via tryCommand
+                                    void selectBranch(name);
+                                }}
+                            >
+                                <Check
+                                    size={13}
+                                    className={cn('flex-none', name !== branch && 'invisible')}
+                                    aria-hidden="true"
+                                />
+                                <span className="min-w-0 flex-1 truncate">{name}</span>
+                                {committedAt !== undefined && (
+                                    <span className="flex-none text-[11px] text-muted">
+                                        {relativeTime(committedAt, now)}
+                                    </span>
+                                )}
+                            </CommandItem>
+                        ))}
+                    </CommandList>
+                </Command>
+            </PopoverContent>
+        </Popover>
     );
 }
