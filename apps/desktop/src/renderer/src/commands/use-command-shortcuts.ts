@@ -61,6 +61,25 @@ export function resolveKeydownBinding(
 }
 
 /**
+ * App commands that yield their stroke to the editor because Monaco reads the same stroke as the continuation of a
+ * `Cmd+K` chord: `Cmd+K Cmd+J` unfolds all, `Cmd+K Cmd+0` folds all. Dispatch for these waits for the bubble phase, so
+ * the editor consumes the continuation first while an unhandled standalone `Cmd+J` or `Cmd+0` still reaches the
+ * command. Every other app override stays in capture phase and wins outright.
+ *
+ * This is the list of collisions that have been decided, not every collision that exists: Monaco also owns `Cmd+K
+ * Cmd+1` through `Cmd+K Cmd+7`, `Cmd+K Cmd+[`, `Cmd+K Cmd+]`, and `Cmd+K Cmd+,`, and Caxri binds those second strokes
+ * too. Adding one here trades an editor chord for an app shortcut, so each is its own product decision.
+ */
+const EDITOR_CHORD_CONTINUATION_COMMANDS: ReadonlySet<string> = new Set([
+    'panel.toggle',
+    'primarySidebar.focus',
+]);
+
+export function isEditorChordContinuationCommand(commandId: string): boolean {
+    return EDITOR_CHORD_CONTINUATION_COMMANDS.has(commandId);
+}
+
+/**
  * Global keyboard dispatch. Capture phase lets opted-in commands run before xterm or Monaco stop an editable target's
  * event. The binding table is read from the store at keystroke time, so the listener is installed once instead of being
  * torn down on every snapshot refresh. The chord map is rebuilt only when the keybinding array reference changes (a
@@ -91,12 +110,8 @@ export function useCommandShortcuts(): void {
             });
             if (!binding) return;
             const commandId = binding.command;
-            /**
-             * Monaco owns Cmd+K Cmd+J (Unfold All). Let it consume the continuation before Panel Toggle sees Cmd+J; an
-             * unhandled standalone Cmd+J still bubbles here. Keep intentional app overrides in capture phase.
-             */
             const shouldDeferToEditor =
-                commandId === 'panel.toggle' && isEditorEventTarget(event.target);
+                isEditorChordContinuationCommand(commandId) && isEditorEventTarget(event.target);
             if (shouldDeferToEditor !== isBubbling) return;
             const definition = getRegisteredCommand(commandId);
             /**
