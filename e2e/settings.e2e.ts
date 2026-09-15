@@ -113,7 +113,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         ).toBeChecked();
         await expect(
             dialog.locator('[data-setting-row="agents.claude.hooks"]').getByRole('status'),
-        ).toContainText('Waiting for the agent CLI to be installed');
+        ).toContainText('Not in effect — install the agent CLI first');
         await expect(dialog.getByLabel('Claude Code initial arguments')).toBeVisible();
         await expect(
             dialog.locator('[data-agent-provider="claude"] [data-agent-icon="claude"]'),
@@ -162,7 +162,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         // `hookHealthLabel` appends the adapter's own advisory message.
         await expect(
             dialog.locator('[data-setting-row="agents.claude.hooks"]').getByRole('status'),
-        ).toContainText('Waiting for the agent CLI to be installed');
+        ).toContainText('Not in effect — install the agent CLI first');
         await expect
             .poll(async () => {
                 const settings = await pageRequest<{

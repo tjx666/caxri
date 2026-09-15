@@ -228,7 +228,7 @@ test('Files actions stay visible while Project actions reveal on hover or focus'
     try {
         await createProjectSession(running.page);
         const caption = running.page.locator('.panel-caption');
-        const captionTitle = caption.locator(':scope > span').first();
+        const captionTitle = caption.locator('.panel-caption-title');
         const fileActionNames = ['New File', 'New Folder', 'Search Files', 'Collapse Folders'];
         await expect(captionTitle).toHaveText('project');
         await expect(captionTitle).toHaveAttribute('title', await realpath(root));
@@ -496,19 +496,30 @@ test('work tabs divide evenly, leave a draggable titlebar, and pin New Terminal 
             .evaluate((element) => element.scrollWidth > element.clientWidth);
         expect(isLabelClipped).toBe(false);
         await terminalTab.hover();
-        // `[data-open]` because a previously shown tooltip stays mounted through its exit animation.
-        await expect(running.page.locator('.tooltip-popup[data-open]')).toHaveCount(0);
+        // Asked of the tab itself rather than by counting open popups anywhere on the page, which revealing the
+        // Secondary Side Bar now spoils: it hands the keyboard to its selected icon-only tab, whose tooltip is open on
+        // purpose for as long as it holds focus. Base UI drops `data-base-ui-tooltip-trigger` from a trigger with no
+        // tooltip to give, so this settles immediately instead of waiting out a 500 ms delay that proves nothing.
+        await expect(terminalTab).not.toHaveAttribute('data-base-ui-tooltip-trigger');
         await running.page.mouse.move(0, 300);
 
         // E2E runs with no `session.defaultAgent`, so New Terminal collapses to the single button that asks which
         // Agent to start. It advertises no ⌘T there: the shortcut falls back to a plain shell instead of asking.
         const newTerminal = running.page.getByRole('button', { name: 'New Terminal' });
         await newTerminal.hover();
-        await expect(running.page.locator('.tooltip-popup[data-open]')).toHaveCount(0);
+        await expect(newTerminal).not.toHaveAttribute('data-base-ui-tooltip-trigger');
         await newTerminal.click();
-        await expect(
-            running.page.getByRole('menu', { name: 'Select a different agent' }),
-        ).toBeVisible();
+        // Named after the button that opened it: Base UI points the popup's `aria-labelledby` at its active trigger,
+        // which outranks any `aria-label` the popup carries. `Select a different agent` names the split button's
+        // chevron, and that half only exists once `session.defaultAgent` is configured.
+        const agentMenu = running.page.getByRole('menu', { name: 'New Terminal' });
+        await expect(agentMenu).toBeVisible();
+        await expect(agentMenu.getByRole('menuitem')).toHaveText([
+            'Claude Code',
+            'Codex',
+            'Grok Build',
+            'Shell',
+        ]);
         await running.page.keyboard.press('Escape');
     } finally {
         await closeAppQuietly(running.app);

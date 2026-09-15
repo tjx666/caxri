@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { execFileAsync } from '@caxri/system';
 
 import { expect, test } from './support/fixtures.ts';
-import { createProjectSession, launchCaxri } from './support/helpers.ts';
+import { clickGitGroupAction, createProjectSession, launchCaxri } from './support/helpers.ts';
 
 test('Git diff exclusions hide changes, reveal on demand, and refresh from Settings', async () => {
     const testInfo = test.info();
@@ -53,7 +53,7 @@ test('Git diff exclusions hide changes, reveal on demand, and refresh from Setti
         });
         await commits.click();
 
-        await repo.getByRole('button', { name: 'Open Changes', exact: true }).click();
+        await clickGitGroupAction(repo, 'Open Changes');
         const aggregateItems = running.page.locator('.git-multi-diff-item');
         await expect(aggregateItems).toHaveCount(1);
         await expect(aggregateItems.filter({ hasText: 'README.md' })).toHaveCount(1);
@@ -64,7 +64,7 @@ test('Git diff exclusions hide changes, reveal on demand, and refresh from Setti
         await expect(hideExcluded).toHaveAccessibleName(/^Hide excluded files \(1\)$/);
         await expect(excludedFile).toBeVisible();
 
-        await repo.getByRole('button', { name: 'Open Changes', exact: true }).click();
+        await clickGitGroupAction(repo, 'Open Changes');
         await expect(aggregateItems).toHaveCount(2);
         await expect(aggregateItems.filter({ hasText: 'README.md' })).toHaveCount(1);
         await expect(aggregateItems.filter({ hasText: 'example.test.ts' })).toHaveCount(1);
