@@ -125,8 +125,8 @@ export function AgentMessageApprovalDialog() {
 
     /**
      * Base UI resolves `initialFocus` while the body is still loading, when `Approve message` is disabled and cannot
-     * accept focus, so focus stays on the popup itself. Hand the confirming button its focus once the body arrives, and
-     * only from that fallback, so a user who already moved to another action keeps where they are.
+     * accept focus, so focus parks on the popup itself. Hand the confirming button its focus once the body arrives, and
+     * only from that parked state, so a user who already moved to another action keeps where they are.
      */
     useEffect(() => {
         if (!isBodyReady) return;
@@ -188,7 +188,15 @@ export function AgentMessageApprovalDialog() {
                         // that distinction, so its accessible name has to.
                         closeLabel="Decide later"
                         data-testid="agent-message-approval-dialog"
-                        initialFocus={() => approvalConfirmButton(contentReference.current)}
+                        initialFocus={() => {
+                            const confirm = approvalConfirmButton(contentReference.current);
+                            // Base UI focuses exactly what this resolver names and never falls back when it names an
+                            // element (`FloatingFocusManager`: `elToFocus || getDefaultFocusElement()`). Naming the
+                            // confirming button while the body still loads makes it `disabled`, `.focus()` a no-op, and
+                            // focus stay outside the dialog entirely — keystrokes would reach the Agent behind it. The
+                            // popup itself always accepts focus, and the effect above hands it over once the body lands.
+                            return confirm?.disabled === false ? confirm : contentReference.current;
+                        }}
                     >
                         <DialogHeader>
                             <DialogTitle>Peer message approval</DialogTitle>
@@ -284,12 +292,20 @@ export function AgentMessageApprovalDialog() {
                     </DialogContent>
                 )}
             </Dialog>
-            <AgentMessageApprovalWaitingList
-                approvals={waiting}
-                onReview={(messageId) =>
-                    setQueue((existing) => reviewHeldMessage(existing, messageId))
-                }
-            />
+            {/*
+             * Hidden while a message is presented: the list sits under the dialog's backdrop, so a `Review` click
+             * there lands on the backdrop, reads as an outside press, and defers the message on screen rather than
+             * opening the one that was clicked. One decision is asked at a time, and the list returns the moment the
+             * dialog is answered or set aside.
+             */}
+            {!current && (
+                <AgentMessageApprovalWaitingList
+                    approvals={waiting}
+                    onReview={(messageId) =>
+                        setQueue((existing) => reviewHeldMessage(existing, messageId))
+                    }
+                />
+            )}
         </>
     );
 }

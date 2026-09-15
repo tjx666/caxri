@@ -748,7 +748,9 @@ user can keep working through is never an `error` — that would be a lie while 
 runs — and never an `info` either, because neutral phrasing hides that the reduced terms are still
 in force. Do not add a fifth variant. Sonner owns the queue, timers, keyboard access, and swipe
 dismissal. Every variant auto-dismisses after 4s of visible, non-interacting time; only explicit
-`persist` notices stay until dismissed. Stack
+`persist` notices stay until dismissed — including when their own action button is pressed, because
+such an action routinely opens a confirmation the user can still cancel and deleting the card first
+would take the only way back to the offer. Stack
 bottom-right above the status bar, with three visible cards. Hover or keyboard focus pauses expiry.
 Use the close or action button to dismiss; clicking the message body does not dismiss it. Sonner's
 internal transition/removal timing is a third-party exception to the motion token layers above;
@@ -811,6 +813,15 @@ its own. The title asks the question, the message names the consequence, the but
 outcome ("Turn On", not "Yes"), the confirming button takes initial focus, and Escape, the close
 button, and an outside click all mean Cancel. It carries no danger styling on purpose: anything
 destructive enough to want it belongs in the native dialog above.
+
+A modal owns the screen for as long as it is up, so anything else standing on top of the workbench
+hides while one is open. A floating surface left rendered under the backdrop is not merely
+unreachable: its buttons still look pressable, and the click lands on the backdrop instead, which
+reads as an outside press and answers the dialog the user was not looking at. Focus has the
+matching rule — never name a disabled element as a dialog's initial focus. Base UI focuses exactly
+what the resolver returns and does not fall back, so focus stays outside the dialog entirely and
+keystrokes reach whatever is behind it. Name the element only once it can accept focus, and let the
+popup itself hold focus until then.
 
 ## Interaction rules
 

@@ -6,6 +6,7 @@ import {
     describeUpdateChip,
     describeUpdateStatus,
     resolveUpdateAnnouncement,
+    shouldExplainUnsignedInstall,
     updateRetryTimeLabel,
 } from './update-presentation';
 
@@ -251,6 +252,51 @@ describe('canRetryUpdateCheck', () => {
                 status: 'unavailable',
                 currentVersion: '1.0.0',
                 reason: 'Update checks are available in packaged Caxri builds.',
+            }),
+        ).toBe(false);
+    });
+});
+
+describe('shouldExplainUnsignedInstall', () => {
+    it('explains the manual install exactly while a release is in play', () => {
+        expect(shouldExplainUnsignedInstall(available)).toBe(true);
+        expect(
+            shouldExplainUnsignedInstall({
+                status: 'downloading',
+                currentVersion: '1.0.0',
+                version: '1.1.0',
+                fileName: 'Caxri-1.1.0-arm64.dmg',
+                receivedBytes: 1,
+                totalBytes: 2,
+            }),
+        ).toBe(true);
+        // A failed download may still have left the file on disk, so the instructions stay useful.
+        expect(
+            shouldExplainUnsignedInstall({
+                status: 'error',
+                currentVersion: '1.0.0',
+                action: 'download',
+                version: '1.1.0',
+                message: 'Download interrupted.',
+            }),
+        ).toBe(true);
+    });
+
+    it('stays quiet when there is nothing to install', () => {
+        expect(shouldExplainUnsignedInstall(undefined)).toBe(false);
+        expect(shouldExplainUnsignedInstall({ status: 'checking', currentVersion: '1.0.0' })).toBe(
+            false,
+        );
+        expect(
+            shouldExplainUnsignedInstall({ status: 'up-to-date', currentVersion: '1.0.0' }),
+        ).toBe(false);
+        // A check that failed before naming a version has no DMG to talk about.
+        expect(
+            shouldExplainUnsignedInstall({
+                status: 'error',
+                currentVersion: '1.0.0',
+                action: 'check',
+                message: 'GitHub is unreachable.',
             }),
         ).toBe(false);
     });

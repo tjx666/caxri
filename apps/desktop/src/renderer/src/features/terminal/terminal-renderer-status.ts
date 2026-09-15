@@ -12,7 +12,14 @@ export interface TerminalRendererIndicator {
     title: string;
 }
 
-export interface TerminalRendererIndicatorAction {
+/**
+ * Two of the chip's three answers change something and ask first; the third only navigates, so it must not be routed
+ * through a confirmation that has nothing to confirm.
+ */
+type TerminalRendererIndicatorAction =
+    TerminalRendererConfirmAction | TerminalRendererSettingsAction;
+
+export interface TerminalRendererConfirmAction {
     confirmLabel: string;
     message: string;
     /**
@@ -22,10 +29,26 @@ export interface TerminalRendererIndicatorAction {
     title: string;
 }
 
+export interface TerminalRendererIndicatorOptions {
+    /**
+     * Whether `argv.jsonc` turned hardware acceleration off for every launch. Read rather than inferred: the renderer
+     * probe cannot tell a missing GPU apart from one the app declined at boot.
+     */
+    isHardwareAccelerationOff?: boolean;
+}
+
+interface TerminalRendererSettingsAction {
+    /**
+     * Discriminates the navigating answer from the two confirming ones.
+     */
+    opensSettings: true;
+    title: string;
+}
+
 /**
  * Preference-driven fallback uses the settings write; failures instead retry the mounted renderer directly.
  */
-const ENABLE_GPU_ACCELERATION: TerminalRendererIndicatorAction = {
+const ENABLE_GPU_ACCELERATION: TerminalRendererConfirmAction = {
     confirmLabel: 'Turn On',
     message:
         'Terminals start drawing with the GPU immediately, without restarting Caxri or the Terminal. You can turn it off again in Settings.',
@@ -33,11 +56,22 @@ const ENABLE_GPU_ACCELERATION: TerminalRendererIndicatorAction = {
     title: 'Turn on GPU acceleration for Terminals?',
 };
 
-const RETRY_GPU_ACCELERATION: TerminalRendererIndicatorAction = {
+const RETRY_GPU_ACCELERATION: TerminalRendererConfirmAction = {
     confirmLabel: 'Retry GPU',
     message:
         'Retry GPU rendering for this Terminal and reset the graphics failure limit for this window. Your Terminal and Agent keep running, and settings stay unchanged. If the attempt fails, the Terminal keeps using software rendering.',
     title: 'Retry GPU rendering?',
+};
+
+/**
+ * `unsupported` normally means a live `getContext('webgl2')` probe failed, which a later re-probe can pass — so the
+ * retry stays. It cannot pass in a window launched with hardware acceleration off: the probe would run against a GPU
+ * the app declined at boot, and offering it would relabel a settled no as something still worth clicking (DESIGN.md
+ * principle 9). Only then is Settings the honest answer, and it is also the only route back from that state.
+ */
+const OPEN_HARDWARE_ACCELERATION_SETTINGS: TerminalRendererSettingsAction = {
+    opensSettings: true,
+    title: 'Open Settings',
 };
 
 /**
@@ -46,16 +80,19 @@ const RETRY_GPU_ACCELERATION: TerminalRendererIndicatorAction = {
  */
 export function terminalRendererIndicator(
     status: TerminalRendererStatus | undefined,
+    options: TerminalRendererIndicatorOptions = {},
 ): TerminalRendererIndicator | undefined {
     if (status?.mode !== 'dom' || status.reason === 'disposed') return undefined;
-    const detail = terminalRendererDetail(status);
+    const isBootDisabled = status.reason === 'unsupported' && options.isHardwareAccelerationOff;
+    const detail = terminalRendererDetail(status, Boolean(isBootDisabled));
     const isRetrying = ['deferred', 'failed', 'scheduled', 'trying'].includes(status.retryState);
-    const action =
-        status.reason === 'disabled'
-            ? ENABLE_GPU_ACCELERATION
-            : !isRetrying || status.reason === 'context-loss-limit'
-              ? RETRY_GPU_ACCELERATION
-              : undefined;
+    const action: TerminalRendererIndicatorAction | undefined = isBootDisabled
+        ? OPEN_HARDWARE_ACCELERATION_SETTINGS
+        : status.reason === 'disabled'
+          ? ENABLE_GPU_ACCELERATION
+          : !isRetrying || status.reason === 'context-loss-limit'
+            ? RETRY_GPU_ACCELERATION
+            : undefined;
     // An actionable chip leads with what clicking does, matching the `Open Process Explorer — …` chips beside it, so
     // the accessible name and the tooltip promise exactly the same thing. A confirming action's title is already a
     // question, so it reads as the promise directly.
@@ -68,8 +105,10 @@ export function terminalRendererIndicator(
     };
 }
 
-function terminalRendererDetail(status: TerminalRendererStatus): string {
+function terminalRendererDetail(status: TerminalRendererStatus, isBootDisabled: boolean): string {
     if (status.reason === 'disabled') return 'GPU acceleration is turned off in Settings.';
+    if (isBootDisabled)
+        return 'Hardware acceleration is turned off, so no Terminal in any window can use the GPU.';
     if (status.reason === 'unsupported') return 'The GPU is unavailable in this window right now.';
     if (status.reason === 'context-loss-limit')
         return 'Drawing failed repeatedly. Automatic recovery is paused; click to retry GPU rendering.';

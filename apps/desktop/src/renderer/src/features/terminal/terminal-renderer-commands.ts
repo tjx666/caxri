@@ -1,6 +1,6 @@
 import { caxri } from '../../lib/caxri';
 import { tryCommand } from '../../stores/toasts';
-import type { TerminalRendererIndicatorAction } from './terminal-renderer-status';
+import type { TerminalRendererConfirmAction } from './terminal-renderer-status';
 import { getTerminalRendererRetry } from './terminal-renderer-status';
 
 /**
@@ -13,7 +13,7 @@ import { getTerminalRendererRetry } from './terminal-renderer-status';
  * no restart, no separate renderer command.
  */
 export async function confirmTerminalRendererSwitch(
-    action: TerminalRendererIndicatorAction,
+    action: TerminalRendererConfirmAction,
     terminalId?: string,
 ): Promise<void> {
     const retry = terminalId ? getTerminalRendererRetry(terminalId) : undefined;

@@ -167,7 +167,15 @@ export function pushToast(kind: ToastKind, message: string, options?: ToastOptio
                             ),
                         ]
                       : options.action.label,
-                  onClick: options.action.onSelect,
+                  onClick: (event) => {
+                      // Sonner deletes the notification after an action unless the handler prevents it
+                      // (`sonner/dist/index.mjs`: `if (event.defaultPrevented) return;`). A `persist` notice is held
+                      // until the user dismisses it, so acting on it must not be the thing that takes it away: the GPU
+                      // crash card's action opens a confirmation the user can still cancel, and deleting the card first
+                      // would leave Cancel with no way back to the offer.
+                      if (options.persist) event.preventDefault();
+                      options.action?.onSelect();
+                  },
               }
             : undefined,
     });

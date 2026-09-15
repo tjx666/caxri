@@ -186,3 +186,14 @@ export function resolveUpdateAnnouncement(
         message: `Caxri ${state.version} is available. You are running ${state.currentVersion}.`,
     };
 }
+
+/**
+ * Whether the unsigned-install notice belongs on screen. It explains what the user has to do with a downloaded DMG, so
+ * it appears exactly while a specific release is in play — including a failed download, where the file may still be on
+ * disk — and never while Caxri is merely checking or already current.
+ */
+export function shouldExplainUnsignedInstall(state: UpdateState | undefined): boolean {
+    if (!state) return false;
+    if (state.status === 'error') return Boolean(state.version);
+    return ['available', 'downloading', 'ready'].includes(state.status);
+}

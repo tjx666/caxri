@@ -118,16 +118,55 @@ describe('Sonner notification adapter', () => {
         expect(getToasts()[0].duration).toBe(Infinity);
     });
 
+    /**
+     * Sonner hands the action handler the real click and decides whether the notification survives from
+     * `event.defaultPrevented`. It types that handler as a React mouse event, but the handler only uses the DOM
+     * contract the synthetic event forwards, so Node's global `Event` exercises it faithfully without a DOM.
+     */
+    function clickToastAction(): Event {
+        const event = new Event('click', { cancelable: true });
+        const action = getToasts()[0].action;
+        if (typeof action !== 'object' || action === null || !('onClick' in action))
+            throw new TypeError('This notification carries no action.');
+        (action.onClick as unknown as (clicked: Event) => void)(event);
+        return event;
+    }
+
+    function toastActionLabel(): unknown {
+        const action = getToasts()[0].action;
+        return typeof action === 'object' && action !== null && 'label' in action
+            ? action.label
+            : undefined;
+    }
+
     it('keeps an optional follow-up action on the notification', () => {
         const onSelect = vi.fn();
         pushToast('success', 'recovered', {
             action: { label: 'Open Settings', onSelect },
         });
 
-        expect(getToasts()[0].action).toEqual({
-            label: 'Open Settings',
-            onClick: onSelect,
+        expect(toastActionLabel()).toBe('Open Settings');
+        const event = clickToastAction();
+        expect(onSelect).toHaveBeenCalledOnce();
+        // An ephemeral notice has said what it had to say; acting on it is a fine moment for it to go.
+        expect(event.defaultPrevented).toBe(false);
+    });
+
+    /**
+     * Sonner deletes a notification after its action unless the handler calls `preventDefault`. A `persist` card is
+     * held until the user dismisses it, and its action routinely opens a confirmation the user can still cancel — so
+     * deleting the card on click would take the only way back to the offer.
+     */
+    it('survives its own action when the notification is persistent', () => {
+        const onSelect = vi.fn();
+        pushToast('warning', 'drawing failed', {
+            persist: true,
+            action: { label: 'Turn off hardware acceleration…', onSelect },
         });
+
+        expect(onSelect).not.toHaveBeenCalled();
+        expect(clickToastAction().defaultPrevented).toBe(true);
+        expect(onSelect).toHaveBeenCalledOnce();
     });
 
     it.each(['info', 'success', 'error'] as const)(
