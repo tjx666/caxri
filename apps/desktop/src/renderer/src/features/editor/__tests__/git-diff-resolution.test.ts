@@ -65,7 +65,9 @@ describe('resolvedGitDiffActionLabel', () => {
 
 describe('RESOLVED_GIT_DIFF_REASON', () => {
     it('names what happened to the file rather than what the app did to the tab', () => {
-        expect(RESOLVED_GIT_DIFF_REASON).toContain('committed or undone');
+        expect(RESOLVED_GIT_DIFF_REASON).toBe(
+            'This file no longer differs from what the diff compared. The change was committed or undone.',
+        );
         expect(RESOLVED_GIT_DIFF_REASON).not.toContain('closed');
     });
 });

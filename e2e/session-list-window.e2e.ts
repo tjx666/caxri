@@ -50,7 +50,7 @@ test('the PrimarySidebar reveals older Sessions on demand and always renders the
         }
 
         const sessionCards = running.page.locator('.session-list .session-card');
-        const reveal = running.page.getByRole('button', { name: /^Show \d+ more Sessions? in / });
+        const reveal = running.page.getByRole('treeitem', { name: /^Show \d+ more Sessions? in / });
         await expect(sessionCards).toHaveCount(5);
         /**
          * A `session.create` reply only proves Server stored it; the sidebar learns about it from a later refresh. The
@@ -105,7 +105,7 @@ test('the PrimarySidebar reveals older Sessions on demand and always renders the
         ).toBeVisible();
         await expect(running.page.locator('.session-list .session-card')).toHaveCount(6);
         await expect(
-            running.page.getByRole('button', { name: /^Show \d+ more Sessions? in / }),
+            running.page.getByRole('treeitem', { name: /^Show \d+ more Sessions? in / }),
         ).toHaveAccessibleName(/^Show 10 more Sessions in /);
         // The pinned row is last, below the five most recent Sessions rather than in its own activity position.
         await expect(running.page.locator('.session-list .session-card').last()).toHaveAttribute(

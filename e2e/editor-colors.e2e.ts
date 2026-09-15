@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { execFileAsync } from '@caxri/system';
 
 import { expect, test } from './support/fixtures.ts';
-import { createProjectSession, launchCaxri } from './support/helpers.ts';
+import { clickGitGroupAction, createProjectSession, launchCaxri } from './support/helpers.ts';
 
 async function configureRepo(path: string): Promise<void> {
     await execFileAsync('git', ['init', '-b', 'main'], { cwd: path });
@@ -91,7 +91,7 @@ test('JSON and gitlink patches use VS Code-style Dracula colors', async () => {
         await expect(submoduleHeader).toHaveAttribute('aria-expanded', 'false');
         await expect(running.page.locator('.git-file-diff')).toHaveCount(0);
 
-        await primary.locator('.git-open-changes').click();
+        await clickGitGroupAction(primary, 'Open Changes');
         const patchEditor = running.page.locator('.git-multi-diff .git-patch-editor');
         await expect(patchEditor).toBeVisible();
         await expect(patchEditor).toContainText('Subproject commit');
