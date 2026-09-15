@@ -386,9 +386,20 @@ export const settingsSpec = [
         key: 'git.diffExclude',
         title: 'Excluded Git diff files',
         description:
-            'Hide matching repository-relative paths from Git change lists and Open All Changes. Use the Source Control eye button to show them temporarily. Supports *, **, and ?; this does not change Git tracking.',
+            'Hide matching repository-relative paths from Git change lists and Open All Changes. Tests and translation catalogs are excluded by default. Use the Source Control eye button to show them temporarily. Supports *, **, and ?; this does not change Git tracking.',
         category: 'files',
-        keywords: ['git', 'diff', 'test', 'spec', 'hide', 'ignore', 'glob', 'source control'],
+        keywords: [
+            'git',
+            'diff',
+            'test',
+            'spec',
+            'locales',
+            'i18n',
+            'hide',
+            'ignore',
+            'glob',
+            'source control',
+        ],
     },
     {
         kind: 'integer',

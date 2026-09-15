@@ -273,3 +273,50 @@ test('Switching between two working diff tabs keeps each diff pointed at its own
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
+
+test('Opening a diff lands on the first change instead of the top of the file', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-diff-first-change-e2e-'));
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', root]);
+    await execFileAsync('git', ['init', '-b', 'main'], { cwd: root });
+    await execFileAsync('git', ['config', 'user.email', 'caxri@example.com'], { cwd: root });
+    await execFileAsync('git', ['config', 'user.name', 'Caxri E2E'], { cwd: root });
+    /**
+     * The change sits far past any plausible viewport, which is the whole failure: a diff that opens at line 1 renders
+     * none of it, so the file reads as unchanged. Monaco virtualizes lines, so an unreached change is absent from the
+     * DOM rather than merely scrolled out of view.
+     */
+    const lines = Array.from({ length: 400 }, (_, index) => `const line${index} = ${index};`);
+    await writeFile(join(root, 'long.ts'), `${lines.join('\n')}\n`, 'utf8');
+    await execFileAsync('git', ['add', 'long.ts'], { cwd: root });
+    await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: root });
+    await writeFile(
+        join(root, 'long.ts'),
+        `${lines.with(389, 'const line389 = 389 + 1;').join('\n')}\n`,
+        'utf8',
+    );
+
+    const running = await launchCaxri({
+        userDataDir: join(testDirectory, 'user-data'),
+        testRootPath: root,
+    });
+    try {
+        const { page } = running;
+        await createProjectSession(page);
+        await page.getByRole('tab', { name: 'Git', exact: true }).click();
+        const repo = page.locator('.git-repository-section');
+        await repo.getByRole('treeitem', { name: 'long.ts', exact: true }).click();
+        const diff = page.locator('.git-file-diff');
+        await expect(diff.locator('.monaco-diff-editor')).toBeVisible();
+        const insertedLine = diff.locator('.monaco-diff-editor .editor.modified .line-insert');
+        await expect(insertedLine.first()).toBeInViewport();
+        await expect(diff.locator('.editor.modified')).toContainText('const line389 = 389 + 1;');
+        await page.screenshot({
+            path: test.info().outputPath('diff-first-change.png'),
+            mask: [page.locator('.xterm')],
+        });
+    } finally {
+        await running.app.close();
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
