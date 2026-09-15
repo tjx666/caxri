@@ -27,9 +27,9 @@ import { GitChangesDiffList } from './git-changes-diff-list';
 import { registerDiffEditorActions } from './git-diff-actions';
 import { observeGitEditorContentHeight } from './git-diff-model-lifecycle';
 import {
-    isResolvedGitDiff,
     RESOLVED_GIT_DIFF_REASON,
     resolvedGitDiffActionLabel,
+    resolveNullGitDiffState,
 } from './git-diff-resolution';
 import { GitMonacoDiffEditor } from './git-monaco-diff-editor';
 import { GitSingleDiffEditor } from './git-single-diff-editor';
@@ -320,22 +320,31 @@ function WorkingFileDiffEditor({
         { sessionId: sessionId ?? '', repositoryId: tab.repositoryId, path: tab.path },
         { enabled: Boolean(sessionId), refetchOnMount: 'always' },
     );
-    if (document === null)
-        return isResolvedGitDiff({ document, isError, isFetchedAfterMount }) ? (
+    if (document === null) {
+        // A failed read has to be reported from here rather than from `FileDiffResult`, which owns the toast for every
+        // other failure on this path: a cached `null` returns above it, so the component that would announce the
+        // failure is never mounted. Without this branch the tab keeps a retry that can never leave "Loading diff…".
+        const nullState = resolveNullGitDiffState({ document, isError, isFetchedAfterMount });
+        if (nullState === 'pending') return <div className={emptyWorkClassName}>Loading diff…</div>;
+        const isFailed = nullState === 'failed';
+        return (
             <EditorLoadFailure
                 actionLabel={resolvedGitDiffActionLabel(isFetching)}
-                reason={RESOLVED_GIT_DIFF_REASON}
-                tone="interrupted"
+                reason={
+                    isFailed
+                        ? describeFailure(error, 'Unable to open Git diff')
+                        : RESOLVED_GIT_DIFF_REASON
+                }
+                tone={isFailed ? 'failed' : 'interrupted'}
                 onAction={() => {
                     // Fire-and-forget: the query's own state drives the label and the result, and a rejected refetch
-                    // already surfaces through `isError` below.
+                    // already surfaces through `isError` above.
                     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
                     void refetch();
                 }}
             />
-        ) : (
-            <div className={emptyWorkClassName}>Loading diff…</div>
         );
+    }
     return (
         <FileDiffResult
             document={document}

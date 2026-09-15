@@ -12,17 +12,24 @@ export const RESOLVED_GIT_DIFF_REASON =
 export const RESOLVED_GIT_DIFF_ACTION_LABEL = 'Check again';
 export const RESOLVED_GIT_DIFF_PENDING_LABEL = 'Checking…';
 
+export type NullGitDiffState = 'failed' | 'pending' | 'resolved';
+
 /**
- * Whether a `null` document is an answer or just the absence of one. Only a read that completed after this surface
- * mounted may be reported as "no longer differs": a `null` left over from a previous mount is a cached verdict about a
- * file the user has since changed again, and announcing it would be the same wrong claim the auto-close made.
+ * A `null` document is three different situations wearing one value, and the surface has to tell them apart before it
+ * can say anything true. `resolved` is the answer "this file no longer differs", and only a read that completed after
+ * this surface mounted may claim it: a `null` left over from a previous mount is a cached verdict about a file the user
+ * has since changed again, and announcing it would be the same wrong claim the auto-close made. `failed` is a read that
+ * did not come back at all — the cached `null` is then not evidence of anything, and calling it `pending` would leave
+ * the surface showing "Loading diff…" forever, because nothing is still loading.
  */
-export function isResolvedGitDiff(input: {
+export function resolveNullGitDiffState(input: {
     document: GitDiffDocument | null | undefined;
     isError: boolean;
     isFetchedAfterMount: boolean;
-}): boolean {
-    return input.document === null && input.isFetchedAfterMount && !input.isError;
+}): NullGitDiffState {
+    if (input.document !== null) return 'pending';
+    if (input.isError) return 'failed';
+    return input.isFetchedAfterMount ? 'resolved' : 'pending';
 }
 
 /**
