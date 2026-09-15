@@ -5,8 +5,13 @@ import { constants } from 'node:fs';
 import { lstat, open, realpath, rename, unlink } from 'node:fs/promises';
 import { basename, dirname, join, relative } from 'node:path';
 
-import type { FileDocument, ServerOperationResult } from '@caxri/protocol';
-import { CaxriError } from '@caxri/protocol';
+import type {
+    FileAsset,
+    FileDocument,
+    PreviewAssetMediaType,
+    ServerOperationResult,
+} from '@caxri/protocol';
+import { CaxriError, MAX_PREVIEW_ASSET_BYTES } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
@@ -52,6 +57,25 @@ async function removeTrustedTemporaryFile(
     } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
     }
+}
+
+const PREVIEW_ASSET_MEDIA_TYPES = new Map<string, PreviewAssetMediaType>([
+    ['apng', 'image/apng'],
+    ['avif', 'image/avif'],
+    ['bmp', 'image/bmp'],
+    ['gif', 'image/gif'],
+    ['ico', 'image/x-icon'],
+    ['jpeg', 'image/jpeg'],
+    ['jpg', 'image/jpeg'],
+    ['png', 'image/png'],
+    ['svg', 'image/svg+xml'],
+    ['webp', 'image/webp'],
+]);
+
+function previewAssetMediaType(path: string): PreviewAssetMediaType | undefined {
+    const name = basename(path);
+    const dot = name.lastIndexOf('.');
+    return dot <= 0 ? undefined : PREVIEW_ASSET_MEDIA_TYPES.get(name.slice(dot + 1).toLowerCase());
 }
 
 /**
@@ -159,6 +183,60 @@ export class DocumentService {
                 path: resolved.workspacePath ?? resolved.path,
                 content: buffer.toString('utf8'),
                 mtimeMs: openedStats.mtimeMs,
+                size: openedStats.size,
+            };
+        } finally {
+            await file.close();
+        }
+    }
+
+    /**
+     * Reads an image a preview surface refers to.
+     *
+     * Shares `read`'s authorization and handle validation, and differs only where binary content demands it: no UTF-8
+     * decode, no NUL-byte rejection, a smaller size ceiling, and a media type derived from the extension rather than
+     * from anything the caller sent. Extensions outside the allowlist are refused before the file is opened, so a
+     * document cannot use a preview to pull arbitrary bytes into the Renderer.
+     */
+    async readAsset(
+        sessionId: string,
+        path: string,
+        signal?: AbortSignal,
+        expected?: ResolvedSessionPath,
+    ): Promise<FileAsset> {
+        signal?.throwIfAborted();
+        const resolved = await this.resolveDocumentPath(sessionId, path, expected);
+        const mediaType = previewAssetMediaType(resolved.path);
+        if (!mediaType) throw new CaxriError('PATH_DENIED', 'File type cannot be previewed');
+        signal?.throwIfAborted();
+        const stats = await lstat(resolved.path);
+        if (!stats.isFile() || stats.isSymbolicLink())
+            throw new CaxriError('IO', 'Path is not a file');
+        const file = await this.openFile(resolved.path, constants.O_RDONLY | constants.O_NOFOLLOW);
+        try {
+            if ((await realpath(resolved.path)) !== resolved.path)
+                throw new CaxriError('IO', 'File path changed during read');
+            const openedStats = await file.stat();
+            if (
+                !openedStats.isFile() ||
+                openedStats.dev !== stats.dev ||
+                openedStats.ino !== stats.ino ||
+                openedStats.nlink > 1
+            )
+                throw new CaxriError(
+                    'IO',
+                    'File changed during read or has multiple filesystem links',
+                );
+            if (openedStats.size > MAX_PREVIEW_ASSET_BYTES)
+                throw new CaxriError(
+                    'CAPACITY',
+                    `Asset exceeds the ${MAX_PREVIEW_ASSET_BYTES} byte preview limit`,
+                );
+            const buffer = await file.readFile(signal ? { signal } : undefined);
+            return {
+                path: resolved.workspacePath ?? resolved.path,
+                mediaType,
+                base64: buffer.toString('base64'),
                 size: openedStats.size,
             };
         } finally {

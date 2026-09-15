@@ -1,8 +1,10 @@
 import {
     agentTranscriptTabLabel,
+    filePreviewTabLabel,
     gitDiffTabLabel,
     parseAgentTranscriptTab,
     parseExternalEditorTab,
+    parseFilePreviewTab,
     parseGitDiffTab,
 } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
@@ -17,11 +19,14 @@ export function documentTabPresentation(
     const diff = parseGitDiffTab(path);
     const transcript = parseAgentTranscriptTab(path);
     const external = parseExternalEditorTab(path);
+    const preview = parseFilePreviewTab(path);
     const label = diff
         ? gitDiffTabLabel(diff)
         : transcript
           ? agentTranscriptTabLabel(options.transcriptTitle)
-          : (external?.name ?? pathBasename(path));
+          : preview
+            ? filePreviewTabLabel(preview.path)
+            : (external?.name ?? pathBasename(path));
     return {
         fileIconName:
             diff?.kind === 'file'
@@ -30,8 +35,15 @@ export function documentTabPresentation(
                   ? 'changes.diff'
                   : transcript
                     ? 'transcript.jsonl'
-                    : (external?.name ?? pathBasename(path)),
+                    : preview
+                      ? pathBasename(preview.path)
+                      : (external?.name ?? pathBasename(path)),
         label,
-        labelTooltip: diff || transcript ? label : (options.displayPath ?? external?.name ?? path),
+        // A preview tab shows its source path: the label already says "Preview", so the tooltip's job is locating it.
+        labelTooltip: preview
+            ? preview.path
+            : diff || transcript
+              ? label
+              : (options.displayPath ?? external?.name ?? path),
     };
 }

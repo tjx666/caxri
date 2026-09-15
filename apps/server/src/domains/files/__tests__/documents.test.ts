@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import {
     chmod,
     link,
@@ -16,6 +17,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { MAX_PREVIEW_ASSET_BYTES } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -242,5 +244,59 @@ describe('DocumentService', () => {
 
         expect(await readFile(outsideTemporaryPath, 'utf8')).toBe('outside-file');
         expect(await readFile(join(originalParent, 'document.txt'), 'utf8')).toBe('previous');
+    });
+
+    describe('readAsset', () => {
+        async function createAssetFixture() {
+            const created = await mkdtemp(join(tmpdir(), 'caxri-read-asset-'));
+            const testRoot = await realpath(created);
+            temporaryDirectories.push(testRoot);
+            const root = join(testRoot, 'project');
+            await mkdir(root);
+            const logger = createLogger(join(testRoot, 'logs'));
+            const service = (path: string) =>
+                new DocumentService(
+                    () => Promise.resolve({ path, root }),
+                    logger,
+                    () => 1_024,
+                );
+            return { root, service };
+        }
+
+        it('returns the raw bytes and a media type derived from the extension', async () => {
+            const { root, service } = await createAssetFixture();
+            const path = join(root, 'diagram.png');
+            const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0xff]);
+            await writeFile(path, bytes);
+
+            const asset = await service(path).readAsset('session-1', path);
+
+            expect(asset).toEqual({
+                path,
+                mediaType: 'image/png',
+                base64: bytes.toString('base64'),
+                size: bytes.byteLength,
+            });
+        });
+
+        it('refuses a file whose extension is not a previewable image', async () => {
+            const { root, service } = await createAssetFixture();
+            const path = join(root, 'notes.md');
+            await writeFile(path, '# not an image', 'utf8');
+
+            await expect(service(path).readAsset('session-1', path)).rejects.toMatchObject({
+                code: 'PATH_DENIED',
+            });
+        });
+
+        it('refuses an asset larger than the preview limit', async () => {
+            const { root, service } = await createAssetFixture();
+            const path = join(root, 'huge.png');
+            await writeFile(path, Buffer.alloc(MAX_PREVIEW_ASSET_BYTES + 1));
+
+            await expect(service(path).readAsset('session-1', path)).rejects.toMatchObject({
+                code: 'CAPACITY',
+            });
+        });
     });
 });

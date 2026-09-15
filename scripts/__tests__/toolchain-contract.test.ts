@@ -92,8 +92,33 @@ async function repoVersionLocations(): Promise<string[]> {
     ).filter((candidate) => candidate !== undefined);
 
     return sources.flatMap(({ path, source }) =>
-        versions.some((version) => source.includes(version)) ? [path] : [],
+        versions.some((version) => versionSearchText(path, source).includes(version)) ? [path] : [],
     );
+}
+
+/**
+ * The part of a file that could be pinning the toolchain.
+ *
+ * A `package.json` dependency range is not a Node.js or pnpm version copy even when the two strings collide, which
+ * really happens: an ordinary library can reach the same major.minor.patch as the pinned pnpm. Everything else in the
+ * manifest — `engines`, `volta`, a script, `packageManager` — is exactly what this contract exists to catch, so only
+ * the dependency maps are removed rather than the whole file.
+ */
+function versionSearchText(path: string, source: string): string {
+    if (!path.endsWith('package.json')) return source;
+    try {
+        const manifest = JSON.parse(source) as Record<string, unknown>;
+        for (const field of [
+            'dependencies',
+            'devDependencies',
+            'optionalDependencies',
+            'peerDependencies',
+        ])
+            delete manifest[field];
+        return JSON.stringify(manifest);
+    } catch {
+        return source;
+    }
 }
 
 describe('toolchain contract', () => {

@@ -42,6 +42,7 @@ import {
     agentHookHealthMapSchema,
     agentTranscriptSchema,
     canceledResultSchema,
+    fileAssetSchema,
     fileDocumentSchema,
     fileEntrySchema,
     fileMutationOperationSchema,
@@ -584,6 +585,11 @@ export const methods = {
         ...serverRead,
         params: z.object({ sessionId: identifierSchema, path: pathSchema }),
         result: fileDocumentSchema,
+    },
+    'files.readAsset': {
+        ...serverRead,
+        params: z.object({ sessionId: identifierSchema, path: pathSchema }),
+        result: fileAssetSchema,
     },
     'files.write': {
         ...serverWrite,

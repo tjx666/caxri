@@ -1,6 +1,11 @@
 import { createElement, lazy, Suspense, useEffect, useSyncExternalStore } from 'react';
 
-import { isExternalEditorTabPath, parseAgentTranscriptTab, parseGitDiffTab } from '@caxri/protocol';
+import {
+    isExternalEditorTabPath,
+    parseAgentTranscriptTab,
+    parseFilePreviewTab,
+    parseGitDiffTab,
+} from '@caxri/protocol';
 import { editorModelPath } from '@desktop-shared/editor-state';
 
 import { useSelectedSession, useSelectedWorkbenchProject, useTheme } from '../../stores/selectors';
@@ -20,6 +25,15 @@ const GitDiffEditor = lazy(async () => {
 const AgentTranscriptEditor = lazy(async () => {
     const module = await import('./agent-transcript-editor');
     return { default: module.AgentTranscriptEditor };
+});
+
+/**
+ * Lazy because a preview pulls in the Markdown engine, the sanitizer, and — on the first diagram — Mermaid. A Session
+ * that never opens one must not pay for any of it.
+ */
+const PreviewSurface = lazy(async () => {
+    const module = await import('../preview/preview-surface');
+    return { default: module.PreviewSurface };
 });
 
 const emptyWorkClassName =
@@ -131,6 +145,13 @@ export function EditorSurface({ paneId, path }: { paneId: string; path: string }
         return (
             <Suspense fallback={<div className={emptyWorkClassName}>Loading transcript…</div>}>
                 <AgentTranscriptEditor key={transcriptTab.terminalId} tab={transcriptTab} />
+            </Suspense>
+        );
+    const previewTab = parseFilePreviewTab(path);
+    if (previewTab)
+        return (
+            <Suspense fallback={<div className={emptyWorkClassName}>Loading preview…</div>}>
+                <PreviewSurface key={previewTab.path} tab={previewTab} />
             </Suspense>
         );
     return <FileEditorSurface paneId={paneId} path={path} />;
