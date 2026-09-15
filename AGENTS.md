@@ -169,6 +169,12 @@ directories.
 - After a public release, backward compatibility becomes a product contract. Removing migrations
   or compatibility paths then requires an explicit release policy, a supported upgrade path, and
   validation against already released versions.
+- Repository visibility is not a release. The source being publicly readable does not trigger any
+  rule above that depends on a public release, does not create existing users to support, and does
+  not change the iteration strategy. The compatibility contract starts at the first published
+  release the owner declares, not at the moment the repository becomes readable. Never add a
+  compatibility layer, migration UI, deprecation path, or contributor-facing process because the
+  repository is public.
 
 ## Skill routing
 

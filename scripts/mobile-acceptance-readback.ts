@@ -19,7 +19,7 @@ const CASE_ID = 'MOB-ACC-03';
 const projectRoot = resolve(import.meta.dirname, '..');
 const COMMAND_TIMEOUT_MS = 60_000;
 
-/* eslint-disable unicorn/max-nested-calls -- Zod mirrors the nested LobeHub readback payload. */
+/* eslint-disable unicorn/max-nested-calls -- Zod mirrors the nested Acceptance readback payload. */
 const surfaceSchema = z.enum(['desktop', 'mobile']);
 const planItemSchema = z.object({
     id: z.string().min(1),
