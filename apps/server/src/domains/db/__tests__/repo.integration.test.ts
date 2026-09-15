@@ -441,7 +441,7 @@ describe('CaxriDatabase', () => {
         expect(database.getAppState('lastSelectedSessionId')).toBe(first.session.id);
         expect(() => database.selectSession(second.session.id)).toThrow(/restore/i);
 
-        expect(database.unarchiveSession(second.session.id).archivedAt).toBeUndefined();
+        expect(database.unarchiveSessions([second.session.id])[0].archivedAt).toBeUndefined();
         database.selectSession(second.session.id);
         expect(database.getAppState('lastSelectedSessionId')).toBe(second.session.id);
         database.close();

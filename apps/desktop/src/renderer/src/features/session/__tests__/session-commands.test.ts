@@ -612,7 +612,11 @@ describe('Session actions', () => {
         expect(options?.persist).toBeUndefined();
     });
 
-    it('restores the archived Session when the notice Undo action is used', async () => {
+    /**
+     * Undo asks for `unchanged` rather than the default `top` an explicit restore uses: it reverses one archive, so the
+     * row has to come back where it was instead of jumping over an order the user arranged by dragging.
+     */
+    it('restores the archived Session in place when the notice Undo action is used', async () => {
         mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-1', displayTitle: 'api-fix' });
         archiveSession('session-1');
         await mocks.tryCommand.mock.results[0]?.value;
@@ -622,6 +626,7 @@ describe('Session actions', () => {
         await mocks.tryCommand.mock.results[1]?.value;
 
         expect(mocks.caxriRequest).toHaveBeenLastCalledWith('session.unarchive', {
+            placement: 'unchanged',
             sessionId: 'session-1',
         });
         expect(mocks.tryCommand.mock.calls[1]?.[2]).toEqual({ refresh: mocks.refreshWorkbench });

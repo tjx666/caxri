@@ -21,3 +21,13 @@ export const sessionRenameTitleSchema = z
     .refine((value) => !hasLineBreakOrControl(value), {
         message: 'Session name must be a single line without control characters',
     });
+
+/**
+ * Where a restored Session lands in its Project. `top` is the default because a Session restored from the Archived
+ * Sessions dialog otherwise reappears at whatever position it held before archiving — usually somewhere down a long
+ * list, so the restore the user just asked for produces no visible result. `unchanged` exists for the Undo on the
+ * archive notice: that button is the exact inverse of one archive, and promoting there would let an accidental archive
+ * plus Undo silently rewrite an order the user arranged by dragging.
+ */
+export const sessionRestorePlacementSchema = z.enum(['top', 'unchanged']).default('top');
+export type SessionRestorePlacement = z.infer<typeof sessionRestorePlacementSchema>;
