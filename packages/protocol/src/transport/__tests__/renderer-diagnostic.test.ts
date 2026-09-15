@@ -66,6 +66,23 @@ const validOsc52ClipboardWriteFailureDiagnostic = {
     userActivationHasBeenActive: true,
 };
 
+const validEditorWorkerStallDiagnostic = {
+    kind: 'editor-worker-stall',
+    diagnosticId: 'a1f0e1cd-6b42-4f27-9a7c-0d4f5a9c2f18',
+    surface: 'git-diff',
+    outcome: 'timeout',
+    waitMs: 8_000,
+    workerRoundTrip: 'no-reply',
+    workerRoundTripMs: null,
+    documentVisible: true,
+    originalLineCount: 240,
+    modifiedLineCount: 252,
+    identicalModels: false,
+    diffOpenCount: 6,
+    stallCount: 6,
+    editorWorkersCreated: 1,
+};
+
 const validPerformanceScenarioDiagnostic = {
     kind: 'renderer-performance-scenario',
     diagnosticId: 'd66947a8-0da0-4a4b-8629-a7694116d8e5',
@@ -226,6 +243,26 @@ describe('Renderer diagnostic contract', () => {
             requestCount: 1,
         };
         expect(rendererDiagnosticSchema.parse(seededDiagnostic)).toEqual(seededDiagnostic);
+    });
+
+    it('accepts a bounded content-free editor Worker stall', () => {
+        expect(rendererDiagnosticSchema.parse(validEditorWorkerStallDiagnostic)).toEqual(
+            validEditorWorkerStallDiagnostic,
+        );
+    });
+
+    it('rejects sensitive, unbounded, and inconsistent editor Worker stall fields', () => {
+        for (const invalid of [
+            { ...validEditorWorkerStallDiagnostic, repositoryPath: '/Users/someone/repo' },
+            { ...validEditorWorkerStallDiagnostic, outcome: 'unknown' },
+            { ...validEditorWorkerStallDiagnostic, waitMs: -1 },
+            { ...validEditorWorkerStallDiagnostic, workerRoundTrip: 'maybe' },
+            // An `ok` round trip without its duration would report a reply nobody can time.
+            { ...validEditorWorkerStallDiagnostic, workerRoundTrip: 'ok', workerRoundTripMs: null },
+            // More stalls than opened diffs is arithmetically impossible and would mislead triage.
+            { ...validEditorWorkerStallDiagnostic, diffOpenCount: 1, stallCount: 2 },
+        ])
+            expect(rendererDiagnosticSchema.safeParse(invalid).success).toBe(false);
     });
 
     it('accepts a bounded content-free OSC 52 clipboard write failure', () => {

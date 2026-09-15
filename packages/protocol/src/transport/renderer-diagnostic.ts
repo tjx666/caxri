@@ -160,6 +160,44 @@ export const terminalResizeBurstDiagnosticSchema = z.strictObject({
     requestCount: resizeBurstCountSchema,
 });
 
+const editorWorkerCountSchema = z.number().int().nonnegative().max(1_000_000);
+
+/**
+ * Monaco computes every diff in a Web Worker and the Renderer only paints the answer, so a Worker that stops replying
+ * renders as a diff with no highlights, no alignment fillers, and two independently scrolling panes — with nothing
+ * logged anywhere. This diagnostic turns that silent wait into a record: how long the diff waited, whether a minimal
+ * echo Worker could still round-trip at that moment (which separates "Monaco's Worker died" from "this renderer stopped
+ * delivering Worker messages at all"), and whether the diff eventually arrived after the stall was reported.
+ *
+ * Line counts and model identity are the only model-derived values; file contents, paths, and repository names are
+ * deliberately absent so the channel stays content-free.
+ */
+export const editorWorkerStallDiagnosticSchema = z.strictObject({
+    kind: z.literal('editor-worker-stall'),
+    diagnosticId: z.uuid(),
+    surface: z.literal('git-diff'),
+    /**
+     * `timeout` when the diff missed its budget, `recovered` when a previously reported stall produced its diff after
+     * all. Recording the transition — not only the failing state — is what makes a transient stall distinguishable from
+     * a Worker that never comes back.
+     */
+    outcome: z.enum(['timeout', 'recovered']),
+    waitMs: z.number().int().nonnegative().max(600_000),
+    workerRoundTrip: z.enum(['construct-failed', 'no-reply', 'ok', 'skipped', 'worker-error']),
+    workerRoundTripMs: z.number().int().nonnegative().max(600_000).nullable(),
+    documentVisible: z.boolean(),
+    originalLineCount: editorWorkerCountSchema,
+    modifiedLineCount: editorWorkerCountSchema,
+    identicalModels: z.boolean(),
+    /**
+     * Per-lifetime aggregates. A stall reported once and then deduplicated would leave its real volume unknowable, so
+     * every record carries how many diffs this window opened and how many of them stalled.
+     */
+    diffOpenCount: editorWorkerCountSchema,
+    stallCount: editorWorkerCountSchema,
+    editorWorkersCreated: editorWorkerCountSchema,
+});
+
 const performanceDurationSchema = z.number().nonnegative().max(120_000);
 const performanceCountSchema = z.number().int().nonnegative().max(1_000_000);
 const percentileDurationSchema = z.number().nonnegative().max(120_000);
@@ -289,9 +327,18 @@ export const rendererDiagnosticSchema = z
         gpuIncidentBudgetDiagnosticSchema,
         terminalOsc52ClipboardWriteFailureDiagnosticSchema,
         terminalResizeBurstDiagnosticSchema,
+        editorWorkerStallDiagnosticSchema,
         rendererPerformanceScenarioDiagnosticSchema,
     ])
     .superRefine((diagnostic, context) => {
+        if (diagnostic.kind === 'editor-worker-stall') {
+            if (diagnostic.stallCount > diagnostic.diffOpenCount)
+                addAggregateIssue(context, 'stallCount');
+            if (diagnostic.workerRoundTrip === 'ok' && diagnostic.workerRoundTripMs === null)
+                addAggregateIssue(context, 'workerRoundTripMs');
+            return;
+        }
+
         if (diagnostic.kind === 'terminal-resize-burst') {
             // A burst seeded from the grid in force before it began can report one transition per real sample
             // (seed -> sample 1 -> ... -> sample N), so changeCount may equal sampleCount but never exceed it.
@@ -455,6 +502,7 @@ export type TerminalOsc52ClipboardWriteFailureDiagnostic = z.infer<
     typeof terminalOsc52ClipboardWriteFailureDiagnosticSchema
 >;
 export type TerminalResizeBurstDiagnostic = z.infer<typeof terminalResizeBurstDiagnosticSchema>;
+export type EditorWorkerStallDiagnostic = z.infer<typeof editorWorkerStallDiagnosticSchema>;
 export type RendererPerformanceScenarioDiagnostic = z.infer<
     typeof rendererPerformanceScenarioDiagnosticSchema
 >;
