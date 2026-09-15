@@ -40,7 +40,8 @@ readback. Do not end again at local validation or PR creation. A status-only que
 5. Create or update the PR with an English title and body that describe observable behavior,
    validation, non-goals, and closing issue links. Read back the resulting PR.
 6. Treat queued or failed required checks, unresolved conflicts, and active review findings as real
-   readiness blockers. Repair the owning branch and refresh the exact-head state instead of merging
+   readiness blockers, unless the diff qualifies for [Fast merge without CI](#fast-merge-without-ci).
+   Repair the owning branch and refresh the exact-head state instead of merging
    stale evidence. Watch checks with `bun run scripts/watch-ci.ts --run <id>` using the
    harness-specific ownership rules in the reference below. Concurrent sessions, including other
    worktrees, share one GitHub poller
@@ -67,3 +68,39 @@ readback. Do not end again at local validation or PR creation. A status-only que
    do not switch it to `main`. Switch or update the primary checkout only when its working tree is
    clean and the update is fast-forward; otherwise preserve it and report the exact dirty-state or
    divergence blocker.
+
+## Fast merge without CI
+
+One self-hosted runner serves every session, and a full pass costs 20-25 minutes of it. Spending
+that on a diff CI cannot meaningfully judge starves every sibling delivery queued behind it. Two
+narrow classes of change may therefore be merged as soon as their own local gates pass, without
+waiting for the PR's checks:
+
+- **Documentation only** — `docs/`, `AGENTS.md`, `.agents/**`, or another tracked `.md` that no
+  shipped code reads.
+- **Renderer styling only** — token, spacing, color, or layout values with no behavior change,
+  even when the change ships a test alongside them.
+
+Run the gates that actually cover the changed files first, and require them to pass:
+
+| Changed                            | Local gates                                                                          |
+| ---------------------------------- | ------------------------------------------------------------------------------------ |
+| Any `.md`                          | `bun run lint:markdown`, `bun run format:check`                                      |
+| `.agents/skills/**` or `AGENTS.md` | plus `bunx vitest run scripts/__tests__/skill-invocation.test.ts`                    |
+| Renderer styling                   | `bun run lint`, the change's own test, and the CDP visual check `AGENTS.md` requires |
+
+A documentation diff is not automatically test-free: `skill-invocation.test.ts` asserts skill
+frontmatter, the `.claude/skills` symlink, the explicit-only invocation list, and how skills may
+reference one another, so prose edited here can fail a unit test no markdown linter would catch.
+
+One line outside those classes disqualifies the exception. A diff that also touches `apps/`,
+`packages/`, `extensions/`, `e2e/`, `scripts/`, `tools/`, a workflow YAML, `package.json`, or
+`pnpm-lock.yaml` returns to the normal path — documentation bundled with a code change is a code
+change. The exception removes the wait, not the merge authorization step 7 still requires.
+
+Merging does not stop the PR's run — a queued job keeps its place in line and will still take the
+runner for a head nobody is waiting on. Cancel it explicitly:
+
+```bash
+gh api -X POST repos/tjx666/caxri/actions/runs/<run-id>/cancel
+```
