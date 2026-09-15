@@ -102,6 +102,19 @@ describe('Git diff stall watch', () => {
         expect(reported).toEqual([]);
     });
 
+    it('drops a pending recovery when the surface is cancelled after its stall', async () => {
+        const { reported, watch } = createWatch();
+        const diff = Promise.withResolvers<void>();
+
+        const cancel = watch.observe({ waitForDiff: () => diff.promise, readModels: models });
+        await vi.waitFor(() => expect(reported).toHaveLength(1));
+        cancel();
+        diff.resolve();
+        await new Promise((resolve) => setTimeout(resolve, 20));
+
+        expect(reported).toHaveLength(1);
+    });
+
     it('still records a stall when the diff models can no longer be read', async () => {
         const { reported, watch } = createWatch();
 
