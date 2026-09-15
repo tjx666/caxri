@@ -13,7 +13,13 @@ ordinary Node tooling, while making it obvious at runtime when code that expects
 somewhere else.
 
 ```ts
-import { Disposable, type SourceControlProvider } from 'caxri';
+import { Disposable } from 'caxri';
+
+export function activate(): Disposable {
+  return new Disposable(() => {
+    // Release whatever the extension registered.
+  });
+}
 ```
 
 ## What it covers
