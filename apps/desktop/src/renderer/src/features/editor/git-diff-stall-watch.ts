@@ -112,6 +112,11 @@ export class GitDiffStallWatch {
          * silently drop every later cancellation check.
          */
         const isCancelled = (): boolean => cancellation.signal.aborted;
+        const cancelled = new Promise<'cancelled'>((resolve) => {
+            cancellation.signal.addEventListener('abort', () => resolve('cancelled'), {
+                once: true,
+            });
+        });
         let timer: ReturnType<typeof setTimeout> | undefined;
 
         const stalled = new Promise<'stalled'>((resolve) => {
@@ -140,9 +145,10 @@ export class GitDiffStallWatch {
             this.lastReportAt = now();
             this.report(observation, 'timeout', Math.round(now() - startedAt), roundTrip);
             // A reported stall that later produces its diff is the transition worth recording: it separates a Worker
-            // that was merely slow from one that never came back.
-            await settled;
-            if (isCancelled()) return;
+            // that was merely slow from one that never came back. Racing cancellation matters for retention rather
+            // than correctness: a diff that never settles would otherwise keep its Monaco models reachable through
+            // this continuation for as long as the window lives.
+            if ((await Promise.race([settled, cancelled])) !== 'settled') return;
             this.report(observation, 'recovered', Math.round(now() - startedAt), {
                 outcome: 'skipped',
                 durationMs: null,
