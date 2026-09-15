@@ -9,6 +9,8 @@ function createWatch(
         roundTrip?: WorkerRoundTripResult;
         minimumReportIntervalMs?: number;
         documentVisible?: boolean;
+        pageAgeMs?: number;
+        now?: () => number;
     } = {},
 ) {
     const reported: EditorWorkerStallDiagnostic[] = [];
@@ -17,11 +19,19 @@ function createWatch(
         reportDiagnostic: (diagnostic) => reported.push(diagnostic),
         probeRoundTrip: () =>
             Promise.resolve(
-                overrides.roundTrip ?? { outcome: 'no-reply' as const, durationMs: null },
+                overrides.roundTrip ?? {
+                    outcome: 'no-reply' as const,
+                    durationMs: null,
+                    broadcast: 'ok' as const,
+                },
             ),
         countEditorWorkers: () => 3,
         isDocumentVisible: () => overrides.documentVisible ?? false,
-        now: () => Date.now(),
+        readPageLoad: () => ({
+            navigationType: 'reload',
+            pageAgeMs: overrides.pageAgeMs ?? 3_600_000,
+        }),
+        now: overrides.now ?? (() => Date.now()),
         createDiagnosticId: () => `00000000-0000-4000-8000-00000000000${(identifier += 1)}`,
         timeoutMs: 5,
         minimumReportIntervalMs: overrides.minimumReportIntervalMs ?? 0,
@@ -52,9 +62,14 @@ describe('Git diff stall watch', () => {
             kind: 'editor-worker-stall',
             surface: 'git-diff',
             outcome: 'timeout',
+            // A silent direct path next to a live broadcast is the shape from issue #962: the Worker ran and answered,
+            // and only the reply into this Renderer was lost.
             workerRoundTrip: 'no-reply',
             workerRoundTripMs: null,
+            workerBroadcast: 'ok',
             documentVisible: false,
+            navigationType: 'reload',
+            pageAgeMs: 3_600_000,
             originalLineCount: 12,
             modifiedLineCount: 15,
             identicalModels: false,
@@ -74,7 +89,26 @@ describe('Git diff stall watch', () => {
         diff.resolve();
         await vi.waitFor(() => expect(reported).toHaveLength(2));
 
-        expect(reported[1]).toMatchObject({ outcome: 'recovered', workerRoundTrip: 'skipped' });
+        expect(reported[1]).toMatchObject({
+            outcome: 'recovered',
+            workerRoundTrip: 'skipped',
+            workerBroadcast: 'skipped',
+        });
+    });
+
+    it('carries a healthy probe through unchanged, so a slow diff is not read as broken messaging', async () => {
+        const { reported, watch } = createWatch({
+            roundTrip: { outcome: 'ok', durationMs: 4, broadcast: 'ok' },
+        });
+
+        watch.observe({ waitForDiff: () => new Promise(() => {}), readModels: models });
+        await vi.waitFor(() => expect(reported).toHaveLength(1));
+
+        expect(reported[0]).toMatchObject({
+            workerRoundTrip: 'ok',
+            workerRoundTripMs: 4,
+            workerBroadcast: 'ok',
+        });
     });
 
     it('keeps counting rate-limited stalls so the next record carries their volume', async () => {
@@ -113,6 +147,22 @@ describe('Git diff stall watch', () => {
         await new Promise((resolve) => setTimeout(resolve, 20));
 
         expect(reported).toHaveLength(1);
+    });
+
+    it('saturates durations past the contract instead of losing the whole record', async () => {
+        let clock = 0;
+        const { reported, watch } = createWatch({
+            now: () => clock,
+            pageAgeMs: 99_999_999_999,
+        });
+
+        watch.observe({ waitForDiff: () => new Promise(() => {}), readModels: models });
+        clock = 99_999_999;
+        await vi.waitFor(() => expect(reported).toHaveLength(1));
+
+        // Out-of-range numbers are rejected by the diagnostic contract, and a rejected record is the silence this
+        // watcher exists to end, so both ceilings clamp rather than drop.
+        expect(reported[0]).toMatchObject({ waitMs: 600_000, pageAgeMs: 2_592_000_000 });
     });
 
     it('still records a stall when the diff models can no longer be read', async () => {
