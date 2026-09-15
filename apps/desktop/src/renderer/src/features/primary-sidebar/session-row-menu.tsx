@@ -1,4 +1,5 @@
 import type { ReactElement } from 'react';
+import { useState } from 'react';
 
 import type {
     ProjectRecord,
@@ -68,10 +69,37 @@ export function SessionRowMenu({
      */
     const boundAgentSessionId = primaryTerminal?.agentSessionId;
     const unboundReason = 'This Session has no bound Agent conversation yet';
+    /**
+     * Rename is the one entry that leaves something focused behind: the row swaps itself for an input that must hold
+     * focus, while every other entry hands off to a command and leaves the row alone. Closing a menu ends by returning
+     * focus, and that return is what made `Rename` look dead (#950) — it fired one frame after the input mounted and
+     * moved focus to an unrelated sidebar button, so the input blurred and `blurRename` ended a rename the user had
+     * only just started. Two things keep them apart: `finalFocus` turns the return off for this close, and the rename
+     * itself waits for `onOpenChangeComplete` so it begins after the popup is gone rather than racing it.
+     *
+     * `finalFocus` has to be the boolean, not a callback returning it: Base UI's focus manager gates the whole return
+     * on the raw prop being truthy, so a function that answers `false` still runs the return — and with no element to
+     * return to it walks to the first tabbable element in the document instead, which is how the focus reached a button
+     * in the Project heading.
+     */
+    const [renameRequested, setRenameRequested] = useState(false);
     return (
-        <ContextMenu onOpenChange={onOpenChange}>
+        <ContextMenu
+            onOpenChange={(isOpen) => {
+                if (isOpen) setRenameRequested(false);
+                onOpenChange?.(isOpen);
+            }}
+            onOpenChangeComplete={(isOpen) => {
+                if (isOpen || !renameRequested) return;
+                setRenameRequested(false);
+                onBeginRename();
+            }}
+        >
             <ContextMenuTrigger render={children} />
-            <ContextMenuContent aria-label={`${session.displayTitle} actions`}>
+            <ContextMenuContent
+                aria-label={`${session.displayTitle} actions`}
+                finalFocus={!renameRequested}
+            >
                 <ContextMenuItem
                     hint="enter"
                     disabled={!canRename}
@@ -80,7 +108,7 @@ export function SessionRowMenu({
                             ? undefined
                             : 'This Agent does not support native Session renaming'
                     }
-                    onClick={onBeginRename}
+                    onClick={() => setRenameRequested(true)}
                 >
                     Rename
                 </ContextMenuItem>
