@@ -1,6 +1,7 @@
 import type { AppSettings } from '@caxri/protocol';
 
 import { createStore } from '../lib/store';
+import type { ToastAction } from './toast-actions';
 
 /**
  * Stable event identities keep preferences independent of message text and Project names.
@@ -23,6 +24,11 @@ export interface NotificationInput {
      * Persistent data-loss notices and failures must never be suppressible.
      */
     persist?: boolean;
+    /**
+     * The follow-up this notification offered. Retained because it is an identity plus plain data rather than a
+     * closure: the history can rebuild the button from it, which is the whole point of storing it here.
+     */
+    action?: ToastAction;
 }
 
 export interface NotificationEntry extends NotificationInput {
@@ -44,7 +50,8 @@ interface NotificationState {
 }
 
 /**
- * History is intentionally memory-only: never persist arbitrary notification bodies or action closures.
+ * History is intentionally memory-only: never persist arbitrary notification bodies, and never store anything but the
+ * name of a follow-up plus the plain data it needs.
  */
 export const useNotificationStore = createStore<NotificationState>('notifications', (set) => ({
     entries: [],
@@ -114,6 +121,9 @@ export function recordNotification(input: NotificationInput): void {
     const entry: NotificationEntry = {
         kind: input.kind,
         type: input.type,
+        // The newest occurrence owns the button: grouped repeats share one row, and an offer that targets a Session the
+        // earlier failure no longer describes would be revalidated into a dead end.
+        action: input.action,
         projectId: input.projectId,
         persist: input.persist,
         message,

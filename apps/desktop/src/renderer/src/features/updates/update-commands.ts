@@ -132,9 +132,8 @@ function announceAvailableUpdate(state: UpdateState | undefined): void {
     if (!announcement) return;
     pushToast('info', announcement.message, {
         action: {
-            label: 'Show Update',
+            id: 'updates.show',
             accessibleLabel: `Show the update to Caxri ${announcement.version}`,
-            onSelect: showUpdateDialog,
         },
     });
     acknowledgeAvailableUpdate();

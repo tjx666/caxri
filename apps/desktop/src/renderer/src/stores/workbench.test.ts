@@ -30,8 +30,10 @@ vi.mock(import('./notifications'), async (importOriginal) => ({
     syncNotificationSettings: vi.fn(),
 }));
 
+import { toastActionHandlers } from '../commands/toast-actions';
 import { useNotificationStore } from './notifications';
 import { useSessionViewStore } from './session-view';
+import { configureToastActions } from './toast-actions';
 import { dismissToast, getToasts } from './toasts';
 import {
     refreshWorkbench,
@@ -44,6 +46,10 @@ function eventHandlers() {
     return { onCommand: vi.fn(), onDesktopOpen: vi.fn() };
 }
 
+// The toast records only the name of its follow-up, so the click below reaches nothing without the window's handler
+// table; `main.tsx` performs this same install before the first render.
+configureToastActions(toastActionHandlers);
+
 /**
  * Activates the Undo button of the newest toast the way the rendered notification does.
  */
@@ -51,7 +57,9 @@ function undoToast(): void {
     const action = getToasts().at(-1)?.action;
     if (typeof action !== 'object' || action === null || !('onClick' in action))
         throw new Error('The notice offered no Undo action');
-    expect(action.label).toBe('Undo');
+    // Two spans: the visible `Undo` and the screen-reader name that says which switch it takes back, since several
+    // notices can offer an `Undo` that are not the same undo.
+    expect(JSON.stringify(action.label)).toContain('Undo the switch to worktree feature-entered');
     (action.onClick as unknown as () => void)();
 }
 

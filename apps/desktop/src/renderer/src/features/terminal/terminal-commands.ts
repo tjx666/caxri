@@ -77,7 +77,7 @@ export async function createDefaultTerminal(options: CreateTerminalOptions = {})
     );
 }
 
-async function createTerminalForSession(
+export async function createTerminalForSession(
     sessionId: string,
     kind: TerminalKind,
     { cwd, paneId, split }: CreateTerminalOptions,
@@ -131,17 +131,10 @@ async function createTerminalForSession(
                 isCaxriError(error) &&
                 ['IO', 'VALIDATION', 'PATH_DENIED', 'NOT_FOUND'].includes(error.code)
                     ? {
-                          label: 'Retry',
-                          onSelect: () => {
-                              // eslint-disable-next-line no-void -- tryCommand reports retry failures through the toast
-                              void createTerminalForSession(sessionId, kind, {
-                                  cwd,
-                                  paneId,
-                                  split,
-                              });
-                          },
+                          id: 'terminal.create',
+                          params: { sessionId, kind, cwd, paneId, split },
                       }
-                    : { label: 'Refresh', onSelect: refreshTerminalState },
+                    : { id: 'terminal.refresh' },
         },
     );
 }
@@ -161,7 +154,7 @@ export function closeTerminal(terminalId: string): void {
     );
 }
 
-function refreshTerminalState(): void {
+export function refreshTerminalState(): void {
     // eslint-disable-next-line no-void -- tryCommand reports refresh failures through the toast
     void tryCommand('Terminal refresh failed', refreshWorkbench);
 }
@@ -182,8 +175,11 @@ async function requestTerminalRestart(
     await caxri.request('terminal.restart', { terminalId, mode });
 }
 
-function restartTerminalWithRecovery(terminalId: string): void {
+export function restartTerminalWithRecovery(terminalId: string): void {
     let isRestartSubmitted = false;
+    // Captured before the attempt: the offer stays in the notification center indefinitely, and the handler refuses it
+    // once this Terminal is running something else, so the number has to describe the failure rather than the present.
+    const processId = getBootstrap()?.terminals.find((entry) => entry.id === terminalId)?.processId;
     // eslint-disable-next-line no-void -- tryCommand reports restart failures through the toast
     void tryCommand(
         'Terminal restart failed',
@@ -196,11 +192,8 @@ function restartTerminalWithRecovery(terminalId: string): void {
             // Restart replaces a live PTY. Repeating a submitted request after a lost reply would kill the new process.
             recovery: () =>
                 isRestartSubmitted
-                    ? { label: 'Refresh', onSelect: refreshTerminalState }
-                    : {
-                          label: 'Retry',
-                          onSelect: () => restartTerminalWithRecovery(terminalId),
-                      },
+                    ? { id: 'terminal.refresh' }
+                    : { id: 'terminal.restart', params: { processId, terminalId } },
         },
     );
 }

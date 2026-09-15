@@ -802,7 +802,12 @@ a toast.
 **Notifications** — the status bar bell opens a 384px-wide, viewport-constrained popover with
 recent messages, Project context, occurrence counts, removal, clear-all, and a Settings shortcut.
 History holds at most 100 entries in this window's memory and never stores action callbacks;
-reloading the window clears it. Opening the center marks its entries read. Ordinary success
+reloading the window clears it. An entry whose popup offered a recovery — `Retry`, `Undo`,
+`Open Settings` — keeps offering it here, because four seconds is not how long a failure stays worth
+answering. The button is rebuilt from a recorded name plus plain data, so acting on it is the same
+command the popup would have run. Whether it still applies is asked at the click, never at render:
+a follow-up that no longer has a target replaces itself with one plain sentence saying so, which is
+the honest answer for a control that has been sitting in a list while the app moved on. Opening the center marks its entries read. Ordinary success
 feedback such as copying a path stays ephemeral. Native Agent and delivery alerts enter the
 same history without a second popup. Reminder popups offer an options button to stop showing
 that event type across all Projects; muted events remain in history without an unread count.
@@ -813,8 +818,8 @@ ordinary four-second reminder now that its record remains available in the cente
 **Software update** — a release Caxri finds on its own raises a notification and nothing more. A
 modal belongs to a user who asked; Caxri is opened while someone is already doing something else,
 and taking the screen and the Escape key for news that can wait is the nag this rule exists to
-prevent. The notification carries a `Show Update` action while it is on screen, and the status-bar
-chip is what keeps the release reachable after it expires.
+prevent. The notification carries a `Show Update` action, which outlives it in the history, and the
+status-bar chip is what keeps the release reachable without opening either.
 
 The dialog offers two dismissals, side by side, because they are different answers rather than two
 strengths of one. `Close` means "not now": this app process stops offering the release, and the next
@@ -832,8 +837,8 @@ carries that distinction, since the picker and an Agent otherwise reach the same
 
 Some notices are held until dismissed rather than expiring. A graphics failure and the moment
 repeated failures pin the whole window to software rendering are both `warning` notices held until
-dismissed: each carries the only route out of the state it reports, and history stores no action
-callbacks, so a four-second expiry would take the route away while the condition still holds. The
+dismissed: each reports a condition that is still true after four seconds, and one the user should
+decide about now rather than find later in the history. The
 two carry different routes because they leave the user with different decisions. While hardware
 acceleration is still on, the crash notice offers `Turn off hardware acceleration…` — the ellipsis
 is the standard promise that a question comes first, and the click itself changes nothing. Once the

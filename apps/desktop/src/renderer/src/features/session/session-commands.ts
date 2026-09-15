@@ -283,17 +283,19 @@ async function archiveSessionWithNotice(sessionId: string): Promise<void> {
     );
     if (!archived) return;
     pushToast('info', describeArchivedSession(archived.displayTitle), {
+        /**
+         * The notice outlives the row it describes, and now outlives the toast as well: the offer is still in the
+         * notification center after the Session has been deleted or the window navigated elsewhere. `unarchiveSession`
+         * runs the request through `tryCommand`, so a stale Undo reports one error toast instead of throwing out of the
+         * click handler. The handler restores with `unchanged`, which keeps Undo an exact inverse: the row returns to
+         * the position it was archived from, not to the top of the Project the way an explicit restore does.
+         */
         action: {
-            label: 'Undo',
-            /**
-             * The notice outlives the row it describes: the Session can be deleted, or the window navigated elsewhere,
-             * inside those four seconds. `unarchiveSession` runs the request through `tryCommand`, so a stale Undo
-             * reports one error toast instead of throwing out of the toast's click handler.
-             *
-             * `unchanged` keeps Undo an exact inverse: the row returns to the position it was archived from, not to the
-             * top of the Project the way an explicit restore does.
-             */
-            onSelect: () => unarchiveSession(sessionId, 'unchanged'),
+            id: 'session.unarchive',
+            params: { sessionId },
+            // Several archived Sessions leave several `Undo` buttons in the history, identical to a screen reader
+            // reading the buttons alone. The title says which one this is.
+            accessibleLabel: `Undo archiving ${archived.displayTitle}`,
         },
     });
 }

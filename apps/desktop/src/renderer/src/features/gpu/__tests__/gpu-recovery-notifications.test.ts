@@ -1,15 +1,11 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
+import type { ToastAction } from '../../../stores/toast-actions';
 import type { TerminalRendererStatus } from '../../terminal/terminal-renderer';
 import { createGpuIncidentBudget, GPU_INCIDENT_PIN_THRESHOLD } from '../gpu-incident-budget';
 import { createGpuRecoveryNotificationCoordinator } from '../gpu-recovery-notifications';
 
 type TimerHandle = number;
-
-interface ToastAction {
-    label: string;
-    onSelect: () => void;
-}
 
 interface ToastOptions {
     action?: ToastAction;
@@ -150,30 +146,18 @@ class ManualScheduler {
 
 function createHarness(): {
     coordinator: GpuRecoveryNotificationCoordinator;
-    openHardwareAccelerationSettings: ReturnType<typeof vi.fn>;
     scheduler: ManualScheduler;
     toasts: RecordedToast[];
-    turnOffHardwareAcceleration: ReturnType<typeof vi.fn>;
 } {
     const scheduler = new ManualScheduler();
-    const openHardwareAccelerationSettings = vi.fn();
-    const turnOffHardwareAcceleration = vi.fn();
     const toasts: RecordedToast[] = [];
     const coordinator = createGpuRecoveryNotificationCoordinator({
         clearTimer: scheduler.clearTimer,
         now: scheduler.now,
-        openHardwareAccelerationSettings,
         pushToast: (kind, message, options) => toasts.push({ kind, message, options }),
         setTimer: scheduler.setTimer,
-        turnOffHardwareAcceleration,
     });
-    return {
-        coordinator,
-        openHardwareAccelerationSettings,
-        scheduler,
-        toasts,
-        turnOffHardwareAcceleration,
-    };
+    return { coordinator, scheduler, toasts };
 }
 
 describe('GPU recovery notification coordinator', () => {
@@ -325,12 +309,14 @@ describe('GPU recovery notification coordinator', () => {
         global.coordinator.notifyGpuProcessRecovery(CORRELATION_ID);
 
         expect(global.toasts).toHaveLength(1);
-        // Notification history never stores callbacks, so an expiring card takes the only route with it.
+        // Kept on screen because the offer is worth reading twice, not because expiry would lose it: the
+        // notification center rebuilds this same button from the recorded id long after the toast is gone.
         expect(global.toasts[0]?.options?.persist).toBe(true);
-        expect(global.toasts[0]?.options?.action?.label).toBe('Turn off hardware acceleration…');
-        global.toasts[0]?.options?.action?.onSelect();
-        // The click opens the question; the boot configuration is written only by the confirmed branch.
-        expect(global.turnOffHardwareAcceleration).toHaveBeenCalledOnce();
+        // The click opens the question; the boot configuration is written only by the confirmed branch, which
+        // `toastActionHandlers` owns and `toast-actions.test.ts` covers.
+        expect(global.toasts[0]?.options?.action).toEqual({
+            id: 'settings.turnOffHardwareAcceleration',
+        });
 
         const local = createHarness();
         local.coordinator.observeTerminalRendererStatus({
@@ -346,12 +332,7 @@ describe('GPU recovery notification coordinator', () => {
     });
 
     it('announces the pinned session once, with the Settings route, until the user dismisses it', () => {
-        const {
-            coordinator,
-            openHardwareAccelerationSettings,
-            toasts,
-            turnOffHardwareAcceleration,
-        } = createHarness();
+        const { coordinator, toasts } = createHarness();
 
         coordinator.notifySoftwareRenderingPinned();
 
@@ -361,11 +342,9 @@ describe('GPU recovery notification coordinator', () => {
             'Caxri switched to software rendering after repeated graphics failures, and stays there until it restarts. Terminals keep working, but drawing may feel slower. Settings can turn hardware acceleration off for every launch, or leave it on to try the GPU again next time.',
         );
         expect(toasts[0]?.options?.persist).toBe(true);
-        expect(toasts[0]?.options?.action?.label).toBe('Open Settings');
-        toasts[0]?.options?.action?.onSelect();
-        // Acceleration is already off for this session, so the escalated card guides rather than buying it again.
-        expect(openHardwareAccelerationSettings).toHaveBeenCalledOnce();
-        expect(turnOffHardwareAcceleration).not.toHaveBeenCalled();
+        // Acceleration is already off for this session, so the escalated card guides rather than buying it again:
+        // this route opens the setting instead of asking to turn it off a second time.
+        expect(toasts[0]?.options?.action).toEqual({ id: 'settings.openHardwareAcceleration' });
     });
 
     /**

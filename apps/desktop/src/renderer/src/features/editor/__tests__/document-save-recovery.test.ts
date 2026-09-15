@@ -12,7 +12,9 @@ vi.mock('../editor-reveal', () => ({
     revealEditorNavigation: vi.fn(),
 }));
 
+import { toastActionHandlers } from '../../../commands/toast-actions';
 import { useSessionViewStore } from '../../../stores/session-view';
+import { configureToastActions } from '../../../stores/toast-actions';
 import { dismissToast, getToasts } from '../../../stores/toasts';
 import { useWorkbenchStore } from '../../../stores/workbench';
 import { closeDocumentTabs, remapOpenEditors, saveActiveEditor } from '../document-commands';
@@ -55,6 +57,9 @@ function installDirtyDocument(path: string): void {
         size: 7,
     });
 }
+
+// The toast records only the name of its Retry; `main.tsx` performs this same install before the first render.
+configureToastActions(toastActionHandlers);
 
 afterEach(() => {
     request.mockReset();

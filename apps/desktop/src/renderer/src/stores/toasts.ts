@@ -13,6 +13,8 @@ import {
     recordNotification,
     syncNotificationSettings,
 } from './notifications';
+import type { ToastAction } from './toast-actions';
+import { runToastAction, toastActionLabels } from './toast-actions';
 
 const activeReminderToasts = new Map<string | number, NotificationType>();
 const openReminderMenus = new Set<string | number>();
@@ -47,12 +49,6 @@ export function configureReminderPresentation(
  */
 export type ToastKind = 'info' | 'success' | 'warning' | 'error';
 
-interface ToastAction {
-    label: string;
-    onSelect: () => void;
-    accessibleLabel?: string;
-}
-
 export interface ToastOptions {
     /**
      * Stable, opt-in classification for reminders that may be muted.
@@ -71,7 +67,8 @@ export interface ToastOptions {
      */
     persist?: boolean;
     /**
-     * Optional immediate follow-up rendered as a keyboard-accessible button.
+     * Optional immediate follow-up rendered as a keyboard-accessible button. Carried as an identity plus plain data
+     * rather than a callback, so the notification center can still offer it after this toast has expired.
      */
     action?: ToastAction;
 }
@@ -163,10 +160,10 @@ export function pushToast(kind: ToastKind, message: string, options?: ToastOptio
                             createElement(
                                 'span',
                                 { 'aria-hidden': true, 'key': 'visible' },
-                                options.action.label,
+                                toastActionLabels[options.action.id],
                             ),
                         ]
-                      : options.action.label,
+                      : toastActionLabels[options.action.id],
                   onClick: (event) => {
                       // Sonner deletes the notification after an action unless the handler prevents it
                       // (`sonner/dist/index.mjs`: `if (event.defaultPrevented) return;`). A `persist` notice is held
@@ -174,7 +171,13 @@ export function pushToast(kind: ToastKind, message: string, options?: ToastOptio
                       // crash card's action opens a confirmation the user can still cancel, and deleting the card first
                       // would leave Cancel with no way back to the offer.
                       if (options.persist) event.preventDefault();
-                      options.action?.onSelect();
+                      if (!options.action) return;
+                      // Even a four-second-old offer can already be stale — the Session it targets may have been closed
+                      // between the failure and the click — so the live button revalidates exactly like the history one.
+                      const reason = runToastAction(options.action);
+                      // Kept out of the history: the sentence only makes sense next to the click it answers, and on its
+                      // own in the notification center it would read as an event that happened by itself.
+                      if (reason) pushToast('error', reason, { history: false });
                   },
               }
             : undefined,
@@ -306,7 +309,7 @@ export async function tryCommand<T>(
             pushToast('error', describeFailure(error, label), {
                 action: recovery && {
                     ...recovery,
-                    accessibleLabel: `${recovery.label} ${redactAbsolutePaths(label)}`,
+                    accessibleLabel: `${toastActionLabels[recovery.id]} ${redactAbsolutePaths(label)}`,
                 },
             });
         }
