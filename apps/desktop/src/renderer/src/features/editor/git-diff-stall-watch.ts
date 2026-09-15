@@ -98,8 +98,10 @@ export class GitDiffStallWatch {
     }
 
     /**
-     * @returns A cancel function to call when the editor unmounts, so a diff the user navigated away from cannot report
-     *   a recovery for a surface that no longer exists.
+     * Watches one diff surface for the lifetime of its editor. A surface the user navigated away from must stay silent,
+     * so cancelling drops both a pending stall and a pending recovery.
+     *
+     * @returns The cancel function to call when the editor unmounts.
      */
     observe(observation: GitDiffStallObservation): () => void {
         const now = this.dependencies.now ?? (() => Date.now());
