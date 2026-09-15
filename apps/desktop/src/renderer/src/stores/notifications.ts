@@ -11,7 +11,7 @@ export const notificationTypes = {
 } as const;
 
 export type NotificationType = keyof typeof notificationTypes;
-type NotificationKind = 'info' | 'success' | 'error';
+type NotificationKind = 'info' | 'success' | 'warning' | 'error';
 
 export interface NotificationInput {
     kind: NotificationKind;

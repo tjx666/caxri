@@ -183,7 +183,7 @@ export function createGpuIncidentBudget(options: GpuIncidentBudgetOptions): GpuI
  */
 export const gpuIncidentBudget = createGpuIncidentBudget({
     onPinned: (transition) =>
-        gpuRecoveryNotificationCoordinator.notifyGpuAccelerationPinned(transition.correlationId),
+        gpuRecoveryNotificationCoordinator.notifySoftwareRenderingPinned(transition.correlationId),
     onTransition: (transition) =>
         globalThis.caxri.reportDiagnostic({
             kind: 'gpu-incident-budget',

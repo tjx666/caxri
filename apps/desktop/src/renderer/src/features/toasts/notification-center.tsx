@@ -1,9 +1,20 @@
-import { Bell, BellOff, CheckCheck, CircleCheck, CircleX, Info, Settings, X } from 'lucide-react';
+import {
+    Bell,
+    BellOff,
+    CheckCheck,
+    CircleCheck,
+    CircleX,
+    Info,
+    Settings,
+    TriangleAlert,
+    X,
+} from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
 import { Button } from '../../components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { Tooltip } from '../../components/ui/tooltip';
+import { cn } from '../../lib/utilities';
 import type { NotificationEntry } from '../../stores/notifications';
 import {
     canMuteNotification,
@@ -11,6 +22,19 @@ import {
     useNotificationStore,
 } from '../../stores/notifications';
 import { muteNotification } from '../../stores/toasts';
+
+/**
+ * The history's glyph and tone per kind, kept next to the live toast icons in `toast-outlet.tsx` so a notification does
+ * not change what it means between the corner it appeared in and the list it is read back from. `warning` carries its
+ * semantic color here for the same reason it does live: a degradation that is still in force has to stay legible after
+ * the toast expires.
+ */
+const notificationGlyph = {
+    error: { Icon: CircleX, tone: 'text-danger' },
+    info: { Icon: Info, tone: 'text-muted' },
+    success: { Icon: CircleCheck, tone: 'text-muted' },
+    warning: { Icon: TriangleAlert, tone: 'text-warning' },
+} as const;
 
 function openNotificationSettings(): void {
     useNotificationStore.getState().setOpen(false);
@@ -29,17 +53,10 @@ function NotificationRow({ entry }: { entry: NotificationEntry }) {
             Boolean(entry.type && state.mutedTypes.includes(entry.type)) &&
             canMuteNotification(entry),
     );
-    const Icon = entry.kind === 'error' ? CircleX : entry.kind === 'success' ? CircleCheck : Info;
+    const { Icon, tone } = notificationGlyph[entry.kind];
     return (
         <li className="flex gap-2 border-b border-border px-3 py-3 last:border-0">
-            <Icon
-                size={16}
-                className={
-                    entry.kind === 'error'
-                        ? 'mt-0.5 shrink-0 text-danger'
-                        : 'mt-0.5 shrink-0 text-muted'
-                }
-            />
+            <Icon size={16} className={cn('mt-0.5 shrink-0', tone)} />
             <div className="min-w-0 flex-1">
                 <p className="text-[12px] leading-normal break-words whitespace-pre-wrap">
                     {entry.message}

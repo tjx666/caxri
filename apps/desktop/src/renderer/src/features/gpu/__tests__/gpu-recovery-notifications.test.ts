@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { TerminalRendererStatus } from '../terminal/terminal-renderer';
-import { createGpuIncidentBudget, GPU_INCIDENT_PIN_THRESHOLD } from './gpu-incident-budget';
-import { createGpuRecoveryNotificationCoordinator } from './gpu-recovery-notifications';
+import type { TerminalRendererStatus } from '../../terminal/terminal-renderer';
+import { createGpuIncidentBudget, GPU_INCIDENT_PIN_THRESHOLD } from '../gpu-incident-budget';
+import { createGpuRecoveryNotificationCoordinator } from '../gpu-recovery-notifications';
 
 type TimerHandle = number;
 
@@ -17,7 +17,7 @@ interface ToastOptions {
 }
 
 interface RecordedToast {
-    kind: 'error' | 'info' | 'success';
+    kind: 'error' | 'info' | 'success' | 'warning';
     message: string;
     options?: ToastOptions;
 }
@@ -30,8 +30,8 @@ interface RendererStatusInput {
 
 interface GpuRecoveryNotificationCoordinator {
     disposeTerminal(terminalId: string): void;
-    notifyGpuAccelerationPinned(correlationId?: string): void;
     notifyGpuProcessRecovery(correlationId: string): void;
+    notifySoftwareRenderingPinned(correlationId?: string): void;
     observeTerminalRendererStatus(input: RendererStatusInput): void;
 }
 
@@ -150,21 +150,30 @@ class ManualScheduler {
 
 function createHarness(): {
     coordinator: GpuRecoveryNotificationCoordinator;
-    restartInGpuSafeMode: ReturnType<typeof vi.fn>;
+    openHardwareAccelerationSettings: ReturnType<typeof vi.fn>;
     scheduler: ManualScheduler;
     toasts: RecordedToast[];
+    turnOffHardwareAcceleration: ReturnType<typeof vi.fn>;
 } {
     const scheduler = new ManualScheduler();
-    const restartInGpuSafeMode = vi.fn();
+    const openHardwareAccelerationSettings = vi.fn();
+    const turnOffHardwareAcceleration = vi.fn();
     const toasts: RecordedToast[] = [];
     const coordinator = createGpuRecoveryNotificationCoordinator({
         clearTimer: scheduler.clearTimer,
         now: scheduler.now,
+        openHardwareAccelerationSettings,
         pushToast: (kind, message, options) => toasts.push({ kind, message, options }),
-        restartInGpuSafeMode,
         setTimer: scheduler.setTimer,
+        turnOffHardwareAcceleration,
     });
-    return { coordinator, restartInGpuSafeMode, scheduler, toasts };
+    return {
+        coordinator,
+        openHardwareAccelerationSettings,
+        scheduler,
+        toasts,
+        turnOffHardwareAcceleration,
+    };
 }
 
 describe('GPU recovery notification coordinator', () => {
@@ -212,7 +221,7 @@ describe('GPU recovery notification coordinator', () => {
         scheduler.advance(1_000);
 
         expect(toasts).toHaveLength(1);
-        expect(toasts[0]?.message).toContain('GPU process');
+        expect(toasts[0]?.message).toContain('the affected Terminals');
     });
 
     it('suppresses a local fallback within 500ms after a global incident but allows a later one', () => {
@@ -232,8 +241,8 @@ describe('GPU recovery notification coordinator', () => {
         scheduler.advance(500);
 
         expect(toasts).toHaveLength(2);
-        expect(toasts[0]?.message).toContain('GPU process');
-        expect(toasts[1]?.message).toContain('Terminal');
+        expect(toasts[0]?.message).toContain('the affected Terminals');
+        expect(toasts[1]?.message).toContain('one Terminal');
     });
 
     it('deduplicates a local fallback by Terminal until WebGL becomes active again', () => {
@@ -307,8 +316,8 @@ describe('GPU recovery notification coordinator', () => {
         scheduler.advance(500);
 
         expect(toasts).toHaveLength(2);
-        expect(toasts[0]?.message).toContain('GPU process');
-        expect(toasts[1]?.message).toContain('Terminal');
+        expect(toasts[0]?.message).toContain('the affected Terminals');
+        expect(toasts[1]?.message).toContain('one Terminal');
     });
 
     it('keeps an actionable GPU notice on screen and leaves the per-Terminal reminder transient', () => {
@@ -316,11 +325,12 @@ describe('GPU recovery notification coordinator', () => {
         global.coordinator.notifyGpuProcessRecovery(CORRELATION_ID);
 
         expect(global.toasts).toHaveLength(1);
-        // Notification history never stores callbacks, so an expiring card takes the only Safe Mode route with it.
+        // Notification history never stores callbacks, so an expiring card takes the only route with it.
         expect(global.toasts[0]?.options?.persist).toBe(true);
-        expect(global.toasts[0]?.options?.action?.label).toBe('Restart in GPU Safe Mode');
+        expect(global.toasts[0]?.options?.action?.label).toBe('Turn off hardware acceleration…');
         global.toasts[0]?.options?.action?.onSelect();
-        expect(global.restartInGpuSafeMode).toHaveBeenCalledOnce();
+        // The click opens the question; the boot configuration is written only by the confirmed branch.
+        expect(global.turnOffHardwareAcceleration).toHaveBeenCalledOnce();
 
         const local = createHarness();
         local.coordinator.observeTerminalRendererStatus({
@@ -335,26 +345,59 @@ describe('GPU recovery notification coordinator', () => {
         expect(local.toasts[0]?.options?.action).toBeUndefined();
     });
 
-    it('announces the pinned session once, with the Safe Mode route, until the user dismisses it', () => {
-        const { coordinator, restartInGpuSafeMode, toasts } = createHarness();
+    it('announces the pinned session once, with the Settings route, until the user dismisses it', () => {
+        const {
+            coordinator,
+            openHardwareAccelerationSettings,
+            toasts,
+            turnOffHardwareAcceleration,
+        } = createHarness();
 
-        coordinator.notifyGpuAccelerationPinned();
+        coordinator.notifySoftwareRenderingPinned();
 
         expect(toasts).toHaveLength(1);
-        expect(toasts[0]?.kind).toBe('info');
+        expect(toasts[0]?.kind).toBe('warning');
         expect(toasts[0]?.message).toBe(
-            'Caxri turned off GPU acceleration for Terminals in this window after repeated graphics failures. Restart Caxri to try again.',
+            'Caxri switched to software rendering after repeated graphics failures, and stays there until it restarts. Terminals keep working, but drawing may feel slower. Settings can turn hardware acceleration off for every launch, or leave it on to try the GPU again next time.',
         );
         expect(toasts[0]?.options?.persist).toBe(true);
+        expect(toasts[0]?.options?.action?.label).toBe('Open Settings');
         toasts[0]?.options?.action?.onSelect();
-        expect(restartInGpuSafeMode).toHaveBeenCalledOnce();
+        // Acceleration is already off for this session, so the escalated card guides rather than buying it again.
+        expect(openHardwareAccelerationSettings).toHaveBeenCalledOnce();
+        expect(turnOffHardwareAcceleration).not.toHaveBeenCalled();
+    });
+
+    /**
+     * The condition answered to five names before (GPU process crash, GPU acceleration, DOM renderer, WebGL2, GPU Safe
+     * Mode). One vocabulary, asserted where the strings actually live.
+     */
+    it('names the degraded state the same way in every notice and uses no implementation words', () => {
+        const { coordinator, scheduler, toasts } = createHarness();
+
+        coordinator.notifyGpuProcessRecovery(CORRELATION_ID);
+        coordinator.notifySoftwareRenderingPinned();
+        // Past the merge window, so the per-Terminal notice is a third message rather than a suppressed duplicate.
+        scheduler.advance(501);
+        coordinator.observeTerminalRendererStatus({
+            status: LOCAL_FALLBACK_STATUS,
+            terminalId: 'terminal-1',
+        });
+        scheduler.advance(1_000);
+
+        expect(toasts).toHaveLength(3);
+        for (const toast of toasts) {
+            expect(toast.message).toContain('software rendering');
+            for (const jargon of ['argv', 'WebGL', 'DOM', 'Safe Mode'])
+                expect(toast.message).not.toContain(jargon);
+        }
     });
 
     it('replaces the crash notice of the incident that pinned the session instead of adding to it', () => {
         const { coordinator, scheduler, toasts } = createHarness();
 
         // Main records the incident against the budget first, so the pinned transition claims the correlation.
-        coordinator.notifyGpuAccelerationPinned(CORRELATION_ID);
+        coordinator.notifySoftwareRenderingPinned(CORRELATION_ID);
         coordinator.notifyGpuProcessRecovery(CORRELATION_ID);
         for (const terminalId of ['terminal-1', 'terminal-2', 'terminal-3'])
             coordinator.observeTerminalRendererStatus({
@@ -366,7 +409,7 @@ describe('GPU recovery notification coordinator', () => {
 
         expect(toasts).toHaveLength(1);
         expect(toasts[0]?.options?.persist).toBe(true);
-        expect(toasts[0]?.message).toContain('turned off GPU acceleration');
+        expect(toasts[0]?.message).toContain('switched to software rendering');
     });
 
     it('merges the split panes of a context-loss pin, whichever side reports first', () => {
@@ -377,15 +420,15 @@ describe('GPU recovery notification coordinator', () => {
             terminalId: 'terminal-1',
         });
         early.scheduler.advance(100);
-        early.coordinator.notifyGpuAccelerationPinned();
+        early.coordinator.notifySoftwareRenderingPinned();
         early.scheduler.advance(5_000);
 
         expect(early.toasts).toHaveLength(1);
-        expect(early.toasts[0]?.message).toContain('turned off GPU acceleration');
+        expect(early.toasts[0]?.message).toContain('switched to software rendering');
 
         const late = createHarness();
         // The ordinary order: the losing pane trips the budget before it publishes its own status.
-        late.coordinator.notifyGpuAccelerationPinned();
+        late.coordinator.notifySoftwareRenderingPinned();
         late.coordinator.observeTerminalRendererStatus({
             status: PINNED_LIMIT_STATUS,
             terminalId: 'terminal-1',
@@ -398,7 +441,7 @@ describe('GPU recovery notification coordinator', () => {
         late.scheduler.advance(5_000);
 
         expect(late.toasts).toHaveLength(1);
-        expect(late.toasts[0]?.message).toContain('turned off GPU acceleration');
+        expect(late.toasts[0]?.message).toContain('switched to software rendering');
     });
 
     it('reports one notice per GPU crash and escalates only the crash that pins the session', () => {
@@ -406,7 +449,7 @@ describe('GPU recovery notification coordinator', () => {
         // Wired exactly as the Renderer singletons are: the budget owns the transition, the coordinator owns the notice.
         const budget = createGpuIncidentBudget({
             onPinned: (transition) =>
-                coordinator.notifyGpuAccelerationPinned(transition.correlationId),
+                coordinator.notifySoftwareRenderingPinned(transition.correlationId),
             probeWebgl2: () => true,
         });
         budget.applyPreference('on');
@@ -429,8 +472,8 @@ describe('GPU recovery notification coordinator', () => {
         }
 
         expect(toasts.map((entry) => entry.options?.persist)).toEqual([true, true, true]);
-        expect(toasts[0]?.message).toContain('GPU process crash');
-        expect(toasts[1]?.message).toContain('GPU process crash');
-        expect(toasts[2]?.message).toContain('turned off GPU acceleration');
+        expect(toasts[0]?.message).toContain('the affected Terminals');
+        expect(toasts[1]?.message).toContain('the affected Terminals');
+        expect(toasts[2]?.message).toContain('switched to software rendering');
     });
 });

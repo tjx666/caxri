@@ -29,6 +29,10 @@
     border-left-color: var(--success);
 }
 
+.caxri-toaster[data-sonner-toaster] [data-sonner-toast][data-type='warning'] {
+    border-left-color: var(--warning);
+}
+
 .caxri-toaster[data-sonner-toaster] [data-sonner-toast][data-type='error'] {
     border-left-color: var(--danger);
 }
@@ -39,6 +43,10 @@
 
 .caxri-toaster [data-type='success'] [data-icon] {
     color: var(--success);
+}
+
+.caxri-toaster [data-type='warning'] [data-icon] {
+    color: var(--warning);
 }
 
 .caxri-toaster [data-type='error'] [data-icon] {

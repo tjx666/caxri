@@ -176,7 +176,11 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 };
             case 'gpu.restartInSafeMode':
                 if (!options.restartInGpuSafeMode)
-                    throw new CaxriError('UNAVAILABLE', 'GPU Safe Mode restart is unavailable');
+                    throw new CaxriError(
+                        'UNAVAILABLE',
+                        // Surfaces verbatim in a toast through `tryCommand`, so it stays in the product's vocabulary.
+                        'Restarting without hardware acceleration is unavailable',
+                    );
                 await options.restartInGpuSafeMode();
                 return null;
             case 'gpu.testInjectContextLoss':
