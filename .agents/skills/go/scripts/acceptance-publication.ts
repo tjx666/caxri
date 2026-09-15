@@ -148,6 +148,10 @@ const publishedFileSchema = z.object({
     size: z.number().int().positive(),
 });
 const remotePlanItemSchema = z.object({
+    /**
+     * The submitted stable check id; optional so an older shape without it still parses.
+     */
+    id: z.string().min(1).optional(),
     verifierConfig: z.looseObject({ surface: productSurfaceSchema.optional() }),
 });
 const acceptanceCheckSchema = z.object({
@@ -157,6 +161,16 @@ const acceptanceCheckSchema = z.object({
     resultRound: z.number().int().positive(),
     surface: productSurfaceSchema.nullable().optional(),
 });
+type RemoteAcceptanceCheck = z.infer<typeof acceptanceCheckSchema>;
+
+/**
+ * For LobeHub publication, normalize the stable check id across current and earlier response shapes before every
+ * local-vs-remote check comparison; the parser supports both response shapes.
+ *
+ */
+function stableCheckId(check: RemoteAcceptanceCheck): string {
+    return check.planItem?.id ?? check.id;
+}
 const acceptanceViewSchema = z.object({
     acceptance: z.object({ id: z.string().min(1) }),
     checks: z.array(acceptanceCheckSchema),
@@ -208,10 +222,10 @@ function requiredEvidenceType(
  */
 function assertRemoteEvidenceIntegrity(
     report: z.infer<typeof localReportSchema>,
-    remoteChecks: Array<z.infer<typeof acceptanceCheckSchema>>,
+    remoteChecks: RemoteAcceptanceCheck[],
 ): void {
     const planById = new Map(report.plan.map((item) => [item.id, item]));
-    const remoteById = new Map(remoteChecks.map((check) => [check.id, check]));
+    const remoteById = new Map(remoteChecks.map((check) => [stableCheckId(check), check]));
 
     for (const acceptanceCase of report.cases) {
         const expectedTypes = acceptanceCase.evidence.map((reference) =>
@@ -321,11 +335,11 @@ async function hasMatchingPublishedMobileReceipt(
  */
 async function assertRemoteSurfaceAndDeviceIntegrity(
     report: z.infer<typeof localReportSchema>,
-    remoteChecks: Array<z.infer<typeof acceptanceCheckSchema>>,
+    remoteChecks: RemoteAcceptanceCheck[],
     reportDirectory: string,
     runner: CommandRunner,
 ): Promise<void> {
-    const remoteById = new Map(remoteChecks.map((check) => [check.id, check]));
+    const remoteById = new Map(remoteChecks.map((check) => [stableCheckId(check), check]));
     for (const plan of report.plan) {
         const remote = remoteById.get(plan.id);
         const remoteSurfaces = [remote?.surface, remote?.planItem?.verifierConfig.surface].filter(
@@ -756,7 +770,7 @@ export async function publishAcceptanceRound(
         throw new Error('LobeHub readback does not match the exact head');
     }
     const remoteChecks = view.checks.filter(({ resultRound }) => resultRound === expectedRound);
-    const remoteCheckIds = remoteChecks.map(({ id }) => id);
+    const remoteCheckIds = remoteChecks.map((check) => stableCheckId(check));
     if (!haveEqualValues(remoteCheckIds, checkIds)) {
         throw new Error('LobeHub readback check ids do not match the local round');
     }
