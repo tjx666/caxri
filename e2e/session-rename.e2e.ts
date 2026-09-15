@@ -1,0 +1,169 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { execFileAsync } from '@caxri/system';
+
+import type { E2EApp } from './support/electron-app.ts';
+import { expect, test } from './support/fixtures.ts';
+import {
+    createAdditionalShellSession,
+    createProjectSession,
+    launchCaxri,
+    pageRequest,
+    selectedSessionId,
+    sessionCard,
+    waitForRuntimeReady,
+} from './support/helpers.ts';
+
+/**
+ * Closes the Electron app during teardown without letting an already-closed app fail the test.
+ */
+async function closeAppQuietly(app: E2EApp): Promise<void> {
+    try {
+        await app.close();
+    } catch {
+        // The app may already be gone; teardown has nothing left to do.
+    }
+}
+
+test('Session inline rename validates input and survives Renderer reload', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-rename-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', root]);
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        await createProjectSession(running.page);
+        const sessionId = await selectedSessionId(running.page);
+        const card = sessionCard(running.page, sessionId);
+        await card.dblclick();
+        const input = card.getByRole('textbox', { name: 'Rename Untitled' });
+        await expect(input).toBeFocused();
+        expect(
+            await input.evaluate((element) => ({
+                end: (element as HTMLInputElement).selectionEnd,
+                start: (element as HTMLInputElement).selectionStart,
+                value: (element as HTMLInputElement).value,
+            })),
+        ).toEqual({ end: 8, start: 0, value: 'Untitled' });
+
+        await input.fill(' '.repeat(3));
+        await input.press('Enter');
+        await expect(input).toHaveAttribute('aria-invalid', 'true');
+        await expect(card.getByRole('alert')).toHaveText('Session name is required');
+        await input.press('Escape');
+        await expect(card.locator('strong')).toHaveText('Untitled');
+        await expect(card).toBeFocused();
+
+        await card.dblclick();
+        const blurInput = card.getByRole('textbox', { name: 'Rename Untitled' });
+        await blurInput.fill('Blurred investigation');
+        const filesTab = running.page.getByRole('tab', { name: 'Files', exact: true });
+        await filesTab.click();
+        await expect(card.getByRole('textbox')).toHaveCount(0);
+        await expect(card.locator('strong')).toHaveText('Blurred investigation');
+        await expect(filesTab).toBeFocused();
+
+        await card.dblclick();
+        const emptyBlurInput = card.getByRole('textbox', {
+            name: 'Rename Blurred investigation',
+        });
+        await emptyBlurInput.fill(' '.repeat(3));
+        await filesTab.click();
+        await expect(card.getByRole('textbox')).toHaveCount(0);
+        await expect(card.locator('strong')).toHaveText('Blurred investigation');
+        await expect(filesTab).toBeFocused();
+
+        await card.focus();
+        await card.press('Enter');
+        const keyboardInput = card.getByRole('textbox', {
+            name: 'Rename Blurred investigation',
+        });
+        await keyboardInput.fill('Manual investigation');
+        await keyboardInput.press('Enter');
+        await expect(card.locator('strong')).toHaveText('Manual investigation');
+        await expect(card).toBeFocused();
+        const state = await pageRequest<{
+            sessions: Array<{ displayTitle: string; id: string; titleMode: string }>;
+        }>(running.page, 'app.bootstrap');
+        expect(state.sessions.find((session) => session.id === sessionId)).toMatchObject({
+            displayTitle: 'Manual investigation',
+            titleMode: 'manual',
+        });
+
+        await running.page.reload();
+        await waitForRuntimeReady(running.page);
+        await expect(sessionCard(running.page, sessionId).locator('strong')).toHaveText(
+            'Manual investigation',
+        );
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+/**
+ * Double-click and Enter already have coverage; the context menu's `Rename` had none, which is how #950 could be
+ * reported against a shipped build with nothing to contradict it. The menu closes as the row swaps itself for the
+ * input, so this asserts the input still holds focus once the popup is gone — the exact handoff a focus restore aimed
+ * at the unmounted trigger, or a trap still alive through the exit animation, would break.
+ */
+test('The Session context menu renames a selected and an unselected row', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-rename-menu-e2e-'));
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', root]);
+
+    const running = await launchCaxri({
+        userDataDir: join(testDirectory, 'user-data'),
+        testRootPath: root,
+    });
+    try {
+        const { page } = running;
+        await createProjectSession(page);
+        const firstSessionId = await selectedSessionId(page);
+        await createAdditionalShellSession(page);
+        const secondSessionId = await selectedSessionId(page);
+        expect(secondSessionId).not.toBe(firstSessionId);
+
+        const selectedCard = sessionCard(page, secondSessionId);
+        await selectedCard.click({ button: 'right' });
+        const renameItem = page.getByRole('menuitem', { name: /^Rename/ });
+        await expect(renameItem).toBeEnabled();
+        await renameItem.click();
+        const selectedInput = selectedCard.getByRole('textbox', { name: 'Rename Untitled' });
+        await expect(selectedInput).toBeFocused();
+        await expect(page.getByRole('menu')).toHaveCount(0);
+        await expect(selectedInput).toBeFocused();
+        expect(
+            await selectedInput.evaluate((element) => ({
+                end: (element as HTMLInputElement).selectionEnd,
+                start: (element as HTMLInputElement).selectionStart,
+            })),
+        ).toEqual({ end: 8, start: 0 });
+        await selectedInput.fill('Renamed from the menu');
+        await selectedInput.press('Enter');
+        await expect(selectedCard.locator('strong')).toHaveText('Renamed from the menu');
+
+        /**
+         * An unselected row must reach the same state without the click first having to select it, and cancelling must
+         * hand focus back without the ring that stands for keyboard navigation the user never performed.
+         */
+        const unselectedCard = sessionCard(page, firstSessionId);
+        await unselectedCard.click({ button: 'right' });
+        await page.getByRole('menuitem', { name: /^Rename/ }).click();
+        const unselectedInput = unselectedCard.getByRole('textbox', { name: 'Rename Untitled' });
+        await expect(unselectedInput).toBeFocused();
+        await unselectedInput.press('Escape');
+        await expect(unselectedCard.getByRole('textbox')).toHaveCount(0);
+        await expect(unselectedCard.locator('strong')).toHaveText('Untitled');
+        await expect(unselectedCard).toBeFocused();
+        expect(await unselectedCard.evaluate((element) => element.matches(':focus-visible'))).toBe(
+            false,
+        );
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});

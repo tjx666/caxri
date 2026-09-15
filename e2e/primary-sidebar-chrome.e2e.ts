@@ -15,7 +15,6 @@ import {
     pressNewTerminal,
     selectedSessionId,
     sessionCard,
-    waitForRuntimeReady,
 } from './support/helpers.ts';
 
 const MESSAGE_BOX_CALL_COUNT_KEY = '__caxriE2EMessageBoxCallCount';
@@ -150,83 +149,6 @@ test('active and inactive Project navigation keeps full contrast', async () => {
             cards.nth(1).evaluate((element) => getComputedStyle(element).backgroundColor),
         ]);
         expect(backgrounds[0]).not.toBe(backgrounds[1]);
-    } finally {
-        await closeAppQuietly(running.app);
-        await rm(testDirectory, { recursive: true, force: true });
-    }
-});
-
-test('Session inline rename validates input and survives Renderer reload', async () => {
-    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-rename-e2e-'));
-    const userData = join(testDirectory, 'user-data');
-    const root = join(testDirectory, 'project');
-    await execFileAsync('mkdir', ['-p', root]);
-
-    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
-    try {
-        await createProjectSession(running.page);
-        const sessionId = await selectedSessionId(running.page);
-        const card = sessionCard(running.page, sessionId);
-        await card.dblclick();
-        const input = card.getByRole('textbox', { name: 'Rename Untitled' });
-        await expect(input).toBeFocused();
-        expect(
-            await input.evaluate((element) => ({
-                end: (element as HTMLInputElement).selectionEnd,
-                start: (element as HTMLInputElement).selectionStart,
-                value: (element as HTMLInputElement).value,
-            })),
-        ).toEqual({ end: 8, start: 0, value: 'Untitled' });
-
-        await input.fill(' '.repeat(3));
-        await input.press('Enter');
-        await expect(input).toHaveAttribute('aria-invalid', 'true');
-        await expect(card.getByRole('alert')).toHaveText('Session name is required');
-        await input.press('Escape');
-        await expect(card.locator('strong')).toHaveText('Untitled');
-        await expect(card).toBeFocused();
-
-        await card.dblclick();
-        const blurInput = card.getByRole('textbox', { name: 'Rename Untitled' });
-        await blurInput.fill('Blurred investigation');
-        const filesTab = running.page.getByRole('tab', { name: 'Files', exact: true });
-        await filesTab.click();
-        await expect(card.getByRole('textbox')).toHaveCount(0);
-        await expect(card.locator('strong')).toHaveText('Blurred investigation');
-        await expect(filesTab).toBeFocused();
-
-        await card.dblclick();
-        const emptyBlurInput = card.getByRole('textbox', {
-            name: 'Rename Blurred investigation',
-        });
-        await emptyBlurInput.fill(' '.repeat(3));
-        await filesTab.click();
-        await expect(card.getByRole('textbox')).toHaveCount(0);
-        await expect(card.locator('strong')).toHaveText('Blurred investigation');
-        await expect(filesTab).toBeFocused();
-
-        await card.focus();
-        await card.press('Enter');
-        const keyboardInput = card.getByRole('textbox', {
-            name: 'Rename Blurred investigation',
-        });
-        await keyboardInput.fill('Manual investigation');
-        await keyboardInput.press('Enter');
-        await expect(card.locator('strong')).toHaveText('Manual investigation');
-        await expect(card).toBeFocused();
-        const state = await pageRequest<{
-            sessions: Array<{ displayTitle: string; id: string; titleMode: string }>;
-        }>(running.page, 'app.bootstrap');
-        expect(state.sessions.find((session) => session.id === sessionId)).toMatchObject({
-            displayTitle: 'Manual investigation',
-            titleMode: 'manual',
-        });
-
-        await running.page.reload();
-        await waitForRuntimeReady(running.page);
-        await expect(sessionCard(running.page, sessionId).locator('strong')).toHaveText(
-            'Manual investigation',
-        );
     } finally {
         await closeAppQuietly(running.app);
         await rm(testDirectory, { recursive: true, force: true });
