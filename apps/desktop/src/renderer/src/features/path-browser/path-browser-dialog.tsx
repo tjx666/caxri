@@ -276,6 +276,25 @@ function PathBrowserResults({
 }
 
 /**
+ * The list colours a row can wear, in the same `--list-*` roles the Files tree uses, so an imported theme reaches this
+ * dialog too.
+ *
+ * Written as a choice rather than a hover utility plus an override because the hover fill has to be withheld from the
+ * keyboard row: the pointer re-selects only when it moves, so a pointer left resting while the arrow keys walk away is
+ * exactly when the two are different rows, and painting both would make both look current.
+ *
+ * A row that cannot be opened keeps its muted label through the hover. The fill still follows the pointer, but
+ * recolouring the text would take away the one thing saying this row is refused — and a `hover:` utility outweighs the
+ * plain `text-muted` the caller adds afterwards, so it has to be withheld here rather than overridden there.
+ */
+function rowStateClassName(isSelected: boolean, isDisabled = false): string {
+    if (isSelected) return 'bg-list-focus-background text-list-focus-foreground';
+    return isDisabled
+        ? 'hover:bg-list-hover-background'
+        : 'hover:bg-list-hover-background hover:text-list-hover-foreground';
+}
+
+/**
  * Creation targets the browser's current directory while neighbouring `projectSearch` rows come from anywhere in the
  * Project, so this row names its destination rather than relying on the header breadcrumb.
  */
@@ -300,8 +319,8 @@ function PathBrowserCreateOption({
             id={id}
             aria-selected={isSelected}
             className={cn(
-                'path-browser-create flex h-8 w-full cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 text-left text-[12px] text-foreground hover:bg-elevated',
-                isSelected && 'bg-elevated',
+                'path-browser-create flex h-8 w-full cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 text-left text-[12px] text-foreground',
+                rowStateClassName(isSelected),
             )}
             role="option"
             type="button"
@@ -346,8 +365,8 @@ function PathBrowserOption({
             aria-disabled={isDisabled}
             aria-selected={isSelected}
             className={cn(
-                'flex h-8 w-full cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 text-left text-[12px] text-foreground hover:bg-elevated',
-                isSelected && 'bg-elevated',
+                'flex h-8 w-full cursor-pointer items-center gap-2 rounded border-0 bg-transparent px-2 text-left text-[12px] text-foreground',
+                rowStateClassName(isSelected, isDisabled),
                 isDisabled && 'cursor-not-allowed text-muted',
             )}
             role="option"
