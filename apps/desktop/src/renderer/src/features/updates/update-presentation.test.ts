@@ -113,6 +113,51 @@ describe('describeUpdateChip', () => {
         ).toBe('Updating…');
     });
 
+    it('keeps a failed download reachable, naming what broke', () => {
+        expect(
+            describeUpdateChip(
+                {
+                    status: 'error',
+                    currentVersion: '1.0.0',
+                    version: '1.1.0',
+                    action: 'download',
+                    message: 'net::ERR_CONNECTION_RESET',
+                },
+                null,
+            ),
+        ).toEqual({
+            label: 'Update failed',
+            description: 'Caxri 1.1.0 could not be downloaded. Click to see why and try again.',
+            kind: 'failed',
+        });
+        expect(
+            describeUpdateChip(
+                {
+                    status: 'error',
+                    currentVersion: '1.0.0',
+                    version: '1.1.0',
+                    action: 'open',
+                    message: 'The disk image could not be opened.',
+                },
+                null,
+            )?.description,
+        ).toContain('could not be installed');
+    });
+
+    it('leaves a failed background check off the status bar', () => {
+        expect(
+            describeUpdateChip(
+                {
+                    status: 'error',
+                    currentVersion: '1.0.0',
+                    action: 'check',
+                    message: 'GitHub is unreachable.',
+                },
+                null,
+            ),
+        ).toBeUndefined();
+    });
+
     it('keeps the download and install chips visible even for a skipped version', () => {
         expect(
             describeUpdateChip(

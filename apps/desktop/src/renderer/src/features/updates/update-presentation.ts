@@ -109,7 +109,7 @@ export interface UpdateChip {
      */
     label: string;
     description: string;
-    kind: 'available' | 'downloading' | 'ready';
+    kind: 'available' | 'downloading' | 'failed' | 'ready';
 }
 
 /**
@@ -122,6 +122,11 @@ export interface UpdateChip {
  *
  * A skipped version drops the `available` chip but never the download or install chips: those describe work the user
  * started themselves, and hiding them would strand a half-finished download with no way back to it.
+ *
+ * A failed download or install keeps a chip for the same reason. The dialog invites the user to close it and keep
+ * working, so by the time the download breaks the chip is the only surface left; without one the progress text simply
+ * disappears and the release becomes unreachable until the next automatic check. A failed background _check_ is
+ * deliberately excluded — nobody asked for it, and an offline machine would otherwise wear a permanent chip.
  */
 export function describeUpdateChip(
     state: UpdateState | undefined,
@@ -152,6 +157,14 @@ export function describeUpdateChip(
             label: 'Update ready',
             description: `Caxri ${state.version} is downloaded and verified. Click to install it.`,
             kind: 'ready',
+        };
+    if (state.status === 'error' && state.action !== 'check' && state.version)
+        return {
+            label: 'Update failed',
+            description: `Caxri ${state.version} could not be ${
+                state.action === 'open' ? 'installed' : 'downloaded'
+            }. Click to see why and try again.`,
+            kind: 'failed',
         };
     return undefined;
 }
