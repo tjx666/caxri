@@ -21,6 +21,7 @@ import { pullRequestUnavailableLabel } from './pull-request-status-label';
 import { ScreencastModeChip } from './screencast-mode-chip';
 import { StatusInfo } from './status-info';
 import { StatusItem } from './status-item';
+import { UpdateStatusChip } from './update-status-chip';
 import { WorkbenchRootPicker } from './workbench-root-picker';
 
 /**
@@ -240,6 +241,7 @@ export function StatusBar() {
                         </span>
                     </Tooltip>
                 )}
+                <UpdateStatusChip />
                 <ScreencastModeChip />
                 <ActivePaneStatus
                     showChildProcessCount={chipVisibility.childProcessCount}

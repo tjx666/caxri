@@ -9,8 +9,10 @@
  * - The child-process count and memory chips duplicate a live reading already available in Process Explorer
  *   (`processExplorer.open`), so they are the cheapest to hide first.
  * - The pull request chip duplicates the Git panel, so it goes next.
- * - The notification bell, degraded-backend/runtime chips, active Terminal progress, and the Project root + branch
- *   pickers are never included here — they have no other on-screen home and must never disappear silently. The overflow
+ * - The notification bell, degraded-backend/runtime chips, active Terminal progress, the update chip, and the Project
+ *   root + branch pickers are never included here — they have no other on-screen home and must never disappear
+ *   silently. The update chip is the only persistent trace of a download in flight or an install waiting, because
+ *   automatic discovery now raises a notification that expires rather than a dialog that holds the screen. The overflow
  *   scrollbar stays as the absolute last resort for the pathological case where even that never-hide set doesn't fit.
  */
 export interface ChipVisibility {

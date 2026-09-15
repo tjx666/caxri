@@ -4,7 +4,7 @@ import { mkdir, open, rename, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type { UpdateState } from '@caxri/protocol';
-import { errorMessage } from '@caxri/protocol';
+import { compareStableVersions, errorMessage } from '@caxri/protocol';
 import { z } from 'zod';
 
 const LATEST_RELEASE_URL = 'https://api.github.com/repos/tjx666/caxri/releases/latest';
@@ -60,23 +60,12 @@ export function shouldStartAutomaticUpdateCheck(options: AutomaticUpdateCheckOpt
     return options.isPackaged && !options.isE2E && !options.alreadyStarted;
 }
 
-function stableVersionParts(version: string): [number, number, number] {
-    const match = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(version);
-    if (!match) throw new Error('The release has an unsupported version number.');
-    return [Number(match[1]), Number(match[2]), Number(match[3])];
-}
-
 /**
- * Compares the stable `major.minor.patch` versions used by Caxri releases.
+ * Rejects a release tag Caxri cannot order. Shares `compareStableVersions`' parser so the shape Main accepts here and
+ * the shape the Renderer can compare a skipped version against can never drift apart.
  */
-export function compareStableVersions(left: string, right: string): number {
-    const leftParts = stableVersionParts(left);
-    const rightParts = stableVersionParts(right);
-    for (const [index, leftPart] of leftParts.entries()) {
-        const difference = leftPart - rightParts[index];
-        if (difference !== 0) return Math.sign(difference);
-    }
-    return 0;
+function assertStableVersion(version: string): void {
+    compareStableVersions(version, version);
 }
 
 function assertSuccessfulResponse(response: Response, label: string): void {
@@ -201,9 +190,25 @@ export function updateStateLogFields(state: UpdateState): Record<string, string 
         status: state.status,
         ...('version' in state && { version: state.version ?? null }),
         ...(state.status === 'error' && { action: state.action, message: state.message }),
-        ...(state.status === 'unavailable' && { reason: state.reason }),
+        ...(state.status === 'unavailable' && {
+            reason: state.reason,
+            /**
+             * A rate-limited `unavailable` is a wait, not a fault, and the two are indistinguishable in a log record
+             * that only carries the prose `reason`. Recording the deadline as well is what makes "how long was update
+             * discovery actually paused" answerable from logs nobody filed a bug about.
+             */
+            rateLimited: String(state.rateLimited === true),
+            retryAt: state.retryAt === undefined ? null : new Date(state.retryAt).toISOString(),
+        }),
     };
 }
+
+/**
+ * Message for the one `unavailable` cause a manual check can still get past. It deliberately stops at the fact; the
+ * Renderer owns the clock time and the "checking now bypasses the wait" half, because the deadline has to be compared
+ * against the reader's current time rather than the moment the state was published.
+ */
+const RATE_LIMITED_REASON = 'Update checks are rate limited by GitHub right now.';
 
 export class UpdateService {
     private readonly fetch: FetchLike;
@@ -219,6 +224,12 @@ export class UpdateService {
      * attempt. `undefined` when no rate limit is currently known.
      */
     private rateLimitedUntil: number | undefined;
+    /**
+     * The version a window has already offered the user in this app process, recorded by `acknowledge()`. Memory-only
+     * on purpose: it is the storage that makes `Close` mean "not now" for this run, where `updates.skippedVersion`
+     * makes `Skip this version` outlast the process.
+     */
+    private announcedVersion: string | undefined;
 
     constructor(private readonly options: UpdateServiceOptions) {
         this.fetch = options.fetch ?? globalThis.fetch;
@@ -226,10 +237,18 @@ export class UpdateService {
         this.state = { status: 'idle', currentVersion: options.currentVersion };
     }
 
+    /**
+     * Stamps `announced` onto every `available` state as it leaves the service, so a reload and a cancelled download
+     * both re-read the state this process already offered instead of reading a fresh discovery.
+     */
     private publish(state: UpdateState): UpdateState {
-        this.state = state;
-        this.options.onState?.(state);
-        return state;
+        const stamped: UpdateState =
+            state.status === 'available'
+                ? { ...state, announced: this.announcedVersion === state.version }
+                : state;
+        this.state = stamped;
+        this.options.onState?.(stamped);
+        return stamped;
     }
 
     private async performCheck(): Promise<UpdateState> {
@@ -266,7 +285,9 @@ export class UpdateService {
                 return this.publish({
                     status: 'unavailable',
                     currentVersion: this.options.currentVersion,
-                    reason: 'Update check is rate limited by GitHub; try again later.',
+                    reason: RATE_LIMITED_REASON,
+                    rateLimited: true,
+                    ...(this.rateLimitedUntil !== undefined && { retryAt: this.rateLimitedUntil }),
                 });
             }
             assertSuccessfulResponse(response, 'The GitHub release check');
@@ -288,8 +309,8 @@ export class UpdateService {
             if (release.draft || release.prerelease)
                 throw new Error('GitHub returned a non-stable release.');
             const version = release.tag_name.replace(/^v/, '');
-            stableVersionParts(version);
-            stableVersionParts(this.options.currentVersion);
+            assertStableVersion(version);
+            assertStableVersion(this.options.currentVersion);
             if (compareStableVersions(version, this.options.currentVersion) <= 0) {
                 this.release = undefined;
                 this.readyPath = undefined;
@@ -466,6 +487,23 @@ export class UpdateService {
     }
 
     /**
+     * Records that a window has offered the currently available version to the user — through the notification or by
+     * opening the update dialog. Every later read of this state reports `announced: true`, so a window reload, a
+     * cancelled download returning to `available`, or a second window never produce a second prompt for the same
+     * release. Nothing is written to disk: the next launch offers it again unless the user skipped it.
+     *
+     * A no-op for every other status, including an `available` state that has since been superseded.
+     */
+    acknowledge(): Promise<UpdateState> {
+        if (this.state.status !== 'available') return Promise.resolve(this.state);
+        this.announcedVersion = this.state.version;
+        // Stored rather than published: nothing about the release changed, and broadcasting `updates.state` here would
+        // hand the acknowledging window back the state it just acted on.
+        this.state = { ...this.state, announced: true };
+        return Promise.resolve(this.state);
+    }
+
+    /**
      * `manual` marks a user-initiated check. It bypasses the locally recorded rate-limit window because the user
      * explicitly accepted a fresh network round trip; the automatic launch check keeps honoring the window.
      */
@@ -494,7 +532,9 @@ export class UpdateService {
                 this.publish({
                     status: 'unavailable',
                     currentVersion: this.options.currentVersion,
-                    reason: 'Update check is rate limited by GitHub; try again later.',
+                    reason: RATE_LIMITED_REASON,
+                    rateLimited: true,
+                    retryAt: this.rateLimitedUntil,
                 }),
             );
 

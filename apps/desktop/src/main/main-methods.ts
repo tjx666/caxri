@@ -497,6 +497,8 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 return options.getUpdateService().getState();
             case 'updates.check':
                 return options.getUpdateService().check({ manual: true });
+            case 'updates.acknowledge':
+                return options.getUpdateService().acknowledge();
             case 'updates.download':
                 return options.getUpdateService().download();
             case 'updates.cancel':
