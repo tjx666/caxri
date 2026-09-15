@@ -13,7 +13,7 @@ import {
 import type { E2EPoolInvocation } from '../e2e/support/pools';
 import { createE2EPoolPlan } from '../e2e/support/pools';
 import { waitForChildExit } from './exec';
-import type { E2EPoolReceipt } from './reporters/e2e-receipt-reporter';
+import type { E2EAbortedInvocation, E2EPoolReceipt } from './reporters/e2e-receipt-reporter';
 import {
     assertE2EPoolCensusComplete,
     assertE2EPoolReceipt,
@@ -153,6 +153,49 @@ export function mergeCensusReceipts(
     return merged;
 }
 
+function projectRelativeSpec(spec: string): string {
+    const file = spec.replace(/(?::\d+)+$/u, '');
+    return isAbsolute(file) ? relative(projectRoot, file) : file;
+}
+
+/**
+ * Turns the child exit codes and the merged receipt into one pool verdict. The reporter writes a receipt only when
+ * Playwright reaches `onEnd`, so the receipt can read `passed` while the process itself exited non-zero afterwards
+ * (global teardown, an unhandled rejection at exit, a signal) or while a dispatched spec never reached the reporter at
+ * all. Both signals are therefore required: every child exited zero, every dispatched spec is in the receipt, and the
+ * receipt itself passed. A non-zero child exit is recorded on the receipt so the artifact explains the red job.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/e2e-pools.test.ts
+export function resolvePoolOutcome(
+    receipt: E2EPoolReceipt,
+    invocations: readonly E2EPoolInvocation[],
+    exitCodes: readonly number[],
+): { receipt: E2EPoolReceipt; result: number } {
+    if (exitCodes.length !== invocations.length) {
+        throw new Error(`E2E ${receipt.pool} exit codes do not match its invocations`);
+    }
+    const abortedInvocations: E2EAbortedInvocation[] = invocations.flatMap((invocation, index) =>
+        exitCodes[index] === 0 ? [] : [{ exitCode: exitCodes[index], specs: invocation.specs }],
+    );
+    const covered = new Set(receipt.specs.map(({ path }) => projectRelativeSpec(path)));
+    const missingSpecs = invocations
+        .flatMap(({ specs }) => specs)
+        .map((spec) => projectRelativeSpec(spec))
+        .filter((spec) => !covered.has(spec));
+    if (abortedInvocations.length === 0 && missingSpecs.length === 0) {
+        return { receipt, result: receipt.status === 'passed' ? 0 : 1 };
+    }
+    return {
+        receipt: {
+            ...receipt,
+            ...(abortedInvocations.length > 0 && { abortedInvocations }),
+            ...(missingSpecs.length > 0 && { missingSpecs }),
+            status: 'failed',
+        },
+        result: abortedInvocations[0]?.exitCode || 1,
+    };
+}
+
 async function writeReceipt(path: string, receipt: E2EPoolReceipt): Promise<void> {
     await mkdir(resolve(path, '..'), { recursive: true });
     const temporary = `${path}.${process.pid}.tmp`;
@@ -169,7 +212,7 @@ async function runPool(
     const receiptPaths = invocations.map(
         (_invocation, index) => `test-results/receipts/${pool}-${index}.json`,
     );
-    let result = 0;
+    const exitCodes: number[] = [];
     // Only one Electron/Desktop-driving Playwright invocation may run at a time (see
     // AGENTS.md: "Never run Electron desktop tasks concurrently"), so pool invocations
     // must execute sequentially rather than via Promise.all.
@@ -182,7 +225,7 @@ async function runPool(
             receiptPaths[index],
             coordinatorToken,
         );
-        result ||= code;
+        exitCodes.push(code);
     }
     const receipts = await Promise.all(
         receiptPaths.map(
@@ -210,9 +253,13 @@ async function runPool(
         // eslint-disable-next-line no-await-in-loop -- reads the receipt just written by the preceding sequential invocation
         censusReceipts.push(JSON.parse(await readFile(censusPath, 'utf8')) as E2EPoolReceipt);
     }
-    const finalReceipt = mergeCensusReceipts(receipt, censusReceipts);
-    await writeReceipt(`test-results/receipts/${pool}.json`, finalReceipt);
-    return { receipt: finalReceipt, result: finalReceipt.status === 'passed' ? 0 : result || 1 };
+    const outcome = resolvePoolOutcome(
+        mergeCensusReceipts(receipt, censusReceipts),
+        invocations,
+        exitCodes,
+    );
+    await writeReceipt(`test-results/receipts/${pool}.json`, outcome.receipt);
+    return outcome;
 }
 
 async function assertParallelLeasesReleased(parallelWorkers: number): Promise<void> {
