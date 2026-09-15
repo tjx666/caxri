@@ -41,10 +41,18 @@ export function parentTreeItemIndex(
     return undefined;
 }
 
+/**
+ * A disabled row cannot take focus, so leaving it in the walk turns an arrow key into a silent dead end: the browser
+ * refuses the `focus()` call and the caret stays where it was. Source Control renders disabled rows routinely — a
+ * commit whose page no longer matches the current revision, `Load more` while a page is in flight.
+ */
+export const NAVIGABLE_TREE_ITEM_SELECTOR =
+    '[role="treeitem"]:not([disabled]):not([aria-disabled="true"])';
+
 function treeItems(current: HTMLElement): HTMLElement[] {
     const tree = current.closest('[role="tree"]');
     return tree
-        ? Array.from(tree.querySelectorAll<HTMLElement>('[role="treeitem"]')).filter(
+        ? Array.from(tree.querySelectorAll<HTMLElement>(NAVIGABLE_TREE_ITEM_SELECTOR)).filter(
               (item) => item.closest('[role="tree"]') === tree && !item.closest('[inert]'),
           )
         : [];

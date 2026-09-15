@@ -68,6 +68,22 @@ export function gitDecorationClassName(kind: GitDecorationKind): string {
 }
 
 /**
+ * Reads a Source Control decoration's `identifier` back as a Git change kind, or `undefined` when it names something
+ * else.
+ *
+ * The Extension API lets any provider label a resource, so the identifier is an open string on the wire; Caxri's Git
+ * extension sets it to the change kind (`source-control-model.ts`), which is what lets the Source Control panel paint
+ * the same `--git-*` roles the Files tree, tab strip, and diff headers already use. A provider that is not Git falls
+ * back to the decoration's generic `tone`.
+ */
+export function asGitDecorationKind(identifier: string): GitDecorationKind | undefined {
+    // `Object.hasOwn`, not `in`: the identifier arrives from an extension and `[a-z0-9-]+` admits `constructor`.
+    return Object.hasOwn(KIND_CLASS_NAME, identifier)
+        ? (identifier as GitDecorationKind)
+        : undefined;
+}
+
+/**
  * What a screen reader hears in place of the color and the status letter, which are both invisible to it.
  *
  * Prefixed with `Git:` because a tab already describes an unsaved buffer as "Unsaved changes"; without the prefix a
