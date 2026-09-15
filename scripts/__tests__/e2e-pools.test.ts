@@ -8,12 +8,17 @@ import {
     parallelSafeSpecs,
 } from '../../e2e/support/pools';
 import type { E2ETestReceipt } from '../reporters/e2e-receipt-reporter';
-import { createE2EPoolReceipt, stableErrorIdentity } from '../reporters/e2e-receipt-reporter';
+import {
+    assertE2EPoolReceipt,
+    createE2EPoolReceipt,
+    stableErrorIdentity,
+} from '../reporters/e2e-receipt-reporter';
 import {
     combinePoolReceipts,
     mergeCensusReceipts,
     parseE2EPool,
     resolveParallelWorkers,
+    resolvePoolOutcome,
 } from '../run-e2e-pools';
 
 const allSpecs = [
@@ -172,6 +177,60 @@ describe('E2E pools', () => {
                 }),
             ]),
         ).toThrow('overlap');
+    });
+
+    it('fails the pool when a child exited non-zero even though its receipt passed', () => {
+        const invocations = [
+            { specs: ['e2e/safe.e2e.ts'] },
+            { specs: ['e2e/settings-safe.e2e.ts'] },
+        ];
+        const passed = receipt('parallel-safe', [
+            testReceipt('safe'),
+            testReceipt('settings-safe'),
+        ]);
+
+        const crashed = resolvePoolOutcome(passed, invocations, [0, 134]);
+        expect(crashed.result).toBe(134);
+        expect(crashed.receipt).toMatchObject({
+            abortedInvocations: [{ exitCode: 134, specs: ['e2e/settings-safe.e2e.ts'] }],
+            status: 'failed',
+        });
+        expect(crashed.receipt.missingSpecs).toBeUndefined();
+
+        const failedReceipt = receipt('parallel-safe', [
+            testReceipt('safe', 'fail', 'x'),
+            testReceipt('settings-safe'),
+        ]);
+        expect(resolvePoolOutcome(failedReceipt, invocations, [0, 0])).toEqual({
+            receipt: failedReceipt,
+            result: 1,
+        });
+
+        expect(resolvePoolOutcome(passed, invocations, [0, 0])).toEqual({
+            receipt: passed,
+            result: 0,
+        });
+        expect(() => resolvePoolOutcome(passed, invocations, [0])).toThrow(
+            'exit codes do not match',
+        );
+    });
+
+    it('fails the pool when a dispatched spec never reached the reporter', () => {
+        const passed = receipt('parallel-safe', [testReceipt('safe')]);
+        const outcome = resolvePoolOutcome(
+            passed,
+            [{ specs: ['e2e/safe.e2e.ts', 'e2e/dropped.e2e.ts'] }],
+            [0],
+        );
+
+        expect(outcome.result).toBe(1);
+        expect(outcome.receipt).toMatchObject({
+            missingSpecs: ['e2e/dropped.e2e.ts'],
+            status: 'failed',
+        });
+        expect(() => assertE2EPoolReceipt({ ...outcome.receipt, status: 'passed' })).toThrow(
+            'passing receipt is incomplete',
+        );
     });
 
     it('fills suppressed verdicts and groups the same failure identity without losing artifacts', () => {
