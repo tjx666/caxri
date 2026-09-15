@@ -8,26 +8,43 @@ import { expect, test } from './support/fixtures.ts';
 import type { RunningCaxri } from './support/helpers.ts';
 import { createShellSession, launchCaxri } from './support/helpers.ts';
 
+/**
+ * Every actionable row says `Refresh`, spelled out rather than imported from `extensions/status`: E2E runs against the
+ * packaged app, and a spec that reads the label from the same module the product reads it from would pass through any
+ * rename. `status-labels.test.ts` pins `REFRESH_ACTION_LABEL` to this word on the product side.
+ */
+const refreshAction = 'Refresh';
+
 const scenarios = [
-    { id: 'not-installed', title: 'Vercel CLI not installed', action: 'Recheck', icon: 'cloud' },
-    { id: 'not-logged-in', title: 'Vercel CLI not signed in', action: 'Recheck', icon: 'cloud' },
+    {
+        id: 'not-installed',
+        title: 'Vercel CLI not installed',
+        action: refreshAction,
+        icon: 'cloud',
+    },
+    {
+        id: 'not-logged-in',
+        title: 'Vercel CLI not signed in',
+        action: refreshAction,
+        icon: 'cloud',
+    },
     {
         id: 'not-linked',
         title: 'Repository not linked to Vercel',
-        action: 'Recheck',
+        action: refreshAction,
         icon: 'cloud',
     },
     {
         id: 'rate-limited',
         title: 'Vercel API limit reached',
         /**
-         * A rate limit is a wait Caxri is already honouring, so the row offers nothing to press: the request a Retry
+         * A rate limit is a wait Caxri is already honouring, so the row offers nothing to press: the request a Refresh
          * would send is exactly the one the limiter is refusing. The hourglass says the same thing in the icon.
          */
         action: undefined,
         icon: 'hourglass',
     },
-    { id: 'network', title: 'No network connection', action: 'Recheck', icon: 'cloud' },
+    { id: 'network', title: 'No network connection', action: refreshAction, icon: 'cloud' },
 ] as const;
 
 for (const scenario of scenarios) {

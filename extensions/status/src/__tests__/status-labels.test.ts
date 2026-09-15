@@ -7,6 +7,7 @@ import {
     projectStatusStateLabel,
     publicationDescription,
     publicationLabel,
+    REFRESH_ACTION_LABEL,
 } from '../status-labels';
 
 const STATES = [
@@ -44,6 +45,12 @@ function deployment(state: ProjectStatusState): ProjectStatusDeployment {
 }
 
 describe('Project Status labels', () => {
+    it('names the refresh action exactly once', () => {
+        // Pinned to the literal because `status-external-fallback.e2e.ts` spells the same word out: E2E runs against
+        // the packaged app and cannot import this module, so a rename has to break here rather than only in CI.
+        expect(REFRESH_ACTION_LABEL).toBe('Refresh');
+    });
+
     it('translates the provider words that are not the product words', () => {
         expect(projectStatusStateLabel('success')).toBe('passed');
         expect(projectStatusStateLabel('failure')).toBe('failed');
