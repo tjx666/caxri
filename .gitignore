@@ -23,3 +23,20 @@ coverage/
 *.db
 *.db-shm
 *.db-wal
+
+# Credential shapes. Nothing in this repository needs any of these tracked, and a public repository
+# makes an accidental commit unrecoverable: a force-push removes it from the branch but not from the
+# forks, caches, and mirrors that already read it. Deny them by pattern so the mistake cannot happen
+# in the first place, rather than relying on review to catch it.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+id_rsa
+id_ed25519
+id_ecdsa
+.npmrc
