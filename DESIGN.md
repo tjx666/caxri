@@ -61,29 +61,29 @@ roles below.
 
 ### Color roles (semantic layer over theme colors)
 
-| Token                                                     | Role                                                                           |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `--background`                                            | editor/terminal canvas                                                         |
-| `--surface`                                               | chrome: primarySidebar, tab strip, secondarySidebar, status bar                |
-| `--elevated`                                              | hover states, cards, popovers                                                  |
-| `--border`                                                | 1px hairlines between regions                                                  |
-| `--foreground`                                            | primary text                                                                   |
-| `--muted`                                                 | secondary text, inactive icons                                                 |
-| `--accent`                                                | the single focus indicator + primary buttons                                   |
-| `--accent-foreground`                                     | text/icons on accent fills (derived, not hardcoded)                            |
-| `--success` / `--warning` / `--danger`                    | status dots, exit banners, destructive buttons                                 |
-| `--merged`                                                | landed work: the merged pull request glyph                                     |
-| `--badge`                                                 | neutral view-container count badge fill                                        |
-| `--badge-foreground`                                      | text on `--badge` (derived, not hardcoded)                                     |
-| `--error-badge` / `--warning-badge`                       | severity view-container badge fills: the glyph chip, never a text color        |
-| `--error-badge-foreground` / `--warning-badge-foreground` | glyph on the severity fills (derived, not hardcoded)                           |
-| `--git-added` … `--git-conflicting`                       | working-tree decorations: added, modified, deleted, untracked, conflicting     |
-| `--tab-*`                                                 | tab strip fill and label, per state: active, inactive, hover                   |
-| `--list-*`                                                | tree and list rows, per state: hover, focus, active/inactive selection         |
-| `--title-bar-*`                                           | window title bar fill and label, by whether the window is focused              |
-| `--overlay`                                               | dialog backdrop: `color-mix(in srgb, var(--background) 60%, transparent)`      |
-| `--shadow`                                                | elevation shadows: a theme value, read from `widget.shadow` on import          |
-| `--indicator`                                             | neutral (non-accent) selected-tab underline for secondarySidebar/settings tabs |
+| Token                                                     | Role                                                                            |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `--background`                                            | editor/terminal canvas                                                          |
+| `--surface`                                               | chrome: primarySidebar, tab strip, secondarySidebar, status bar                 |
+| `--elevated`                                              | hover states, cards, popovers                                                   |
+| `--border`                                                | 1px hairlines between regions                                                   |
+| `--foreground`                                            | primary text                                                                    |
+| `--muted`                                                 | secondary text, inactive icons                                                  |
+| `--accent`                                                | the single focus indicator + primary buttons                                    |
+| `--accent-foreground`                                     | text/icons on accent fills (derived, not hardcoded)                             |
+| `--success` / `--warning` / `--danger`                    | status dots, exit banners, destructive buttons                                  |
+| `--merged`                                                | landed work: the merged pull request glyph                                      |
+| `--badge`                                                 | neutral view-container count badge fill                                         |
+| `--badge-foreground`                                      | text on `--badge` (derived, not hardcoded)                                      |
+| `--error-badge` / `--warning-badge`                       | severity view-container badge fills: the glyph chip, never a text color         |
+| `--error-badge-foreground` / `--warning-badge-foreground` | glyph on the severity fills (derived, not hardcoded)                            |
+| `--git-added` … `--git-conflicting`                       | working-tree decorations: added, modified, deleted, untracked, conflicting      |
+| `--tab-*`                                                 | tab strip fill and label, per state: active, inactive, hover                    |
+| `--list-*`                                                | tree, list, and picker rows, per state: hover, focus, active/inactive selection |
+| `--title-bar-*`                                           | window title bar fill and label, by whether the window is focused               |
+| `--overlay`                                               | dialog backdrop: `color-mix(in srgb, var(--background) 60%, transparent)`       |
+| `--shadow`                                                | elevation shadows: a theme value, read from `widget.shadow` on import           |
+| `--indicator`                                             | neutral (non-accent) selected-tab underline for secondarySidebar/settings tabs  |
 
 Derive `--accent-foreground`, `--danger-foreground`, `--badge-foreground`, and `--overlay` in one
 place from theme colors. The status bar uses `--surface` plus a top hairline — never an accent fill.
@@ -102,6 +102,15 @@ rewritten just because it equals another role, and none of these states writes b
 popup fill. Read the decision on
 [issue caxri#852](https://github.com/tjx666/caxri/issues/852#issuecomment-5656606135) for why each
 key was chosen.
+
+The pickers are list rows too: the command palette, the two status-bar pickers, the terminal link
+picker, the Agent actions dialog, and the `Cmd+P` path browser read `--list-*` exactly as the Files
+tree does, so one imported theme reaches all of them at once. They need fewer of the four states
+than a tree, because a picker's pointer selects whatever it passes over — the row under the cursor
+and the row the arrow keys are on are the same row, right up until the pointer stops and the keys
+carry on without it. The pickers built on `cmdk` answer that by painting only `--list-focus-*`; the
+path browser, which owns its own rows, by offering `--list-hover-*` to the rows that are not the
+keyboard row. Either way exactly one row looks current, never two.
 
 The two inactive title-bar roles need to know whether this window is the focused one, and CSS cannot
 ask: `:window-inactive` is a WebKit pseudo-class and Chromium, which is what Electron runs, has no
