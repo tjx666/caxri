@@ -89,6 +89,11 @@ jobs:
           install-dependencies: 'true'
           install-electron: 'true'
 
+      # A DMG left behind by an earlier build on this self-hosted runner would otherwise be eligible
+      # for publication below, with a checksum computed over that stale file.
+      - name: Clean previous packaging output
+        run: rm -rf release.noindex
+
       - name: Package unsigned Apple Silicon DMG
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
@@ -120,11 +125,20 @@ jobs:
       - name: Verify release artifact
         id: artifact
         run: |
-          dmg="$(find release.noindex -maxdepth 1 -type f -name '*.dmg' -print -quit)"
-          if [[ -z "$dmg" ]]; then
+          # Publication needs exactly one DMG. "First match" would silently pick a stale build.
+          dmgs=()
+          while IFS= read -r -d '' path; do dmgs+=("$path"); done \
+            < <(find release.noindex -maxdepth 1 -type f -name '*.dmg' -print0 | sort -z)
+          if [[ ${#dmgs[@]} -eq 0 ]]; then
             echo "No DMG was produced." >&2
             exit 1
           fi
+          if [[ ${#dmgs[@]} -gt 1 ]]; then
+            echo "Expected exactly one DMG in release.noindex, found ${#dmgs[@]}:" >&2
+            printf '  %s\n' "${dmgs[@]}" >&2
+            exit 1
+          fi
+          dmg="${dmgs[0]}"
 
           hdiutil verify "$dmg"
           dmg_directory="$(dirname "$dmg")"

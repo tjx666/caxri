@@ -8,6 +8,7 @@ import {
     parseArguments,
     parseHostStopActivePtyCount,
     quitRunningCaxri,
+    resolveChecksumStep,
     resolveInstalledProfilePath,
 } from '../install-caxri';
 
@@ -78,8 +79,41 @@ describe('install-caxri', () => {
     it('parses an optional release tag and rejects unknown arguments', () => {
         expect(parseArguments([])).toEqual({});
         expect(parseArguments(['--tag', 'v0.0.7'])).toEqual({ tag: 'v0.0.7' });
+        expect(parseArguments(['--skip-checksum', '--tag', 'v0.0.7'])).toEqual({
+            skipChecksum: true,
+            tag: 'v0.0.7',
+        });
         expect(() => parseArguments(['--nope'])).toThrow('Unknown argument');
         expect(() => parseArguments(['--tag'])).toThrow('Unknown argument');
+    });
+
+    it('aborts before mounting when the Release provides no checksum', () => {
+        // The regression: a DMG without its `.sha256` used to install silently, with no line about the skipped check.
+        expect(() =>
+            resolveChecksumStep({ dmg: 'Caxri-0.0.7-arm64.dmg' }, { tag: 'v0.0.7' }),
+        ).toThrow(
+            'v0.0.7 provides no Caxri-0.0.7-arm64.dmg.sha256, so the downloaded DMG cannot be verified; installation aborted.',
+        );
+        expect(() => resolveChecksumStep({ dmg: 'Caxri-0.0.7-arm64.dmg' }, {})).toThrow(
+            'the latest release provides no Caxri-0.0.7-arm64.dmg.sha256',
+        );
+    });
+
+    it('verifies when the checksum is present and skips loudly only on explicit request', () => {
+        expect(
+            resolveChecksumStep(
+                { checksum: 'Caxri-0.0.7-arm64.dmg.sha256', dmg: 'Caxri-0.0.7-arm64.dmg' },
+                {},
+            ),
+        ).toEqual({ checksum: 'Caxri-0.0.7-arm64.dmg.sha256', kind: 'verify' });
+        const skipped = resolveChecksumStep(
+            { dmg: 'Caxri-0.0.7-arm64.dmg' },
+            { skipChecksum: true },
+        );
+        expect(skipped.kind).toBe('skip');
+        expect(skipped.kind === 'skip' ? skipped.warning : '').toMatch(
+            /^WARNING: .*without verifying its integrity/u,
+        );
     });
 
     it('pairs the downloaded DMG with its checksum companion', () => {
