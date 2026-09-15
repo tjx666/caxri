@@ -500,11 +500,16 @@ test('work tabs divide evenly, leave a draggable titlebar, and pin New Terminal 
         await expect(running.page.locator('.tooltip-popup[data-open]')).toHaveCount(0);
         await running.page.mouse.move(0, 300);
 
+        // E2E runs with no `session.defaultAgent`, so New Terminal collapses to the single button that asks which
+        // Agent to start. It advertises no ⌘T there: the shortcut falls back to a plain shell instead of asking.
         const newTerminal = running.page.getByRole('button', { name: 'New Terminal' });
         await newTerminal.hover();
-        const tooltip = running.page.locator('.tooltip-popup[data-open]');
-        await expect(tooltip).toContainText('Create a Terminal in the current Session');
-        await expect(tooltip.locator('kbd')).toHaveText(['⌘', 'T']);
+        await expect(running.page.locator('.tooltip-popup[data-open]')).toHaveCount(0);
+        await newTerminal.click();
+        await expect(
+            running.page.getByRole('menu', { name: 'Select a different agent' }),
+        ).toBeVisible();
+        await running.page.keyboard.press('Escape');
     } finally {
         await closeAppQuietly(running.app);
         await rm(testDirectory, { recursive: true, force: true });

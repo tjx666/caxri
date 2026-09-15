@@ -27,7 +27,11 @@ import {
     subscribeUpdateState,
     useUpdateStore,
 } from './update-commands';
-import { canRetryUpdateCheck, describeUpdateStatus } from './update-presentation';
+import {
+    canRetryUpdateCheck,
+    describeUpdateStatus,
+    shouldExplainUnsignedInstall,
+} from './update-presentation';
 
 function UpdateActions({
     state,
@@ -88,6 +92,22 @@ function UpdateActions({
     );
 }
 
+const STATUS_ICON = { 'aria-hidden': true, 'className': 'mt-0.5 shrink-0', 'size': 18 } as const;
+
+/**
+ * Success, failure, and everything in between. The neutral download glyph is the default because most states are steps
+ * on the way to one, not outcomes: only a finished download and an up-to-date install have earned a color.
+ */
+function UpdateStatusIcon({ state }: { state: UpdateState | undefined }) {
+    if (state?.status === 'ready' || state?.status === 'up-to-date')
+        return (
+            <CheckCircle2 {...STATUS_ICON} className={`${STATUS_ICON.className} text-success`} />
+        );
+    if (state?.status === 'error')
+        return <XCircle {...STATUS_ICON} className={`${STATUS_ICON.className} text-danger`} />;
+    return <Download {...STATUS_ICON} className={`${STATUS_ICON.className} text-muted`} />;
+}
+
 export function UpdateDialog() {
     const isOpen = useUpdateStore((store) => store.open);
     const state = useUpdateStore((store) => store.state);
@@ -113,25 +133,7 @@ export function UpdateDialog() {
                 </DialogHeader>
                 <div className="space-y-4 p-4">
                     <div className="flex items-start gap-3">
-                        {state?.status === 'ready' || state?.status === 'up-to-date' ? (
-                            <CheckCircle2
-                                aria-hidden="true"
-                                className="mt-0.5 shrink-0 text-success"
-                                size={18}
-                            />
-                        ) : state?.status === 'error' ? (
-                            <XCircle
-                                aria-hidden="true"
-                                className="mt-0.5 shrink-0 text-danger"
-                                size={18}
-                            />
-                        ) : (
-                            <Download
-                                aria-hidden="true"
-                                className="mt-0.5 shrink-0 text-muted"
-                                size={18}
-                            />
-                        )}
+                        <UpdateStatusIcon state={state} />
                         <div className="min-w-0">
                             <p className="m-0 text-[13px] font-medium">{copy.title}</p>
                             <p className="mt-1 mb-0 text-[11px] leading-[1.5] text-muted">
@@ -145,10 +147,7 @@ export function UpdateDialog() {
                             value={progress === undefined ? null : Math.round(progress)}
                         />
                     )}
-                    {(state?.status === 'available' ||
-                        state?.status === 'downloading' ||
-                        state?.status === 'ready' ||
-                        (state?.status === 'error' && state.version)) && (
+                    {shouldExplainUnsignedInstall(state) && (
                         <Alert variant="info" className="bg-background p-3 leading-[1.5]">
                             Caxri is currently unsigned. After opening the verified DMG, drag Caxri
                             to Applications and approve replacing the existing app. Running

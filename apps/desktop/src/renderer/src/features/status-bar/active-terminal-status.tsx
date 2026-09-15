@@ -12,6 +12,8 @@ import { usePolledQuery } from '@/hooks/use-polled-query';
 
 import { executeCommand } from '../../commands/execute';
 import { cn } from '../../lib/utilities';
+import { openHardwareAccelerationSettings } from '../gpu/gpu-commands';
+import { useIsHardwareAccelerationOff } from '../gpu/use-is-hardware-acceleration-off';
 import {
     terminalProgressAriaLabel,
     terminalProgressLabel,
@@ -28,11 +30,14 @@ import { StatusItem } from './status-item';
 const openProcessExplorer = (): void => executeCommand('processExplorer.open');
 
 /**
- * Settled fallbacks offer either enabling GPU acceleration or an explicit retry. An automatic recovery already in
- * progress stays informational so clicks cannot multiply pending attempts.
+ * Settled fallbacks offer enabling GPU acceleration, an explicit retry, or — when this window has no GPU at all — the
+ * Settings row that owns hardware acceleration. An automatic recovery already in progress stays informational so clicks
+ * cannot multiply pending attempts.
  */
 function TerminalRendererStatus({ terminalId }: { terminalId: string }) {
-    const renderer = terminalRendererIndicator(useTerminalRendererStatus(terminalId));
+    const renderer = terminalRendererIndicator(useTerminalRendererStatus(terminalId), {
+        isHardwareAccelerationOff: useIsHardwareAccelerationOff(),
+    });
     if (!renderer) return null;
     const shared = {
         ariaLabel: renderer.ariaLabel,
@@ -46,6 +51,10 @@ function TerminalRendererStatus({ terminalId }: { terminalId: string }) {
         <StatusItem
             {...shared}
             onClick={() => {
+                if ('opensSettings' in action) {
+                    openHardwareAccelerationSettings();
+                    return;
+                }
                 // eslint-disable-next-line no-void -- intentional floating-promise discard, confirmTerminalRendererSwitch() reports its own errors via tryCommand
                 void confirmTerminalRendererSwitch(action, terminalId);
             }}

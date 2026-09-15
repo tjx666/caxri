@@ -92,9 +92,8 @@ describe('terminalRendererIndicator', () => {
 
     it('offers enabling for disabled GPU and a direct retry for settled failures', () => {
         expect(
-            terminalRendererIndicator(status({ mode: 'dom', reason: 'disabled' }))?.action
-                ?.preference,
-        ).toBe('on');
+            terminalRendererIndicator(status({ mode: 'dom', reason: 'disabled' }))?.action,
+        ).toEqual(expect.objectContaining({ preference: 'on' }));
         for (const reason of [
             'unsupported',
             'context-loss',
@@ -102,8 +101,13 @@ describe('terminalRendererIndicator', () => {
             'load-failed',
         ] as const) {
             const indicator = terminalRendererIndicator(status({ mode: 'dom', reason }));
-            expect(indicator?.action?.confirmLabel).toBe('Retry GPU');
-            expect(indicator?.action?.preference).toBeUndefined();
+            expect(indicator?.action).toEqual(
+                expect.objectContaining({
+                    confirmLabel: 'Retry GPU',
+                    title: 'Retry GPU rendering?',
+                }),
+            );
+            expect(indicator?.action && 'preference' in indicator.action).toBe(false);
             expect(indicator?.ariaLabel).toContain('Retry GPU rendering?');
         }
     });
@@ -118,6 +122,27 @@ describe('terminalRendererIndicator', () => {
         expect(indicator?.title).toBe(
             'Retry GPU rendering? — Terminal is using software rendering. The GPU is unavailable in this window right now.',
         );
+    });
+
+    /**
+     * The same probe failure means something else once the app declined the GPU at boot: no re-probe in any window can
+     * pass, so the chip has to stop offering one and hand over the Settings row that owns the preference (#983).
+     */
+    it('routes a boot-disabled window to Settings instead of an unwinnable retry', () => {
+        const indicator = terminalRendererIndicator(
+            status({ mode: 'dom', reason: 'unsupported' }),
+            { isHardwareAccelerationOff: true },
+        );
+        expect(indicator?.action).toEqual({ opensSettings: true, title: 'Open Settings' });
+        expect(indicator?.title).toBe(
+            'Open Settings — Terminal is using software rendering. Hardware acceleration is turned off, so no Terminal in any window can use the GPU.',
+        );
+        // The flag only reinterprets the probe failure; a Terminal whose own setting is off still offers to turn it on.
+        expect(
+            terminalRendererIndicator(status({ mode: 'dom', reason: 'disabled' }), {
+                isHardwareAccelerationOff: true,
+            })?.action,
+        ).toEqual(expect.objectContaining({ preference: 'on' }));
     });
 
     it('does not offer duplicate attempts during automatic recovery', () => {
