@@ -15,10 +15,7 @@ import {
     parseGitDiffTab,
 } from '@caxri/protocol';
 import { editorModelPath } from '@desktop-shared/editor-state';
-import { CircleSlash, TriangleAlert } from 'lucide-react';
 
-import { Button } from '../../components/ui/button';
-import { Empty, EmptyMedia, EmptyTitle } from '../../components/ui/empty';
 import { useSelectedSession, useSelectedWorkbenchProject, useTheme } from '../../stores/selectors';
 import { sessionViewScope, useDocument } from '../../stores/session-view';
 import { describeFailure, isCancelledRequest } from '../../stores/toasts';
@@ -26,6 +23,7 @@ import type { CodeEditorProperties } from './code-editor';
 import { cacheDocument, changeDocument } from './document-commands';
 import { EditorBreadcrumbs } from './editor-breadcrumbs';
 import { EditorHeadBlame } from './editor-head-blame';
+import { EditorLoadFailure } from './editor-load-failure';
 import type { EditorLoadTone } from './editor-load-state';
 import { editorLoadReducer, initialEditorLoadState } from './editor-load-state';
 import { getLoadedCodeEditor, loadCodeEditor, subscribeLoadedCodeEditor } from './editor-loader';
@@ -77,41 +75,6 @@ function describeDocumentReadFailure(error: unknown): { reason: string; tone: Ed
     return isCancelledRequest(error)
         ? { reason: DOCUMENT_READ_INTERRUPTED_REASON, tone: 'interrupted' }
         : { reason: describeFailure(error, DOCUMENT_READ_FAILURE_LABEL), tone: 'failed' };
-}
-
-/**
- * Shared shape for the editor area's non-happy states: what happened, in plain language, plus the one action that can
- * recover from it. A real failure is announced through `role="alert"` because the surface it replaces was a spinner the
- * user was already watching; an interruption is not, since the user did not ask for anything to go wrong and nothing
- * about it is urgent.
- */
-function EditorLoadFailure({
-    actionLabel,
-    reason,
-    tone = 'failed',
-    onAction,
-}: {
-    actionLabel: string;
-    reason: string;
-    tone?: EditorLoadTone;
-    onAction: () => void;
-}) {
-    const isFailure = tone === 'failed';
-    return (
-        <Empty className="empty-work h-full flex-1" role={isFailure ? 'alert' : undefined}>
-            <EmptyMedia>
-                {isFailure ? (
-                    <TriangleAlert aria-hidden="true" className="text-danger" size={28} />
-                ) : (
-                    <CircleSlash aria-hidden="true" className="text-muted" size={28} />
-                )}
-            </EmptyMedia>
-            <EmptyTitle className="max-w-80 text-pretty">{reason}</EmptyTitle>
-            <Button size="sm" variant="secondary" onClick={onAction}>
-                {actionLabel}
-            </Button>
-        </Empty>
-    );
 }
 
 function LoadedCodeEditor(properties: CodeEditorProperties) {

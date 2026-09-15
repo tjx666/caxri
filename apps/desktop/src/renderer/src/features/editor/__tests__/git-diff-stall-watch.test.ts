@@ -182,4 +182,68 @@ describe('Git diff stall watch', () => {
             identicalModels: false,
         });
     });
+
+    it('tells the surface a diff computed, so it can stop showing a comparison in progress', async () => {
+        const { watch } = createWatch();
+        const outcomes: string[] = [];
+
+        watch.observe({
+            waitForDiff: async () => {},
+            readModels: models,
+            onOutcome: (outcome) => outcomes.push(outcome),
+        });
+        await vi.waitFor(() => expect(outcomes).toEqual(['computed']));
+    });
+
+    it('tells the surface about a stall even when the record is rate limited', async () => {
+        // The floor bounds how often a stall is written to the log. What the user is told is not a log volume
+        // question: two panes with no highlights read as "no changes" whether or not this stall was recorded.
+        const { reported, watch } = createWatch({ minimumReportIntervalMs: 60_000 });
+        const outcomes: string[] = [];
+        const observation = {
+            waitForDiff: () => new Promise(() => {}),
+            readModels: models,
+            onOutcome: (outcome: string) => outcomes.push(outcome),
+        };
+
+        watch.observe(observation);
+        await vi.waitFor(() => expect(reported).toHaveLength(1));
+        watch.observe(observation);
+        await vi.waitFor(() => expect(outcomes).toEqual(['stalled', 'stalled']));
+
+        expect(reported).toHaveLength(1);
+    });
+
+    it('tells the surface when a stalled diff finally answers', async () => {
+        const { watch } = createWatch();
+        const outcomes: string[] = [];
+        const diff = Promise.withResolvers<void>();
+
+        watch.observe({
+            waitForDiff: () => diff.promise,
+            readModels: models,
+            onOutcome: (outcome) => outcomes.push(outcome),
+        });
+        await vi.waitFor(() => expect(outcomes).toEqual(['stalled']));
+        diff.resolve();
+
+        await vi.waitFor(() => expect(outcomes).toEqual(['stalled', 'computed']));
+    });
+
+    it('stays silent toward a surface the user navigated away from', async () => {
+        const { watch } = createWatch();
+        const outcomes: string[] = [];
+        const diff = Promise.withResolvers<void>();
+
+        const cancel = watch.observe({
+            waitForDiff: () => diff.promise,
+            readModels: models,
+            onOutcome: (outcome) => outcomes.push(outcome),
+        });
+        cancel();
+        diff.resolve();
+        await new Promise((resolve) => setTimeout(resolve, 20));
+
+        expect(outcomes).toEqual([]);
+    });
 });
