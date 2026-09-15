@@ -107,6 +107,33 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
                 );
             return;
         }
+        if (diagnostic.kind === 'editor-worker-stall') {
+            options
+                .logger()
+                ?.write(
+                    diagnostic.outcome === 'timeout' ? 'warn' : 'info',
+                    logEventCatalog.renderer.editorWorkerStall,
+                    {
+                        fields: {
+                            code: 'EDITOR_WORKER_STALL',
+                            diagnosticId: diagnostic.diagnosticId,
+                            surface: diagnostic.surface,
+                            outcome: diagnostic.outcome,
+                            waitMs: diagnostic.waitMs,
+                            workerRoundTrip: diagnostic.workerRoundTrip,
+                            workerRoundTripMs: diagnostic.workerRoundTripMs,
+                            documentVisible: diagnostic.documentVisible,
+                            originalLineCount: diagnostic.originalLineCount,
+                            modifiedLineCount: diagnostic.modifiedLineCount,
+                            identicalModels: diagnostic.identicalModels,
+                            diffOpenCount: diagnostic.diffOpenCount,
+                            stallCount: diagnostic.stallCount,
+                            editorWorkersCreated: diagnostic.editorWorkersCreated,
+                        },
+                    },
+                );
+            return;
+        }
         if (diagnostic.kind === 'terminal-resize-burst') {
             options.logger()?.write('info', logEventCatalog.renderer.terminalResizeBurst, {
                 fields: {

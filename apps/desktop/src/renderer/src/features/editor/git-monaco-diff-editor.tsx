@@ -4,6 +4,7 @@ import type { DiffEditorProps, MonacoDiffEditor } from '@monaco-editor/react';
 
 import { monaco } from '../../lib/monaco';
 import { disposeGitDiffModels } from './git-diff-model-lifecycle';
+import { gitDiffStallWatch } from './git-diff-stall-watch';
 import { useGitDiffViewStore } from './git-diff-view-store';
 
 /**
@@ -62,9 +63,22 @@ export function GitMonacoDiffEditor(
          * file refreshing, and re-revealing there would yank the scroll position out from under the reader.
          */
         instance.revealFirstDiff();
+        /**
+         * Monaco computes the diff in a Web Worker, so a Worker that stops replying renders as an unchanged file rather
+         * than an error. The watcher records that case; it never changes what is shown. See issue #962.
+         */
+        const cancelStallWatch = gitDiffStallWatch.observe({
+            waitForDiff: () => viewModel.waitForDiff(),
+            readModels: () => ({
+                originalLineCount: models.original.getLineCount(),
+                modifiedLineCount: models.modified.getLineCount(),
+                identicalModels: models.original.getValue() === models.modified.getValue(),
+            }),
+        });
         properties.onMount?.(instance, monaco);
         return () => {
             editor.current = null;
+            cancelStallWatch();
             disposeGitDiffModels(instance, viewModel, models);
         };
     });
