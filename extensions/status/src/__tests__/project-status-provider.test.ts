@@ -2,7 +2,7 @@ import type { ProjectStatusRequestOptions, ProjectStatusSummary } from 'caxri';
 import { CancellationTokenSource } from 'caxri';
 import { describe, expect, it, vi } from 'vitest';
 
-import { ProjectStatusProvider } from './extension';
+import { ProjectStatusProvider } from '../extension';
 
 const emptySummary: ProjectStatusSummary = {
     refreshedAt: 1,

@@ -2,8 +2,8 @@ import type { ProjectStatusRepository, TreeItemRichTooltip } from 'caxri';
 import { TreeItemCollapsibleState } from 'caxri';
 import { describe, expect, it } from 'vitest';
 
-import { deploymentStateLabel } from './status-labels';
-import { buildRepoNode } from './status-tree';
+import { deploymentStateLabel } from '../status-labels';
+import { buildRepoNode } from '../status-tree';
 
 function iconId(node: ReturnType<typeof buildRepoNode>): string | undefined {
     return node.item.iconPath?.id;
