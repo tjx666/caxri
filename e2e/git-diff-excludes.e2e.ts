@@ -33,8 +33,8 @@ test('Git diff exclusions hide changes, reveal on demand, and refresh from Setti
         const gitPanel = running.page.locator('.git-panel');
         const repo = gitPanel.locator('.git-repository-section');
         const files = repo.locator('.git-files');
-        const excludedFile = files.locator('.git-row[title="example.test.ts"]');
-        const readme = files.locator('.git-row[title="README.md"]');
+        const excludedFile = files.locator('.git-row[data-path="example.test.ts"]');
+        const readme = files.locator('.git-row[data-path="README.md"]');
         const showExcluded = gitPanel.getByRole('button', { name: /^Show excluded files/ });
 
         await expect(readme).toBeVisible();
@@ -175,19 +175,23 @@ test('The shipped exclusions hide translation catalogs and keep the source that 
         const gitPanel = page.locator('.git-panel');
         const files = gitPanel.locator('.git-repository-section .git-files');
         await expect(
-            files.locator('.git-row[title="packages/runtime/src/index.ts"]'),
+            files.locator('.git-row[data-path="packages/runtime/src/index.ts"]'),
         ).toBeVisible();
-        await expect(files.locator('.git-row[title="locales/zh-CN/runtime.json"]')).toHaveCount(0);
+        await expect(files.locator('.git-row[data-path="locales/zh-CN/runtime.json"]')).toHaveCount(
+            0,
+        );
         await expect(
-            files.locator('.git-row[title="packages/locales/src/runtime.ts"]'),
+            files.locator('.git-row[data-path="packages/locales/src/runtime.ts"]'),
         ).toHaveCount(0);
         const showExcluded = gitPanel.getByRole('button', { name: /^Show excluded files/ });
         await expect(showExcluded).toHaveAccessibleName(/^Show excluded files \(2\)$/);
         await gitPanel.screenshot({ path: testInfo.outputPath('git-locales-excluded.png') });
         await showExcluded.click();
-        await expect(files.locator('.git-row[title="locales/zh-CN/runtime.json"]')).toBeVisible();
         await expect(
-            files.locator('.git-row[title="packages/locales/src/runtime.ts"]'),
+            files.locator('.git-row[data-path="locales/zh-CN/runtime.json"]'),
+        ).toBeVisible();
+        await expect(
+            files.locator('.git-row[data-path="packages/locales/src/runtime.ts"]'),
         ).toBeVisible();
     } finally {
         await running.app.close();

@@ -366,7 +366,6 @@ describe('workspace package manifests', () => {
             'caxri.git.discardAll',
             'caxri.git.discard',
             'caxri.git.openChanges',
-            'caxri.git.openSubmodule',
             'caxri.git.history',
         ])
             expect(commands.get(id)?.palette).toBe(false);

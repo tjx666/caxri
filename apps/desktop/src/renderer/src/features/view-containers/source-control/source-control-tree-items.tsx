@@ -1,4 +1,4 @@
-import type { DragEvent, KeyboardEvent } from 'react';
+import type { DragEvent, KeyboardEvent, MouseEvent } from 'react';
 
 import type { SourceControlAction, SourceControlResource } from '@caxri/protocol';
 import { ChevronDown, ChevronRight } from 'lucide-react';
@@ -9,6 +9,7 @@ import { FileTypeIcon } from '../../../icons/files/file-type-icon';
 import { FILE_TREE_DRAG_TYPE } from '../../../lib/file-drag';
 import { resolveRepositoryFilePath as resolveRepoFilePath } from '../../../lib/repository-file-path';
 import { cn } from '../../../lib/utilities';
+import { openFile } from '../../editor/document-commands';
 import { sourceControlDecorationClassName } from './source-control-decorations';
 import { SourceControlIcon } from './source-control-icon';
 import { sourceControlActionMenuItems } from './source-control-row-menu';
@@ -90,7 +91,8 @@ export function SourceControlTreeItems({
                         className="git-tree-directory flex h-7 w-full cursor-pointer items-center gap-1.5 border-0 bg-surface pr-2 text-left text-foreground hover:bg-elevated"
                         style={{ paddingLeft: 8 + depth * 14 }}
                         aria-expanded={isExpanded}
-                        title={node.path}
+                        data-path={node.path}
+                        tooltip={`${node.path}\nOption-click to ${isExpanded ? 'collapse' : 'expand'} every folder inside`}
                         onClick={(event) =>
                             setDirectoriesExpanded(
                                 event.altKey
@@ -133,87 +135,22 @@ export function SourceControlTreeItems({
         const resource = node.resource;
         const trailingActions = resource.actions ?? [];
         const resourcePath = resolveRepoFilePath(repositoryRootPath, resource.path);
-        if (resource.navigationTargetId && trailingActions.length === 0)
-            return (
-                <SourceControlTreeRow
-                    key={resource.id}
-                    rowId={`resource:${resource.id}`}
-                    level={3 + depth}
-                    className={cn(resourceRowClassName, 'git-submodule-row hover:bg-elevated')}
-                    style={{ paddingLeft: 10 + depth * 14 }}
-                    title={resource.tooltip}
-                    aria-label={resource.accessibilityLabel}
-                    draggable={Boolean(resourcePath)}
-                    onDragStart={(event) => handleResourceDragStart(event, resourcePath)}
-                    onClick={() => resource.action && runAction(resource.action)}
-                >
-                    <SourceControlIcon className="shrink-0" icon={resource.icon} size={14} />
-                    <span
-                        className={cn('min-w-0 flex-1 truncate', resourceColorClassName(resource))}
-                    >
-                        {node.name}
-                    </span>
-                    {resource.description && (
-                        <small className="shrink-0 text-[11px] whitespace-nowrap text-muted">
-                            {resource.description}
-                        </small>
-                    )}
-                    <Decoration resource={resource} />
-                </SourceControlTreeRow>
-            );
-        if (resource.navigationTargetId)
-            return (
-                <div key={resource.id} className="git-row-container group relative">
-                    <SourceControlTreeRow
-                        rowId={`resource:${resource.id}`}
-                        level={3 + depth}
-                        menuItems={sourceControlActionMenuItems(trailingActions, runAction)}
-                        className={cn(resourceRowClassName, 'git-submodule-row hover:bg-elevated')}
-                        style={{ paddingLeft: 10 + depth * 14 }}
-                        title={resource.tooltip}
-                        aria-label={resource.accessibilityLabel}
-                        draggable={Boolean(resourcePath)}
-                        onDragStart={(event) => handleResourceDragStart(event, resourcePath)}
-                        onClick={() => resource.action && runAction(resource.action)}
-                    >
-                        <SourceControlIcon className="shrink-0" icon={resource.icon} size={14} />
-                        <span
-                            className={cn(
-                                'min-w-0 flex-1 truncate',
-                                resourceColorClassName(resource),
-                            )}
-                        >
-                            {node.name}
-                        </span>
-                        {resource.description && (
-                            <small className="shrink-0 text-[11px] whitespace-nowrap text-muted">
-                                {resource.description}
-                            </small>
-                        )}
-                        <Decoration resource={resource} />
-                    </SourceControlTreeRow>
-                    {trailingActions.map((action, index) => (
-                        <Tooltip content={action.tooltip ?? action.label} key={action.id}>
-                            <Button
-                                className={
-                                    index === 0
-                                        ? 'git-discard-file absolute top-1/2 right-1 hidden size-5 -translate-y-1/2 group-focus-within:flex group-hover:flex'
-                                        : 'git-discard-file absolute top-1/2 hidden size-5 -translate-y-1/2 group-focus-within:flex group-hover:flex'
-                                }
-                                style={index === 0 ? undefined : { right: 4 + index * 20 }}
-                                size="icon"
-                                variant="ghost"
-                                tabIndex={-1}
-                                aria-label={action.accessibilityLabel ?? action.label}
-                                disabled={action.disabled}
-                                onClick={() => runAction(action)}
-                            >
-                                <SourceControlIcon icon={action.icon} />
-                            </Button>
-                        </Tooltip>
-                    ))}
-                </div>
-            );
+        /**
+         * A deleted path has no working-tree file left to open, so it keeps the plain diff activation only.
+         */
+        const openablePath =
+            resource.decoration?.identifier === 'deleted' ? undefined : resourcePath;
+        const onResourceClick = (event: MouseEvent<HTMLButtonElement>): void => {
+            if (openablePath && event.altKey) {
+                // `openFile` (not `openEditorTab`) reads the file first and only creates the tab on
+                // success, so a path that vanished since the last refresh toasts instead of leaving
+                // a tab stuck on "Loading file…".
+                // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+                void openFile(openablePath);
+                return;
+            }
+            if (resource.action) runAction(resource.action);
+        };
         return (
             <div key={resource.id} className="git-row-container group relative">
                 <SourceControlTreeRow
@@ -226,11 +163,17 @@ export function SourceControlTreeItems({
                         activeEditorResource === resource.editorResource && 'active bg-elevated',
                     )}
                     style={{ paddingLeft: 10 + depth * 14 }}
-                    title={resource.tooltip}
+                    data-path={resource.path}
+                    tooltip={
+                        openablePath
+                            ? `${resource.tooltip}\nOption-click to open the file`
+                            : resource.tooltip
+                    }
                     aria-label={resource.accessibilityLabel}
+                    aria-keyshortcuts={openablePath ? 'Alt' : undefined}
                     draggable={Boolean(resourcePath)}
                     onDragStart={(event) => handleResourceDragStart(event, resourcePath)}
-                    onClick={() => resource.action && runAction(resource.action)}
+                    onClick={onResourceClick}
                 >
                     <SourceControlIcon icon={resource.icon} />
                     <span

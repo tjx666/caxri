@@ -599,7 +599,7 @@ describe('extension view contracts', () => {
         expect(
             sourceControlActionResultSchema.parse({
                 revision: '7',
-                effects: [{ kind: 'focus', targetId: 'resource-1' }],
+                effects: [{ kind: 'open-editor', resource: 'git-diff:repo-1/README.md' }],
                 refresh: false,
             }),
         ).toMatchObject({ revision: '7', refresh: false });
@@ -655,6 +655,24 @@ describe('extension view contracts', () => {
             sourceControlViewModelSchema.safeParse({
                 ...model,
                 providers: [{ ...provider, rootPath: '' }],
+            }).success,
+        ).toBe(false);
+
+        const externalLink = {
+            url: 'https://example.com/owner/repository/pull/7',
+            label: 'Open pull request #7 on the web',
+        };
+        expect(
+            sourceControlViewModelSchema.parse({
+                ...model,
+                providers: [{ ...provider, externalLink }],
+            }).providers[0].externalLink,
+        ).toEqual(externalLink);
+        // The Renderer hands the value straight to the default browser, so a non-URL must never reach it.
+        expect(
+            sourceControlViewModelSchema.safeParse({
+                ...model,
+                providers: [{ ...provider, externalLink: { ...externalLink, url: 'pull/7' } }],
             }).success,
         ).toBe(false);
     });

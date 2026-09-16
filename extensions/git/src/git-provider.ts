@@ -388,12 +388,6 @@ export class GitProvider implements SourceControlProvider {
                     throw providerError('PROVIDER_FAILED', 'Open Changes target is unavailable');
                 return { effects: [{ kind: 'open-editor', resource }], refresh: false };
             }
-            case 'caxri.git.openSubmodule': {
-                const targetId = arguments_[0];
-                if (typeof targetId !== 'string')
-                    throw providerError('PROVIDER_FAILED', 'Submodule target is unavailable');
-                return { effects: [{ kind: 'focus', targetId }], refresh: false };
-            }
             case 'caxri.git.sync': {
                 const [repoId, ahead, behind] = arguments_;
                 if (

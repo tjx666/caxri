@@ -96,11 +96,6 @@
                 "palette": false
             },
             {
-                "command": "caxri.git.openSubmodule",
-                "title": "Open Submodule Repository",
-                "palette": false
-            },
-            {
                 "command": "caxri.git.history",
                 "title": "Show Repository History",
                 "palette": false

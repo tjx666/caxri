@@ -19,6 +19,7 @@ import {
     sourceControlResourceProjection,
 } from './source-control-projection';
 import { boundedSourceControlResourceId } from './source-control-resource-id';
+import { submodulePathsWithOwnSection, visibleChangedFileCount } from './submodule-sections';
 
 export type GitSourceControlMode = 'commit' | 'pull-request' | 'working';
 
@@ -106,11 +107,6 @@ function fallbackRegisterAction(action: ActionRegistration): SourceControlAction
 
 function basename(path: string): string {
     return path.split('/').findLast(Boolean) ?? path;
-}
-
-function normalizeRepoPath(path: string): string {
-    const normalized = path.replaceAll('\\', '/');
-    return normalized === '/' ? normalized : normalized.replace(/\/+$/, '');
 }
 
 function trimTrailingPathSeparators(path: string): string {
@@ -258,88 +254,70 @@ function commitFilesToStatuses(details: GitCommitDetails | undefined): GitFileSt
     }));
 }
 
-function submoduleIdsByPath(
-    repo: GitRepositorySummary,
-    repositories: readonly GitRepositorySummary[],
-): ReadonlyMap<string, string> {
-    const root = normalizeRepoPath(repo.rootPath);
-    const result = new Map<string, string>();
-    for (const candidate of repositories) {
-        if (candidate.kind !== 'submodule' || candidate.id === repo.id) continue;
-        const candidateRoot = normalizeRepoPath(candidate.rootPath);
-        if (candidateRoot.startsWith(`${root}/`))
-            result.set(candidateRoot.slice(root.length + 1), candidate.id);
-    }
-    return result;
-}
-
 function resourcesForRepo(
     mode: GitSourceControlMode,
     repo: GitRepositorySummary,
-    repositories: readonly GitRepositorySummary[],
     files: GitFileStatus[],
     commitSha: string | undefined,
     registerAction: RegisterSourceControlAction,
 ): SourceControlResource[] {
-    const submodules = submoduleIdsByPath(repo, repositories);
     return files.map((file) => {
-        const submoduleId = submodules.get(file.path);
         const rawResource = editorResource(mode, repo.id, file.path, commitSha ?? repo.head);
         const resource = rawResource ? boundedEditorResource(rawResource) : undefined;
         const projection = sourceControlResourceProjection(file.path);
-        const commandId = submoduleId ? 'caxri.git.openSubmodule' : 'caxri.git.openChanges';
         return {
             id: boundedSourceControlResourceId(repo.id, file.path),
             label: projection.label,
-            description: submoduleId ? 'submodule' : decoration(file)?.label,
-            tooltip: submoduleId
-                ? boundedActionLabel(`Toggle the ${basename(file.path)} submodule repository`)
-                : projection.tooltip,
-            accessibilityLabel: submoduleId
-                ? boundedActionLabel(`Toggle the ${basename(file.path)} submodule repository`)
-                : projection.accessibilityLabel,
-            icon: submoduleId
-                ? themeIcon('file-submodule')
-                : { kind: 'file-type' as const, name: projection.label },
+            description: decoration(file)?.label,
+            tooltip: projection.tooltip,
+            accessibilityLabel: projection.accessibilityLabel,
+            icon: { kind: 'file-type' as const, name: projection.label },
             path: projection.path,
             decoration: decoration(file),
             ...(resource && { editorResource: resource }),
-            ...(submoduleId && { navigationTargetId: submoduleId }),
-            ...((submoduleId !== undefined || resource !== undefined) && {
+            ...(resource !== undefined && {
                 action: registerAction({
                     command: {
-                        id: commandId,
-                        arguments: [submoduleId ?? resource],
+                        id: 'caxri.git.openChanges',
+                        arguments: [resource],
                     },
-                    icon: themeIcon(submoduleId ? 'file-submodule' : 'diff'),
-                    label: boundedActionLabel(
-                        submoduleId
-                            ? `Toggle the ${basename(file.path)} submodule repository`
-                            : `Open changes in ${file.path}`,
-                    ),
+                    icon: themeIcon('diff'),
+                    label: boundedActionLabel(`Open changes in ${file.path}`),
                 }),
             }),
-            ...(mode === 'working' &&
-                !submoduleId && {
-                    actions: [
-                        registerAction({
-                            command: {
-                                id: 'caxri.git.discard',
-                                arguments: [repo.id, file.path],
-                            },
-                            icon: themeIcon('discard'),
-                            emphasis: 'danger',
-                            errorMessage: 'Discard failed',
-                            label: file.kind === 'untracked' ? 'Delete File' : 'Discard Changes',
-                            accessibilityLabel:
-                                file.kind === 'untracked'
-                                    ? `Delete ${basename(file.path)}`
-                                    : `Discard changes in ${basename(file.path)}`,
-                        }),
-                    ],
-                }),
+            ...(mode === 'working' && {
+                actions: [
+                    registerAction({
+                        command: {
+                            id: 'caxri.git.discard',
+                            arguments: [repo.id, file.path],
+                        },
+                        icon: themeIcon('discard'),
+                        emphasis: 'danger',
+                        errorMessage: 'Discard failed',
+                        label: file.kind === 'untracked' ? 'Delete File' : 'Discard Changes',
+                        accessibilityLabel:
+                            file.kind === 'untracked'
+                                ? `Delete ${basename(file.path)}`
+                                : `Discard changes in ${basename(file.path)}`,
+                    }),
+                ],
+            }),
         };
     });
+}
+
+/**
+ * The raw change list a repository contributes in the selected mode, before the submodule and exclusion filters.
+ */
+function repoFiles(
+    mode: GitSourceControlMode,
+    repo: GitRepositorySummary,
+    details: GitCommitDetails | undefined,
+    pullRequest: GitPullRequestChanges | null | undefined,
+): readonly GitFileStatus[] {
+    if (mode === 'working') return repo.files;
+    return mode === 'commit' ? commitFilesToStatuses(details) : (pullRequest?.files ?? []);
 }
 
 function emptyMessageForMode(
@@ -408,14 +386,13 @@ export function buildSourceControlViewModel({
         ? fileHistoryModel(activeResource, fileHistoryRepositories, revision)
         : undefined;
     const excludedCount = summary.repositories.reduce((total, repo) => {
-        const details = detailsByRepo.get(repo.id);
-        const pullRequest = pullRequestsByRepo.get(repo.id);
-        const files =
-            mode === 'working'
-                ? repo.files
-                : mode === 'commit'
-                  ? commitFilesToStatuses(details)
-                  : (pullRequest?.files ?? []);
+        const submodulePaths = submodulePathsWithOwnSection(repo, summary.repositories);
+        const files = repoFiles(
+            mode,
+            repo,
+            detailsByRepo.get(repo.id),
+            pullRequestsByRepo.get(repo.id),
+        ).filter((file) => !submodulePaths.has(file.path));
         return total + excludedFileCount(files, excludePatterns);
     }, 0);
     const hasEnabledExclusions = Object.entries(excludePatterns).some(
@@ -465,12 +442,10 @@ export function buildSourceControlViewModel({
         providers: summary.repositories.map((repo) => {
             const details = detailsByRepo.get(repo.id);
             const pullRequest = pullRequestsByRepo.get(repo.id);
-            const files =
-                mode === 'working'
-                    ? repo.files
-                    : mode === 'commit'
-                      ? commitFilesToStatuses(details)
-                      : (pullRequest?.files ?? []);
+            const submodulePaths = submodulePathsWithOwnSection(repo, summary.repositories);
+            const workingCount = visibleChangedFileCount(repo, summary);
+            const modeFiles = repoFiles(mode, repo, details, pullRequest);
+            const files = modeFiles.filter((file) => !submodulePaths.has(file.path));
             const repoExcludedCount = excludedFileCount(files, excludePatterns);
             const visibleFiles = isShowingExcluded
                 ? files
@@ -482,13 +457,17 @@ export function buildSourceControlViewModel({
             const hasUnloadedExclusions =
                 !isShowingExcluded && hasEnabledExclusions && repo.truncated === true;
             const isDiscardBlockedByExclusions = hiddenCount > 0 || hasUnloadedExclusions;
-            const count = mode === 'working' ? repo.changedFileCount : files.length;
+            /**
+             * `changedFileCount` is the Server's untruncated total, so the submodule rows this list drops are
+             * subtracted from it directly; the other modes count the filtered list they render.
+             */
+            const count = mode === 'working' ? workingCount : files.length;
             /**
              * Commit and Pull Request mode replace the file list with that commit's or that pull request's files, so a
              * repository holding uncommitted work looks exactly like a clean one — the user only finds out by switching
              * modes. State the count on the repository row and make it the way back to it.
              */
-            const uncommittedCount = mode === 'working' ? 0 : repo.changedFileCount;
+            const uncommittedCount = mode === 'working' ? 0 : workingCount;
             /**
              * The branch owns this slot in every mode. A pull request or commit subject used to replace it, and cost
              * more than it returned: the identifier it led with is already the group caption one row below (`PR #1738
@@ -573,6 +552,14 @@ export function buildSourceControlViewModel({
                 description,
                 descriptionAccessibilityLabel,
                 descriptionTooltip,
+                ...(pullRequest && {
+                    externalLink: {
+                        url: pullRequest.url,
+                        label: boundedActionLabel(
+                            `Open pull request #${pullRequest.number} on the web`,
+                        ),
+                    },
+                }),
                 countLabel:
                     mode === 'pull-request' && detailErrorsByRepo.has(repo.id)
                         ? ' · Unavailable'
@@ -621,17 +608,16 @@ export function buildSourceControlViewModel({
                                   ),
                         ...(mode === 'working' &&
                             repo.truncated && {
-                                truncationMessage: `Showing the first ${repo.files.length} of ${repo.changedFileCount} changes`,
+                                truncationMessage: `Showing the first ${files.length} of ${count} changes`,
                             }),
                         ...(mode === 'commit' &&
                             details?.filesTruncated && {
-                                truncationMessage: `Showing the first ${details.files.length} files of this commit`,
+                                truncationMessage: `Showing the first ${files.length} files of this commit`,
                             }),
                         actions,
                         resources: resourcesForRepo(
                             mode,
                             repo,
-                            summary.repositories,
                             visibleFiles,
                             details?.commit.sha,
                             registerAction,

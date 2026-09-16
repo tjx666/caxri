@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes } from 'react';
+import type { ButtonHTMLAttributes, ReactElement, ReactNode } from 'react';
 import { useState } from 'react';
 
 import {
@@ -7,6 +7,7 @@ import {
     ContextMenuItem,
     ContextMenuTrigger,
 } from '../../../components/ui/context-menu';
+import { Tooltip } from '../../../components/ui/tooltip';
 import { cn } from '../../../lib/utilities';
 import type { SourceControlRowMenuItem } from './source-control-row-menu';
 import { treeRowTabIndex, useSourceControlTreeFocus } from './source-control-tree-focus';
@@ -26,11 +27,19 @@ export function SourceControlTreeRow({
     onFocus,
     onKeyDown,
     rowId,
+    tooltip,
     ...properties
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
     level: number;
     menuItems?: readonly SourceControlRowMenuItem[];
     rowId: string;
+    /**
+     * Rich hover text for a row whose own label is truncated, or whose modifier gestures need naming. Rows pass this
+     * instead of `title`: the native tooltip is slow, unstyled, and cannot show the second line. A row that needs its
+     * path readable from the DOM writes `data-path` as well — setting `title` beside this would stack a second, native
+     * tooltip on the same hover.
+     */
+    tooltip?: ReactNode;
 }) {
     const focus = useSourceControlTreeFocus();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -63,10 +72,22 @@ export function SourceControlTreeRow({
             {children}
         </button>
     );
-    if (!menuItems?.length) return row;
+    /**
+     * Base UI composes triggers through `render`, so the tooltip wraps the context-menu trigger rather than the button:
+     * each layer merges its own props into the single rendered element.
+     */
+    const withTooltip = (trigger: ReactElement): ReactElement =>
+        tooltip === undefined ? (
+            trigger
+        ) : (
+            <Tooltip anchorMode="cursor" content={tooltip}>
+                {trigger}
+            </Tooltip>
+        );
+    if (!menuItems?.length) return withTooltip(row);
     return (
         <ContextMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
-            <ContextMenuTrigger render={row} />
+            {withTooltip(<ContextMenuTrigger render={row} />)}
             <ContextMenuContent>
                 {menuItems.map((item) => (
                     <ContextMenuItem key={item.id} disabled={item.disabled} onClick={item.run}>

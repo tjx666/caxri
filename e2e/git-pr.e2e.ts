@@ -115,14 +115,14 @@ process.exit(result.status ?? 1);
         await createProjectSession(running.page);
         await running.page.getByRole('tab', { name: 'Git', exact: true }).click();
         const files = running.page.locator('.git-files');
-        await expect(files.locator('.git-row[title="working-only.txt"]')).toBeVisible();
+        await expect(files.locator('.git-row[data-path="working-only.txt"]')).toBeVisible();
 
         // Scope every mode switch to its own toolbar: the repository group heading is also named
         // `Pull Request Changes` in that mode, so an unscoped role lookup matches two buttons.
         const modeSwitch = running.page.locator('.git-mode-switch');
         await modeSwitch.getByRole('button', { name: 'Pull Request Changes' }).click();
         await expect(running.page.getByText('PR #42 Changes', { exact: true })).toBeVisible();
-        await expect(files.locator('.git-row[title="pr-only.txt"]')).toBeVisible();
+        await expect(files.locator('.git-row[data-path="pr-only.txt"]')).toBeVisible();
         await expect(
             running.page.getByText(GitPullRequestErrorMessage.missingCommits, { exact: true }),
         ).toBeVisible();
@@ -154,10 +154,10 @@ process.exit(result.status ?? 1);
             });
         });
         await modeSwitch.getByRole('button', { name: 'Working Tree Changes', exact: true }).click();
-        await expect(files.locator('.git-row[title="working-only.txt"]')).toBeVisible();
+        await expect(files.locator('.git-row[data-path="working-only.txt"]')).toBeVisible();
         await modeSwitch.getByRole('button', { name: 'Pull Request Changes', exact: true }).click();
         await expect(running.page.getByText('PR #42 Changes', { exact: true })).toBeVisible();
-        await expect(files.locator('.git-row[title="pr-only.txt"]')).toBeVisible();
+        await expect(files.locator('.git-row[data-path="pr-only.txt"]')).toBeVisible();
         await expect(
             modeSwitch.getByRole('button', { name: 'Pull Request Changes', exact: true }),
         ).toBeEnabled();
@@ -169,15 +169,15 @@ process.exit(result.status ?? 1);
             ),
         ).toBe(false);
         await running.page.screenshot({ path: test.info().outputPath('pr-mode-switch.png') });
-        await expect(files.locator('.git-row[title="deleted-at-head.txt"]')).toBeVisible();
-        await expect(files.locator('.git-row[title="tracked.txt"]')).toBeVisible();
-        await expect(files.locator('.git-row[title="working-only.txt"]')).toHaveCount(0);
+        await expect(files.locator('.git-row[data-path="deleted-at-head.txt"]')).toBeVisible();
+        await expect(files.locator('.git-row[data-path="tracked.txt"]')).toBeVisible();
+        await expect(files.locator('.git-row[data-path="working-only.txt"]')).toHaveCount(0);
         await expect(
             running.page.getByText(GitPullRequestErrorMessage.missingCommits, { exact: true }),
         ).toBeVisible();
         await expect(running.page.locator('.toast')).toHaveCount(0);
 
-        await files.locator('.git-row[title="tracked.txt"]').click();
+        await files.locator('.git-row[data-path="tracked.txt"]').click();
         await expect(running.page.locator('.git-file-diff .monaco-diff-editor')).toBeVisible();
         await expect(running.page.locator('.git-file-diff')).toContainText('before');
         await expect(running.page.locator('.git-file-diff')).toContainText('after');
@@ -198,16 +198,16 @@ process.exit(result.status ?? 1);
             })
             .toBe(true);
         await expect(running.page.getByText('PR #42 Changes', { exact: true })).toBeVisible();
-        await expect(files.locator('.git-row[title="tracked.txt"]')).toBeVisible();
+        await expect(files.locator('.git-row[data-path="tracked.txt"]')).toBeVisible();
         await running.page.screenshot({ path: test.info().outputPath('pr-refresh.png') });
         await rm(refreshGate);
         await expect(
             running.page.getByText(GitPullRequestErrorMessage.missingCommits, { exact: true }),
         ).toBeVisible();
-        await expect(files.locator('.git-row[title="pr-only.txt"]')).toBeVisible();
+        await expect(files.locator('.git-row[data-path="pr-only.txt"]')).toBeVisible();
 
         const diff = running.page.locator('.git-file-diff');
-        await files.locator('.git-row[title="pr-only.txt"]').click();
+        await files.locator('.git-row[data-path="pr-only.txt"]').click();
         const addedEditor = diff.locator('.git-single-diff-editor');
         await expect(addedEditor).toBeVisible();
         await expect(diff.locator('.monaco-diff-editor')).toHaveCount(0);
@@ -229,7 +229,7 @@ process.exit(result.status ?? 1);
         ).toBe('+');
         await diff.screenshot({ path: test.info().outputPath('git-pr-added-file-diff.png') });
 
-        await files.locator('.git-row[title="deleted-at-head.txt"]').click();
+        await files.locator('.git-row[data-path="deleted-at-head.txt"]').click();
         const deletedEditor = diff.locator('.git-single-diff-editor');
         await expect(deletedEditor).toBeVisible();
         await expect(diff.locator('.monaco-diff-editor')).toHaveCount(0);

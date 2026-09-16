@@ -423,7 +423,9 @@ test('Git secondarySidebar shows child repositories, submodule state, and change
         });
 
         await expect(primary.locator('.git-files')).toContainText('root.txt');
-        await expect(primary.locator('.git-files')).toContainText('sub');
+        // The submodule has a repository section of its own below, carrying its branch and its real
+        // file changes, so the parent's list drops the gitlink row rather than naming it twice.
+        await expect(primary.locator('.git-files')).not.toContainText('sub');
         await expect(primary.locator('.git-files')).not.toContainText('nested.txt');
         await expect(nestedRepo.locator('.git-files')).toContainText('nested.txt');
         await expect(submodule.locator('.git-files')).toContainText('submodule.txt');
