@@ -13,6 +13,16 @@ import {
 } from '../paste-summary-generation';
 import type { AgentService } from '../service';
 
+/**
+ * Keeps every case above the shipped default threshold without restating its value, so a change to
+ * `terminal.longPasteThreshold`'s default cannot silently turn these cases into ordinary passthroughs.
+ */
+function longPasteContent(seed: string): string {
+    return seed.repeat(
+        Math.ceil((defaultAppSettings['terminal.longPasteThreshold'] + 1) / seed.length),
+    );
+}
+
 const temporaryDirectories: string[] = [];
 const databases: CaxriDatabase[] = [];
 const services: LongPasteService[] = [];
@@ -83,7 +93,7 @@ describe('LongPasteService', () => {
         expect(test.database.promoteShellToAgent(test.terminal.id, 'codex')).toBe(true);
 
         await expect(
-            test.service.prepare({ terminalId: test.terminal.id, content: 'x'.repeat(2_000) }),
+            test.service.prepare({ terminalId: test.terminal.id, content: longPasteContent('x') }),
         ).resolves.toEqual({ status: 'passthrough' });
         expect(test.summarizePaste).not.toHaveBeenCalled();
         expect(await readdir(test.userDataPath)).not.toContain('pastes');
@@ -108,7 +118,7 @@ describe('LongPasteService', () => {
 
     it('saves text above the default threshold before returning a sanitized summary', async () => {
         const test = await fixture({ summary: 'Useful\u{1B}[31m summary\r\n- exact 42' });
-        const content = `build started\r\n${'x'.repeat(1_000)}\nError: failed`;
+        const content = `build started\r\n${longPasteContent('x')}\nError: failed`;
 
         const result = await test.service.prepare({ terminalId: test.terminal.id, content });
 
@@ -142,7 +152,7 @@ describe('LongPasteService', () => {
 
     it('returns the saved file path without pasting the original when summary generation fails', async () => {
         const test = await fixture({ summary: new Error('provider unavailable') });
-        const content = 'private input '.repeat(100);
+        const content = longPasteContent('private input ');
 
         const result = await test.service.prepare({ terminalId: test.terminal.id, content });
 
@@ -157,7 +167,7 @@ describe('LongPasteService', () => {
                 reason: 'sandboxBoundaryConflict',
             }),
         });
-        const content = 'private fixture '.repeat(100);
+        const content = longPasteContent('private fixture ');
         const result = await test.service.prepare({ terminalId: test.terminal.id, content });
         expect(result).toMatchObject({ status: 'unavailable', reason: 'sandboxBoundaryConflict' });
         assert(result.status === 'unavailable');
@@ -182,7 +192,7 @@ describe('LongPasteService', () => {
     });
 
     it('rejects provider output that does not compress the original paste', async () => {
-        const content = 'verbatim provider echo '.repeat(100);
+        const content = longPasteContent('verbatim provider echo ');
         const test = await fixture({ summary: content });
 
         await expect(
@@ -192,7 +202,7 @@ describe('LongPasteService', () => {
 
     it('returns the saved file path before a hanging provider can exhaust the client timeout', async () => {
         const test = await fixture({ hang: true, summaryTimeoutMs: 5 });
-        const content = 'bounded input '.repeat(100);
+        const content = longPasteContent('bounded input ');
 
         const result = await test.service.prepare({ terminalId: test.terminal.id, content });
 
@@ -206,7 +216,7 @@ describe('LongPasteService', () => {
         const test = await fixture();
         const summary = Promise.withResolvers<string>();
         test.summarizePaste.mockImplementationOnce(() => summary.promise);
-        const content = 'generation-bound input '.repeat(100);
+        const content = longPasteContent('generation-bound input ');
 
         const preparing = test.service.prepare({ terminalId: test.terminal.id, content });
         await vi.waitFor(() => expect(test.summarizePaste).toHaveBeenCalledOnce());
@@ -225,7 +235,7 @@ describe('LongPasteService', () => {
         await test.service.initialize();
         const result = await test.service.prepare({
             terminalId: test.terminal.id,
-            content: 'retention-bound input '.repeat(100),
+            content: longPasteContent('retention-bound input '),
         });
         assert(result.status === 'summarized');
         /**
@@ -262,18 +272,18 @@ describe('LongPasteService', () => {
         });
         const first = test.service.prepare({
             terminalId: test.terminal.id,
-            content: 'first bounded summary '.repeat(100),
+            content: longPasteContent('first bounded summary '),
         });
         const second = test.service.prepare({
             terminalId: test.terminal.id,
-            content: 'second bounded summary '.repeat(100),
+            content: longPasteContent('second bounded summary '),
         });
         await vi.waitFor(() => expect(test.summarizePaste).toHaveBeenCalledTimes(2));
         const cancellation = new AbortController();
         const third = test.service.prepare(
             {
                 terminalId: test.terminal.id,
-                content: 'cancelled queued summary '.repeat(100),
+                content: longPasteContent('cancelled queued summary '),
             },
             cancellation.signal,
         );
@@ -308,7 +318,7 @@ describe('LongPasteService', () => {
         const preparing = test.service.prepare(
             {
                 terminalId: test.terminal.id,
-                content: 'cancelled while saving '.repeat(100),
+                content: longPasteContent('cancelled while saving '),
             },
             cancellation.signal,
         );
@@ -323,7 +333,10 @@ describe('LongPasteService', () => {
     it('rejects Shells and disabled providers before creating a file', async () => {
         const shell = await fixture({ kind: 'shell' });
         await expect(
-            shell.service.prepare({ terminalId: shell.terminal.id, content: 'x'.repeat(2_000) }),
+            shell.service.prepare({
+                terminalId: shell.terminal.id,
+                content: longPasteContent('x'),
+            }),
         ).rejects.toMatchObject({ code: 'CONFLICT' });
         expect(shell.summarizePaste).not.toHaveBeenCalled();
 
@@ -332,7 +345,7 @@ describe('LongPasteService', () => {
         await expect(
             disabled.service.prepare({
                 terminalId: disabled.terminal.id,
-                content: 'x'.repeat(2_000),
+                content: longPasteContent('x'),
             }),
         ).rejects.toMatchObject({ code: 'CONFLICT' });
         expect(disabled.summarizePaste).not.toHaveBeenCalled();

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+    createTerminalSearchSelectionGuard,
     initialTerminalSearchState,
     openTerminalSearch,
     registerTerminalSearchHandler,
@@ -59,5 +60,31 @@ describe('Terminal search state', () => {
                 resultIndex: -1,
             }),
         ).toBe('Invalid regular expression');
+    });
+});
+
+/**
+ * The pane drives these from `SearchAddon`'s own `onBeforeSearch`/`onAfterSearch`, which the addon emits for an
+ * explicit navigation and for the re-search it runs itself after Terminal output or a resize alike.
+ */
+describe('Terminal search selection guard', () => {
+    it('marks only the selection the search addon produces', () => {
+        const guard = createTerminalSearchSelectionGuard();
+
+        expect(guard.isSearchSelection()).toBe(false);
+        guard.beginSearchSelection();
+        expect(guard.isSearchSelection()).toBe(true);
+        guard.endSearchSelection();
+        expect(guard.isSearchSelection()).toBe(false);
+    });
+
+    it('releases the guard when a search throws before it completes', async () => {
+        const guard = createTerminalSearchSelectionGuard();
+
+        // An invalid regular expression never reaches `onAfterSearch`.
+        guard.beginSearchSelection();
+        // A mouse selection can never land inside the search's own microtask window.
+        await Promise.resolve();
+        expect(guard.isSearchSelection()).toBe(false);
     });
 });
