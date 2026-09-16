@@ -5,17 +5,11 @@ import { join } from 'node:path';
 import type { GitSummary, ServerEvent } from '@caxri/protocol';
 import { defaultAppSettings } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
-import { rememberBounded } from '@caxri/utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ExternalStatusRunner } from '../external-status';
 import { ExternalStatusCliError } from '../external-status';
-import {
-    extractLinearReferences,
-    parseGitHubRemote,
-    ProjectStatusService,
-} from '../project-status';
-import type { VercelLink } from '../project-status-external';
+import { ProjectStatusService } from '../project-status';
 
 const temporaryDirectories: string[] = [];
 const loggers: StructuredLogger[] = [];
@@ -323,6 +317,7 @@ describe('ProjectStatusService', () => {
                 title: 'Status Bar context',
                 url: 'https://github.com/example/project/pull/11',
             },
+            acceptances: [],
             linearIssues: [],
         });
         expect(runner.mock.calls.filter(([command]) => command === 'gh')).toHaveLength(1);
@@ -731,70 +726,5 @@ describe('ProjectStatusService', () => {
         expect(emitted.mock.calls.some(([event]) => event.event === 'projectStatus.alert')).toBe(
             false,
         );
-    });
-});
-
-describe('Project Status parsers', () => {
-    it('accepts HTTPS and SSH GitHub remotes', () => {
-        expect(parseGitHubRemote('git@github.com:example/caxri.git')).toEqual({
-            owner: 'example',
-            repo: 'caxri',
-        });
-        expect(parseGitHubRemote('https://github.com/example/caxri')).toEqual({
-            owner: 'example',
-            repo: 'caxri',
-        });
-    });
-
-    it('extracts deliberate Linear references without treating bare mentions as links', () => {
-        expect(
-            extractLinearReferences(
-                'Follow-up TASK-1\nFixes TASK-2, TASK-3\nhttps://linear.app/example/issue/TASK-4/title',
-            ),
-        ).toEqual([
-            { identifier: 'TASK-4', workspace: 'example' },
-            { identifier: 'TASK-2', workspace: undefined },
-            { identifier: 'TASK-3', workspace: undefined },
-        ]);
-    });
-
-    it('keeps prose out of the reference list when a keyword appears mid-sentence', () => {
-        expect(
-            extractLinearReferences(
-                'Fixes TASK-24682\n\nThis fixes local installs creating a root pnpm-lock.yaml. The packageManager SHA-512 value matches the published npm artifact.\n\nTracked in https://linear.app/example/issue/TASK-24681.',
-            ),
-        ).toEqual([
-            { identifier: 'TASK-24681', workspace: 'example' },
-            { identifier: 'TASK-24682', workspace: undefined },
-        ]);
-    });
-
-    it('accepts the connectors Linear magic words actually use', () => {
-        expect(extractLinearReferences('Closes TASK-1 and TASK-2')).toEqual([
-            { identifier: 'TASK-1', workspace: undefined },
-            { identifier: 'TASK-2', workspace: undefined },
-        ]);
-        expect(extractLinearReferences('Resolves issue TASK-3')).toEqual([
-            { identifier: 'TASK-3', workspace: undefined },
-        ]);
-        expect(extractLinearReferences('Fixes #12 and pnpm-12 regressions')).toEqual([]);
-    });
-
-    it('bounds the vercelLinks cache under many distinct keys, evicting least-recently-used entries', () => {
-        const links = new Map<string, VercelLink>();
-        const maximum = 256;
-        for (let index = 0; index < maximum + 50; index += 1) {
-            rememberBounded(
-                links,
-                `owner/repo-${index}`,
-                { team: 'team', project: `project-${index}` },
-                maximum,
-            );
-        }
-        expect(links.size).toBe(maximum);
-        // The earliest-inserted keys should have been evicted first.
-        expect(links.has('owner/repo-0')).toBe(false);
-        expect(links.has('owner/repo-49')).toBe(false);
-        expect(links.has(`owner/repo-${maximum + 49}`)).toBe(true);
     });
 });

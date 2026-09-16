@@ -1,3 +1,5 @@
+export type { AcceptanceLookup, AcceptanceRunner } from './acceptance';
+export { AcceptanceStore } from './acceptance';
 export type { CliFailureKind, ExternalStatusRunner, ExternalStatusSource } from './command';
 export { ExternalStatusCliError, isNoPullRequest, runExternalStatusCommand } from './command';
 export { observeExternalStatusCommand } from './diagnostics';

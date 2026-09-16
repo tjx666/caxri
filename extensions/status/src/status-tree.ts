@@ -16,6 +16,10 @@ import {
 } from 'caxri';
 
 import {
+    acceptanceDescription,
+    acceptanceRowLabel,
+    acceptanceStatusLabel,
+    acceptanceVerdictLabel,
     checkLabel,
     deploymentStateLabel,
     projectStatusStateLabel,
@@ -123,6 +127,7 @@ type ProjectStatusFailure = ProjectStatusRepository['errors'][number];
 const sharedFailureReasons = new Set<ProjectStatusFailure['reason']>(['network', 'rate-limited']);
 
 const providerNames = {
+    acceptance: 'LobeHub',
     github: 'GitHub',
     linear: 'Linear',
     vercel: 'Vercel',
@@ -427,6 +432,50 @@ function buildRepoChildren(
                     },
                 },
             ),
+        );
+    }
+    for (const acceptance of repo.acceptances) {
+        const { state } = acceptance;
+        nodes.push(
+            item(`${prefix}:acceptance:${acceptance.id}`, acceptanceRowLabel(acceptance), {
+                accessibilityLabel: [
+                    acceptanceRowLabel(acceptance),
+                    acceptance.status && acceptanceStatusLabel(acceptance.status),
+                    acceptance.verdict && acceptanceVerdictLabel(acceptance.verdict),
+                    acceptanceDescription(acceptance),
+                ]
+                    .filter(Boolean)
+                    .join(', '),
+                description: acceptanceDescription(acceptance),
+                icon: stateIcons[state],
+                url: acceptance.url,
+                tooltip: {
+                    ...(acceptance.status && {
+                        badge: {
+                            label: acceptanceStatusLabel(acceptance.status),
+                            tone: stateTones[state],
+                        },
+                    }),
+                    rows: [
+                        acceptance.verdict
+                            ? {
+                                  label: 'verdict',
+                                  value: acceptanceVerdictLabel(acceptance.verdict),
+                              }
+                            : undefined,
+                        acceptance.totalChecks === undefined ||
+                        acceptance.passedChecks === undefined
+                            ? undefined
+                            : {
+                                  label: 'checks',
+                                  value: `${acceptance.passedChecks} of ${acceptance.totalChecks} passed`,
+                              },
+                        acceptance.round === undefined
+                            ? undefined
+                            : { label: 'round', value: `${acceptance.round}` },
+                    ].filter((row): row is TreeItemTooltipRow => row !== undefined),
+                },
+            }),
         );
     }
     if (repo.deployments) {
