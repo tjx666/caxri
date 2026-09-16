@@ -10,7 +10,7 @@ import {
     requestIdFromEnvelope,
     toWireError,
 } from '@caxri/protocol';
-import type { StructuredLogger } from '@caxri/system';
+import type { EventLoopStallSummary, StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 import type { WebContents } from 'electron';
 import { ipcMain } from 'electron';
@@ -45,6 +45,12 @@ export interface WorkbenchIpcOptions {
     isQuitting(): boolean;
     logger(): StructuredLogger | undefined;
     onRendererDiagnostic?(diagnostic: TerminalRendererDiagnostic): void;
+    /**
+     * Main's own event-loop gaps, stamped onto the Renderer diagnostics whose cause may sit outside the Renderer. The
+     * Renderer cannot measure this itself, and a reader joining two logs by timestamp gets no answer when the record
+     * that matters was rate limited or rotated away.
+     */
+    readEventLoopStalls?(): EventLoopStallSummary | undefined;
     onEventsReady?(): void;
     renderer(): WebContents | undefined;
     transport: ReturnType<typeof createElectronIpcCommandAdapter>;
@@ -108,6 +114,7 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
             return;
         }
         if (diagnostic.kind === 'editor-worker-stall') {
+            const mainLoop = options.readEventLoopStalls?.();
             options
                 .logger()
                 ?.write(
@@ -132,6 +139,17 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
                             diffOpenCount: diagnostic.diffOpenCount,
                             stallCount: diagnostic.stallCount,
                             editorWorkersCreated: diagnostic.editorWorkersCreated,
+                            editorWorkersStarted: diagnostic.editorWorkersStarted,
+                            editorWorkersStartupStalled: diagnostic.editorWorkersStartupStalled,
+                            editorWorkersStartupStalledNow:
+                                diagnostic.editorWorkersStartupStalledNow,
+                            // Main-side context, not Renderer-reported: Worker creation, its `file://` script load out
+                            // of `app.asar`, and `BroadcastChannel` brokering all run through this process, so a
+                            // blocked Main loop is the leading explanation for a Worker that exists and never runs.
+                            mainEventLoopBlockCount: mainLoop?.blockCount ?? null,
+                            mainEventLoopLongestBlockMs: mainLoop?.longestBlockMs ?? null,
+                            mainEventLoopMsSinceLastBlock: mainLoop?.msSinceLastBlock ?? null,
+                            mainEventLoopSuspensionCount: mainLoop?.suspensionCount ?? null,
                         },
                     },
                 );

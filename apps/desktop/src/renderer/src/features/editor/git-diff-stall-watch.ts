@@ -1,6 +1,7 @@
 import type { EditorWorkerStallDiagnostic } from '@caxri/protocol';
 
-import { editorWorkersCreated } from '../../lib/monaco-worker-count';
+import type { EditorWorkerStartupSummary } from '../../lib/monaco-worker-startup';
+import { editorWorkerStartupSummary } from '../../lib/monaco-worker-startup';
 import type { WorkerRoundTripResult } from '../../lib/worker-round-trip';
 import { probeWorkerRoundTrip } from '../../lib/worker-round-trip';
 
@@ -59,7 +60,7 @@ function readPageLoad(): PageLoadShape {
 export interface GitDiffStallWatchDependencies {
     reportDiagnostic: (diagnostic: EditorWorkerStallDiagnostic) => void;
     probeRoundTrip?: () => Promise<WorkerRoundTripResult>;
-    countEditorWorkers?: () => number;
+    readWorkerStartup?: () => EditorWorkerStartupSummary;
     isDocumentVisible?: () => boolean;
     readPageLoad?: () => PageLoadShape;
     now?: () => number;
@@ -72,8 +73,12 @@ export interface GitDiffStallWatchDependencies {
  * `computed` means this diff computation produced an answer, whether or not it had already been declared stalled;
  * `stalled` means it passed the timeout without one. A surface that shows the diff needs both, because until the answer
  * arrives "no highlights" and "no difference" are the same picture. See issue #978.
+ *
+ * `worker-not-started` is the stall whose cause this window already knows: a Worker Monaco asked for never ran its
+ * script, so there is nothing computing this diff and nothing that will. It is kept apart from a plain `stalled`
+ * because only this one has a recovery the user can act on. See issue #962.
  */
-export type GitDiffComputationOutcome = 'computed' | 'stalled';
+export type GitDiffComputationOutcome = 'computed' | 'stalled' | 'worker-not-started';
 
 export interface GitDiffStallObservation {
     waitForDiff: () => Promise<unknown>;
@@ -121,7 +126,7 @@ export class GitDiffStallWatch {
             this.dependencies.createDiagnosticId ?? (() => crypto.randomUUID());
         const isDocumentVisible =
             this.dependencies.isDocumentVisible ?? (() => document.visibilityState === 'visible');
-        const countEditorWorkers = this.dependencies.countEditorWorkers ?? editorWorkersCreated;
+        const startup = (this.dependencies.readWorkerStartup ?? editorWorkerStartupSummary)();
         const pageLoad = (this.dependencies.readPageLoad ?? readPageLoad)();
         this.dependencies.reportDiagnostic({
             kind: 'editor-worker-stall',
@@ -140,7 +145,10 @@ export class GitDiffStallWatch {
             identicalModels: models?.identicalModels ?? false,
             diffOpenCount: this.diffOpenCount,
             stallCount: this.stallCount,
-            editorWorkersCreated: countEditorWorkers(),
+            editorWorkersCreated: startup.created,
+            editorWorkersStarted: startup.started,
+            editorWorkersStartupStalled: startup.stalled,
+            editorWorkersStartupStalledNow: startup.stalledNow,
         });
     }
 
@@ -195,7 +203,8 @@ export class GitDiffStallWatch {
              * to the log; it must never decide whether the user is told that this diff did not compute, because the
              * alternative is a screen that reads as "no changes". See issue #978.
              */
-            observation.onOutcome?.('stalled');
+            const startup = (this.dependencies.readWorkerStartup ?? editorWorkerStartupSummary)();
+            observation.onOutcome?.(startup.stalledNow > 0 ? 'worker-not-started' : 'stalled');
             // Rate-limited stalls still advance `stallCount`, so the next record that does go out carries the real
             // volume rather than implying a single occurrence.
             const isReported = this.shouldReport(now());

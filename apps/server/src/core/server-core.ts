@@ -71,7 +71,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             'server-core',
             resolveLogLevel(process.env),
         );
-    const stopEventLoopMonitor = startEventLoopMonitor(logger);
+    const eventLoopMonitor = startEventLoopMonitor(logger);
     const lease = await acquireServerProfile({
         startedAt,
         userDataPath: options.userDataPath,
@@ -81,13 +81,13 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         directory: lease.paths.directory,
         registryPath: lease.paths.mobileDevices,
         onOpenError: async () => {
-            stopEventLoopMonitor();
+            eventLoopMonitor.stop();
             await lease.release();
         },
     });
     logger.updateBaseContext({ bootId: lease.identity.processIdentity, buildId: options.buildId });
     const delegationAccess = await openDelegationAccess(lease.paths.directory, async () => {
-        stopEventLoopMonitor();
+        eventLoopMonitor.stop();
         await lease.release();
     });
     const agentEndpoints = new AgentEndpointRegistry(lease.identity.processIdentity);
@@ -197,7 +197,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         terminalExecution.markCoreStopping?.();
         stopPromise ??= (async () => {
             logger.write('info', logEventCatalog.serverCore.stopping, { fields: { reason } });
-            stopEventLoopMonitor();
+            eventLoopMonitor.stop();
             // Yields once so `stopPromise` is assigned below before a synchronous domain-shutdown side effect (e.g. a
             // state.changed emit) can hit `deliver`'s `if (!stopPromise)` extension-refresh branch.
             await Promise.resolve();
