@@ -2,6 +2,7 @@ import { execFileAsync, safeProcessEnvironment } from '@caxri/system';
 
 import type { ExternalCommandDependencies } from '../executables';
 import { runExternalCommand } from '../executables';
+import { LINEAR_TEAM_KEYS_QUERY } from './linear';
 
 const CLI_TIMEOUT_MS = 8_000;
 const CLI_MAX_BUFFER_BYTES = 4 * 1024 * 1024;
@@ -163,7 +164,12 @@ export function externalStatusCommandOperation(
             ? 'graphql.rate_limit'
             : 'unknown';
     }
-    if (source === 'linear') return arguments_[0] === 'api' ? 'issue.get' : 'unknown';
+    if (source === 'linear') {
+        if (arguments_[0] !== 'api') return 'unknown';
+        // The allow-list query is the more frequent of the two spawns; folding it into `issue.get` would make the
+        // Linear quota log unable to answer where the quota actually went. Its text is a literal, never user content.
+        return arguments_[1] === LINEAR_TEAM_KEYS_QUERY ? 'team_keys.list' : 'issue.get';
+    }
     if (source === 'vc') return arguments_[0] === 'teams' ? 'teams.list' : 'deployments.list';
     if (arguments_[0] === 'remote') return 'remote.get-url';
     if (arguments_[0] === 'symbolic-ref') return 'default-branch.get';

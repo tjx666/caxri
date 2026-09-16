@@ -147,6 +147,17 @@ const projectStatusOverviewPullRequestSchema = z.object({
     url: z.url(),
 });
 
+/**
+ * Where Caxri learned that this branch is about this issue, in descending order of how deliberate the statement was.
+ * The status bar names it, because "the pull request says so" and "somebody typed it in the chat" deserve different
+ * amounts of trust from the person reading the chip.
+ */
+export const linearIssueSourceSchema = z.enum(['pull-request', 'branch', 'conversation']);
+
+const projectStatusOverviewLinearIssueSchema = projectStatusLinearIssueSchema.extend({
+    source: linearIssueSourceSchema,
+});
+
 const projectStatusOverviewRepoSchema = z.object({
     id: z.string(),
     branch: z.string(),
@@ -156,6 +167,12 @@ const projectStatusOverviewRepoSchema = z.object({
     deletions: z.number().int().nonnegative(),
     pullRequest: projectStatusOverviewPullRequestSchema.optional(),
     pullRequestUnavailable: pullRequestUnavailableSchema.optional(),
+    /**
+     * Ordered most authoritative first. Only the leading entry carries a resolved title and workflow state: the status
+     * bar shows one issue and counts the rest, so resolving the tail would spend a query per refresh on text nothing
+     * renders.
+     */
+    linearIssues: z.array(projectStatusOverviewLinearIssueSchema),
 });
 
 export const projectStatusOverviewSchema = z.object({
@@ -167,6 +184,10 @@ export const projectStatusOverviewSchema = z.object({
 export type ProjectStatusState = z.infer<typeof projectStatusStateSchema>;
 export type ProjectStatusCheck = z.infer<typeof projectStatusCheckSchema>;
 export type ProjectStatusLinearIssue = z.infer<typeof projectStatusLinearIssueSchema>;
+export type LinearIssueSource = z.infer<typeof linearIssueSourceSchema>;
+export type ProjectStatusOverviewLinearIssue = z.infer<
+    typeof projectStatusOverviewLinearIssueSchema
+>;
 export type ProjectStatusDeployment = z.infer<typeof projectStatusDeploymentSchema>;
 export type ProjectStatusDeploymentCommit = z.infer<typeof projectStatusDeploymentCommitSchema>;
 export type ProjectStatusError = z.infer<typeof projectStatusErrorSchema>;

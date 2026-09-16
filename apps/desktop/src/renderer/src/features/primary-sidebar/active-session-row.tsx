@@ -124,9 +124,11 @@ export function ActiveSessionRow({
                  *
                  * VS Code's `worktree` codicon — a branch splitting off a trunk — rather than a second folder glyph.
                  * `FolderGit2` and `FolderSymlink` both read as one more folder mark next to the violet pull request
-                 * glyph 14px away, and `FolderGit2` already means "Workbench Root" in the root picker. What the marker
-                 * says is that this Session works in a linked worktree, and the codicon is the mark the user already
-                 * reads that way elsewhere.
+                 * glyph 14px away. What the marker says is that this Session works in a linked worktree, and the
+                 * codicon is the mark the user already reads that way elsewhere. The status bar's Workbench Root
+                 * picker swaps to the same codicon under the same condition (`workbench-root-picker.tsx`), so one
+                 * Session cannot read as a worktree here and as a plain root there; `FolderGit2` still means
+                 * "Workbench Root" for every other root.
                  *
                  * Decorative on purpose: the row already opens the Session hover card, which names the worktree, and
                  * its accessible description carries the same sentence. A second hover popup on one row would compete

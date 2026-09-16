@@ -42,7 +42,7 @@ function TerminalRendererStatus({ terminalId }: { terminalId: string }) {
     const shared = {
         ariaLabel: renderer.ariaLabel,
         className: 'statusbar-terminal-renderer text-warning',
-        icon: ZapOff,
+        icon: <ZapOff />,
         title: renderer.title,
     };
     const action = renderer.action;
@@ -87,6 +87,7 @@ function TerminalProgressStatus({ terminalId }: { terminalId: string }) {
     const progress = useTerminalProgress(terminalId);
     if (!progress) return null;
     const label = terminalProgressAriaLabel(progress);
+    const ProgressIcon = progressIcons[progress.kind];
     return (
         <StatusInfo
             ariaLabel={label}
@@ -94,7 +95,7 @@ function TerminalProgressStatus({ terminalId }: { terminalId: string }) {
                 'statusbar-terminal-progress tabular-nums',
                 progressColors[progress.kind],
             )}
-            icon={progressIcons[progress.kind]}
+            icon={<ProgressIcon />}
             title={label}
         >
             {terminalProgressLabel(progress)}
@@ -131,7 +132,7 @@ function TerminalUsageStatus({
             {showMemory && (
                 <StatusItem
                     ariaLabel={`Open Process Explorer — Terminal memory: ${usage.memoryMb} MB`}
-                    icon={MemoryStick}
+                    icon={<MemoryStick />}
                     title={`Open Process Explorer — Terminal memory: ${usage.memoryMb} MB`}
                     onClick={openProcessExplorer}
                 >
@@ -141,7 +142,7 @@ function TerminalUsageStatus({
             {showChildProcessCount && (
                 <StatusItem
                     ariaLabel={`Open Process Explorer — Terminal: ${childLabel}`}
-                    icon={Workflow}
+                    icon={<Workflow />}
                     title={`Open Process Explorer — Terminal: ${childLabel}`}
                     onClick={openProcessExplorer}
                 >

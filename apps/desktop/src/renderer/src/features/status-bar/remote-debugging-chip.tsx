@@ -20,7 +20,7 @@ export function RemoteDebuggingChip() {
     if (!copy) return null;
     return (
         <StatusItem
-            icon={Bug}
+            icon={<Bug />}
             ariaLabel={copy.description}
             title={copy.description}
             className="text-muted"

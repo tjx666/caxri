@@ -1,4 +1,9 @@
-import type { BootstrapState, CommandId } from '@caxri/protocol';
+import type {
+    BootstrapState,
+    CommandId,
+    ProjectRecord,
+    ProjectStatusOverview,
+} from '@caxri/protocol';
 import { isExternalEditorTabPath, parseGitDiffTab } from '@caxri/protocol';
 import { FileDiff, GitPullRequest, Monitor } from 'lucide-react';
 
@@ -16,7 +21,9 @@ import { useActivePaneTab } from '../workbench/pane-actions';
 import { ActiveFileStatus } from './active-file-status';
 import { ActiveTerminalStatus } from './active-terminal-status';
 import { BranchPicker } from './branch-picker';
+import type { ChipVisibility } from './chip-priority';
 import { resolveChipVisibility } from './chip-priority';
+import { LinearIssueStatus } from './linear-issue-status';
 import { pullRequestUnavailableLabel } from './pull-request-status-label';
 import { RemoteDebuggingChip } from './remote-debugging-chip';
 import { ScreencastModeChip } from './screencast-mode-chip';
@@ -108,7 +115,7 @@ function showSecondarySidebar(command: Extract<CommandId, `secondarySidebar.show
 function RepoChangesStatus({ additions, deletions }: { additions: number; deletions: number }) {
     return (
         <StatusItem
-            icon={FileDiff}
+            icon={<FileDiff />}
             ariaLabel={`Open changes: ${additions} ${additions === 1 ? 'addition' : 'additions'}, ${deletions} ${deletions === 1 ? 'deletion' : 'deletions'}`}
             title="Show primary repository changes"
             onClick={() => showSecondarySidebar('secondarySidebar.showGit')}
@@ -151,6 +158,75 @@ function ActivePaneStatus({
     return null;
 }
 
+/**
+ * Everything that describes what the active Session is working on, left-aligned and first to shrink. Kept apart from
+ * `StatusBar` so the footer's own layout is readable next to the pile of conditional chips.
+ */
+function StatusBarContext({
+    chipVisibility,
+    repo,
+    sessionId,
+    workbenchProject,
+}: {
+    chipVisibility: ChipVisibility;
+    repo?: NonNullable<ProjectStatusOverview['repository']>;
+    sessionId?: string;
+    workbenchProject?: ProjectRecord;
+}) {
+    return (
+        <div className="statusbar-context flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden">
+            {/**
+             * With a Session selected, the WorkbenchRootPicker below already names the same root (and its tooltip shows the same
+             * rootPath), so a separate project chip would print the title twice; the chip only covers the no-Session state.
+             */}
+            {workbenchProject && !sessionId && (
+                <StatusItem
+                    icon={<Monitor />}
+                    ariaLabel={`Open project files: ${workbenchProject.displayTitle}`}
+                    title={workbenchProject.rootPath}
+                    onClick={() => showSecondarySidebar('secondarySidebar.showFiles')}
+                >
+                    {workbenchProject.displayTitle}
+                </StatusItem>
+            )}
+            {/*
+             * No "No Project selected" placeholder: the only way to reach this state is an empty Workbench, where
+             * the PrimarySidebar already offers "Add your first Project" at full size. Restating it in the status bar
+             * says nothing new and gives the emptiest screen its most prominent line of prose.
+             */}
+            {sessionId && <WorkbenchRootPicker branch={repo?.branch} sessionId={sessionId} />}
+            {repo && sessionId && (
+                <BranchPicker branch={repo.branch} repositoryId={repo.id} sessionId={sessionId} />
+            )}
+            {repo?.pullRequest && chipVisibility.pullRequest && (
+                <StatusItem
+                    icon={<GitPullRequest />}
+                    href={repo.pullRequest.url}
+                    ariaLabel={`Open pull request #${repo.pullRequest.number}`}
+                    title={repo.pullRequest.title}
+                >
+                    #{repo.pullRequest.number}
+                </StatusItem>
+            )}
+            {repo?.pullRequestUnavailable && chipVisibility.pullRequest && (
+                <StatusInfo
+                    icon={<GitPullRequest />}
+                    ariaLabel={`${pullRequestUnavailableLabel(repo.pullRequestUnavailable.reason)}. ${repo.pullRequestUnavailable.hint}`}
+                    title={repo.pullRequestUnavailable.hint}
+                    className="bg-elevated text-muted"
+                    focusable
+                >
+                    {pullRequestUnavailableLabel(repo.pullRequestUnavailable.reason)}
+                </StatusInfo>
+            )}
+            {repo && repo.linearIssues.length > 0 && chipVisibility.linearIssue && (
+                <LinearIssueStatus issues={repo.linearIssues} />
+            )}
+            {repo && <RepoChangesStatus additions={repo.additions} deletions={repo.deletions} />}
+        </div>
+    );
+}
+
 export function StatusBar() {
     const session = useSelectedSession();
     const workbenchProject = useSelectedWorkbenchProject();
@@ -171,59 +247,12 @@ export function StatusBar() {
             className="statusbar col-span-full flex items-center gap-2 bg-surface px-2 text-[11px] text-muted"
             data-runtime-status={serverStatus ?? 'starting'}
         >
-            <div className="statusbar-context flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden">
-                {/**
-                 * With a Session selected, the WorkbenchRootPicker below already names the same root (and its tooltip shows the same
-                 * rootPath), so a separate project chip would print the title twice; the chip only covers the no-Session state.
-                 */}
-                {workbenchProject && !sessionId && (
-                    <StatusItem
-                        icon={Monitor}
-                        ariaLabel={`Open project files: ${workbenchProject.displayTitle}`}
-                        title={workbenchProject.rootPath}
-                        onClick={() => showSecondarySidebar('secondarySidebar.showFiles')}
-                    >
-                        {workbenchProject.displayTitle}
-                    </StatusItem>
-                )}
-                {/*
-                 * No "No Project selected" placeholder: the only way to reach this state is an empty Workbench, where
-                 * the PrimarySidebar already offers "Add your first Project" at full size. Restating it in the status bar
-                 * says nothing new and gives the emptiest screen its most prominent line of prose.
-                 */}
-                {sessionId && <WorkbenchRootPicker branch={repo?.branch} sessionId={sessionId} />}
-                {repo && sessionId && (
-                    <BranchPicker
-                        branch={repo.branch}
-                        repositoryId={repo.id}
-                        sessionId={sessionId}
-                    />
-                )}
-                {repo?.pullRequest && chipVisibility.pullRequest && (
-                    <StatusItem
-                        icon={GitPullRequest}
-                        href={repo.pullRequest.url}
-                        ariaLabel={`Open pull request #${repo.pullRequest.number}`}
-                        title={repo.pullRequest.title}
-                    >
-                        #{repo.pullRequest.number}
-                    </StatusItem>
-                )}
-                {repo?.pullRequestUnavailable && chipVisibility.pullRequest && (
-                    <StatusInfo
-                        icon={GitPullRequest}
-                        ariaLabel={`${pullRequestUnavailableLabel(repo.pullRequestUnavailable.reason)}. ${repo.pullRequestUnavailable.hint}`}
-                        title={repo.pullRequestUnavailable.hint}
-                        className="bg-elevated text-muted"
-                        focusable
-                    >
-                        {pullRequestUnavailableLabel(repo.pullRequestUnavailable.reason)}
-                    </StatusInfo>
-                )}
-                {repo && (
-                    <RepoChangesStatus additions={repo.additions} deletions={repo.deletions} />
-                )}
-            </div>
+            <StatusBarContext
+                chipVisibility={chipVisibility}
+                repo={repo}
+                sessionId={sessionId}
+                workbenchProject={workbenchProject}
+            />
             {/*
              * `min-w-0` lets this side actually shrink instead of pushing width past the window
              * edge — `<body>` has `overflow-x: hidden`, so a `flex-none` sibling here used to be
