@@ -5,6 +5,7 @@ import { CaxriError } from '@caxri/protocol';
 
 import type { CaxriDatabase } from './db';
 import { assertInsideRoot, isOutsideRoot } from './path-security';
+import { isSameWorkbenchRootIdentity } from './workbench-root-discovery';
 
 /**
  * Accept alternate spellings of the Project root (such as macOS /var), without authorizing an outside leaf.
@@ -81,10 +82,7 @@ export class ProjectRootResolver {
                 throw new CaxriError('PATH_DENIED', 'Project root changed after it was selected');
             if (
                 binding.workbenchProjectId !== binding.projectId &&
-                (binding.rootDevice === undefined ||
-                    binding.rootInode === undefined ||
-                    rootStats.dev.toString() !== binding.rootDevice ||
-                    rootStats.ino.toString() !== binding.rootInode)
+                !isSameWorkbenchRootIdentity(binding, { inode: rootStats.ino.toString() })
             )
                 throw new CaxriError('PATH_DENIED', 'Workbench root changed after authorization');
             await this.options.beforeRootRealpath?.();
