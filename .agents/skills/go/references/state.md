@@ -276,3 +276,9 @@ bun run .agents/skills/go/scripts/state.ts phase --help
   recorded. `decision_required` remains blocked after commenting until a new
   resolved decision revision is published. Identical resume attempts reuse the
   existing comment URL and never post duplicates.
+- Acceptance requires every issue to be assessed at the exact delivered head, so
+  a cross-issue repair that moves that head leaves each earlier assessment stale.
+  Re-attest with the non-material `final-assessment` form above: it refreshes the
+  assessment head and leaves a published decision intact. Do not re-assert an
+  unchanged decision as material drift — the fingerprint is head-scoped, so that
+  reads as a new revision and would publish a duplicate of the same comment.
