@@ -26,6 +26,7 @@ import { EditorLoadFailure } from './editor-load-failure';
 import type { EditorLoadTone } from './editor-load-state';
 import { editorLoadReducer, initialEditorLoadState } from './editor-load-state';
 import { getLoadedCodeEditor, loadCodeEditor, subscribeLoadedCodeEditor } from './editor-loader';
+import { EditorPathBreadcrumbs } from './editor-path-breadcrumbs';
 import { editorStatusKey } from './editor-status';
 
 const GitDiffEditor = lazy(async () => {
@@ -204,17 +205,29 @@ function FileEditorSurface({ paneId, path }: { paneId: string; path: string }) {
     }
     return (
         <div className="flex h-full min-h-0 flex-col">
-            {!isExternal && (
+            {/*
+             * An external document keeps the rail — its absolute path is the only place the Session can see where the
+             * file actually lives — but gets the display-only variant, because no Project root sits behind its
+             * segments for the sibling picker to list.
+             */}
+            {(!isExternal || document.displayPath) && (
                 <div className="flex h-6 shrink-0 items-center overflow-hidden border-b border-border bg-surface">
-                    {project && (
-                        <EditorBreadcrumbs
-                            paneId={paneId}
-                            path={path}
-                            projectRoot={project.rootPath}
-                            sessionId={sessionId}
-                            workbenchProjectId={session.workbenchProjectId}
-                        />
-                    )}
+                    {isExternal
+                        ? document.displayPath && (
+                              <EditorPathBreadcrumbs
+                                  accessibilityLabel={`File breadcrumbs: ${document.displayPath}`}
+                                  path={document.displayPath}
+                              />
+                          )
+                        : project && (
+                              <EditorBreadcrumbs
+                                  paneId={paneId}
+                                  path={path}
+                                  projectRoot={project.rootPath}
+                                  sessionId={sessionId}
+                                  workbenchProjectId={session.workbenchProjectId}
+                              />
+                          )}
                 </div>
             )}
             <div className="min-h-0 flex-1">
