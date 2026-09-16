@@ -35,6 +35,55 @@ const projectStatusLinearIssueSchema = z.object({
 });
 
 /**
+ * Where an acceptance report sits in its own lifecycle. Distinct from {@link acceptanceVerdictSchema}: a report can be
+ * `repairing` after a round already returned `failed`, and `accepted` is a person's decision rather than a run's
+ * result.
+ */
+const acceptanceStatusSchema = z.enum([
+    'pending',
+    'planned',
+    'verifying',
+    'repairing',
+    'delivered',
+    'accepted',
+    'closed',
+    'rejected',
+    'errored',
+]);
+
+/**
+ * What one verification round concluded. `uncertain` is a real third outcome, not a missing value: a round that could
+ * not decide is explicitly different from one that has not finished.
+ */
+const acceptanceVerdictSchema = z.enum(['passed', 'failed', 'uncertain']);
+
+/**
+ * One acceptance report a branch is delivering against. Everything past `id` is absent until the report resolves, so a
+ * link Caxri recognized but could not read still renders as itself.
+ */
+const projectStatusAcceptanceSchema = z.object({
+    id: z.string(),
+    /**
+     * The report reduced to the same six-state vocabulary a check or a deployment reports, computed by the Server so
+     * the status bar and the Status panel cannot reach different conclusions about one report. See
+     * {@link acceptanceProjectStatusState} for the rule.
+     */
+    state: projectStatusStateSchema,
+    url: z.url().optional(),
+    /**
+     * The 1-based round the link pinned, when it named one. Absent means the link pointed at the report as a whole, and
+     * the latest round is the one that answers for it.
+     */
+    round: z.number().int().positive().optional(),
+    title: z.string().optional(),
+    status: acceptanceStatusSchema.optional(),
+    verdict: acceptanceVerdictSchema.optional(),
+    passedChecks: z.number().int().nonnegative().optional(),
+    totalChecks: z.number().int().nonnegative().optional(),
+    roundCount: z.number().int().nonnegative().optional(),
+});
+
+/**
  * The Git commit a provider built, when the deployment came from a connected repository rather than a direct CLI
  * upload. It identifies the deployment far better than the generated alias does, so the Status panel leads with it.
  */
@@ -59,7 +108,7 @@ const projectStatusDeploymentSchema = z.object({
 });
 
 const projectStatusErrorSchema = z.object({
-    source: z.enum(['github', 'linear', 'vercel']),
+    source: z.enum(['acceptance', 'github', 'linear', 'vercel']),
     kind: z.enum(['prerequisite', 'failure']),
     /**
      * Set for the failures that are one condition across every repository in the Project rather than a property of the
@@ -124,6 +173,7 @@ const projectStatusRepoSchema = z.object({
         })
         .optional(),
     linearIssues: z.array(projectStatusLinearIssueSchema),
+    acceptances: z.array(projectStatusAcceptanceSchema),
     deployments: z
         .object({
             url: z.url(),
@@ -158,6 +208,16 @@ const projectStatusOverviewLinearIssueSchema = projectStatusLinearIssueSchema.ex
     source: linearIssueSourceSchema,
 });
 
+/**
+ * Same question as {@link linearIssueSourceSchema}, minus `branch`: an acceptance report is addressed by an opaque id,
+ * which a branch name has no room to carry and no reason to.
+ */
+export const acceptanceSourceSchema = z.enum(['pull-request', 'conversation']);
+
+const projectStatusOverviewAcceptanceSchema = projectStatusAcceptanceSchema.extend({
+    source: acceptanceSourceSchema,
+});
+
 const projectStatusOverviewRepoSchema = z.object({
     id: z.string(),
     branch: z.string(),
@@ -173,6 +233,10 @@ const projectStatusOverviewRepoSchema = z.object({
      * renders.
      */
     linearIssues: z.array(projectStatusOverviewLinearIssueSchema),
+    /**
+     * Ordered most authoritative first, and resolved on the same "lead only" rule as `linearIssues`.
+     */
+    acceptances: z.array(projectStatusOverviewAcceptanceSchema),
 });
 
 export const projectStatusOverviewSchema = z.object({
@@ -182,12 +246,59 @@ export const projectStatusOverviewSchema = z.object({
 });
 
 export type ProjectStatusState = z.infer<typeof projectStatusStateSchema>;
+
+/**
+ * Reduces an acceptance report to the same six-state vocabulary a check or a deployment reports. The Server calls it
+ * once and ships the answer as `state`, so the status bar and the Status panel render the same verdict instead of each
+ * quantizing the lifecycle and the round result for itself.
+ *
+ * The verdict wins over the lifecycle when both are present, because it is the newer fact: a report sitting in
+ * `repairing` after a round returned `failed` is failing right now, whatever happens next. `uncertain` maps to
+ * `pending` rather than `neutral` — a round that could not decide still wants a human, and `neutral` reads as settled.
+ */
+export function acceptanceProjectStatusState(
+    acceptance: Pick<ProjectStatusAcceptance, 'status' | 'verdict'>,
+): ProjectStatusState {
+    if (acceptance.verdict === 'failed') return 'failure';
+    if (acceptance.verdict === 'uncertain') return 'pending';
+    if (acceptance.verdict === 'passed' && !acceptance.status) return 'success';
+    switch (acceptance.status) {
+        case 'accepted': {
+            return 'success';
+        }
+        case 'errored':
+        case 'rejected': {
+            return 'failure';
+        }
+        case 'closed': {
+            return 'cancelled';
+        }
+        case 'delivered':
+        case 'repairing':
+        case 'verifying': {
+            return 'pending';
+        }
+        case 'pending':
+        case 'planned': {
+            return 'neutral';
+        }
+        default: {
+            // A resolved report whose round passed but whose lifecycle Caxri does not recognize is still good news.
+            return acceptance.verdict === 'passed' ? 'success' : 'unknown';
+        }
+    }
+}
 export type ProjectStatusCheck = z.infer<typeof projectStatusCheckSchema>;
 export type ProjectStatusLinearIssue = z.infer<typeof projectStatusLinearIssueSchema>;
 export type LinearIssueSource = z.infer<typeof linearIssueSourceSchema>;
 export type ProjectStatusOverviewLinearIssue = z.infer<
     typeof projectStatusOverviewLinearIssueSchema
 >;
+export type ProjectStatusAcceptance = z.infer<typeof projectStatusAcceptanceSchema>;
+export type AcceptanceStatus = z.infer<typeof acceptanceStatusSchema>;
+export type AcceptanceVerdict = z.infer<typeof acceptanceVerdictSchema>;
+export type AcceptanceSource = z.infer<typeof acceptanceSourceSchema>;
+export type ProjectStatusOverviewAcceptance = z.infer<typeof projectStatusOverviewAcceptanceSchema>;
 export type ProjectStatusDeployment = z.infer<typeof projectStatusDeploymentSchema>;
 export type ProjectStatusDeploymentCommit = z.infer<typeof projectStatusDeploymentCommitSchema>;
 export type ProjectStatusError = z.infer<typeof projectStatusErrorSchema>;

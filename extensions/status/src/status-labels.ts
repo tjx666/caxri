@@ -1,6 +1,72 @@
-import type { ProjectStatusDeployment, ProjectStatusRepository, ProjectStatusState } from 'caxri';
+import type {
+    AcceptanceStatus,
+    AcceptanceVerdict,
+    ProjectStatusAcceptance,
+    ProjectStatusDeployment,
+    ProjectStatusRepository,
+    ProjectStatusState,
+} from 'caxri';
 
 type ProjectStatusPublication = NonNullable<ProjectStatusRepository['publication']>;
+
+/**
+ * Lifecycle wording, spelled out rather than title-cased from the enum. `delivered` and `accepted` differ by who acted
+ * — the Agent finished, a person agreed — and that distinction is the whole reason a reviewer opens this row.
+ */
+const acceptanceStatusLabels: Record<AcceptanceStatus, string> = {
+    pending: 'Not started',
+    planned: 'Plan ready',
+    verifying: 'Verifying',
+    repairing: 'Repairing',
+    delivered: 'Awaiting review',
+    accepted: 'Accepted',
+    closed: 'Closed',
+    rejected: 'Rejected',
+    errored: 'Errored',
+};
+
+const acceptanceVerdictLabels: Record<AcceptanceVerdict, string> = {
+    passed: 'Checks passed',
+    failed: 'Checks failed',
+    uncertain: 'Checks inconclusive',
+};
+
+export function acceptanceStatusLabel(status: AcceptanceStatus): string {
+    return acceptanceStatusLabels[status];
+}
+
+export function acceptanceVerdictLabel(verdict: AcceptanceVerdict): string {
+    return acceptanceVerdictLabels[verdict];
+}
+
+/**
+ * The row's own text. The subject is what a person recognizes; the opaque id never appears, because it identifies a
+ * private acceptance record and tells a reader nothing it could not get from the link itself.
+ */
+export function acceptanceRowLabel(acceptance: ProjectStatusAcceptance): string {
+    return acceptance.title ?? 'Acceptance report';
+}
+
+/**
+ * The row's trailing description: the check tally, then the round. Unlike the Linear row's state, neither is carried by
+ * the glyph, so this is the only place the panel can state how much of the verification actually passed.
+ *
+ * An unpinned link on a multi-round report says `latest of 3` rather than naming a number, because it is the report
+ * that was addressed and the round that answered may change under the same link.
+ */
+export function acceptanceDescription(acceptance: ProjectStatusAcceptance): string | undefined {
+    const tally =
+        acceptance.totalChecks === undefined || acceptance.passedChecks === undefined
+            ? undefined
+            : `${acceptance.passedChecks}/${acceptance.totalChecks}`;
+    const round =
+        acceptance.round === undefined
+            ? acceptance.roundCount !== undefined && acceptance.roundCount > 1
+                ? `latest of ${acceptance.roundCount}`
+                : undefined
+            : `round ${acceptance.round}`;
+    return [tally, round].filter(Boolean).join(' · ') || undefined;
+}
 
 /**
  * Every row that offers `caxri.project-status.refresh` says the same word. The command has one registered title

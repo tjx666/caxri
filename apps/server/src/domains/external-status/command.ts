@@ -9,9 +9,9 @@ const CLI_MAX_BUFFER_BYTES = 4 * 1024 * 1024;
 
 /**
  * Every external CLI the Server shells out to for delivery metadata. `git` is local, free, and never quota-governed;
- * the other three answer to a remote API budget shared with everything else the user runs on this machine.
+ * the others answer to a remote API budget shared with everything else the user runs on this machine.
  */
-export type ExternalStatusSource = 'gh' | 'git' | 'linear' | 'vc';
+export type ExternalStatusSource = 'gh' | 'git' | 'lh' | 'linear' | 'vc';
 
 /**
  * The subset of {@link ExternalStatusSource} that a remote provider can rate limit, and therefore the subset
@@ -170,6 +170,10 @@ export function externalStatusCommandOperation(
         // Linear quota log unable to answer where the quota actually went. Its text is a literal, never user content.
         return arguments_[1] === LINEAR_TEAM_KEYS_QUERY ? 'team_keys.list' : 'issue.get';
     }
+    if (source === 'lh')
+        return arguments_[0] === 'acceptance' && arguments_[1] === 'view'
+            ? 'acceptance.get'
+            : 'unknown';
     if (source === 'vc') return arguments_[0] === 'teams' ? 'teams.list' : 'deployments.list';
     if (arguments_[0] === 'remote') return 'remote.get-url';
     if (arguments_[0] === 'symbolic-ref') return 'default-branch.get';

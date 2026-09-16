@@ -3,7 +3,12 @@ import { describe, expect, it } from 'vitest';
 import type { SessionTranscriptContext } from '../session-context';
 import { fixture } from './workbench-roots.fixture';
 
-const EMPTY: SessionTranscriptContext = { branches: [], directories: [], linearReferences: [] };
+const EMPTY: SessionTranscriptContext = {
+    acceptanceReferences: [],
+    branches: [],
+    directories: [],
+    linearReferences: [],
+};
 
 describe('Workbench Root conversation recommendations', () => {
     it('marks the worktree this Session’s conversation worked in, without changing its authorization', async () => {
