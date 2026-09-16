@@ -302,6 +302,7 @@ export const logEventCatalog = {
         fallback: 'workbench_root.fallback',
         provenancePrimed: 'workbench_root.provenance_primed',
         provenanceUnavailable: 'workbench_root.provenance_unavailable',
+        rebound: 'workbench_root.rebound',
         selected: 'workbench_root.selected',
         topologyFailed: 'workbench_root.topology_failed',
         validationDropped: 'workbench_root.validation_dropped',

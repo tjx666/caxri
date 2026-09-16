@@ -57,7 +57,9 @@ interface AgentWorktreeAttributionOptions {
 }
 
 /**
- * Detects manual root changes across every asynchronous phase of worktree attribution and following.
+ * Detects a binding that moved on across every asynchronous phase of worktree attribution and following. Usually that
+ * is a manual root change; it is also a validation sweep re-anchoring the recorded device after a reboot. Both must
+ * make the older in-flight decision stand down, so the device stays part of the equality.
  */
 export function isSameWorkbenchBinding(
     left: ReturnType<CaxriDatabase['getSessionWorkbenchBinding']>,
