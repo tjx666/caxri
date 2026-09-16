@@ -354,6 +354,27 @@ complete, so a busy Project never buries the Projects below it. The selected Ses
 renders even when it sits below that window. The revealed count is per-Renderer-lifetime: a relaunch starts from the short list
 the same way it starts scrolled to the top.
 
+Pinning a Session adds a global `Pinned` group above every Project instead of moving the Session out
+of its own. The Session keeps its Project row, because a pin is a shortcut to a Session rather than a
+relocation of it, and the week's important work usually spans several Projects. The two copies
+therefore say different things: the Pinned row's accessible description opens with `In Pinned group.`
+and the Project row's with `Pinned.`. A selected pinned Session does report `aria-selected` on both
+rows — leaving the Pinned copy unselected would make the row a keyboard user is standing on announce
+itself as not selected, which is the worse lie, and the sidebar tree already carries a second
+selected row in the owning Project's heading. The group heading mirrors a Project heading — a
+disclosure, its name, and a trailing count that stays visible while collapsed because it is then the
+only thing saying how much is inside — but takes the `Pin` glyph instead of a folder. Its rows trail
+the owning Project's name in `--muted`, allowed to shrink to nothing so a long Session title still
+wins the row; without it the group would stack titles from several Projects with nothing to tell them
+apart. Pinned is its own list with its own order and its own drag: a fresh pin lands after everything
+already there, and a drag inside Pinned never moves the same Session inside its Project. It reuses
+the Project disclosure's five-row window and `Show N more` row, so a long Pinned list cannot push
+every Project off screen. Pinning is reachable from the row's hover action — the `Pin` glyph, tinted
+`--accent` while pinned — and from the row's context menu, which is where the keyboard reaches it,
+since the hover buttons stay outside the tree's single Tab stop. Archiving clears the pin, because a
+Session archived and pinned at once would be hidden from its Project group while still sitting at the
+top of the sidebar; unarchiving does not restore it, since the pin was a separate decision.
+
 A Session working in a Git worktree rather than its Project root is marked by the VS Code `worktree`
 codicon in a leading fixed-width 14px column, reserved for the whole Project group at once so every
 marker in a group lands on one vertical line and titles never shift sideways as Sessions come and
