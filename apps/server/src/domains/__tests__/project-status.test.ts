@@ -323,6 +323,7 @@ describe('ProjectStatusService', () => {
                 title: 'Status Bar context',
                 url: 'https://github.com/example/project/pull/11',
             },
+            linearIssues: [],
         });
         expect(runner.mock.calls.filter(([command]) => command === 'gh')).toHaveLength(1);
         expect(

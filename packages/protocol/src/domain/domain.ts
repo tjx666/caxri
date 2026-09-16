@@ -376,6 +376,12 @@ export const workbenchRootOptionSchema = z
         displayTitle: z.string().min(1).max(1_024),
         branch: z.string().min(1).max(1_024),
         owner: z.boolean(),
+        /**
+         * Set when this Session's own Agent conversation named this worktree and the Session is still bound to the
+         * repository's main worktree. `0` is the most recently named. It is a display hint only: the option carries no
+         * more authority than any other, and an unauthorized worktree still has to be authorized to be selected.
+         */
+        conversationRank: z.number().int().nonnegative().optional(),
     })
     .refine(
         (option) =>

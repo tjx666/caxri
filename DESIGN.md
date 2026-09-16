@@ -211,6 +211,14 @@ small allowlist covers existing structural viewport, empty-state, and platform-d
 not additional control-density tiers. Every allowlist entry is a grandfathered measurement, not a
 precedent — a new arbitrary value requires updating this spec first with a stated reason.
 
+The Status Bar's two glyph boxes are the one entry admitted under that rule rather than inherited:
+`size-[13px]` on an interactive item and `size-[12px]` on a read-only reading size the icon to the
+text tier it sits beside (`base` and `dense`), which is why they repeat the sanctioned type sizes
+instead of introducing a third measurement. They are declared once on the two shared status-bar
+recipes so a caller can hand over any rendered glyph — a Lucide component, a Linear workflow icon —
+without knowing which of the two bar heights it lands in. Sizing a glyph at its call site is the
+drift this replaces; do not reintroduce it.
+
 ## Component redlines
 
 **Window chrome** — `titleBarStyle: 'hiddenInset'`. The 44px PrimarySidebar, workbench, and

@@ -1,17 +1,32 @@
 import type { WorkbenchRootOption } from '@caxri/protocol';
 
 /**
+ * The worktrees this Session's own conversation named, most recently named first.
+ *
+ * The Server sets `conversationRank` only while the Session is still bound to the repository's main worktree, and only
+ * for worktrees Git independently reported, so this is a display order — never an authorization.
+ */
+export function conversationWorkbenchRoots(roots: readonly WorkbenchRootOption[]) {
+    return roots
+        .filter((root) => root.conversationRank !== undefined)
+        .toSorted((left, right) => (left.conversationRank ?? 0) - (right.conversationRank ?? 0));
+}
+
+/**
  * Current and main roots remain reachable without displacing the five newest linked worktrees.
+ *
+ * `excluded` carries the worktrees a leading group already renders, so a recommendation never appears twice.
  */
 export function visibleWorkbenchRoots(
     roots: readonly WorkbenchRootOption[],
     projectId: string | undefined,
     shouldShowAll: boolean,
+    excluded?: ReadonlySet<string>,
 ) {
     const current = projectId ? roots.find((root) => root.projectId === projectId) : undefined;
     const main = roots.find((root) => root.isMain);
     const recent = roots
-        .filter((root) => root !== current && root !== main)
+        .filter((root) => root !== current && root !== main && !excluded?.has(root.worktreeId))
         .toSorted(
             (left, right) =>
                 (right.createdAt ?? 0) - (left.createdAt ?? 0) ||

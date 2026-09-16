@@ -16,6 +16,7 @@ import type { AgentLifecycleSignal, AgentSignalDecision } from './agents';
 import type { CaxriDatabase } from './db';
 import type { GitService, GitWorktreeTopology } from './git';
 import { assertInsideRoot } from './path-security';
+import type { SessionTranscriptContext } from './session-context';
 import { SingleFlight } from './single-flight';
 import type { WorktreeProvenanceScope } from './workbench-provenance';
 import {
@@ -27,6 +28,8 @@ import {
     discoverWorkbenchRoots,
     isSameWorkbenchRootIdentity,
     unavailableWorkbenchRoot,
+    unavailableWorkbenchRoots,
+    withConversationRanks,
     worktreeIdentityId,
 } from './workbench-root-discovery';
 
@@ -57,6 +60,10 @@ interface WorkbenchRootServiceOptions {
     emit(event: ServerEvent): void;
     git: GitService;
     logger: StructuredLogger;
+    /**
+     * Worktree clues from this Session's own conversation; omitted, the picker simply offers no leading group.
+     */
+    sessionContext?: (session: SessionRecord) => Promise<SessionTranscriptContext>;
 }
 
 /**
@@ -530,9 +537,7 @@ export class WorkbenchRootService {
             topology = await this.loadTopology(owner.rootPath);
         } catch {
             const active = this.options.database.getProject(session.workbenchProjectId);
-            return [owner, ...(active && active.id !== owner.id ? [active] : [])].map((project) =>
-                unavailableWorkbenchRoot(project, owner.id),
-            );
+            return unavailableWorkbenchRoots(owner, active);
         }
         const options = await discoverWorkbenchRoots(
             topology,
@@ -542,7 +547,8 @@ export class WorkbenchRootService {
         );
         if (options.every((option) => option.projectId !== owner.id))
             options.unshift(unavailableWorkbenchRoot(owner, owner.id));
-        return options.toSorted((left, right) => Number(right.owner) - Number(left.owner));
+        const ranked = await withConversationRanks(session, options, this.options.sessionContext);
+        return ranked.toSorted((left, right) => Number(right.owner) - Number(left.owner));
     }
 
     /**

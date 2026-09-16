@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { lstat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 
-import type { ProjectRecord, WorkbenchRootOption } from '@caxri/protocol';
+import type { ProjectRecord, SessionRecord, WorkbenchRootOption } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
 import type { GitWorktreeTopology } from './git';
@@ -24,6 +24,18 @@ export function unavailableWorkbenchRoot(
         branch: 'No branch',
         owner: project.id === ownerId,
     };
+}
+
+/**
+ * The whole menu when Git topology is unreadable: the owning Project, plus the Session's current binding when it is a
+ * different Project. Neither entry is newly authorized — both already exist in the database.
+ */
+export function unavailableWorkbenchRoots(
+    owner: ProjectRecord,
+    active: ProjectRecord | undefined,
+): WorkbenchRootOption[] {
+    const projects = [owner, ...(active && active.id !== owner.id ? [active] : [])];
+    return projects.map((project) => unavailableWorkbenchRoot(project, owner.id));
 }
 
 /**
@@ -75,6 +87,74 @@ async function worktreeCreatedAt(rootPath: string): Promise<number | undefined> 
     } catch {
         return undefined;
     }
+}
+
+/**
+ * How many worktrees the picker may lead with. Beyond a handful the group stops being a shortcut and becomes a second
+ * list to read.
+ */
+const MAX_CONVERSATION_RECOMMENDATIONS = 3;
+
+/**
+ * Ranks the discovered worktrees this Session's conversation actually named, most recently named first.
+ *
+ * The conversation is treated purely as a _filter over what Git already reported_ — a directory or branch it mentioned
+ * matters only when it resolves to a worktree that discovery independently found and stat'd. A path the Agent printed
+ * therefore cannot introduce a root, cannot change a root's authorization, and cannot survive the worktree being
+ * removed; at worst it reorders a menu.
+ *
+ * Directories outrank branches because a directory is where work happened, while a branch name may be quoted in
+ * passing. Within each, recency wins.
+ */
+function rankConversationWorktrees(
+    options: readonly WorkbenchRootOption[],
+    context: { branches: readonly string[]; directories: readonly string[] },
+    limit = MAX_CONVERSATION_RECOMMENDATIONS,
+): Map<string, number> {
+    const byRootPath = new Map(options.map((option) => [option.rootPath, option]));
+    const byBranch = new Map<string, WorkbenchRootOption>();
+    for (const option of options)
+        if (!byBranch.has(option.branch)) byBranch.set(option.branch, option);
+    const ranked = new Map<string, number>();
+    const remember = (option: WorkbenchRootOption | undefined): void => {
+        // The Session is bound to the main worktree by definition here, so recommending it says nothing.
+        if (!option || option.isMain || ranked.has(option.worktreeId) || ranked.size >= limit)
+            return;
+        ranked.set(option.worktreeId, ranked.size);
+    };
+    for (const directory of context.directories) remember(byRootPath.get(directory));
+    for (const branch of context.branches) remember(byBranch.get(branch));
+    return ranked;
+}
+
+/**
+ * Annotates the discovered options with `conversationRank` — but only while the Session is still bound to the
+ * repository's main worktree.
+ *
+ * Once the user has moved to a task worktree, the binding _is_ the answer to "which worktree is this about", and
+ * re-suggesting whatever the Agent last mentioned would argue with a choice the user already made. The transcript is
+ * not read at all in that case, so the common steady state costs nothing.
+ */
+export async function withConversationRanks(
+    session: SessionRecord,
+    options: readonly WorkbenchRootOption[],
+    read?: (
+        session: SessionRecord,
+    ) => Promise<{ branches: readonly string[]; directories: readonly string[] }>,
+): Promise<WorkbenchRootOption[]> {
+    const current = options.find((option) => option.projectId === session.workbenchProjectId);
+    if (!read || !current?.isMain) return [...options];
+    let ranked: Map<string, number>;
+    try {
+        ranked = rankConversationWorktrees(options, await read(session));
+    } catch {
+        // A menu that opens without its shortcut is fine; a menu that fails to open is not.
+        return [...options];
+    }
+    return options.map((option) => {
+        const rank = ranked.get(option.worktreeId);
+        return rank === undefined ? option : { ...option, conversationRank: rank };
+    });
 }
 
 /**

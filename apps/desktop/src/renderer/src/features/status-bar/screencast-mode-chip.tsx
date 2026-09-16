@@ -25,7 +25,7 @@ export function ScreencastModeChip() {
     if (!isEnabled) return null;
     return (
         <StatusItem
-            icon={Cast}
+            icon={<Cast />}
             ariaLabel={SCREENCAST_CHIP_LABEL}
             title={SCREENCAST_CHIP_LABEL}
             className={screencastChipClassName}

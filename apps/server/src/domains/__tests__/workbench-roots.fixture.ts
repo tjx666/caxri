@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { NewWorktreeBehavior, ServerEvent } from '@caxri/protocol';
+import type { NewWorktreeBehavior, ServerEvent, SessionRecord } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import { expect, onTestFinished, vi } from 'vitest';
 
@@ -10,11 +10,15 @@ import type { AgentLifecyclePhase } from '../agents';
 import { CaxriDatabase } from '../db/repository';
 import type { GitService, GitWorktreeTopology } from '../git';
 import { ProjectRootResolver } from '../project-roots';
+import type { SessionTranscriptContext } from '../session-context';
 import { WorkbenchRootService } from '../workbench-roots';
 
 export async function fixture(
     sessionCount = 1,
-    options: { beforeRootIdentityRealpath?: () => Promise<void> } = {},
+    options: {
+        beforeRootIdentityRealpath?: () => Promise<void>;
+        sessionContext?: (session: SessionRecord) => Promise<SessionTranscriptContext>;
+    } = {},
 ) {
     const createdDirectory = await mkdtemp(join(tmpdir(), 'caxri-workbench-roots-'));
     const directory = await realpath(createdDirectory);

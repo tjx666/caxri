@@ -4,6 +4,7 @@ import { Check, FolderGit2 } from 'lucide-react';
 import {
     Command,
     CommandEmpty,
+    CommandGroup,
     CommandInput,
     CommandItem,
     CommandList,
@@ -12,12 +13,17 @@ import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/pop
 import { Separator } from '../../components/ui/separator';
 import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
+import { WorktreeIcon } from '../../icons/codicons/worktree-icon';
 import { cn } from '../../lib/utilities';
 import { useSelectedSession, useSelectedWorkbenchProject } from '../../stores/selectors';
 import { pickerSearchScore } from './picker-search';
 import { statusItemClassName } from './status-item';
 import { useWorkbenchRootPicker } from './use-workbench-root-picker';
-import { visibleWorkbenchRoots, workbenchRootLabel } from './workbench-root-options';
+import {
+    conversationWorkbenchRoots,
+    visibleWorkbenchRoots,
+    workbenchRootLabel,
+} from './workbench-root-options';
 
 function WorktreeOption({
     root,
@@ -69,6 +75,103 @@ function WorktreeOption({
     );
 }
 
+/**
+ * The recommended group and the ordinary list render identical rows; only their membership differs, so they share one
+ * mapper rather than two copies that can drift apart.
+ */
+function WorktreeOptions({
+    options,
+    roots,
+    currentProjectId,
+    picker,
+}: {
+    options: readonly WorkbenchRootOption[];
+    roots: WorkbenchRootOption[];
+    currentProjectId: string;
+    picker: ReturnType<typeof useWorkbenchRootPicker>;
+}) {
+    return options.map((root) => (
+        <WorktreeOption
+            key={root.worktreeId}
+            root={root}
+            roots={roots}
+            current={root.projectId === currentProjectId}
+            disabled={picker.switching}
+            onSelect={() => {
+                // eslint-disable-next-line no-void -- the action owns its error toast and pending state.
+                void picker.select(root);
+            }}
+        />
+    ));
+}
+
+/**
+ * The status bar chip that opens the menu.
+ *
+ * `isWorktree` decides the glyph: the same one the PrimarySidebar puts on a Session working in a linked worktree, under
+ * the same condition, so one Session cannot read as a worktree in the sidebar and as a plain Workbench Root here.
+ * `FolderGit2` stays for the ordinary case, where it still means "Workbench Root".
+ */
+function WorkbenchRootTrigger({
+    branch,
+    isExpanded,
+    isSwitching,
+    isWorktree,
+    title,
+}: {
+    branch: string;
+    isExpanded: boolean;
+    isSwitching: boolean;
+    isWorktree: boolean;
+    title: string;
+}) {
+    return (
+        <PopoverTrigger
+            role="combobox"
+            aria-expanded={isExpanded}
+            aria-haspopup="listbox"
+            disabled={isSwitching}
+            aria-label={`Switch Workbench Root from ${title}, branch ${branch}`}
+            className={cn(
+                statusItemClassName,
+                'h-5 w-auto max-w-full justify-start px-[5px] text-[11px]',
+            )}
+        >
+            {isWorktree ? (
+                <WorktreeIcon size={13} className="flex-none" />
+            ) : (
+                <FolderGit2 size={13} className="flex-none" />
+            )}
+            <span className="min-w-0 truncate">{title}</span>
+        </PopoverTrigger>
+    );
+}
+
+/**
+ * The menu's own empty and failure states. `cmdk` owns "no match"; the query owns "not loaded yet" and "could not
+ * load", and the two must not be rendered as the same blank list.
+ */
+function WorkbenchRootPlaceholder({
+    isError,
+    isLoading,
+}: {
+    isError: boolean;
+    isLoading: boolean;
+}) {
+    if (isLoading)
+        return (
+            <div className="flex items-center gap-2 px-2 py-2 text-muted">
+                <Spinner aria-hidden="true" className="size-3" />
+                Loading worktrees…
+            </div>
+        );
+    return (
+        <CommandEmpty>
+            {isError ? 'Unable to load worktrees. Reopen to retry.' : 'No matching worktrees.'}
+        </CommandEmpty>
+    );
+}
+
 interface WorkbenchRootPickerProperties {
     branch?: string;
     sessionId: string;
@@ -84,28 +187,25 @@ function WorkbenchRootPickerContent({ branch, sessionId }: WorkbenchRootPickerPr
     // Typing searches every root: the compact list exists to keep the closed menu short, not to
     // hide worktrees from a query the user already typed.
     const isSearching = picker.search.trim().length > 0;
+    // The recommendations are a shortcut for the closed menu. Once the user types, the flat list of matches is the
+    // better answer, so the group folds back into the ordinary list rather than splitting the results in two.
+    const recommended = isSearching ? [] : conversationWorkbenchRoots(roots);
     const visible = visibleWorkbenchRoots(
         roots,
         session.workbenchProjectId,
         picker.all || isSearching,
+        new Set(recommended.map((root) => root.worktreeId)),
     );
     return (
         <Popover open={picker.open} onOpenChange={picker.changeOpen}>
             <Tooltip content={workbenchProject.rootPath}>
-                <PopoverTrigger
-                    role="combobox"
-                    aria-expanded={picker.open}
-                    aria-haspopup="listbox"
-                    disabled={picker.switching}
-                    aria-label={`Switch Workbench Root from ${workbenchProject.displayTitle}, branch ${current?.branch ?? branch ?? 'No branch'}`}
-                    className={cn(
-                        statusItemClassName,
-                        'h-5 w-auto max-w-full justify-start px-[5px] text-[11px]',
-                    )}
-                >
-                    <FolderGit2 size={13} className="flex-none" />
-                    <span className="min-w-0 truncate">{workbenchProject.displayTitle}</span>
-                </PopoverTrigger>
+                <WorkbenchRootTrigger
+                    branch={current?.branch ?? branch ?? 'No branch'}
+                    isExpanded={picker.open}
+                    isSwitching={picker.switching}
+                    isWorktree={workbenchProject.id !== session.projectId}
+                    title={workbenchProject.displayTitle}
+                />
             </Tooltip>
             <PopoverContent
                 side="top"
@@ -129,45 +229,44 @@ function WorkbenchRootPickerContent({ branch, sessionId }: WorkbenchRootPickerPr
                         placeholder="Search worktrees…"
                     />
                     <CommandList className="max-h-[min(360px,var(--available-height))]">
-                        {picker.rootsQuery.isLoading && (
-                            <div className="flex items-center gap-2 px-2 py-2 text-muted">
-                                <Spinner aria-hidden="true" className="size-3" />
-                                Loading worktrees…
-                            </div>
-                        )}
-                        {!picker.rootsQuery.isLoading && (
-                            <CommandEmpty>
-                                {picker.rootsQuery.isError
-                                    ? 'Unable to load worktrees. Reopen to retry.'
-                                    : 'No matching worktrees.'}
-                            </CommandEmpty>
-                        )}
-                        {visible.map((root) => (
-                            <WorktreeOption
-                                key={root.worktreeId}
-                                root={root}
-                                roots={roots}
-                                current={root.projectId === session.workbenchProjectId}
-                                disabled={picker.switching}
-                                onSelect={() => {
-                                    // eslint-disable-next-line no-void -- the action owns its error toast and pending state.
-                                    void picker.select(root);
-                                }}
-                            />
-                        ))}
-                        {!picker.all && !isSearching && visible.length < roots.length && (
+                        <WorkbenchRootPlaceholder
+                            isError={picker.rootsQuery.isError}
+                            isLoading={picker.rootsQuery.isLoading}
+                        />
+                        {recommended.length > 0 && (
                             <>
+                                <CommandGroup heading="From this conversation">
+                                    <WorktreeOptions
+                                        options={recommended}
+                                        roots={roots}
+                                        currentProjectId={session.workbenchProjectId}
+                                        picker={picker}
+                                    />
+                                </CommandGroup>
                                 <Separator className="my-1" />
-                                <CommandItem
-                                    value="show-all-worktrees"
-                                    className="text-[13px]"
-                                    onSelect={() => picker.setAll(true)}
-                                >
-                                    Show all worktrees…
-                                    <span className="text-muted">{roots.length}</span>
-                                </CommandItem>
                             </>
                         )}
+                        <WorktreeOptions
+                            options={visible}
+                            roots={roots}
+                            currentProjectId={session.workbenchProjectId}
+                            picker={picker}
+                        />
+                        {!picker.all &&
+                            !isSearching &&
+                            visible.length + recommended.length < roots.length && (
+                                <>
+                                    <Separator className="my-1" />
+                                    <CommandItem
+                                        value="show-all-worktrees"
+                                        className="text-[13px]"
+                                        onSelect={() => picker.setAll(true)}
+                                    >
+                                        Show all worktrees…
+                                        <span className="text-muted">{roots.length}</span>
+                                    </CommandItem>
+                                </>
+                            )}
                     </CommandList>
                 </Command>
             </PopoverContent>

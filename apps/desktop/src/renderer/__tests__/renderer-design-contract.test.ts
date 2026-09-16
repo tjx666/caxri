@@ -34,6 +34,10 @@ const allowedArbitraryClasses = new Set([
     'pl-[84px]',
     'pt-[3px]',
     'px-[5px]',
+    // The two status-bar glyph boxes, sized to the text tier beside them; DESIGN.md "Spacing and radius" states why
+    // they are declared on the shared recipes instead of at each call site.
+    'size-[12px]',
+    'size-[13px]',
     'size-[26px]',
     'text-[10px]',
     'text-[11px]',

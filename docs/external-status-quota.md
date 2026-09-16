@@ -157,10 +157,18 @@ produce the same error, and the status bar said `PR unknown` for all eight unava
 ## Interest is pull-based
 
 There is no background poller. A record is only fetched when a surface actually reads it, so a key
-nobody is looking at costs nothing: Linear and Vercel are still reached only from the Status panel's
+nobody is looking at costs nothing: Vercel is still reached only from the Status panel's
 `projectStatus.summary`, and never on behalf of a session that merely renders a sidebar badge. The
 Renderer's polls (`session.pullRequests`, `projectStatus.overview`) are now snapshot reads whose
 external CLI spend is entirely governed by the Server's TTLs and circuits.
+
+`projectStatus.overview` reaches Linear only when a branch name or the Session's conversation
+produced a plausible bare issue marker that needs the team-key allow-list, or when a candidate
+survives that gate and has to be resolved. Prefixes that are never a team (`UTF`, `RFC`, `SHA`, and
+the rest of the short list in `transcript-session-context.ts`) are rejected before the allow-list is
+consulted, so a repository that never mentions an issue never spawns `linear` at all. Both readers
+share `LinearIssueStore` (`linear.ts`), so the Status panel and the status bar never pay twice for
+one issue. See [session conversation context](./session-conversation-context.md).
 
 "Pull-based" is not the same as "free while the window is open". `usePolledQuery` stops on a hidden
 window, so a backgrounded Caxri really does spend nothing; a visible one still asks every 60s, and
