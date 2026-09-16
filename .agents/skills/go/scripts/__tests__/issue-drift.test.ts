@@ -114,7 +114,7 @@ describe('Go issue expectation drift', () => {
                 issueNumber: 113,
                 kind: 'internal_detail',
             }),
-        ).toThrow('unsettled material drift');
+        ).toThrow('unpublished material drift');
     });
 
     it('still refuses a non-material assessment while a decision is owed to the user', async () => {
@@ -137,7 +137,52 @@ describe('Go issue expectation drift', () => {
                 issueNumber: 113,
                 kind: 'internal_detail',
             }),
-        ).toThrow('unsettled material drift');
+        ).toThrow('still waiting on the user');
+    });
+
+    it('lets a superseded blocker go once its resolved revision is published', async () => {
+        const state = driftState();
+        const blocked = materialAssessment(state, true).record!;
+        const publisher = vi.fn(() =>
+            Promise.resolve({ url: 'https://github.com/tjx666/caxri/issues/113#issuecomment-1' }),
+        );
+        await publishExpectationDriftComment(
+            state,
+            { issueNumber: 113, recordId: blocked.id },
+            publisher,
+        );
+        // The resolved revision supersedes the one that was waiting on the user, which is the
+        // documented way out of `decision_required`.
+        const resolved = assessExpectationDrift(state, {
+            acceptanceImpact: '稳定检查 `issue-drift-comment` 语义不变。',
+            decision: '保留冻结范围，按原方案交付。',
+            decisionRequired: false,
+            driftKey: 'comment-publication',
+            evidence: '靖哥确认无需扩大范围。',
+            expectation: '原方案只要求在 ledger 中保存 comment URL 和关联 head。',
+            headSha: 'head-2',
+            issueNumber: 113,
+            kind: 'architecture_change',
+        }).record!;
+        await publishExpectationDriftComment(
+            state,
+            { issueNumber: 113, recordId: resolved.id },
+            publisher,
+        );
+
+        expect(state.issues[0].expectationDrift.records).toHaveLength(2);
+        expect(() =>
+            assessExpectationDrift(state, {
+                driftKey: 'final-assessment',
+                headSha: 'head-3',
+                issueNumber: 113,
+                kind: 'internal_detail',
+            }),
+        ).not.toThrow();
+        expect(state.issues[0].expectationDrift).toMatchObject({
+            assessmentHeadSha: 'head-3',
+            status: 'commented',
+        });
     });
 
     it('builds a Chinese four-part comment and publishes it idempotently', async () => {
