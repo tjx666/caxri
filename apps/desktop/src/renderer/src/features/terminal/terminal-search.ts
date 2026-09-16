@@ -46,20 +46,16 @@ export function terminalSearchReducer(
     return { ...state, [action.option]: !state[action.option] };
 }
 
-/**
- * The slice of `SearchAddon` the selection guard subscribes to.
- */
-interface TerminalSearchLifecycle {
-    onAfterSearch(listener: () => void): { dispose(): void };
-    onBeforeSearch(listener: () => void): { dispose(): void };
-}
-
 export interface TerminalSearchSelectionGuard {
+    /**
+     * Raised from the addon's `onBeforeSearch`, released from its `onAfterSearch`.
+     */
+    beginSearchSelection(): void;
+    endSearchSelection(): void;
     /**
      * True only while the search addon is applying its own match selection.
      */
     isSearchSelection(): boolean;
-    watch(search: TerminalSearchLifecycle): () => void;
 }
 
 /**
@@ -80,23 +76,16 @@ export interface TerminalSearchSelectionGuard {
 export function createTerminalSearchSelectionGuard(): TerminalSearchSelectionGuard {
     let isSearchSelection = false;
     return {
-        isSearchSelection: () => isSearchSelection,
-        watch(search) {
-            const beforeDisposable = search.onBeforeSearch(() => {
-                isSearchSelection = true;
-                queueMicrotask(() => {
-                    isSearchSelection = false;
-                });
-            });
-            const afterDisposable = search.onAfterSearch(() => {
+        beginSearchSelection() {
+            isSearchSelection = true;
+            queueMicrotask(() => {
                 isSearchSelection = false;
             });
-            return () => {
-                beforeDisposable.dispose();
-                afterDisposable.dispose();
-                isSearchSelection = false;
-            };
         },
+        endSearchSelection() {
+            isSearchSelection = false;
+        },
+        isSearchSelection: () => isSearchSelection,
     };
 }
 
