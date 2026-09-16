@@ -76,6 +76,16 @@ export const sessions = sqliteTable(
             .notNull()
             .default('created'),
         archivedAt: integer('archived_at'),
+        /**
+         * Null means not pinned. Pinning is a durable user choice and deliberately writes neither `sidebar_order` nor
+         * the Session Activity clock.
+         */
+        pinnedAt: integer('pinned_at'),
+        /**
+         * Explicit position inside the Pinned group. Independent of `sidebar_order`, which keeps ordering the same
+         * Session inside its own Project group.
+         */
+        pinnedOrder: integer('pinned_order').notNull().default(0),
         primaryAgentTerminalId: text('primary_agent_terminal_id'),
         lastActivityState: text('last_activity_state').notNull().default('idle'),
         attentionEpoch: integer('attention_epoch').notNull().default(0),

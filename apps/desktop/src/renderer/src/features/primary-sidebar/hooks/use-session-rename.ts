@@ -7,7 +7,7 @@ import { clearSessionRenameRequest, useDialogStore } from '../../../stores/dialo
 import { didRenameSession } from '../../session/session-commands';
 
 export interface SessionRenameController {
-    beginRename: (sessionId: string, displayTitle: string) => void;
+    beginRename: (sessionId: string, displayTitle: string, rowId: string) => void;
     blurRename: () => void;
     cancelRename: () => void;
     commitRename: () => void;
@@ -15,11 +15,16 @@ export interface SessionRenameController {
     onRenameValueChange: (value: string) => void;
     renameError?: string;
     renameValue: string;
-    renamingSessionId?: string;
+    /**
+     * The tree row currently showing the rename input, not the Session id: a pinned Session has a row in the Pinned
+     * group and another under its own Project, and only the one the user started the rename from may swap itself for a
+     * text field. Keying this by Session would put two inputs on screen, both claiming focus.
+     */
+    renamingRowId?: string;
 }
 
-function sessionRow(sessionId: string): HTMLElement | null {
-    return document.querySelector<HTMLElement>(`[data-session-id="${CSS.escape(sessionId)}"]`);
+function treeRow(rowId: string): HTMLElement | null {
+    return document.querySelector<HTMLElement>(`[data-row-id="${CSS.escape(rowId)}"]`);
 }
 
 /**
@@ -31,11 +36,12 @@ export function useSessionRename(
     sessions: SessionRecord[],
     expandProject: (projectId: string) => void,
 ): SessionRenameController {
-    const [renamingSessionId, setRenamingSessionId] = useState<string>();
+    const [renamingRowId, setRenamingRowId] = useState<string>();
     const [renameValue, setRenameValue] = useState('');
     const [renameError, setRenameError] = useState<string>();
     const renamingSessionIdReference = useRef<string | undefined>(undefined);
-    const restoreFocusSessionIdReference = useRef<string | undefined>(undefined);
+    const renamingRowIdReference = useRef<string | undefined>(undefined);
+    const restoreFocusRowIdReference = useRef<string | undefined>(undefined);
     const restoreFocusVisibleReference = useRef(false);
 
     const focusRenameInput = useCallback((element: HTMLInputElement | null) => {
@@ -44,23 +50,23 @@ export function useSessionRename(
     }, []);
 
     useEffect(() => {
-        if (renamingSessionId) return;
-        const sessionId = restoreFocusSessionIdReference.current;
-        if (!sessionId) return;
-        sessionRow(sessionId)?.focus({ focusVisible: restoreFocusVisibleReference.current });
-        restoreFocusSessionIdReference.current = undefined;
-    }, [renamingSessionId, sessions]);
+        if (renamingRowId) return;
+        const rowId = restoreFocusRowIdReference.current;
+        if (!rowId) return;
+        treeRow(rowId)?.focus({ focusVisible: restoreFocusVisibleReference.current });
+        restoreFocusRowIdReference.current = undefined;
+    }, [renamingRowId, sessions]);
 
-    const beginRename = (sessionId: string, displayTitle: string): void => {
+    const beginRename = (sessionId: string, displayTitle: string, rowId: string): void => {
         /**
          * Record how the row was focused before the input replaces it. `focus()` always applies `:focus-visible`, so
          * restoring focus after a rename started by double-click drew a white ring around a row the user had only ever
          * clicked — a focus indicator standing for keyboard navigation that never happened.
          */
-        restoreFocusVisibleReference.current =
-            sessionRow(sessionId)?.matches(':focus-visible') === true;
+        restoreFocusVisibleReference.current = treeRow(rowId)?.matches(':focus-visible') === true;
         renamingSessionIdReference.current = sessionId;
-        setRenamingSessionId(sessionId);
+        renamingRowIdReference.current = rowId;
+        setRenamingRowId(rowId);
         setRenameValue(displayTitle);
         setRenameError(undefined);
     };
@@ -71,9 +77,11 @@ export function useSessionRename(
      */
     const finishRename = (sessionId: string, shouldRestoreFocus: boolean): void => {
         if (renamingSessionIdReference.current !== sessionId) return;
+        const rowId = renamingRowIdReference.current;
         renamingSessionIdReference.current = undefined;
-        if (shouldRestoreFocus) restoreFocusSessionIdReference.current = sessionId;
-        setRenamingSessionId((current) => (current === sessionId ? undefined : current));
+        renamingRowIdReference.current = undefined;
+        if (shouldRestoreFocus && rowId) restoreFocusRowIdReference.current = rowId;
+        setRenamingRowId((current) => (current === rowId ? undefined : current));
         setRenameError(undefined);
     };
 
@@ -133,7 +141,9 @@ export function useSessionRename(
             // would put a Session nobody can see into rename mode: nothing happens on screen, and the row opens in an
             // editor the user never asked for whenever they later expand that Project.
             latestExpandProject.current(session.projectId);
-            latestBeginRename.current(session.id, session.displayTitle);
+            // Always the Project group's row: that is the one `expandProject` just guaranteed is on screen. The Pinned
+            // group may be collapsed, and its copy is a second view of the same Session rather than the canonical one.
+            latestBeginRename.current(session.id, session.displayTitle, session.id);
         }
         // Consumed, not just observed. `Cmd+[` unmounts the whole side bar, so a request left standing would run again
         // on the next reveal and drop the row back into an editor nobody asked for. A mount-time revision baseline
@@ -154,6 +164,6 @@ export function useSessionRename(
         onRenameValueChange,
         renameError,
         renameValue,
-        renamingSessionId,
+        renamingRowId,
     };
 }

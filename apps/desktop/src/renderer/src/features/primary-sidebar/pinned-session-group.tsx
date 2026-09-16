@@ -1,0 +1,224 @@
+import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
+import { ChevronDown, ChevronRight, Pin } from 'lucide-react';
+
+import { DisclosureMotion } from '../../components/disclosure-motion';
+import { Tooltip } from '../../components/ui/tooltip';
+import { ActiveSessionRow } from './active-session-row';
+import type { SessionOrderController } from './hooks/use-session-order';
+import {
+    PINNED_GROUP_ROW_ID,
+    primarySidebarPinnedRowId,
+    primarySidebarRevealRowId,
+} from './primary-sidebar-tree';
+import { hasWorktreeSession } from './project-worktree-slot';
+
+const PINNED_DISCLOSURE_ID = 'pinned-sessions-group';
+
+interface PinnedSessionGroupProperties {
+    animate: boolean;
+    expanded: boolean;
+    focusRenameInput: (element: HTMLInputElement | null) => void;
+    /**
+     * Pinned Sessions the window hides; a positive count puts the reveal row on screen.
+     */
+    hiddenSessionCount: number;
+    nextRevealCount: number;
+    onBeginRename: (sessionId: string, displayTitle: string, rowId: string) => void;
+    onBlurRename: () => void;
+    onCancelRename: () => void;
+    onCommitRename: () => void;
+    onRenameValueChange: (value: string) => void;
+    onRevealMoreSessions: () => void;
+    onToggle: () => void;
+    /**
+     * Owning Project keyed by Session id. Every pinned Session needs one: the group spans Projects, so the row has to
+     * say which one it came from, and the context menu's Project actions act on it.
+     */
+    projects: Record<string, ProjectRecord | undefined>;
+    renameError?: string;
+    renameValue: string;
+    renamingRowId?: string;
+    /**
+     * Id of the row that currently owns the tree's single roving Tab stop.
+     */
+    rovingRowId?: string;
+    selectedSessionId?: string;
+    sessionOrder: SessionOrderController;
+    /**
+     * Every pinned Session in Pinned order (frozen while dragging), window included, so the heading's count is the real
+     * membership rather than what happens to be on screen.
+     */
+    sessions: SessionRecord[];
+    terminals: TerminalRecord[];
+    /**
+     * The pinned Sessions the window currently renders.
+     */
+    visibleSessions: SessionRecord[];
+    worktreeProjects?: Record<string, ProjectRecord>;
+}
+
+function sessionTerminal(
+    session: SessionRecord,
+    terminals: TerminalRecord[],
+): TerminalRecord | undefined {
+    const sessionTerminals = terminals.filter((item) => item.sessionId === session.id);
+    return (
+        sessionTerminals.find((item) => item.id === session.primaryAgentTerminalId) ??
+        sessionTerminals[0]
+    );
+}
+
+/**
+ * The global Pinned group, above every Project. A pinned Session stays listed under its own Project as well: this group
+ * is a second view of the same Sessions rather than a folder they move into, so unpinning never has to put anything
+ * back and a user scanning their Projects still finds every Session where they left it.
+ *
+ * The heading is a `treeitem` at level 1 like a Project heading — it is a collapsible group the arrow keys walk — but
+ * it carries no drag source and no Session count menu, because it owns nothing: its membership is a per-Session
+ * property, not a list this group holds.
+ */
+export function PinnedSessionGroup({
+    animate,
+    expanded,
+    focusRenameInput,
+    hiddenSessionCount,
+    nextRevealCount,
+    onBeginRename,
+    onBlurRename,
+    onCancelRename,
+    onCommitRename,
+    onRenameValueChange,
+    onRevealMoreSessions,
+    onToggle,
+    projects,
+    renameError,
+    renameValue,
+    renamingRowId,
+    rovingRowId,
+    selectedSessionId,
+    sessionOrder,
+    sessions,
+    terminals,
+    visibleSessions,
+    worktreeProjects,
+}: PinnedSessionGroupProperties) {
+    if (sessions.length === 0) return null;
+    // Measured over every pinned Session, window included: reserving from the visible slice alone would shift every
+    // title sideways the moment a reveal brought a worktree Session on screen.
+    const reserveWorktreeSlot = hasWorktreeSession(sessions, worktreeProjects);
+    const revealRowId = primarySidebarRevealRowId(PINNED_GROUP_ROW_ID);
+    return (
+        <section className="pinned-session-group relative mb-2" data-pinned-group="">
+            <div className="pinned-heading group/pinned-heading flex min-h-7 items-center gap-1 rounded-md text-foreground hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)]">
+                <Tooltip content={`${expanded ? 'Collapse' : 'Expand'} Pinned`}>
+                    <button
+                        className="pinned-disclosure grid h-7 w-4 flex-none cursor-pointer place-items-center border-0 bg-transparent p-0 text-muted hover:text-foreground"
+                        aria-controls={PINNED_DISCLOSURE_ID}
+                        aria-expanded={expanded}
+                        aria-label={`${expanded ? 'Collapse' : 'Expand'} Pinned`}
+                        tabIndex={-1}
+                        onClick={onToggle}
+                    >
+                        {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                    </button>
+                </Tooltip>
+                <button
+                    className="pinned-select flex min-h-7 min-w-0 flex-1 cursor-pointer items-center gap-1.5 border-0 bg-transparent px-1 text-left text-inherit focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
+                    role="treeitem"
+                    aria-controls={PINNED_DISCLOSURE_ID}
+                    aria-expanded={expanded}
+                    aria-level={1}
+                    aria-selected={false}
+                    // The visible digit is `aria-hidden`, so the count reaches assistive technology named rather than
+                    // as a bare number trailing the heading.
+                    aria-label={`Pinned, ${sessions.length} ${sessions.length === 1 ? 'Session' : 'Sessions'}`}
+                    data-row-id={PINNED_GROUP_ROW_ID}
+                    tabIndex={PINNED_GROUP_ROW_ID === rovingRowId ? 0 : -1}
+                    onClick={onToggle}
+                >
+                    <Pin aria-hidden="true" className="flex-none text-muted" size={13} />
+                    <strong className="min-w-0 flex-1 overflow-hidden text-sm font-semibold text-ellipsis whitespace-nowrap">
+                        Pinned
+                    </strong>
+                    {/*
+                     * The count stays on the heading in both states: while the group is collapsed it is the only thing
+                     * that says how much is inside. Mirrors the Project heading's digit.
+                     */}
+                    <span
+                        aria-hidden="true"
+                        className="pinned-session-count flex-none text-[11px] text-muted tabular-nums"
+                    >
+                        {sessions.length}
+                    </span>
+                </button>
+            </div>
+            <DisclosureMotion
+                animate={animate}
+                className="pinned-session-disclosure"
+                expanded={expanded}
+                id={PINNED_DISCLOSURE_ID}
+                kind="pinned"
+            >
+                {() => (
+                    <div
+                        aria-label="Pinned Sessions"
+                        className="session-list pb-1 pl-4"
+                        role="group"
+                    >
+                        {visibleSessions.map((session) => {
+                            const project = projects[session.id];
+                            if (!project) return null;
+                            const rowId = primarySidebarPinnedRowId(session.id);
+                            return (
+                                <ActiveSessionRow
+                                    key={session.id}
+                                    focusRenameInput={focusRenameInput}
+                                    onBeginRename={() =>
+                                        onBeginRename(session.id, session.displayTitle, rowId)
+                                    }
+                                    onBlurRename={onBlurRename}
+                                    onCancelRename={onCancelRename}
+                                    onCommitRename={onCommitRename}
+                                    onRenameValueChange={onRenameValueChange}
+                                    project={project}
+                                    renameError={renameError}
+                                    renameValue={renameValue}
+                                    renaming={rowId === renamingRowId}
+                                    reserveWorktreeSlot={reserveWorktreeSlot}
+                                    roving={rowId === rovingRowId}
+                                    rowId={rowId}
+                                    selected={session.id === selectedSessionId}
+                                    session={session}
+                                    sessionOrder={sessionOrder}
+                                    showProjectName
+                                    terminal={sessionTerminal(session, terminals)}
+                                    terminals={terminals}
+                                    visibleSessions={visibleSessions}
+                                    worktreeProject={worktreeProjects?.[session.id]}
+                                />
+                            );
+                        })}
+                        {hiddenSessionCount > 0 && (
+                            /*
+                             * Same reveal row a Project group uses, for the same reason: a long Pinned list would push
+                             * every Project off the screen. The button is the row, so it carries the tree semantics.
+                             */
+                            <button
+                                className="session-reveal flex h-7 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-muted hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
+                                role="treeitem"
+                                aria-label={`Show ${nextRevealCount} more pinned ${nextRevealCount === 1 ? 'Session' : 'Sessions'}`}
+                                aria-level={2}
+                                aria-selected={false}
+                                data-row-id={revealRowId}
+                                tabIndex={revealRowId === rovingRowId ? 0 : -1}
+                                onClick={onRevealMoreSessions}
+                            >
+                                <ChevronDown size={13} /> Show {nextRevealCount} more
+                            </button>
+                        )}
+                    </div>
+                )}
+            </DisclosureMotion>
+        </section>
+    );
+}

@@ -146,6 +146,8 @@ export const effectfulCommandRecovery = {
     'session.select': 'durable',
     'session.markRead': 'durable',
     'session.reorder': 'durable',
+    'session.reorderPinned': 'durable',
+    'session.setPinned': 'durable',
     'session.rename': 'durable',
     'session.archive': 'durable',
     'session.unarchive': 'durable',

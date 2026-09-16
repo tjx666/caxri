@@ -112,9 +112,7 @@ import {
     copyAgentTranscriptPath,
     deleteSelectedSession,
     deleteSession,
-    describeArchivedSession,
-    describeRestoredSession,
-    describeRestoredSessions,
+    didReorderPinnedSession,
     didReorderProject,
     didReorderSession,
     didSelectSession,
@@ -125,6 +123,7 @@ import {
     openSession,
     selectAdjacentSession,
     selectProject,
+    setSessionPinned,
     unarchiveSession,
     unarchiveSessions,
 } from '../session-commands';
@@ -481,15 +480,64 @@ describe('Session actions', () => {
         expect(cancel).not.toHaveBeenCalled();
     });
 
-    it('cancels the snapshot waiter when a reorder fails', async () => {
+    it('holds a Pinned reorder on its own convergence reason and its own Server method', async () => {
+        const convergence = Promise.withResolvers<void>();
+        const cancel = vi.fn();
+        mocks.caxriRequest.mockResolvedValueOnce(null);
+        mocks.registerSessionCommandConvergence.mockReturnValueOnce({
+            cancel,
+            promise: convergence.promise,
+        });
+        const reordered = didReorderPinnedSession('session-1', 'session-2', 'before');
+        await vi.waitFor(() =>
+            expect(mocks.caxriRequest).toHaveBeenCalledWith('session.reorderPinned', {
+                sessionId: 'session-1',
+                anchorSessionId: 'session-2',
+                placement: 'before',
+            }),
+        );
+        // A Pinned drag must not converge on the Project groups' reason, or one drag would release the other's wait.
+        expect(mocks.registerSessionCommandConvergence).toHaveBeenCalledWith(
+            'session.reorderPinned',
+        );
+        await expect(Promise.race([reordered, Promise.resolve('pending')])).resolves.toBe(
+            'pending',
+        );
+        convergence.resolve();
+        await expect(reordered).resolves.toBe(true);
+        expect(cancel).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        { name: 'a Project', reorder: didReorderSession },
+        { name: 'the Pinned group', reorder: didReorderPinnedSession },
+    ])('cancels the snapshot waiter when a reorder in $name fails', async ({ reorder }) => {
         const cancel = vi.fn();
         mocks.registerSessionCommandConvergence.mockReturnValueOnce({
             cancel,
             promise: new Promise(() => {}),
         });
         mocks.tryCommand.mockResolvedValueOnce(undefined);
-        await expect(didReorderSession('session-1', 'missing', 'before')).resolves.toBe(false);
+        await expect(reorder('session-1', 'missing', 'before')).resolves.toBe(false);
         expect(cancel).toHaveBeenCalledOnce();
+    });
+
+    it('sends the pin state and refreshes, with its own failure copy per direction', async () => {
+        const expectPinCommand = (failureTitle: string) =>
+            expect(mocks.tryCommand).toHaveBeenCalledWith(failureTitle, expect.any(Function), {
+                refresh: mocks.refreshWorkbench,
+            });
+        setSessionPinned('session-1', true);
+        await vi.waitFor(() =>
+            expect(mocks.caxriRequest).toHaveBeenCalledWith('session.setPinned', {
+                sessionId: 'session-1',
+                pinned: true,
+            }),
+        );
+        // Unlike a reorder this waits for no snapshot, so the refresh is what puts the new row on screen.
+        expectPinCommand('Pin Session failed');
+        setSessionPinned('session-1', false);
+        await vi.waitFor(() => expectPinCommand('Unpin Session failed'));
     });
 
     it('walks adjacent Sessions in visible Project and activity order', async () => {
@@ -746,55 +794,5 @@ describe('Session actions', () => {
         expect(mocks.tryCommand.mock.calls[0]?.[2]).toEqual({
             refresh: mocks.refreshWorkbench,
         });
-    });
-});
-
-describe('Archived Session notice copy', () => {
-    it('quotes the Session title', () => {
-        expect(describeArchivedSession('api-fix')).toBe('Archived "api-fix"');
-    });
-
-    it('names the noun instead of quoting an empty or blank title', () => {
-        expect(describeArchivedSession('')).toBe('Archived Session');
-        expect(describeArchivedSession(' '.repeat(3))).toBe('Archived Session');
-        expect(describeArchivedSession(undefined)).toBe('Archived Session');
-    });
-
-    it('trims surrounding whitespace before quoting', () => {
-        expect(describeArchivedSession('  api-fix\n')).toBe('Archived "api-fix"');
-    });
-
-    it('truncates a runaway title so the Undo action keeps its room', () => {
-        const message = describeArchivedSession('a'.repeat(400));
-
-        expect(message).toBe(`Archived "${'a'.repeat(48)}…"`);
-        expect(message.length).toBeLessThan(64);
-    });
-
-    it('does not leave a dangling space before the ellipsis', () => {
-        expect(describeArchivedSession(`${'a'.repeat(47)} tail`)).toBe(
-            `Archived "${'a'.repeat(47)}…"`,
-        );
-    });
-
-    it('never cuts a surrogate pair in half', () => {
-        const message = describeArchivedSession('🚀'.repeat(60));
-
-        expect(message).toBe(`Archived "${'🚀'.repeat(48)}…"`);
-        expect(message).not.toContain('�');
-        expect(message.split('\u{D83D}').length - 1).toBe(48);
-    });
-});
-
-describe('Restored Session notice copy', () => {
-    it('reports a restore in the same shape as the archive it reverses', () => {
-        expect(describeRestoredSession('api-fix')).toBe('Restored "api-fix"');
-        expect(describeRestoredSession(undefined)).toBe('Restored Session');
-        expect(describeRestoredSession('a'.repeat(400))).toBe(`Restored "${'a'.repeat(48)}…"`);
-    });
-
-    it('counts a batch and names a batch of one', () => {
-        expect(describeRestoredSessions(['api-fix', 'docs'])).toBe('Restored 2 Sessions');
-        expect(describeRestoredSessions(['api-fix'])).toBe('Restored "api-fix"');
     });
 });

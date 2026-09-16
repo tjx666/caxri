@@ -48,6 +48,10 @@ describe('Agent delegation persistence', () => {
         database.database.exec('DROP INDEX agent_delegations_terminal');
         database.database.exec('ALTER TABLE agent_delegations DROP COLUMN terminal_id');
         database.database.exec('ALTER TABLE terminals DROP COLUMN failure_detail');
+        // Every column added after the pinned `user_version` below has to go too, or its own migration re-adds it on
+        // top of a column the fresh install already created.
+        database.database.exec('ALTER TABLE sessions DROP COLUMN pinned_at');
+        database.database.exec('ALTER TABLE sessions DROP COLUMN pinned_order');
         database.database.pragma(
             `user_version = ${schemaVersionForMigration('0025_conscious_living_tribunal')}`,
         );
@@ -92,6 +96,10 @@ describe('Agent delegation persistence', () => {
         const terminals = database.listTerminals(session.id);
         database.database.exec('DROP TABLE agent_delegations');
         database.database.exec('ALTER TABLE terminals DROP COLUMN failure_detail');
+        // Every column added after the pinned `user_version` below has to go too, or its own migration re-adds it on
+        // top of a column the fresh install already created.
+        database.database.exec('ALTER TABLE sessions DROP COLUMN pinned_at');
+        database.database.exec('ALTER TABLE sessions DROP COLUMN pinned_order');
         database.database.pragma(
             `user_version = ${schemaVersionForMigration('0024_session-naming-sync')}`,
         );

@@ -8,6 +8,7 @@ import type {
     SessionRecord,
     TerminalRecord,
 } from '@caxri/protocol';
+import { isPinnedSession } from '@caxri/protocol';
 import { Circle } from 'lucide-react';
 
 import { useRelativeTime } from '@/hooks/use-relative-time';
@@ -126,6 +127,7 @@ function SessionPullRequestDetails({
 }
 
 export function SessionActivityCard({
+    inPinnedGroup,
     project,
     pullRequest,
     pullRequestUnavailable,
@@ -135,6 +137,12 @@ export function SessionActivityCard({
     trigger,
     worktreeProject,
 }: {
+    /**
+     * True on the Pinned group's copy of a doubly listed Session. Both copies otherwise announce word for word the same
+     * thing — the row's accessible name is the title, and the visible Project name is `aria-hidden` — so a keyboard
+     * user walking the tree could not tell which one they had reached.
+     */
+    inPinnedGroup?: boolean;
     project: ProjectRecord;
     pullRequest?: SessionPullRequest;
     pullRequestUnavailable?: PullRequestUnavailable;
@@ -166,6 +174,9 @@ export function SessionActivityCard({
         ? sessionPullRequestPresentation(pullRequest)
         : undefined;
     const accessibleDescription = [
+        // The pin has no visible mark on the row itself — it is the group the row sits in — so this sentence is the
+        // only thing that tells a screen-reader user which copy of a doubly listed Session they are on.
+        inPinnedGroup ? 'In Pinned group.' : isPinnedSession(session) && 'Pinned.',
         `Project ${project.displayTitle}.`,
         `Agent ${agentLabel}.`,
         activity.ariaLabel,

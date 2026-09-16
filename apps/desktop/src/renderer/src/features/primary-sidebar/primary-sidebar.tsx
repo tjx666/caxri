@@ -1,5 +1,4 @@
-import type { FocusEvent } from 'react';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 import type { ProjectRecord } from '@caxri/protocol';
 import { defaultAppSettings } from '@caxri/protocol';
@@ -16,7 +15,9 @@ import {
     useTerminals,
 } from '../../stores/selectors';
 import { activeSessionsInSidebarOrder } from '../session/session-activity-order';
-import { useCreateSessionRowFocus } from './hooks/use-create-session-row-focus';
+import { usePinnedCollapse } from './hooks/use-pinned-collapse';
+import { usePinnedSessionGroup } from './hooks/use-pinned-session-group';
+import { usePrimarySidebarTree } from './hooks/use-primary-sidebar-tree';
 import { useProjectCollapse } from './hooks/use-project-collapse';
 import { useProjectOrder } from './hooks/use-project-order';
 import type { ProjectSessionWindow } from './hooks/use-project-session-windows';
@@ -24,9 +25,10 @@ import { useProjectSessionWindows } from './hooks/use-project-session-windows';
 import { useSessionOrder } from './hooks/use-session-order';
 import { useSessionPullRequestPoll } from './hooks/use-session-pull-request';
 import { useSessionRename } from './hooks/use-session-rename';
+import { PinnedSessionGroup } from './pinned-session-group';
 import { PrimarySidebarFooter } from './primary-sidebar-footer';
 import { PrimarySidebarHeader } from './primary-sidebar-header';
-import { flattenPrimarySidebarRows, rovingPrimarySidebarRowId } from './primary-sidebar-tree';
+import { PINNED_GROUP_ROW_ID, primarySidebarPinnedRowId } from './primary-sidebar-tree';
 import { handlePrimarySidebarTreeKey } from './primary-sidebar-tree-keys';
 import { ProjectGroup } from './project-group';
 import { hasProjectDragType } from './project-order';
@@ -65,11 +67,6 @@ export function PrimarySidebar() {
         sessions,
     });
     const [animatedProjectIds, setAnimatedProjectIds] = useState<Set<string>>(() => new Set());
-    /**
-     * The last tree row the user actually focused; feeds `rovingPrimarySidebarRowId`'s roving-tabindex resolution.
-     */
-    const [focusedRowId, setFocusedRowId] = useState<string>();
-    const treeReference = useRef<HTMLDivElement>(null);
     const sessionRename = useSessionRename(sessions, projectCollapse.expandProject);
     // Owns the cadence only; each Session row subscribes to its own slice of the snapshot this keeps fresh.
     useSessionPullRequestPoll();
@@ -92,6 +89,13 @@ export function PrimarySidebar() {
         return resolved;
     }, [allProjects, sidebarSessions]);
 
+    const pinnedCollapse = usePinnedCollapse();
+    const pinnedGroup = usePinnedSessionGroup({
+        projects: allProjects ?? NO_RECORDS,
+        selectedSessionId,
+        sessions,
+    });
+
     const isProjectExpanded = projectCollapse.isProjectExpanded;
 
     /**
@@ -104,57 +108,53 @@ export function PrimarySidebar() {
         sidebarSessions,
     });
     const projectWindows = sessionWindows.windows;
-
-    /**
-     * Flattened row order that Up/Down/Home/End walk; recomputed only when the tree's shape changes.
-     */
-    const treeRows = useMemo(
-        () =>
-            flattenPrimarySidebarRows(
-                projectWindows.map((entry) => ({
-                    hasHiddenSessions: entry.hiddenCount > 0,
-                    id: entry.project.id,
-                    sessionIds: entry.visibleSessions.map((session) => session.id),
-                })),
-                isProjectExpanded,
-            ),
-        [projectWindows, isProjectExpanded],
+    const pinnedSessionIds = useMemo(
+        () => pinnedGroup.visibleSessions.map((session) => session.id),
+        [pinnedGroup.visibleSessions],
     );
+    const treeReference = useRef<HTMLDivElement>(null);
+    const {
+        focusRow,
+        handleTreeFocus,
+        isGroupExpanded,
+        rovingRowId,
+        rows: treeRows,
+    } = usePrimarySidebarTree({
+        hasHiddenPinnedSessions: pinnedGroup.hiddenCount > 0,
+        isPinnedExpanded: pinnedCollapse.expanded,
+        isProjectExpanded,
+        pinnedSessionIds,
+        projectWindows,
+        selectedProjectId,
+        selectedSessionId,
+        treeReference,
+    });
 
-    /**
-     * The single row that owns the tree's roving Tab stop (standard ARIA tree authoring pattern). Falls back through
-     * the selected Session, then the selected Project, then the first row whenever `focusedRowId` is unset or has gone
-     * stale (archived Session, collapsed Project).
-     */
-    const rovingRowId = useMemo(
-        () =>
-            rovingPrimarySidebarRowId(treeRows, focusedRowId, selectedSessionId, selectedProjectId),
-        [treeRows, focusedRowId, selectedSessionId, selectedProjectId],
-    );
-
-    const focusRow = useCallback((rowId: string): void => {
-        treeReference.current
-            ?.querySelector<HTMLElement>(`[data-row-id="${CSS.escape(rowId)}"]`)
-            ?.focus();
-    }, []);
-
-    const noteFocusedRow = useCreateSessionRowFocus({ focusRow, rovingRowId, rows: treeRows });
-
-    const handleTreeFocus = useCallback(
-        (event: FocusEvent<HTMLDivElement>): void => {
-            const target = event.target;
-            if (!(target instanceof HTMLElement)) return;
-            const rowId = target.closest<HTMLElement>('[data-row-id]')?.dataset.rowId;
-            if (!rowId) return;
-            setFocusedRowId(rowId);
-            noteFocusedRow(rowId);
-        },
-        [noteFocusedRow],
-    );
+    const togglePinnedGroup = (): void => {
+        setAnimatedProjectIds((current) => new Set(current).add(PINNED_GROUP_ROW_ID));
+        pinnedCollapse.toggle();
+    };
 
     const toggleProject = (projectId: string): void => {
+        // The Pinned heading is a Project row to the tree's key handling but has no Project behind it, so the one key
+        // path that resolves a heading to a toggle is redirected here rather than into the Project collapse record.
+        if (projectId === PINNED_GROUP_ROW_ID) {
+            togglePinnedGroup();
+            return;
+        }
         setAnimatedProjectIds((current) => new Set(current).add(projectId));
         projectCollapse.toggleProject(projectId);
+    };
+
+    /**
+     * The final reveal unmounts the reveal row itself, which would drop the tree's roving Tab stop onto the document
+     * body. Both groups hand focus to the row directly above while it still exists.
+     */
+    const revealMorePinnedSessions = (): void => {
+        pinnedGroup.revealMore();
+        const lastVisibleSessionId = pinnedGroup.visibleSessions.at(-1)?.id;
+        if (lastVisibleSessionId && pinnedGroup.hiddenCount <= SESSION_REVEAL_STEP)
+            focusRow(primarySidebarPinnedRowId(lastVisibleSessionId));
     };
 
     const revealMoreSessions = (sessionWindow: ProjectSessionWindow): void => {
@@ -176,8 +176,11 @@ export function PrimarySidebar() {
                     if (
                         !(event.target instanceof Element) ||
                         !event.target.closest('.session-card')
-                    )
+                    ) {
+                        // Both lists, or the group the drag did not start in keeps its marker on screen until dragend.
                         sessionOrder.leaveList();
+                        pinnedGroup.sessionOrder.leaveList();
+                    }
                     if (!hasProjectDragType(event.dataTransfer.types)) return;
                     projectOrder.onListDragOver(event);
                 }}
@@ -211,12 +214,37 @@ export function PrimarySidebar() {
                     onKeyDown={(event) =>
                         handlePrimarySidebarTreeKey(event, {
                             focusRow,
-                            isProjectExpanded,
+                            isProjectExpanded: isGroupExpanded,
                             rows: treeRows,
                             toggleProject,
                         })
                     }
                 >
+                    <PinnedSessionGroup
+                        animate={animatedProjectIds.has(PINNED_GROUP_ROW_ID)}
+                        expanded={pinnedCollapse.expanded}
+                        focusRenameInput={sessionRename.focusRenameInput}
+                        hiddenSessionCount={pinnedGroup.hiddenCount}
+                        nextRevealCount={pinnedGroup.nextRevealCount}
+                        onBeginRename={sessionRename.beginRename}
+                        onBlurRename={sessionRename.blurRename}
+                        onCancelRename={sessionRename.cancelRename}
+                        onCommitRename={sessionRename.commitRename}
+                        onRenameValueChange={sessionRename.onRenameValueChange}
+                        onRevealMoreSessions={revealMorePinnedSessions}
+                        onToggle={() => togglePinnedGroup()}
+                        projects={pinnedGroup.projects}
+                        renameError={sessionRename.renameError}
+                        renameValue={sessionRename.renameValue}
+                        renamingRowId={sessionRename.renamingRowId}
+                        rovingRowId={rovingRowId}
+                        selectedSessionId={selectedSessionId}
+                        sessionOrder={pinnedGroup.sessionOrder}
+                        sessions={pinnedGroup.sessions}
+                        terminals={terminals}
+                        visibleSessions={pinnedGroup.visibleSessions}
+                        worktreeProjects={pinnedGroup.worktreeProjects}
+                    />
                     {projectWindows.map((sessionWindow) => {
                         const {
                             hiddenCount,
@@ -260,7 +288,7 @@ export function PrimarySidebar() {
                                 }
                                 renameError={sessionRename.renameError}
                                 renameValue={sessionRename.renameValue}
-                                renamingSessionId={sessionRename.renamingSessionId}
+                                renamingRowId={sessionRename.renamingRowId}
                                 rovingRowId={rovingRowId}
                                 selectedSessionId={selectedSessionId}
                                 sessionOrder={sessionOrder}
@@ -284,6 +312,14 @@ export function PrimarySidebar() {
                 </div>
                 <div className="session-order-announcement sr-only" aria-live="polite">
                     {sessionOrder.announcement}
+                </div>
+                {/*
+                 * The Pinned group reorders through its own controller, so it needs its own live region: one shared
+                 * region would have to pick a winner whenever both held text, and an `aria-live` node that keeps
+                 * swapping owners re-announces the losing message.
+                 */}
+                <div className="pinned-order-announcement sr-only" aria-live="polite">
+                    {pinnedGroup.sessionOrder.announcement}
                 </div>
             </div>
             <PrimarySidebarFooter archivedCount={archivedCount} />

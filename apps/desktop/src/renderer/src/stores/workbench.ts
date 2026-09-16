@@ -79,8 +79,27 @@ type SessionStateFailureMode = 'retain' | 'rollback';
 const bootstrapRead = { inFlight: undefined as Promise<void> | undefined };
 const queuedRead = { current: undefined as Promise<void> | undefined };
 const recordRefresh = { inFlight: undefined as Promise<void> | undefined };
+/**
+ * The `state.changed` reasons a Renderer command may wait for before it reports itself done. Only commands whose result
+ * the user watches land — selection and the two reorder gestures — register here; everything else settles on the
+ * ordinary refresh.
+ */
+const SESSION_COMMAND_CONVERGENCE_REASONS = [
+    'session.select',
+    'session.reorder',
+    'session.reorderPinned',
+] as const;
+
+type SessionCommandConvergenceReason = (typeof SESSION_COMMAND_CONVERGENCE_REASONS)[number];
+
+function isSessionCommandConvergenceReason(
+    reason: string,
+): reason is SessionCommandConvergenceReason {
+    return (SESSION_COMMAND_CONVERGENCE_REASONS as readonly string[]).includes(reason);
+}
+
 const sessionCommandConvergence = {
-    pending: [] as Array<{ reason: 'session.select' | 'session.reorder'; resolve: () => void }>,
+    pending: [] as Array<{ reason: SessionCommandConvergenceReason; resolve: () => void }>,
 };
 const pendingSessionRecordIds = new Set<string>();
 const pendingTerminalRecordIds = new Set<string>();
@@ -411,7 +430,7 @@ function applyStateChange(
  * queue preserves the Runtime's serialized command order even while Preload is replaying buffered events, and keeps the
  * command path from scheduling a duplicate `app.bootstrap`.
  */
-export function registerSessionCommandConvergence(reason: 'session.select' | 'session.reorder'): {
+export function registerSessionCommandConvergence(reason: SessionCommandConvergenceReason): {
     cancel: () => void;
     promise: Promise<void>;
 } {
@@ -428,7 +447,7 @@ export function registerSessionCommandConvergence(reason: 'session.select' | 'se
 }
 
 function resolveNextSessionCommandConvergence(
-    reason: 'session.select' | 'session.reorder',
+    reason: SessionCommandConvergenceReason,
     refresh: Promise<void>,
 ): void {
     const index = sessionCommandConvergence.pending.findIndex(
@@ -585,11 +604,9 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                 const refresh = applyStateChange(event.payload);
                 if (
                     event.payload.kind === 'full' &&
-                    (event.payload.reason === 'session.select' ||
-                        event.payload.reason === 'session.reorder')
-                ) {
+                    isSessionCommandConvergenceReason(event.payload.reason)
+                )
                     resolveNextSessionCommandConvergence(event.payload.reason, refresh);
-                }
                 // Fire-and-forget: applyStateChange() catches its own Server request failures.
                 // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
                 void refresh;
