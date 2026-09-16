@@ -254,11 +254,36 @@ process.stdout.write('Synthetic caller ready\r\n');
                 { delegationId: initial.delegationId, timeoutMs: 20000 },
             );
             expect(completed.receipt.status).toBe('completed');
+            /**
+             * A follow-up is admitted only while the parent's launch is still the Terminal's current one, and the
+             * Server treats a launch as current only once the Host has reported its process. Read that readiness from
+             * the projected Terminal before asking, and assert the admission itself before stopping: on CI this stop
+             * once answered `target_changed` with nothing in the test saying whether the follow-up was ever admitted
+             * (github.com/tjx666/caxri/issues/933). When this assertion fails, the Server log's
+             * `agent_delegation.admission_rejected` entry names the exact rejection reason.
+             */
+            await expect
+                .poll(async () => {
+                    const state = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
+                    const terminal = state.terminals.find(
+                        (candidate) => candidate.id === initial.terminalId,
+                    );
+                    return {
+                        processState: terminal?.lastAgentProcessState,
+                        hasNativeSession: Boolean(terminal?.agentSessionId),
+                    };
+                })
+                .toEqual({ processState: 'running', hasNativeSession: true });
             const followed = await pageRequest<AgentDelegationReceipt>(
                 running.page,
                 'agent.delegation.create',
                 { ...common, followUpOf: initial.delegationId },
             );
+            expect(followed).toMatchObject({
+                status: 'submitting',
+                terminalId: initial.terminalId,
+                followUpOf: initial.delegationId,
+            });
             const stopped = await pageRequest<AgentDelegationReceipt>(
                 running.page,
                 'agent.delegation.stop',

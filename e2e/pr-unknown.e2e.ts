@@ -34,9 +34,10 @@ const scenarios = [
          * `hint` is the stable opening of the sentence; the rest names the limiter's own resume deadline, whose clock
          * time moves with the run, so the accessible name is matched by shape instead of by literal.
          *
-         * The deadline is required, not optional: this fixture's `gh` fails every call including `api rate_limit`, so
-         * the limiter cannot read GitHub's own reset and always falls back to its fixed 15-minute pause. Accepting the
-         * deadline-free wording here would let the whole `retryAt` path break without failing this test.
+         * The deadline is required, not optional: this fixture's `gh` fails every call including the `api graphql`
+         * rateLimit probe, so the limiter cannot read GitHub's own reset and always falls back to its fixed 15-minute
+         * pause. Accepting the deadline-free wording here would let the whole `retryAt` path break without failing this
+         * test.
          */
         hint: 'GitHub API rate limit reached.',
         hintPattern: /GitHub API rate limit reached\. Caxri retries after \d{1,2}:\d{2} [AP]M\./,
@@ -72,7 +73,7 @@ for (const scenario of scenarios) {
             const response =
                 scenario.id === 'rate-limited'
                     ? 'echo "rate limit exceeded" >&2; exit 1'
-                    : `if [ "$1 $2" = "api rate_limit" ]; then printf '%s' '{"resources":{"graphql":{"limit":5000,"remaining":5000,"reset":4102444800}}}'; exit 0; fi
+                    : `if [ "$1 $2 $3" = "api graphql -f" ]; then printf '%s' '{"data":{"rateLimit":{"limit":5000,"remaining":5000,"used":0,"resetAt":"2100-01-01T00:00:00Z"}}}'; exit 0; fi
 if [ "$1 $2" = "pr list" ]; then printf '%s' '${scenario.id === 'no-pr' ? '[]' : '[{"number":42,"state":"OPEN"}]'}'; exit 0; fi
 ${scenario.id === 'no-pr' ? 'echo "no pull requests found" >&2; exit 1' : `printf '%s' '${view}'`}`;
             await writeFile(

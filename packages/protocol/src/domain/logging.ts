@@ -252,6 +252,7 @@ export const logEventCatalog = {
         suspended: 'terminal.suspended',
     },
     terminalHost: {
+        attachFailed: 'terminal_host.attach_failed',
         error: 'terminal_host.error',
         exited: 'terminal_host.exited',
         invalidMessage: 'terminal_host.invalid_message',

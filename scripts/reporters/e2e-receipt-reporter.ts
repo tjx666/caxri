@@ -28,12 +28,29 @@ export interface E2EFailureGroup {
     testIds: string[];
 }
 
+/**
+ * One Playwright child process that exited non-zero. Recorded on the pool receipt so the reason a pool failed survives
+ * in the artifact even when every test it did report passed.
+ */
+export interface E2EAbortedInvocation {
+    exitCode: number;
+    specs: string[];
+}
+
 export interface E2EPoolReceipt {
+    /**
+     * Present only on the final pool receipt, and only when a child exited non-zero.
+     */
+    abortedInvocations?: E2EAbortedInvocation[];
     failed: number;
     failureGroups: E2EFailureGroup[];
     finished: number;
     finishedAt: string;
     hash: string;
+    /**
+     * Dispatched spec files the reporter never saw; present only on the final pool receipt.
+     */
+    missingSpecs?: string[];
     passed: number;
     planned: number;
     pool: string;
@@ -184,7 +201,11 @@ export function assertE2EPoolReceipt(receipt: E2EPoolReceipt): void {
     }
     if (
         receipt.status === 'passed' &&
-        (receipt.unknown !== 0 || receipt.failed !== 0 || receipt.timedOut !== 0)
+        (receipt.unknown !== 0 ||
+            receipt.failed !== 0 ||
+            receipt.timedOut !== 0 ||
+            (receipt.abortedInvocations?.length ?? 0) > 0 ||
+            (receipt.missingSpecs?.length ?? 0) > 0)
     ) {
         throw new Error(`E2E ${receipt.pool} passing receipt is incomplete`);
     }

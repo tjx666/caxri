@@ -49,6 +49,7 @@ export class FakeTerminalHostControl implements TerminalHostControl {
     >();
     private readonly inputResolvers: Array<{ resolve(): void }> = [];
     private readonly agentInputResolvers: Array<() => void> = [];
+    private readonly attachResolvers: Array<{ resolve(): void; reject(error: Error): void }> = [];
     private readonly resizeResolvers: Array<() => void> = [];
     declineNextInput = false;
     declineNextAgentInput = false;
@@ -59,7 +60,14 @@ export class FakeTerminalHostControl implements TerminalHostControl {
      * as `terminal.output` are still part of the next snapshot; a test that needs both copies to exist sets this.
      */
     attachSnapshot?: TerminalSnapshot;
+    /**
+     * Rejects the next `terminal.attach` with this error, the shape of a Terminal Host timeout, capacity refusal, or an
+     * identity the host no longer knows. The host keeps its previous attachment in that case, so it continues to emit
+     * output under the old `attachmentId`.
+     */
+    failNextAttach?: Error;
     readonly requests: Array<{ request: TerminalHostRequest; scope: TerminalHostScope }> = [];
+    holdAttachRequests = false;
     holdInputRequests = false;
     holdAgentInputRequests = false;
     holdResizeRequests = false;
@@ -91,11 +99,21 @@ export class FakeTerminalHostControl implements TerminalHostControl {
         switch (request.method) {
             case 'terminal.reserve':
                 return Promise.resolve({ reserved: true });
-            case 'terminal.attach':
-                return Promise.resolve({
+            case 'terminal.attach': {
+                if (this.failNextAttach) {
+                    const error = this.failNextAttach;
+                    this.failNextAttach = undefined;
+                    return Promise.reject(error);
+                }
+                const answer = (): { snapshot: TerminalSnapshot | null; wasAttached: boolean } => ({
                     snapshot: this.attachSnapshot ?? null,
                     wasAttached: false,
                 });
+                if (!this.holdAttachRequests) return Promise.resolve(answer());
+                return new Promise((resolve, reject) =>
+                    this.attachResolvers.push({ resolve: () => resolve(answer()), reject }),
+                );
+            }
             case 'terminal.start':
                 return Promise.resolve({ processId: 4243 });
             case 'terminal.stop':
@@ -153,6 +171,13 @@ export class FakeTerminalHostControl implements TerminalHostControl {
         }
     }
 
+    releaseAttach(error?: Error): void {
+        const pending = this.attachResolvers.shift();
+        if (!pending) return;
+        if (error) pending.reject(error);
+        else pending.resolve();
+    }
+
     releaseInput(): void {
         this.inputResolvers.shift()?.resolve();
     }
@@ -177,6 +202,7 @@ export class FakeTerminalHostControl implements TerminalHostControl {
 export function createExecution(): {
     control: FakeTerminalHostControl;
     execution: RemoteTerminalExecution;
+    logger: StructuredLogger;
 } {
     const directory = mkdtempSync(join(tmpdir(), 'caxri-remote-terminal-execution-'));
     temporaryDirectories.push(directory);
@@ -186,6 +212,7 @@ export function createExecution(): {
     return {
         control,
         execution: new RemoteTerminalExecution(control, logger),
+        logger,
     };
 }
 

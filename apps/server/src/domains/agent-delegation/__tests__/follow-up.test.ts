@@ -325,6 +325,36 @@ describe('Visible same-Terminal follow-up', () => {
         expect(f.rejections()).toEqual([{ delegationId: id, phase: 'follow_up', reason, failure }]);
     });
 
+    /**
+     * These two refusals never consult the live Terminal: the parent record itself lacks the launch or native session a
+     * follow-up would have to reuse. They reach the caller as the same `target_changed` a replaced launch reports, so
+     * the CI reading of that failure (github.com/tjx666/caxri/issues/933) needs the reason to tell them apart.
+     */
+    it.each([
+        ['no_launch', { launchId: undefined }],
+        ['no_provider_session', { providerSessionId: undefined }],
+    ] as const)(
+        'rejects a parent whose record lacks %s as target_changed',
+        async (reason, patch) => {
+            const f = await fixture();
+            f.database.agentDelegations.save({
+                ...f.database.agentDelegations.get(f.id)!,
+                ...patch,
+            });
+            const id = randomUUID();
+            expect(
+                await f.service.create(id, owner, { ...f.input, followUpOf: f.id }),
+            ).toMatchObject({
+                status: 'failed',
+                failure: 'target_changed',
+            });
+            expect(f.write).not.toHaveBeenCalled();
+            expect(f.rejections()).toEqual([
+                { delegationId: id, phase: 'follow_up', reason, failure: 'target_changed' },
+            ]);
+        },
+    );
+
     it('separates a Host-refused write from a launch that changed before admission', async () => {
         const f = await fixture();
         f.write.mockReturnValueOnce(false);
