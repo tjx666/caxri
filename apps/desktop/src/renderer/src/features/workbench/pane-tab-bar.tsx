@@ -1,3 +1,4 @@
+import type { ReactNode, RefObject } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
 import type { PaneNode, PaneTab, TerminalRecord } from '@caxri/protocol';
@@ -5,6 +6,7 @@ import {
     isVirtualEditorTabPath,
     parseAgentTranscriptTab,
     parseGitDiffTab,
+    partitionPaneTabs,
     terminalDisplayTitle,
     terminalTabLabel,
 } from '@caxri/protocol';
@@ -384,7 +386,11 @@ function PaneTabActions({
  * Moves roving tab focus one step through `tabs` and selects whatever it lands on, leaving focus where it was when the
  * key has no target — the ends of the rail for `ArrowLeft`/`ArrowRight`.
  */
-function navigatePaneTabs(tabs: PaneTab[], fromTabId: string, key: WorkTabNavigationKey): void {
+function navigatePaneTabs(
+    tabs: readonly PaneTab[],
+    fromTabId: string,
+    key: WorkTabNavigationKey,
+): void {
     const target = workTabNavigationTarget(
         tabs.map((tab) => tab.id),
         fromTabId,
@@ -403,6 +409,264 @@ function navigatePaneTabs(tabs: PaneTab[], fromTabId: string, key: WorkTabNaviga
         targetTab.focus();
     }
     selectPaneTab(target);
+}
+
+/**
+ * The two containers the bar lays out — the anchored Terminal segment and the scrolling document rail — plus the visual
+ * order both of them are navigated in. Resolved here rather than inline so `PaneTabBar` reads as layout.
+ */
+function paneTabSegments(tabs: readonly PaneTab[]): {
+    anchoredTabs: PaneTab[];
+    orderedTabs: PaneTab[];
+    railTabs: PaneTab[];
+} {
+    /**
+     * Read off the tabs rather than off their index in `pane.tabs`: `orderPaneTabs` already keeps the stored order in
+     * segments, and reading the segments here as well is what makes a layout persisted before they existed render
+     * correctly instead of interleaving.
+     */
+    const { scrolling: railTabs, sticky: anchoredTabs } = partitionPaneTabs(tabs);
+    // Visual order, which is what roving arrow-key focus has to walk.
+    return { anchoredTabs, orderedTabs: [...anchoredTabs, ...railTabs], railTabs };
+}
+
+/**
+ * One segment's tabs, under their own presence group. A tab's segment follows from its resource kind alone, so a tab
+ * never moves between the two groups: a Terminal that changed container mid-life would animate out of the one it left
+ * while already mounted in the one it joined, putting the same tab on the bar twice for the length of that animation.
+ */
+function PaneTabSegment({
+    activeTabId,
+    closable,
+    isOnlySessionTerminal,
+    navigationTabs,
+    onExitComplete,
+    paneId,
+    separatorAfterLast,
+    showActiveAccent,
+    tabs,
+}: {
+    activeTabId: string | undefined;
+    closable: boolean;
+    isOnlySessionTerminal: boolean;
+    /**
+     * Visual order across both segments, so arrow keys walk the bar rather than the segment.
+     */
+    navigationTabs: readonly PaneTab[];
+    onExitComplete: () => void;
+    paneId: string;
+    separatorAfterLast: boolean;
+    showActiveAccent: boolean;
+    tabs: readonly PaneTab[];
+}) {
+    return (
+        <LazyMotion strict features={domAnimation}>
+            <AnimatePresence initial={false} onExitComplete={onExitComplete}>
+                {tabs.map((tab, index) => (
+                    <PaneTabEntry
+                        key={tab.id}
+                        active={tab.id === activeTabId}
+                        closable={closable}
+                        isOnlySessionTerminal={isOnlySessionTerminal}
+                        onNavigate={(key) => navigatePaneTabs(navigationTabs, tab.id, key)}
+                        paneId={paneId}
+                        showActiveAccent={showActiveAccent}
+                        showTrailingSeparator={separatorAfterLast || index < tabs.length - 1}
+                        tab={tab}
+                    />
+                ))}
+            </AnimatePresence>
+        </LazyMotion>
+    );
+}
+
+/**
+ * Whether a segment still owns width on the bar, and the `AnimatePresence` callback that ends it. Occupancy outlives
+ * the segment's last tab on purpose: the commit that empties the segment is the same one that starts that tab's exit
+ * animation, so collapsing on tab count alone would clip the tab away mid-flight and hand its width to the other
+ * segment a beat early. An empty segment is hidden rather than unmounted — its rail is what the tab-bar specs and the
+ * stylesheet's scrollbar rules address, and it has to survive a pane that is holding only the other kind.
+ */
+function useSegmentOccupancy(tabs: readonly PaneTab[]): {
+    isOccupied: boolean;
+    onExitComplete: () => void;
+} {
+    const [emptied, setEmptied] = useState(tabs.length === 0);
+    if (emptied && tabs.length > 0) setEmptied(false);
+    return {
+        isOccupied: tabs.length > 0 || !emptied,
+        onExitComplete: () => {
+            if (tabs.length === 0) setEmptied(true);
+        },
+    };
+}
+
+/**
+ * The scrolling half of one segment: the rail its tabs sit on, the two zero-width sentinels `useScrollEdges` watches,
+ * and the gradient fade shown on whichever edge is actually hiding a tab. `overflow-x-auto` gives no cue of its own
+ * that there is more to either side, and both segments can overflow — the documents routinely, the Terminals once
+ * enough of them share the anchored half — so each gets its own rather than the bar cueing only one of them.
+ */
+function PaneTabScrollRail({
+    children,
+    className,
+    fill,
+    scrollClassName,
+}: {
+    children: ReactNode;
+    className: string;
+    fill: ScrollFadeFill;
+    /**
+     * `work-tab-scroll` or `work-tab-sticky`: which rail the stylesheet's quiet scrollbar rules apply to.
+     */
+    scrollClassName: string;
+}) {
+    const scrollReference = useRef<HTMLDivElement>(null);
+    const startSentinel = useRef<HTMLSpanElement>(null);
+    const endSentinel = useRef<HTMLSpanElement>(null);
+    const { canScrollEnd, canScrollStart } = useScrollEdges(
+        scrollReference,
+        startSentinel,
+        endSentinel,
+    );
+    return (
+        <div role="none" className={cn('relative flex', className)}>
+            <div
+                ref={scrollReference}
+                className={cn('relative flex min-w-0 flex-1 overflow-x-auto', scrollClassName)}
+            >
+                <div
+                    /**
+                     * `min-w-full` (not `w-full`) lets evenly divided tabs claim the whole rail while still allowing
+                     * the list to grow past it once enough tabs hit their minimum width, which is what hands overflow
+                     * back to the scroll container above.
+                     */
+                    role="none"
+                    className="work-tab-list flex h-11 min-w-full items-stretch"
+                >
+                    <span
+                        ref={startSentinel}
+                        aria-hidden="true"
+                        className="w-px flex-none self-stretch"
+                    />
+                    {children}
+                    <span
+                        ref={endSentinel}
+                        aria-hidden="true"
+                        className="w-px flex-none self-stretch"
+                    />
+                </div>
+            </div>
+            {canScrollStart && <ScrollFade edge="start" fill={fill} />}
+            {canScrollEnd && <ScrollFade edge="end" fill={fill} />}
+        </div>
+    );
+}
+
+/**
+ * The tablist itself: the anchored Terminal segment, the scrolling document rail beside it, and the insertion line a
+ * drag draws across both. Both containers stay mounted for the pane's whole life — which of the two a tab belongs to is
+ * fixed by its resource kind — so the only thing that changes as tabs come and go is how the width is split.
+ */
+function PaneTabList({
+    activeTabId,
+    anchoredTabs,
+    closable,
+    dropIndicatorLeft,
+    isDropTarget,
+    isOnlySessionTerminal,
+    isRootBar,
+    listReference,
+    orderedTabs,
+    paneId,
+    paneLabel,
+    railTabs,
+    showActiveAccent,
+}: {
+    activeTabId: string | undefined;
+    anchoredTabs: readonly PaneTab[];
+    closable: boolean;
+    dropIndicatorLeft: number | undefined;
+    isDropTarget: boolean;
+    isOnlySessionTerminal: boolean;
+    isRootBar: boolean;
+    listReference: RefObject<HTMLDivElement | null>;
+    orderedTabs: readonly PaneTab[];
+    paneId: string;
+    paneLabel: string;
+    railTabs: readonly PaneTab[];
+    showActiveAccent: boolean;
+}) {
+    const anchor = useSegmentOccupancy(anchoredTabs);
+    const rail = useSegmentOccupancy(railTabs);
+    const scrollFadeFill: ScrollFadeFill = isDropTarget
+        ? 'dropTarget'
+        : isRootBar
+          ? 'titleBar'
+          : 'surface';
+    return (
+        <div
+            ref={listReference}
+            role="tablist"
+            aria-label={`Open tabs in ${paneLabel}`}
+            aria-orientation="horizontal"
+            className="relative flex min-w-0 flex-1"
+        >
+            {dropIndicatorLeft !== undefined && (
+                <div
+                    aria-hidden="true"
+                    className="work-tab-drop-marker pointer-events-none absolute top-1 bottom-1 z-10 w-0.5 bg-accent"
+                    style={{ left: dropIndicatorLeft }}
+                >
+                    <span className="absolute -top-0.5 left-1/2 size-1.5 -translate-x-1/2 rounded-full bg-accent" />
+                </div>
+            )}
+            <PaneTabScrollRail
+                /**
+                 * Sized to its own tabs so the scrolling rail keeps the rest of the bar, capped at half of it and
+                 * scrolling internally past that — a Session with many Terminals must not squeeze the documents out in
+                 * the other direction. With no documents to make room for it takes the whole bar instead, so Terminals
+                 * alone still divide the full width evenly the way iTerm2 and Chrome do.
+                 */
+                className={cn(
+                    'flex-none',
+                    rail.isOccupied ? 'max-w-1/2' : 'w-full',
+                    !anchor.isOccupied && 'hidden',
+                )}
+                fill={scrollFadeFill}
+                scrollClassName="work-tab-sticky"
+            >
+                <PaneTabSegment
+                    activeTabId={activeTabId}
+                    closable={closable}
+                    isOnlySessionTerminal={isOnlySessionTerminal}
+                    navigationTabs={orderedTabs}
+                    onExitComplete={anchor.onExitComplete}
+                    paneId={paneId}
+                    separatorAfterLast={rail.isOccupied}
+                    showActiveAccent={showActiveAccent}
+                    tabs={anchoredTabs}
+                />
+            </PaneTabScrollRail>
+            <PaneTabScrollRail
+                className={cn('min-w-0 flex-1', !rail.isOccupied && 'hidden')}
+                fill={scrollFadeFill}
+                scrollClassName="work-tab-scroll"
+            >
+                <PaneTabSegment
+                    activeTabId={activeTabId}
+                    closable={closable}
+                    isOnlySessionTerminal={isOnlySessionTerminal}
+                    navigationTabs={orderedTabs}
+                    onExitComplete={rail.onExitComplete}
+                    paneId={paneId}
+                    separatorAfterLast={false}
+                    showActiveAccent={showActiveAccent}
+                    tabs={railTabs}
+                />
+            </PaneTabScrollRail>
+        </div>
+    );
 }
 
 /**
@@ -431,19 +695,7 @@ export function PaneTabBar({
 }) {
     const isPrimarySidebarVisible = useChromeLayoutStore((state) => state.primarySidebarVisible);
     const isFullScreen = useIsFullScreen();
-    const barReference = useRef<HTMLDivElement>(null);
-    /**
-     * `overflow-x-auto` gives no visual cue that there are more tabs off to a side; a gradient fade — shown only on the
-     * edge that actually hides content — is the standard affordance (browser tab strips, VS Code's own editor tabs).
-     * `useScrollEdges` watches these two zero-width sentinels rendered at either end of the scrollable content.
-     */
-    const scrollStartSentinel = useRef<HTMLSpanElement>(null);
-    const scrollEndSentinel = useRef<HTMLSpanElement>(null);
-    const { canScrollEnd, canScrollStart } = useScrollEdges(
-        barReference,
-        scrollStartSentinel,
-        scrollEndSentinel,
-    );
+    const listReference = useRef<HTMLDivElement>(null);
     const {
         dropIndicatorLeft,
         isDropTarget,
@@ -452,31 +704,29 @@ export function PaneTabBar({
         onDragOver,
         onDragStart,
         onDrop,
-    } = usePaneTabDrag(pane, barReference);
+    } = usePaneTabDrag(pane, listReference);
+    const { anchoredTabs, orderedTabs, railTabs } = paneTabSegments(pane.tabs);
     /**
      * Whether this pane owns `activePaneId` — DESIGN.md principle 2's "one durable accent focus per screen": the tab
      * border and the pane ring express the same focus and count as one. After a split, only the focused pane's active
      * tab wears the accent border; an unfocused pane's active tab keeps its selection fill (VS Code's unfocused editor
      * group behavior) but drops the accent, so two panes never both claim the screen's one accent at once.
      */
-    const isActivePane = useSessionState()?.paneLayout.activePaneId === pane.id;
+    const activePaneId = useSessionState()?.paneLayout.activePaneId;
+    const showActiveAccent = hasTabsToSwitch && activePaneId === pane.id;
     const activeTab = pane.tabs.find((tab) => tab.id === pane.activeTabId) ?? pane.tabs.at(0);
     const activeTabId = activeTab?.id;
     const editorPath = activeEditorPath(activeTab);
     /**
      * `overflow-x-auto` has no built-in cue for "the active tab is off to the side," so selecting or creating a tab
-     * that lands outside the visible bar must scroll it into view itself.
+     * that lands outside the visible bar must scroll it into view itself. Queried from the whole tablist because either
+     * segment can overflow, and `inline: 'nearest'` scrolls whichever one actually holds the tab.
      */
     useEffect(() => {
-        barReference.current
+        listReference.current
             ?.querySelector<HTMLElement>('[data-tab-active="true"]')
             ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     }, [activeTabId]);
-    const scrollFadeFill: ScrollFadeFill = isDropTarget
-        ? 'dropTarget'
-        : isRootBar
-          ? 'titleBar'
-          : 'surface';
     return (
         <div
             className={cn(
@@ -496,67 +746,21 @@ export function PaneTabBar({
             onDragOver={onDragOver}
             onDrop={onDrop}
         >
-            <div className="relative flex min-w-0 flex-1">
-                <div
-                    ref={barReference}
-                    className="work-tab-scroll relative flex min-w-0 flex-1 overflow-x-auto"
-                >
-                    {dropIndicatorLeft !== undefined && (
-                        <div
-                            aria-hidden="true"
-                            className="work-tab-drop-marker pointer-events-none absolute top-1 bottom-1 z-10 w-0.5 bg-accent"
-                            style={{ left: dropIndicatorLeft }}
-                        >
-                            <span className="absolute -top-0.5 left-1/2 size-1.5 -translate-x-1/2 rounded-full bg-accent" />
-                        </div>
-                    )}
-                    <div
-                        /**
-                         * `min-w-full` (not `w-full`) lets evenly divided tabs claim the whole rail while still
-                         * allowing the list to grow past it once enough tabs hit their minimum width, which is what
-                         * hands overflow back to the scroll container above.
-                         */
-                        className="work-tab-list flex h-11 min-w-full items-stretch"
-                        role="tablist"
-                        aria-label={`Open tabs in ${paneLabel}`}
-                        aria-orientation="horizontal"
-                    >
-                        {/* Zero-width markers `useScrollEdges` watches to tell whether content has scrolled past
-                            either end of the list; they carry no visual weight of their own. */}
-                        <span
-                            ref={scrollStartSentinel}
-                            aria-hidden="true"
-                            className="w-px flex-none self-stretch"
-                        />
-                        <LazyMotion strict features={domAnimation}>
-                            <AnimatePresence initial={false}>
-                                {pane.tabs.map((tab, index) => (
-                                    <PaneTabEntry
-                                        key={tab.id}
-                                        active={tab.id === activeTabId}
-                                        closable={hasTabsToSwitch}
-                                        isOnlySessionTerminal={isOnlySessionTerminal}
-                                        onNavigate={(key) =>
-                                            navigatePaneTabs(pane.tabs, tab.id, key)
-                                        }
-                                        paneId={pane.id}
-                                        showActiveAccent={hasTabsToSwitch && isActivePane}
-                                        showTrailingSeparator={index < pane.tabs.length - 1}
-                                        tab={tab}
-                                    />
-                                ))}
-                            </AnimatePresence>
-                        </LazyMotion>
-                        <span
-                            ref={scrollEndSentinel}
-                            aria-hidden="true"
-                            className="w-px flex-none self-stretch"
-                        />
-                    </div>
-                </div>
-                {canScrollStart && <ScrollFade edge="start" fill={scrollFadeFill} />}
-                {canScrollEnd && <ScrollFade edge="end" fill={scrollFadeFill} />}
-            </div>
+            <PaneTabList
+                activeTabId={activeTabId}
+                anchoredTabs={anchoredTabs}
+                closable={hasTabsToSwitch}
+                dropIndicatorLeft={dropIndicatorLeft}
+                isDropTarget={isDropTarget}
+                isOnlySessionTerminal={isOnlySessionTerminal}
+                isRootBar={isRootBar}
+                listReference={listReference}
+                orderedTabs={orderedTabs}
+                paneId={pane.id}
+                paneLabel={paneLabel}
+                railTabs={railTabs}
+                showActiveAccent={showActiveAccent}
+            />
             <PaneTabActions
                 editorPath={editorPath}
                 hasTabsToSwitch={hasTabsToSwitch}
