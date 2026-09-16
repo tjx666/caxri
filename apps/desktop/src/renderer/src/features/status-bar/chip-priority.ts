@@ -8,7 +8,9 @@
  *
  * - The child-process count and memory chips duplicate a live reading already available in Process Explorer
  *   (`processExplorer.open`), so they are the cheapest to hide first.
- * - The pull request chip duplicates the Git panel, so it goes next.
+ * - The Linear issue chip goes next: it is a pointer to a tracker outside Caxri, and the same issue is reachable from the
+ *   Status panel's own Linear rows.
+ * - The pull request chip duplicates the Git panel, so it goes after that.
  * - The notification bell, degraded-backend/runtime chips, active Terminal progress, the update chip, the open debugging
  *   channel chip, and the Project root + branch pickers are never included here — they have no other on-screen home and
  *   must never disappear silently. The update chip is the only persistent trace of a download in flight or an install
@@ -19,6 +21,7 @@
  */
 export interface ChipVisibility {
     childProcessCount: boolean;
+    linearIssue: boolean;
     memory: boolean;
     pullRequest: boolean;
 }
@@ -31,11 +34,13 @@ export interface ChipVisibility {
 export const CHIP_PRIORITY_BREAKPOINTS = {
     childProcessCount: 752,
     memory: 680,
-    pullRequest: 610,
+    linearIssue: 610,
+    pullRequest: 545,
 } as const;
 
 const ALL_VISIBLE: ChipVisibility = {
     childProcessCount: true,
+    linearIssue: true,
     memory: true,
     pullRequest: true,
 };
@@ -49,6 +54,7 @@ export function resolveChipVisibility(width: number): ChipVisibility {
     if (width <= 0) return ALL_VISIBLE;
     return {
         childProcessCount: width >= CHIP_PRIORITY_BREAKPOINTS.childProcessCount,
+        linearIssue: width >= CHIP_PRIORITY_BREAKPOINTS.linearIssue,
         memory: width >= CHIP_PRIORITY_BREAKPOINTS.memory,
         pullRequest: width >= CHIP_PRIORITY_BREAKPOINTS.pullRequest,
     };

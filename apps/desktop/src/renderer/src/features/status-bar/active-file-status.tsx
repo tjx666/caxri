@@ -56,7 +56,7 @@ export function ActiveFileStatus({
                                     : `Git blame: ${blame.author}, ${authored}, ${blame.subject}`
                             }
                             className="statusbar-blame w-full"
-                            icon={GitCommitHorizontal}
+                            icon={<GitCommitHorizontal />}
                             title={
                                 blame.uncommitted ? (
                                     `Uncommitted changes · line ${line}`
@@ -88,7 +88,7 @@ export function ActiveFileStatus({
             <StatusInfo
                 ariaLabel={`File type: ${language}`}
                 className="statusbar-language"
-                icon={Braces}
+                icon={<Braces />}
                 title="File type"
             >
                 {language}

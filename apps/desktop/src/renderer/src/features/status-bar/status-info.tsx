@@ -1,12 +1,13 @@
 import type { ReactNode } from 'react';
 
-import type { LucideIcon } from 'lucide-react';
-
 import { Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
 
+/**
+ * Sized in CSS for the reason given on `statusItemClassName`; a read-only reading runs one pixel smaller.
+ */
 const statusInfoClassName =
-    'statusbar-info inline-flex h-5 min-w-0 flex-none items-center gap-[5px] overflow-hidden rounded px-[5px] text-foreground tabular-nums [&>svg]:flex-none [&>span]:overflow-hidden [&>span]:text-ellipsis [&>span]:whitespace-nowrap';
+    'statusbar-info inline-flex h-5 min-w-0 flex-none items-center gap-[5px] overflow-hidden rounded px-[5px] text-foreground tabular-nums [&>svg]:flex-none [&>svg]:size-[12px] [&>span]:overflow-hidden [&>span]:text-ellipsis [&>span]:whitespace-nowrap';
 
 /**
  * A read-only status-bar reading. DESIGN.md requires explanatory prose in both the accessible name and a hover tooltip:
@@ -20,7 +21,7 @@ export function StatusInfo({
     children,
     className,
     focusable = false,
-    icon: Icon,
+    icon,
     title,
 }: {
     announce?: boolean;
@@ -28,7 +29,7 @@ export function StatusInfo({
     children: ReactNode;
     className?: string;
     focusable?: boolean;
-    icon?: LucideIcon;
+    icon?: ReactNode;
     title: ReactNode;
 }) {
     return (
@@ -45,7 +46,7 @@ export function StatusInfo({
                 role={announce ? 'status' : focusable ? 'note' : undefined}
                 tabIndex={focusable ? 0 : undefined}
             >
-                {Icon && <Icon size={12} />}
+                {icon}
                 <span>{children}</span>
             </span>
         </Tooltip>

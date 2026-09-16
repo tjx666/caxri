@@ -61,6 +61,7 @@ export async function createDomainServices(
         externalStatus,
         files,
         git,
+        sessionContext,
         transcripts,
         watchHub,
         workbenchRoots,
@@ -213,6 +214,7 @@ export async function createDomainServices(
     const projectStatus = new ProjectStatusService(git, logger, externalStatus.run, {
         emit: send,
         github: externalStatus.github,
+        sessionContext: (sessionId) => sessionContext.readSession(sessionId),
         settings: () => configuration.getSettings().value,
     });
     workbenchRoots.setRootChangedHandler((sessionId) => {
