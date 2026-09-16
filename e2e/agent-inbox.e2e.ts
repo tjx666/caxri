@@ -174,9 +174,23 @@ process.stdin.resume();
         await expect(approval).toBeVisible();
         await expect(approval.getByTestId('agent-message-body')).toContainText('full-message-tail');
         await expect(approval).toContainText('does not grant permissions');
-        // The confirming button takes focus once the body lands. Until then it is disabled, and naming a disabled
-        // element as the dialog's initial focus would leave focus outside it entirely — on the Agent's Terminal.
-        await expect(approval.getByRole('button', { name: 'Approve message' })).toBeFocused();
+        /**
+         * The confirming button takes focus once the body lands. Until then it is disabled, and naming a disabled
+         * element as the dialog's initial focus would leave focus outside it entirely — on the Agent's Terminal.
+         *
+         * Read off `document.activeElement` rather than asserted with `toBeFocused`, which also requires
+         * `document.hasFocus()`: CI runs several Electron pools at once, so another pool's window can hold macOS focus
+         * while this one is behaving correctly. What the dialog owes the user is that the button is the document's
+         * focused element whenever the window is theirs, and that is what this checks.
+         */
+        await expect
+            .poll(() =>
+                approval.getByRole('button', { name: 'Approve message' }).evaluate((button) => {
+                    const root = button.getRootNode() as Document | ShadowRoot;
+                    return button === root.activeElement;
+                }),
+            )
+            .toBe(true);
         await approval.getByRole('button', { name: 'Approve message' }).click();
         await expect(
             receiver.request('agent.message.wait', { timeoutMs: 1_000 }),
