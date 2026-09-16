@@ -27,9 +27,10 @@ export function UpdateStatusChip() {
     const state = useUpdateStore((store) => store.state);
     const chip = describeUpdateChip(state, useSettings()?.['updates.skippedVersion']);
     if (!chip) return null;
+    const ChipIcon = UPDATE_CHIP_ICONS[chip.kind];
     return (
         <StatusItem
-            icon={UPDATE_CHIP_ICONS[chip.kind]}
+            icon={<ChipIcon />}
             ariaLabel={chip.description}
             title={chip.description}
             className={updateChipClassName}

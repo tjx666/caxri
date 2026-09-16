@@ -4,7 +4,6 @@ import type {
     AppSettings,
     GitRepositorySummary as GitRepoSummary,
     ProjectStatusError,
-    ProjectStatusLinearIssue,
     ProjectStatusOverview,
     ProjectStatusRepository as ProjectStatusRepo,
     ProjectStatusSummary,
@@ -21,6 +20,7 @@ import {
     ExternalStatusCliError,
     GitHubPullRequestStore,
     isNoPullRequest,
+    LinearIssueStore,
     observeExternalStatusCommand,
     pullRequestUnavailable as describePullRequestUnavailable,
     runExternalStatusCommand,
@@ -31,23 +31,25 @@ import type { BranchPublicationContext } from './project-status-branch';
 import { prepareStatusRepo, readBranchPublication } from './project-status-branch';
 import type { VercelLink } from './project-status-external';
 import {
-    extractLinearReferences,
     hasLocalVercelLink,
     projectStatusCliError,
     projectStatusNoDeploymentsError,
     vcListArguments,
 } from './project-status-external';
 import {
+    loadOverviewLinearIssues,
+    loadPullRequestLinearIssues,
+    readConversationLinearReferences,
+} from './project-status-linear';
+import {
     githubPullRequestSchema,
-    LINEAR_ISSUE_QUERY,
-    linearIssueResponseSchema,
-    mapLinearIssue,
     parseExternalJson,
     parseGitHubPullRequest,
     parseVercelList,
     vercelTeamListSchema,
 } from './project-status-parse';
 import { mapProjectStatusDeployment } from './project-status-vercel';
+import type { SessionTranscriptContext } from './session-context';
 import { SingleFlight } from './single-flight';
 
 export { extractLinearReferences } from './project-status-external';
@@ -110,6 +112,11 @@ export interface ProjectStatusServiceOptions {
     github?: GitHubPullRequestStore;
     now?: () => number;
     /**
+     * Reads the clues this Session's own Agent conversation produced, so the status bar can name the issue a branch is
+     * about even when the pull request body never said it. A Server assembled without it simply drops that source.
+     */
+    sessionContext?: (sessionId: string) => Promise<SessionTranscriptContext | undefined>;
+    /**
      * Reads current settings for `projectStatus.ignoredChecks` and `projectStatus.notifications.enabled`. A Server
      * assembled without it behaves as if no check is ignored and no alert is wanted.
      */
@@ -133,6 +140,7 @@ export class ProjectStatusService {
      */
     private readonly vercelLinks = new Map<string, VercelLink>();
     private readonly github: GitHubPullRequestStore;
+    private readonly linear: LinearIssueStore;
     private readonly alerts = new ProjectStatusAlertTracker();
     private polledSessionId?: string;
     private pollTimer?: NodeJS.Timeout;
@@ -146,6 +154,14 @@ export class ProjectStatusService {
     ) {
         this.github =
             options.github ?? new GitHubPullRequestStore(this.runner, { now: () => this.now() });
+        /**
+         * One store for both Linear readers in this Service — the Status panel's issue rows and the status bar's
+         * leading issue — so a Session's Linear state costs one CLI spawn per issue rather than two.
+         */
+        this.linear = new LinearIssueStore(
+            (arguments_, cwd, subject) => this.runCommand('linear', arguments_, cwd, subject),
+            { now: () => this.now() },
+        );
     }
 
     private now(): number {
@@ -201,6 +217,12 @@ export class ProjectStatusService {
         let pullRequestUnavailable: NonNullable<
             ProjectStatusOverview['repository']
         >['pullRequestUnavailable'];
+        /**
+         * The shared pull-request record already carries `body` (see `PULL_REQUEST_FIELDS` in
+         * `external-status/github.ts`), so reading the Linear references out of it costs no extra GitHub query on top
+         * of the one this overview already makes.
+         */
+        let pullRequestBody: string | undefined;
         if (github) {
             try {
                 /**
@@ -216,6 +238,7 @@ export class ProjectStatusService {
                 const parsed = output
                     ? parseExternalJson(output, githubPullRequestSchema, 'GitHub pull request')
                     : undefined;
+                pullRequestBody = parsed?.body;
                 if (parsed?.number && parsed.title && parsed.url) {
                     pullRequest = {
                         number: parsed.number,
@@ -246,6 +269,14 @@ export class ProjectStatusService {
                 deletions: repo.deletions,
                 pullRequest,
                 ...(pullRequestUnavailable && { pullRequestUnavailable }),
+                linearIssues: await loadOverviewLinearIssues(this.linear, repo.rootPath, {
+                    branch: repo.branch,
+                    conversation: await readConversationLinearReferences(
+                        sessionId,
+                        this.options.sessionContext,
+                    ),
+                    pullRequestBody,
+                }),
             },
             refreshedAt: this.now(),
         };
@@ -364,7 +395,10 @@ export class ProjectStatusService {
             });
             if (!output) return { linearIssues: [], errors: [] };
             const parsed = parseGitHubPullRequest(output, this.ignoredChecks());
-            const linear = await this.loadLinear(cwd, parsed.body);
+            const linear = await loadPullRequestLinearIssues(this.linear, cwd, parsed.body, {
+                isForced,
+                onParseFailure: (error) => this.logExternalParseFailure('linear', error),
+            });
             return {
                 pullRequest: parsed.pullRequest,
                 linearIssues: linear.issues,
@@ -382,46 +416,6 @@ export class ProjectStatusService {
                 errors: [projectStatusCliError('gh', failure.kind, { retryAt: failure.retryAt })],
             };
         }
-    }
-
-    private async loadLinear(
-        cwd: string,
-        body: string,
-    ): Promise<{ issues: ProjectStatusLinearIssue[]; error?: ProjectStatusError }> {
-        const references = extractLinearReferences(body);
-        if (references.length === 0) return { issues: [] };
-        let firstError: ProjectStatusError | undefined;
-        const issues = await Promise.all(
-            references.map(async (reference): Promise<ProjectStatusLinearIssue> => {
-                try {
-                    const arguments_ = [
-                        'api',
-                        LINEAR_ISSUE_QUERY,
-                        '--variable',
-                        `id=${reference.identifier}`,
-                    ];
-                    if (reference.workspace) arguments_.push('--workspace', reference.workspace);
-                    const raw = parseExternalJson(
-                        await this.runCommand('linear', arguments_, cwd, reference.identifier),
-                        linearIssueResponseSchema,
-                        'Linear issue',
-                    );
-                    return mapLinearIssue(raw, reference.identifier);
-                } catch (error) {
-                    this.logExternalParseFailure('linear', error);
-                    const failure =
-                        error instanceof ExternalStatusCliError
-                            ? error
-                            : new ExternalStatusCliError('linear', 'other', String(error));
-                    firstError ??= projectStatusCliError('linear', failure.kind, {
-                        retryAt: failure.retryAt,
-                        subject: reference.identifier,
-                    });
-                    return { identifier: reference.identifier };
-                }
-            }),
-        );
-        return { issues, error: firstError };
     }
 
     private async findVercelLink(owner: string, repo: string): Promise<VercelLink | undefined> {

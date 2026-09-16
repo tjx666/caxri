@@ -15,6 +15,7 @@ import { ExternalStatusHub } from './external-status';
 import { FileService } from './files';
 import { GitService } from './git';
 import { ProjectRootResolver } from './project-roots';
+import { SessionContextService } from './session-context';
 import { WatchHub } from './watch-hub';
 import { WorkbenchRootService } from './workbench-roots';
 
@@ -111,12 +112,18 @@ export async function createRootServices({
         externalStatus,
         watchHub,
     });
+    /**
+     * One incremental reader for every Agent transcript clue the product consumes. Shared so the Workbench Root picker
+     * and the status bar's Linear lookup pay for a transcript's bytes once between them.
+     */
+    const sessionContext = new SessionContextService(database, agentEnvironment);
     const workbenchRoots = new WorkbenchRootService({
         behavior: () => config.getSettings().value['workbench.newWorktreeBehavior'],
         database,
         emit: send,
         git,
         logger,
+        sessionContext: (session) => sessionContext.read(session),
     });
     const files = new FileService(
         database,
@@ -156,6 +163,7 @@ export async function createRootServices({
         externalStatus,
         files,
         git,
+        sessionContext,
         transcripts,
         watchHub,
         workbenchRoots,
