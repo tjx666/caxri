@@ -30,10 +30,14 @@ function paneTabIdAt(target: EventTarget | null): string | undefined {
  * A pane tab bar's drag-and-drop state and handlers: the drop-target highlight, the insertion-line position, and the
  * hover-preview timer that switches a pane's active tab while a drag lingers over one of its other tabs. Extracted out
  * of `PaneTabBar` so that component stays focused on layout and the tab list itself.
+ *
+ * `listReference` is the whole `role="tablist"`, spanning both the anchored Terminal segment and the scrolling document
+ * segment, so a drop resolves against every tab on the bar and the insertion line shares one coordinate space with
+ * them. A drop that lands across the segment boundary is normalized by `orderPaneTabs` in the reducer.
  */
 export function usePaneTabDrag(
     pane: PaneNode,
-    barReference: RefObject<HTMLDivElement | null>,
+    listReference: RefObject<HTMLDivElement | null>,
 ): {
     dropIndicatorLeft: number | undefined;
     isDropTarget: boolean;
@@ -131,9 +135,9 @@ export function usePaneTabDrag(
                       )
                     : undefined;
             }
-            const scrollElement = barReference.current;
-            if (!scrollElement) return;
-            const tabElements = scrollElement.querySelectorAll<HTMLElement>('[data-pane-tab-id]');
+            const listElement = listReference.current;
+            if (!listElement) return;
+            const tabElements = listElement.querySelectorAll<HTMLElement>('[data-pane-tab-id]');
             const tabRects: DOMRect[] = [];
             for (const element of tabElements) {
                 if (element.dataset.paneTabId !== draggedTabIdReference.current)
@@ -143,9 +147,14 @@ export function usePaneTabDrag(
             const index = resolveTabDropIndex(tabRects, event.clientX);
             const targetRect = index === undefined ? tabRects.at(-1) : tabRects[index];
             if (!targetRect) return;
-            const scrollRect = scrollElement.getBoundingClientRect();
+            /**
+             * Viewport-relative, offset only by the list's own origin: the line is positioned in the tablist, which
+             * does not scroll, while the tabs it points between may sit in either segment. Every `dragover` remeasures,
+             * so a segment scrolled mid-drag still lands the line on the right seam.
+             */
+            const listRect = listElement.getBoundingClientRect();
             const edgeX = index === undefined ? targetRect.right : targetRect.left;
-            setDropIndicatorLeft(edgeX - scrollRect.left + scrollElement.scrollLeft);
+            setDropIndicatorLeft(edgeX - listRect.left);
         },
         onDrop: (event) => {
             setIsDropTarget(false);
@@ -156,7 +165,7 @@ export function usePaneTabDrag(
             if (!tabId) return;
             event.preventDefault();
             const tabElements =
-                barReference.current?.querySelectorAll<HTMLElement>('[data-pane-tab-id]') ?? [];
+                listReference.current?.querySelectorAll<HTMLElement>('[data-pane-tab-id]') ?? [];
             const tabRects: DOMRect[] = [];
             for (const element of tabElements) {
                 if (element.dataset.paneTabId !== tabId)
