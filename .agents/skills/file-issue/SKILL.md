@@ -305,5 +305,42 @@ Stop before creating only when the user explicitly asks for a draft, preview, or
 missing decision would materially change the issue. In draft-only mode, present the title, label,
 and full body without creating anything.
 
+Never ask the user whether something is worth filing. "Should I file an issue for this?" hands back
+a judgment the agent is better placed to make — it has the evidence in front of it and the user does
+not — and it stalls delivery on a round trip. Run the review below instead, and act on its verdict.
+
 After creation, fetch the issue and Project item once to verify the title, body, complete label
 set, Status, and Priority rather than treating command exit statuses as the complete outcome.
+
+## Independent review before filing
+
+Every filing decision — one issue or a batch — is reviewed by a second opinion first: a subagent, or
+another harness through `dianjiang`. The gate covers anything the agent concluded on its own: a bug
+it believes it found, a follow-up it wants to leave behind, an enhancement it thought of. It does
+not cover an issue that merely records work the user explicitly directed, where there is no
+judgment to test — file that one directly.
+
+The reviewer is separate from the agent that found the problem
+because the finder is the worst judge of its own find: it already believes the diagnosis, and a
+plausible story about a symptom it just hit reads as confirmed to it in a way it does not to anyone
+else. Filing it anyway costs the owner a triage pass on something that turns out to be a duplicate,
+a local mistake, or already-documented behavior.
+
+Hand the reviewer the drafted finding, the repository path, and read-only scope: no edits, no issue
+creation, no remote mutation. Ask it to verify each load-bearing claim against the code rather than
+against the draft, to search for an existing issue that already covers it, and to return a verdict
+in Simplified Chinese covering whether to file, a per-claim CONFIRMED / PARTLY / REFUTED with
+`path:line` evidence, any duplicate, a corrected framing if the finding is real but aimed at the
+wrong owner, and a suggested priority and size.
+
+Then adjudicate against current repository state — the verdict is evidence, not a decision:
+
+- **Confirmed and not a duplicate** → file it, folding in the reviewer's corrections to framing,
+  priority, and size.
+- **Refuted, already covered, or already-documented behavior** → do not file. Say so in the reply,
+  naming the duplicate or the documentation that settles it.
+- **Real but framed wrong** → file the corrected issue, not the draft.
+
+Report the review's effect in the final reply — what it confirmed, what it changed, what it killed —
+so the user can see the filing decision was tested rather than asserted. A review that agreed with
+everything is worth one clause, not a section.
