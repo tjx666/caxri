@@ -138,6 +138,12 @@ export function AgentMessageApprovalDialog() {
      * dialog — the title, the sender table, the message body — focuses it. Re-running the hand-over there would yank
      * focus mid-drag and wipe the text selection, and the body is the one thing a reviewer needs to be able to read and
      * copy before deciding. `focus` does not bubble, so this never fires while the user is on a real control.
+     *
+     * Why `document.body` counts as parked: from the second message onward it is the only state this ever sees.
+     * Approving disables the button while the request is in flight, which drops focus to the body, and Base UI does not
+     * restore it — its restore path requires the old element to be hidden, and a disabled button is still visible. Its
+     * own initial-focus effect does not re-run either, since nothing it depends on changed. Delete that half and every
+     * message after the first one opens with no focused control.
      */
     useEffect(() => {
         if (!isBodyReady) return;
@@ -146,10 +152,16 @@ export function AgentMessageApprovalDialog() {
         let isHandedOver = false;
         const handOverFocus = (): void => {
             if (isHandedOver) return;
-            if (document.activeElement !== popup && document.activeElement !== document.body)
+            if (document.activeElement !== popup && document.activeElement !== document.body) {
+                // The user is already on a real control in this dialog, so the hand-over is moot. Spend it anyway:
+                // left armed, it would fire on their next click in the body and take the selection with it.
+                if (popup.contains(document.activeElement)) isHandedOver = true;
                 return;
+            }
             const confirm = approvalConfirmButton(popup);
-            if (!confirm) return;
+            // An in-flight request disables the button, and focusing a disabled element is a no-op — retry on the next
+            // focus rather than spending the hand-over on nothing.
+            if (!confirm || confirm.disabled) return;
             isHandedOver = true;
             confirm.focus();
         };
