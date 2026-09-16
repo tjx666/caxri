@@ -49,7 +49,7 @@ export function terminalSearchReducer(
 /**
  * The slice of `SearchAddon` the selection guard subscribes to.
  */
-export interface TerminalSearchLifecycle {
+interface TerminalSearchLifecycle {
     onAfterSearch(listener: () => void): { dispose(): void };
     onBeforeSearch(listener: () => void): { dispose(): void };
 }
