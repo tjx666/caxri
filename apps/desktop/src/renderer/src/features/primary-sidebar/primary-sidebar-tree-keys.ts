@@ -81,14 +81,16 @@ export function handlePrimarySidebarTreeKey(
     if (event.key === 'Delete' || event.key === 'Backspace') {
         const row = rows.find((item) => item.id === rowId);
         if (!row) return;
-        if (primarySidebarArchiveIntent(row, event.key) !== 'archive') return;
+        if (primarySidebarArchiveIntent(row, event.key) !== 'archive' || !row.sessionId) return;
         event.preventDefault();
-        // Compute where focus lands before the row leaves the DOM: the Project heading is always above a Session row,
-        // so the ArrowUp fallback never comes up empty here.
+        // Compute where focus lands before the row leaves the DOM: a group heading is always above a Session row, so
+        // the ArrowUp fallback never comes up empty here.
         const focusAfterArchive =
             nextPrimarySidebarRowId(rows, rowId, 'ArrowDown') ??
             nextPrimarySidebarRowId(rows, rowId, 'ArrowUp');
-        archiveSession(row.id);
+        // `sessionId`, not `row.id`: a row in the Pinned group carries a namespaced row id, and archiving has to reach
+        // the Session behind it.
+        archiveSession(row.sessionId);
         if (focusAfterArchive) focusRow(focusAfterArchive);
     }
 }

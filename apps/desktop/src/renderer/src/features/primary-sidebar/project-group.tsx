@@ -1,22 +1,17 @@
 import type { DragEvent } from 'react';
-import { useState } from 'react';
 
 import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
-import { Archive, ChevronDown, ChevronRight, Paintbrush } from 'lucide-react';
+import { ChevronDown, ChevronRight, Paintbrush } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
 import { CommandTooltip } from '../../components/command-tooltip';
 import { DisclosureMotion } from '../../components/disclosure-motion';
 import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
-import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
-import { WorktreeIcon } from '../../icons/codicons/worktree-icon';
 import { cn } from '../../lib/utilities';
 import { CreateSessionMenu, EmptyProjectSessionMenu } from '../session/create-session-menu';
-import { archiveSession } from '../session/session-commands';
+import { ActiveSessionRow } from './active-session-row';
 import type { SessionOrderController } from './hooks/use-session-order';
-import { useSessionPullRequest } from './hooks/use-session-pull-request';
-import { useSessionTitleScroll } from './hooks/use-session-title-scroll';
 import {
     primarySidebarCreateSessionRowId,
     primarySidebarRevealRowId,
@@ -27,12 +22,6 @@ import type { ProjectDropTarget } from './project-order';
 import { hasProjectDragType } from './project-order';
 import { ProjectRowMenu } from './project-row-menu';
 import { hasWorktreeSession } from './project-worktree-slot';
-import { SessionActivityCard } from './session-activity-card';
-import { SessionPullRequestIndicator } from './session-pull-request-indicator';
-import { SessionRenameInput } from './session-rename-input';
-import { SessionRowMenu } from './session-row-menu';
-import { SessionRowTrigger } from './session-row-trigger';
-import { SessionStatusIndicator } from './session-status-indicator';
 
 function sessionTerminal(
     session: SessionRecord,
@@ -42,216 +31,6 @@ function sessionTerminal(
     return (
         sessionTerminals.find((item) => item.id === session.primaryAgentTerminalId) ??
         sessionTerminals[0]
-    );
-}
-
-interface ActiveSessionRowProperties {
-    sessionOrder: SessionOrderController;
-    visibleSessions: readonly SessionRecord[];
-    focusRenameInput: (element: HTMLInputElement | null) => void;
-    onBeginRename: () => void;
-    onBlurRename: () => void;
-    onCancelRename: () => void;
-    onCommitRename: () => void;
-    onRenameValueChange: (value: string) => void;
-    project: ProjectRecord;
-    renameError?: string;
-    renameValue: string;
-    renaming: boolean;
-    /**
-     * True when this Session row currently owns the tree's single roving Tab stop.
-     */
-    roving: boolean;
-    selected: boolean;
-    session: SessionRecord;
-    terminal?: TerminalRecord;
-    terminals: TerminalRecord[];
-    /**
-     * Workbench Root Project when this Session works in a linked worktree instead of its own Project root. Absent for
-     * the ordinary case, which renders no marker.
-     */
-    worktreeProject?: ProjectRecord;
-    /**
-     * True when a sibling Session in this Project group carries a worktree marker, so this row holds the empty column
-     * that keeps every marker on one vertical line. Reserved per group rather than globally: a Project with no worktree
-     * Session would otherwise pay the indent for a column that is always blank.
-     */
-    reserveWorktreeSlot?: boolean;
-}
-
-function ActiveSessionRow({
-    sessionOrder,
-    visibleSessions,
-    focusRenameInput,
-    onBeginRename,
-    onBlurRename,
-    onCancelRename,
-    onCommitRename,
-    onRenameValueChange,
-    project,
-    renameError,
-    renameValue,
-    renaming,
-    reserveWorktreeSlot,
-    roving,
-    selected,
-    session,
-    terminal,
-    terminals,
-    worktreeProject,
-}: ActiveSessionRowProperties) {
-    /**
-     * Read here rather than handed down from the sidebar root: the snapshot is refreshed on a timer, and a row that
-     * takes its own slice stays quiet through every refresh that did not touch this Session.
-     */
-    const { pullRequest, unavailable: pullRequestUnavailable } = useSessionPullRequest(session.id);
-    /**
-     * The HoverCard opens on a hover delay and would otherwise pop over an open context menu; closing it while the menu
-     * is open keeps one popup on screen at a time.
-     */
-    const [menuOpen, setMenuOpen] = useState(false);
-    const { viewportReference, textReference, setHovered, setFocused } = useSessionTitleScroll(
-        session.displayTitle,
-        renaming || menuOpen,
-    );
-    const sessionCard = (
-        <SessionRowTrigger
-            session={session}
-            selected={selected}
-            renaming={renaming}
-            roving={roving}
-            sessionOrder={sessionOrder}
-            visibleSessions={visibleSessions}
-            onBeginRename={onBeginRename}
-            onFocusChange={setFocused}
-        >
-            {reserveWorktreeSlot && (
-                /*
-                 * A leading fixed-width column, so every worktree marker in this Project group lands on one vertical
-                 * line instead of trailing whichever title happened to be shortest. It sits outside the
-                 * `.session-indicators` track at the row's other end, which is sized for exactly one status glyph.
-                 *
-                 * VS Code's `worktree` codicon — a branch splitting off a trunk — rather than a second folder glyph.
-                 * `FolderGit2` and `FolderSymlink` both read as one more folder mark next to the violet pull request
-                 * glyph 14px away, and `FolderGit2` already means "Workbench Root" in the root picker. What the marker
-                 * says is that this Session works in a linked worktree, and the codicon is the mark the user already
-                 * reads that way elsewhere.
-                 *
-                 * Decorative on purpose: the row already opens the Session hover card, which names the worktree, and
-                 * its accessible description carries the same sentence. A second hover popup on one row would compete
-                 * with that card.
-                 */
-                <span
-                    className="session-worktree flex size-3.5 flex-none items-center justify-center text-muted"
-                    data-session-worktree={worktreeProject?.displayTitle}
-                >
-                    {worktreeProject && <WorktreeIcon aria-hidden="true" size={12} />}
-                </span>
-            )}
-            <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={14} />
-            {renaming ? (
-                <SessionRenameInput
-                    sessionId={session.id}
-                    title={session.displayTitle}
-                    error={renameError}
-                    value={renameValue}
-                    focusInput={focusRenameInput}
-                    onBlur={onBlurRename}
-                    onChange={onRenameValueChange}
-                    onCommit={onCommitRename}
-                    onCancel={onCancelRename}
-                />
-            ) : (
-                <span className="session-copy flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
-                    <strong
-                        ref={viewportReference}
-                        className="session-title min-w-0 overflow-hidden font-medium text-ellipsis whitespace-nowrap"
-                        onPointerEnter={() => setHovered(true)}
-                        onPointerLeave={() => setHovered(false)}
-                    >
-                        <span ref={textReference} className="block w-max max-w-full truncate">
-                            {session.displayTitle}
-                        </span>
-                    </strong>
-                </span>
-            )}
-            {/*
-             * One fixed-width slot keeps every Session's glyph aligned. Lifecycle signals take priority over the PR;
-             * the PR remains available from the hover card and menu while its row glyph is temporarily hidden.
-             */}
-            <span className="session-indicators flex w-3.5 flex-none items-center justify-end">
-                <SessionStatusIndicator
-                    className="transition-opacity group-hover/session-row:opacity-0"
-                    fallback={
-                        !renaming && (
-                            <SessionPullRequestIndicator
-                                className="transition-opacity group-hover/session-row:opacity-0"
-                                pullRequest={pullRequestUnavailable ? undefined : pullRequest}
-                            />
-                        )
-                    }
-                    session={session}
-                    terminal={terminal}
-                />
-            </span>
-        </SessionRowTrigger>
-    );
-    /*
-     * Layout and the drop marker only. The `treeitem` role, `aria-level`, and `aria-selected` belong to
-     * `SessionRowTrigger` inside, which is the element that owns the roving `tabIndex`: semantics on a wrapper that
-     * focus never reaches describe nothing.
-     */
-    const row = (
-        <div className="session-row group/session-row relative">
-            {sessionOrder.dropTarget?.anchorSessionId === session.id && (
-                <div
-                    aria-hidden="true"
-                    className={cn(
-                        'session-drop-marker pointer-events-none absolute inset-x-0 z-10 h-0.5 bg-accent',
-                        sessionOrder.dropTarget.placement === 'before' ? 'top-0' : 'bottom-0',
-                    )}
-                />
-            )}
-            {renaming ? (
-                sessionCard
-            ) : (
-                <SessionActivityCard
-                    project={project}
-                    pullRequest={pullRequest}
-                    pullRequestUnavailable={pullRequestUnavailable}
-                    session={session}
-                    suppressed={menuOpen || sessionOrder.draggedId !== undefined}
-                    terminal={terminal}
-                    trigger={sessionCard}
-                    worktreeProject={worktreeProject}
-                />
-            )}
-            <Tooltip content="Archive Session">
-                <button
-                    type="button"
-                    className="pointer-events-none absolute top-1/2 right-1 grid size-5 -translate-y-1/2 cursor-pointer place-items-center rounded border-0 bg-elevated p-0 text-muted opacity-0 transition-opacity group-hover/session-row:pointer-events-auto group-hover/session-row:opacity-100 hover:text-foreground"
-                    aria-label={`Archive ${session.displayTitle}`}
-                    aria-keyshortcuts="Delete"
-                    tabIndex={-1}
-                    onClick={() => archiveSession(session.id)}
-                >
-                    <Archive size={12} />
-                </button>
-            </Tooltip>
-        </div>
-    );
-    if (renaming) return row;
-    return (
-        <SessionRowMenu
-            onBeginRename={onBeginRename}
-            onOpenChange={setMenuOpen}
-            project={project}
-            pullRequest={pullRequest}
-            session={session}
-            terminals={terminals}
-        >
-            {row}
-        </SessionRowMenu>
     );
 }
 
@@ -270,7 +49,7 @@ interface ProjectGroupProperties {
      * Sessions the reveal row promises to add, so its label never overstates the final step.
      */
     nextRevealCount: number;
-    onBeginRename: (sessionId: string, displayTitle: string) => void;
+    onBeginRename: (sessionId: string, displayTitle: string, rowId: string) => void;
     onBlurRename: () => void;
     onCancelRename: () => void;
     onCommitRename: () => void;
@@ -290,7 +69,7 @@ interface ProjectGroupProperties {
     projectDropTarget?: ProjectDropTarget;
     renameError?: string;
     renameValue: string;
-    renamingSessionId?: string;
+    renamingRowId?: string;
     /**
      * Id of the row that currently owns the tree's single roving Tab stop.
      */
@@ -334,7 +113,7 @@ export function ProjectGroup({
     projectDropTarget,
     renameError,
     renameValue,
-    renamingSessionId,
+    renamingRowId,
     rovingRowId,
     selectedSessionId,
     terminals,
@@ -504,7 +283,7 @@ export function ProjectGroup({
                                 key={session.id}
                                 focusRenameInput={focusRenameInput}
                                 onBeginRename={() =>
-                                    onBeginRename(session.id, session.displayTitle)
+                                    onBeginRename(session.id, session.displayTitle, session.id)
                                 }
                                 onBlurRename={onBlurRename}
                                 onCancelRename={onCancelRename}
@@ -513,7 +292,7 @@ export function ProjectGroup({
                                 project={project}
                                 renameError={renameError}
                                 renameValue={renameValue}
-                                renaming={session.id === renamingSessionId}
+                                renaming={session.id === renamingRowId}
                                 reserveWorktreeSlot={reserveWorktreeSlot}
                                 roving={session.id === rovingRowId}
                                 selected={session.id === selectedSessionId}

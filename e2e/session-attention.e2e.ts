@@ -159,8 +159,17 @@ setInterval(() => {
         );
         await firstRow.hover();
         const archiveButton = running.page.getByRole('button', { name: `Archive ${longTitle}` });
-        await expect(archiveButton).toHaveCSS('opacity', '1');
-        await expect(archiveButton).toHaveCSS('pointer-events', 'auto');
+        await expect(archiveButton).toBeVisible();
+        /**
+         * The hover affordance lives on the container holding the row's actions rather than on each button, so opacity
+         * is asserted there: a button inside an `opacity: 0` parent still computes its own opacity as 1.
+         */
+        const rowActions = running.page
+            .locator('.session-row')
+            .filter({ has: running.page.locator(`[data-session-id="${firstSession.id}"]`) })
+            .locator('.session-row-actions');
+        await expect(rowActions).toHaveCSS('opacity', '1');
+        await expect(rowActions).toHaveCSS('pointer-events', 'auto');
         await expect(firstStatus).toHaveCSS('opacity', '0');
         const activityCard = running.page.locator('.session-activity-card');
         await expect(activityCard).toBeVisible();
@@ -297,8 +306,8 @@ setInterval(() => {
         await running.page.keyboard.press('ArrowDown');
         await expect(firstRow).toBeFocused();
         await expect(firstStatus).toBeVisible();
-        await expect(archiveButton).toHaveCSS('opacity', '0');
-        await expect(archiveButton).toHaveCSS('pointer-events', 'none');
+        await expect(rowActions).toHaveCSS('opacity', '0');
+        await expect(rowActions).toHaveCSS('pointer-events', 'none');
         await expect(activityCard).toBeVisible({ timeout: 200 });
         await expect(activityCard).toContainText('Finished');
         await expect(activityCard).toContainText('The Agent finished its latest turn.');

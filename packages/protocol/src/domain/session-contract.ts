@@ -83,6 +83,24 @@ export const sessionMethods = {
         }),
         result: sessionRecordSchema,
     },
+    /**
+     * Pinning is a durable user choice, not activity: it never touches `sidebarOrder` or the Session Activity clock, so
+     * a pinned Session keeps its place inside its own Project group.
+     */
+    'session.setPinned': {
+        ...serverWrite,
+        params: z.object({ sessionId: identifierSchema, pinned: z.boolean() }),
+        result: sessionRecordSchema,
+    },
+    /**
+     * Reorders the Pinned group. Shares `session.reorder`'s drag shape because it is the same gesture on a second list;
+     * the two write different columns and never see each other's rows.
+     */
+    'session.reorderPinned': {
+        ...serverWrite,
+        params: sessionReorderParametersSchema,
+        result: z.null(),
+    },
     'session.archive': sessionIdWrite,
     'session.unarchive': {
         ...serverWrite,
