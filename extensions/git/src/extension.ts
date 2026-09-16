@@ -56,7 +56,6 @@ export function activate(context: ExtensionContext): void {
             'caxri.git.discardAll',
             'caxri.git.discard',
             'caxri.git.openChanges',
-            'caxri.git.openSubmodule',
             'caxri.git.history',
         ].map((commandId) => registerProviderCommand(provider, commandId)),
         caxri.workspace.onDidChangeActiveContext(({ scopeId }) => provider.refresh(scopeId)),

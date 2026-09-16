@@ -402,7 +402,6 @@ export const sourceControlResourceSchema = z.object({
     path: z.string().max(4_096),
     decoration: sourceControlResourceDecorationSchema.optional(),
     editorResource: z.string().min(1).max(8_192).optional(),
-    navigationTargetId: treeItemIdSchema.optional(),
     action: sourceControlActionSchema.optional(),
     actions: z.array(sourceControlActionSchema).max(32).optional(),
 });
@@ -451,6 +450,15 @@ const sourceControlFileHistorySchema = z.object({
     history: sourceControlHistoryDescriptorSchema,
 });
 
+const sourceControlExternalLinkSchema = z.object({
+    url: z.url().max(8_192),
+    /**
+     * Names the destination in the row's tooltip and accessible description, so the modifier gesture is discoverable
+     * without a visible link glyph.
+     */
+    label: z.string().min(1).max(1_024),
+});
+
 const sourceControlProviderModelSchema = z.object({
     id: treeItemIdSchema,
     label: z.string().min(1).max(1_024),
@@ -473,6 +481,12 @@ const sourceControlProviderModelSchema = z.object({
     descriptionAccessibilityLabel: z.string().min(1).max(4_096),
     descriptionTooltip: z.string().min(1).max(4_096),
     countLabel: z.string().min(1).max(1_024),
+    /**
+     * Web page describing the changes this provider is currently showing — the pull request in Pull Request mode.
+     * Alt-clicking the provider row or its group caption opens it in the default browser, so the panel never has to
+     * spend row width on a link affordance that is empty in most modes.
+     */
+    externalLink: sourceControlExternalLinkSchema.optional(),
     /**
      * Uncommitted work the selected mode is not showing, plus the mode that does show it. This is deliberately not a
      * `sourceControlAction`: changing the panel's mode is the mode switch's job, and routing it through the action
@@ -546,7 +560,6 @@ export const sourceControlHistoryDetailsSchema = z.object({
 });
 
 const sourceControlActionEffectSchema = z.discriminatedUnion('kind', [
-    z.object({ kind: z.literal('focus'), targetId: treeItemIdSchema }),
     z.object({
         kind: z.literal('open-editor'),
         resource: z.string().min(1).max(8_192),
@@ -717,6 +730,7 @@ export type ExtensionViewChange = z.infer<typeof extensionViewChangeSchema>;
 export type SourceControlAction = z.infer<typeof sourceControlActionSchema>;
 export type SourceControlActionEffect = z.infer<typeof sourceControlActionEffectSchema>;
 export type SourceControlActionResult = z.infer<typeof sourceControlActionResultSchema>;
+export type SourceControlExternalLink = z.infer<typeof sourceControlExternalLinkSchema>;
 export type SourceControlHistoryDescriptor = z.infer<typeof sourceControlHistoryDescriptorSchema>;
 export type SourceControlFileHistory = z.infer<typeof sourceControlFileHistorySchema>;
 export type SourceControlHistoryDetails = z.infer<typeof sourceControlHistoryDetailsSchema>;
