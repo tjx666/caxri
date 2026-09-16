@@ -52,9 +52,14 @@ export const sessions = sqliteTable(
             onDelete: 'set null',
         }),
         /**
-         * Captured only for an alternate root so replacement of its pathname fails closed.
+         * The mount this root was last seen on. It does not gate access: a device number belongs to the current mount,
+         * not to the directory, and macOS re-allocates it on every boot. It is kept as the anchor that makes an
+         * ordinary restart observable as `workbench_root.rebound` instead of silent.
          */
         workbenchRootDevice: text('workbench_root_device'),
+        /**
+         * Captured only for an alternate root so replacement of its pathname fails closed.
+         */
         workbenchRootInode: text('workbench_root_inode'),
         createdAt: integer('created_at').notNull(),
         lastOpenedAt: integer('last_opened_at').notNull(),

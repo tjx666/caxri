@@ -27,6 +27,28 @@ export function unavailableWorkbenchRoot(
 }
 
 /**
+ * Decides whether a persisted Workbench Root binding still names the directory it was authorized against.
+ *
+ * Only the inode is load-bearing. `st_dev` is not a durable identifier: on macOS it is the device number of the
+ * volume's `/dev/diskNsM` node, and the kernel re-allocates those nodes on every boot, in an enumeration order that
+ * does not follow partition order. Comparing a stored device number against the live one therefore made every Workbench
+ * Root binding fail the first validation sweep after a restart, with nothing on disk changed.
+ *
+ * The inode keeps the check honest: a worktree removed and re-added, or a directory deleted and recreated at the same
+ * path, gets a new inode. Callers reach this only after Git topology has confirmed the path is still a linked worktree
+ * of the owning repository and after `realpath` proved the path is not a symlink, so the device number adds no
+ * detection the inode does not already provide.
+ *
+ * @see https://github.com/tjx666/caxri/issues/1003
+ */
+export function isSameWorkbenchRootIdentity(
+    binding: { rootInode?: string },
+    identity: { inode: string },
+): boolean {
+    return binding.rootInode !== undefined && binding.rootInode === identity.inode;
+}
+
+/**
  * Includes inode identity so a menu displayed before directory replacement cannot authorize its replacement.
  */
 export function worktreeIdentityId(

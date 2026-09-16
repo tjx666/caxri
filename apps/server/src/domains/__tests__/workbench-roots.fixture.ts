@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -9,6 +9,7 @@ import { expect, onTestFinished, vi } from 'vitest';
 import type { AgentLifecyclePhase } from '../agents';
 import { CaxriDatabase } from '../db/repository';
 import type { GitService, GitWorktreeTopology } from '../git';
+import { ProjectRootResolver } from '../project-roots';
 import { WorkbenchRootService } from '../workbench-roots';
 
 export async function fixture(
@@ -52,8 +53,30 @@ export async function fixture(
         directory,
         events,
         getTopology: () => topology,
+        /**
+         * Flushes and reads back this fixture's structured log so a test can assert the event a silent code path leaves
+         * behind, which is the only trace some decisions produce.
+         */
+        readLogEvents: async (): Promise<
+            Array<{ event: string; fields?: Record<string, unknown> }>
+        > => {
+            await logger.flush();
+            const contents = await readFile(join(directory, 'logs', 'server-core.jsonl'), 'utf8');
+            return contents
+                .split('\n')
+                .filter(Boolean)
+                .map(
+                    (line) =>
+                        JSON.parse(line) as { event: string; fields?: Record<string, unknown> },
+                );
+        },
         owner,
         ownerRoot,
+        /**
+         * The same persisted binding gates Workbench Root path resolution, so identity regressions must be asserted on
+         * both readers rather than on the validation sweep alone.
+         */
+        projectRoots: new ProjectRootResolver(database),
         service,
         sessions,
         setBehavior: (value: NewWorktreeBehavior) => {

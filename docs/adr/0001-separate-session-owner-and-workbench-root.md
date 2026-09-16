@@ -44,3 +44,13 @@ phase; command text and reported directories never enter the log.
 A missing or replaced active root falls back to the owning Project. This deliberately rejects the
 simpler choices of mutating Session ownership, moving Terminal cwd, trusting a path reported by an
 Agent or CLI, or sharing same-path editor state across worktrees.
+
+"Replaced" is decided by the stored inode, not by the stored device number. A device number is a
+property of the current mount, not of the directory: macOS re-allocates every volume's `/dev` node on
+boot, so a persisted `st_dev` stops matching after an ordinary restart while the directory is
+untouched. Treating that as a replacement discarded every Workbench Root at once. The inode carries
+the durable half of the identity — a worktree removed and re-added, or a directory recreated at the
+same path, gets a new one — and the callers that compare it have already proved through Git topology
+and `realpath` that the path is the owning repository's linked worktree and not a symbolic link. A
+binding whose device drifted alone is re-anchored onto the current device and logged as
+`workbench_root.rebound`, without publishing a root change the user did not cause.

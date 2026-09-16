@@ -25,6 +25,7 @@ import {
 } from './workbench-provenance';
 import {
     discoverWorkbenchRoots,
+    isSameWorkbenchRootIdentity,
     unavailableWorkbenchRoot,
     worktreeIdentityId,
 } from './workbench-root-discovery';
@@ -118,6 +119,7 @@ export class WorkbenchRootService {
         const owner = this.options.database.getProject(binding.projectId);
         const active = this.options.database.getProject(binding.workbenchProjectId);
         let reason = 'valid';
+        let drifted: { device: string; inode: string } | undefined;
         try {
             if (!owner || !active) reason = 'project_missing';
             else {
@@ -131,17 +133,14 @@ export class WorkbenchRootService {
                     reason = 'topology_removed';
                 else {
                     const identity = await this.rootIdentity(active.rootPath);
-                    if (
-                        identity.device !== binding.rootDevice ||
-                        identity.inode !== binding.rootInode
-                    )
-                        reason = 'root_replaced';
+                    if (isSameWorkbenchRootIdentity(binding, identity)) {
+                        if (identity.device !== binding.rootDevice) drifted = identity;
+                    } else reason = 'root_replaced';
                 }
             }
         } catch {
             reason = 'root_unavailable';
         }
-        if (reason === 'valid') return false;
         /**
          * Validation crosses filesystem and Git boundaries. A newer selection wins if the captured binding changed
          * while either asynchronous check was in flight.
@@ -153,8 +152,28 @@ export class WorkbenchRootService {
             )
         )
             return false;
+        if (reason === 'valid') {
+            if (drifted) this.rebind(sessionId, binding.workbenchProjectId, drifted);
+            return false;
+        }
         this.fallback(sessionId, reason);
         return true;
+    }
+
+    /**
+     * Re-anchors a surviving binding onto the current device number. The root is unchanged, so this deliberately
+     * persists without publishing a root change: the Renderer has nothing to redraw and the Session must not flash a
+     * notice for a reboot the user did not cause.
+     */
+    private rebind(
+        sessionId: string,
+        workbenchProjectId: string,
+        identity: { device: string; inode: string },
+    ): void {
+        this.options.database.selectWorkbenchProject(sessionId, workbenchProjectId, identity);
+        this.options.logger.write('info', workbenchRootLogEvents.rebound, {
+            fields: { reason: 'device_drift', sessionId, workbenchProjectId },
+        });
     }
 
     /**

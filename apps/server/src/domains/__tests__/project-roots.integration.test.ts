@@ -66,6 +66,42 @@ describe('ProjectRootResolver', () => {
             code: 'PATH_DENIED',
         });
     });
+    /**
+     * A restart re-allocates the device number while the Renderer's first file reads race ahead of the focus-driven
+     * validation sweep, so path resolution has to survive the drift on its own rather than wait to be re-anchored.
+     *
+     * @see https://github.com/tjx666/caxri/issues/1003
+     */
+    it('resolves an alternate Workbench Root whose device drifted but whose inode still matches', async () => {
+        const createdDirectory = await mkdtemp(join(tmpdir(), 'caxri-workbench-root-drift-'));
+        temporaryDirectories.push(createdDirectory);
+        const directory = await realpath(createdDirectory);
+        const ownerRoot = join(directory, 'owner');
+        const worktreeRoot = join(directory, 'worktree');
+        await Promise.all([mkdir(ownerRoot), mkdir(worktreeRoot)]);
+        await writeFile(join(worktreeRoot, 'README.md'), '# Worktree\n');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        try {
+            const owner = database.createProject(ownerRoot);
+            const worktree = database.createProject(worktreeRoot);
+            const session = database.createSession(owner.id, 'shell').session;
+            const identity = await lstat(worktreeRoot, { bigint: true });
+            database.selectWorkbenchProject(session.id, worktree.id, {
+                device: 'device-from-a-previous-boot',
+                inode: identity.ino.toString(),
+            });
+
+            await expect(
+                new ProjectRootResolver(database).resolveSessionPath(session.id, 'README.md'),
+            ).resolves.toMatchObject({
+                root: worktreeRoot,
+                path: join(worktreeRoot, 'README.md'),
+            });
+        } finally {
+            database.close();
+        }
+    });
+
     it('rejects an alternate Workbench Root replaced after its inode was authorized', async () => {
         const createdDirectory = await mkdtemp(join(tmpdir(), 'caxri-workbench-root-replaced-'));
         temporaryDirectories.push(createdDirectory);
