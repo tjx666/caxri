@@ -164,10 +164,10 @@ describe('Vercel deployment details', () => {
 describe('parseGitHubPullRequest', () => {
     it.each([
         [undefined, 'cancelled'],
-        ['SUCCESS', 'cancelled'],
+        ['SUCCESS', 'success'],
         ['IN_PROGRESS', 'pending'],
         ['FAILURE', 'failure'],
-    ])('preserves cancellation alongside %s checks', (other, state) => {
+    ])('keeps a cancelled child while aggregating %s checks', (other, state) => {
         const result = parseGitHubPullRequest(
             JSON.stringify({
                 number: 1,

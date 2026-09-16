@@ -196,7 +196,8 @@ Project Status preserves GitHub's `CANCELLED` conclusion as `cancelled`, shown w
 slashed-circle icon and a `cancelled` tooltip. Cancelled checks do not count toward failure badges
 or delivery-failure notifications. The Session PR hover card reports `Checks cancelled`.
 
-PR summaries prioritize actual failures, then running checks, then cancellation, then success.
-A cancelled check does not prove that its work passed, even when other checks succeeded. The
-panel retains the records GitHub supplies; it does not infer that similarly named checks replace
-each other or automatically rerun a cancelled job.
+PR summaries prioritize actual failures, then running checks. Once every check is terminal, a
+cancelled check remains visible but does not override another non-cancelled outcome; the summary is
+`cancelled` only when cancellation is the sole outcome. The panel retains the records GitHub
+supplies; it does not infer that similarly named checks replace each other or automatically rerun a
+cancelled job.
