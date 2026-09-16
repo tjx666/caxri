@@ -31,6 +31,7 @@ import {
     MAX_TERMINAL_LINK_ROWS as MAX_LOGICAL_LINE_ROWS,
     registerTerminalOscLinkTracker,
 } from './terminal-osc-link-tracker';
+import { findQuotedPathLinks } from './terminal-quoted-path-links';
 import type { TerminalLinkReferenceContext } from './terminal-reference-links';
 import { findTerminalReferenceLinks } from './terminal-reference-links';
 
@@ -194,6 +195,23 @@ function findLocationFileLinks(
 }
 
 /**
+ * Drops candidates covered by an already accepted range. Both collections follow source order, so each range is retired
+ * once instead of rescanning from the first one.
+ */
+function withoutCoveredLinks(
+    links: TerminalLinkMatch[],
+    ranges: TerminalLinkMatch[],
+): TerminalLinkMatch[] {
+    if (ranges.length === 0) return links;
+    let rangeIndex = 0;
+    return links.filter((link) => {
+        while (ranges[rangeIndex]?.endIndex <= link.startIndex) rangeIndex += 1;
+        const range = ranges.at(rangeIndex);
+        return !(range && link.startIndex < range.endIndex && link.endIndex > range.startIndex);
+    });
+}
+
+/**
  * Merges the URL and file passes without re-sorting their already ordered results.
  */
 function mergeTerminalLinks(
@@ -270,8 +288,13 @@ export function findTerminalLinks(
             text: trimmed.text,
         });
     }
-    const locationFileLinks = findLocationFileLinks(text, urlLinks, wordSeparators);
+    const quotedFileLinks = findQuotedPathLinks(text, urlLinks, wordSeparators);
+    const locationFileLinks = withoutCoveredLinks(
+        findLocationFileLinks(text, urlLinks, wordSeparators),
+        quotedFileLinks,
+    );
     let locationLinkIndex = 0;
+    let quotedLinkIndex = 0;
     for (const rawToken of tokenizeByWordSeparators(text, wordSeparators)) {
         const token = detachPathCandidateFromCjkProse(rawToken, wordSeparators);
         const raw = token.text.slice(0, trailingCjkProseOffset(token.text, wordSeparators));
@@ -289,6 +312,10 @@ export function findTerminalLinks(
             if (metrics) metrics.detectedLinkRangeVisits += 1;
             if (startIndex < urlLink.endIndex && endIndex > urlLink.startIndex) continue;
         }
+        while (quotedFileLinks[quotedLinkIndex]?.endIndex <= startIndex) quotedLinkIndex += 1;
+        const quotedLink = quotedFileLinks.at(quotedLinkIndex);
+        if (quotedLink && startIndex < quotedLink.endIndex && endIndex > quotedLink.startIndex)
+            continue;
         /**
          * Both collections follow source order. Retire each completed range once, then compare the current token with
          * at most the next range instead of restarting from the first range.
@@ -327,7 +354,10 @@ export function findTerminalLinks(
             text: trimmed.text,
         });
     }
-    const fileLinks = mergeTerminalLinks(locationFileLinks, wordFileLinks);
+    const fileLinks = mergeTerminalLinks(
+        quotedFileLinks,
+        mergeTerminalLinks(locationFileLinks, wordFileLinks),
+    );
     const references = referenceContext
         ? findTerminalReferenceLinks(text, referenceContext).filter(
               (reference) =>

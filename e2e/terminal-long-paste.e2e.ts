@@ -188,7 +188,7 @@ if (process.argv.includes('--ephemeral')) {
                 running.page,
                 'settings.get',
             );
-            expect(currentSettings.value['terminal.longPasteThreshold']).toBe(1_024);
+            expect(currentSettings.value['terminal.longPasteThreshold']).toBe(2_048);
             expect(currentSettings.value['agents.providers'].codex.pasteSummary.enabled).toBe(true);
 
             const sessionId = await createProjectSession(running.page, 'codex');
@@ -218,7 +218,7 @@ if (process.argv.includes('--ephemeral')) {
             const rows = running.page.locator('.xterm-rows');
             const input = running.page.locator('.xterm-helper-textarea');
             await expect(rows).toContainText('LONG_PASTE_AGENT_READY');
-            const original = `LONG_PASTE_ORIGINAL_SENTINEL\n${'x'.repeat(1_100)}`;
+            const original = `LONG_PASTE_ORIGINAL_SENTINEL\n${'x'.repeat(2_100)}`;
             await running.clipboard.writeText(original);
             await input.focus();
             await input.press('Meta+V');
@@ -279,7 +279,7 @@ if (process.argv.includes('--ephemeral')) {
             expect(summaryCall.model).toBe('gpt-5.6-luna');
             expect(summaryCall.inputLength).toBeGreaterThan(original.length);
 
-            const switched = `LONG_PASTE_SWITCH_SENTINEL\n${'y'.repeat(1_100)}`;
+            const switched = `LONG_PASTE_SWITCH_SENTINEL\n${'y'.repeat(2_100)}`;
             await running.clipboard.writeText(switched);
             await input.focus();
             await input.press('Meta+V');

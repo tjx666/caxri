@@ -46,6 +46,60 @@ export function terminalSearchReducer(
     return { ...state, [action.option]: !state[action.option] };
 }
 
+/**
+ * The slice of `SearchAddon` the selection guard subscribes to.
+ */
+export interface TerminalSearchLifecycle {
+    onAfterSearch(listener: () => void): { dispose(): void };
+    onBeforeSearch(listener: () => void): { dispose(): void };
+}
+
+export interface TerminalSearchSelectionGuard {
+    /**
+     * True only while the search addon is applying its own match selection.
+     */
+    isSearchSelection(): boolean;
+    watch(search: TerminalSearchLifecycle): () => void;
+}
+
+/**
+ * Marks the selection changes the search addon itself produces, so copy-on-select can skip exactly those instead of
+ * turning itself off for as long as the search bar stays open — a mouse selection made while searching must still reach
+ * the clipboard.
+ *
+ * The guard follows the addon's own `onBeforeSearch`/`onAfterSearch` pair rather than wrapping the navigation calls
+ * this pane makes, because the addon re-runs the cached query by itself 200ms after every `onWriteParsed` and
+ * `onResize`. A wrapper would miss those, and a Terminal that keeps printing would repeatedly overwrite the clipboard
+ * with the active match while the search bar is open.
+ *
+ * `SearchAddon` selects through `Terminal.select()`, which fires `onSelectionChange` synchronously between the two
+ * events, so the flag is only raised for one synchronous block. The microtask reset releases it even when a search
+ * throws — an invalid regular expression never reaches `onAfterSearch` — and is far too short for a user gesture to
+ * fall inside it.
+ */
+export function createTerminalSearchSelectionGuard(): TerminalSearchSelectionGuard {
+    let isSearchSelection = false;
+    return {
+        isSearchSelection: () => isSearchSelection,
+        watch(search) {
+            const beforeDisposable = search.onBeforeSearch(() => {
+                isSearchSelection = true;
+                queueMicrotask(() => {
+                    isSearchSelection = false;
+                });
+            });
+            const afterDisposable = search.onAfterSearch(() => {
+                isSearchSelection = false;
+            });
+            return () => {
+                beforeDisposable.dispose();
+                afterDisposable.dispose();
+                isSearchSelection = false;
+            };
+        },
+    };
+}
+
 type OpenTerminalSearchHandler = () => void;
 const openHandlers = new Map<string, OpenTerminalSearchHandler>();
 
