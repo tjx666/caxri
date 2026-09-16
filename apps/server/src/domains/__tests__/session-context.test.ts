@@ -90,6 +90,7 @@ describe('SessionContextService', () => {
 
     it('answers an empty context for a Session with no Agent Terminal', async () => {
         expect(await service().read({} as SessionRecord)).toEqual({
+            acceptanceReferences: [],
             branches: [],
             directories: [],
             linearReferences: [],

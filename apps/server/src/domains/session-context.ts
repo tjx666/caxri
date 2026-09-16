@@ -1,6 +1,7 @@
 import type { SessionRecord } from '@caxri/protocol';
 import { rememberBounded } from '@caxri/utils';
 
+import type { AcceptanceReference } from './acceptance-link';
 import type {
     AgentEnvironment,
     TranscriptLinearReference,
@@ -25,12 +26,14 @@ const MAX_TRANSCRIPT_SCANS = 128;
  * team-key allow-list, before any of it reaches the user.
  */
 export interface SessionTranscriptContext {
+    acceptanceReferences: readonly AcceptanceReference[];
     branches: readonly string[];
     directories: readonly string[];
     linearReferences: readonly TranscriptLinearReference[];
 }
 
 const EMPTY_CONTEXT: SessionTranscriptContext = {
+    acceptanceReferences: [],
     branches: [],
     directories: [],
     linearReferences: [],
@@ -89,6 +92,7 @@ export class SessionContextService {
                 { onReset: () => resetTranscriptSessionContextScan(current) },
             );
             return {
+                acceptanceReferences: current.acceptanceReferences.toReversed(),
                 branches: current.branches.toReversed(),
                 directories: current.directories.toReversed(),
                 linearReferences: current.linearReferences.toReversed(),

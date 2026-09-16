@@ -18,6 +18,7 @@ describe('Project Status fallback', () => {
             kind: 'primary',
             name: 'project',
             branch: 'main',
+            acceptances: [],
             linearIssues: [],
             errors: [
                 {
@@ -49,6 +50,7 @@ describe('Project Status fallback', () => {
             kind: 'primary',
             name: 'project',
             branch: 'main',
+            acceptances: [],
             linearIssues: [],
             errors: [
                 {
@@ -73,6 +75,7 @@ describe('Project Status fallback', () => {
             kind: 'primary' as const,
             name: 'project',
             branch: 'main',
+            acceptances: [],
             linearIssues: [],
             errors: [
                 {
@@ -117,6 +120,7 @@ describe('Project Status fallback', () => {
                     kind: 'primary',
                     name: 'project',
                     branch: 'main',
+                    acceptances: [],
                     linearIssues: [],
                     errors: [
                         {
@@ -151,6 +155,7 @@ describe('Project Status fallback', () => {
             kind: 'primary' as const,
             name: 'project',
             branch: 'main',
+            acceptances: [],
             linearIssues: [],
             errors: [rateLimited],
         };
@@ -188,6 +193,7 @@ describe('Project Status fallback', () => {
                         kind: 'primary',
                         name: 'project',
                         branch: 'main',
+                        acceptances: [],
                         linearIssues: [],
                         errors: [
                             {

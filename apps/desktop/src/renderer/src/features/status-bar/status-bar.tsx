@@ -18,6 +18,7 @@ import { useSelectedSession, useSelectedWorkbenchProject } from '../../stores/se
 import { useWorkbenchStore } from '../../stores/workbench';
 import { NotificationCenter } from '../toasts/notification-center';
 import { useActivePaneTab } from '../workbench/pane-actions';
+import { AcceptanceStatus } from './acceptance-status';
 import { ActiveFileStatus } from './active-file-status';
 import { ActiveTerminalStatus } from './active-terminal-status';
 import { BranchPicker } from './branch-picker';
@@ -221,6 +222,9 @@ function StatusBarContext({
             )}
             {repo && repo.linearIssues.length > 0 && chipVisibility.linearIssue && (
                 <LinearIssueStatus issues={repo.linearIssues} />
+            )}
+            {repo && repo.acceptances.length > 0 && chipVisibility.acceptance && (
+                <AcceptanceStatus acceptances={repo.acceptances} />
             )}
             {repo && <RepoChangesStatus additions={repo.additions} deletions={repo.deletions} />}
         </div>
