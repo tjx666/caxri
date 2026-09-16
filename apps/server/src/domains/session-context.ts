@@ -95,8 +95,4 @@ export class SessionContextService {
             };
         });
     }
-
-    clear(): void {
-        this.scans.clear();
-    }
 }
