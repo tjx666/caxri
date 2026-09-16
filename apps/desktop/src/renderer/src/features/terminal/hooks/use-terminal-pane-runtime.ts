@@ -208,11 +208,10 @@ export function useTerminalPaneRuntime({
         wordSeparators,
     });
     const {
-        beginSearch,
         createSearchAddon,
         endSearch,
         find,
-        isSearchActive,
+        isSearchSelection,
         registerSearchAddon,
         searchResults,
     } = useTerminalPaneSearch(latestReference);
@@ -453,9 +452,11 @@ export function useTerminalPaneRuntime({
         const selectionDisposable = xterm.onSelectionChange(() => {
             /**
              * SearchAddon represents the active match as a selection; it must not overwrite the system clipboard when
-             * the user's copy-on-select preference is enabled.
+             * the user's copy-on-select preference is enabled. The guard covers the addon's own searches — explicit
+             * navigation and the re-search it runs after Terminal output or a resize — so a mouse selection made while
+             * the search bar is open still copies.
              */
-            if (isSearchActive()) return;
+            if (isSearchSelection()) return;
             if (!latestReference.current.copyOnSelect) return;
             // xterm's onSelectionChange callback cannot be async; TerminalSelectionClipboard already
             // reports its own write failures through the onFailure callback given to its constructor.
@@ -775,7 +776,6 @@ export function useTerminalPaneRuntime({
         void pasteReference.current?.();
     }, []);
     return {
-        beginSearch,
         containerRef: containerReference,
         endSearch,
         find,

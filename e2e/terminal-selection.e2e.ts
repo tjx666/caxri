@@ -212,6 +212,35 @@ test('Cmd+C copies the focused Editor or Terminal selection across split panes',
         await firstInput.press('Meta+C');
         await expect.poll(() => running.clipboard.textEquals('KEEP_ON_EMPTY')).toBe(true);
 
+        /**
+         * SearchAddon represents its active match as a Terminal selection, so copy-on-select must skip exactly that
+         * navigation — and nothing else. An open search bar is not a reason to stop copying a mouse selection, which is
+         * what a guard keyed on "is the search bar open" would do.
+         */
+        await running.clipboard.writeText('SEARCH_NAVIGATION_SENTINEL');
+        await firstInput.press('Meta+F');
+        const search = running.page.getByRole('search', { name: 'Terminal buffer search' });
+        const searchInput = search.getByRole('textbox', { name: 'Find in Terminal' });
+        await expect(searchInput).toBeFocused();
+        await searchInput.fill('SECOND');
+        await expect(search).toContainText('1/1');
+        expect(await running.clipboard.textEquals('SEARCH_NAVIGATION_SENTINEL')).toBe(true);
+        await selectTerminalText(running.page, firstTerminalId, lastLine, lastLine);
+        await expect.poll(() => running.clipboard.textEquals(lastLine)).toBe(true);
+        await running.clipboard.claimText(lastLine);
+        /**
+         * The addon also re-runs its cached query by itself shortly after every Terminal write, which is the path a
+         * guard wrapped around this pane's own navigation calls would miss. Typing a second match forces that re-search
+         * while the user's selection is the one thing the clipboard must keep.
+         */
+        await firstInput.focus();
+        await firstInput.pressSequentially('# SECOND_AGAIN');
+        await expect(search).toContainText('/2');
+        expect(await running.clipboard.textEquals(lastLine)).toBe(true);
+        await searchInput.focus();
+        await searchInput.press('Escape');
+        await expect(search).toHaveCount(0);
+
         await pressNewTerminal(running.page);
         const secondTerminalId = await waitForNewTerminalId(running.page, [firstTerminalId]);
         await splitTerminalToRight(running.page, secondTerminalId);

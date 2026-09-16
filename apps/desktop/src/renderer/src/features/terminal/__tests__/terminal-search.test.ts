@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+    createTerminalSearchSelectionGuard,
     initialTerminalSearchState,
     openTerminalSearch,
     registerTerminalSearchHandler,
@@ -59,5 +60,59 @@ describe('Terminal search state', () => {
                 resultIndex: -1,
             }),
         ).toBe('Invalid regular expression');
+    });
+});
+
+/**
+ * Stands in for `SearchAddon`'s search lifecycle. The addon emits the same pair for an explicit navigation and for the
+ * re-search it runs itself after Terminal output or a resize, which is exactly why the guard follows the events rather
+ * than wrapping the navigation calls the pane makes.
+ */
+function fakeSearchLifecycle() {
+    const listeners = { after: new Set<() => void>(), before: new Set<() => void>() };
+    const subscribe = (bucket: Set<() => void>, listener: () => void) => {
+        bucket.add(listener);
+        return { dispose: () => bucket.delete(listener) };
+    };
+    return {
+        emitAfterSearch: () => listeners.after.forEach((listener) => listener()),
+        emitBeforeSearch: () => listeners.before.forEach((listener) => listener()),
+        onAfterSearch: (listener: () => void) => subscribe(listeners.after, listener),
+        onBeforeSearch: (listener: () => void) => subscribe(listeners.before, listener),
+    };
+}
+
+describe('Terminal search selection guard', () => {
+    it('marks only the selection the search addon produces', () => {
+        const guard = createTerminalSearchSelectionGuard();
+        const search = fakeSearchLifecycle();
+        guard.watch(search);
+
+        expect(guard.isSearchSelection()).toBe(false);
+        search.emitBeforeSearch();
+        expect(guard.isSearchSelection()).toBe(true);
+        search.emitAfterSearch();
+        expect(guard.isSearchSelection()).toBe(false);
+    });
+
+    it('releases the guard when a search throws before it completes', async () => {
+        const guard = createTerminalSearchSelectionGuard();
+        const search = fakeSearchLifecycle();
+        guard.watch(search);
+
+        // An invalid regular expression never reaches `onAfterSearch`.
+        search.emitBeforeSearch();
+        // A mouse selection can never land inside the search's own microtask window.
+        await Promise.resolve();
+        expect(guard.isSearchSelection()).toBe(false);
+    });
+
+    it('stops following a disposed search addon', () => {
+        const guard = createTerminalSearchSelectionGuard();
+        const search = fakeSearchLifecycle();
+
+        guard.watch(search)();
+        search.emitBeforeSearch();
+        expect(guard.isSearchSelection()).toBe(false);
     });
 });

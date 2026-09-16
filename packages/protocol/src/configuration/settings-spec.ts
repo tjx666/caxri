@@ -252,7 +252,7 @@ export const settingsSpec = [
         keywords: ['clipboard', 'paste', 'summary', 'context', 'tokens'],
         min: 1,
         max: 65_000,
-        default: 1_024,
+        default: 2_048,
         display: { unit: 'characters', step: 256 },
     },
     {

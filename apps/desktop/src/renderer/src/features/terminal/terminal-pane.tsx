@@ -234,7 +234,6 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         initialTerminalSearchState,
     );
     const {
-        beginSearch,
         containerRef,
         endSearch,
         find,
@@ -276,12 +275,8 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
     );
 
     useEffect(
-        () =>
-            registerTerminalSearchHandler(terminalId, () => {
-                beginSearch();
-                dispatchSearch({ type: 'open' });
-            }),
-        [beginSearch, terminalId],
+        () => registerTerminalSearchHandler(terminalId, () => dispatchSearch({ type: 'open' })),
+        [terminalId],
     );
 
     useEffect(() => {
