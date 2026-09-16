@@ -12,6 +12,8 @@ const atomicStructuralMethods = [
     'project.setIcon',
     'session.markRead',
     'session.reorder',
+    'session.reorderPinned',
+    'session.setPinned',
     'session.unarchive',
 ] as const satisfies ReadonlyArray<CoreForwardedMethod & DurableCaxriMethod>;
 

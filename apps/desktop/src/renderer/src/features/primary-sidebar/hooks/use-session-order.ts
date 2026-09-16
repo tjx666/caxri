@@ -7,7 +7,44 @@ import { didReorderSession } from '../../session/session-commands';
 import type { SessionDropTarget } from '../session-order';
 import { frozenSessionOrder, SESSION_DRAG_TYPE, sessionDropTarget } from '../session-order';
 
-export function useSessionOrder(sessions: SessionRecord[]) {
+interface SessionOrderOptions {
+    /**
+     * Resolves a hovered row into a drop target, or `undefined` to refuse the drop. Defaults to the Project groups'
+     * rule, which refuses a drop across two Projects.
+     */
+    dropTargetAt?: (
+        sessions: readonly SessionRecord[],
+        draggedId: string | undefined,
+        anchorSessionId: string,
+        placement: 'before' | 'after',
+    ) => SessionDropTarget | undefined;
+    /**
+     * Which list a Session belongs to, for `Alt+Arrow` keyboard reordering. Defaults to its Project; the Pinned group
+     * answers with one constant because it is a single list spanning every Project.
+     */
+    groupOf?: (session: SessionRecord) => string;
+    /**
+     * Sends the move to the Server and resolves once the refreshed state has landed. Defaults to `session.reorder`.
+     */
+    reorder?: (
+        sessionId: string,
+        anchorSessionId: string,
+        placement: 'before' | 'after',
+    ) => Promise<boolean>;
+}
+
+/**
+ * Drag-and-keyboard reordering for one list of Session rows. The Pinned group and each Project group are separate lists
+ * over the same Session records, so this takes the three rules that differ — which drops are legal, which rows count as
+ * siblings, and which Server method records the move — and keeps everything else (the frozen order during a drag, the
+ * dragend cleanup, the announcement) in one place.
+ */
+export function useSessionOrder(sessions: SessionRecord[], options: SessionOrderOptions = {}) {
+    const {
+        dropTargetAt = sessionDropTarget,
+        groupOf = (session: SessionRecord) => session.projectId,
+        reorder = didReorderSession,
+    } = options;
     const [draggedId, setDraggedId] = useState<string>();
     const [frozenIds, setFrozenIds] = useState<string[]>();
     const [dropTarget, setDropTarget] = useState<SessionDropTarget>();
@@ -39,7 +76,7 @@ export function useSessionOrder(sessions: SessionRecord[]) {
     const persist = async (sessionId: string, target: SessionDropTarget): Promise<void> => {
         pending.current = true;
         try {
-            if (await didReorderSession(sessionId, target.anchorSessionId, target.placement))
+            if (await reorder(sessionId, target.anchorSessionId, target.placement))
                 setAnnouncement(
                     `Moved ${sessions.find((session) => session.id === sessionId)?.displayTitle ?? 'Session'} ${target.placement} ${sessions.find((session) => session.id === target.anchorSessionId)?.displayTitle ?? 'Session'}`,
                 );
@@ -55,7 +92,7 @@ export function useSessionOrder(sessions: SessionRecord[]) {
         if (!draggedId || pending.current || !event.dataTransfer.types.includes(SESSION_DRAG_TYPE))
             return;
         const bounds = event.currentTarget.getBoundingClientRect();
-        return sessionDropTarget(
+        return dropTargetAt(
             sessions,
             draggedId,
             anchorSessionId,
@@ -113,7 +150,8 @@ export function useSessionOrder(sessions: SessionRecord[]) {
             event.stopPropagation();
             if (draggedId || pending.current) return;
             // Hidden rows are not keyboard drop targets: moving into the collapsed tail would unmount the focused row.
-            const rows = visibleSessions.filter((row) => row.projectId === session.projectId);
+            const group = groupOf(session);
+            const rows = visibleSessions.filter((row) => groupOf(row) === group);
             const delta = event.key === 'ArrowUp' ? -1 : 1;
             const targetIndex = rows.findIndex((row) => row.id === session.id) + delta;
             const anchor = targetIndex >= 0 ? rows.at(targetIndex) : undefined;

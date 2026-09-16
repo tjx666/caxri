@@ -17,7 +17,7 @@ import type {
     TerminalRecord,
     TerminalSnapshot,
 } from '@caxri/protocol';
-import { CaxriError, compareSessionSidebarOrder, isTopLevelProject } from '@caxri/protocol';
+import { CaxriError, isTopLevelProject } from '@caxri/protocol';
 import type Database from 'better-sqlite3';
 
 import type { AgentLifecycleSignal } from '../agents';
@@ -46,6 +46,11 @@ import type {
 import type { AppStateKey, AppStateValue } from './models/app-state';
 import type { SessionWorkbenchBinding } from './models/sessions';
 import { archiveOneSession, restoreArchivedSessions } from './session-archive';
+import {
+    reorderPinnedSession,
+    reorderSessionInProject,
+    setSessionPinned,
+} from './session-ordering';
 import { assertTerminalCapacity } from './terminal-capacity';
 
 /**
@@ -244,41 +249,28 @@ export class CaxriDatabase {
         return this.db.sessions.list(projectId);
     }
 
-    /**
-     * Resolves a drop against current rows, not a stale client index. Activity and dragging are serialized SQLite
-     * writes: the later operation wins without replaying older activity or changing its timestamp.
-     */
     reorderSession(
         sessionId: string,
         anchorSessionId: string,
         placement: 'before' | 'after',
     ): void {
-        this.db.transaction(() => {
-            const session = this.db.sessions.get(sessionId);
-            const anchor = this.db.sessions.get(anchorSessionId);
-            if (!session || !anchor) throw new CaxriError('NOT_FOUND', 'Session no longer exists');
-            if (
-                session.projectId !== anchor.projectId ||
-                session.archivedAt !== undefined ||
-                anchor.archivedAt !== undefined
-            )
-                throw new CaxriError(
-                    'VALIDATION',
-                    'Only active Sessions in the same Project can be reordered',
-                );
-            if (sessionId === anchorSessionId) return;
-            const ids = this.db.sessions
-                .list(session.projectId)
-                .filter((row) => row.archivedAt === undefined && row.id !== sessionId)
-                .toSorted(compareSessionSidebarOrder)
-                .map((row) => row.id);
-            ids.splice(
-                ids.indexOf(anchorSessionId) + (placement === 'after' ? 1 : 0),
-                0,
-                sessionId,
-            );
-            this.db.sessions.reorder(ids);
-        });
+        this.db.transaction(() =>
+            reorderSessionInProject(this.db, sessionId, anchorSessionId, placement),
+        );
+    }
+
+    reorderPinnedSession(
+        sessionId: string,
+        anchorSessionId: string,
+        placement: 'before' | 'after',
+    ): void {
+        this.db.transaction(() =>
+            reorderPinnedSession(this.db, sessionId, anchorSessionId, placement),
+        );
+    }
+
+    setSessionPinned(sessionId: string, shouldPin: boolean): SessionRecord {
+        return this.db.transaction(() => setSessionPinned(this.db, sessionId, shouldPin));
     }
 
     getSession(id: string): SessionRecord | undefined {
