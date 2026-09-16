@@ -182,9 +182,10 @@ function aggregateChecks(checks: ProjectStatusCheck[]): ProjectStatusState {
     if (checks.some((check) => check.state === 'failure')) return 'failure';
     if (checks.length === 0 || checks.some((check) => check.state === 'pending')) return 'pending';
     /**
-     * A cancelled check did not pass; preserve that outcome without raising a failure alert.
+     * Cancellation is visible but non-blocking once another terminal check supplies the rollup outcome. Preserve it as
+     * the parent state only when cancellation is the sole outcome, because that set did not prove any work passed.
      */
-    if (checks.some((check) => check.state === 'cancelled')) return 'cancelled';
+    if (checks.every((check) => check.state === 'cancelled')) return 'cancelled';
     return 'success';
 }
 
