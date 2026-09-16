@@ -84,6 +84,9 @@ const validEditorWorkerStallDiagnostic = {
     diffOpenCount: 6,
     stallCount: 6,
     editorWorkersCreated: 1,
+    editorWorkersStarted: 1,
+    editorWorkersStartupStalled: 0,
+    editorWorkersStartupStalledNow: 0,
 };
 
 const validPerformanceScenarioDiagnostic = {

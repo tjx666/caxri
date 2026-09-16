@@ -14,7 +14,7 @@ import {
 } from '../features/editor/editor-language';
 import { registerImportLinks } from '../features/editor/import-link-commands';
 import { configureTypeScriptDiagnostics } from './editor-diagnostics';
-import { recordEditorWorkerCreated } from './monaco-worker-count';
+import { monitorEditorWorkerStartup } from './monaco-worker-startup';
 
 declare global {
     interface Window {
@@ -28,18 +28,26 @@ declare global {
 // `globalThis.X = …` pattern unicorn/no-global-object-property-assignment disallows; Monaco's
 // worker loader contract requires this global to be set before `loader.init()` ever runs.
 const monacoGlobalScope: typeof globalThis = globalThis;
+
+/**
+ * Language services require their matching worker; the generic worker lacks their RPC methods.
+ */
+function createMonacoWorker(label: string): Worker {
+    if (label === 'json') return new JsonWorker();
+    if (['css', 'less', 'scss'].includes(label)) return new CssWorker();
+    if (['handlebars', 'html', 'razor'].includes(label)) return new HtmlWorker();
+    if (['javascript', 'typescript'].includes(label)) return new TypeScriptWorker();
+    return new EditorWorker();
+}
+
 monacoGlobalScope.MonacoEnvironment = {
     /**
-     * Language services require their matching worker; the generic worker lacks their RPC methods.
+     * Every Worker Monaco asks for is watched for the one failure that renders as a working editor: a Worker whose
+     * script never runs, which drops every message Monaco sends it without an error (issue #962). Watching is passive;
+     * the Worker handed back is the one Monaco asked for.
      */
-    getWorker: (_moduleId: string, label: string): Worker => {
-        recordEditorWorkerCreated();
-        if (label === 'json') return new JsonWorker();
-        if (['css', 'less', 'scss'].includes(label)) return new CssWorker();
-        if (['handlebars', 'html', 'razor'].includes(label)) return new HtmlWorker();
-        if (['javascript', 'typescript'].includes(label)) return new TypeScriptWorker();
-        return new EditorWorker();
-    },
+    getWorker: (_moduleId: string, label: string): Worker =>
+        monitorEditorWorkerStartup(createMonacoWorker(label), label),
 };
 
 const MONACO_WARMUP_LANGUAGES = [

@@ -21,7 +21,7 @@ function createStubbedProbe() {
     const samples: Sample[] = [];
     let nowMs = 0;
     let cpuMicroseconds = 0;
-    const stop = startEventLoopMonitor(
+    const monitor = startEventLoopMonitor(
         { write: (level, event, options) => samples.push({ level, event, ...options }) },
         {
             cpuUsage: () => ({ user: cpuMicroseconds, system: 0 }),
@@ -32,7 +32,8 @@ function createStubbedProbe() {
     );
     return {
         samples,
-        stop,
+        stop: monitor.stop,
+        summary: monitor.summary,
         /**
          * Fires one probe after `elapsedMs` of wall-clock time during which the process consumed `cpuMs` of CPU.
          */
@@ -135,9 +136,51 @@ describe('event-loop stall monitor', () => {
         }
     });
 
+    it('reports no block before one happens, so a reader can tell "none" from "not measured"', () => {
+        vi.useFakeTimers();
+        const probe = createStubbedProbe();
+        try {
+            probe.tick(PROBE_INTERVAL_MS, PROBE_INTERVAL_MS);
+
+            expect(probe.summary()).toEqual({
+                blockCount: 0,
+                longestBlockMs: 0,
+                msSinceLastBlock: null,
+                suspensionCount: 0,
+            });
+        } finally {
+            probe.stop();
+        }
+    });
+
+    /**
+     * The aggregate exists so another diagnostic — a stalled editor Worker, a timed-out request — can carry what this
+     * process's loop was doing, instead of leaving a reader to join two logs by timestamp.
+     */
+    it('accumulates blocks and suspensions separately, with the time since the last block', () => {
+        vi.useFakeTimers();
+        const probe = createStubbedProbe();
+        try {
+            probe.tick(PROBE_INTERVAL_MS, PROBE_INTERVAL_MS);
+            probe.tick(1500, 1500);
+            probe.tick(3500, 4);
+            probe.tick(2500, 2500);
+            probe.tick(PROBE_INTERVAL_MS, PROBE_INTERVAL_MS);
+
+            expect(probe.summary()).toEqual({
+                blockCount: 2,
+                longestBlockMs: 2000,
+                msSinceLastBlock: PROBE_INTERVAL_MS,
+                suspensionCount: 1,
+            });
+        } finally {
+            probe.stop();
+        }
+    });
+
     it('classifies a real synchronous block through the production clock and CPU seams', async () => {
         const samples: Sample[] = [];
-        const stop = startEventLoopMonitor(
+        const monitor = startEventLoopMonitor(
             { write: (level, event, options) => samples.push({ level, event, ...options }) },
             { intervalMs: 5, warnMs: 10 },
         );
@@ -153,7 +196,7 @@ describe('event-loop stall monitor', () => {
                 stallKind: 'event-loop-block',
             });
         } finally {
-            stop();
+            monitor.stop();
         }
     });
 });
