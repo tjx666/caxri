@@ -72,6 +72,74 @@ describe('Go issue expectation drift', () => {
         ).not.toThrow();
     });
 
+    it('re-attests a published decision at a later delivery head without a second comment', async () => {
+        const state = driftState();
+        const record = materialAssessment(state).record!;
+        const publisher = vi.fn(() =>
+            Promise.resolve({ url: 'https://github.com/tjx666/caxri/issues/113#issuecomment-1' }),
+        );
+        await publishExpectationDriftComment(
+            state,
+            { issueNumber: 113, recordId: record.id },
+            publisher,
+        );
+
+        // A cross-issue repair moved the delivery head. Acceptance requires every issue to be
+        // assessed at that exact head, and the decision itself has not changed.
+        const result = assessExpectationDrift(state, {
+            driftKey: 'final-assessment',
+            headSha: 'head-2',
+            issueNumber: 113,
+            kind: 'internal_detail',
+        });
+
+        expect(result).toEqual({ material: false, record: null });
+        expect(publisher).toHaveBeenCalledTimes(1);
+        expect(state.issues[0].expectationDrift).toMatchObject({
+            assessmentHeadSha: 'head-2',
+            status: 'commented',
+        });
+        expect(state.issues[0].expectationDrift.records).toHaveLength(1);
+        expect(() => assertIssueExpectationDriftReady(state.issues[0], 'head-2')).not.toThrow();
+    });
+
+    it('still refuses a non-material assessment while a decision is unpublished', () => {
+        const state = driftState();
+        materialAssessment(state);
+
+        expect(() =>
+            assessExpectationDrift(state, {
+                driftKey: 'final-assessment',
+                headSha: 'head-2',
+                issueNumber: 113,
+                kind: 'internal_detail',
+            }),
+        ).toThrow('unsettled material drift');
+    });
+
+    it('still refuses a non-material assessment while a decision is owed to the user', async () => {
+        const state = driftState();
+        const record = materialAssessment(state, true).record!;
+        await publishExpectationDriftComment(
+            state,
+            { issueNumber: 113, recordId: record.id },
+            vi.fn(() =>
+                Promise.resolve({
+                    url: 'https://github.com/tjx666/caxri/issues/113#issuecomment-1',
+                }),
+            ),
+        );
+
+        expect(() =>
+            assessExpectationDrift(state, {
+                driftKey: 'final-assessment',
+                headSha: 'head-2',
+                issueNumber: 113,
+                kind: 'internal_detail',
+            }),
+        ).toThrow('unsettled material drift');
+    });
+
     it('builds a Chinese four-part comment and publishes it idempotently', async () => {
         const state = driftState();
         const record = materialAssessment(state).record!;

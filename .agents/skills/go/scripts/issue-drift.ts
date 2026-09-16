@@ -103,6 +103,10 @@ function activeRecords(drift: IssueExpectationDrift): DriftRecord[] {
     return drift.records.filter(({ supersededBy }) => supersededBy === null);
 }
 
+function isUnsettledDrift(record: DriftRecord): boolean {
+    return record.decisionRequired || record.commentUrl === null;
+}
+
 function refreshStatus(drift: IssueExpectationDrift): void {
     const active = activeRecords(drift);
     if (active.some(({ decisionRequired }) => decisionRequired)) {
@@ -142,8 +146,19 @@ export function assessExpectationDrift(
     issue.expectationDrift.assessedAt = assessedAt;
     issue.expectationDrift.assessmentHeadSha = input.headSha;
     if (!isMaterialExpectationDrift(input.kind)) {
-        if (activeRecords(issue.expectationDrift).length > 0) {
-            throw new Error('A non-material assessment cannot clear an active material drift');
+        /**
+         * A settled material drift does not block a later non-material assessment, because this path is how an issue
+         * re-attests at a delivery head that moved after its own commit. Every cross-issue repair moves that head, and
+         * Acceptance requires each issue to be assessed at the exact head being delivered, so an issue whose decision
+         * was published rounds earlier lands here. Rejecting it would leave only one way forward: re-assert the same
+         * decision at the new head, which the head-scoped fingerprint reads as a new revision and would publish as a
+         * verbatim duplicate of a comment the workflow says never to duplicate.
+         *
+         * What this guard actually owns is unfinished drift — a decision nobody published, or one still waiting on the
+         * user. Those still block, and the published record stays active and visible either way.
+         */
+        if (activeRecords(issue.expectationDrift).some(isUnsettledDrift)) {
+            throw new Error('A non-material assessment cannot clear an unsettled material drift');
         }
         refreshStatus(issue.expectationDrift);
         return { material: false, record: null };
