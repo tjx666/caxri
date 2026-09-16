@@ -191,6 +191,18 @@ process.stdin.resume();
                 }),
             )
             .toBe(true);
+        /**
+         * Reading the body must not cost the reviewer their place. The popup carries `tabIndex={-1}`, so clicking the
+         * message text focuses the popup itself; a hand-over that ran again there would yank focus mid-drag and wipe
+         * the selection, leaving the peer's own words impossible to copy.
+         */
+        await approval.getByTestId('agent-message-body').click();
+        await expect(
+            approval.getByRole('button', { name: 'Approve message' }).evaluate((button) => {
+                const root = button.getRootNode() as Document | ShadowRoot;
+                return button === root.activeElement;
+            }),
+        ).resolves.toBe(false);
         await approval.getByRole('button', { name: 'Approve message' }).click();
         await expect(
             receiver.request('agent.message.wait', { timeoutMs: 1_000 }),

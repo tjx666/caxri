@@ -125,23 +125,33 @@ export function AgentMessageApprovalDialog() {
 
     /**
      * Base UI resolves `initialFocus` while the body is still loading, when `Approve message` is disabled and cannot
-     * accept focus, so focus parks on the popup itself. Hand the confirming button its focus once the body arrives, and
+     * accept focus, so it resolves to the popup itself. Hand the confirming button its focus once the body arrives, and
      * only from that parked state, so a user who already moved to another action keeps where they are.
      *
-     * Listening rather than handing over once: Base UI resolves `initialFocus` in a microtask (`FloatingFocusManager`),
-     * so the body can land on either side of it. A single attempt loses that race half the time — it moves focus to the
-     * button and the focus manager then parks it back on the popup, which is how this dialog ended up focusing its own
-     * container in roughly every other run. `focus` does not bubble, so this fires only when the popup itself is the
-     * target and never when the user is on a real control.
+     * Why a listener and not a single attempt: Base UI resolves `initialFocus` in a microtask and only calls `.focus()`
+     * a frame later (`FloatingFocusManager` through `enqueueFocus`). A body that lands between those two points finds
+     * focus still outside the dialog — on the Agent's Terminal — so the effect declines to move it, and the queued
+     * focus then parks on the popup with nobody left to hand it over. That is how this dialog ended up focusing its own
+     * container in roughly every other run. Listening for the popup's own `focus` closes that window.
+     *
+     * Why it hands over exactly once: the popup carries `tabIndex={-1}`, so clicking any non-interactive part of the
+     * dialog — the title, the sender table, the message body — focuses it. Re-running the hand-over there would yank
+     * focus mid-drag and wipe the text selection, and the body is the one thing a reviewer needs to be able to read and
+     * copy before deciding. `focus` does not bubble, so this never fires while the user is on a real control.
      */
     useEffect(() => {
         if (!isBodyReady) return;
         const popup = contentReference.current;
         if (!popup) return;
+        let isHandedOver = false;
         const handOverFocus = (): void => {
+            if (isHandedOver) return;
             if (document.activeElement !== popup && document.activeElement !== document.body)
                 return;
-            approvalConfirmButton(popup)?.focus();
+            const confirm = approvalConfirmButton(popup);
+            if (!confirm) return;
+            isHandedOver = true;
+            confirm.focus();
         };
         handOverFocus();
         popup.addEventListener('focus', handOverFocus);
