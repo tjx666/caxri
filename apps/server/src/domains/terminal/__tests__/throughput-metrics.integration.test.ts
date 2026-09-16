@@ -108,7 +108,7 @@ describe('PTY throughput metrics', () => {
             expect(
                 recordMetric.mock.calls.filter((call) => call[0] === 'pty.throughput'),
             ).toHaveLength(3);
-            expect(writesFor('pty.throughput')).toHaveLength(3);
+            expect(writesFor('pty.throughput')).toHaveLength(0);
             expect(infoWritesFor('pty.throughput')).toHaveLength(0);
             expect(infoWritesFor('pty.first_input')).toHaveLength(1);
             const firstInput = infoWritesFor('pty.first_input')[0]?.[2];

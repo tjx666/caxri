@@ -52,6 +52,13 @@ describe('cursor-follow log stream accumulation', () => {
         expect(capped.records.map(({ event }) => event)).toEqual(['new', 'overflow']);
     });
 
+    it('deduplicates repeated ids within one server page', () => {
+        const shared = record('shared');
+        const state = appendLogPage(emptyLogStream, page([shared, shared]));
+
+        expect(state.records).toEqual([shared]);
+    });
+
     it('clears records but keeps the cursor so history does not replay', () => {
         const state = appendLogPage(
             emptyLogStream,

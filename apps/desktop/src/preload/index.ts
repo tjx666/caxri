@@ -41,10 +41,12 @@ interface E2EMobilePairingBridge {
 }
 
 const e2eRequestState: {
+    logsQueryCount: number;
+    logsQueryTimestamps: number[];
     mobilePairingBridge?: E2EMobilePairingBridge;
     pathBrowserStartGate?: E2ERequestGate;
     sessionStateUpdateCount: number;
-} = { sessionStateUpdateCount: 0 };
+} = { logsQueryCount: 0, logsQueryTimestamps: [], sessionStateUpdateCount: 0 };
 
 function createE2ERequestGate(): E2ERequestGate {
     const { promise: reached, resolve: markReached } = Promise.withResolvers<void>();
@@ -67,6 +69,12 @@ async function requestWithId<M extends CaxriMethod>(
     method: M,
     ...arguments_: ParametersArgument<M>
 ): Promise<MethodReply<M>> {
+    if (isE2E && method === 'logs.query') {
+        e2eRequestState.logsQueryCount += 1;
+        e2eRequestState.logsQueryTimestamps.push(Date.now());
+        if (e2eRequestState.logsQueryTimestamps.length > 32)
+            e2eRequestState.logsQueryTimestamps.shift();
+    }
     if (isE2E && method === 'session.updateState') e2eRequestState.sessionStateUpdateCount += 1;
     if (isE2E && method === 'pathBrowser.start' && e2eRequestState.pathBrowserStartGate) {
         const gate = e2eRequestState.pathBrowserStartGate;
@@ -161,9 +169,15 @@ if (isE2E) {
             e2eRequestState.pathBrowserStartGate?.release();
             e2eRequestState.pathBrowserStartGate = undefined;
         },
+        resetLogsQueryCount: () => {
+            e2eRequestState.logsQueryCount = 0;
+            e2eRequestState.logsQueryTimestamps = [];
+        },
         resetSessionStateUpdateCount: () => {
             e2eRequestState.sessionStateUpdateCount = 0;
         },
+        logsQueryCount: () => e2eRequestState.logsQueryCount,
+        logsQueryTimestamps: () => [...e2eRequestState.logsQueryTimestamps],
         sessionStateUpdateCount: () => e2eRequestState.sessionStateUpdateCount,
         takeMobilePairingLink: async () => {
             const bridge = e2eRequestState.mobilePairingBridge;

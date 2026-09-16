@@ -25,7 +25,12 @@ import {
     localServerEventSchema,
     toWireError,
 } from '@caxri/protocol';
-import type { LogRecord, LogWriteOptions, ObservationContext } from '@caxri/system';
+import type {
+    LogRecord,
+    LogWriteOptions,
+    ObservationContext,
+    StructuredLogger,
+} from '@caxri/system';
 import {
     isSecretMatch,
     logEventCatalog,
@@ -36,6 +41,7 @@ import type { RawData } from 'ws';
 import WebSocket from 'ws';
 
 import type { BinaryStreamControlOptions } from './binary-stream-control';
+import { shouldLogSuccessfulRequest } from './request-observability';
 
 const MAX_IN_FLIGHT_REQUESTS = 64;
 export const HANDSHAKE_TIMEOUT_MS = 2_000;
@@ -197,11 +203,7 @@ const REQUEST_TOTAL_WARN_MS = 5_000;
  */
 interface ControlRequestLogSink {
     write(level: LogRecord['level'], event: LogEventName, options?: LogWriteOptions): void;
-    recordMetric?(
-        name: 'queue.depth' | 'queue.wait',
-        value: number,
-        labels: { owner: 'control'; phase: 'admission'; outcome?: 'failure' | 'success' },
-    ): void;
+    recordMetric?: StructuredLogger['recordMetric'];
 }
 
 function requestParameters(value: unknown): Record<string, unknown> {
@@ -253,7 +255,8 @@ export function observeControlRequest<T>(
 
 /**
  * Records control transport latency without retaining request parameters or other user content. The ordered-queue wait
- * is the head-of-line blocking signature this log exists to surface; successful requests stay at `debug` unless slow.
+ * is the head-of-line blocking signature this log exists to surface; successful requests stay at `debug` unless their
+ * method uses an aggregate-only observability path.
  */
 export function logControlRequestOutcome(
     options: Pick<ControlServerOptions, 'logger' | 'requestQueueWarnMs' | 'requestTotalWarnMs'>,
@@ -277,6 +280,12 @@ export function logControlRequestOutcome(
         ...(timing && { queueDepth: timing.queueDepth }),
     };
     const observationContext = observationContextForRequest(request, context);
+    if (request.method === 'logs.query')
+        logger.recordMetric?.('logs.query_latency', durationMs, {
+            owner: 'control',
+            phase: 'execute',
+            outcome: reply.ok ? 'success' : 'failure',
+        });
     logger.recordMetric?.('queue.wait', queueMs, {
         owner: 'control',
         phase: 'admission',
@@ -289,12 +298,13 @@ export function logControlRequestOutcome(
             outcome: reply.ok ? 'success' : 'failure',
         });
     if (reply.ok) {
-        logger.write(isSlow ? 'warn' : 'debug', logEventCatalog.ipc.request, {
-            correlationId: request.id,
-            context: observationContext,
-            durationMs,
-            fields,
-        });
+        if (shouldLogSuccessfulRequest('control', request.method))
+            logger.write(isSlow ? 'warn' : 'debug', logEventCatalog.ipc.request, {
+                correlationId: request.id,
+                context: observationContext,
+                durationMs,
+                fields,
+            });
         return;
     }
     if (reply.error.code === 'CANCELLED') {
@@ -483,7 +493,8 @@ export interface ControlServerOptions {
     invokeDesktopOperation?(request: ServerOperationRequest): Promise<unknown>;
     /**
      * Per-request outcome log: success at `debug`, failures and slow/queued requests at `warn`. PTY hot-path methods
-     * stay unlogged, matching the domain operation dispatcher.
+     * stay unlogged, matching the domain operation dispatcher; successful `logs.query` reads are metric-only even when
+     * slow so the reader cannot advance its own cursor.
      */
     logger?: ControlRequestLogSink;
     identity: ServerManifestIdentity;

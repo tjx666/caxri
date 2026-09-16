@@ -1,6 +1,11 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 
-import type { FailureReason, LogRecord, RemediationCategory } from '@caxri/system';
+import type {
+    FailureReason,
+    LogRecord,
+    ObservationOutcome,
+    RemediationCategory,
+} from '@caxri/system';
 
 /**
  * The two outcomes `docs/extensions.md` defines as typed non-faults, for Source Control snapshots as well as Tree RPC.
@@ -240,12 +245,14 @@ export interface ExtensionRequestFailureRecord {
         retryable: boolean;
     };
     level: LogRecord['level'];
+    outcome: Extract<ObservationOutcome, 'cancelled' | 'failure' | 'superseded'>;
+    writeToLog: boolean;
 }
 
 /**
- * Classifies a failed Extension Host request for the diagnostic log. A non-fault drops to `debug` because cancellation
- * and generation turnover are frequent and expected; keeping them at `warn` spent the production log budget on records
- * that describe healthy behavior. Real failures keep the original `warn` level and fault shape.
+ * Classifies a failed Extension Host request for diagnostics. Cancellation and generation turnover are frequent,
+ * expected non-faults, so they remain visible through the bounded request metric without consuming one durable record
+ * per request. Real failures keep their `warn` record and fault shape.
  *
  * The non-fault classification requires BOTH a matching code in {@link NON_FAULT_REASONS} AND
  * `isHostOriginatedError(error)`. An extension provider can throw `Object.assign(new Error('boom'), { code: 'CANCELLED'
@@ -270,6 +277,8 @@ export function extensionRequestFailureRecord(
                 retryable: true,
             },
             level: 'debug',
+            outcome: nonFaultReason === 'cancelled' ? 'cancelled' : 'superseded',
+            writeToLog: false,
         };
     return {
         failure: {
@@ -281,6 +290,8 @@ export function extensionRequestFailureRecord(
             retryable: false,
         },
         level: 'warn',
+        outcome: 'failure',
+        writeToLog: true,
     };
 }
 

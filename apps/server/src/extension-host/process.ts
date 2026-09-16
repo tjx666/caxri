@@ -171,15 +171,26 @@ async function processRequest(request: ExtensionHostRequest): Promise<void> {
         async () => {
             try {
                 const result = await handle(request);
+                logger.recordMetric('extension_host.request', 1, {
+                    owner: 'extension-host',
+                    phase: 'execute',
+                    outcome: 'success',
+                });
                 send({ type: 'reply', id: request.id, ok: true, result });
             } catch (error) {
                 const shape = extensionErrorShape(error);
-                const { failure, level } = extensionRequestFailureRecord(shape.code, error);
-                logger.write(level, logEventCatalog.extensionHost.error, {
-                    correlationId: request.id,
-                    fields: { method: request.method, code: shape.code },
-                    failure,
+                const record = extensionRequestFailureRecord(shape.code, error);
+                logger.recordMetric('extension_host.request', 1, {
+                    owner: 'extension-host',
+                    phase: 'execute',
+                    outcome: record.outcome,
                 });
+                if (record.writeToLog)
+                    logger.write(record.level, logEventCatalog.extensionHost.error, {
+                        correlationId: request.id,
+                        fields: { method: request.method, code: shape.code },
+                        failure: record.failure,
+                    });
                 send({ type: 'reply', id: request.id, ok: false, error: shape });
             }
         },
