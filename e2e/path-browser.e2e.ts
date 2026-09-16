@@ -100,6 +100,12 @@ test('Cmd+P lazily browses Project paths from Terminal, Editor, and Files focus'
         await expect(dialog).toHaveCount(0);
         const readmeTab = running.page.locator('.work-tab', { hasText: 'README.md' });
         await expect(readmeTab).toBeVisible();
+        /**
+         * Focus recovery hands the new Document tab keyboard focus, and the pointer never went near the tab bar. A path
+         * tooltip opened from that focus would hang over the top-left of the Editor with nothing to dismiss it — and
+         * swallow the click below.
+         */
+        await expect(running.page.locator('.tooltip-popup')).toHaveCount(0);
 
         const editor = running.page.locator('.monaco-editor').first();
         await editor.click({ position: { x: 120, y: 24 } });

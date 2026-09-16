@@ -142,16 +142,20 @@
 }
 
 /* Native horizontal scrollbars overwhelm the 36px tab strip; keep its thumb discoverable but quiet.
-   Targets `.work-tab-scroll`, the inner rail that actually overflows — the outer `.work-tabs` row also
-   holds the New Terminal button and the drag gap, which stay put while the tabs scroll under them. */
-.work-tab-scroll {
+   Targets the two rails that actually overflow — the scrolling document rail and the anchored Terminal
+   segment beside it — not the outer `.work-tabs` row, which also holds the New Terminal button and the
+   drag gap; those stay put while the tabs scroll under them. */
+.work-tab-scroll,
+.work-tab-sticky {
     scrollbar-color: var(--muted) transparent;
     scrollbar-width: thin;
 }
-.work-tab-scroll::-webkit-scrollbar {
+.work-tab-scroll::-webkit-scrollbar,
+.work-tab-sticky::-webkit-scrollbar {
     height: 3px;
 }
-.work-tab-scroll::-webkit-scrollbar-thumb {
+.work-tab-scroll::-webkit-scrollbar-thumb,
+.work-tab-sticky::-webkit-scrollbar-thumb {
     border-radius: 999px;
     background: var(--muted);
 }
