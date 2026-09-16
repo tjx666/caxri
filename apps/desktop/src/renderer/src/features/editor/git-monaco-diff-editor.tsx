@@ -7,6 +7,7 @@ import { cn } from '@/lib/utilities';
 import { Empty, EmptyMedia, EmptyTitle } from '../../components/ui/empty';
 import { Spinner } from '../../components/ui/spinner';
 import { monaco } from '../../lib/monaco';
+import { releaseStalledEditorWorkers } from '../../lib/monaco-worker-startup';
 import { EditorLoadFailure } from './editor-load-failure';
 import { editorLoadReducer, initialEditorLoadState } from './editor-load-state';
 import { gitDiffComputationAction } from './git-diff-computation-state';
@@ -165,7 +166,15 @@ export function GitMonacoDiffEditor(properties: GitDiffEditorProperties) {
                         <EditorLoadFailure
                             actionLabel="Retry"
                             reason={computation.reason}
-                            onAction={() => dispatchComputation({ type: 'retried' })}
+                            onAction={() => {
+                                /**
+                                 * Releasing first is what makes the retry different from the one that already failed: a
+                                 * Worker that never started keeps being handed to every later comparison, so a new view
+                                 * model alone would queue behind the same dead Worker. See issue #962.
+                                 */
+                                releaseStalledEditorWorkers();
+                                dispatchComputation({ type: 'retried' });
+                            }}
                         />
                     ) : (
                         <Empty className="empty-work h-full flex-1">
