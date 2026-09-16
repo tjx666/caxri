@@ -5,7 +5,7 @@ import type {
     ProjectStatusOverview,
 } from '@caxri/protocol';
 import { isExternalEditorTabPath, parseGitDiffTab } from '@caxri/protocol';
-import { FileDiff, GitPullRequest, Monitor } from 'lucide-react';
+import { Monitor } from 'lucide-react';
 
 import { useContainerWidth } from '@/hooks/use-container-width';
 import { usePolledQuery } from '@/hooks/use-polled-query';
@@ -23,11 +23,9 @@ import { ActiveTerminalStatus } from './active-terminal-status';
 import { BranchPicker } from './branch-picker';
 import type { ChipVisibility } from './chip-priority';
 import { resolveChipVisibility } from './chip-priority';
-import { LinearIssueStatus } from './linear-issue-status';
-import { pullRequestUnavailableLabel } from './pull-request-status-label';
 import { RemoteDebuggingChip } from './remote-debugging-chip';
+import { RepoStatusChips } from './repo-status-chips';
 import { ScreencastModeChip } from './screencast-mode-chip';
-import { StatusInfo } from './status-info';
 import { StatusItem } from './status-item';
 import { UpdateStatusChip } from './update-status-chip';
 import { WorkbenchRootPicker } from './workbench-root-picker';
@@ -112,19 +110,6 @@ function showSecondarySidebar(command: Extract<CommandId, `secondarySidebar.show
     executeCommand(command);
 }
 
-function RepoChangesStatus({ additions, deletions }: { additions: number; deletions: number }) {
-    return (
-        <StatusItem
-            icon={<FileDiff />}
-            ariaLabel={`Open changes: ${additions} ${additions === 1 ? 'addition' : 'additions'}, ${deletions} ${deletions === 1 ? 'deletion' : 'deletions'}`}
-            title="Show primary repository changes"
-            onClick={() => showSecondarySidebar('secondarySidebar.showGit')}
-        >
-            +{additions} -{deletions}
-        </StatusItem>
-    );
-}
-
 function ActivePaneStatus({
     showChildProcessCount,
     showMemory,
@@ -198,31 +183,7 @@ function StatusBarContext({
             {repo && sessionId && (
                 <BranchPicker branch={repo.branch} repositoryId={repo.id} sessionId={sessionId} />
             )}
-            {repo?.pullRequest && chipVisibility.pullRequest && (
-                <StatusItem
-                    icon={<GitPullRequest />}
-                    href={repo.pullRequest.url}
-                    ariaLabel={`Open pull request #${repo.pullRequest.number}`}
-                    title={repo.pullRequest.title}
-                >
-                    #{repo.pullRequest.number}
-                </StatusItem>
-            )}
-            {repo?.pullRequestUnavailable && chipVisibility.pullRequest && (
-                <StatusInfo
-                    icon={<GitPullRequest />}
-                    ariaLabel={`${pullRequestUnavailableLabel(repo.pullRequestUnavailable.reason)}. ${repo.pullRequestUnavailable.hint}`}
-                    title={repo.pullRequestUnavailable.hint}
-                    className="bg-elevated text-muted"
-                    focusable
-                >
-                    {pullRequestUnavailableLabel(repo.pullRequestUnavailable.reason)}
-                </StatusInfo>
-            )}
-            {repo && repo.linearIssues.length > 0 && chipVisibility.linearIssue && (
-                <LinearIssueStatus issues={repo.linearIssues} />
-            )}
-            {repo && <RepoChangesStatus additions={repo.additions} deletions={repo.deletions} />}
+            {repo && <RepoStatusChips chipVisibility={chipVisibility} repo={repo} />}
         </div>
     );
 }

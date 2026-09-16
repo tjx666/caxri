@@ -1,7 +1,7 @@
 # External delivery-status queries and quota governance
 
-Durable record of how Caxri reads GitHub, Linear, and Vercel delivery metadata, and why every one of
-those reads goes through a single Server-side owner. All source lives under
+Durable record of how Caxri reads GitHub, Linear, Vercel, and LobeHub delivery metadata, and why
+every one of those reads goes through a single Server-side owner. All source lives under
 `apps/server/src/domains/external-status/`.
 
 ## The problem this replaced
@@ -89,7 +89,7 @@ query's cost by every candidate returned.
 
 ### One circuit per source
 
-`ExternalStatusLimiter` (`limiter.ts`) wraps every `gh`, `linear`, and `vc` spawn. `git` is local and
+`ExternalStatusLimiter` (`limiter.ts`) wraps every `gh`, `lh`, `linear`, and `vc` spawn. `git` is local and
 free, so it bypasses the circuit entirely.
 
 - **GitHub primary limit** — on a rate-limited failure, probe the GraphQL `rateLimit` self-query
@@ -104,8 +104,8 @@ free, so it bypasses the circuit entirely.
   [GitHub's secondary rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#about-secondary-rate-limits).
 - **Reserve** — before a `gh` call, at most once every five minutes, read the remaining GraphQL
   points. Below 100, pause until reset. Caxri is not the only thing on this account.
-- **Linear and Vercel** report no reset time, so their circuits back off geometrically (60s → 120s →
-  300s → 900s) and resets the ladder on the first success.
+- For **Linear, Vercel, and LobeHub**, Caxri uses a conservative geometric backoff when no usable reset time is available
+  (60s → 120s → 300s → 900s) and resets the ladder on the first success.
 - A paused source fails immediately with the same `rate-limited` error kind the CLI would have
   produced. Surfaces keep rendering their last good snapshot because the store serves the stale
   record, not because the error is silent — a surface that has never loaded the pull request still
@@ -174,6 +174,48 @@ one issue. See [session conversation context](./session-conversation-context.md)
 window, so a backgrounded Caxri really does spend nothing; a visible one still asks every 60s, and
 the sidebar sweep covers every active Session rather than only the rows on screen. What the TTL and
 the circuit control is how many of those reads reach a CLI.
+
+## Acceptance reports
+
+A LobeHub acceptance report is the record of an independent reviewer running a change's checks and
+reaching a verdict, so "did the tests pass" and "did acceptance pass" are different questions and
+Project Status answers both. Caxri finds a report the same way it finds a Linear issue: from a link
+in the pull-request body, and from one the Session's own conversation named. `acceptance-link.ts`
+owns the URL grammar for both readers, including the `?r=` alias the app still emits for `?turn=`,
+and a `/check/<id>` deep link, which resolves back to the report that owns it.
+
+A link may pin a round. A pinned link keeps answering for that round after a later one runs, because
+the person who pasted it was pointing at a specific result. An unpinned link follows the latest
+round and says so (`12/12 · latest of 3`). `AcceptanceStore` (`acceptance.ts`) caches by report id
+rather than by `(id, round)`: the round only selects which entry of an already-fetched bundle
+answers, so watching three rounds of one report still costs one `lh acceptance view` spawn.
+
+The status bar resolves only the leading report and renders the rest as bare links; the Status panel
+resolves every candidate, capped at four per branch. A report Caxri recognized but could not read
+stays visible as an inert row that still opens the link — `state: 'unknown'`, not an error block —
+because a missing or logged-out `lh` should not make the reference disappear.
+
+### One state, computed once
+
+`ProjectStatusAcceptance.state` is reduced on the Server by `acceptanceProjectStatusState` and
+shipped on the wire, exactly as `ProjectStatusDeployment.state` already is. The status bar renders
+Lucide glyphs and the Status extension renders codicons, and the extension cannot call a protocol
+helper at runtime without bundling zod into a self-contained extension — so the only way both
+surfaces can be guaranteed to agree is for neither of them to decide.
+
+The reduction has one non-obvious rule: **the round's verdict outranks the report's lifecycle**,
+because the verdict is the newer fact. A report that moved to `repairing` after a `failed` round
+reads as `failure`; `uncertain` reads as `pending`, not `neutral`, since it is unfinished rather than
+inapplicable. Two cases run the other way and are equally deliberate: `delivered` + `passed` is
+`pending` because it is still waiting on a person, and `rejected` + `passed` is `failure` because
+the person's decision is the newest fact of all.
+
+### The report id is never rendered and never logged
+
+An acceptance id names a private record, tells a reader nothing, and would persist into a `warn`
+record if it became an error's subject. It is therefore absent from every label, aria-label, and
+tooltip line, and `projectStatusCliError` is given the literal subject `acceptance report` instead.
+The id survives only inside the link the row opens.
 
 ## Failure back-off must never be shorter than success
 

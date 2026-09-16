@@ -157,6 +157,7 @@ export async function prepareStatusRepo(
             defaultBranch: context.defaultBranch,
             githubUrl,
             publication: initialBranchPublication(context),
+            acceptances: [],
             linearIssues: [],
             errors: [],
         },

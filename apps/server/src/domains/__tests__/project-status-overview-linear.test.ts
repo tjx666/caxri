@@ -55,6 +55,7 @@ function gitSummary(branch: string): GitSummary {
 }
 
 const EMPTY_CONTEXT: SessionTranscriptContext = {
+    acceptanceReferences: [],
     branches: [],
     directories: [],
     linearReferences: [],

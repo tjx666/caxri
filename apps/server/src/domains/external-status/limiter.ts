@@ -42,7 +42,17 @@ const PAUSE_RELOAD_MS = 5_000;
  */
 const QUOTA_PROBE_INTERVAL_MS = 5 * 60_000;
 
-const QUOTA_SOURCES: readonly ExternalStatusQuotaSource[] = ['gh', 'linear', 'vc'];
+/**
+ * Every quota-governed source, spelled out so the shared pause file is read back for all of them. The `Record` key type
+ * makes a source added to {@link ExternalStatusQuotaSource} and forgotten here a compile error rather than a circuit
+ * that silently stops honouring a sibling Server's pause.
+ */
+const QUOTA_SOURCES = Object.keys({
+    gh: true,
+    lh: true,
+    linear: true,
+    vc: true,
+} satisfies Record<ExternalStatusQuotaSource, true>) as readonly ExternalStatusQuotaSource[];
 
 const pauseEntrySchema = z.object({ resumeAt: z.number() });
 

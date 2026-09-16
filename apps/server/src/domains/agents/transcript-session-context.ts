@@ -1,3 +1,5 @@
+import type { AcceptanceReference } from '../acceptance-link';
+import { findAcceptanceLinks } from '../acceptance-link';
 import type { TranscriptScanCursor } from './transcript-scan';
 
 /**
@@ -17,6 +19,7 @@ export interface TranscriptLinearReference {
  * path or marker the Agent merely printed can never widen what Caxri will open or claim to know.
  */
 export interface TranscriptSessionContextScan extends TranscriptScanCursor {
+    acceptanceReferences: AcceptanceReference[];
     branches: string[];
     directories: string[];
     linearReferences: TranscriptLinearReference[];
@@ -29,6 +32,11 @@ const MAX_DIRECTORIES = 16;
  * would let a burst of later mentions evict the marker the user opened the conversation with.
  */
 const MAX_LINEAR_REFERENCES = 32;
+/**
+ * Tighter than the Linear bound because the input is: a full URL is deliberate every time, so there is no accidental
+ * traffic to leave room for, and a Session works through a handful of acceptance reports at most.
+ */
+const MAX_ACCEPTANCE_REFERENCES = 8;
 /**
  * A transcript line is one JSON record; a tool invocation that pastes a whole file can make it very large. The content
  * patterns below are bounded scans, but running six of them over a multi-megabyte line buys nothing — the load-bearing
@@ -136,10 +144,17 @@ interface CodexContextItem {
 }
 
 export function createTranscriptSessionContextScan(): TranscriptSessionContextScan {
-    return { offset: 0, branches: [], directories: [], linearReferences: [] };
+    return {
+        offset: 0,
+        acceptanceReferences: [],
+        branches: [],
+        directories: [],
+        linearReferences: [],
+    };
 }
 
 export function resetTranscriptSessionContextScan(scan: TranscriptSessionContextScan): void {
+    scan.acceptanceReferences.length = 0;
     scan.branches.length = 0;
     scan.directories.length = 0;
     scan.linearReferences.length = 0;
@@ -190,12 +205,42 @@ function rememberLinear(
         scan.linearReferences.splice(0, scan.linearReferences.length - MAX_LINEAR_REFERENCES);
 }
 
+/**
+ * A re-mention moves the report to the most recent position, and a round travels with it: pasting the link again is how
+ * a conversation says "this round now". A later link that pins no round leaves the last known one in place rather than
+ * erasing it, because dropping to "the report as a whole" would silently change which round the chip is reporting.
+ */
+function rememberAcceptance(
+    scan: TranscriptSessionContextScan,
+    id: string,
+    round: number | undefined,
+): void {
+    const normalized = id.toLowerCase();
+    const existing = scan.acceptanceReferences.findIndex(
+        (reference) => reference.id === normalized,
+    );
+    const pinned =
+        round ?? (existing === -1 ? undefined : scan.acceptanceReferences[existing].round);
+    if (existing !== -1) scan.acceptanceReferences.splice(existing, 1);
+    scan.acceptanceReferences.push({ id: normalized, ...(pinned && { round: pinned }) });
+    if (scan.acceptanceReferences.length > MAX_ACCEPTANCE_REFERENCES)
+        scan.acceptanceReferences.splice(
+            0,
+            scan.acceptanceReferences.length - MAX_ACCEPTANCE_REFERENCES,
+        );
+}
+
 function boundedText(value: string): string {
     return value.length > MAX_CONTENT_SCAN_CHARS ? value.slice(0, MAX_CONTENT_SCAN_CHARS) : value;
 }
 
 function scanLinearUrls(text: string, scan: TranscriptSessionContextScan): void {
     for (const match of text.matchAll(LINEAR_URL_PATTERN)) rememberLinear(scan, match[2], match[1]);
+}
+
+function scanAcceptanceUrls(text: string, scan: TranscriptSessionContextScan): void {
+    for (const reference of findAcceptanceLinks(text))
+        rememberAcceptance(scan, reference.id, reference.round);
 }
 
 /**
@@ -206,6 +251,7 @@ function scanLinearUrls(text: string, scan: TranscriptSessionContextScan): void 
 function scanProse(text: string, scan: TranscriptSessionContextScan): void {
     const bounded = boundedText(text).replaceAll(INSTRUCTION_ENVELOPE_PATTERN, ' ');
     scanLinearUrls(bounded, scan);
+    scanAcceptanceUrls(bounded, scan);
     for (const match of bounded.matchAll(LINEAR_IDENTIFIER_PATTERN))
         // A `linear.app` URL proves its own workspace, so only the bare form is filtered.
         if (!isNonIssuePrefix(match[1])) rememberLinear(scan, `${match[1]}-${match[2]}`);
@@ -224,6 +270,7 @@ function scanInvocation(text: string, scan: TranscriptSessionContextScan): void 
         for (const match of bounded.matchAll(WORKTREE_BRANCH_PATTERN))
             rememberBranch(scan, match[1]);
     scanLinearUrls(bounded, scan);
+    scanAcceptanceUrls(bounded, scan);
 }
 
 function isRecord(value: unknown): value is TranscriptContentBlock {
@@ -288,6 +335,7 @@ export function scanTranscriptSessionContextLine(
     if (line.length === 0) return;
     const needsContent =
         line.includes('linear.app') ||
+        line.includes('/acceptance/') ||
         LINEAR_IDENTIFIER_HINT.test(line) ||
         WORKTREE_TEXT_HINT.test(line);
     if (!needsContent) {

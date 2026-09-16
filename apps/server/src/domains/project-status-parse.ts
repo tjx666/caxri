@@ -1,12 +1,22 @@
 import type {
+    AcceptanceStatus,
+    AcceptanceVerdict,
+    ProjectStatusAcceptance,
     ProjectStatusCheck,
     ProjectStatusLinearIssue,
     ProjectStatusRepository as ProjectStatusRepo,
     ProjectStatusState,
     SessionPullRequestState,
 } from '@caxri/protocol';
-import { CaxriError, hexColorSchema, isIgnoredCheck } from '@caxri/protocol';
+import {
+    acceptanceProjectStatusState,
+    CaxriError,
+    hexColorSchema,
+    isIgnoredCheck,
+} from '@caxri/protocol';
 import { z } from 'zod';
+
+import { acceptanceUrl } from './acceptance-link';
 
 /**
  * Wire shapes and projections for the three external CLIs Project Status reads. Kept beside `./project-status.ts`
@@ -142,6 +152,79 @@ export function mapLinearIssue(
         state: issue?.state?.name,
         stateType: linearStateType(issue?.state?.type),
         stateColor: linearStateColor(issue?.state?.color),
+    };
+}
+
+const acceptanceReportSchema = z.object({
+    passedChecks: z.number().nullish(),
+    totalChecks: z.number().nullish(),
+    verdict: z.string().nullish(),
+});
+
+/**
+ * Only the fields the two Caxri surfaces draw. The bundle also carries every check, every review, and a usage ledger;
+ * `--json acceptance,subject,latestReport,rounds` already leaves those behind, and this schema is the second guard.
+ */
+const acceptanceRoundSchema = z.object({
+    report: acceptanceReportSchema.nullish(),
+    run: z.object({ roundIndex: z.number().nullish() }).nullish(),
+});
+
+export const acceptanceBundleSchema = z.object({
+    acceptance: z.object({ status: z.string().nullish() }).nullish(),
+    latestReport: acceptanceReportSchema.nullish(),
+    rounds: z.array(acceptanceRoundSchema).nullish(),
+    subject: z.object({ title: z.string().nullish() }).nullish(),
+});
+
+const ACCEPTANCE_STATUSES = new Set<AcceptanceStatus>([
+    'accepted',
+    'closed',
+    'delivered',
+    'errored',
+    'pending',
+    'planned',
+    'rejected',
+    'repairing',
+    'verifying',
+]);
+const ACCEPTANCE_VERDICTS = new Set<AcceptanceVerdict>(['failed', 'passed', 'uncertain']);
+
+/**
+ * Projects one acceptance bundle onto the wire shape, answering for the round the link pinned rather than for the
+ * report as a whole. A link that named round 2 must keep reporting round 2 after round 3 runs: that is what makes a
+ * pasted link a stable reference instead of a moving one. Without a pinned round the latest report answers.
+ */
+export function mapAcceptanceBundle(
+    bundle: z.infer<typeof acceptanceBundleSchema>,
+    reference: { id: string; round?: number },
+): ProjectStatusAcceptance {
+    const rounds = bundle.rounds ?? [];
+    const pinned = reference.round
+        ? rounds.find((round) => round.run?.roundIndex === reference.round)
+        : undefined;
+    const report = pinned?.report ?? bundle.latestReport;
+    const rawStatus = bundle.acceptance?.status ?? undefined;
+    const rawVerdict = report?.verdict ?? undefined;
+    // Provider strings are narrowed here rather than in the schema so an enum value Caxri has not seen yet leaves the
+    // field absent instead of rejecting the whole bundle and blanking a report the user can otherwise read.
+    const status = ACCEPTANCE_STATUSES.has(rawStatus as AcceptanceStatus)
+        ? (rawStatus as AcceptanceStatus)
+        : undefined;
+    const verdict = ACCEPTANCE_VERDICTS.has(rawVerdict as AcceptanceVerdict)
+        ? (rawVerdict as AcceptanceVerdict)
+        : undefined;
+    return {
+        id: reference.id,
+        state: acceptanceProjectStatusState({ status, verdict }),
+        url: acceptanceUrl(reference.id, reference.round),
+        ...(reference.round && { round: reference.round }),
+        ...(bundle.subject?.title && { title: bundle.subject.title }),
+        ...(status && { status }),
+        ...(verdict && { verdict }),
+        ...(typeof report?.passedChecks === 'number' && { passedChecks: report.passedChecks }),
+        ...(typeof report?.totalChecks === 'number' && { totalChecks: report.totalChecks }),
+        ...(rounds.length > 0 && { roundCount: rounds.length }),
     };
 }
 
