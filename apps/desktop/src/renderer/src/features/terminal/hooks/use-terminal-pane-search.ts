@@ -5,8 +5,15 @@ import type { ISearchOptions } from '@xterm/addon-search';
 import { SearchAddon } from '@xterm/addon-search';
 
 import { emptySearchResults, opaqueSearchColor } from '../terminal-pane-support';
-import type { TerminalSearchOptions, TerminalSearchResults } from '../terminal-search';
-import { TERMINAL_SEARCH_HIGHLIGHT_LIMIT } from '../terminal-search';
+import type {
+    TerminalSearchOptions,
+    TerminalSearchResults,
+    TerminalSearchSelectionGuard,
+} from '../terminal-search';
+import {
+    createTerminalSearchSelectionGuard,
+    TERMINAL_SEARCH_HIGHLIGHT_LIMIT,
+} from '../terminal-search';
 
 interface TerminalThemeReference {
     readonly current: {
@@ -19,33 +26,47 @@ interface TerminalThemeReference {
  */
 export function useTerminalPaneSearch(latest: TerminalThemeReference) {
     const searchReference = useRef<SearchAddon | undefined>(undefined);
-    const searchActiveReference = useRef(false);
+    const selectionGuardReference = useRef<TerminalSearchSelectionGuard | undefined>(undefined);
+    selectionGuardReference.current ??= createTerminalSearchSelectionGuard();
+    const selectionGuard = selectionGuardReference.current;
     const searchSignatureReference = useRef('');
     const [searchResults, setSearchResults] = useState<TerminalSearchResults>(emptySearchResults);
 
-    const registerSearchAddon = useCallback((search: SearchAddon): (() => void) => {
-        searchReference.current = search;
-        const resultsDisposable = search.onDidChangeResults(({ resultCount, resultIndex }) =>
-            setSearchResults({ resultCount, resultIndex }),
-        );
-        return () => {
-            resultsDisposable.dispose();
-            if (searchReference.current !== search) return;
-            searchReference.current = undefined;
-            searchActiveReference.current = false;
-            searchSignatureReference.current = '';
-        };
-    }, []);
-
-    const beginSearch = useCallback((): void => {
-        searchActiveReference.current = true;
-    }, []);
+    const registerSearchAddon = useCallback(
+        (search: SearchAddon): (() => void) => {
+            searchReference.current = search;
+            const resultsDisposable = search.onDidChangeResults(({ resultCount, resultIndex }) =>
+                setSearchResults({ resultCount, resultIndex }),
+            );
+            /**
+             * The addon re-runs its cached query by itself 200ms after every write and resize, so copy-on-select has to
+             * learn about the selection from the addon's own search lifecycle. A guard wrapped around this pane's
+             * navigation calls would miss those, and a Terminal that keeps printing would repeatedly overwrite the
+             * clipboard with the active match while the search bar is open.
+             */
+            const beforeSearchDisposable = search.onBeforeSearch(() =>
+                selectionGuard.beginSearchSelection(),
+            );
+            const afterSearchDisposable = search.onAfterSearch(() =>
+                selectionGuard.endSearchSelection(),
+            );
+            return () => {
+                resultsDisposable.dispose();
+                beforeSearchDisposable.dispose();
+                afterSearchDisposable.dispose();
+                selectionGuard.endSearchSelection();
+                if (searchReference.current !== search) return;
+                searchReference.current = undefined;
+                searchSignatureReference.current = '';
+            };
+        },
+        [selectionGuard],
+    );
 
     const endSearch = useCallback((): void => {
         try {
             searchReference.current?.clearDecorations();
         } finally {
-            searchActiveReference.current = false;
             searchSignatureReference.current = '';
             setSearchResults(emptySearchResults);
         }
@@ -60,7 +81,6 @@ export function useTerminalPaneSearch(latest: TerminalThemeReference) {
         ): void => {
             const search = searchReference.current;
             if (!search) return;
-            searchActiveReference.current = true;
             const theme = latest.current.terminalTheme;
             const searchOptions: ISearchOptions = {
                 ...options,
@@ -109,12 +129,11 @@ export function useTerminalPaneSearch(latest: TerminalThemeReference) {
     );
 
     return {
-        beginSearch,
         createSearchAddon: () =>
             new SearchAddon({ highlightLimit: TERMINAL_SEARCH_HIGHLIGHT_LIMIT + 1 }),
         endSearch,
         find,
-        isSearchActive: () => searchActiveReference.current,
+        isSearchSelection: () => selectionGuard.isSearchSelection(),
         registerSearchAddon,
         searchResults,
     };
