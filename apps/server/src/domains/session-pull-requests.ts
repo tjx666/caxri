@@ -98,7 +98,10 @@ interface BranchLookupEntry {
 interface SessionEntry {
     expiresAt: number;
     /**
-     * Identity of the PR last resolved for the Session, so a transcript that switches PRs invalidates immediately.
+     * Identity of the transcript reference this entry was resolved from, so a transcript that switches PRs invalidates
+     * immediately. Absent when the entry came from branch discovery alone. It is not always the identity of `value`:
+     * once the transcript's pull request is settled, a different one found on the Session's branch takes the row while
+     * the key keeps tracking the transcript that must still invalidate it.
      */
     key?: string;
     value?: SessionPullRequest;
@@ -136,7 +139,7 @@ function pullRequestKey(reference: PullRequestReference): string {
     return `${reference.owner}/${reference.repo}#${reference.number}`;
 }
 
-function isSettled(value: SessionPullRequest | undefined): boolean {
+function isSettled(value: SessionPullRequest | undefined): value is SessionPullRequest {
     return value?.state === 'merged' || value?.state === 'closed';
 }
 
@@ -359,41 +362,11 @@ export class SessionPullRequestService {
         const reference = await this.transcriptReference(session);
         if (reference) {
             const key = pullRequestKey(reference);
+            // A still-fresh entry already carries last sweep's answer, including any branch hand-off below.
             if (previous?.key === key && previous.expiresAt > now)
                 return { entry: previous, lookedUp: false };
-            const cached = this.pullRequests.get(key);
-            if (cached && cached.expiresAt > now)
-                return {
-                    entry: { expiresAt: cached.expiresAt, key, value: cached.value },
-                    lookedUp: false,
-                };
-            try {
-                const value = await this.viewPullRequest(session.rootPath, reference, 'agent');
-                const expiresAt = now + this.ttlFor(value);
-                rememberBounded(
-                    this.pullRequests,
-                    key,
-                    { expiresAt, value },
-                    MAX_PULL_REQUEST_ENTRIES,
-                );
-                return { entry: { expiresAt, key, value }, lookedUp: true };
-            } catch (error) {
-                // Transient `gh` failure: keep the last projection and retry after a short back-off.
-                const previousValue = previous?.key === key ? previous.value : cached?.value;
-                const unavailable = pullRequestUnavailable(error);
-                this.logger.write('warn', logEventCatalog.sessionPullRequests.lookupUnavailable, {
-                    fields: { reason: unavailable.reason },
-                });
-                return {
-                    entry: {
-                        expiresAt: now + FAILURE_TTL_MS,
-                        key,
-                        value: previousValue,
-                        unavailable,
-                    },
-                    lookedUp: true,
-                };
-            }
+            const transcript = await this.transcriptPullRequest(session, reference, key, previous);
+            return this.preferBranchPullRequest(session, transcript, key);
         }
         if (previous && previous.key === undefined && previous.expiresAt > now)
             return { entry: previous, lookedUp: false };
@@ -406,6 +379,75 @@ export class SessionPullRequestService {
             },
             lookedUp: branch.lookedUp,
         };
+    }
+
+    /**
+     * Resolves the pull request the Session's own Agent transcript points at, through the Server-wide record cache.
+     */
+    private async transcriptPullRequest(
+        session: SessionRecord,
+        reference: PullRequestReference,
+        key: string,
+        previous: SessionEntry | undefined,
+    ): Promise<{ entry: SessionEntry; lookedUp: boolean }> {
+        const now = this.now();
+        const cached = this.pullRequests.get(key);
+        if (cached && cached.expiresAt > now)
+            return {
+                entry: { expiresAt: cached.expiresAt, key, value: cached.value },
+                lookedUp: false,
+            };
+        try {
+            const value = await this.viewPullRequest(session.rootPath, reference, 'agent');
+            const expiresAt = now + this.ttlFor(value);
+            rememberBounded(this.pullRequests, key, { expiresAt, value }, MAX_PULL_REQUEST_ENTRIES);
+            return { entry: { expiresAt, key, value }, lookedUp: true };
+        } catch (error) {
+            // Transient `gh` failure: keep the last projection and retry after a short back-off.
+            const previousValue = previous?.key === key ? previous.value : cached?.value;
+            const unavailable = pullRequestUnavailable(error);
+            this.logger.write('warn', logEventCatalog.sessionPullRequests.lookupUnavailable, {
+                fields: { reason: unavailable.reason },
+            });
+            return {
+                entry: {
+                    expiresAt: now + FAILURE_TTL_MS,
+                    key,
+                    value: previousValue,
+                    unavailable,
+                },
+                lookedUp: true,
+            };
+        }
+    }
+
+    /**
+     * Hands the row to the current branch's pull request once the transcript's own one is merged or closed.
+     *
+     * The transcript scan can only see `gh pr create` calls made inside that one transcript, so a Session whose next
+     * pull request was opened from another conversation — or whose worktree simply moved to a new branch — keeps
+     * pointing at the delivery that already landed. The Session row then contradicts the status bar, which has always
+     * queried by branch (issue #1035).
+     *
+     * Only a _different_ pull request takes over. A branch with none, or with the same one, keeps the transcript's
+     * answer so a pull request merged thirty seconds ago does not blank the row before its successor exists, and a
+     * failed branch lookup is discarded rather than surfaced, because an error badge over a perfectly good projection
+     * would be worse than the staleness this repairs. The extra query is paid only by settled pull requests, whose own
+     * fifteen-minute TTL is what made the stale row survive so long.
+     */
+    private async preferBranchPullRequest(
+        session: SessionRecord,
+        transcript: { entry: SessionEntry; lookedUp: boolean },
+        key: string,
+    ): Promise<{ entry: SessionEntry; lookedUp: boolean }> {
+        const settled = transcript.entry.value;
+        if (!isSettled(settled)) return transcript;
+        const branch = await this.branchPullRequest(session);
+        const expiresAt = Math.min(transcript.entry.expiresAt, branch.expiresAt);
+        const lookedUp = transcript.lookedUp || branch.lookedUp;
+        if (!branch.value || branch.value.url === settled.url)
+            return { entry: { ...transcript.entry, expiresAt }, lookedUp };
+        return { entry: { expiresAt, key, value: branch.value }, lookedUp };
     }
 
     private ttlFor(value: SessionPullRequest | undefined): number {
