@@ -75,12 +75,18 @@ export function SourceControlTreeRow({
     /**
      * Base UI composes triggers through `render`, so the tooltip wraps the context-menu trigger rather than the button:
      * each layer merges its own props into the single rendered element.
+     *
+     * `hoverOnly` because this row is one the app itself focuses — the tree moves focus between rows programmatically
+     * through its roving `tabIndex`. Without it a focus-opened tooltip and the row menu become two Base UI popups
+     * sharing one trigger element, and the menu's return-focus then loses the row: closing the menu with `Escape` left
+     * focus on the document body about half the time (issue #1029). The tooltip's text is the resource path, which is
+     * already this row's accessible name, so a screen reader still hears it.
      */
     const withTooltip = (trigger: ReactElement): ReactElement =>
         tooltip === undefined ? (
             trigger
         ) : (
-            <Tooltip anchorMode="cursor" content={tooltip}>
+            <Tooltip anchorMode="cursor" content={tooltip} hoverOnly>
                 {trigger}
             </Tooltip>
         );
