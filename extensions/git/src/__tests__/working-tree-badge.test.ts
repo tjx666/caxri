@@ -16,6 +16,47 @@ describe('working tree badge', () => {
         ).toEqual({ kind: 'count', count: 122, description: '122 changes' });
     });
 
+    /**
+     * The panel drops a gitlink row whose submodule has a section of its own, so a badge that still counted it would
+     * read 3 above a list showing 2.
+     */
+    it('subtracts the gitlink rows the panel hides', () => {
+        expect(
+            workingTreeBadge({
+                isRepository: true,
+                repositories: [
+                    {
+                        ...repo,
+                        changedFileCount: 3,
+                        files: [
+                            ...repo.files,
+                            {
+                                path: 'vendor/library',
+                                index: 'M',
+                                workingTree: ' ',
+                                kind: 'modified' as const,
+                            },
+                            {
+                                path: 'README.md',
+                                index: ' ',
+                                workingTree: 'M',
+                                kind: 'modified' as const,
+                            },
+                        ],
+                    },
+                    {
+                        ...repo,
+                        id: 'submodule',
+                        kind: 'submodule' as const,
+                        rootPath: '/authorized/project/vendor/library',
+                        changedFileCount: 0,
+                        files: [],
+                    },
+                ],
+            }),
+        ).toEqual({ kind: 'count', count: 2, description: '2 changes' });
+    });
+
     it('hides zero and unavailable summaries', () => {
         expect(workingTreeBadge({ isRepository: false, repositories: [] })).toBeUndefined();
         expect(

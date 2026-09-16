@@ -64,7 +64,7 @@ async function expectFilesData(page: Page): Promise<void> {
 
 async function expectGitData(page: Page): Promise<void> {
     await expect(page.locator('.git-repository-section')).toHaveCount(1);
-    await expect(page.locator('.git-row[title="README.md"]')).toBeVisible();
+    await expect(page.locator('.git-row[data-path="README.md"]')).toBeVisible();
 }
 
 async function expectStatusData(page: Page): Promise<void> {

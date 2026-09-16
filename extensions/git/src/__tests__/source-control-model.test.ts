@@ -278,6 +278,11 @@ describe('Git source-control view model', () => {
 
         expect(model.providers[0]).toMatchObject({
             description: 'feature/product-extensions',
+            // Alt-clicking the provider row or its group caption opens this, so the panel spends no row width on a link glyph.
+            externalLink: {
+                url: 'https://github.com/example/caxri/pull/42',
+                label: 'Open pull request #42 on the web',
+            },
             descriptionAccessibilityLabel:
                 'feature/product-extensions, 1 ahead, 2 behind, Pull request #42 into main: Make Source Control generic',
             descriptionTooltip:
@@ -374,19 +379,29 @@ describe('Git source-control view model', () => {
         ]);
     });
 
-    it('binds submodule navigation and preserves working-tree truncation metadata', () => {
+    /**
+     * The parent records a submodule as one gitlink change, so the panel used to print it twice in a row: once inside
+     * the parent's change list, once as the submodule's own section right below. The gitlink row loses, and every count
+     * the caption prints loses with it — otherwise the caption promises a row the list no longer renders.
+     */
+    it('drops a gitlink row the snapshot already shows as its own repository section', () => {
+        const gitlink = {
+            path: 'vendor/library',
+            index: ' ',
+            workingTree: 'M',
+            kind: 'modified' as const,
+        };
+        const readme = {
+            path: 'README.md',
+            index: ' ',
+            workingTree: 'M',
+            kind: 'modified' as const,
+        };
         const primary = {
             ...summary.repositories[0],
             changedFileCount: 12,
             truncated: true,
-            files: [
-                {
-                    path: 'vendor/library',
-                    index: ' ',
-                    workingTree: 'M',
-                    kind: 'modified' as const,
-                },
-            ],
+            files: [gitlink, readme],
         };
         const submodule = {
             ...summary.repositories[0],
@@ -403,18 +418,34 @@ describe('Git source-control view model', () => {
         });
 
         expect(model.providers[0].groups[0]).toMatchObject({
-            truncationMessage: 'Showing the first 1 of 12 changes',
-            resources: [
+            count: 11,
+            truncationMessage: 'Showing the first 1 of 11 changes',
+            resources: [{ path: 'README.md' }],
+        });
+    });
+
+    it('keeps the gitlink row for a submodule with no section of its own', () => {
+        const primary = {
+            ...summary.repositories[0],
+            changedFileCount: 1,
+            files: [
                 {
-                    description: 'submodule',
-                    navigationTargetId: 'repo-submodule',
-                    action: {
-                        command: {
-                            id: 'caxri.git.openSubmodule',
-                            arguments: ['repo-submodule'],
-                        },
-                    },
+                    path: 'vendor/library',
+                    index: ' ',
+                    workingTree: 'M',
+                    kind: 'modified' as const,
                 },
+            ],
+        };
+        const model = buildSourceControlViewModel({
+            mode: 'working',
+            summary: { isRepository: true, repositories: [primary] },
+        });
+
+        expect(model.providers[0].groups[0]).toMatchObject({
+            count: 1,
+            resources: [
+                { path: 'vendor/library', action: { command: { id: 'caxri.git.openChanges' } } },
             ],
         });
     });

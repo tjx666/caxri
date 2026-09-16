@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import type {
     PaneResource,
@@ -10,8 +10,6 @@ import type {
 } from '@caxri/protocol';
 import { isVirtualEditorTabPath } from '@caxri/protocol';
 import { queryOptions, useQuery } from '@tanstack/react-query';
-
-import { useShouldReduceMotion } from '@/hooks/use-should-reduce-motion';
 
 import {
     executeViewCatalogShortcut,
@@ -41,12 +39,8 @@ import { useSourceControlNavigation } from './use-source-control-navigation';
 
 type SourceControlMode = SourceControlViewModel['modes'][number];
 
-function applyActionEffect(
-    effect: SourceControlActionEffect,
-    focusProvider: (targetId: string) => void,
-): void {
+function applyActionEffect(effect: SourceControlActionEffect): void {
     if (effect.kind === 'open-editor') openEditorTab(effect.resource);
-    else if (effect.kind === 'focus') focusProvider(effect.targetId);
     else pushToast(effect.tone, effect.message);
 }
 
@@ -60,8 +54,6 @@ type SourceControlViewEmptyController = Exclude<SourceControlPanelState, { statu
 interface SourceControlViewReadyController {
     activeEditorResource: string | undefined;
     fileHistoryExpanded: boolean;
-    flashedProviderId: string | undefined;
-    focusProvider: (targetId: string) => void;
     isRefreshing: boolean;
     model: SourceControlViewModel;
     navigation: SourceControlViewNavigation;
@@ -173,7 +165,7 @@ export function sourceControlSnapshotQueryOptions({
 }
 
 /**
- * Owns generic provider-model fetching, scoped disclosure state, action effects, and focus sequencing.
+ * Owns generic provider-model fetching, scoped disclosure state, and action effects.
  */
 export function useSourceControlController(
     navigationScope?: SourceControlNavigationScope,
@@ -189,10 +181,6 @@ export function useSourceControlController(
     const queryScope = session ? `${session.id}:${session.workbenchProjectId}` : undefined;
     const [fileHistoryExpanded, setFileHistoryExpanded] = useState(false);
     const [refresh, setRefresh] = useState(0);
-    const [flashedProviderId, setFlashedProviderId] = useState<string>();
-    const reduceMotion = useShouldReduceMotion();
-    const flashTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-    useEffect(() => () => clearTimeout(flashTimer.current), []);
     const [navigation, updateNavigation] = useSourceControlNavigation(
         navigationScope,
         persistedNavigation,
@@ -261,29 +249,6 @@ export function useSourceControlController(
                   ),
         [providerGeneration, requestRefresh, session, updateNavigation, viewId],
     );
-    const focusProvider = useCallback(
-        (targetId: string): void => {
-            const isExpanded = navigation.expandedProviders[targetId] ?? true;
-            updateNavigation({
-                expandedProviders: {
-                    ...navigation.expandedProviders,
-                    [targetId]: !isExpanded,
-                },
-            });
-            setFlashedProviderId(targetId);
-            clearTimeout(flashTimer.current);
-            flashTimer.current = setTimeout(() => setFlashedProviderId(undefined), 1600);
-            requestAnimationFrame(() => {
-                document
-                    .querySelector(`[data-git-repository-id="${CSS.escape(targetId)}"]`)
-                    ?.scrollIntoView({
-                        behavior: reduceMotion ? 'auto' : 'smooth',
-                        block: 'nearest',
-                    });
-            });
-        },
-        [navigation.expandedProviders, reduceMotion, setFlashedProviderId, updateNavigation],
-    );
     const runAction = useCallback(
         async (action: SourceControlAction): Promise<void> => {
             if (action.disabled || !snapshot.data) return;
@@ -299,12 +264,11 @@ export function useSourceControlController(
                 () => client.action({ actionId: action.id, revision }),
             );
             if (!result || result.revision !== revision) return;
-            for (const effect of result.effects) applyActionEffect(effect, focusProvider);
+            for (const effect of result.effects) applyActionEffect(effect);
             if (result.refresh) requestRefresh();
         },
         [
             client,
-            focusProvider,
             presentation?.actionErrorMessage,
             requestRefresh,
             snapshot.data,
@@ -346,8 +310,6 @@ export function useSourceControlController(
     return {
         activeEditorResource: activeResource?.kind === 'file' ? activeResource.path : undefined,
         fileHistoryExpanded,
-        flashedProviderId,
-        focusProvider,
         isRefreshing: snapshot.isFetching,
         model: snapshot.data,
         navigation,

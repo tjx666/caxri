@@ -1,15 +1,20 @@
+import type { MouseEvent } from 'react';
 import { useState } from 'react';
 
-import type { SourceControlAction, SourceControlViewModel } from '@caxri/protocol';
+import type {
+    SourceControlAction,
+    SourceControlExternalLink,
+    SourceControlViewModel,
+} from '@caxri/protocol';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-
-import { useShouldReduceMotion } from '@/hooks/use-should-reduce-motion';
 
 import { DisclosureMotion } from '../../../components/disclosure-motion';
 import { Button } from '../../../components/ui/button';
 import { Empty } from '../../../components/ui/empty';
 import { Tooltip } from '../../../components/ui/tooltip';
+import { openExternalUrl } from '../../../lib/external-link';
 import { cn } from '../../../lib/utilities';
+import { pushToast } from '../../../stores/toasts';
 import type { SourceControlController } from './hooks/use-source-control-controller';
 import { SourceControlHistory } from './source-control-history';
 import { SourceControlIcon } from './source-control-icon';
@@ -22,6 +27,29 @@ import { SourceControlTreeRow } from './source-control-tree-row';
 type ReadyController = Extract<SourceControlController, { status: 'ready' }>;
 type ProviderModel = SourceControlViewModel['providers'][number];
 type GroupModel = ProviderModel['groups'][number];
+
+/**
+ * Alt activation for a row whose primary click already owns disclosure. Returns `true` when the row must not also run
+ * its ordinary click behavior, so a caller can keep both gestures on one control.
+ */
+function didOpenExternalLink(
+    event: MouseEvent<HTMLElement>,
+    link: SourceControlExternalLink | undefined,
+): boolean {
+    if (!link || !event.altKey) return false;
+    // eslint-disable-next-line no-void -- intentional floating-promise discard; failures surface as a toast
+    void openExternalUrl(link.url, (message) => pushToast('error', message));
+    return true;
+}
+
+function rowTooltip(
+    lines: ReadonlyArray<string | undefined>,
+    link: SourceControlExternalLink | undefined,
+): string {
+    return [...lines, link && `Option-click to ${link.label.toLowerCase()}`]
+        .filter(Boolean)
+        .join('\n');
+}
 
 function ProviderHeader({
     controller,
@@ -78,9 +106,17 @@ function ProviderHeader({
                 level={1}
                 className="git-repository-row flex min-w-0 flex-1 cursor-pointer items-center gap-2 overflow-hidden border-0 bg-transparent p-2 text-left text-foreground"
                 aria-expanded={expanded}
-                title={provider.tooltip}
+                aria-keyshortcuts={provider.externalLink ? 'Alt' : undefined}
+                data-path={provider.rootPath}
+                tooltip={rowTooltip(
+                    [provider.tooltip, provider.descriptionTooltip],
+                    provider.externalLink,
+                )}
                 menuItems={menuItems}
-                onClick={() => controller.setProviderExpanded(provider.id, !expanded)}
+                onClick={(event) => {
+                    if (didOpenExternalLink(event, provider.externalLink)) return;
+                    controller.setProviderExpanded(provider.id, !expanded);
+                }}
             >
                 {/*
                  * The identity span is the one that gives way. `description` is always the branch, unreadable
@@ -109,7 +145,6 @@ function ProviderHeader({
                 <span
                     className="git-repository-meta ml-auto flex max-w-[60%] min-w-0 shrink-0 items-center justify-end gap-1 text-[11px] text-muted"
                     aria-label={provider.descriptionAccessibilityLabel}
-                    title={provider.descriptionTooltip}
                 >
                     <span className="git-repository-branch min-w-0 truncate">
                         {provider.description}
@@ -180,11 +215,16 @@ function ProviderHeader({
 function GroupCaption({
     controller,
     expanded,
+    externalLink,
     group,
     providerId,
 }: {
     controller: ReadyController;
     expanded: boolean;
+    /**
+     * The provider's page for the changes this group lists — the pull request whose number the caption already prints.
+     */
+    externalLink?: SourceControlExternalLink;
     group: GroupModel;
     providerId: string;
 }) {
@@ -196,8 +236,13 @@ function GroupCaption({
                 type="button"
                 className="flex h-7 min-w-0 flex-1 cursor-pointer items-center gap-1 border-0 bg-transparent px-2 text-left text-[10px] font-bold tracking-[0.06em] text-muted uppercase hover:text-foreground"
                 aria-expanded={expanded}
+                aria-keyshortcuts={externalLink ? 'Alt' : undefined}
+                tooltip={externalLink ? rowTooltip([group.label], externalLink) : undefined}
                 menuItems={sourceControlActionMenuItems(group.actions, controller.runAction)}
-                onClick={() => controller.setGroupExpanded(group.id, !expanded)}
+                onClick={(event) => {
+                    if (didOpenExternalLink(event, externalLink)) return;
+                    controller.setGroupExpanded(group.id, !expanded);
+                }}
             >
                 {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                 <span className="truncate">{group.label}</span>
@@ -249,16 +294,11 @@ export function SourceControlProviderSection({
     controller: ReadyController;
     provider: ProviderModel;
 }) {
-    const reduceMotion = useShouldReduceMotion();
     const expanded =
         controller.navigation.expandedProviders[provider.id] ?? provider.expandedByDefault;
     return (
         <section
-            className={cn(
-                "git-repository-section relative border-b border-border after:pointer-events-none after:absolute after:inset-0 after:z-10 after:bg-accent/10 after:opacity-0 after:content-['']",
-                !reduceMotion && 'after:transition-opacity after:duration-500',
-                controller.flashedProviderId === provider.id && 'after:opacity-100',
-            )}
+            className="git-repository-section relative border-b border-border"
             data-git-repository-id={provider.id}
         >
             <ProviderHeader controller={controller} expanded={expanded} provider={provider} />
@@ -274,6 +314,7 @@ export function SourceControlProviderSection({
                                     <GroupCaption
                                         controller={controller}
                                         expanded={groupExpanded}
+                                        externalLink={provider.externalLink}
                                         group={group}
                                         providerId={provider.id}
                                     />

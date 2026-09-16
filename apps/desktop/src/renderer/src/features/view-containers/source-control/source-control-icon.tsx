@@ -14,7 +14,6 @@ import {
 import { ArchiveIcon } from '../../../icons/codicons/archive-icon';
 import { DiffMultipleIcon } from '../../../icons/codicons/diff-multiple-icon';
 import { DiscardIcon } from '../../../icons/codicons/discard-icon';
-import { FileSubmoduleIcon } from '../../../icons/codicons/file-submodule-icon';
 import { RepoIcon } from '../../../icons/codicons/repo-icon';
 import { SyncIcon } from '../../../icons/codicons/sync-icon';
 import { WorktreeIcon } from '../../../icons/codicons/worktree-icon';
@@ -49,8 +48,6 @@ export function SourceControlIcon({
     if (icon.id === 'archive') return <ArchiveIcon className={className} size={size} />;
     if (icon.id === 'discard') return <DiscardIcon className={className} size={size} />;
     if (icon.id === 'diff-multiple') return <DiffMultipleIcon className={className} size={size} />;
-    if (icon.id === 'file-submodule')
-        return <FileSubmoduleIcon className={className} size={size} />;
     if (icon.id === 'repo') return <RepoIcon className={className} size={size} />;
     if (icon.id === 'sync') return <SyncIcon className={className} size={size} />;
     if (icon.id === 'worktree') return <WorktreeIcon className={className} size={size} />;

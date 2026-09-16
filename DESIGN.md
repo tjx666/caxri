@@ -526,6 +526,14 @@ listbox focus, supports arrows, Home/End, typeahead, Enter/Right to activate, Le
 and Escape to close. Long paths scroll horizontally without a visible scrollbar and keep the active
 file in view; the last-change annotation truncates before the path becomes unusable.
 
+A document the Project cannot browse keeps the rail and loses the interaction: a file authorized
+from outside every Project root shows its full absolute trail, and a diff shows its
+repository-relative one. Neither takes a tab stop and neither opens a picker, because there is no
+authorized directory listing behind a segment — a clickable segment there would promise navigation
+the Renderer cannot perform. The metrics, icon placement, and horizontal scrolling match the
+interactive rail exactly, so switching between a file and its diff never moves the first line of
+content. An external file gets no last-change annotation: blame needs a Project-scoped repository.
+
 **Motion** — motion explains structure; it never decorates state. Motion is a layered stack. Pick
 the least-powerful layer that covers the scenario, and one element is only ever driven by one
 layer:
@@ -666,7 +674,7 @@ not an underline.
 **Iconography** — an icon names what a thing _is_, never which mode a surrounding control is in. A
 glyph reused for two meanings on one screen is a bug: the Git tab keeps the branch mark, so the
 Source Control caption drops it, repository rows take a repository mark (`FolderGit2`, or the
-vendored `file-submodule` codicon for a submodule) regardless of panel mode, and the mode switch's
+vendored `archive` codicon for a submodule) regardless of panel mode, and the mode switch's
 working-tree segment takes a diff mark. Where lucide has no equivalent glyph, vendor the VS Code
 codicon inline (`apps/desktop/src/renderer/src/icons/codicons`) rather than bending a lucide icon
 to fit.
@@ -683,6 +691,20 @@ the repository nodes. It follows the active ordinary file, starts collapsed, and
 when opened; each commit opens that file's read-only diff directly. Terminal, diff, and out-of-scope
 editors omit the disclosure entirely. Repository-scoped `Commits` stays nested under each repository
 and keeps its optional path input and commit-details disclosure.
+
+Every row carries the hover text its own width cannot: a file row names its full path, a folder row
+names the recursive-expand gesture, and a repository row adds its branch and, in Pull Request mode,
+the pull request Option-click opens. Option-click is the panel's one modifier gesture and it always
+means "skip the row's default and go to the thing itself": on a file row it opens the working file
+instead of its diff, and on a repository row or its `PR #<n> Changes` caption it opens that pull
+request in the default browser. A row that offers it says so in its own tooltip and advertises
+`aria-keyshortcuts`, so the panel never spends row width on a link glyph that is empty in most
+modes. A deleted file has no working copy left, so it keeps the diff activation only.
+
+A submodule the panel already lists as its own repository section does not also appear as a gitlink
+row in its parent's change list — the section carries the same submodule with its branch and its
+real file changes, so the row is pure duplication, and every count the parent's caption prints drops
+it too. A submodule the snapshot is not showing separately keeps its ordinary gitlink row.
 
 **Uncommitted work in a non-working mode** — Last Commit and Pull Request replace a repository's
 file list with that commit's or that pull request's files, so a repository holding uncommitted work
