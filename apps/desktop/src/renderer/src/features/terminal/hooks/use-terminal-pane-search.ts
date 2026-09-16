@@ -38,10 +38,23 @@ export function useTerminalPaneSearch(latest: TerminalThemeReference) {
             const resultsDisposable = search.onDidChangeResults(({ resultCount, resultIndex }) =>
                 setSearchResults({ resultCount, resultIndex }),
             );
-            const unwatchSelection = selectionGuard.watch(search);
+            /**
+             * The addon re-runs its cached query by itself 200ms after every write and resize, so copy-on-select has to
+             * learn about the selection from the addon's own search lifecycle. A guard wrapped around this pane's
+             * navigation calls would miss those, and a Terminal that keeps printing would repeatedly overwrite the
+             * clipboard with the active match while the search bar is open.
+             */
+            const beforeSearchDisposable = search.onBeforeSearch(() =>
+                selectionGuard.beginSearchSelection(),
+            );
+            const afterSearchDisposable = search.onAfterSearch(() =>
+                selectionGuard.endSearchSelection(),
+            );
             return () => {
                 resultsDisposable.dispose();
-                unwatchSelection();
+                beforeSearchDisposable.dispose();
+                afterSearchDisposable.dispose();
+                selectionGuard.endSearchSelection();
                 if (searchReference.current !== search) return;
                 searchReference.current = undefined;
                 searchSignatureReference.current = '';
