@@ -4,7 +4,8 @@ import { Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
 
 /**
- * Sized in CSS for the reason given on `statusItemClassName`; a read-only reading runs one pixel smaller.
+ * Sized in CSS for the reason given on `statusItemClassName`; a read-only reading sits at the `dense` type tier, one
+ * pixel smaller.
  */
 const statusInfoClassName =
     'statusbar-info inline-flex h-5 min-w-0 flex-none items-center gap-[5px] overflow-hidden rounded px-[5px] text-foreground tabular-nums [&>svg]:flex-none [&>svg]:size-[12px] [&>span]:overflow-hidden [&>span]:text-ellipsis [&>span]:whitespace-nowrap';
