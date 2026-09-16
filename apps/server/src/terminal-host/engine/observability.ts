@@ -196,14 +196,14 @@ export function createPtyThroughputTally(startedAt: number): PtyThroughputTally 
  * Records one closed aggregation window for a live PTY.
  *
  * Steady-state throughput is owned by the metrics layer: `pty.throughput` enters the bounded metric registry on every
- * window while the matching log record stays at `debug`, below the Terminal Host's `info` floor. Only two conditions
- * still write durable records from a window: dropped bytes remain a `warn` `pty.throughput` record (the anomaly signal
- * `terminal-recovery.e2e.ts` waits for), and the first window that carried input writes one `pty.first_input` record so
- * the startup benchmark keeps a low-frequency liveness signal.
+ * window without writing a matching per-window log record. Only two conditions still write durable records from a
+ * window: dropped bytes remain a `warn` `pty.throughput` record (the anomaly signal `terminal-recovery.e2e.ts` waits
+ * for), and the first window that carried input writes one `pty.first_input` record so the startup benchmark keeps a
+ * low-frequency liveness signal.
  *
  * History: 24c4eb18 first silenced the per-second `info` record and 614cccee reverted it because
  * `e2e/startup.performance.e2e.ts` waited on `pty.throughput` with `inputBytes > 0`. That consumer and the Terminal
- * integration test now wait on `pty.first_input`, so the per-window record can stay at `debug` without timing out the
+ * integration test now wait on `pty.first_input`, so the per-window record can be omitted without timing out the
  * release benchmark. See #590 and #605.
  */
 export function recordPtyThroughputWindow(
@@ -222,14 +222,15 @@ export function recordPtyThroughputWindow(
         tally.peakWindowBytes,
         observation.inputBytes + observation.outputBytes,
     );
-    logger.write(observation.droppedBytes > 0 ? 'warn' : 'debug', logEventCatalog.pty.throughput, {
-        fields: {
-            terminalId,
-            inputBytes: observation.inputBytes,
-            outputBytes: observation.outputBytes,
-            droppedBytes: observation.droppedBytes,
-        },
-    });
+    if (observation.droppedBytes > 0)
+        logger.write('warn', logEventCatalog.pty.throughput, {
+            fields: {
+                terminalId,
+                inputBytes: observation.inputBytes,
+                outputBytes: observation.outputBytes,
+                droppedBytes: observation.droppedBytes,
+            },
+        });
     if (tally.firstInputLogged || observation.inputBytes === 0) return;
     tally.firstInputLogged = true;
     logger.write('info', logEventCatalog.pty.firstInput, {

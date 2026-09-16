@@ -106,6 +106,24 @@ describe('bounded structured log queries', () => {
         expect(after.records[0]?.id).toBe(before.records[0]?.id);
     });
 
+    it('collapses identical lines duplicated by an exit flush or rotation boundary', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-log-duplicate-'));
+        const line = JSON.stringify({
+            timestamp: '2026-08-14T00:00:00.000Z',
+            process: 'desktop',
+            level: 'error',
+            event: 'renderer.console_error',
+            fields: { code: 'CONSOLE_ERROR' },
+        });
+        await writeFile(join(directory, 'desktop.jsonl'), `${line}\n${line}\n`, { mode: 0o600 });
+        await writeFile(join(directory, 'desktop.jsonl.1'), `${line}\n`, { mode: 0o600 });
+
+        const result = await new LogQueryService(directory).query({ limit: 10 });
+
+        expect(result.records).toHaveLength(1);
+        expect(result.records[0]?.event).toBe('renderer.console_error');
+    });
+
     it('reads records from every rotated generation, not just `.1`', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-log-generations-'));
         const record = (event: string, second: number) =>

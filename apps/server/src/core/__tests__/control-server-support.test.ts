@@ -53,6 +53,75 @@ describe('Host request log sink', () => {
         expect(writes[0]?.[2]?.fields).toMatchObject({ code: 'CANCELLED' });
     });
 
+    it('keeps successful log reads out of their own source while retaining metrics and failures', () => {
+        const writes: ControlRequestLogWrite[] = [];
+        const metrics: unknown[][] = [];
+        const options = {
+            logger: {
+                write: (...arguments_: ControlRequestLogWrite) => writes.push(arguments_),
+                recordMetric: (...arguments_: unknown[]) => metrics.push(arguments_),
+            },
+        };
+        const request = { id: 'logs-query', method: 'logs.query' };
+        const context = operatorContext('profile-1');
+
+        logControlRequestOutcome(
+            options,
+            request,
+            {
+                protocolVersion: CAXRI_PROTOCOL_VERSION,
+                id: request.id,
+                ok: true,
+                result: { records: [], gap: false, truncated: false },
+            },
+            context,
+            performance.now(),
+            undefined,
+        );
+        expect(writes).toEqual([]);
+        expect(metrics).toEqual([
+            [
+                'logs.query_latency',
+                expect.any(Number),
+                { owner: 'control', phase: 'execute', outcome: 'success' },
+            ],
+            [
+                'queue.wait',
+                expect.any(Number),
+                { owner: 'control', phase: 'admission', outcome: 'success' },
+            ],
+        ]);
+
+        logControlRequestOutcome(
+            options,
+            request,
+            {
+                protocolVersion: CAXRI_PROTOCOL_VERSION,
+                id: request.id,
+                ok: false,
+                error: { code: 'IO', message: 'Log query failed' },
+            },
+            context,
+            performance.now(),
+            undefined,
+        );
+        expect(writes).toHaveLength(1);
+        expect(writes[0]?.[1]).toBe(logEventCatalog.ipc.requestFailed);
+        expect(writes[0]?.[2]?.fields).toMatchObject({ method: 'logs.query', code: 'IO' });
+        expect(metrics.slice(2)).toEqual([
+            [
+                'logs.query_latency',
+                expect.any(Number),
+                { owner: 'control', phase: 'execute', outcome: 'failure' },
+            ],
+            [
+                'queue.wait',
+                expect.any(Number),
+                { owner: 'control', phase: 'admission', outcome: 'failure' },
+            ],
+        ]);
+    });
+
     it('derives opaque correlation and bounded metrics without retaining command content', () => {
         const writes: ControlRequestLogWrite[] = [];
         const metrics: unknown[][] = [];

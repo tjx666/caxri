@@ -10,6 +10,7 @@ import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
 import type { DomainHandlers } from '../domains/domain-services';
+import { shouldLogSuccessfulRequest } from './request-observability';
 
 /**
  * The raw operation as it enters the domain layer; nothing about it is trusted before validation.
@@ -27,14 +28,6 @@ export interface DomainOperationDispatcher {
     cancel(requestId: string): boolean;
 }
 
-/**
- * PTY input and resize are measured by aggregated throughput metrics, never per-request log writes.
- */
-const UNLOGGED_METHODS = new Set<string>([
-    'terminal.input',
-    'terminal.inputAgentExact',
-    'terminal.resize',
-]);
 const MAX_CANCEL_TOMBSTONES = 256;
 const CANCEL_TOMBSTONE_TTL_MS = 30_000;
 
@@ -85,7 +78,7 @@ export function createOperationDispatcher(
             );
             if (cancellation.signal.aborted)
                 throw new CaxriError('CANCELLED', 'Runtime request was canceled');
-            if (!UNLOGGED_METHODS.has(envelope.method)) {
+            if (shouldLogSuccessfulRequest('domain', envelope.method)) {
                 logger.write('debug', logEventCatalog.ipc.request, {
                     correlationId: envelope.id,
                     durationMs: performance.now() - started,

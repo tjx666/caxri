@@ -5,6 +5,11 @@ export const observationMetricNames = [
     'connection.count',
     'connection.closed',
     /**
+     * One Extension Host request, counted by its terminal outcome without writing routine successes or non-faults to
+     * the diagnostic log.
+     */
+    'extension_host.request',
+    /**
      * Server-side handling cost of one Agent lifecycle hook signal, in milliseconds.
      */
     'hook.latency',
@@ -12,6 +17,11 @@ export const observationMetricNames = [
      * One Agent lifecycle hook signal admitted at the socket boundary, counted by outcome.
      */
     'hook.signal',
+    /**
+     * End-to-end handling cost of one `logs.query` control request, in milliseconds. Successful reads deliberately do
+     * not write a request log because the reader consumes that same file; this aggregate preserves count and latency.
+     */
+    'logs.query_latency',
     'persistence.contention',
     'persistence.latency',
     'process.memory',
@@ -54,6 +64,7 @@ export const observationOutcomes = [
     'overflow',
     'restart',
     'success',
+    'superseded',
     'timeout',
 ] as const;
 
