@@ -74,18 +74,25 @@ test('pinning lifts Sessions from several Projects into one group that survives 
         await expect(page().locator('.pinned-session-group .session-project').first()).toHaveText(
             alphaProject.displayTitle,
         );
-        // The pin has no visible mark on the row, so the accessible description is what carries it.
+        /**
+         * The pin has no visible mark on either row, so the accessible description is what carries it — and the two
+         * copies of the Session say different things: the Project row reports that it is pinned, the Pinned row reports
+         * which group the user is standing in.
+         */
+        const describedBy = (selector: string) =>
+            page().evaluate((cardSelector) => {
+                const card = document.querySelector<HTMLElement>(cardSelector);
+                const id = card?.getAttribute('aria-describedby');
+                return id ? document.querySelector(`#${CSS.escape(id)}`)?.textContent : undefined;
+            }, selector);
+        await expect
+            .poll(() => describedBy('.pinned-session-group .session-card'))
+            .toMatch(/^In Pinned group\./);
         await expect
             .poll(() =>
-                page().evaluate(() => {
-                    const card = document.querySelector<HTMLElement>(
-                        '.pinned-session-group .session-card',
-                    );
-                    const id = card?.getAttribute('aria-describedby');
-                    return id
-                        ? document.querySelector(`#${CSS.escape(id)}`)?.textContent
-                        : undefined;
-                }),
+                describedBy(
+                    `.project-group[data-project-id="${alphaProject.id}"] [data-session-id="${alpha.id}"]`,
+                ),
             )
             .toMatch(/^Pinned\./);
 
