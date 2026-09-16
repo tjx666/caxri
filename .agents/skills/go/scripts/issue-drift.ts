@@ -103,15 +103,22 @@ function activeRecords(drift: IssueExpectationDrift): DriftRecord[] {
     return drift.records.filter(({ supersededBy }) => supersededBy === null);
 }
 
-function isUnsettledDrift(record: DriftRecord): boolean {
-    return record.decisionRequired || record.commentUrl === null;
+/**
+ * Why a drift record is not finished yet, or `null` once it is. Both the issue's blocking status and the guard on
+ * non-material assessment read this one answer: a guard that let through anything the status still blocks on would be a
+ * gate that disagrees with the report it feeds.
+ */
+function unsettledDriftReason(record: DriftRecord): 'decision_required' | 'detected' | null {
+    if (record.decisionRequired) return 'decision_required';
+    if (record.commentUrl === null) return 'detected';
+    return null;
 }
 
 function refreshStatus(drift: IssueExpectationDrift): void {
-    const active = activeRecords(drift);
-    if (active.some(({ decisionRequired }) => decisionRequired)) {
+    const reasons = new Set(activeRecords(drift).map(unsettledDriftReason));
+    if (reasons.has('decision_required')) {
         drift.status = 'decision_required';
-    } else if (active.some(({ commentUrl }) => commentUrl === null)) {
+    } else if (reasons.has('detected')) {
         drift.status = 'detected';
     } else if (drift.records.length > 0) {
         drift.status = 'commented';
@@ -157,8 +164,15 @@ export function assessExpectationDrift(
          * What this guard actually owns is unfinished drift — a decision nobody published, or one still waiting on the
          * user. Those still block, and the published record stays active and visible either way.
          */
-        if (activeRecords(issue.expectationDrift).some(isUnsettledDrift)) {
-            throw new Error('A non-material assessment cannot clear an unsettled material drift');
+        const unsettled = activeRecords(issue.expectationDrift)
+            .map(unsettledDriftReason)
+            .find((reason) => reason !== null);
+        if (unsettled) {
+            throw new Error(
+                unsettled === 'detected'
+                    ? 'A non-material assessment cannot clear an unpublished material drift: publish it with drift-comment first'
+                    : 'A non-material assessment cannot clear a material drift that is still waiting on the user: publish the resolved decision revision first',
+            );
         }
         refreshStatus(issue.expectationDrift);
         return { material: false, record: null };
