@@ -195,14 +195,18 @@ process.stdin.resume();
          * Reading the body must not cost the reviewer their place. The popup carries `tabIndex={-1}`, so clicking the
          * message text focuses the popup itself; a hand-over that ran again there would yank focus mid-drag and wipe
          * the selection, leaving the peer's own words impossible to copy.
+         *
+         * Asserted as "the popup holds focus" rather than "the button does not": that proves the hand-over listener ran
+         * and chose to stand down. Merely checking the button would also pass if the click never reached the popup at
+         * all — which is what would happen if the body ever became focusable in its own right.
          */
         await approval.getByTestId('agent-message-body').click();
         await expect(
-            approval.getByRole('button', { name: 'Approve message' }).evaluate((button) => {
-                const root = button.getRootNode() as Document | ShadowRoot;
-                return button === root.activeElement;
+            approval.evaluate((popup) => {
+                const root = popup.getRootNode() as Document | ShadowRoot;
+                return popup === root.activeElement;
             }),
-        ).resolves.toBe(false);
+        ).resolves.toBe(true);
         await approval.getByRole('button', { name: 'Approve message' }).click();
         await expect(
             receiver.request('agent.message.wait', { timeoutMs: 1_000 }),
@@ -214,6 +218,21 @@ process.stdin.resume();
             body: 'peer-message-denied sentinel',
         });
         await expect(approval).toBeVisible();
+        /**
+         * The second message has to earn its focus through a different path than the first. Approving the first one
+         * disables the button while the request is in flight, so focus falls to `document.body` rather than parking on
+         * the popup, and Base UI's own initial-focus pass does not run again for a dialog that never closed. Only this
+         * hand-over puts the reviewer back on a control — without it, every message after the first opens dead to the
+         * keyboard.
+         */
+        await expect
+            .poll(() =>
+                approval.getByRole('button', { name: 'Approve message' }).evaluate((button) => {
+                    const root = button.getRootNode() as Document | ShadowRoot;
+                    return button === root.activeElement;
+                }),
+            )
+            .toBe(true);
         await approval.getByRole('button', { name: 'Deny' }).click();
         await expect
             .poll(
