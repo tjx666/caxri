@@ -186,7 +186,7 @@ describe('createOperationDispatcher', () => {
         expect(records[0].durationMs).toBeTypeOf('number');
     });
 
-    it('preserves a handler error code and logs a stack only for unclassified faults', async () => {
+    it('preserves handler error codes and logs a stack only for unclassified faults', async () => {
         const directory = await temporaryDirectory('caxri-dispatch-errors-');
         const logger = createLogger(join(directory, 'logs'));
         const dispatch = createOperationDispatcher(
@@ -196,6 +196,9 @@ describe('createOperationDispatcher', () => {
                 },
                 'terminal.snapshot': () => {
                     throw new Error('unexpected boom');
+                },
+                'logs.query': () => {
+                    throw new CaxriError('IO', 'Log query failed');
                 },
             }),
             logger,
@@ -211,12 +214,20 @@ describe('createOperationDispatcher', () => {
                 params: { terminalId: 'terminal-1' },
             }),
         ).rejects.toMatchObject({ code: 'INTERNAL', message: 'unexpected boom' });
+        await expect(
+            dispatch({ id: 'r3', method: 'logs.query', params: { limit: 100 } }),
+        ).rejects.toMatchObject({ code: 'IO', message: 'Log query failed' });
         const records = await logRecords(logger);
         expect(records[0].fields?.stack).toBeNull();
         expect(records[1].fields?.stack).toContain('unexpected boom');
+        expect(records[2]).toMatchObject({
+            event: 'ipc.request_failed',
+            correlationId: 'r3',
+            fields: { method: 'logs.query', code: 'IO' },
+        });
     });
 
-    it('records one boundary log per request except for high-frequency PTY traffic', async () => {
+    it('records one boundary log except for high-frequency traffic and self-observing log reads', async () => {
         const directory = await temporaryDirectory('caxri-dispatch-logging-');
         const logger = createLogger(join(directory, 'logs'));
         const dispatch = createOperationDispatcher(
@@ -247,6 +258,7 @@ describe('createOperationDispatcher', () => {
             method: 'terminal.resize',
             params: { terminalId: 'terminal-1', cols: 100, rows: 30 },
         });
+        await dispatch({ id: 'r4', method: 'logs.query', params: { limit: 100 } });
 
         const records = await logRecords(logger);
         expect(records).toHaveLength(1);

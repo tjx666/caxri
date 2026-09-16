@@ -36,7 +36,11 @@ export function appendLogPage(
     cap: number = MAX_STREAM_RECORDS,
 ): LogStreamState {
     const known = new Set(state.records.map((record) => record.id));
-    const fresh = page.records.filter((record) => !known.has(record.id));
+    const fresh = page.records.filter((record) => {
+        if (known.has(record.id)) return false;
+        known.add(record.id);
+        return true;
+    });
     const cursor = page.nextCursor ?? state.cursor;
     const gap = state.gap || page.gap;
     // Only a page that actually moves the cursor counts as a new poll result; a page.gap on a

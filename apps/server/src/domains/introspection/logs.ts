@@ -109,6 +109,14 @@ function safeRecord(line: string): LogQueryRecord | undefined {
     }
 }
 
+function addUniqueRecords(records: Map<string, LogQueryRecord>, source: string): void {
+    for (const line of source.split('\n')) {
+        if (!line) continue;
+        const record = safeRecord(line);
+        if (record) records.set(record.id, record);
+    }
+}
+
 function isRecordMatching(record: LogQueryRecord, query: LogQueryParameters): boolean {
     return (
         (!query.since || record.timestamp >= query.since) &&
@@ -149,13 +157,9 @@ export class LogQueryService {
                 source: await readSuffix(join(this.directory, name), this.maximumBytesPerFile),
             })),
         );
-        let records = sources.flatMap(({ source }) =>
-            source.split('\n').flatMap((line) => {
-                if (!line) return [];
-                const record = safeRecord(line);
-                return record ? [record] : [];
-            }),
-        );
+        const uniqueRecords = new Map<string, LogQueryRecord>();
+        for (const { source } of sources) addUniqueRecords(uniqueRecords, source);
+        let records = uniqueRecords.values().toArray();
         records.sort((left, right) => compareCursor(recordCursor(left), recordCursor(right)));
         const dropped = Math.max(0, records.length - this.maximumRecords);
         if (dropped > 0) records = records.slice(dropped);

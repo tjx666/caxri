@@ -51,7 +51,7 @@ describe('extensionRequestFailureRecord', () => {
     it.each([
         ['CANCELLED', 'cancelled'],
         ['GENERATION_EXPIRED', 'generation-superseded'],
-    ])('reports a host-originated %s as a retryable non-fault at debug', (code, reason) => {
+    ])('keeps a host-originated %s as a metric-only retryable non-fault', (code, reason) => {
         const error = hostError(code, 'host-originated');
         expect(extensionRequestFailureRecord(code, error)).toEqual({
             failure: {
@@ -63,6 +63,8 @@ describe('extensionRequestFailureRecord', () => {
                 retryable: true,
             },
             level: 'debug',
+            outcome: code === 'CANCELLED' ? 'cancelled' : 'superseded',
+            writeToLog: false,
         });
     });
 
@@ -82,6 +84,8 @@ describe('extensionRequestFailureRecord', () => {
                     retryable: false,
                 },
                 level: 'warn',
+                outcome: 'failure',
+                writeToLog: true,
             });
         },
     );
@@ -98,6 +102,8 @@ describe('extensionRequestFailureRecord', () => {
                 retryable: false,
             },
             level: 'warn',
+            outcome: 'failure',
+            writeToLog: true,
         });
     });
 });

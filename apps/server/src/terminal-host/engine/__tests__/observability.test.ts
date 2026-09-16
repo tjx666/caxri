@@ -86,9 +86,7 @@ describe('PTY observability', () => {
                 { durationMs: 1_700, fields: { terminalId: 'terminal-1', inputBytes: 8 } },
             ],
         ]);
-        const throughputWrites = write.mock.calls.filter((call) => call[1] === 'pty.throughput');
-        expect(throughputWrites).toHaveLength(3);
-        expect(throughputWrites.map((call) => call[0])).toEqual(['debug', 'debug', 'debug']);
+        expect(write.mock.calls.filter((call) => call[1] === 'pty.throughput')).toHaveLength(0);
         expect(tally).toMatchObject({
             droppedBytes: 0,
             firstInputLogged: true,
