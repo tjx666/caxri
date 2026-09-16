@@ -125,4 +125,77 @@ describe('WorkbenchRootService validation', () => {
         await context.service.close();
         context.database.close();
     });
+
+    /**
+     * Every volume's `st_dev` is re-allocated by macOS on boot, so a persisted device number stops matching after a
+     * restart even though nothing on disk moved.
+     *
+     * @see https://github.com/tjx666/caxri/issues/1003
+     */
+    it('keeps a binding whose device drifted but whose inode and topology still agree', async () => {
+        const context = await fixture();
+        context.setWorktrees([
+            { branch: 'main', rootPath: context.ownerRoot },
+            { branch: 'feature/first', rootPath: context.worktreeRoot },
+        ]);
+        const sessionId = context.sessions[0].session.id;
+        const selected = await context.service.authorizeSelection(sessionId, context.worktreeRoot);
+        const bound = context.database.getSessionWorkbenchBinding(sessionId)!;
+        context.database.selectWorkbenchProject(sessionId, selected.workbenchProjectId, {
+            device: 'device-from-a-previous-boot',
+            inode: bound.rootInode!,
+        });
+        const changesBefore = context.events.filter(
+            (event) => event.event === 'workbench.changed',
+        ).length;
+
+        await expect(context.service.validateSession(sessionId)).resolves.toBe(false);
+
+        expect(context.database.getSessionWorkbenchBinding(sessionId)).toMatchObject({
+            workbenchProjectId: selected.workbenchProjectId,
+            rootDevice: bound.rootDevice,
+            rootInode: bound.rootInode,
+        });
+        await expect(context.projectRoots.resolveSessionPath(sessionId)).resolves.toMatchObject({
+            root: context.worktreeRoot,
+        });
+        // The root never moved, so re-anchoring must stay invisible instead of redrawing the Session.
+        expect(context.events.filter((event) => event.event === 'workbench.changed')).toHaveLength(
+            changesBefore,
+        );
+        const logged = await context.readLogEvents();
+        expect(
+            logged
+                .filter((entry) => entry.event === 'workbench_root.rebound')
+                .map((entry) => entry.fields),
+        ).toEqual([
+            { reason: 'device_drift', sessionId, workbenchProjectId: selected.workbenchProjectId },
+        ]);
+        await context.service.close();
+        context.database.close();
+    });
+
+    it('falls back when the inode changed, even while the device still matches', async () => {
+        const context = await fixture();
+        context.setWorktrees([
+            { branch: 'main', rootPath: context.ownerRoot },
+            { branch: 'feature/first', rootPath: context.worktreeRoot },
+        ]);
+        const sessionId = context.sessions[0].session.id;
+        const selected = await context.service.authorizeSelection(sessionId, context.worktreeRoot);
+        const bound = context.database.getSessionWorkbenchBinding(sessionId)!;
+        context.database.selectWorkbenchProject(sessionId, selected.workbenchProjectId, {
+            device: bound.rootDevice!,
+            inode: 'inode-of-a-replaced-directory',
+        });
+
+        await expect(context.service.validateSession(sessionId)).resolves.toBe(true);
+
+        expect(context.database.getSessionWorkbenchBinding(sessionId)).toMatchObject({
+            projectId: context.owner.id,
+            workbenchProjectId: context.owner.id,
+        });
+        await context.service.close();
+        context.database.close();
+    });
 });
