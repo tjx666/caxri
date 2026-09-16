@@ -526,6 +526,14 @@ listbox focus, supports arrows, Home/End, typeahead, Enter/Right to activate, Le
 and Escape to close. Long paths scroll horizontally without a visible scrollbar and keep the active
 file in view; the last-change annotation truncates before the path becomes unusable.
 
+A document the Project cannot browse keeps the rail and loses the interaction: a file authorized
+from outside every Project root shows its full absolute trail, and a diff shows its
+repository-relative one. Neither takes a tab stop and neither opens a picker, because there is no
+authorized directory listing behind a segment — a clickable segment there would promise navigation
+the Renderer cannot perform. The metrics, icon placement, and horizontal scrolling match the
+interactive rail exactly, so switching between a file and its diff never moves the first line of
+content. An external file gets no last-change annotation: blame needs a Project-scoped repository.
+
 **Motion** — motion explains structure; it never decorates state. Motion is a layered stack. Pick
 the least-powerful layer that covers the scenario, and one element is only ever driven by one
 layer:

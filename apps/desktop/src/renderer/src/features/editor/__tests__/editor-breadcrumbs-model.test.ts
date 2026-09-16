@@ -5,6 +5,7 @@ import {
     editorBreadcrumbDirectoryLabel,
     editorBreadcrumbPickerDirectory,
     editorBreadcrumbSegments,
+    readOnlyBreadcrumbSegments,
     typeaheadBreadcrumbPickerPath,
 } from '../editor-breadcrumbs-model';
 
@@ -87,5 +88,33 @@ describe('editor breadcrumb picker paths', () => {
         expect(editorBreadcrumbPickerDirectory(segment)).toBe('/project');
         expect(editorBreadcrumbDirectoryLabel('/project', '/project')).toBe('Project root');
         expect(editorBreadcrumbDirectoryLabel('/project/src', '/project')).toBe('src');
+    });
+});
+
+describe('readOnlyBreadcrumbSegments', () => {
+    it('keeps every ancestor of a path no Project can browse', () => {
+        // A globally authorized file lives outside every Project root, so the full absolute trail is the only place the
+        // Session can see where it actually is.
+        expect(readOnlyBreadcrumbSegments('/etc/hosts')).toEqual([
+            { label: 'etc', trail: 'etc' },
+            { label: 'hosts', trail: 'etc/hosts' },
+        ]);
+        // A Git diff path is already repository-relative and has no leading slash to drop.
+        expect(
+            readOnlyBreadcrumbSegments('extensions/git/src/extension.ts').map(({ label }) => label),
+        ).toEqual(['extensions', 'git', 'src', 'extension.ts']);
+        // A trailing or doubled separator must not print an empty segment with its own chevron.
+        expect(readOnlyBreadcrumbSegments('//tmp//scratch/').map(({ label }) => label)).toEqual([
+            'tmp',
+            'scratch',
+        ]);
+        expect(readOnlyBreadcrumbSegments('')).toEqual([]);
+    });
+
+    it('gives a repeated ancestor name its own key', () => {
+        // `src/app/src` would collide on the label alone, which is what the trail prefix exists to prevent.
+        expect(
+            readOnlyBreadcrumbSegments('src/app/src/index.ts').map(({ trail }) => trail),
+        ).toEqual(['src', 'src/app', 'src/app/src', 'src/app/src/index.ts']);
     });
 });
