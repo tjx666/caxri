@@ -47,7 +47,7 @@ test('Cmd+P lazily browses Project paths from Terminal, Editor, and Files focus'
         let dialog = running.page.getByRole('dialog');
         let input = dialog.getByRole('combobox', { name: 'File path' });
         await expect(input).toBeFocused();
-        const rootListbox = dialog.getByRole('listbox', { name: 'Files in current directory' });
+        const rootListbox = dialog.getByRole('listbox', { name: 'Files' });
         const rootDirectoryOption = dialog.getByRole('option', { name: /^src( Directory)?$/ });
         await expect(rootDirectoryOption).toBeVisible();
         // A symlink row shows the icon of whatever its target is, not an untyped placeholder under the badge.

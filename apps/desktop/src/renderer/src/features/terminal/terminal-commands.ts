@@ -17,6 +17,7 @@ import { caxri } from '../../lib/caxri';
 import { getBootstrap, getSelectedSession, getSessionState } from '../../stores/selectors';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { patchSessionState, refreshWorkbench } from '../../stores/workbench';
+import { newTerminalCommandKind } from './new-terminal-agent';
 import type { TerminalCommandNavigationDirection } from './terminal-command-tracker';
 import { didNavigateTerminalCommand } from './terminal-command-tracker';
 import { clearTerminalProgress } from './terminal-progress';
@@ -65,7 +66,18 @@ export async function createTerminal(
     await createTerminalForSession(session.id, kind, options);
 }
 
-async function createTerminalForSession(
+/**
+ * The `session.defaultAgent` reader for Terminals created inside a Session. Until this existed the setting was only
+ * consulted while creating a Session, so `Cmd+T` and the New Terminal button ignored the Agent the user had named.
+ */
+export async function createDefaultTerminal(options: CreateTerminalOptions = {}): Promise<void> {
+    await createTerminal(
+        newTerminalCommandKind(getBootstrap()?.settings['session.defaultAgent']),
+        options,
+    );
+}
+
+export async function createTerminalForSession(
     sessionId: string,
     kind: TerminalKind,
     { cwd, paneId, split }: CreateTerminalOptions,
@@ -119,17 +131,10 @@ async function createTerminalForSession(
                 isCaxriError(error) &&
                 ['IO', 'VALIDATION', 'PATH_DENIED', 'NOT_FOUND'].includes(error.code)
                     ? {
-                          label: 'Retry',
-                          onSelect: () => {
-                              // eslint-disable-next-line no-void -- tryCommand reports retry failures through the toast
-                              void createTerminalForSession(sessionId, kind, {
-                                  cwd,
-                                  paneId,
-                                  split,
-                              });
-                          },
+                          id: 'terminal.create',
+                          params: { sessionId, kind, cwd, paneId, split },
                       }
-                    : { label: 'Refresh', onSelect: refreshTerminalState },
+                    : { id: 'terminal.refresh' },
         },
     );
 }
@@ -149,7 +154,7 @@ export function closeTerminal(terminalId: string): void {
     );
 }
 
-function refreshTerminalState(): void {
+export function refreshTerminalState(): void {
     // eslint-disable-next-line no-void -- tryCommand reports refresh failures through the toast
     void tryCommand('Terminal refresh failed', refreshWorkbench);
 }
@@ -170,8 +175,11 @@ async function requestTerminalRestart(
     await caxri.request('terminal.restart', { terminalId, mode });
 }
 
-function restartTerminalWithRecovery(terminalId: string): void {
+export function restartTerminalWithRecovery(terminalId: string): void {
     let isRestartSubmitted = false;
+    // Captured before the attempt: the offer stays in the notification center indefinitely, and the handler refuses it
+    // once this Terminal is running something else, so the number has to describe the failure rather than the present.
+    const processId = getBootstrap()?.terminals.find((entry) => entry.id === terminalId)?.processId;
     // eslint-disable-next-line no-void -- tryCommand reports restart failures through the toast
     void tryCommand(
         'Terminal restart failed',
@@ -184,11 +192,8 @@ function restartTerminalWithRecovery(terminalId: string): void {
             // Restart replaces a live PTY. Repeating a submitted request after a lost reply would kill the new process.
             recovery: () =>
                 isRestartSubmitted
-                    ? { label: 'Refresh', onSelect: refreshTerminalState }
-                    : {
-                          label: 'Retry',
-                          onSelect: () => restartTerminalWithRecovery(terminalId),
-                      },
+                    ? { id: 'terminal.refresh' }
+                    : { id: 'terminal.restart', params: { processId, terminalId } },
         },
     );
 }

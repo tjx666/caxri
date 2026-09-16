@@ -222,12 +222,16 @@ export interface TreeDataProvider<T> {
  *
  * Report meaning, not appearance — the Workbench picks the icon and the fill, so a container never shows two views'
  * badges in two unrelated colors. `count` is a plain tally. `error` and `warning` are severities: the Workbench draws
- * its own fixed icon for them, so they stay distinguishable without relying on color, and their `count` is optional for
- * a provider that knows something is failing but not how many things.
+ * its own fixed glyph for them, so they stay legible without relying on color.
+ *
+ * A severity deliberately has no `count` field. A glyph and a digit cannot share one chip, so a counted severity would
+ * fall back to a digit and leave the fill as the only thing separating "5 changes" from "5 failures" — nothing to a
+ * colorblind user or in a greyscale capture. Say how many in `description`; the Workbench publishes it in the container
+ * tab's tooltip and accessible description whether or not the tally reaches the chip.
  */
 export type ViewBadge =
     | { kind: 'count'; count: number; description: string }
-    | { kind: 'error' | 'warning'; count?: number; description: string };
+    | { kind: 'error' | 'warning'; description: string };
 
 export interface ViewBadgeProvider {
     /**

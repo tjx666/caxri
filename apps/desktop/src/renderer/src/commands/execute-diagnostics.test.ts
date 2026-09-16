@@ -5,8 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ request: vi.fn() }));
 vi.mock('../lib/caxri', () => ({ caxri: { request: mocks.request } }));
 
+import { configureToastActions } from '../stores/toast-actions';
 import { dismissToast, getToasts } from '../stores/toasts';
 import { executeCommand } from './execute';
+import { toastActionHandlers } from './toast-actions';
+
+// The window installs these once at startup; a toast's button carries only the name of its follow-up, so without the
+// table the click below would report the follow-up as gone instead of running it.
+configureToastActions(toastActionHandlers);
 
 describe('diagnostics export recovery', () => {
     beforeEach(() => {
@@ -20,7 +26,7 @@ describe('diagnostics export recovery', () => {
     });
 
     it('keeps the export label in the toast and copies the captured error on request', async () => {
-        const failure = new Error("EACCES: open '/Users/jing/private/report.zip'");
+        const failure = new Error("EACCES: open '/read-only/report.zip'");
         const writeText = vi.fn(() => Promise.resolve());
         vi.stubGlobal('navigator', { clipboard: { writeText } });
         mocks.request.mockRejectedValueOnce(failure);

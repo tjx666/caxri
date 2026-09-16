@@ -117,6 +117,15 @@ export function registerEditorRevealTarget(
 }
 
 /**
+ * The Monaco instance currently rendering `path`, for callers that need to run an editor action against it rather than
+ * move its caret. Returns nothing when no editor is mounted for that document; there is no queue here, because an
+ * action the user invoked applies to the editor they are looking at or to nothing at all.
+ */
+export function mountedEditor(path: string, instanceId?: string): MonacoEditor | undefined {
+    return registeredEditor(path, instanceId);
+}
+
+/**
  * Reveals immediately when the model is mounted, otherwise queues one latest intent for mount.
  */
 export function revealEditorMatch(path: string, target: EditorRevealTarget): void {

@@ -1,4 +1,8 @@
-import type { SessionPullRequest } from '@caxri/protocol';
+import type {
+    PullRequestUnavailable,
+    SessionPullRequest,
+    SessionPullRequests,
+} from '@caxri/protocol';
 
 import type { SessionActivityPresentation } from './session-activity';
 
@@ -23,6 +27,40 @@ export interface SessionPullRequestPresentation {
      * Colored text/icon classes for the sidebar glyph and hover-card chip.
      */
     tone: SessionPullRequestTone;
+}
+
+/**
+ * One Session row's share of the sidebar-wide pull-request snapshot: the discovered pull request, the reason a lookup
+ * failed, or neither.
+ */
+export interface SessionPullRequestSlice {
+    pullRequest?: SessionPullRequest;
+    unavailable?: PullRequestUnavailable;
+}
+
+/**
+ * The slice of a Session with no discovered pull request and no failed lookup, as one shared value so every such row
+ * reads the same reference.
+ */
+export const NO_SESSION_PULL_REQUEST: SessionPullRequestSlice = {};
+
+/**
+ * Projects the whole-sidebar snapshot onto one Session.
+ *
+ * This exists to narrow a subscription, not to save a property lookup. The snapshot carries a `refreshedAt` timestamp,
+ * so every poll returns a value that is never deeply equal to the previous one — structural sharing cannot reuse the
+ * old reference, and anything subscribed to the snapshot itself re-renders on every tick even when no pull request
+ * moved. A per-Session slice leaves the timestamp behind, so a row's value stays deeply equal, and therefore
+ * referentially stable, until that Session's own pull request changes.
+ */
+export function selectSessionPullRequest(
+    snapshot: SessionPullRequests | undefined,
+    sessionId: string,
+): SessionPullRequestSlice {
+    const pullRequest = snapshot?.pullRequests[sessionId];
+    const unavailable = snapshot?.unavailable?.[sessionId];
+    if (!pullRequest && !unavailable) return NO_SESSION_PULL_REQUEST;
+    return { ...(pullRequest && { pullRequest }), ...(unavailable && { unavailable }) };
 }
 
 const STATE_LABELS: Record<SessionPullRequest['state'], string> = {

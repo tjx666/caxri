@@ -120,9 +120,11 @@ export const settingsSpec = [
     {
         kind: 'enum',
         key: 'session.defaultAgent',
-        title: 'Default agent for new sessions',
+        title: 'Default agent',
+        description:
+            'Starts new Sessions and new Terminals with this Agent. Ask each time opens the list instead, and the New Terminal button always offers the other Agents.',
         category: 'general',
-        keywords: [...agentProviderIds, 'shell', 'provider'],
+        keywords: [...agentProviderIds, 'shell', 'provider', 'terminal', 'session'],
         options: [
             ...agentProviderIds.map((provider) => ({
                 value: provider,
@@ -186,6 +188,24 @@ export const settingsSpec = [
         maxLength: 1024,
         default: 'code',
         placeholder: 'code',
+    },
+    {
+        kind: 'string',
+        key: 'updates.skippedVersion',
+        title: 'Skipped update version',
+        /**
+         * The one durable consequence of `Skip this version`, surfaced where the user can undo it. A persisted state
+         * with no visible home is a trap: without this row, someone who skipped a release once would have no way to
+         * learn why Caxri stopped offering it, or to ask for it again.
+         */
+        description:
+            'Caxri stops offering this release until a newer one appears. Clear the field to be offered it again.',
+        category: 'general',
+        keywords: ['update', 'upgrade', 'skip', 'skipped', 'version', 'release', 'ignore'],
+        nullable: true,
+        maxLength: 64,
+        default: null,
+        placeholder: 'No version skipped',
     },
     {
         kind: 'string',

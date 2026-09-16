@@ -32,6 +32,7 @@ import {
     configureDesktopProfile,
     hasProfileSingleInstanceLock,
     installSecondInstanceFocus,
+    remoteDebuggingState,
 } from './desktop-profile';
 import { createMainEventRelay } from './event-relay';
 import { createGpuDiagnostics } from './gpu-diagnostics';
@@ -474,6 +475,7 @@ if (ownsProfileInstance) {
     const handleMainMethod = createMainMethodHandler({
         ...gpuRecovery.mainMethodOptions,
         getProcessExplorer: () => processExplorer,
+        getRemoteDebugging: () => remoteDebuggingState(desktopProfile),
         getUserDataPath: () => desktopProfile.userDataPath,
         getSupervisor: () => supervisor,
         getUpdateService: () => updateService,

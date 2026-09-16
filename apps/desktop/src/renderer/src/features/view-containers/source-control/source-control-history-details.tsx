@@ -2,16 +2,27 @@ import type { SourceControlAction, SourceControlHistoryDescriptor } from '@caxri
 
 import { describeFailure } from '../../../stores/toasts';
 import { useSourceControlHistoryDetails } from './hooks/use-source-control-history-details';
+import { SourceControlTreeRow } from './source-control-tree-row';
 
+/**
+ * One commit's changed files, expanded under its commit row inside the Source Control `role="tree"`.
+ *
+ * `level` is the `aria-level` for the file rows, one deeper than the commit row they hang off, and `rowIdPrefix`
+ * namespaces their row ids within the tree's single roving tabindex.
+ */
 export function SourceControlHistoryDetails({
     descriptor,
     itemId,
+    level,
     path,
+    rowIdPrefix,
     runAction,
 }: {
     descriptor: SourceControlHistoryDescriptor;
     itemId: string;
+    level: number;
     path?: string;
+    rowIdPrefix: string;
     runAction: (action: SourceControlAction) => void;
 }) {
     const details = useSourceControlHistoryDetails(descriptor, itemId, path);
@@ -42,17 +53,18 @@ export function SourceControlHistoryDetails({
                 </div>
             ) : (
                 details.data.resources.map((resource) => (
-                    <button
-                        type="button"
-                        className="flex min-h-6 w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-3 text-left text-[11px] text-foreground hover:bg-elevated"
+                    <SourceControlTreeRow
                         key={resource.id}
+                        rowId={`${rowIdPrefix}:file:${resource.id}`}
+                        level={level}
+                        className="flex min-h-6 w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-3 text-left text-[11px] text-foreground hover:bg-elevated"
                         aria-label={resource.accessibilityLabel}
                         title={resource.tooltip}
                         onClick={() => resource.action && runAction(resource.action)}
                     >
                         <span className="w-14 shrink-0 text-muted">{resource.description}</span>
                         <span className="truncate">{resource.path}</span>
-                    </button>
+                    </SourceControlTreeRow>
                 ))
             )}
             {details.data.truncated && (

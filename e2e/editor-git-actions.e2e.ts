@@ -81,9 +81,11 @@ test('Editor title actions open the file last-commit and pull-request diffs', as
     try {
         await createProjectSession(running.page);
         await running.page.getByRole('treeitem', { name: 'tracked.txt', exact: true }).click();
-        await expect(running.page.locator('.editor-head-blame')).toContainText(
-            /Caxri E2E, .+ · change tracked file/,
-        );
+        // The same `git.fileHead` read that used to drive the editor header annotation now only gates this action, so
+        // its appearance is what says the file's last commit has resolved.
+        await expect(
+            running.page.getByRole('button', { name: 'Open Last Commit Changes' }),
+        ).toBeVisible();
 
         // File actions are about the active Editor, not about switching tabs, so they remain after the initial Terminal
         // is closed and this file becomes the Workbench's only tab.

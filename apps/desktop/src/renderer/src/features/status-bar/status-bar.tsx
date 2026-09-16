@@ -18,9 +18,11 @@ import { ActiveTerminalStatus } from './active-terminal-status';
 import { BranchPicker } from './branch-picker';
 import { resolveChipVisibility } from './chip-priority';
 import { pullRequestUnavailableLabel } from './pull-request-status-label';
+import { RemoteDebuggingChip } from './remote-debugging-chip';
 import { ScreencastModeChip } from './screencast-mode-chip';
 import { StatusInfo } from './status-info';
 import { StatusItem } from './status-item';
+import { UpdateStatusChip } from './update-status-chip';
 import { WorkbenchRootPicker } from './workbench-root-picker';
 
 /**
@@ -240,6 +242,8 @@ export function StatusBar() {
                         </span>
                     </Tooltip>
                 )}
+                <UpdateStatusChip />
+                <RemoteDebuggingChip />
                 <ScreencastModeChip />
                 <ActivePaneStatus
                     showChildProcessCount={chipVisibility.childProcessCount}

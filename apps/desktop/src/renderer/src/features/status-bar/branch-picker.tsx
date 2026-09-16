@@ -1,9 +1,8 @@
 import { useState } from 'react';
 
-import { relativeTime } from '@caxri/utils';
 import { Check, GitBranch } from 'lucide-react';
 
-import { useNow } from '@/hooks/use-now';
+import { useRelativeTimes } from '@/hooks/use-relative-time';
 
 import {
     Command,
@@ -19,6 +18,7 @@ import { useCaxriQuery, useToastOnQueryError } from '../../queries/client';
 import { switchBranch } from './branch-commands';
 import { pickerSearchScore } from './picker-search';
 import { statusItemClassName } from './status-item';
+import { useStatusBarPickerRequest } from './use-status-bar-picker-request';
 
 export function BranchPicker({
     branch,
@@ -31,7 +31,7 @@ export function BranchPicker({
 }) {
     const [open, setOpen] = useState(false);
     const [switching, setSwitching] = useState(false);
-    const now = useNow(30_000);
+    useStatusBarPickerRequest('branch', () => setOpen(true));
     const branchesQuery = useCaxriQuery(
         'git.branches',
         { sessionId, repositoryId },
@@ -45,6 +45,7 @@ export function BranchPicker({
         loadedBranches.find((candidate) => candidate.name === branch) ?? { name: branch },
         ...loadedBranches.filter((candidate) => candidate.name !== branch),
     ];
+    const committedLabels = useRelativeTimes(branches.map(({ committedAt }) => committedAt));
 
     const selectBranch = async (nextBranch: string): Promise<void> => {
         if (nextBranch === branch || switching) return;
@@ -109,7 +110,7 @@ export function BranchPicker({
                                     : 'No matching branches.'}
                             </CommandEmpty>
                         )}
-                        {branches.map(({ name, committedAt }) => (
+                        {branches.map(({ name, committedAt }, index) => (
                             <CommandItem
                                 key={name}
                                 value={name}
@@ -128,7 +129,7 @@ export function BranchPicker({
                                 <span className="min-w-0 flex-1 truncate">{name}</span>
                                 {committedAt !== undefined && (
                                     <span className="flex-none text-[11px] text-muted">
-                                        {relativeTime(committedAt, now)}
+                                        {committedLabels[index]}
                                     </span>
                                 )}
                             </CommandItem>

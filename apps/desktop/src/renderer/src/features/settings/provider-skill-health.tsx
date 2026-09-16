@@ -1,7 +1,14 @@
 import type { AgentProvider, AgentSkillHealth } from '@caxri/protocol';
 import { agentProviderCatalog } from '@caxri/protocol';
 
-import { skillScopeHealth, skillScopeSummary } from './provider-health';
+import { cn } from '../../lib/utilities';
+import { skillScopeHealth, skillScopeSummary, skillScopeTone } from './provider-health';
+
+const scopeToneClassName = {
+    danger: 'text-danger',
+    neutral: 'text-foreground',
+    warning: 'text-warning',
+} as const;
 
 interface ProviderSkillHealthProperties {
     provider: AgentProvider;
@@ -40,7 +47,17 @@ export function ProviderSkillHealth({ provider, agentSkillHealth }: ProviderSkil
                         data-agent-skill-scope={scope}
                         className="mt-2 border-t border-border pt-2"
                     >
-                        <span className="block text-foreground">
+                        {/*
+                         * An installation that needs attention says so in color, the same way the lifecycle-hook
+                         * caption does. `Missing · not installed` used to render in the same plain foreground as a
+                         * healthy one, which is the opposite treatment for the same severity.
+                         */}
+                        <span
+                            className={cn(
+                                'block',
+                                scopeToneClassName[skillScopeTone(installation)],
+                            )}
+                        >
                             {skillScopeSummary(agentSkillHealth, installation, scope)}
                         </span>
                         {installation && (

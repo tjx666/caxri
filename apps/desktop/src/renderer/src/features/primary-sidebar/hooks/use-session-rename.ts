@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { SessionRecord } from '@caxri/protocol';
 
+import { useLatestReference } from '../../../hooks/use-latest-reference';
+import { clearSessionRenameRequest, useDialogStore } from '../../../stores/dialogs';
 import { didRenameSession } from '../../session/session-commands';
 
 export interface SessionRenameController {
@@ -25,7 +27,10 @@ function sessionRow(sessionId: string): HTMLElement | null {
  * roving-tabindex tree layout stays the only concern left in that component. Owns the renaming Session id, the draft
  * value/error, and the focus-restore behavior after rename ends.
  */
-export function useSessionRename(sessions: SessionRecord[]): SessionRenameController {
+export function useSessionRename(
+    sessions: SessionRecord[],
+    expandProject: (projectId: string) => void,
+): SessionRenameController {
     const [renamingSessionId, setRenamingSessionId] = useState<string>();
     const [renameValue, setRenameValue] = useState('');
     const [renameError, setRenameError] = useState<string>();
@@ -108,6 +113,37 @@ export function useSessionRename(sessions: SessionRecord[]): SessionRenameContro
         setRenameValue(value);
         setRenameError(undefined);
     };
+
+    /**
+     * The `session.rename` command's only way in. Renaming is React state owned by this hook, so a command — which runs
+     * outside React entirely — asks through a bumped revision on the dialog store rather than reaching into the row.
+     * Bumped rather than set to a boolean so asking twice for the same Session re-opens the editor the second time.
+     */
+    const renameRequest = useDialogStore((state) => state.renameSessionRequest);
+    const latestBeginRename = useLatestReference(beginRename);
+    const latestExpandProject = useLatestReference(expandProject);
+    const latestSessions = useLatestReference(sessions);
+    useEffect(() => {
+        if (!renameRequest) return;
+        const session = latestSessions.current.find(
+            (candidate) => candidate.id === renameRequest.sessionId,
+        );
+        if (session) {
+            // The rename editor _is_ the Session row, and a collapsed Project unmounts it. Without this the command
+            // would put a Session nobody can see into rename mode: nothing happens on screen, and the row opens in an
+            // editor the user never asked for whenever they later expand that Project.
+            latestExpandProject.current(session.projectId);
+            latestBeginRename.current(session.id, session.displayTitle);
+        }
+        // Consumed, not just observed. `Cmd+[` unmounts the whole side bar, so a request left standing would run again
+        // on the next reveal and drop the row back into an editor nobody asked for. A mount-time revision baseline
+        // cannot replace this: `renameSelectedSession` reveals the side bar and bumps the revision in one synchronous
+        // turn, so the baseline this hook recorded on mount would already contain the request and swallow it.
+        clearSessionRenameRequest();
+        // `renameRequest.id` is the signal; the Session list is read through a ref so a Session-list refresh cannot
+        // replay a rename the user already finished.
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
+    }, [renameRequest?.id]);
 
     return {
         beginRename,

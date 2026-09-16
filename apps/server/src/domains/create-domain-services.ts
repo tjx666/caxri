@@ -564,6 +564,7 @@ export async function createDomainServices(
         'files.trash': () => mainOwned('files.trash'),
         'updates.getState': () => mainOwned('updates.getState'),
         'updates.check': () => mainOwned('updates.check'),
+        'updates.acknowledge': () => mainOwned('updates.acknowledge'),
         'updates.download': () => mainOwned('updates.download'),
         'updates.cancel': () => mainOwned('updates.cancel'),
         'updates.open': () => mainOwned('updates.open'),

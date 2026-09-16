@@ -1,6 +1,7 @@
 import { mkdirSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 
+import type { RemoteDebuggingState } from '@caxri/protocol';
 import { profileIdForPath } from '@caxri/system';
 import type { App } from 'electron';
 
@@ -53,11 +54,28 @@ function remoteDebuggingIdentity(
         return { source: 'command-line', transport: 'pipe' };
     if (app.isPackaged && !readArgvConfigAtBoot(userDataPath).remoteDebugging)
         return { source: 'argv-config', transport: 'disabled' };
+    // An exported-but-empty `CAXRI_DEV_CDP_PORT=` is not a port: taken literally it would be appended as
+    // `--remote-debugging-port=`, which makes Chromium pick an ephemeral port nothing can find.
+    const configuredPort = environment.CAXRI_DEV_CDP_PORT;
+    const hasConfiguredPort = configuredPort !== undefined && configuredPort !== '';
     return {
-        port: environment.CAXRI_DEV_CDP_PORT ?? (app.isPackaged ? '9224' : '9223'),
-        source: environment.CAXRI_DEV_CDP_PORT ? 'environment' : 'profile-default',
+        port: hasConfiguredPort ? configuredPort : app.isPackaged ? '9224' : '9223',
+        source: hasConfiguredPort ? 'environment' : 'profile-default',
         transport: 'port',
     };
+}
+
+/**
+ * The Renderer-facing view of {@link RemoteDebuggingIdentity}. `source` stays in Main: which switch or environment
+ * variable opened the port is implementation vocabulary, and the disclosure the user reads only needs to know whether
+ * something is listening and where.
+ */
+export function remoteDebuggingState(profile: DesktopProfile): RemoteDebuggingState {
+    const identity = profile.remoteDebugging;
+    if (identity.transport !== 'port') return { transport: identity.transport };
+    // A command line carrying `--remote-debugging-port` with no number asks Chromium for an ephemeral port it never
+    // reports back. The disclosure then says a port is open without naming one, instead of naming an empty one.
+    return identity.port ? { port: identity.port, transport: 'port' } : { transport: 'port' };
 }
 
 /**

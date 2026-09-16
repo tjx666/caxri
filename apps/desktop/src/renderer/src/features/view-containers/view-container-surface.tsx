@@ -1,137 +1,24 @@
-import type { ReactElement, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { useState } from 'react';
 
-import type {
-    CommandId,
-    ExtensionBuiltinIconId,
-    ViewContainerId,
-    ViewContainerLocation,
-    ViewIcon,
-} from '@caxri/protocol';
-import type { LucideIcon } from 'lucide-react';
-import {
-    Activity,
-    AlertTriangle,
-    Files,
-    FlaskConical,
-    GitBranch,
-    Info,
-    Package,
-    ScrollText,
-    X,
-} from 'lucide-react';
+import type { ViewContainerId, ViewContainerLocation } from '@caxri/protocol';
+import { AlertTriangle } from 'lucide-react';
 
-import { ChromeTabPanel, ChromeTabs } from '../../components/chrome-tabs';
+import { ChromeTabPanel } from '../../components/chrome-tabs';
+import { PanelHeader } from '../../components/panel-header';
 import { Button } from '../../components/ui/button';
 import { Spinner } from '../../components/ui/spinner';
-import { Tooltip } from '../../components/ui/tooltip';
-import { useCommandShortcut } from '../../lib/keybindings';
 import { useCaxriQuery } from '../../queries/client';
 import { tryCommand } from '../../stores/toasts';
 import { getBuiltinViewComponent } from './builtin-components';
 import { ControlledViewProvider } from './controlled-view-provider';
 import { ExtensionTreeView } from './extension-tree-view';
-import { useViewBadges } from './hooks/use-view-badges';
 import { resolveViewContainerId } from './resolution';
 import { ResourceExplorerView } from './resource-explorer/resource-explorer-view';
 import { SourceControlView } from './source-control/source-control-view';
-import type { ContainerBadge } from './view-badges';
 import { ViewContainerActivityProvider } from './view-container-activity';
 import { retryExtension } from './view-container-commands';
-
-const builtinIcons = {
-    'files': Files,
-    'git-branch': GitBranch,
-    'info': Info,
-    'scroll-text': ScrollText,
-} as const;
-
-const extensionBuiltinIcons = {
-    'beaker': FlaskConical,
-    'files': Files,
-    'git-branch': GitBranch,
-    'status': Activity,
-} satisfies Record<ExtensionBuiltinIconId, LucideIcon>;
-
-/**
- * Icon-only SecondarySidebar tabs surface their title (and shortcut, when one is bound) through a tooltip instead of an
- * inline label. `triggerId` must repeat the tab's own DOM id so Base UI's tooltip store keys to the id the tab
- * renders.
- */
-function ContainerTabTooltip({
-    children,
-    commandId,
-    title,
-    triggerId,
-}: {
-    children: ReactElement;
-    commandId: string;
-    title: string;
-    triggerId: string;
-}) {
-    // Product extension containers may opt into a stable CommandId so their live binding appears here too.
-    const shortcut = useCommandShortcut(commandId as CommandId);
-    return (
-        <Tooltip content={title} shortcut={shortcut} triggerId={triggerId}>
-            {children}
-        </Tooltip>
-    );
-}
-
-function CatalogIcon({ icon }: { icon: ViewIcon }) {
-    if (icon.kind === 'resource') return <img alt="" className="size-4" src={icon.dataUrl} />;
-    const builtinIconId = icon.kind === 'builtin' ? icon.id : undefined;
-    let Icon: LucideIcon = Package;
-    if (builtinIconId !== undefined) {
-        if (builtinIconId in builtinIcons)
-            Icon = builtinIcons[builtinIconId as keyof typeof builtinIcons];
-        else if (builtinIconId in extensionBuiltinIcons)
-            Icon = extensionBuiltinIcons[builtinIconId as ExtensionBuiltinIconId];
-    }
-    return <Icon size={16} />;
-}
-
-/**
- * The container tab's aggregated badge.
- *
- * A badge draws a glyph or a tally, never both. That is VS Code's own composite-bar rule — its `progress`, `icon`, and
- * `number` badges are mutually exclusive, and the winning kind renders alone (`compositeBarActions.ts`,
- * `getVisibleBadges`). Packing `✕ 2` into one chip made the Status tab half again as wide as the Git tab beside it and
- * read as an alarm rather than a count, so the tally wins whenever there is one and severity rides on the fill; the
- * glyph appears only when the winning severity had no countable tally and the chip would otherwise be blank. The glyph
- * is the Workbench's, never the extension's: a badge reports meaning and the Workbench owns how meaning looks. The
- * cause stays reachable without color through the tab's own accessible description.
- */
-function ContainerBadgeChip({
-    badge,
-    containerId,
-}: {
-    badge: ContainerBadge;
-    containerId: string;
-}) {
-    const fill = {
-        count: 'bg-badge text-badge-foreground',
-        error: 'bg-error-badge text-error-badge-foreground',
-        warning: 'bg-warning-badge text-warning-badge-foreground',
-    }[badge.kind];
-    return (
-        <span
-            aria-hidden="true"
-            className={`absolute -right-2 -bottom-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none font-semibold ring-2 ring-surface ${fill}`}
-            data-view-container-badge={containerId}
-            data-view-container-badge-kind={badge.kind}
-        >
-            {/* The glyph is drawn at 9px, far below the size Lucide's stroke scaling assumes, so the stroke has to stay
-                in screen pixels or it renders as a barely visible hairline. */}
-            {badge.text ||
-                (badge.kind === 'error' ? (
-                    <X nonScalingStroke size={9} strokeWidth={3} />
-                ) : badge.kind === 'warning' ? (
-                    <AlertTriangle nonScalingStroke size={9} strokeWidth={2.5} />
-                ) : null)}
-        </span>
-    );
-}
+import { ViewContainerTabStrip } from './view-container-tab-strip';
 
 export function ViewContainerSurface({
     ariaLabel,
@@ -156,7 +43,6 @@ export function ViewContainerSurface({
         () => new Set(),
     );
     const catalogQuery = useCaxriQuery('viewContainers.catalog', {});
-    const badges = useViewBadges(catalogQuery.data, location);
     if (catalogQuery.isPending)
         return (
             <div className="flex min-h-0 flex-1 items-center justify-center gap-2 text-xs text-muted">
@@ -185,74 +71,21 @@ export function ViewContainerSurface({
     if (resolvedId !== undefined && !shownContainerIds.has(resolvedId))
         setShownContainerIds(new Set(shownContainerIds).add(resolvedId));
     const idPrefix = location === 'panel' ? 'panel' : 'secondary-sidebar';
-    const containersById = new Map(containers.map((container) => [container.id, container]));
-    const tabs = containers.map((container) => ({
-        value: container.id,
-        label: container.title,
-        description: badges[container.id]?.description,
-        // SecondarySidebar tabs are icon-only (the title lives in the tooltip); Panel tabs keep their inline label.
-        content: (
-            <>
-                <span className="relative flex size-4 items-center justify-center">
-                    <CatalogIcon icon={container.icon} />
-                    {badges[container.id] && (
-                        <ContainerBadgeChip
-                            badge={badges[container.id]!}
-                            containerId={container.id}
-                        />
-                    )}
-                </span>
-                {location === 'panel' && (
-                    <span data-slot="chrome-tab-label">{container.title}</span>
-                )}
-            </>
-        ),
-    }));
     return (
         <>
-            <div className="flex items-stretch">
-                <ChromeTabs
-                    ariaLabel={ariaLabel}
-                    className={
-                        location === 'panel'
-                            ? 'flex h-9 items-end'
-                            : 'grid h-11 flex-1 auto-cols-fr grid-flow-col items-end'
-                    }
-                    idPrefix={idPrefix}
-                    indicatorMaxWidth={location === 'secondarySidebar' ? 48 : undefined}
-                    items={tabs}
-                    tabClassName={
-                        location === 'panel' ? 'h-9 gap-1.5 px-3 text-[11px]' : 'h-9 w-full'
-                    }
-                    value={resolvedId ?? ''}
-                    onValueChange={(id) => {
-                        if (hasUnscopedSelection) setUnscopedDesiredId(id);
-                        else onSelect(id);
-                    }}
-                    renderTab={
-                        location === 'secondarySidebar'
-                            ? (item, tab) => {
-                                  const container = containersById.get(item.value);
-                                  if (!container) return tab;
-                                  return (
-                                      <ContainerTabTooltip
-                                          commandId={container.commandId}
-                                          title={
-                                              badges[container.id]
-                                                  ? `${container.title}: ${badges[container.id]?.description}`
-                                                  : container.title
-                                          }
-                                          triggerId={`${idPrefix}-tab-${container.id}`}
-                                      >
-                                          {tab}
-                                      </ContainerTabTooltip>
-                                  );
-                              }
-                            : undefined
-                    }
-                />
-                {trailing}
-            </div>
+            <ViewContainerTabStrip
+                ariaLabel={ariaLabel}
+                catalog={catalog}
+                containers={containers}
+                idPrefix={idPrefix}
+                location={location}
+                resolvedId={resolvedId}
+                trailing={trailing}
+                onSelectContainer={(id) => {
+                    if (hasUnscopedSelection) setUnscopedDesiredId(id);
+                    else onSelect(id);
+                }}
+            />
             {containers.map((container) => {
                 const isActive = container.id === resolvedId;
                 const isMounted = isActive || shownContainerIds.has(container.id);
@@ -386,11 +219,8 @@ export function ViewContainerSurface({
                                               key={view.id}
                                               className="flex min-h-0 flex-1 flex-col overflow-hidden"
                                           >
-                                              {!isOnlyView && (
-                                                  <h3 className="border-b border-border px-3 py-1.5 text-xs font-medium">
-                                                      {view.title}
-                                                  </h3>
-                                              )}
+                                              {/* One caption row for every panel title; see `components/panel-header.tsx`. */}
+                                              {!isOnlyView && <PanelHeader title={view.title} />}
                                               {content}
                                           </div>
                                       );

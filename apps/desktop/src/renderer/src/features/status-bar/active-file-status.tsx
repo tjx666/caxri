@@ -1,8 +1,7 @@
-import { relativeTime } from '@caxri/utils';
 import { Braces, GitCommitHorizontal } from 'lucide-react';
 
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
-import { useNow } from '@/hooks/use-now';
+import { useRelativeTime } from '@/hooks/use-relative-time';
 
 import { useCaxriQuery } from '../../queries/client';
 import { sessionViewScope } from '../../stores/session-view';
@@ -25,13 +24,13 @@ export function ActiveFileStatus({
     const key = editorStatusKey(sessionViewScope(sessionId, workbenchProjectId), path);
     const editorStatus = useEditorStatusStore((state) => state.statuses[key]);
     const line = useDebouncedValue(editorStatus?.line ?? 1, 150);
-    const now = useNow(30_000);
     const blameQuery = useCaxriQuery(
         'git.blame',
         { sessionId, path, line },
         { staleTime: 60_000, retry: false },
     );
     const blame = blameQuery.data;
+    const authored = useRelativeTime(blame?.authoredAt);
     const language = editorLanguageLabel(editorStatus?.languageId ?? 'plaintext');
     const cursor = editorStatus
         ? `Ln ${editorStatus.line}, Col ${editorStatus.column}`
@@ -54,7 +53,7 @@ export function ActiveFileStatus({
                             ariaLabel={
                                 blame.uncommitted
                                     ? `Git blame: uncommitted changes on line ${line}`
-                                    : `Git blame: ${blame.author}, ${relativeTime(blame.authoredAt, now)}, ${blame.subject}`
+                                    : `Git blame: ${blame.author}, ${authored}, ${blame.subject}`
                             }
                             className="statusbar-blame w-full"
                             icon={GitCommitHorizontal}
@@ -73,7 +72,7 @@ export function ActiveFileStatus({
                         >
                             {blame.uncommitted
                                 ? 'Uncommitted changes'
-                                : `${blame.author}, ${relativeTime(blame.authoredAt, now)} · ${blame.subject}`}
+                                : `${blame.author}, ${authored} · ${blame.subject}`}
                         </StatusInfo>
                     )}
                 </div>

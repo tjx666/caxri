@@ -241,7 +241,8 @@ esac
             .locator('.tree-item-rich-tooltip:visible')
             .filter({ hasText: 'Test / App' });
         await expect(appTooltip).toBeVisible();
-        await expect(appTooltip).toContainText('failure');
+        // `failed`, not GitHub's raw `failure`: `status-labels.ts` owns the one word each state is called.
+        await expect(appTooltip).toContainText('failed');
         await expect(appTooltip).toContainText('duration: 2m 5s');
         // The failing check exposes no details URL, so its card carries no link row and never invents one.
         await expect(appTooltip.getByRole('button')).toHaveCount(0);
@@ -403,7 +404,7 @@ esac
         });
         await expect(deployments).toBeVisible();
         const productionDeployment = tree.getByRole('treeitem', {
-            name: 'Production, success · fix: restore the production alias · project-production-tjx666.vercel.app',
+            name: 'Production, passed · fix: restore the production alias · project-production-tjx666.vercel.app',
             exact: true,
         });
         await expect(productionDeployment).toBeVisible();
@@ -452,7 +453,7 @@ esac
         await running.page.keyboard.press('Escape');
         await expect(running.page.locator('.tree-item-rich-tooltip:visible')).toHaveCount(0);
         const successfulDeployment = tree.getByRole('treeitem', {
-            name: 'feat: add the status rollup, preview · success · project-8ykp416o7-tjx666.vercel.app',
+            name: 'feat: add the status rollup, preview · passed · project-8ykp416o7-tjx666.vercel.app',
             exact: true,
         });
         // Only the commit subject and its short SHA: no message body, and no alias the reader cannot parse.
@@ -473,7 +474,7 @@ esac
                 })
                 .locator('[data-theme-icon="circle-arrow-up"]'),
         ).toBeVisible();
-        await expect(successfulDeployment).not.toContainText('success');
+        await expect(successfulDeployment).not.toContainText('passed');
         const originalViewport = running.page.viewportSize();
         await running.page.setViewportSize({ width: 800, height: 720 });
         const successfulDeploymentBounds = await successfulDeployment.boundingBox();
@@ -487,7 +488,7 @@ esac
         const richTooltip = running.page.locator('.tree-item-rich-tooltip:visible');
         await expect(richTooltip).toBeVisible();
         await expect(richTooltip).toContainText('preview');
-        await expect(richTooltip).toContainText('success');
+        await expect(richTooltip).toContainText('passed');
         await expect(richTooltip).toContainText('commit:');
         await expect(richTooltip).toContainText('author:');
         await expect(richTooltip).toContainText('alias:');
@@ -586,13 +587,13 @@ esac
         await running.page.keyboard.press('Escape');
         await expect(richTooltip).toHaveCount(0);
         const production = tree.getByRole('treeitem', {
-            name: 'Production, success · fix: restore the production alias · project-production-tjx666.vercel.app',
+            name: 'Production, passed · fix: restore the production alias · project-production-tjx666.vercel.app',
             exact: true,
         });
         await production.focus();
         await expect(richTooltip).toBeVisible();
         await expect(richTooltip).toContainText('Production');
-        await expect(richTooltip).toContainText('success');
+        await expect(richTooltip).toContainText('passed');
         await expect(
             richTooltip.getByRole('button', {
                 name: 'Open alias: project-production-tjx666.vercel.app',
@@ -748,7 +749,7 @@ esac
         await expect(restoredDeployments).toHaveAttribute('aria-expanded', 'true');
         await expect(
             restoredTree.getByRole('treeitem', {
-                name: 'Production, success · fix: restore the production alias · project-production-tjx666.vercel.app',
+                name: 'Production, passed · fix: restore the production alias · project-production-tjx666.vercel.app',
                 exact: true,
             }),
         ).toHaveAttribute('aria-selected', 'true');
@@ -780,9 +781,10 @@ esac
         await running.page
             .getByRole('button', { name: 'Refresh Project Status', exact: true })
             .click();
+        // `Check failed`, not `Unknown`: a probe that errored and a remote nobody can probe are different answers.
         await expect(
             restoredTree.getByRole('treeitem', {
-                name: 'feature/status, default · Unknown, pull request #42 Merged',
+                name: 'feature/status, default · Check failed, pull request #42 Merged',
                 exact: true,
             }),
         ).toBeVisible();

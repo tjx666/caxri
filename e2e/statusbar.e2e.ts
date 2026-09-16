@@ -187,10 +187,9 @@ exec /bin/zsh -l
         await expect(running.page.getByLabel('File type: TypeScript')).toBeVisible();
         await expect(running.page.getByLabel(/^Editor position: Ln 1, Col 1/)).toBeVisible();
         await expect(running.page.getByLabel(/^Git blame: Caxri E2E, .+, initial$/)).toBeVisible();
-        // The GitLens-style file annotation above the editor reports the file's latest commit.
-        await expect(running.page.locator('.editor-head-blame')).toContainText(
-            /Caxri E2E, .+ · initial/,
-        );
+        // Blame is the status bar's alone. The editor header used to carry the file's last commit as well, which read
+        // word-for-word the same on every line belonging to that commit.
+        await expect(running.page.getByText(/Caxri E2E, .+ · initial/)).toHaveCount(1);
         const editor = running.page.locator('.monaco-editor');
         await editor.click({ position: { x: 80, y: 12 } });
         await running.page.keyboard.press('Shift+ArrowRight');

@@ -68,9 +68,17 @@ export interface GitDiffStallWatchDependencies {
     minimumReportIntervalMs?: number;
 }
 
+/**
+ * `computed` means this diff computation produced an answer, whether or not it had already been declared stalled;
+ * `stalled` means it passed the timeout without one. A surface that shows the diff needs both, because until the answer
+ * arrives "no highlights" and "no difference" are the same picture. See issue #978.
+ */
+export type GitDiffComputationOutcome = 'computed' | 'stalled';
+
 export interface GitDiffStallObservation {
     waitForDiff: () => Promise<unknown>;
     readModels: () => DiffModelShape | undefined;
+    onOutcome?: (outcome: GitDiffComputationOutcome) => void;
 }
 
 /**
@@ -176,20 +184,36 @@ export class GitDiffStallWatch {
         void (async (): Promise<void> => {
             const first = await Promise.race([settled, stalled]);
             if (timer !== undefined) clearTimeout(timer);
-            if (first === 'settled' || isCancelled()) return;
+            if (isCancelled()) return;
+            if (first === 'settled') {
+                observation.onOutcome?.('computed');
+                return;
+            }
             this.stallCount += 1;
+            /**
+             * The surface is told first, and unconditionally. The rate limit below bounds how often a stall is written
+             * to the log; it must never decide whether the user is told that this diff did not compute, because the
+             * alternative is a screen that reads as "no changes". See issue #978.
+             */
+            observation.onOutcome?.('stalled');
             // Rate-limited stalls still advance `stallCount`, so the next record that does go out carries the real
             // volume rather than implying a single occurrence.
-            if (!this.shouldReport(now())) return;
-            const roundTrip = await (this.dependencies.probeRoundTrip ?? probeWorkerRoundTrip)();
-            if (isCancelled()) return;
-            this.lastReportAt = now();
-            this.report(observation, 'timeout', Math.round(now() - startedAt), roundTrip);
+            const isReported = this.shouldReport(now());
+            if (isReported) {
+                const roundTrip = await (
+                    this.dependencies.probeRoundTrip ?? probeWorkerRoundTrip
+                )();
+                if (isCancelled()) return;
+                this.lastReportAt = now();
+                this.report(observation, 'timeout', Math.round(now() - startedAt), roundTrip);
+            }
             // A reported stall that later produces its diff is the transition worth recording: it separates a Worker
             // that was merely slow from one that never came back. Racing cancellation matters for retention rather
             // than correctness: a diff that never settles would otherwise keep its Monaco models reachable through
             // this continuation for as long as the window lives.
             if ((await Promise.race([settled, cancelled])) !== 'settled') return;
+            observation.onOutcome?.('computed');
+            if (!isReported) return;
             this.report(observation, 'recovered', Math.round(now() - startedAt), {
                 outcome: 'skipped',
                 durationMs: null,

@@ -3,17 +3,21 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 
 import type { ExtensionTreeViewState, TreeItemDto, ViewActionDescriptor } from '@caxri/protocol';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { AlertTriangle } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
-import { Button } from '../../components/ui/button';
-import { Spinner } from '../../components/ui/spinner';
 import { openExternalUrl } from '../../lib/external-link';
 import { cn } from '../../lib/utilities';
-import { useSessionState } from '../../stores/selectors';
+import { useExtensionTreeViewState, useSessionViewScope } from '../../stores/selectors';
 import { pushToast, tryCommand } from '../../stores/toasts';
 import { cancelTreeChildrenRequest, ROOT_HANDLE } from './extension-tree-client';
 import { ExtensionTreeHeader } from './extension-tree-header';
+import type { ExtensionTreeNavigationKey } from './extension-tree-navigation';
+import {
+    extensionTreeHorizontalIntent,
+    isNavigableExtensionTreeRow,
+    nextExtensionTreeRowIndex,
+} from './extension-tree-navigation';
+import { ExtensionTreePlaceholderRow } from './extension-tree-placeholder-row';
 import type { PendingTreeRefresh } from './extension-tree-refresh-state';
 import {
     isMessageRefreshAction,
@@ -96,9 +100,8 @@ export function ExtensionTreeView({
     title: string;
     viewId: string;
 }) {
-    const sessionState = useSessionState();
-    const sessionId = sessionState?.sessionId;
-    const workbenchProjectId = sessionState?.workbenchProjectId;
+    const { sessionId, workbenchProjectId } = useSessionViewScope();
+    const persisted = useExtensionTreeViewState(viewId);
     const scope = useMemo(
         () =>
             sessionId && workbenchProjectId
@@ -129,7 +132,7 @@ export function ExtensionTreeView({
     return (
         <ExtensionTreeViewContent
             key={`${scope.sessionId}\0${scope.workbenchProjectId}\0${scope.extensionGeneration}\0${viewId}`}
-            persisted={sessionState?.extensionTreeViewStates?.[viewId]}
+            persisted={persisted}
             refreshAction={refreshAction}
             scope={scope}
             title={title}
@@ -137,53 +140,38 @@ export function ExtensionTreeView({
     );
 }
 
+/**
+ * Every navigation key is resolved against the flat row list by `onNavigate`, which the tree owns: the row knows its
+ * own index and nothing else, so it cannot see the status rows it has to step over or the child it has to step into.
+ * That also keeps the whole row list out of the memoized row component's props.
+ */
 function handleTreeItemKeyDown(
     event: KeyboardEvent<HTMLDivElement>,
     {
         dispatchRowAction,
         index,
-        isCollapsible,
-        isExpanded,
-        onFocusIndex,
-        parentIndex,
-        rowCount,
+        onNavigate,
         row,
     }: {
         dispatchRowAction: (action: TreeRowAction) => void;
         index: number;
-        isCollapsible: boolean;
-        isExpanded: boolean;
-        onFocusIndex: (index: number) => void;
-        parentIndex: number;
+        onNavigate: (key: ExtensionTreeNavigationKey, index: number) => void;
         row: VisibleItemRow;
-        rowCount: number;
     },
 ): void {
     if (event.nativeEvent.isComposing) return;
     switch (event.key) {
         case 'ArrowDown':
-            onFocusIndex(index + 1);
-            break;
         case 'ArrowUp':
-            onFocusIndex(index - 1);
-            break;
-        case 'ArrowRight':
-            if (!isCollapsible || isExpanded) return;
-            dispatchRowAction('toggle');
-            break;
         case 'ArrowLeft':
-            if (isCollapsible && isExpanded) dispatchRowAction('toggle');
-            else if (parentIndex !== -1) onFocusIndex(parentIndex);
+        case 'ArrowRight':
+        case 'Home':
+        case 'End':
+            onNavigate(event.key, index);
             break;
         case 'Enter':
         case ' ':
             dispatchRowAction(keyboardTreeRowAction(row.item, event.key));
-            break;
-        case 'Home':
-            onFocusIndex(0);
-            break;
-        case 'End':
-            onFocusIndex(rowCount - 1);
             break;
         default:
             return;
@@ -198,8 +186,9 @@ function treeItemPresentation(row: VisibleItemRow, isRefreshing: boolean) {
     return {
         className: cn(
             // Hover and keyboard focus only: this tree has no persistent selected row, so it must not borrow a
-            // selection color to stand in for one.
-            'flex w-full min-w-0 items-center gap-2 border-0 bg-transparent text-left text-foreground focus-visible:bg-list-focus-background focus-visible:text-list-focus-foreground focus-visible:outline-none',
+            // selection color to stand in for one. Keyboard focus adds the accent inset ring the Files and Source
+            // Control trees already draw, because the focus fill alone is a wash the pointer can paint too.
+            'flex w-full min-w-0 items-center gap-2 border-0 bg-transparent text-left text-foreground focus-visible:bg-list-focus-background focus-visible:text-list-focus-foreground focus-visible:shadow-[inset_0_0_0_2px_var(--accent)] focus-visible:outline-none',
             isHeader ? 'h-8 border-b border-border font-semibold' : isMessage ? 'min-h-40' : 'h-7',
             !isMessage
                 ? 'pr-2 hover:bg-list-hover-background hover:text-list-hover-foreground'
@@ -254,10 +243,9 @@ const TreeItemRow = memo(
         index,
         isRefreshing,
         onAction,
-        onFocusIndex,
+        onNavigate,
         onFocus,
         row,
-        rowCount,
     }: {
         active: boolean;
         index: number;
@@ -266,10 +254,9 @@ const TreeItemRow = memo(
          */
         isRefreshing: boolean;
         onAction: (row: VisibleItemRow, action: TreeRowAction) => void;
-        onFocusIndex: (index: number) => void;
+        onNavigate: (key: ExtensionTreeNavigationKey, index: number) => void;
         onFocus: (row: VisibleItemRow) => void;
         row: VisibleItemRow;
-        rowCount: number;
     }) => {
         const { isExpanded, positionInSet, setSize } = row;
         const rowElement = useRef<HTMLDivElement>(null);
@@ -305,12 +292,8 @@ const TreeItemRow = memo(
                     handleTreeItemKeyDown(event, {
                         dispatchRowAction,
                         index,
-                        isCollapsible: presentation.isCollapsible,
-                        isExpanded,
-                        onFocusIndex,
-                        parentIndex: row.parentIndex,
+                        onNavigate,
                         row,
-                        rowCount,
                     })
                 }
             >
@@ -333,7 +316,7 @@ const TreeItemRow = memo(
 );
 
 interface TreeRowHandlers {
-    focusIndex: (index: number) => void;
+    onNavigate: (key: ExtensionTreeNavigationKey, index: number) => void;
     onRowAction: (row: VisibleItemRow, action: TreeRowAction) => void;
     onRowFocus: (row: VisibleItemRow) => void;
 }
@@ -349,13 +332,16 @@ function useStableTreeRowHandlers(handlers: TreeRowHandlers): TreeRowHandlers {
     useLayoutEffect(() => {
         latest.current = handlers;
     });
-    const focusIndex = useCallback((index: number) => latest.current?.focusIndex(index), []);
+    const onNavigate = useCallback(
+        (key: ExtensionTreeNavigationKey, index: number) => latest.current?.onNavigate(key, index),
+        [],
+    );
     const onRowAction = useCallback(
         (row: VisibleItemRow, action: TreeRowAction) => latest.current?.onRowAction(row, action),
         [],
     );
     const onRowFocus = useCallback((row: VisibleItemRow) => latest.current?.onRowFocus(row), []);
-    return { focusIndex, onRowAction, onRowFocus };
+    return { onNavigate, onRowAction, onRowFocus };
 }
 
 function ExtensionTreeViewContent({
@@ -465,16 +451,13 @@ function ExtensionTreeViewContent({
     );
     const firstItemIndex = rows.findIndex((row) => row.kind === 'item');
     const focusIndex = (index: number): void => {
-        const boundedIndex = Math.max(0, Math.min(rows.length - 1, index));
-        const row = rows.at(boundedIndex);
-        if (row?.kind !== 'item') return;
+        const row = rows.at(index);
+        if (!isNavigableExtensionTreeRow(row)) return;
         updateTreeState((current) => focusTreeItem(current, row.item));
-        virtualizer.scrollToIndex(boundedIndex);
+        virtualizer.scrollToIndex(index);
         requestAnimationFrame(() =>
             scrollElement.current
-                ?.querySelector<HTMLElement>(
-                    `[data-tree-index="${CSS.escape(String(boundedIndex))}"]`,
-                )
+                ?.querySelector<HTMLElement>(`[data-tree-index="${CSS.escape(String(index))}"]`)
                 ?.focus(),
         );
     };
@@ -503,6 +486,22 @@ function ExtensionTreeViewContent({
             }
         }
     };
+    /**
+     * Resolves one navigation key against the current flat row list. Up/Down/Home/End step over the loading, error, and
+     * empty rows, which carry no focus target; Left/Right collapse, expand, climb to the parent, or enter the first
+     * child.
+     */
+    const navigate = (key: ExtensionTreeNavigationKey, index: number): void => {
+        if (key === 'ArrowLeft' || key === 'ArrowRight') {
+            const intent = extensionTreeHorizontalIntent(rows, index, key);
+            const row = rows.at(index);
+            if (intent.toggle && isNavigableExtensionTreeRow(row)) toggle(row);
+            else if (intent.focusIndex !== undefined) focusIndex(intent.focusIndex);
+            return;
+        }
+        const nextIndex = nextExtensionTreeRowIndex(rows, index, key);
+        if (nextIndex !== undefined) focusIndex(nextIndex);
+    };
 
     /**
      * `visibleLoading` — not the raw `loading` — is what decides whether the header spins: it drops any handle the
@@ -513,7 +512,7 @@ function ExtensionTreeViewContent({
      */
     const isRootRefreshing = Boolean(activePendingRefresh) || visibleLoading.has(ROOT_HANDLE);
     const rowHandlers = useStableTreeRowHandlers({
-        focusIndex,
+        onNavigate: navigate,
         onRowAction: (row, action) => {
             switch (action) {
                 case 'toggle': {
@@ -551,9 +550,19 @@ function ExtensionTreeViewContent({
                 >
                     {virtualizer.getVirtualItems().map((virtualRow) => {
                         const row = rows[virtualRow.index];
+                        /*
+                         * A real row puts `treeitem` on its own focusable element inside, so this wrapper steps out of
+                         * the accessibility tree. A placeholder has no such element, and `role="none"` would then hoist
+                         * its `status` div to be a direct child of `role="tree"`, which ARIA does not allow — a tree
+                         * owns `treeitem` and `group`, nothing else. So the wrapper becomes the row instead: disabled,
+                         * never focusable, with `isNavigableExtensionTreeRow` keeping arrow keys stepping over it.
+                         */
+                        const isPlaceholderRow = row.kind !== 'item';
                         return (
                             <li
                                 key={visibleRowKey(row)}
+                                aria-disabled={isPlaceholderRow || undefined}
+                                aria-level={isPlaceholderRow ? row.depth + 1 : undefined}
                                 className="absolute top-0 left-0 w-full"
                                 data-index={
                                     row.kind === 'item' && row.item.variant === 'message'
@@ -565,56 +574,17 @@ function ExtensionTreeViewContent({
                                         ? virtualizer.measureElement
                                         : undefined
                                 }
-                                role="none"
+                                role={isPlaceholderRow ? 'treeitem' : 'none'}
                                 style={{ transform: `translateY(${virtualRow.start}px)` }}
                             >
-                                {row.kind === 'loading' ? (
-                                    // `role="treeitem"` (rather than the `li`'s own `role="none"`) keeps the placeholder
-                                    // discoverable by the same tree/treeitem contract the interactive rows below use, so
-                                    // screen reader users don't hit a silent gap while a branch is fetching.
-                                    <div
-                                        aria-label="Loading…"
-                                        aria-level={row.depth + 1}
-                                        className="flex h-7 items-center gap-2 text-muted"
-                                        role="treeitem"
-                                        style={{ paddingLeft: `${8 + row.depth * 14}px` }}
-                                    >
-                                        <Spinner aria-hidden="true" className="size-3.5" /> Loading
-                                        view…
-                                    </div>
-                                ) : row.kind === 'error' ? (
-                                    <div
-                                        aria-label={`Unable to load view: ${row.message}`}
-                                        aria-level={row.depth + 1}
-                                        className="flex h-7 items-center gap-2 text-danger"
-                                        role="treeitem"
-                                        style={{ paddingLeft: `${8 + row.depth * 14}px` }}
-                                    >
-                                        <AlertTriangle size={14} />
-                                        <span className="min-w-0 flex-1 truncate">
-                                            Unable to load view: {row.message}
-                                        </span>
-                                        <Button
-                                            size="sm"
-                                            variant="ghost"
-                                            onClick={() => {
-                                                // eslint-disable-next-line no-void -- the loader reports failures in the tree's error row
-                                                void loadChildren(row.parentHandle);
-                                            }}
-                                        >
-                                            Retry
-                                        </Button>
-                                    </div>
-                                ) : row.kind === 'empty' ? (
-                                    <div
-                                        aria-label="No items in this view."
-                                        aria-level={row.depth + 1}
-                                        className="flex h-7 items-center text-muted"
-                                        role="treeitem"
-                                        style={{ paddingLeft: `${8 + row.depth * 14}px` }}
-                                    >
-                                        No items in this view.
-                                    </div>
+                                {isPlaceholderRow ? (
+                                    <ExtensionTreePlaceholderRow
+                                        row={row}
+                                        onRetry={() => {
+                                            // eslint-disable-next-line no-void -- the loader reports failures in the tree's error row
+                                            void loadChildren(row.parentHandle);
+                                        }}
+                                    />
                                 ) : (
                                     <TreeItemRow
                                         active={
@@ -627,10 +597,9 @@ function ExtensionTreeViewContent({
                                             row.item.variant === 'message' && isRootRefreshing
                                         }
                                         row={row}
-                                        rowCount={rows.length}
                                         onAction={rowHandlers.onRowAction}
                                         onFocus={rowHandlers.onRowFocus}
-                                        onFocusIndex={rowHandlers.focusIndex}
+                                        onNavigate={rowHandlers.onNavigate}
                                     />
                                 )}
                             </li>

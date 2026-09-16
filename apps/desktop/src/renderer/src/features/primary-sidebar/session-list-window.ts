@@ -26,39 +26,58 @@ export interface SessionListWindow<TSession> {
      */
     nextRevealCount: number;
     visibleSessions: TSession[];
+    /**
+     * Length of the in-order prefix the window shows, excluding a selected Session pinned in from below it. This is
+     * what a reveal steps from, so the reveal row adds exactly the Sessions it promised.
+     */
+    windowCount: number;
 }
 
 /**
  * Resolves the Sessions a Project renders. `revealedCount` is the count the user has revealed so far (`undefined` until
  * they ask for more).
  *
- * The selected Session is always inside the window: sidebar position is independent from visits, so selecting an older
- * Session through the MRU switcher or history navigation does not pull it to the top. Without this the sidebar would
- * show no selected row at all, which reads as a lost Session rather than a collapsed list.
+ * The selected Session always renders: sidebar position is independent from visits, so selecting an older Session
+ * through the MRU switcher or history navigation does not pull it to the top. Without this the sidebar would show no
+ * selected row at all, which reads as a lost Session rather than a collapsed list.
+ *
+ * It is pinned to the end of the window rather than opened up to, because the guarantee is about that one row. Widening
+ * the window to its index revealed every Session above it as well, which retired `Show N more`, pushed every Project
+ * below off the screen, and turned one selection into a layout the user never asked for.
  */
 export function sessionListWindow<TSession extends { id: string }>(
     sessions: readonly TSession[],
     revealedCount: number | undefined,
     selectedSessionId: string | undefined,
 ): SessionListWindow<TSession> {
-    const revealed = Math.max(revealedCount ?? 0, DEFAULT_VISIBLE_SESSION_COUNT);
+    const windowCount = Math.min(
+        Math.max(revealedCount ?? 0, DEFAULT_VISIBLE_SESSION_COUNT),
+        sessions.length,
+    );
+    const visibleSessions = sessions.slice(0, windowCount);
     const selectedIndex = selectedSessionId
         ? sessions.findIndex((session) => session.id === selectedSessionId)
         : -1;
-    const visibleCount = Math.max(revealed, selectedIndex + 1);
-    const hiddenCount = Math.max(sessions.length - visibleCount, 0);
+    const pinnedSelected = selectedIndex >= windowCount ? sessions[selectedIndex] : undefined;
+    if (pinnedSelected) visibleSessions.push(pinnedSelected);
+    /**
+     * The promise is measured against the rows that will actually appear, not against one reveal step: a pinned
+     * selected Session is already on screen, so the next step absorbs it instead of adding it again.
+     */
+    const nextWindowCount = Math.min(windowCount + SESSION_REVEAL_STEP, sessions.length);
+    const nextVisibleCount = nextWindowCount + (selectedIndex >= nextWindowCount ? 1 : 0);
     return {
-        hiddenCount,
-        nextRevealCount: Math.min(hiddenCount, SESSION_REVEAL_STEP),
-        visibleSessions: sessions.slice(0, visibleCount),
+        hiddenCount: sessions.length - visibleSessions.length,
+        nextRevealCount: nextVisibleCount - visibleSessions.length,
+        visibleSessions,
+        windowCount,
     };
 }
 
 /**
- * Advances the revealed count by one step. Takes the count currently on screen rather than the stored revealed count so
- * the reveal row's promised number is what actually appears, even when the selected-Session guarantee already widened
- * the window past the stored value.
+ * Advances the revealed count by one step. Takes {@link SessionListWindow.windowCount} rather than the stored revealed
+ * count, so a window already clamped to a short Session list steps from what is on screen.
  */
-export function nextRevealedSessionCount(visibleCount: number): number {
-    return visibleCount + SESSION_REVEAL_STEP;
+export function nextRevealedSessionCount(windowCount: number): number {
+    return windowCount + SESSION_REVEAL_STEP;
 }

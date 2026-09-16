@@ -87,7 +87,7 @@ function ScreenshotAnnotatorContent({
                     <p className="m-0 text-[11px] text-muted">
                         {annotator.isAtLimit
                             ? `Up to ${MAX_ANNOTATIONS} annotations`
-                            : 'Drag on the screenshot to mark an area'}
+                            : 'Drag on the screenshot to mark an area, or press Enter on it'}
                     </p>
                 </div>
                 <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">

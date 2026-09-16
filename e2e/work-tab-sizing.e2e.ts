@@ -131,10 +131,12 @@ test('Terminal tabs fill the bar, Document tabs size to content, and the bar scr
         // that happens the whole rail scrolls instead of every tab shrinking below its own floor. The default
         // window is wide enough that 9 Terminal tabs alone would not overflow it, so narrow the viewport first.
         await running.page.setViewportSize({ width: 900, height: 700 });
-        const newTerminal = running.page.getByRole('button', { name: 'New Terminal' });
+        // `cmd+t` rather than the "+" button: with no default Agent configured the button's primary half opens its
+        // agent menu instead of creating straight away (`NewTerminalButton`), and this spec is about the rail, not
+        // about which Agent starts.
         for (let index = 0; index < 8; index += 1) {
-            // eslint-disable-next-line no-await-in-loop -- each click depends on the previous tab's enter animation settling
-            await newTerminal.click();
+            // eslint-disable-next-line no-await-in-loop -- each new tab depends on the previous one's enter animation settling
+            await pressNewTerminal(running.page);
         }
         await expect(terminalTabs).toHaveCount(9);
         await waitForTabMotionToSettle(running.page);

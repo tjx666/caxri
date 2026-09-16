@@ -7,7 +7,6 @@ import type {
     SessionRecord,
     TerminalRecord,
 } from '@caxri/protocol';
-import { agentProviderCatalog } from '@caxri/protocol';
 
 import {
     ContextMenu,
@@ -34,6 +33,13 @@ import {
  * Right-click menu for one Session row. Every entry acts on the clicked row (not the selected Session), so the handlers
  * call the id-taking actions directly instead of the selected-Session commands the palette uses. Rename and Archive
  * show their sidebar key hints as literals: they are tree-local keys, not catalog keybindings.
+ *
+ * Rename is never disabled. A Session title belongs to Caxri, so the Server always commits it and only synchronizes it
+ * to the Agent when that provider can accept one; greying the entry out here made the menu disagree with the row's own
+ * Enter key, which always opened the input.
+ *
+ * This menu and that Enter key are rename's two entry points: the row's double-click now opens the Session instead,
+ * because double-click means open everywhere else in this app and in the file managers it borrows from.
  */
 export function SessionRowMenu({
     children,
@@ -53,6 +59,7 @@ export function SessionRowMenu({
     terminals: TerminalRecord[];
 }) {
     const deleteShortcut = useCommandShortcut('session.delete');
+    const renameShortcut = useCommandShortcut('session.rename');
     const openInEditorShortcut = useCommandShortcut('project.openInEditor');
     const openPullRequestShortcut = useCommandShortcut('session.openPullRequest');
     const detached = hasDetachedAgentTerminal(session.id, terminals);
@@ -60,9 +67,6 @@ export function SessionRowMenu({
     const primaryTerminal = terminals.find(
         (terminal) => terminal.id === session.primaryAgentTerminalId,
     );
-    const primaryProvider = primaryTerminal?.provider;
-    const canRename =
-        !primaryProvider || agentProviderCatalog[primaryProvider].capabilities.nativeRename;
     /**
      * Both copy entries read the Agent's durable identity, which only exists once the provider has created a
      * conversation — a Session whose Agent has not been bound yet has nothing to put on the clipboard.
@@ -100,16 +104,14 @@ export function SessionRowMenu({
                 aria-label={`${session.displayTitle} actions`}
                 finalFocus={!renameRequested}
             >
-                <ContextMenuItem
-                    hint="enter"
-                    disabled={!canRename}
-                    disabledReason={
-                        canRename
-                            ? undefined
-                            : 'This Agent does not support native Session renaming'
-                    }
-                    onClick={() => setRenameRequested(true)}
-                >
+                {/*
+                 * Rename's hint is read from the live keybinding table now that `session.rename` is a real command. It
+                 * used to print the literal `enter`, which was true only while this row held keyboard focus and stayed
+                 * wrong forever for anyone who rebound the command. Archive keeps a literal on purpose: `Delete` is a
+                 * tree key, not a keybinding — it archives the row focus is on, which is not necessarily the selected
+                 * Session, so it cannot become a command binding without changing which Session it would take.
+                 */}
+                <ContextMenuItem hint={renameShortcut} onClick={() => setRenameRequested(true)}>
                     Rename
                 </ContextMenuItem>
                 <ContextMenuItem hint="delete" onClick={() => archiveSession(session.id)}>

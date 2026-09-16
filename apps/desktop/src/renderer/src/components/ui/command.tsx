@@ -94,13 +94,18 @@ export function CommandItem({
     return (
         <CommandPrimitive.Item
             data-slot="command-item"
-            // `cmdk` toggles its own `data-selected` attribute, so the selected-row
-            // fill is expressed as a `data-[selected=true]` variant instead of a
-            // global-CSS attribute selector. Kept as the unnamed Tailwind `group` so
+            // `cmdk` toggles its own `data-selected` attribute, so the active-row fill
+            // is expressed as a `data-[selected=true]` variant instead of a global-CSS
+            // attribute selector. Kept as the unnamed Tailwind `group` so
             // `ShortcutBadge`'s `keyClassName` (e.g. `group-data-[selected=true]:…`)
             // in `command-palette.tsx` keeps working unchanged.
+            //
+            // `--list-focus-*` rather than a flat surface, so every picker built on this
+            // primitive answers an imported theme the way the Files tree does. No hover
+            // fill: `cmdk` selects whatever the pointer passes over, so the one row this
+            // paints is already the row under the cursor whenever there is one.
             className={cn(
-                'group flex min-h-7 cursor-pointer items-start justify-between gap-2 rounded px-2 py-1 outline-none data-[selected=true]:bg-elevated',
+                'group flex min-h-7 cursor-pointer items-start justify-between gap-2 rounded px-2 py-1 outline-none data-[selected=true]:bg-list-focus-background data-[selected=true]:text-list-focus-foreground',
                 className,
             )}
             {...properties}

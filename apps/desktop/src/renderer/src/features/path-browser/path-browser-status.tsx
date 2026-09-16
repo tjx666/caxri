@@ -29,10 +29,9 @@ export function PathBrowserStatus({
     isNavigating,
     displayedError,
     isResultsReady,
-    emptyMessage,
 }: Pick<
     ReturnType<typeof usePathBrowser>,
-    'isStarting' | 'isNavigating' | 'displayedError' | 'isResultsReady' | 'emptyMessage'
+    'isStarting' | 'isNavigating' | 'displayedError' | 'isResultsReady'
 >) {
     if (isStarting || isNavigating) return <p className="p-6 text-center text-muted">Loading…</p>;
     if (displayedError)
@@ -42,6 +41,7 @@ export function PathBrowserStatus({
             </p>
         );
     if (!isResultsReady) return <p className="p-6 text-center text-muted">Searching…</p>;
-    if (emptyMessage) return <p className="p-6 text-center text-muted">{emptyMessage}</p>;
+    // An empty result is a row inside the list now, beside the group it belongs to and beside the create action, so
+    // there is nothing left for this banner to say once results are ready.
     return null;
 }

@@ -182,8 +182,9 @@ test('theme import warnings can be dismissed and do not return after restart', a
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires object destructuring for its fixture argument
 test('theme import contrast failure names the color roles and measured ratio', async ({}, testInfo) => {
+    // No `ERROR_TOAST`: the failure is now reported inside the Settings dialog, so the only error that still crosses a
+    // process boundary is Server Core rejecting the theme.
     allowE2EErrors([
-        { source: 'renderer', event: 'toast', code: 'ERROR_TOAST', count: 1 },
         { source: 'server-core', event: 'ipc.request_failed', code: 'VALIDATION', count: 1 },
     ]);
     const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-contrast-e2e-'));
@@ -209,12 +210,14 @@ test('theme import contrast failure names the color roles and measured ratio', a
         await settings.getByRole('tab', { name: 'Theme', exact: true }).click();
         await settings.getByRole('button', { name: 'Import Theme' }).click();
 
-        const toast = running.page.locator('.toast', { hasText: 'Theme import failed.' });
-        await expect(toast).toContainText(
+        // Reported inside the dialog rather than as a toast: the dialog's focus trap keeps a toast out of Tab order,
+        // so the one surface that can act on the failure could not reach the message describing it.
+        const failure = settings.getByRole('alert').filter({ hasText: 'Theme import failed.' });
+        await expect(failure).toContainText(
             '--muted has 1.00:1 contrast against --background; at least 4.5:1 is required.',
         );
-        await expect(toast).not.toContainText(directory);
-        await toast.screenshot({ path: testInfo.outputPath('theme-contrast-failure.png') });
+        await expect(failure).not.toContainText(directory);
+        await failure.screenshot({ path: testInfo.outputPath('theme-contrast-failure.png') });
         await expect
             .poll(
                 async () =>

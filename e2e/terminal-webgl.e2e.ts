@@ -24,6 +24,8 @@ type GpuPreference = 'Auto' | 'On' | 'Off';
 
 const GPU_RESTART_STUB_KEY = '__caxriE2EGpuRestartStub';
 
+const NO_RESTART = { didQuit: false, didRelaunch: false };
+
 interface GpuRestartStubState {
     didQuit: boolean;
     didRelaunch: boolean;
@@ -127,6 +129,14 @@ async function readGpuSafeModeRestart(app: E2EApp): Promise<GpuRestartStubState>
         if (!state) throw new Error('GPU restart lifecycle is not stubbed');
         return { didQuit: state.didQuit, didRelaunch: state.didRelaunch };
     }, GPU_RESTART_STUB_KEY);
+}
+
+async function isHardwareAccelerationPersisted(page: Page): Promise<boolean> {
+    const result = await pageRequest<{ value: { hardwareAcceleration: boolean } }>(
+        page,
+        'argv.get',
+    );
+    return result.value.hardwareAcceleration;
 }
 
 async function restoreGpuSafeModeRestart(app: E2EApp): Promise<void> {
@@ -263,17 +273,17 @@ test('WebGL modes hot-switch and every Terminal recovers from one GPU process lo
         await expect(surface).toHaveAttribute('data-terminal-renderer-reason', 'disabled');
 
         /**
-         * The status bar chip is the shortest route out of the DOM renderer, so it must survive as a real button with a
-         * confirmation in front of the settings write — not just as a tooltip that explains the slowdown.
+         * The status bar chip is the shortest route out of software rendering, so it must survive as a real button with
+         * a confirmation in front of the settings write — not just as a tooltip that explains the slowdown.
          */
         const rendererChip = running.page.locator('button.statusbar-terminal-renderer');
         await expect(rendererChip).toHaveAttribute(
             'aria-label',
-            'Turn on GPU acceleration? — Terminal renderer: DOM. GPU acceleration is turned off in Settings.',
+            'Turn on GPU acceleration for Terminals? — Terminal is using software rendering. GPU acceleration is turned off in Settings.',
         );
         await rendererChip.click();
         const confirmation = running.page.locator('.confirmation-dialog');
-        await expect(confirmation).toContainText('Turn on GPU acceleration?');
+        await expect(confirmation).toContainText('Turn on GPU acceleration for Terminals?');
         await running.page.keyboard.press('Escape');
         await expect(confirmation).toHaveCount(0);
         expect(
@@ -382,18 +392,17 @@ test('WebGL modes hot-switch and every Terminal recovers from one GPU process lo
          * Main and both mounted Terminals observe the same correlated GPU incident. The coordinator must collapse those
          * three signals into one actionable notification before the durable renderer state is checked.
          *
-         * The card stays until it is dismissed rather than expiring on its own: `Restart in GPU Safe Mode` is reachable
-         * from nowhere else, because notification history deliberately keeps no action callbacks. Asserting the
-         * dismissal explicitly therefore both pins that decision and clears the overlay before the renderer checks
-         * below.
+         * The card stays until it is dismissed rather than expiring on its own: its offer is reachable from nowhere
+         * else, because notification history deliberately keeps no action callbacks. Asserting the dismissal explicitly
+         * therefore both pins that decision and clears the overlay before the renderer checks below.
          */
         const recoveryNotification = running.page.getByText(
-            'A GPU process crash interrupted rendering. Caxri switched affected Terminals to software rendering.',
+            'A graphics failure interrupted drawing. Caxri switched the affected Terminals to software rendering; they keep working, but drawing may feel slower.',
             { exact: true },
         );
         await expect(recoveryNotification).toHaveCount(1, { timeout: 8_000 });
         await expect(
-            running.page.getByRole('button', { name: 'Restart in GPU Safe Mode' }),
+            running.page.getByRole('button', { name: 'Turn off hardware acceleration…' }),
         ).toHaveCount(1);
         await expect(recoveryNotification).toHaveCount(1, { timeout: 6_000 });
         await running.page.getByRole('button', { name: 'Dismiss notification' }).first().click();
@@ -514,7 +523,7 @@ test('WebGL modes hot-switch and every Terminal recovers from one GPU process lo
     }
 });
 
-test('repeated context losses preserve user choice and explicit GPU Safe Mode persists it', async () => {
+test('repeated context losses preserve user choice and a confirmed opt-out persists it', async () => {
     allowE2EErrors([
         { source: 'desktop', event: 'gpu.process_gone', code: 'GPU_PROCESS_GONE', count: 3 },
     ]);
@@ -533,10 +542,7 @@ test('repeated context losses preserve user choice and explicit GPU Safe Mode pe
         await createShellSession(running.page);
         await pageRequest(running.page, 'gpu.testInjectContextLoss');
         await pageRequest(running.page, 'gpu.testInjectContextLoss');
-        const afterRepeatedIncidents = await pageRequest<{
-            value: { hardwareAcceleration: boolean };
-        }>(running.page, 'argv.get');
-        expect(afterRepeatedIncidents.value.hardwareAcceleration).toBe(true);
+        expect(await isHardwareAccelerationPersisted(running.page)).toBe(true);
 
         await running.app.close();
         running = await launchCaxri({
@@ -551,34 +557,37 @@ test('repeated context losses preserve user choice and explicit GPU Safe Mode pe
                 { exact: true },
             ),
         ).toHaveCount(0);
-        const afterRelaunch = await pageRequest<{
-            value: { hardwareAcceleration: boolean };
-        }>(running.page, 'argv.get');
-        expect(afterRelaunch.value.hardwareAcceleration).toBe(true);
+        expect(await isHardwareAccelerationPersisted(running.page)).toBe(true);
 
         await applyGpuPreference(running.page, 'On');
         await stubGpuSafeModeRestart(running.app);
         try {
             await pageRequest(running.page, 'gpu.testInjectContextLoss');
-            const restart = running.page.getByRole('button', {
-                name: 'Restart in GPU Safe Mode',
+            const turnOff = running.page.getByRole('button', {
+                name: 'Turn off hardware acceleration…',
             });
-            await expect(restart).toBeVisible();
-            await restart.click();
-            await expect
-                .poll(async () => {
-                    const result = await pageRequest<{
-                        value: { hardwareAcceleration: boolean };
-                    }>(running.page, 'argv.get');
-                    return result.value.hardwareAcceleration;
-                })
-                .toBe(false);
+            await expect(turnOff).toBeVisible();
+
+            // Cancelling must leave the boot configuration exactly as it was: the click on the crash card is not
+            // itself the machine-wide change.
+            await turnOff.click();
+            const confirmTurnOff = running.page.locator('.confirmation-dialog');
+            await expect(confirmTurnOff).toContainText(
+                'Turn off hardware acceleration and restart Caxri?',
+            );
+            await running.page.keyboard.press('Escape');
+            await expect(confirmTurnOff).toHaveCount(0);
+            expect(await isHardwareAccelerationPersisted(running.page)).toBe(true);
+            expect(await readGpuSafeModeRestart(running.app)).toEqual(NO_RESTART);
+
+            await turnOff.click();
+            await confirmTurnOff
+                .getByRole('button', { name: 'Turn Off and Restart', exact: true })
+                .click();
+            await expect.poll(() => isHardwareAccelerationPersisted(running.page)).toBe(false);
             await expect
                 .poll(() => readGpuSafeModeRestart(running.app))
-                .toEqual({
-                    didQuit: true,
-                    didRelaunch: true,
-                });
+                .toEqual({ didQuit: true, didRelaunch: true });
         } finally {
             await restoreGpuSafeModeRestart(running.app);
         }
@@ -589,10 +598,7 @@ test('repeated context losses preserve user choice and explicit GPU Safe Mode pe
             userDataDir: userData,
             testRootPath: root,
         });
-        const explicitSafeMode = await pageRequest<{
-            value: { hardwareAcceleration: boolean };
-        }>(running.page, 'argv.get');
-        expect(explicitSafeMode.value.hardwareAcceleration).toBe(false);
+        expect(await isHardwareAccelerationPersisted(running.page)).toBe(false);
         const persistedSettings = await pageRequest<{
             value: { 'terminal.gpuAcceleration': string };
         }>(running.page, 'settings.get');
@@ -610,7 +616,7 @@ test('repeated context losses preserve user choice and explicit GPU Safe Mode pe
         await expect(surface).toHaveAttribute('data-terminal-renderer-reason', 'unsupported');
         await expect(
             running.page.getByText(
-                'GPU rendering failed in a Terminal. Caxri switched it to software rendering.',
+                'A graphics failure interrupted drawing in one Terminal. Caxri switched it to software rendering; it keeps working.',
                 { exact: true },
             ),
         ).toHaveCount(0);
@@ -674,7 +680,7 @@ test('repeated GPU incidents pin the session to DOM until an explicit retry', as
         const rendererChip = running.page.locator('.statusbar-terminal-renderer');
         await expect(rendererChip).toHaveAttribute(
             'aria-label',
-            'Retry GPU rendering? — Terminal renderer: DOM. WebGL was lost repeatedly. Automatic recovery is paused; click to retry GPU rendering.',
+            'Retry GPU rendering? — Terminal is using software rendering. Drawing failed repeatedly. Automatic recovery is paused; click to retry GPU rendering.',
         );
         await typeTerminal(running.page, String.raw`printf 'PINNED_DOM_STILL_LIVE\n'`);
         await expect(pane.locator('.xterm-rows')).toContainText('PINNED_DOM_STILL_LIVE');

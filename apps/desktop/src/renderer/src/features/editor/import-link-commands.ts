@@ -1,10 +1,15 @@
-import { MAX_RESOLVED_IMPORTS } from '@caxri/protocol';
-import { parseEditorModelPath } from '@desktop-shared/editor-state';
+import { isVirtualEditorTabPath, MAX_RESOLVED_IMPORTS } from '@caxri/protocol';
+import { editorModelPath, parseEditorModelPath } from '@desktop-shared/editor-state';
 import type { CancellationToken, editor, IDisposable, languages, Uri } from 'monaco-editor';
 
 import { caxri } from '../../lib/caxri';
+import { getSelectedSession } from '../../stores/selectors';
+import { sessionViewScope } from '../../stores/session-view';
+import { pushToast } from '../../stores/toasts';
+import { getActivePaneId, getActivePaneTab } from '../workbench/pane-actions';
 import { openFileForSession } from './document-commands';
-import { findRelativeImportSpecifiers } from './import-links';
+import { mountedEditor } from './editor-reveal';
+import { findRelativeImportSpecifiers, importSpecifierAtPosition } from './import-links';
 
 /**
  * Languages whose relative imports this provider understands. JSON is deliberately absent: its `$ref` paths are not
@@ -112,4 +117,67 @@ export function registerImportLinks(monaco: ImportLinkMonaco): IDisposable[] {
             },
         }),
     ];
+}
+
+/**
+ * The Monaco instance rendering the active file tab, or nothing when the active work item is a Terminal, a diff, or any
+ * other virtual document that owns no relative siblings.
+ */
+function activeFileEditor(): editor.IStandaloneCodeEditor | undefined {
+    const session = getSelectedSession();
+    const tab = getActivePaneTab();
+    if (!session || tab?.resource.kind !== 'file') return undefined;
+    if (isVirtualEditorTabPath(tab.resource.path)) return undefined;
+    const scope = sessionViewScope(session.id, session.workbenchProjectId);
+    return mountedEditor(editorModelPath(scope, tab.resource.path), getActivePaneId());
+}
+
+/**
+ * Gate for `editor.openImportLink`: an ordinary file editor is on screen to read a caret from.
+ */
+export function canOpenImportLinkAtCursor(): boolean {
+    return activeFileEditor() !== undefined;
+}
+
+/**
+ * Opens the file named by the relative import under the caret — the keyboard half of ⌘-clicking the same path, which
+ * until now was the only way to follow one.
+ *
+ * Resolved here rather than by running Monaco's own `editor.action.openLink`: that action reads whatever the link
+ * detector last computed, so it silently does nothing while a pass is still in flight, and it cannot tell "no link
+ * here" apart from "not scanned yet". A command invoked from the palette has to answer the user either way.
+ */
+export async function openImportLinkAtCursor(): Promise<void> {
+    const editorInstance = activeFileEditor();
+    const model = editorInstance?.getModel();
+    const position = editorInstance?.getPosition();
+    if (!model || !position) return;
+    const document = parseEditorModelPath(model.uri);
+    if (!document) return;
+    const match = importSpecifierAtPosition(
+        findRelativeImportSpecifiers(model.getLinesContent(), MAX_RESOLVED_IMPORTS),
+        position.lineNumber,
+        position.column,
+    );
+    if (!match) {
+        pushToast('info', 'Put the cursor on a relative import path to open it.');
+        return;
+    }
+    let resolved: Array<{ path: string; specifier: string }>;
+    try {
+        ({ resolved } = await caxri.request('files.resolveImports', {
+            sessionId: document.sessionId,
+            from: document.path,
+            specifiers: [match.specifier],
+        }));
+    } catch {
+        pushToast('error', `Unable to resolve ${match.specifier}`);
+        return;
+    }
+    const path = resolved.find((entry) => entry.specifier === match.specifier)?.path;
+    if (!path) {
+        pushToast('info', `${match.specifier} does not resolve to a file in this Project.`);
+        return;
+    }
+    await openFileForSession(document.sessionId, path);
 }

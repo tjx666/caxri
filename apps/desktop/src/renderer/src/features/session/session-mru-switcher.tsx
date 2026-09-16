@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react';
 import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
 import { formatShortcutParts } from '@caxri/protocol';
 
-import { useNow } from '@/hooks/use-now';
+import { useRelativeTime } from '@/hooks/use-relative-time';
 
 import type { SessionMruShortcutInvocation } from '../../commands/registry';
 import { ShortcutBadge } from '../../components/shortcut-badge';
@@ -13,7 +13,6 @@ import { useCommandShortcut } from '../../lib/keybindings';
 import { cn } from '../../lib/utilities';
 import { useProjects, useSessions, useTerminals } from '../../stores/selectors';
 import { ProjectIcon } from '../primary-sidebar/project-icon';
-import { formatSessionRelativeTime } from '../primary-sidebar/session-activity';
 import { SessionStatusIndicator } from '../primary-sidebar/session-status-indicator';
 import { commitMruSession } from './session-commands';
 import { resolveSessionMruView, useSessionMruSwitcherStore } from './session-mru-switcher-state';
@@ -67,19 +66,18 @@ function useScrollSelectionIntoView(selectedIndex: number, isPanelVisible: boole
 
 function SessionMruRow({
     index,
-    now,
     project,
     selected,
     session,
     terminal,
 }: {
     index: number;
-    now: number;
     project?: ProjectRecord;
     selected: boolean;
     session: SessionRecord;
     terminal?: TerminalRecord;
 }) {
+    const lastOpened = useRelativeTime(session.lastOpenedAt);
     return (
         <div
             id={`session-mru-option-${session.id}`}
@@ -121,9 +119,7 @@ function SessionMruRow({
                     <span className="truncate">{project?.displayTitle ?? 'Unknown Project'}</span>
                 </span>
             </span>
-            <span className="flex-none text-[11px] text-muted tabular-nums">
-                {formatSessionRelativeTime(session.lastOpenedAt, now)}
-            </span>
+            <span className="flex-none text-[11px] text-muted tabular-nums">{lastOpened}</span>
             <SessionStatusIndicator reserveSlot session={session} terminal={terminal} />
         </div>
     );
@@ -201,7 +197,6 @@ function SessionMruSwitcherPanel() {
     );
     const isPanelVisible = Boolean(selected) && view.isOpen && view.isVisible;
     const listReference = useScrollSelectionIntoView(selectedIndex, isPanelVisible);
-    const now = useNow(30_000);
     useEffect(() => {
         if (!selected && view.isOpen) useSessionMruSwitcherStore.getState().cancel();
     }, [selected, view.isOpen]);
@@ -243,7 +238,6 @@ function SessionMruSwitcherPanel() {
                         <SessionMruRow
                             key={session.id}
                             index={index}
-                            now={now}
                             project={projects.find((item) => item.id === session.projectId)}
                             selected={index === selectedIndex}
                             session={session}

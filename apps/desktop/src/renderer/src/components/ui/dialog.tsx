@@ -45,6 +45,12 @@ function DialogOverlay({ className, ...properties }: DialogPrimitive.Backdrop.Pr
 }
 
 type DialogPopupProperties = DialogPrimitive.Popup.Props & {
+    /**
+     * Overrides the close button's accessible name. "Close" describes the mechanism, which is enough wherever closing
+     * simply abandons the dialog. A dialog whose closing carries its own meaning — setting a decision aside rather than
+     * answering it — has to say that meaning here, because the glyph is identical either way.
+     */
+    closeLabel?: string;
     ref?: Ref<HTMLDivElement>;
     showCloseButton?: boolean;
 };
@@ -70,6 +76,7 @@ export function DialogContent({ backdropClassName, ...properties }: DialogConten
 function DialogPopup({
     className,
     children,
+    closeLabel = 'Close',
     showCloseButton = true,
     ...properties
 }: DialogPopupProperties) {
@@ -96,7 +103,7 @@ function DialogPopup({
                 <DialogPrimitive.Close
                     data-slot="dialog-close"
                     className="absolute top-2 right-2 grid size-7 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 hover:bg-elevated"
-                    aria-label="Close"
+                    aria-label={closeLabel}
                 >
                     <X aria-hidden="true" size={15} />
                 </DialogPrimitive.Close>

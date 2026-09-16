@@ -9,6 +9,7 @@ import { execFileAsync } from '@caxri/system';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import {
+    clickGitGroupAction,
     createAdditionalShellSession,
     createShellSession,
     launchCaxri,
@@ -441,7 +442,7 @@ test('Git secondarySidebar shows child repositories, submodule state, and change
         await expect(running.page.locator('.monaco-diff-editor')).toContainText('before');
         await expect(running.page.locator('.monaco-diff-editor')).toContainText('after');
 
-        await nestedRepo.getByRole('button', { name: 'Open Changes' }).click();
+        await clickGitGroupAction(nestedRepo, 'Open Changes');
         await expect(
             running.page.locator('.work-tab', { hasText: 'Changes: nested' }),
         ).toBeVisible();

@@ -1,11 +1,14 @@
 import type {
     AppSettings,
     BootstrapState,
+    ExtensionTreeViewState,
     ProjectRecord,
     SessionRecord,
     SessionState,
+    SourceControlViewState,
     TerminalRecord,
     ThemeTokens,
+    ViewContainerId,
 } from '@caxri/protocol';
 import { useShallow } from 'zustand/react/shallow';
 
@@ -118,6 +121,66 @@ export function useSelectedWorkbenchProject(): ProjectRecord | undefined {
 
 export function useSessionState(): SessionState | undefined {
     return useWorkbenchStore((state) => selectSessionState(state.bootstrap));
+}
+
+/**
+ * The two ids a Session-scoped view keys its reads on, and nothing else from the Session.
+ *
+ * The narrowing is the point. `SessionState` also carries `paneLayout`, which moves on every work-tab switch, so a view
+ * that read the whole record re-rendered for a tab change it has no stake in — including while it was hidden, where the
+ * user pays for the work and cannot even see the result.
+ */
+export function useSessionViewScope(): {
+    sessionId?: string;
+    workbenchProjectId?: string;
+} {
+    return useWorkbenchStore(
+        useShallow((state) => {
+            const sessionState = selectSessionState(state.bootstrap);
+            return {
+                sessionId: sessionState?.sessionId,
+                workbenchProjectId: sessionState?.workbenchProjectId,
+            };
+        }),
+    );
+}
+
+/**
+ * One Source Control view's persisted disclosure and mode state. Same narrowing as {@link useSessionViewScope}: a view
+ * subscribes to its own entry, so another view's persisted state moving leaves it alone.
+ */
+export function useSourceControlViewState(viewId: string): SourceControlViewState | undefined {
+    return useWorkbenchStore(
+        (state) => selectSessionState(state.bootstrap)?.sourceControlViewStates?.[viewId],
+    );
+}
+
+/**
+ * One extension tree's persisted expansion and selection state, narrowed the same way.
+ */
+export function useExtensionTreeViewState(viewId: string): ExtensionTreeViewState | undefined {
+    return useWorkbenchStore(
+        (state) => selectSessionState(state.bootstrap)?.extensionTreeViewStates?.[viewId],
+    );
+}
+
+/**
+ * The Session's durable secondary-sidebar choice, plus whether there is a Session to own one at all. The container
+ * surface falls back to a window-local selection when there is not, which is why both travel together.
+ */
+export function useDesiredSecondarySidebarView(): {
+    desiredId?: ViewContainerId;
+    hasSession: boolean;
+} {
+    return useWorkbenchStore(
+        useShallow((state) => {
+            const sessionState = selectSessionState(state.bootstrap);
+            return {
+                desiredId: sessionState?.desiredSecondarySidebarViewContainerId,
+                hasSession: sessionState !== undefined,
+            };
+        }),
+    );
 }
 
 export function useSessionTerminals(): TerminalRecord[] {

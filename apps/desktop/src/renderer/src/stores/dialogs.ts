@@ -9,6 +9,7 @@ export type SettingsView =
     | 'trusted-domains'
     | 'agent-actions'
     | 'hardware-acceleration'
+    | 'remote-debugging'
     | 'notifications'
     | 'git-exclusions';
 
@@ -18,6 +19,12 @@ export type SettingsView =
  * can render a trigger at once.
  */
 export type CreateSessionAnchor = 'heading' | 'emptyProject';
+
+/**
+ * A status-bar chip whose popover can also be opened from a command. Both chips hang off the Session the status bar
+ * already describes, so the request names only the picker; the chip resolves its own Session and repository.
+ */
+export type StatusBarPicker = 'branch' | 'workbenchRoot';
 
 interface DialogState {
     archivedSessionsOpen: boolean;
@@ -47,6 +54,19 @@ interface DialogState {
      */
     createSessionMenu?: { anchor: CreateSessionAnchor; projectId: string };
     /**
+     * A pending request to rename one Session, carried as a bumped revision rather than a boolean so asking twice for
+     * the same Session still re-opens the editor. Renaming is local React state inside the Primary Side Bar's row, and
+     * a command has no way to reach it; this is the channel between the two. The row clears it as soon as it has opened
+     * the editor: the Primary Side Bar unmounts whenever it is hidden, so an answered request left standing here would
+     * re-open the editor by itself the next time the side bar came back.
+     */
+    renameSessionRequest?: { id: number; sessionId: string };
+    /**
+     * A pending request to open one status-bar picker. Same revision contract as {@link DialogState.settingsRequest}:
+     * the chip owns its popover's open state, and the command only asks.
+     */
+    statusBarPickerRequest?: { id: number; picker: StatusBarPicker };
+    /**
      * IDs of currently mounted-and-open modals, registered by `useModalRegistration` (see `components/ui/dialog.tsx`)
      * from every consumer of the shared `Dialog` primitive. `isModalOpen` used to be a hand-maintained OR of one
      * boolean per dialog (settingsOpen, paletteOpen, pathBrowserOpen, pendingRoot, pendingProjectId); a future modal
@@ -71,6 +91,9 @@ interface DialogState {
     askAgentForProject(projectId: string): void;
     clearPending(): void;
     openCreateSessionMenu(projectId: string, anchor: CreateSessionAnchor): void;
+    requestSessionRename(sessionId: string): void;
+    clearSessionRenameRequest(): void;
+    openStatusBarPicker(picker: StatusBarPicker): void;
     closeCreateSessionMenu(): void;
     /**
      * Registers an open modal's id; called by `useModalRegistration` on open/mount.
@@ -100,6 +123,8 @@ export const useDialogStore = createStore<DialogState>('dialogs', (set, get) => 
     pendingRoot: undefined,
     pendingProjectId: undefined,
     createSessionMenu: undefined,
+    renameSessionRequest: undefined,
+    statusBarPickerRequest: undefined,
     openModalIds: new Set(),
     setArchivedSessionsOpen: (archivedSessionsOpen) => set({ archivedSessionsOpen }),
     openSettings: (view = 'ui', provider) =>
@@ -126,6 +151,15 @@ export const useDialogStore = createStore<DialogState>('dialogs', (set, get) => 
     clearPending: () => set({ pendingRoot: undefined, pendingProjectId: undefined }),
     openCreateSessionMenu: (projectId, anchor) => set({ createSessionMenu: { anchor, projectId } }),
     closeCreateSessionMenu: () => set({ createSessionMenu: undefined }),
+    requestSessionRename: (sessionId) =>
+        set((state) => ({
+            renameSessionRequest: { id: (state.renameSessionRequest?.id ?? 0) + 1, sessionId },
+        })),
+    clearSessionRenameRequest: () => set({ renameSessionRequest: undefined }),
+    openStatusBarPicker: (picker) =>
+        set((state) => ({
+            statusBarPickerRequest: { id: (state.statusBarPickerRequest?.id ?? 0) + 1, picker },
+        })),
     registerModal: (id) =>
         set((state) => {
             if (state.openModalIds.has(id)) return state;
@@ -163,3 +197,10 @@ export const closeProjectIconDialog = (): void => useDialogStore.getState().clos
 export const clearPendingSession = (): void => useDialogStore.getState().clearPending();
 export const closeCreateSessionMenu = (): void =>
     useDialogStore.getState().closeCreateSessionMenu();
+export const requestSessionRename = (sessionId: string): void =>
+    useDialogStore.getState().requestSessionRename(sessionId);
+
+export const clearSessionRenameRequest = (): void =>
+    useDialogStore.getState().clearSessionRenameRequest();
+export const openStatusBarPicker = (picker: StatusBarPicker): void =>
+    useDialogStore.getState().openStatusBarPicker(picker);

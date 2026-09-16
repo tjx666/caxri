@@ -21,6 +21,39 @@ export function prepareGpuBoot(app: App, userDataPath: string): GpuBootState {
     return { argvConfig };
 }
 
+/**
+ * Why this launch is drawing the way it is. A closed enum rather than a boolean, because "acceleration is off" recorded
+ * without its cause cannot tell a deliberate user preference apart from a machine Chromium refused to accelerate, and
+ * those two need opposite follow-ups.
+ */
+type RenderingModeReason = 'hardware-accelerated' | 'unavailable' | 'user-preference';
+
+export interface RenderingMode {
+    reason: RenderingModeReason;
+    /**
+     * True whenever Caxri is drawing without the GPU, whichever of the two causes put it there. This is the state every
+     * user-facing surface calls "software rendering"; `hardwareAcceleration` is the name of the setting, never of the
+     * state. Keeping the two words apart is the whole point of resolving this here instead of at each call site.
+     */
+    softwareRendering: boolean;
+}
+
+/**
+ * The single answer to "is Caxri drawing with the GPU right now, and why not". The user's persisted preference wins the
+ * naming when it is off, because that is the one cause a user can undo; a machine that simply cannot accelerate reports
+ * `unavailable` so a log reader is not told the user chose it.
+ */
+export function resolveRenderingMode(input: {
+    hardwareAccelerationEnabled: boolean;
+    hardwareAccelerationPreferred: boolean;
+}): RenderingMode {
+    if (!input.hardwareAccelerationPreferred)
+        return { reason: 'user-preference', softwareRendering: true };
+    if (!input.hardwareAccelerationEnabled)
+        return { reason: 'unavailable', softwareRendering: true };
+    return { reason: 'hardware-accelerated', softwareRendering: false };
+}
+
 interface GpuRecoveryCoordinatorOptions {
     app: App;
     boot: GpuBootState;
@@ -34,7 +67,14 @@ interface GpuRecoveryCoordinatorOptions {
 
 /**
  * Joins Electron's GPU lifecycle, the content-free incident receipt, and Renderer recovery without granting the
- * Renderer direct filesystem or process authority. GPU incidents never change the user's next-launch configuration.
+ * Renderer direct filesystem or process authority.
+ *
+ * A GPU incident never changes the user's next-launch configuration by itself: the only write lives behind
+ * `restartInGpuSafeMode`, which the Renderer calls only after the user answered the shared confirmation modal (see
+ * `features/gpu/gpu-commands.ts`). VS Code does not offer this action at all — a GPU crash there is telemetry only, and
+ * `disable-hardware-acceleration` has no write site in the whole product. Caxri keeps the one-click escape because a
+ * Terminal workbench that cannot draw is unusable, so the confirmation is what stops one click on a crash card from
+ * silently costing every future launch its GPU.
  */
 export function createGpuRecoveryCoordinator(options: GpuRecoveryCoordinatorOptions) {
     function recordProcessGone(details: GpuProcessGoneDetails) {
@@ -83,10 +123,20 @@ export function createGpuRecoveryCoordinator(options: GpuRecoveryCoordinatorOpti
                 if (!incident) throw new Error('GPU context loss injection was not recorded');
                 return { correlationId: incident.correlationId };
             },
+            /**
+             * Persist first, relaunch second: a failed write rejects before anything restarts, so the user never loses
+             * the running window to a change that did not land. This mirrors VS Code's one comparable boot-flag gate
+             * (`localeService.ts`: confirm, write `argv.json`, then restart).
+             */
             restartInGpuSafeMode: async () => {
                 await options.updateArgvConfig({ hardwareAcceleration: false });
                 options.logger()?.write('info', logEventCatalog.gpu.safeMode, {
-                    fields: { code: 'GPU_SAFE_MODE_RESTART', active: true, automatic: false },
+                    fields: {
+                        code: 'GPU_SAFE_MODE_RESTART',
+                        active: true,
+                        automatic: false,
+                        reason: 'user-preference',
+                    },
                 });
                 options.prepareRelaunch();
                 options.app.relaunch();
@@ -94,13 +144,25 @@ export function createGpuRecoveryCoordinator(options: GpuRecoveryCoordinatorOpti
             },
             updateArgvConfig: (changes: ArgvConfigChanges) => options.updateArgvConfig(changes),
         },
+        /**
+         * The launch's own rendering state, recorded with its cause. `active` deliberately follows the resolved state
+         * rather than the persisted preference alone: a machine Chromium refuses to accelerate draws exactly like a
+         * user who turned acceleration off, and a boot record that only echoed the setting would leave that population
+         * invisible.
+         */
         recordBoot(): void {
+            const hardwareAccelerationEnabled = options.app.isHardwareAccelerationEnabled();
+            const mode = resolveRenderingMode({
+                hardwareAccelerationEnabled,
+                hardwareAccelerationPreferred: options.boot.argvConfig.hardwareAcceleration,
+            });
             options.logger()?.write('info', logEventCatalog.gpu.safeMode, {
                 fields: {
                     code: 'GPU_SAFE_MODE_BOOT',
-                    active: !options.boot.argvConfig.hardwareAcceleration,
+                    active: mode.softwareRendering,
                     automatic: false,
-                    hardwareAccelerationEnabled: options.app.isHardwareAccelerationEnabled(),
+                    hardwareAccelerationEnabled,
+                    reason: mode.reason,
                 },
             });
         },

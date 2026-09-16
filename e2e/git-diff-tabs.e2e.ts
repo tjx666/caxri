@@ -5,12 +5,18 @@ import { join } from 'node:path';
 import { execFileAsync } from '@caxri/system';
 
 import { expect, test } from './support/fixtures.ts';
-import { createProjectSession, launchCaxri } from './support/helpers.ts';
+import { clickGitGroupAction, createProjectSession, launchCaxri } from './support/helpers.ts';
+
+// Duplicated instead of imported: E2E runs against the packaged app and must not pull Renderer modules into the test
+// process, which is how every other spec carries Renderer copy. `git-diff-resolution.test.ts` pins the constant to this
+// exact string, so a reword breaks there first instead of only in CI.
+const resolvedDiffReason =
+    'This file no longer differs from what the diff compared. The change was committed or undone.';
 
 const trackedCommitted = 'alpha\nbeta\ngamma\ndelta\n';
 const trackedWorking = 'alpha\nbeta-changed\ngamma\ndelta\n';
 
-test('Discard All Changes closes the working diff without an error notification', async () => {
+test('Discard All Changes resolves the working diff in place without an error notification', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-discard-diff-e2e-'));
     const root = join(testDirectory, 'project');
     await execFileAsync('mkdir', ['-p', root]);
@@ -32,24 +38,33 @@ test('Discard All Changes closes the working diff without an error notification'
         const repo = page.locator('.git-repository-section');
         await repo.getByRole('treeitem', { name: 'tracked.txt', exact: true }).click();
         await expect(page.locator('.git-file-diff')).toBeVisible();
+        // The repository-wide destructive action stays out of sight until its caption row is hovered or focused, the
+        // way VS Code hides `.resource-group > .actions`. `clickGitGroupAction` reveals it either way, so without this
+        // line a regression that left the whole toolbar on screen would pass everywhere.
+        await expect(repo.locator('.git-discard-all')).toBeHidden();
         await running.app.evaluate(({ dialog }) => {
             dialog.showMessageBox = () => Promise.resolve({ response: 1, checkboxChecked: false });
         });
-        await repo.getByRole('button', { name: 'Discard All Changes', exact: true }).click();
+        await clickGitGroupAction(repo, 'Discard All Changes');
         await expect(page.locator('.git-file-diff')).toBeVisible();
         await running.app.evaluate(({ dialog }) => {
             dialog.showMessageBox = () => Promise.resolve({ response: 0, checkboxChecked: false });
         });
-        await repo.getByRole('button', { name: 'Discard All Changes', exact: true }).click();
+        await clickGitGroupAction(repo, 'Discard All Changes');
         await expect(repo.getByText('Working tree clean.', { exact: true })).toBeVisible();
+        // The tab survives its own diff being discarded. Closing it was how a background commit could make a document
+        // the user was reading vanish without a word, so the surface now says what happened and leaves the close to
+        // the user (`git-diff-resolution.ts` owns the wording).
         await expect(
             page.locator('[data-pane-tab-id]').filter({ hasText: 'tracked.txt' }),
-        ).toHaveCount(0);
+        ).toHaveCount(1);
         await expect(page.locator('.git-file-diff')).toHaveCount(0);
+        await expect(page.getByText(resolvedDiffReason, { exact: true })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Check again', exact: true })).toBeVisible();
         await expect(page.getByText('Git change no longer exists', { exact: true })).toHaveCount(0);
         await expect(page.locator('[data-sonner-toast][data-type="error"]')).toHaveCount(0);
         await page.screenshot({
-            path: test.info().outputPath('discard-closed-diff.png'),
+            path: test.info().outputPath('discard-resolved-diff.png'),
             mask: [page.locator('.xterm')],
         });
 
@@ -60,9 +75,7 @@ test('Discard All Changes closes the working diff without an error notification'
             .getByRole('button', { name: 'Discard changes in tracked.txt', exact: true })
             .click();
         await expect(repo.getByText('Working tree clean.', { exact: true })).toBeVisible();
-        await expect(
-            page.locator('[data-pane-tab-id]').filter({ hasText: 'tracked.txt' }),
-        ).toHaveCount(0);
+        await expect(page.getByText(resolvedDiffReason, { exact: true })).toBeVisible();
         await expect(page.locator('[data-sonner-toast][data-type="error"]')).toHaveCount(0);
     } finally {
         await running.app.close();
@@ -127,7 +140,7 @@ test('Diff view options control layout, unchanged regions, and whitespace across
         await expect(next).toBeEnabled();
         await expect(diff.locator('.line-insert')).not.toHaveCount(0);
         await diff.screenshot({ path: test.info().outputPath('whitespace-differences.png') });
-        await repo.getByRole('button', { name: 'Open Changes', exact: true }).click();
+        await clickGitGroupAction(repo, 'Open Changes');
         await page.getByRole('button', { name: 'Diff View Options', exact: true }).click();
         await expect(
             page.getByRole('switch', {

@@ -113,7 +113,7 @@ test('Session history navigates back and forward from the PrimarySidebar header 
         // history, which only learns about this Session once the PrimarySidebar has rendered it as the selected one.
         await expect(
             running.page.locator(
-                `.session-row[aria-selected="true"] [data-session-id="${sessionC}"]`,
+                `.session-card[aria-selected="true"][data-session-id="${sessionC}"]`,
             ),
         ).toBeVisible();
 

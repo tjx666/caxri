@@ -2,7 +2,6 @@ import { isDirectoryEntry } from '../../lib/file-entry';
 import { isPathAtOrBelow } from '../../lib/file-path';
 
 export type PathBrowserMode = 'free' | 'project';
-export type PathBrowserResultKind = 'directory' | 'projectSearch';
 
 export interface PathBrowserInputState {
     input: string;
@@ -68,34 +67,18 @@ export function filterPathEntries<T extends { name: string }>(
  * Completes only an authoritative unique result and preserves every path segment before the final filter.
  *
  * A `projectSearch` row names a file somewhere else in the Project, so completing the input with it would produce a
- * path relative to the current directory that does not exist. Those results are never completable.
+ * path relative to the current directory that does not exist. Callers pass the directory rows alone; the two lookups
+ * now arrive in one list, so "one result" has to mean one result _here_.
  */
 export function completePathQuery(
     entries: ReadonlyArray<{ kind?: string; linkKind?: string; name: string }>,
     input: string,
     isTruncated = false,
-    resultKind: PathBrowserResultKind = 'directory',
 ): string | undefined {
-    if (isTruncated || resultKind === 'projectSearch' || entries.length !== 1) return undefined;
+    if (isTruncated || entries.length !== 1) return undefined;
     const parsed = parsePathBrowserInput(input);
     const [entry] = entries;
     return `${parsed.directoryPart}${entry.name}${isDirectoryEntry(entry) ? '/' : ''}`;
-}
-
-/**
- * Keeps an exhausted scan distinct from an authoritative empty result. A truncated Project search exhausted a file
- * budget rather than one directory, so opening a narrower folder is not the advice that helps there.
- */
-export function pathBrowserEmptyMessage(
-    matchCount: number,
-    isTruncated: boolean,
-    resultKind: PathBrowserResultKind = 'directory',
-): string | undefined {
-    if (matchCount > 0) return;
-    if (!isTruncated) return 'No matching file or folder.';
-    return resultKind === 'projectSearch'
-        ? 'No match in the scanned files. Refine the name.'
-        : 'No match in the scanned items. Refine or open a narrower folder.';
 }
 
 export interface PathBrowserCreateCandidate {

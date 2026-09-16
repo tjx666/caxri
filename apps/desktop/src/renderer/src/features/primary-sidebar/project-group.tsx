@@ -1,14 +1,8 @@
 import type { DragEvent } from 'react';
 import { useState } from 'react';
 
-import type {
-    ProjectRecord,
-    PullRequestUnavailable,
-    SessionPullRequest,
-    SessionRecord,
-    TerminalRecord,
-} from '@caxri/protocol';
-import { Archive, ChevronDown, Paintbrush } from 'lucide-react';
+import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
+import { Archive, ChevronDown, ChevronRight, Paintbrush } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
 import { CommandTooltip } from '../../components/command-tooltip';
@@ -21,11 +15,13 @@ import { cn } from '../../lib/utilities';
 import { CreateSessionMenu, EmptyProjectSessionMenu } from '../session/create-session-menu';
 import { archiveSession } from '../session/session-commands';
 import type { SessionOrderController } from './hooks/use-session-order';
+import { useSessionPullRequest } from './hooks/use-session-pull-request';
 import { useSessionTitleScroll } from './hooks/use-session-title-scroll';
 import {
     primarySidebarCreateSessionRowId,
     primarySidebarRevealRowId,
 } from './primary-sidebar-tree';
+import { describeProjectSessionCount } from './project-heading';
 import { ProjectIcon } from './project-icon';
 import type { ProjectDropTarget } from './project-order';
 import { hasProjectDragType } from './project-order';
@@ -59,8 +55,6 @@ interface ActiveSessionRowProperties {
     onCommitRename: () => void;
     onRenameValueChange: (value: string) => void;
     project: ProjectRecord;
-    pullRequest?: SessionPullRequest;
-    pullRequestUnavailable?: PullRequestUnavailable;
     renameError?: string;
     renameValue: string;
     renaming: boolean;
@@ -95,8 +89,6 @@ function ActiveSessionRow({
     onCommitRename,
     onRenameValueChange,
     project,
-    pullRequest,
-    pullRequestUnavailable,
     renameError,
     renameValue,
     renaming,
@@ -108,6 +100,11 @@ function ActiveSessionRow({
     terminals,
     worktreeProject,
 }: ActiveSessionRowProperties) {
+    /**
+     * Read here rather than handed down from the sidebar root: the snapshot is refreshed on a timer, and a row that
+     * takes its own slice stays quiet through every refresh that did not touch this Session.
+     */
+    const { pullRequest, unavailable: pullRequestUnavailable } = useSessionPullRequest(session.id);
     /**
      * The HoverCard opens on a hover delay and would otherwise pop over an open context menu; closing it while the menu
      * is open keeps one popup on screen at a time.
@@ -199,13 +196,13 @@ function ActiveSessionRow({
             </span>
         </SessionRowTrigger>
     );
+    /*
+     * Layout and the drop marker only. The `treeitem` role, `aria-level`, and `aria-selected` belong to
+     * `SessionRowTrigger` inside, which is the element that owns the roving `tabIndex`: semantics on a wrapper that
+     * focus never reaches describe nothing.
+     */
     const row = (
-        <div
-            aria-level={2}
-            aria-selected={selected}
-            className="session-row group/session-row relative"
-            role="treeitem"
-        >
+        <div className="session-row group/session-row relative">
             {sessionOrder.dropTarget?.anchorSessionId === session.id && (
                 <div
                     aria-hidden="true"
@@ -291,11 +288,6 @@ interface ProjectGroupProperties {
      */
     projectSessions: readonly SessionRecord[];
     projectDropTarget?: ProjectDropTarget;
-    /**
-     * Discovered pull requests keyed by Session id; absent entries render no glyph.
-     */
-    pullRequests?: Record<string, SessionPullRequest>;
-    pullRequestUnavailable?: Record<string, PullRequestUnavailable>;
     renameError?: string;
     renameValue: string;
     renamingSessionId?: string;
@@ -340,8 +332,6 @@ export function ProjectGroup({
     project,
     projectSessions,
     projectDropTarget,
-    pullRequests,
-    pullRequestUnavailable,
     renameError,
     renameValue,
     renamingSessionId,
@@ -381,17 +371,14 @@ export function ProjectGroup({
                 </div>
             )}
             <ProjectRowMenu project={project}>
+                {/*
+                 * The Project drag source and the row's layout. Its tree semantics live on the `.project-select`
+                 * button below, which is the element that owns the roving Tab stop: `aria-level`, `aria-selected`, and
+                 * `aria-expanded` have to sit on the element focus reaches, not on the box around it.
+                 */}
                 <div
-                    aria-expanded={expanded}
-                    aria-level={1}
-                    aria-selected={active}
                     className="project-heading group/project-heading flex min-h-7 cursor-grab items-center gap-1 rounded-md text-foreground hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] active:cursor-grabbing"
                     data-project-id={project.id}
-                    role="treeitem"
-                    // Programmatically focusable only to satisfy the treeitem-with-drag-handlers
-                    // a11y contract (react-doctor/interactive-supports-focus); the roving Tab stop
-                    // stays on the inner `.project-select` button below, not on this wrapper.
-                    tabIndex={-1}
                     draggable
                     onDragOver={(event) => {
                         if (!hasProjectDragType(event.dataTransfer.types)) return;
@@ -408,21 +395,36 @@ export function ProjectGroup({
                         content={`${expanded ? 'Collapse' : 'Expand'} ${project.displayTitle}`}
                     >
                         <button
-                            className="project-disclosure grid h-7 w-6 flex-none cursor-pointer place-items-center border-0 bg-transparent p-0 text-inherit"
+                            className="project-disclosure grid h-7 w-4 flex-none cursor-pointer place-items-center border-0 bg-transparent p-0 text-muted hover:text-foreground"
                             aria-controls={projectDisclosureId}
                             aria-expanded={expanded}
                             aria-label={`${expanded ? 'Collapse' : 'Expand'} ${project.displayTitle}`}
                             tabIndex={-1}
                             onClick={onToggle}
                         >
-                            <ProjectIcon expanded={expanded} icon={project.icon} />
+                            {/*
+                             * The disclosure cue is this chevron, never the folder glyph beside it: a Project with a
+                             * custom icon keeps that icon in both states, so an open/closed icon swap tells a user who
+                             * customized their Projects nothing at all. Same twistie-then-icon order the Source
+                             * Control and extension trees already use.
+                             */}
+                            {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                         </button>
                     </Tooltip>
                     <button
-                        className="project-select flex min-h-7 min-w-0 flex-1 cursor-pointer items-center border-0 bg-transparent px-1 text-left text-inherit"
+                        className="project-select flex min-h-7 min-w-0 flex-1 cursor-pointer items-center gap-1.5 border-0 bg-transparent px-1 text-left text-inherit focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
+                        role="treeitem"
                         aria-controls={projectDisclosureId}
                         aria-expanded={expanded}
+                        aria-level={1}
+                        aria-selected={active}
                         aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+                        // The visible digit is `aria-hidden`, so the count reaches assistive technology named rather
+                        // than as a bare number trailing the title.
+                        aria-label={describeProjectSessionCount(
+                            project.displayTitle,
+                            projectSessions.length,
+                        )}
                         data-row-id={project.id}
                         tabIndex={project.id === rovingRowId ? 0 : -1}
                         onClick={onToggle}
@@ -435,9 +437,25 @@ export function ProjectGroup({
                         }}
                         title={project.rootPath}
                     >
+                        <ProjectIcon
+                            className="flex-none"
+                            expanded={expanded}
+                            icon={project.icon}
+                        />
                         <strong className="min-w-0 flex-1 overflow-hidden text-sm font-semibold text-ellipsis whitespace-nowrap">
                             {project.displayTitle}
                         </strong>
+                        {/*
+                         * The Session count stays on the heading in both states: while the Project is collapsed — which
+                         * auto-collapse can cause without the user asking — it is the only thing that says how much is
+                         * inside. Mirrors the archived-count digit in the footer.
+                         */}
+                        <span
+                            aria-hidden="true"
+                            className="project-session-count flex-none text-[11px] text-muted tabular-nums"
+                        >
+                            {projectSessions.length}
+                        </span>
                     </button>
                     <CommandTooltip commandId="project.customizeIcon">
                         <Button
@@ -493,8 +511,6 @@ export function ProjectGroup({
                                 onCommitRename={onCommitRename}
                                 onRenameValueChange={onRenameValueChange}
                                 project={project}
-                                pullRequest={pullRequests?.[session.id]}
-                                pullRequestUnavailable={pullRequestUnavailable?.[session.id]}
                                 renameError={renameError}
                                 renameValue={renameValue}
                                 renaming={session.id === renamingSessionId}
@@ -508,36 +524,29 @@ export function ProjectGroup({
                             />
                         ))}
                         {hiddenSessionCount > 0 && (
-                            <div
+                            /*
+                             * The button is the row: it holds the roving Tab stop, so it carries the tree semantics
+                             * itself instead of sitting inside a `treeitem` wrapper focus never reaches.
+                             */
+                            <button
+                                className="session-reveal flex h-7 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-muted hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
+                                role="treeitem"
+                                aria-label={`Show ${nextRevealCount} more ${nextRevealCount === 1 ? 'Session' : 'Sessions'} in ${project.displayTitle}`}
                                 aria-level={2}
                                 aria-selected={false}
-                                className="session-reveal-row"
-                                role="treeitem"
+                                data-row-id={revealRowId}
+                                tabIndex={revealRowId === rovingRowId ? 0 : -1}
+                                onClick={onRevealMoreSessions}
                             >
-                                <button
-                                    className="session-reveal flex h-7 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-muted hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
-                                    aria-label={`Show ${nextRevealCount} more ${nextRevealCount === 1 ? 'Session' : 'Sessions'} in ${project.displayTitle}`}
-                                    data-row-id={revealRowId}
-                                    tabIndex={revealRowId === rovingRowId ? 0 : -1}
-                                    onClick={onRevealMoreSessions}
-                                >
-                                    <ChevronDown size={13} /> Show {nextRevealCount} more
-                                </button>
-                            </div>
+                                <ChevronDown size={13} /> Show {nextRevealCount} more
+                            </button>
                         )}
                         {visibleSessions.length === 0 && (
-                            <div
-                                aria-level={2}
-                                aria-selected={false}
-                                className="empty-project-row"
-                                role="treeitem"
-                            >
-                                <EmptyProjectSessionMenu
-                                    project={project}
-                                    roving={createSessionRowId === rovingRowId}
-                                    rowId={createSessionRowId}
-                                />
-                            </div>
+                            <EmptyProjectSessionMenu
+                                project={project}
+                                roving={createSessionRowId === rovingRowId}
+                                rowId={createSessionRowId}
+                            />
                         )}
                     </div>
                 )}

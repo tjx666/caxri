@@ -1,7 +1,15 @@
 import type { ProcessExplorerEntry } from '@desktop-shared/process-explorer';
 import { describe, expect, it } from 'vitest';
 
-import { buildProcessTree, compareProcesses, setProcessSubtreeCollapsed } from './process-tree';
+import {
+    buildProcessTree,
+    compareProcesses,
+    flattenProcessTree,
+    nextProcessRowIndex,
+    processRowHorizontalIntent,
+    rovingProcessRowPid,
+    setProcessSubtreeCollapsed,
+} from './process-tree';
 
 /**
  * One root with four children whose CPU, memory, and name orders all disagree with the PID order, so a sort assertion
@@ -93,5 +101,122 @@ describe('compareProcesses', () => {
     it('breaks a tie by ascending PID in either direction', () => {
         expect(compareProcesses(left, right, { column: 'cpu', direction: 'ascending' })).toBe(4);
         expect(compareProcesses(left, right, { column: 'cpu', direction: 'descending' })).toBe(4);
+    });
+});
+
+/**
+ * One root with a child that has a child of its own, so a row can be a parent and a child at once — the shape Left and
+ * Right have to walk in both directions.
+ */
+const nestedProcesses: ProcessExplorerEntry[] = [
+    { pid: 1, parentPid: 0, name: 'caxri', cpuPercent: 0, memoryMb: 10 },
+    { pid: 2, parentPid: 1, name: 'server-core', cpuPercent: 0, memoryMb: 20 },
+    { pid: 3, parentPid: 2, name: 'agent', cpuPercent: 0, memoryMb: 30 },
+    { pid: 4, parentPid: 0, name: 'orphan', cpuPercent: 0, memoryMb: 5 },
+];
+
+function nestedRows(collapsed: Iterable<number> = []) {
+    return flattenProcessTree(buildProcessTree(nestedProcesses), new Set(collapsed));
+}
+
+describe('flattenProcessTree', () => {
+    it('emits the visible rows in render order with their depth and sibling position', () => {
+        const rows = nestedRows();
+
+        expect(rows.map((row) => row.node.pid)).toEqual([1, 2, 3, 4]);
+        expect(rows[0]).toMatchObject({
+            depth: 0,
+            isExpandable: true,
+            isExpanded: true,
+            parentIndex: -1,
+            positionInSet: 1,
+            setSize: 2,
+        });
+        expect(rows[2]).toMatchObject({
+            depth: 2,
+            isExpandable: false,
+            isExpanded: false,
+            parentIndex: 1,
+            positionInSet: 1,
+            setSize: 1,
+        });
+    });
+
+    it('drops the descendants of a collapsed process so focus can never land on a hidden row', () => {
+        expect(nestedRows([2]).map((row) => row.node.pid)).toEqual([1, 2, 4]);
+        expect(nestedRows([1]).map((row) => row.node.pid)).toEqual([1, 4]);
+    });
+});
+
+describe('nextProcessRowIndex', () => {
+    const rows = nestedRows();
+
+    it('moves Down and Up by one row', () => {
+        expect(nextProcessRowIndex(rows, 0, 'ArrowDown')).toBe(1);
+        expect(nextProcessRowIndex(rows, 1, 'ArrowUp')).toBe(0);
+    });
+
+    it('stops at either edge instead of wrapping', () => {
+        expect(nextProcessRowIndex(rows, 0, 'ArrowUp')).toBeUndefined();
+        expect(nextProcessRowIndex(rows, rows.length - 1, 'ArrowDown')).toBeUndefined();
+    });
+
+    it('jumps to the first or last row on Home/End', () => {
+        expect(nextProcessRowIndex(rows, 2, 'Home')).toBe(0);
+        expect(nextProcessRowIndex(rows, 1, 'End')).toBe(rows.length - 1);
+    });
+
+    it('returns undefined while the sample has no rows', () => {
+        expect(nextProcessRowIndex([], 0, 'ArrowDown')).toBeUndefined();
+    });
+});
+
+describe('processRowHorizontalIntent', () => {
+    it('expands a collapsed process on Right and then steps into its first child', () => {
+        expect(processRowHorizontalIntent(nestedRows([1]), 0, 'ArrowRight')).toEqual({
+            collapsed: false,
+        });
+        expect(processRowHorizontalIntent(nestedRows(), 0, 'ArrowRight')).toEqual({
+            focusIndex: 1,
+        });
+    });
+
+    it('does nothing on Right for a leaf process', () => {
+        const rows = nestedRows();
+        expect(processRowHorizontalIntent(rows, 2, 'ArrowRight')).toEqual({});
+        expect(processRowHorizontalIntent(rows, 3, 'ArrowRight')).toEqual({});
+    });
+
+    it('collapses an open process on Left and climbs to the parent from a child', () => {
+        const rows = nestedRows();
+        expect(processRowHorizontalIntent(rows, 1, 'ArrowLeft')).toEqual({ collapsed: true });
+        expect(processRowHorizontalIntent(rows, 2, 'ArrowLeft')).toEqual({ focusIndex: 1 });
+    });
+
+    it('does nothing on Left for a root process that is already closed', () => {
+        expect(processRowHorizontalIntent(nestedRows([1]), 0, 'ArrowLeft')).toEqual({});
+        expect(processRowHorizontalIntent(nestedRows(), 3, 'ArrowLeft')).toEqual({});
+    });
+
+    it('resolves to nothing for an index outside the list', () => {
+        expect(processRowHorizontalIntent(nestedRows(), 99, 'ArrowRight')).toEqual({});
+    });
+});
+
+describe('rovingProcessRowPid', () => {
+    const rows = nestedRows();
+
+    it('keeps the remembered process while it is still on screen', () => {
+        expect(rovingProcessRowPid(rows, 3)).toBe(3);
+    });
+
+    it('falls back to the first row once that process has exited or collapsed out of view', () => {
+        expect(rovingProcessRowPid(rows, 999)).toBe(1);
+        expect(rovingProcessRowPid(nestedRows([1]), 2)).toBe(1);
+        expect(rovingProcessRowPid(rows, undefined)).toBe(1);
+    });
+
+    it('returns undefined while the sample has no rows', () => {
+        expect(rovingProcessRowPid([], 1)).toBeUndefined();
     });
 });

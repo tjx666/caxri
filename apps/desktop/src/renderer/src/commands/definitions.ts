@@ -89,6 +89,7 @@ export const commandDefinitions: CommandDefinition[] = [
          */
         { confirm: true },
     ),
+    fromCatalog('session.rename', (context) => context.session.renameSelected()),
     fromCatalog('session.archive', (context) => context.session.archiveSelected()),
     fromCatalog('session.detach', (context) => context.session.detachSelected()),
     fromCatalog('session.resume', (context) => context.session.resumeSelected()),
@@ -117,6 +118,9 @@ export const commandDefinitions: CommandDefinition[] = [
             when: (context) => context.session.canNavigateHistory('forward'),
         },
     ),
+    fromCatalog('session.openArchived', (context) => context.session.openArchived(), {
+        allowInEditable: true,
+    }),
     fromCatalog('terminal.new', (context) => context.terminal.create(), { allowInEditable: true }),
     fromCatalog('terminal.newInSplit', (context) => context.terminal.createInSplit(), {
         allowInEditable: true,
@@ -253,6 +257,13 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('primarySidebar.toggle', (context) => context.primarySidebar.toggle(), {
         allowInEditable: true,
     }),
+    /**
+     * Reaches through a focused Terminal on purpose: xterm swallows Tab, so a Terminal is exactly the state this
+     * command exists to escape.
+     */
+    fromCatalog('primarySidebar.focus', (context) => context.primarySidebar.focus(), {
+        allowInEditable: true,
+    }),
     fromCatalog('settings.open', (context) => context.dialogs.openSettings(), {
         allowInEditable: true,
     }),
@@ -297,6 +308,16 @@ export const commandDefinitions: CommandDefinition[] = [
         allowInEditable: true,
     }),
     fromCatalog('diagnostics.export', (context) => context.diagnostics.export()),
+    fromCatalog('editor.openImportLink', (context) => context.editor.openImportLink(), {
+        allowInEditable: true,
+        when: (context) => context.editor.canOpenImportLink(),
+    }),
+    fromCatalog('workbench.selectRoot', (context) => context.workbench.selectRoot(), {
+        when: (context) => context.workbench.canSelectRoot(),
+    }),
+    fromCatalog('git.switchBranch', (context) => context.git.switchBranch(), {
+        when: (context) => context.git.canSwitchBranch(),
+    }),
 ];
 
 for (const definition of commandDefinitions) registerCommand(definition);

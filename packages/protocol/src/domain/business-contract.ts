@@ -103,6 +103,7 @@ export const inspectableSettingsSchema = appSettingsSchema.pick({
     'terminal.gpuAcceleration': true,
     'terminal.osc52ClipboardWrite': true,
     'files.maxFileBytes': true,
+    'updates.skippedVersion': true,
 });
 export const settingsPatchKeySchema = z.enum([
     'notifications.worktreeFallback',
@@ -115,6 +116,7 @@ export const settingsPatchKeySchema = z.enum([
     'terminal.gpuAcceleration',
     'terminal.osc52ClipboardWrite',
     'files.maxFileBytes',
+    'updates.skippedVersion',
 ]);
 /**
  * Patch values reuse the bounded field schemas from `appSettingsSchema` with the `.default()` stripped: a patch must
@@ -165,6 +167,16 @@ export const settingsPatchChangeSchema = z.discriminatedUnion('key', [
     z.object({
         key: z.literal('files.maxFileBytes'),
         value: appSettingsSchema.shape['files.maxFileBytes'].unwrap(),
+    }),
+    z.object({
+        key: z.literal('updates.skippedVersion'),
+        /**
+         * Reachable from the update dialog's `Skip this version` and its matching reset, which is why it takes this
+         * structured single-key path rather than rewriting `settings.jsonc`. It grants no authority — the worst an
+         * unwanted write can do is delay an update offer until the next release, and the Settings row makes that state
+         * visible and clearable.
+         */
+        value: appSettingsSchema.shape['updates.skippedVersion'].unwrap(),
     }),
 ]);
 export const settingsPatchParametersSchema = z.object({
