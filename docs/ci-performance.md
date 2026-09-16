@@ -161,7 +161,10 @@ changing workflow wiring.
 - The Playwright invocation itself writes each pool receipt. Receipts distinguish planned,
   started, finished, passed, skipped, and failed tests; their verified union supplies the manifest
   hash without a separate `playwright --list` collection. CI logs the verified union as
-  `CAXRI_E2E_MANIFEST` JSON.
+  `CAXRI_E2E_MANIFEST` JSON. A `passed` receipt alone is not a green pool: the reporter writes it
+  in `onEnd`, so the runner also requires every child to exit zero and every dispatched spec to
+  appear in the receipt, and records any breach as `abortedInvocations` or `missingSpecs` on the
+  receipt with `status: failed`.
 - Every required output is checked before every launch. Each Playwright worker performs one full
   recursive build-input scan, then reuses it until a filesystem event or mtime snapshot invalidates
   the cache; watcher failure falls back to scanning.

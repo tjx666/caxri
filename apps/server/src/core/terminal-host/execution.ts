@@ -21,6 +21,12 @@ import type {
     TerminalExecutionPort,
 } from '../../domains/terminal';
 import { canSendAgentInput, deliverAgentInput, sendAgentInput } from './agent-input';
+import {
+    attachFailureLog,
+    didRestorePublishedAttachment,
+    forgetAttachment,
+    restoreRequestedView,
+} from './attach-failure';
 import type {
     RemoteResizeQueue,
     RemoteTerminalIdentity,
@@ -29,6 +35,7 @@ import type {
     TerminalHostEvent,
 } from './execution-contract';
 import { currentIdentity, terminalScope } from './execution-scope';
+import { hotPathCompletions, settleHotPaths } from './hot-paths';
 import type { TerminalInputReceipt } from './input-queue';
 import { TerminalInputQueue } from './input-queue';
 import { buildShutdownCaptures } from './shutdown-captures';
@@ -232,30 +239,6 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         }
     }
 
-    private hotPathCompletions(terminalIds: Iterable<string>): Array<Promise<void>> {
-        const completions: Array<Promise<void>> = [];
-        for (const terminalId of terminalIds) {
-            const input = this.inputQueues.get(terminalId)?.completion;
-            const resize = this.resizeQueues.get(terminalId)?.completion;
-            if (input) completions.push(input);
-            if (resize) completions.push(resize);
-        }
-        return completions;
-    }
-
-    /**
-     * Re-samples because either hot path can replace a settled queue while the other remains active.
-     */
-    private async settleHotPaths(terminalIds: Iterable<string>): Promise<void> {
-        const ids = [...terminalIds];
-        while (true) {
-            const completions = this.hotPathCompletions(ids);
-            if (completions.length === 0) return;
-            // eslint-disable-next-line no-await-in-loop -- Attachment rotation must include those newly admitted queues.
-            await Promise.allSettled(completions);
-        }
-    }
-
     private async observeBackground(
         promise: Promise<unknown>,
         method: string,
@@ -286,20 +269,29 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
              * Terminal Host invalidates the previous attachment as soon as it accepts `terminal.attach`. Drain work
              * already admitted under that capability first so a Renderer remount cannot discard typed input or resize.
              */
-            await this.settleHotPaths([identity.record.id]);
+            await settleHotPaths(this.inputQueues, this.resizeQueues, [identity.record.id]);
         }
         // Published before the request resolves, so bytes the host emits after taking the snapshot are forwarded again.
         identity.attachmentId = view.attachmentId;
-        return (await this.supervisor.request(
-            {
-                method: 'terminal.attach',
-                params: {
-                    attachmentId: view.attachmentId,
-                    ...(view.size !== undefined && { size: view.size }),
+        try {
+            const result = (await this.supervisor.request(
+                {
+                    method: 'terminal.attach',
+                    params: {
+                        attachmentId: view.attachmentId,
+                        ...(view.size !== undefined && { size: view.size }),
+                    },
                 },
-            },
-            terminalScope(identity, 'terminal.view', view.attachmentId),
-        )) as { snapshot: TerminalSnapshot | null; wasAttached: boolean };
+                terminalScope(identity, 'terminal.view', view.attachmentId),
+            )) as { snapshot: TerminalSnapshot | null; wasAttached: boolean };
+            identity.heldAttachmentId = view.attachmentId;
+            return result;
+        } catch (error) {
+            const isRolledBack = didRestorePublishedAttachment(identity, view, error);
+            const log = attachFailureLog(identity, error, isRolledBack);
+            this.logger.write('warn', logEventCatalog.terminalHost.attachFailed, log);
+            throw error;
+        }
     }
 
     private acceptInput(
@@ -599,8 +591,15 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         this.views.set(terminalId, view);
         const identity = this.identities.get(terminalId);
         if (!identity) return { snapshot: null, wasAttached: Boolean(previous) };
-        await identity.ready;
-        return this.attachReserved(identity, view);
+        try {
+            await identity.ready;
+            return await this.attachReserved(identity, view);
+        } catch (error) {
+            // A `reserve` that replaced `identity` while this call was parked re-attached `view` itself and owns it now.
+            if (this.identities.get(terminalId) === identity)
+                restoreRequestedView(this.views, terminalId, view, previous, identity, error);
+            throw error;
+        }
     }
 
     async snapshot(terminalId: string): Promise<TerminalSnapshot | null> {
@@ -628,8 +627,8 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         const view = this.views.get(terminalId);
         this.views.delete(terminalId);
         if (!identity || !view) return;
-        const completions = this.hotPathCompletions([terminalId]);
-        delete identity.attachmentId;
+        const completions = hotPathCompletions(this.inputQueues, this.resizeQueues, [terminalId]);
+        forgetAttachment(identity);
         this.background(
             (async () => {
                 await Promise.allSettled(completions);
@@ -650,8 +649,12 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
             .toArray();
         this.views.clear();
         if (attached.length === 0) return;
-        const completions = this.hotPathCompletions(attached.map(({ record }) => record.id));
-        for (const identity of attached) delete identity.attachmentId;
+        const completions = hotPathCompletions(
+            this.inputQueues,
+            this.resizeQueues,
+            attached.map(({ record }) => record.id),
+        );
+        for (const identity of attached) forgetAttachment(identity);
         this.background(
             (async () => {
                 await Promise.allSettled(completions);
@@ -667,7 +670,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
     async restartBarrier(terminalId: string): Promise<TerminalSnapshot | null> {
         const identity = this.identities.get(terminalId);
         if (!identity?.processId) return null;
-        await this.settleHotPaths([terminalId]);
+        await settleHotPaths(this.inputQueues, this.resizeQueues, [terminalId]);
         const result = (await this.supervisor.request(
             { method: 'terminal.stop', params: { persistSnapshot: true } },
             terminalScope(identity, 'terminal.lifecycle'),
@@ -679,7 +682,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
 
     close(terminalId: string): void {
         const identity = this.identities.get(terminalId);
-        const completions = this.hotPathCompletions([terminalId]);
+        const completions = hotPathCompletions(this.inputQueues, this.resizeQueues, [terminalId]);
         this.identities.delete(terminalId);
         this.views.delete(terminalId);
         if (!identity) return;
@@ -765,7 +768,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
             .filter(({ processId }) => processId !== undefined)
             .map(({ record }) => record.id)
             .toArray();
-        await this.settleHotPaths(liveIds);
+        await settleHotPaths(this.inputQueues, this.resizeQueues, liveIds);
         const { failures, snapshots } = await this.supervisor.shutdown(liveIds.length);
         this.retireAllInputQueues('Terminal shut down before input completed');
         this.identities.clear();

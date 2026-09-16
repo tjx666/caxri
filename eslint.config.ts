@@ -348,6 +348,14 @@ export default defineConfig(
              * the shared-preset migration allows disabling.
              */
             'jsdoc/check-alignment': 'off',
+            /**
+             * The shared preset runs `check-line-alignment` in `never` mode with an empty `wrapIndent`, so a tag
+             * description that wraps must continue flush with the `*`. `prettier-plugin-jsdoc` re-wraps that same
+             * description with a two-space hanging indent, and `lint-staged` runs Prettier after `eslint --fix`, so the
+             * committed file carried a warning that only CI's `--max-warnings=0` reported. Declaring Prettier's hanging
+             * indent as the expected `wrapIndent` makes both tools converge on one layout.
+             */
+            'jsdoc/check-line-alignment': ['warn', 'never', { wrapIndent: '  ' }],
         },
     },
     {

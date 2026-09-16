@@ -18,6 +18,15 @@ export type ExternalStatusSource = 'gh' | 'git' | 'linear' | 'vc';
  */
 export type ExternalStatusQuotaSource = Exclude<ExternalStatusSource, 'git'>;
 
+/**
+ * The quota probe's GraphQL self-query. REST `/rate_limit` looks like the obvious source, but for the token class `gh`
+ * uses its `resources.graphql` entry is a constant placeholder — `used` stays 0, `remaining` stays at `limit`, and
+ * `reset` slides with the wall clock — so a reserve check built on it never fires (#917). Only the GraphQL `rateLimit`
+ * object reports the budget the GraphQL calls actually draw on, and GitHub does not bill a query whose only field is
+ * `rateLimit`.
+ */
+export const GITHUB_RATE_LIMIT_QUERY = 'query { rateLimit { limit remaining used resetAt } }';
+
 export type CliFailureKind =
     | 'not-found'
     | 'not-logged-in'
@@ -145,9 +154,13 @@ export function externalStatusCommandOperation(
     if (source === 'gh') {
         if (arguments_[0] === 'pr' && ['list', 'view'].includes(arguments_[1]))
             return `pr.${arguments_[1]}`;
-        // `gh api rate_limit` is the quota probe; its endpoint is a fixed literal, never user content.
-        return arguments_[0] === 'api' && arguments_[1] === 'rate_limit'
-            ? 'api.rate_limit'
+        // The quota probe is a fixed `rateLimit` self-query; its text is a literal, never user content.
+        return arguments_[0] === 'api' &&
+            arguments_[1] === 'graphql' &&
+            arguments_[2] === '-f' &&
+            arguments_[3] === `query=${GITHUB_RATE_LIMIT_QUERY}` &&
+            arguments_.length === 4
+            ? 'graphql.rate_limit'
             : 'unknown';
     }
     if (source === 'linear') return arguments_[0] === 'api' ? 'issue.get' : 'unknown';

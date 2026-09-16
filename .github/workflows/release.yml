@@ -89,6 +89,13 @@ jobs:
           install-dependencies: 'true'
           install-electron: 'true'
 
+      # actions/checkout's default `clean: true` already runs `git clean -ffdx`, which removes the
+      # gitignored release.noindex, so a DMG from an earlier build on this self-hosted runner should
+      # never reach the packaging step. This makes the single-DMG precondition explicit next to the
+      # code that depends on it rather than relying on that default staying in place.
+      - name: Clean previous packaging output
+        run: rm -rf release.noindex
+
       - name: Package unsigned Apple Silicon DMG
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
@@ -120,11 +127,20 @@ jobs:
       - name: Verify release artifact
         id: artifact
         run: |
-          dmg="$(find release.noindex -maxdepth 1 -type f -name '*.dmg' -print -quit)"
-          if [[ -z "$dmg" ]]; then
+          # Publication needs exactly one DMG. "First match" would silently pick a stale build.
+          dmgs=()
+          while IFS= read -r -d '' path; do dmgs+=("$path"); done \
+            < <(find release.noindex -maxdepth 1 -type f -name '*.dmg' -print0 | sort -z)
+          if [[ ${#dmgs[@]} -eq 0 ]]; then
             echo "No DMG was produced." >&2
             exit 1
           fi
+          if [[ ${#dmgs[@]} -gt 1 ]]; then
+            echo "Expected exactly one DMG in release.noindex, found ${#dmgs[@]}:" >&2
+            printf '  %s\n' "${dmgs[@]}" >&2
+            exit 1
+          fi
+          dmg="${dmgs[0]}"
 
           hdiutil verify "$dmg"
           dmg_directory="$(dirname "$dmg")"

@@ -1,3 +1,4 @@
+import { CaxriError, logEventCatalog } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { TerminalHostRequest } from '../../../terminal-host/protocol';
@@ -247,5 +248,267 @@ describe('architecture-a3b-terminal-host: RemoteTerminalExecution view attachmen
         execution.detachAllViews();
 
         expect(control.requests).toEqual([]);
+    });
+
+    /**
+     * Terminal Host keeps its previous attachment when it rejects `terminal.attach`, so every frame it emits afterwards
+     * still carries the attachment it accepted last. Core has to forward under that id again, or the Terminal stays
+     * muted until the next re-attach happens to succeed (#910, #938).
+     */
+    describe('rejected re-attach', () => {
+        async function attachedTerminal(): Promise<{
+            control: ReturnType<typeof createExecution>['control'];
+            execution: ReturnType<typeof createExecution>['execution'];
+            logger: ReturnType<typeof createExecution>['logger'];
+            output: ReturnType<typeof vi.fn>;
+            attachmentIdOf: (index: number) => string;
+            flush: (data: string, attachmentId: string) => void;
+        }> {
+            const { control, execution, logger } = createExecution();
+            const output = vi.fn();
+            execution.onEvent((event) => {
+                if (event.type === 'output') output(event.data);
+            });
+            await execution.reserve(terminal);
+            await execution.start({
+                args: [],
+                environment: {},
+                executable: '/bin/zsh',
+                initialSnapshot: null,
+                record: terminal,
+            });
+            await execution.attach(terminal.id, { cols: 120, rows: 40 });
+            const attachmentIdOf = (index: number): string => {
+                const attach = control.requests.filter(
+                    ({ request }) => request.method === 'terminal.attach',
+                )[index].request as Extract<TerminalHostRequest, { method: 'terminal.attach' }>;
+                return attach.params.attachmentId;
+            };
+            const flush = (data: string, attachmentId: string): void =>
+                control.emit({
+                    type: 'event',
+                    event: 'terminal.output',
+                    identity: {
+                        scope: 'terminal',
+                        sessionId: terminal.sessionId,
+                        terminalId: terminal.id,
+                        ptyGeneration: 1,
+                        attachmentId,
+                    },
+                    data,
+                });
+            return { control, execution, logger, output, attachmentIdOf, flush };
+        }
+
+        it('keeps forwarding live output under the attachment Terminal Host still holds', async () => {
+            const { control, execution, logger, output, attachmentIdOf, flush } =
+                await attachedTerminal();
+            const writeLog = vi.spyOn(logger, 'write');
+            flush('before', attachmentIdOf(0));
+
+            // `UNAVAILABLE` is raised before the frame reaches the host, so the host provably kept the first id.
+            const rejection = new CaxriError('UNAVAILABLE', 'Terminal Host is unavailable');
+            control.failNextAttach = rejection;
+            await expect(execution.attach(terminal.id, { cols: 100, rows: 30 })).rejects.toBe(
+                rejection,
+            );
+
+            // The host never accepted the second attachment, so its output keeps the first id.
+            flush('after', attachmentIdOf(0));
+            flush('never', attachmentIdOf(1));
+            expect(output.mock.calls.flat()).toEqual(['before', 'after']);
+            expect(execution.write(terminal.id, 'typed')).toBe(true);
+            await vi.waitFor(() => expect(control.requestCount('terminal.input')).toBe(1));
+            expect(control.requests.at(-1)?.scope).toMatchObject({
+                attachmentId: attachmentIdOf(0),
+            });
+            const attachFailed = writeLog.mock.calls.find(
+                ([, event]) => event === logEventCatalog.terminalHost.attachFailed,
+            );
+            expect(attachFailed?.[0]).toBe('warn');
+            expect(attachFailed?.[2]).toMatchObject({
+                fields: { terminalId: terminal.id, errorCode: 'UNAVAILABLE', rolledBack: true },
+                failure: { reason: 'terminal-host-exited', phase: 'attach' },
+            });
+        });
+
+        it('keeps the requested attachment when the host may already have adopted it', async () => {
+            const { control, execution, logger, output, attachmentIdOf, flush } =
+                await attachedTerminal();
+            const writeLog = vi.spyOn(logger, 'write');
+
+            // A timed-out frame is still in the channel: the host adopts the requested id once it gets to it, and
+            // only the late reply is dropped. Rolling back here would mute the frames the host emits under it.
+            control.failNextAttach = new CaxriError('TIMEOUT', 'Terminal Host request timed out');
+            await expect(execution.attach(terminal.id)).rejects.toMatchObject({ code: 'TIMEOUT' });
+
+            flush('stale', attachmentIdOf(0));
+            flush('adopted', attachmentIdOf(1));
+            expect(output.mock.calls.flat()).toEqual(['adopted']);
+            expect(execution.write(terminal.id, 'typed')).toBe(true);
+            await vi.waitFor(() => expect(control.requestCount('terminal.input')).toBe(1));
+            expect(control.requests.at(-1)?.scope).toMatchObject({
+                attachmentId: attachmentIdOf(1),
+            });
+            const attachFailed = writeLog.mock.calls.find(
+                ([, event]) => event === logEventCatalog.terminalHost.attachFailed,
+            );
+            expect(attachFailed?.[2]).toMatchObject({
+                fields: { errorCode: 'TIMEOUT', rolledBack: false, hadAttachment: true },
+                failure: { reason: 'timeout' },
+            });
+        });
+
+        it('classifies the host refusing a stale scope instead of logging it as unknown', async () => {
+            const { control, execution, logger, output, attachmentIdOf, flush } =
+                await attachedTerminal();
+            const writeLog = vi.spyOn(logger, 'write');
+
+            // The host's authorization refusal is a plain Error with a code outside the protocol's `errorCodes`,
+            // exactly what `replyError` in the supervisor produces; it runs before dispatch touches the attachment.
+            control.failNextAttach = Object.assign(
+                new Error('Terminal Host request was not authorized'),
+                {
+                    code: 'CAPABILITY_DENIED',
+                },
+            );
+            await expect(execution.attach(terminal.id)).rejects.toMatchObject({
+                code: 'CAPABILITY_DENIED',
+            });
+
+            flush('kept', attachmentIdOf(0));
+            flush('refused', attachmentIdOf(1));
+            expect(output.mock.calls.flat()).toEqual(['kept']);
+            const attachFailed = writeLog.mock.calls.find(
+                ([, event]) => event === logEventCatalog.terminalHost.attachFailed,
+            );
+            expect(attachFailed?.[2]).toMatchObject({
+                fields: { errorCode: 'CAPABILITY_DENIED', rolledBack: true },
+                failure: { code: 'CAPABILITY_DENIED', reason: 'generation-superseded' },
+            });
+        });
+
+        it('lets the next re-attach succeed and rotate the forwarded attachment', async () => {
+            const { control, execution, output, attachmentIdOf, flush } = await attachedTerminal();
+            control.failNextAttach = new CaxriError('UNAVAILABLE', 'Terminal Host is unavailable');
+            await expect(execution.attach(terminal.id)).rejects.toMatchObject({
+                code: 'UNAVAILABLE',
+            });
+
+            control.attachSnapshot = snapshot;
+            await expect(execution.attach(terminal.id)).resolves.toMatchObject({ snapshot });
+
+            flush('stale', attachmentIdOf(0));
+            flush('current', attachmentIdOf(2));
+            expect(output.mock.calls.flat()).toEqual(['current']);
+        });
+
+        it('does not roll back over a newer re-attach that overlapped the rejected one', async () => {
+            const { control, execution, output, attachmentIdOf, flush } = await attachedTerminal();
+            control.holdAttachRequests = true;
+            const first = execution.attach(terminal.id);
+            await vi.waitFor(() => expect(control.requestCount('terminal.attach')).toBe(2));
+            const second = execution.attach(terminal.id);
+            await vi.waitFor(() => expect(control.requestCount('terminal.attach')).toBe(3));
+
+            control.releaseAttach(new CaxriError('TIMEOUT', 'Terminal Host request timed out'));
+            await expect(first).rejects.toMatchObject({ code: 'TIMEOUT' });
+            control.releaseAttach();
+            await expect(second).resolves.toMatchObject({ snapshot: null });
+
+            flush('original', attachmentIdOf(0));
+            flush('rejected', attachmentIdOf(1));
+            flush('newest', attachmentIdOf(2));
+            expect(output.mock.calls.flat()).toEqual(['newest']);
+        });
+
+        it('falls back to the attachment the host confirmed when two overlapping attaches are both refused', async () => {
+            const { control, execution, output, attachmentIdOf, flush } = await attachedTerminal();
+            control.holdAttachRequests = true;
+            const first = execution.attach(terminal.id);
+            await vi.waitFor(() => expect(control.requestCount('terminal.attach')).toBe(2));
+            const second = execution.attach(terminal.id);
+            await vi.waitFor(() => expect(control.requestCount('terminal.attach')).toBe(3));
+
+            // Neither view reached the host, so the host still holds the first attachment, not the first rejected one.
+            control.releaseAttach(new CaxriError('UNAVAILABLE', 'Terminal Host is unavailable'));
+            await expect(first).rejects.toMatchObject({ code: 'UNAVAILABLE' });
+            control.releaseAttach(new CaxriError('UNAVAILABLE', 'Terminal Host is unavailable'));
+            await expect(second).rejects.toMatchObject({ code: 'UNAVAILABLE' });
+
+            flush('held', attachmentIdOf(0));
+            flush('first', attachmentIdOf(1));
+            flush('second', attachmentIdOf(2));
+            expect(output.mock.calls.flat()).toEqual(['held']);
+            expect(execution.write(terminal.id, 'typed')).toBe(true);
+            await vi.waitFor(() => expect(control.requestCount('terminal.input')).toBe(1));
+            expect(control.requests.at(-1)?.scope).toMatchObject({
+                attachmentId: attachmentIdOf(0),
+            });
+        });
+
+        it('leaves a view alone when a reserve replaced the identity that asked for it', async () => {
+            const { control, execution, output, attachmentIdOf } = await attachedTerminal();
+            control.holdAttachRequests = true;
+            const stale = execution.attach(terminal.id);
+            await vi.waitFor(() => expect(control.requestCount('terminal.attach')).toBe(2));
+
+            // A restart reserves a new generation, whose own re-attach of the same view is the one the host confirms.
+            const reserved = execution.reserve(terminal);
+            await vi.waitFor(() => expect(control.requestCount('terminal.attach')).toBe(3));
+            control.releaseAttach(
+                Object.assign(new Error('Terminal Host request was not authorized'), {
+                    code: 'CAPABILITY_DENIED',
+                }),
+            );
+            await expect(stale).rejects.toMatchObject({ code: 'CAPABILITY_DENIED' });
+            control.releaseAttach();
+            await reserved;
+
+            /**
+             * The host now emits under the reserved generation, and the view it confirmed is still the gate.
+             */
+            const emit = (data: string, attachmentId: string): void =>
+                control.emit({
+                    type: 'event',
+                    event: 'terminal.output',
+                    identity: {
+                        scope: 'terminal',
+                        sessionId: terminal.sessionId,
+                        terminalId: terminal.id,
+                        ptyGeneration: 2,
+                        attachmentId,
+                    },
+                    data,
+                });
+            emit('original', attachmentIdOf(0));
+            emit('current', attachmentIdOf(1));
+            expect(output.mock.calls.flat()).toEqual(['current']);
+            execution.detachView(terminal.id);
+            await vi.waitFor(() => expect(control.requestCount('terminal.detach')).toBe(1));
+        });
+
+        it('rolls a never-attached view back to nothing instead of a phantom attachment', async () => {
+            const { control, execution } = createExecution();
+            await execution.reserve(terminal);
+            await execution.start({
+                args: [],
+                environment: {},
+                executable: '/bin/zsh',
+                initialSnapshot: null,
+                record: terminal,
+            });
+            control.failNextAttach = new CaxriError(
+                'CAPACITY',
+                'Terminal Host request capacity exceeded',
+            );
+            await expect(execution.attach(terminal.id)).rejects.toMatchObject({ code: 'CAPACITY' });
+
+            // Nothing is attached, so resize and input have no view or attachment to bind to.
+            expect(execution.resize(terminal.id, 80, 24)).toBe(false);
+            expect(execution.write(terminal.id, 'typed')).toBe(false);
+            execution.detachView(terminal.id);
+            expect(control.requestCount('terminal.detach')).toBe(0);
+        });
     });
 });

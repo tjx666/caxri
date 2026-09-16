@@ -73,8 +73,8 @@ for (const state of ['merged', 'open'] as const) {
         /**
          * Branch discovery (`gh pr list`) only wants identity; the shared record read (`gh pr view`) wants the full
          * field union. One script answers both so the sidebar glyph, hover card, and command surfaces all see the same
-         * PR. The quota probe (`gh api rate_limit`) gets a realistic budget, or the Server's GitHub circuit opens and
-         * skips every guarded `gh` call, the branch discovery included.
+         * PR. The quota probe (the `gh api graphql` rateLimit self-query) gets a realistic budget, or the Server's
+         * GitHub circuit opens and skips every guarded `gh` call, the branch discovery included.
          */
         const view = JSON.stringify({
             number: 42,
@@ -103,7 +103,7 @@ for (const state of ['merged', 'open'] as const) {
             join(bin, 'gh'),
             `#!/bin/sh
 case " $* " in
-  *" api rate_limit "*) printf '%s' '{"resources":{"graphql":{"limit":5000,"remaining":5000,"reset":4102444800}}}' ;;
+  *" api graphql -f "*) printf '%s' '{"data":{"rateLimit":{"limit":5000,"remaining":5000,"used":0,"resetAt":"2100-01-01T00:00:00Z"}}}' ;;
   *" pr list "*) printf '%s' '[{"number":42,"state":"${state.toUpperCase()}","isDraft":false}]' ;;
   *) printf '%s' '${view}' ;;
 esac
@@ -275,7 +275,7 @@ test('Session status takes the right-edge slot before its pull request glyph', a
         join(bin, 'gh'),
         `#!/bin/sh
 case " $* " in
-  *" api rate_limit "*) printf '%s' '{"resources":{"graphql":{"limit":5000,"remaining":5000,"reset":4102444800}}}' ;;
+  *" api graphql -f "*) printf '%s' '{"data":{"rateLimit":{"limit":5000,"remaining":5000,"used":0,"resetAt":"2100-01-01T00:00:00Z"}}}' ;;
   *" pr list "*) printf '%s' '[{"number":42,"state":"OPEN","isDraft":false}]' ;;
   *) printf '%s' '${view}' ;;
 esac

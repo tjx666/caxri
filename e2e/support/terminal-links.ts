@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect } from '@playwright/test';
+import { errors, expect } from '@playwright/test';
 
 export async function terminalTextBounds(page: Page, text: string) {
     return page.locator('.xterm-rows').evaluate((rows, target) => {
@@ -118,18 +118,54 @@ export async function hoverTerminalLink(
     return bounds;
 }
 
+/**
+ * How long one Cmd press may go without producing the pointer cursor before the helper presses again. Caxri applies an
+ * observed modifier synchronously, so a press that is going to work shows the cursor within a frame or two.
+ */
+const MODIFIER_REARM_MS = 1000;
+
+/**
+ * Opens a link the way a person does: hover until the hint proves xterm resolved the link, hold Cmd until the pointer
+ * cursor proves Caxri observed the modifier, then click.
+ *
+ * Caxri arms its modifier tracking from xterm's hover callback, so a `Meta` press that lands before xterm has a link
+ * under the pointer has nothing to arm. Once armed, the modifier is tracked from document `keydown`/`keyup`, and a
+ * window `blur` deliberately drops it because the matching `keyup` will never arrive. Under a parallel run another
+ * worker's Electron window can take focus between `keyboard.down('Meta')` and the cursor check; after that nothing
+ * re-arms the modifier and the pointer cursor never appears (github.com/tjx666/caxri/issues/697). A person notices and
+ * presses Cmd again, and so does this helper: a press that has not produced the cursor within one re-arm interval is
+ * released, the hover is re-confirmed, and Cmd is pressed again, inside the same overall budget a plain assertion had.
+ * The click itself still requires the pointer cursor, so a modifier Caxri never observed remains a failure.
+ */
 export async function clickTerminalLink(page: Page, text: string): Promise<void> {
-    /**
-     * Caxri arms its modifier tracking from xterm's hover callback, so a `Meta` press that lands before xterm has a
-     * link under the pointer has nothing to arm: the pointer cursor never appears and the assertion below times out.
-     */
-    const bounds = await hoverTerminalLink(page, text, { expectHint: true });
-    const x = bounds.x + bounds.width / 2;
-    const y = bounds.y + bounds.height / 2;
+    let bounds = await hoverTerminalLink(page, text, { expectHint: true });
+    const pointer = page.locator('.xterm-cursor-pointer');
     await page.keyboard.down('Meta');
     try {
-        await expect(page.locator('.xterm-cursor-pointer')).toBeVisible();
-        await page.mouse.click(x, y);
+        await expect
+            .poll(
+                async () => {
+                    try {
+                        await pointer.waitFor({ state: 'visible', timeout: MODIFIER_REARM_MS });
+                        return true;
+                    } catch (error) {
+                        // Only "not visible yet" is a re-arm cue; a closed page or a strict-mode violation
+                        // must surface as the first causal failure instead of burning the budget.
+                        if (!(error instanceof errors.TimeoutError)) throw error;
+                        await page.keyboard.up('Meta');
+                        bounds = await hoverTerminalLink(page, text, { expectHint: true });
+                        await page.keyboard.down('Meta');
+                        return false;
+                    }
+                },
+                {
+                    intervals: [100],
+                    message: `Cmd never produced the pointer cursor over "${text}" after re-arming`,
+                    timeout: 15_000,
+                },
+            )
+            .toBe(true);
+        await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
     } finally {
         await page.keyboard.up('Meta');
     }

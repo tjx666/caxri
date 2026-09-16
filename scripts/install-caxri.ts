@@ -8,7 +8,7 @@
  * the requested release (latest by default), verifies the SHA-256 checksum, mounts the DMG, replaces
  * /Applications/Caxri.app, and defensively strips any quarantine attribute afterwards.
  *
- * Usage: `bun run install:caxri [-- --tag v0.0.7]`
+ * Usage: `bun run install:caxri [-- --tag v0.0.7 --skip-checksum]`
  */
 
 import { mkdtemp, readdir, rm } from 'node:fs/promises';
@@ -24,8 +24,15 @@ const INSTALL_PATH = '/Applications/Caxri.app';
 const BUNDLED_CLI_PATH = join(INSTALL_PATH, 'Contents', 'Resources', 'bin', 'caxri');
 
 interface InstallOptions {
+    /**
+     * Installs a DMG whose Release carries no `.sha256` companion. Off by default: the checksum is the only integrity
+     * check on this unsigned distribution path, so its absence aborts the install instead of being skipped silently.
+     */
+    skipChecksum?: boolean;
     tag?: string;
 }
+
+const USAGE = 'Usage: install-caxri [--tag vX.Y.Z] [--skip-checksum]';
 
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/install-caxri.test.ts
 export function parseArguments(argv: string[]): InstallOptions {
@@ -38,7 +45,11 @@ export function parseArguments(argv: string[]): InstallOptions {
             index += 1;
             continue;
         }
-        throw new Error(`Unknown argument: ${argument}. Usage: install-caxri [--tag vX.Y.Z]`);
+        if (argument === '--skip-checksum') {
+            options.skipChecksum = true;
+            continue;
+        }
+        throw new Error(`Unknown argument: ${argument}. ${USAGE}`);
     }
     return options;
 }
@@ -52,6 +63,31 @@ export function findDmgPair(names: string[]): { checksum?: string; dmg: string }
     if (!dmg) return undefined;
     const checksum = names.find((name) => name === `${dmg}.sha256`);
     return { checksum, dmg };
+}
+
+type ChecksumStep = { checksum: string; kind: 'verify' } | { kind: 'skip'; warning: string };
+
+/**
+ * Decides what happens between download and mount. A Release without its `.sha256` used to fall through to `hdiutil
+ * attach` with no message at all, so an upload that failed halfway, a deleted asset, or a swapped DMG installed like a
+ * verified one. Missing evidence now stops the install unless the user explicitly opted out.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/install-caxri.test.ts
+export function resolveChecksumStep(
+    pair: { checksum?: string; dmg: string },
+    options: Pick<InstallOptions, 'skipChecksum' | 'tag'>,
+): ChecksumStep {
+    if (pair.checksum) return { checksum: pair.checksum, kind: 'verify' };
+    const release = options.tag ?? 'the latest release';
+    if (options.skipChecksum) {
+        return {
+            kind: 'skip',
+            warning: `WARNING: ${release} provides no ${pair.dmg}.sha256; installing ${pair.dmg} without verifying its integrity because --skip-checksum was given.`,
+        };
+    }
+    throw new Error(
+        `${release} provides no ${pair.dmg}.sha256, so the downloaded DMG cannot be verified; installation aborted. Re-run with --skip-checksum to install it anyway.`,
+    );
 }
 
 const BUNDLE_CONTENTS_PREFIX = `${INSTALL_PATH}/Contents/`;
@@ -288,11 +324,14 @@ async function main(): Promise<void> {
 
         const pair = findDmgPair(await readdir(downloadDirectory));
         if (!pair) throw new Error('The release download produced no DMG.');
-        if (pair.checksum) {
-            await execFileAsync('shasum', ['-a', '256', '-c', pair.checksum], {
+        const checksumStep = resolveChecksumStep(pair, options);
+        if (checksumStep.kind === 'verify') {
+            await execFileAsync('shasum', ['-a', '256', '-c', checksumStep.checksum], {
                 cwd: downloadDirectory,
             });
             console.log('Checksum verified.');
+        } else {
+            console.warn(checksumStep.warning);
         }
 
         const { stdout: attachOut } = await execFileAsync('hdiutil', [

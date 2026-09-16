@@ -136,6 +136,10 @@ function viewJson(
             type: 'dom_snapshot' | 'gif' | 'markdown' | 'screenshot' | 'text' | 'video';
         }>;
         headSha?: string;
+        /**
+         * Older shape: `checks[].id` is the stable id and `planItem` is absent.
+         */
+        legacyCheckShape?: boolean;
         roundIndex?: number;
         surface?: 'desktop' | 'mobile';
         verdict?: 'failed' | 'passed' | 'uncertain';
@@ -147,12 +151,15 @@ function viewJson(
     const verifyRunId = input.verifyRunId ?? `run-${roundIndex}`;
     return JSON.stringify({
         acceptance: { id: acceptanceId },
-        checks: (input.checkIds ?? ['acceptance-round-lineage']).map((id) => ({
+        // LobeHub compatibility fixture exercises the supported response shapes.
+        checks: (input.checkIds ?? ['acceptance-round-lineage']).map((id, index) => ({
             evidence: input.evidence ?? [
                 { content: 'Remote evidence receipt', fileId: null, fileUrl: null, type: 'text' },
             ],
-            id,
-            planItem: { verifierConfig: { surface: input.surface ?? 'desktop' } },
+            id: input.legacyCheckShape ? id : `server-uuid-${index}`,
+            ...(!input.legacyCheckShape && {
+                planItem: { id, verifierConfig: { surface: input.surface ?? 'desktop' } },
+            }),
             resultRound: roundIndex,
             surface: input.surface ?? 'desktop',
         })),
@@ -179,46 +186,49 @@ describe('Go Acceptance round publication', () => {
         await rm(TEST_ROOT, { force: true, recursive: true });
     });
 
-    it('creates round one, reads it back, and freezes the stable lineage', async () => {
-        const state = publicationState('publish-one');
-        const directory = await writeRound(1, 'head-1');
-        const runner = vi
-            .fn()
-            .mockResolvedValueOnce(runListJson())
-            .mockResolvedValueOnce(ingestJson(1))
-            .mockResolvedValueOnce(viewJson());
+    it.each([false, true])(
+        'creates round one and freezes the lineage (legacy=%s)',
+        async (legacy) => {
+            const state = publicationState('publish-one');
+            const directory = await writeRound(1, 'head-1');
+            const runner = vi
+                .fn()
+                .mockResolvedValueOnce(runListJson())
+                .mockResolvedValueOnce(ingestJson(1))
+                .mockResolvedValueOnce(viewJson({ legacyCheckShape: legacy }));
 
-        await expect(
-            publishAcceptanceRound(
-                state,
-                { headSha: 'head-1', reportDirectory: directory },
-                runner,
-            ),
-        ).resolves.toMatchObject({
-            acceptanceId: 'acc-1',
-            headSha: 'head-1',
-            roundIndex: 1,
-            verifyRunId: 'run-1',
-        });
+            await expect(
+                publishAcceptanceRound(
+                    state,
+                    { headSha: 'head-1', reportDirectory: directory },
+                    runner,
+                ),
+            ).resolves.toMatchObject({
+                acceptanceId: 'acc-1',
+                headSha: 'head-1',
+                roundIndex: 1,
+                verifyRunId: 'run-1',
+            });
 
-        expect(runner.mock.calls[1][1]).toEqual(
-            expect.arrayContaining(['--requirement', report('head-1').requirement]),
-        );
-        expect(runner.mock.calls[1][1]).not.toContain('--acceptance');
-        expect(runner.mock.calls[1][2]).toBe(10 * 60_000);
-        expect(state.acceptance).toMatchObject({
-            id: 'acc-1',
-            round: 1,
-            status: 'pending',
-            url: 'https://app.lobehub.com/acceptance/acc-1',
-        });
-        expect(state.acceptance.publication.history).toHaveLength(1);
-        expect(createResumeCheckpoint(state).acceptance.publication.history[0]).toMatchObject({
-            acceptanceId: 'acc-1',
-            roundIndex: 1,
-            verifyRunId: 'run-1',
-        });
-    });
+            expect(runner.mock.calls[1][1]).toEqual(
+                expect.arrayContaining(['--requirement', report('head-1').requirement]),
+            );
+            expect(runner.mock.calls[1][1]).not.toContain('--acceptance');
+            expect(runner.mock.calls[1][2]).toBe(10 * 60_000);
+            expect(state.acceptance).toMatchObject({
+                id: 'acc-1',
+                round: 1,
+                status: 'pending',
+                url: 'https://app.lobehub.com/acceptance/acc-1',
+            });
+            expect(state.acceptance.publication.history).toHaveLength(1);
+            expect(createResumeCheckpoint(state).acceptance.publication.history[0]).toMatchObject({
+                acceptanceId: 'acc-1',
+                roundIndex: 1,
+                verifyRunId: 'run-1',
+            });
+        },
+    );
 
     it('rejects a remote round that dropped required visual evidence', async () => {
         const state = publicationState('missing-visual-evidence');

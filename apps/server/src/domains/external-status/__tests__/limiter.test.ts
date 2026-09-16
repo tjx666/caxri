@@ -4,7 +4,8 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { ExternalStatusCliError } from '../command';
+import { ExternalStatusCliError, GITHUB_RATE_LIMIT_QUERY } from '../command';
+import { ExternalStatusHub } from '../hub';
 import type { GitHubQuota } from '../limiter';
 import { ExternalStatusLimiter, parseGitHubRateLimit } from '../limiter';
 
@@ -225,20 +226,78 @@ describe('ExternalStatusLimiter', () => {
 });
 
 describe('parseGitHubRateLimit', () => {
-    it('reads the GraphQL budget and converts its epoch-second reset', () => {
+    it('reads the GraphQL budget from the rateLimit self-query and converts its ISO reset', () => {
+        expect(
+            parseGitHubRateLimit(
+                JSON.stringify({
+                    data: {
+                        rateLimit: {
+                            limit: 5_000,
+                            remaining: 3_931,
+                            resetAt: '2026-09-14T11:28:03Z',
+                            used: 1_069,
+                        },
+                    },
+                }),
+            ),
+        ).toEqual({ remaining: 3_931, resetAt: Date.parse('2026-09-14T11:28:03Z') });
+    });
+
+    it('reports nothing for malformed output, a missing rateLimit, or an unparsable reset', () => {
+        expect(parseGitHubRateLimit('not json')).toBeUndefined();
+        expect(parseGitHubRateLimit(JSON.stringify({ data: {} }))).toBeUndefined();
+        expect(parseGitHubRateLimit(JSON.stringify({ data: { rateLimit: null } }))).toBeUndefined();
+        expect(
+            parseGitHubRateLimit(
+                JSON.stringify({ data: { rateLimit: { remaining: 10, resetAt: 'soon' } } }),
+            ),
+        ).toBeUndefined();
+    });
+
+    it('rejects the REST /rate_limit shape instead of reading its placeholder budget', () => {
+        // The regression (#917): the REST bucket reports `remaining === limit` forever for this token class, so a probe
+        // that parsed it could never trip the reserve. Refusing the shape makes an accidental revert visible.
         expect(
             parseGitHubRateLimit(
                 JSON.stringify({
                     resources: {
-                        graphql: { limit: 5_000, remaining: 4_231, reset: 1_700_000_000 },
+                        graphql: { limit: 5_000, remaining: 5_000, reset: 1_700_000_000, used: 0 },
                     },
                 }),
             ),
-        ).toEqual({ remaining: 4_231, resetAt: 1_700_000_000_000 });
+        ).toBeUndefined();
     });
+});
 
-    it('reports nothing for output without a GraphQL resource', () => {
-        expect(parseGitHubRateLimit('not json')).toBeUndefined();
-        expect(parseGitHubRateLimit(JSON.stringify({ resources: { core: {} } }))).toBeUndefined();
+describe('ExternalStatusHub quota probe', () => {
+    it('sends only the unbilled rateLimit self-query and pauses on the reset it reports', async () => {
+        const resetAt = '2026-09-14T11:28:03Z';
+        // Ten minutes before the window rolls over, so the reserve pause is the reset itself rather than the hour cap.
+        const now = Date.parse(resetAt) - 600_000;
+        const runner = vi.fn((source: string, arguments_: readonly string[]) => {
+            if (source === 'gh' && arguments_[1] === 'graphql') {
+                return Promise.resolve(
+                    JSON.stringify({ data: { rateLimit: { remaining: 40, resetAt } } }),
+                );
+            }
+            return Promise.resolve('[]');
+        });
+        const hub = new ExternalStatusHub({
+            now: () => now,
+            pausePath: await pausePath(),
+            runner,
+        });
+
+        await expect(hub.run('gh', ['pr', 'list'], '/fixture')).rejects.toMatchObject({
+            kind: 'rate-limited',
+            retryAt: Date.parse(resetAt),
+        });
+        expect(runner).toHaveBeenCalledOnce();
+        expect(runner.mock.calls[0]?.[1]).toEqual([
+            'api',
+            'graphql',
+            '-f',
+            `query=${GITHUB_RATE_LIMIT_QUERY}`,
+        ]);
     });
 });
