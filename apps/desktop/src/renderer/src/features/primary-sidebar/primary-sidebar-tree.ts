@@ -20,9 +20,34 @@ export interface PrimarySidebarTreeRow {
     id: string;
     kind: 'project' | 'session' | 'reveal' | 'createSession';
     /**
-     * The owning Project id; equals `id` itself for a Project row.
+     * The owning group's heading row id; equals `id` itself for a Project row, and `PINNED_GROUP_ROW_ID` for everything
+     * inside the Pinned group. Named for the Project because that is what it is everywhere except that one group.
      */
     projectId: string;
+    /**
+     * The Session this row acts on, for `kind: 'session'` only. Distinct from `id` because a pinned Session is listed
+     * twice and its Pinned-group row therefore carries a namespaced row id; every action still has to reach the one
+     * Session behind both rows.
+     */
+    sessionId?: string;
+}
+
+/**
+ * Heading row of the Pinned group. A constant rather than a Project id because the group is global — it collects
+ * Sessions from every Project — so no Project owns it.
+ */
+export const PINNED_GROUP_ROW_ID = 'pinned-sessions';
+
+const PINNED_SESSION_ROW_PREFIX = 'pinned-session:';
+
+/**
+ * Row id of a Session's row inside the Pinned group. Namespaced for the same reason the reveal and "New Session" rows
+ * are: the tree addresses rows by id, and a pinned Session is on screen twice — once here and once under its own
+ * Project. Two rows answering to one id would give roving focus and `focusRow`'s `[data-row-id]` lookup two elements to
+ * choose between, and the first one in the document would always win.
+ */
+export function primarySidebarPinnedRowId(sessionId: string): string {
+    return `${PINNED_SESSION_ROW_PREFIX}${sessionId}`;
 }
 
 /**
@@ -32,24 +57,36 @@ export function primarySidebarRevealRowId(projectId: string): string {
     return `reveal-sessions:${projectId}`;
 }
 
-const CREATE_SESSION_ROW_PREFIX = 'create-session:';
-
 /**
  * Row id of the "New Session" row a Project with no Sessions shows in place of its Session list. Namespaced like the
  * reveal row so it can never collide with a Session id.
  */
 export function primarySidebarCreateSessionRowId(projectId: string): string {
-    return `${CREATE_SESSION_ROW_PREFIX}${projectId}`;
+    return `create-session:${projectId}`;
 }
 
-export function isPrimarySidebarCreateSessionRowId(rowId: string | undefined): boolean {
-    return rowId?.startsWith(CREATE_SESSION_ROW_PREFIX) ?? false;
+export interface PrimarySidebarPinnedNode {
+    expanded: boolean;
+    /**
+     * True when the group's window hides at least one pinned Session, which is what puts its reveal row on screen.
+     */
+    hasHiddenSessions?: boolean;
+    /**
+     * The pinned Sessions the window actually renders, in group order. An empty list renders no group at all, heading
+     * included.
+     */
+    sessionIds: readonly string[];
 }
 
 /**
- * Flattens the PrimarySidebar into the exact row order arrow-key navigation should walk: each Project heading, followed
- * by its visible Sessions and its reveal row while that Project is expanded. Matches `DisclosureMotion`'s collapsed
- * state and the Session window exactly so focus never lands on a hidden row.
+ * Flattens the PrimarySidebar into the exact row order arrow-key navigation should walk: the Pinned group when it has
+ * anything in it, then each Project heading followed by its visible Sessions and its reveal row while that Project is
+ * expanded. Matches `DisclosureMotion`'s collapsed state and the Session window exactly so focus never lands on a
+ * hidden row.
+ *
+ * The Pinned heading is emitted as a `'project'` row because it behaves as one for every key the tree handles — Left
+ * collapses it, Right opens it and steps inside — and `PINNED_GROUP_ROW_ID` stands in for the Project id it has no
+ * owner for.
  *
  * An expanded Project with no visible Sessions renders the "New Session" row in place of that list, so it takes the
  * Session rows' place here too. The condition is read straight off `sessionIds` rather than a separate emptiness flag:
@@ -59,13 +96,36 @@ export function isPrimarySidebarCreateSessionRowId(rowId: string | undefined): b
 export function flattenPrimarySidebarRows(
     projects: readonly PrimarySidebarProjectNode[],
     isExpanded: (projectId: string) => boolean,
+    pinned?: PrimarySidebarPinnedNode,
 ): PrimarySidebarTreeRow[] {
     const rows: PrimarySidebarTreeRow[] = [];
+    if (pinned && pinned.sessionIds.length > 0) {
+        rows.push({
+            id: PINNED_GROUP_ROW_ID,
+            kind: 'project',
+            projectId: PINNED_GROUP_ROW_ID,
+        });
+        if (pinned.expanded) {
+            for (const sessionId of pinned.sessionIds)
+                rows.push({
+                    id: primarySidebarPinnedRowId(sessionId),
+                    kind: 'session',
+                    projectId: PINNED_GROUP_ROW_ID,
+                    sessionId,
+                });
+            if (pinned.hasHiddenSessions)
+                rows.push({
+                    id: primarySidebarRevealRowId(PINNED_GROUP_ROW_ID),
+                    kind: 'reveal',
+                    projectId: PINNED_GROUP_ROW_ID,
+                });
+        }
+    }
     for (const project of projects) {
         rows.push({ id: project.id, kind: 'project', projectId: project.id });
         if (!isExpanded(project.id)) continue;
         for (const sessionId of project.sessionIds)
-            rows.push({ id: sessionId, kind: 'session', projectId: project.id });
+            rows.push({ id: sessionId, kind: 'session', projectId: project.id, sessionId });
         if (project.hasHiddenSessions)
             rows.push({
                 id: primarySidebarRevealRowId(project.id),
@@ -168,6 +228,13 @@ export function rovingPrimarySidebarRowId(
     if (focusedRowId && rows.some((row) => row.id === focusedRowId)) return focusedRowId;
     if (selectedSessionId && rows.some((row) => row.id === selectedSessionId))
         return selectedSessionId;
+    /**
+     * A pinned Session whose own Project group is collapsed still has a row on screen, in the Pinned group. Reaching
+     * for it before falling back to the Project heading keeps the Tab stop on the selected Session whenever any row for
+     * it exists.
+     */
+    const pinnedRowId = selectedSessionId && primarySidebarPinnedRowId(selectedSessionId);
+    if (pinnedRowId && rows.some((row) => row.id === pinnedRowId)) return pinnedRowId;
     if (selectedProjectId && rows.some((row) => row.id === selectedProjectId))
         return selectedProjectId;
     return rows[0]?.id;

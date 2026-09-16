@@ -7,6 +7,7 @@ import type {
     SessionRecord,
     TerminalRecord,
 } from '@caxri/protocol';
+import { isPinnedSession } from '@caxri/protocol';
 
 import {
     ContextMenu,
@@ -27,6 +28,7 @@ import {
     openProjectInExternalEditor,
     openSessionPullRequest,
     resumeSession,
+    setSessionPinned,
 } from '../session/session-commands';
 
 /**
@@ -62,6 +64,7 @@ export function SessionRowMenu({
     const renameShortcut = useCommandShortcut('session.rename');
     const openInEditorShortcut = useCommandShortcut('project.openInEditor');
     const openPullRequestShortcut = useCommandShortcut('session.openPullRequest');
+    const pinned = isPinnedSession(session);
     const detached = hasDetachedAgentTerminal(session.id, terminals);
     const canDetach = hasLiveAgentTerminal(session.id, terminals);
     const primaryTerminal = terminals.find(
@@ -113,6 +116,13 @@ export function SessionRowMenu({
                  */}
                 <ContextMenuItem hint={renameShortcut} onClick={() => setRenameRequested(true)}>
                     Rename
+                </ContextMenuItem>
+                {/*
+                 * Pin has no key hint: it is neither a tree key nor a catalog command, because it acts on the clicked
+                 * row rather than the selected Session — the same reason Archive keeps a literal instead of a binding.
+                 */}
+                <ContextMenuItem onClick={() => setSessionPinned(session.id, !pinned)}>
+                    {pinned ? 'Unpin Session' : 'Pin Session'}
                 </ContextMenuItem>
                 <ContextMenuItem hint="delete" onClick={() => archiveSession(session.id)}>
                     Archive

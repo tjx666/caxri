@@ -172,6 +172,17 @@ export const sessionRecordSchema = z.object({
      */
     archivedAt: z.number().optional(),
     /**
+     * When the user pinned this Session, and the only thing that decides whether it is pinned at all. Absent means not
+     * pinned; the timestamp is what orders a pinned Session that has never been dragged.
+     */
+    pinnedAt: z.number().optional(),
+    /**
+     * Ascending position inside the Pinned group, changed by dragging. Separate from `sidebarOrder`, which keeps
+     * ordering the same Session inside its own Project group: a Session is listed in both places at once, and one
+     * number cannot answer for two lists.
+     */
+    pinnedOrder: z.number().int().optional(),
+    /**
      * The first Agent CLI Terminal owns the Session title; Shell-only Sessions leave this empty.
      */
     primaryAgentTerminalId: identifierSchema.optional(),
@@ -720,6 +731,22 @@ export function compareSessionActivityRecency(left: SessionRecord, right: Sessio
  */
 export function compareSessionSidebarOrder(left: SessionRecord, right: SessionRecord): number {
     return left.sidebarOrder - right.sidebarOrder || compareSessionActivityRecency(left, right);
+}
+
+export function isPinnedSession(session: Pick<SessionRecord, 'pinnedAt'>): boolean {
+    return session.pinnedAt !== undefined;
+}
+
+/**
+ * Order inside the Pinned group. `pinnedOrder` is only written by a drag, so a Session pinned and never moved falls
+ * back to when it was pinned — newest last, which is where the group appended it.
+ */
+export function compareSessionPinnedOrder(left: SessionRecord, right: SessionRecord): number {
+    return (
+        (left.pinnedOrder ?? 0) - (right.pinnedOrder ?? 0) ||
+        (left.pinnedAt ?? 0) - (right.pinnedAt ?? 0) ||
+        (left.id < right.id ? -1 : left.id > right.id ? 1 : 0)
+    );
 }
 
 export const sessionReorderParametersSchema = z.strictObject({

@@ -9,6 +9,11 @@ import type { SessionOrderController } from './hooks/use-session-order';
 
 interface SessionRowTriggerProperties extends ComponentProps<'div'> {
     session: SessionRecord;
+    /**
+     * The tree row id. Defaults to the Session id; the Pinned group passes a namespaced one so its copy of a pinned
+     * Session and the copy under that Session's own Project stay separately addressable.
+     */
+    rowId?: string;
     selected: boolean;
     renaming: boolean;
     roving: boolean;
@@ -27,10 +32,15 @@ interface SessionRowTriggerProperties extends ComponentProps<'div'> {
  * While the row is renaming it keeps the `treeitem` role but gives up its `tabIndex`: the rename input inside it owns
  * focus for as long as the edit lasts. That is the one composition DESIGN.md's tree rule allows — a `treeitem` may
  * contain a text field, but must never be one.
+ *
+ * A selected pinned Session reports `aria-selected` on both of its rows, which is one more than a single-select tree is
+ * supposed to have. The alternative — leaving the Pinned copy unselected — makes the row a keyboard user is standing on
+ * announce itself as not selected, which is a worse lie than announcing one Session's selection twice.
  */
 export function SessionRowTrigger({
     children,
     session,
+    rowId = session.id,
     selected,
     renaming,
     roving,
@@ -44,7 +54,7 @@ export function SessionRowTrigger({
     const trigger = (
         <div
             ref={sessionOrder.draggedId === session.id ? sessionOrder.sourceReference : undefined}
-            data-row-id={session.id}
+            data-row-id={rowId}
             data-session-id={session.id}
             draggable={!renaming}
             onDragStart={(event) => sessionOrder.startDrag(event, session.id)}

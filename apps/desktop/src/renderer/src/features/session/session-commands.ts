@@ -224,6 +224,27 @@ export async function didReorderSession(
 }
 
 /**
+ * Reorders the Pinned group. Separate from `didReorderSession` because the two move the same Session in two different
+ * lists: this one writes the Pinned order and leaves the Session exactly where it is inside its own Project group.
+ */
+export async function didReorderPinnedSession(
+    sessionId: string,
+    anchorSessionId: string,
+    placement: 'before' | 'after',
+): Promise<boolean> {
+    const convergence = registerSessionCommandConvergence('session.reorderPinned');
+    const reordered = await tryCommand('Pinned Session reordering failed', () =>
+        caxri.request('session.reorderPinned', { sessionId, anchorSessionId, placement }),
+    );
+    if (reordered === undefined) {
+        convergence.cancel();
+        return false;
+    }
+    await convergence.promise;
+    return true;
+}
+
+/**
  * Longest Session title a lifecycle notice quotes. Titles are user- and Agent-authored and effectively unbounded, so a
  * runaway one would push the notice's own verb and its action button out of the toast's fixed width.
  */
@@ -287,8 +308,10 @@ async function archiveSessionWithNotice(sessionId: string): Promise<void> {
          * The notice outlives the row it describes, and now outlives the toast as well: the offer is still in the
          * notification center after the Session has been deleted or the window navigated elsewhere. `unarchiveSession`
          * runs the request through `tryCommand`, so a stale Undo reports one error toast instead of throwing out of the
-         * click handler. The handler restores with `unchanged`, which keeps Undo an exact inverse: the row returns to
-         * the position it was archived from, not to the top of the Project the way an explicit restore does.
+         * click handler. The handler restores with `unchanged`, so the row returns to the position it was archived
+         * from, not to the top of the Project the way an explicit restore does. One thing Undo deliberately does not
+         * put back is the pin: archiving clears it, and restoring it here would resurrect a Pinned row the user may
+         * have stopped watching weeks ago. They pin it again if they still want it there.
          */
         action: {
             id: 'session.unarchive',
@@ -309,6 +332,20 @@ export function archiveSession(sessionId: string): void {
 export function archiveSelectedSession(): void {
     const session = getSelectedSession();
     if (session) archiveSession(session.id);
+}
+
+/**
+ * Pins or unpins one Session. No toast: unlike archiving, the result is a row appearing or disappearing at the top of
+ * the Primary Side Bar, which the user is looking at and can reverse with the same control they just used.
+ */
+export function setSessionPinned(sessionId: string, shouldPin: boolean): void {
+    // Fire-and-forget: `tryCommand` funnels its own failures into a toast.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+    void tryCommand(
+        shouldPin ? 'Pin Session failed' : 'Unpin Session failed',
+        () => caxri.request('session.setPinned', { sessionId, pinned: shouldPin }),
+        { refresh: refreshWorkbench },
+    );
 }
 
 /**

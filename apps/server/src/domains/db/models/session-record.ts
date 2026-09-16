@@ -24,6 +24,8 @@ export const sessionSelection = {
     sidebarOrder: sessions.sidebarOrder,
     lastSessionActivityReason: sessions.lastSessionActivityReason,
     archivedAt: sessions.archivedAt,
+    pinnedAt: sessions.pinnedAt,
+    pinnedOrder: sessions.pinnedOrder,
     primaryAgentTerminalId: sessions.primaryAgentTerminalId,
     lastActivityState: sessions.lastActivityState,
     attentionEpoch: sessions.attentionEpoch,
@@ -45,6 +47,8 @@ interface SessionJoinRow {
     sidebarOrder: number;
     lastSessionActivityReason: string;
     archivedAt: number | null;
+    pinnedAt: number | null;
+    pinnedOrder: number;
     primaryAgentTerminalId: string | null;
     lastActivityState: string;
     attentionEpoch: number;
@@ -67,6 +71,9 @@ export function mapSession(row: SessionJoinRow): SessionRecord {
         sidebarOrder: row.sidebarOrder,
         lastSessionActivityReason: row.lastSessionActivityReason as SessionActivityReason,
         archivedAt: row.archivedAt ?? undefined,
+        pinnedAt: row.pinnedAt ?? undefined,
+        // Only meaningful while pinned; leaving it off an unpinned row keeps the read model from implying an order it does not have.
+        pinnedOrder: row.pinnedAt === null ? undefined : row.pinnedOrder,
         primaryAgentTerminalId: row.primaryAgentTerminalId ?? undefined,
         lastActivityState: row.lastActivityState as AgentActivityState,
         attentionEpoch: row.attentionEpoch,

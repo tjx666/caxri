@@ -395,7 +395,7 @@ describe('workbench Runtime events', () => {
         unsubscribe();
     });
 
-    it.each(['session.select', 'session.reorder'] as const)(
+    it.each(['session.select', 'session.reorder', 'session.reorderPinned'] as const)(
         'holds %s until its delayed event-driven snapshot converges',
         async (reason) => {
             const bootstrapRequest = Promise.withResolvers<BootstrapState>();

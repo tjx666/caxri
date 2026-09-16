@@ -3,11 +3,12 @@ import { describe, expect, it } from 'vitest';
 import type { PrimarySidebarProjectNode } from '../primary-sidebar-tree';
 import {
     flattenPrimarySidebarRows,
-    isPrimarySidebarCreateSessionRowId,
     nextPrimarySidebarRowId,
+    PINNED_GROUP_ROW_ID,
     primarySidebarArchiveIntent,
     primarySidebarCreateSessionRowId,
     primarySidebarHorizontalIntent,
+    primarySidebarPinnedRowId,
     primarySidebarRevealRowId,
     rovingPrimarySidebarRowId,
 } from '../primary-sidebar-tree';
@@ -56,9 +57,66 @@ describe('flattenPrimarySidebarRows', () => {
         );
         expect(rows).toEqual([
             { id: 'alpha', kind: 'project', projectId: 'alpha' },
-            { id: 'alpha-1', kind: 'session', projectId: 'alpha' },
+            { id: 'alpha-1', kind: 'session', projectId: 'alpha', sessionId: 'alpha-1' },
             { id: primarySidebarRevealRowId('alpha'), kind: 'reveal', projectId: 'alpha' },
         ]);
+    });
+
+    it('puts the Pinned group ahead of every Project, with namespaced row ids', () => {
+        const rows = flattenPrimarySidebarRows(projects, () => true, {
+            expanded: true,
+            sessionIds: ['beta-1', 'alpha-2'],
+        });
+        expect(rows.map((row) => row.id).slice(0, 3)).toEqual([
+            PINNED_GROUP_ROW_ID,
+            primarySidebarPinnedRowId('beta-1'),
+            primarySidebarPinnedRowId('alpha-2'),
+        ]);
+        // The same Session is still listed under its own Project, and the two rows never share an id.
+        expect(rows.filter((row) => row.sessionId === 'alpha-2').map((row) => row.id)).toEqual([
+            primarySidebarPinnedRowId('alpha-2'),
+            'alpha-2',
+        ]);
+    });
+
+    it('renders no Pinned group at all when nothing is pinned', () => {
+        const rows = flattenPrimarySidebarRows(projects, () => true, {
+            expanded: true,
+            sessionIds: [],
+        });
+        expect(rows.some((row) => row.projectId === PINNED_GROUP_ROW_ID)).toBe(false);
+    });
+
+    it('closes an over-full Pinned group with its own reveal row', () => {
+        const rows = flattenPrimarySidebarRows(projects, () => true, {
+            expanded: true,
+            hasHiddenSessions: true,
+            sessionIds: ['beta-1'],
+        });
+        expect(rows.filter((row) => row.projectId === PINNED_GROUP_ROW_ID).map((row) => row.id)) //
+            .toEqual([
+                PINNED_GROUP_ROW_ID,
+                primarySidebarPinnedRowId('beta-1'),
+                primarySidebarRevealRowId(PINNED_GROUP_ROW_ID),
+            ]);
+    });
+
+    it('leaves the Pinned reveal row out while the group is collapsed', () => {
+        const rows = flattenPrimarySidebarRows(projects, () => true, {
+            expanded: false,
+            hasHiddenSessions: true,
+            sessionIds: ['beta-1'],
+        });
+        expect(rows.some((row) => row.kind === 'reveal')).toBe(false);
+    });
+
+    it('keeps the Pinned heading but drops its rows while it is collapsed', () => {
+        const rows = flattenPrimarySidebarRows(projects, () => true, {
+            expanded: false,
+            sessionIds: ['beta-1'],
+        });
+        expect(rows.filter((row) => row.projectId === PINNED_GROUP_ROW_ID).map((row) => row.id)) //
+            .toEqual([PINNED_GROUP_ROW_ID]);
     });
 
     it('leaves the reveal row out of a collapsed Project', () => {
@@ -91,9 +149,7 @@ describe('primarySidebarCreateSessionRowId', () => {
     it('namespaces the row id so it can never collide with a Session or reveal row', () => {
         expect(gammaCreateRowId).not.toBe('gamma');
         expect(gammaCreateRowId).not.toBe(primarySidebarRevealRowId('gamma'));
-        expect(isPrimarySidebarCreateSessionRowId(gammaCreateRowId)).toBe(true);
-        expect(isPrimarySidebarCreateSessionRowId(primarySidebarRevealRowId('gamma'))).toBe(false);
-        expect(isPrimarySidebarCreateSessionRowId(undefined)).toBe(false);
+        expect(gammaCreateRowId).not.toBe(primarySidebarPinnedRowId('gamma'));
     });
 });
 
@@ -243,6 +299,25 @@ describe('rovingPrimarySidebarRowId', () => {
         expect(rovingPrimarySidebarRowId(collapsedRows, 'alpha-1', 'alpha-1', 'alpha')).toBe(
             'alpha',
         );
+    });
+
+    it('reaches the selected Session in the Pinned group when its Project is collapsed', () => {
+        const collapsedRows = flattenPrimarySidebarRows(
+            projects,
+            (projectId) => projectId !== 'alpha',
+            { expanded: true, sessionIds: ['alpha-1'] },
+        );
+        expect(rovingPrimarySidebarRowId(collapsedRows, undefined, 'alpha-1', 'alpha')).toBe(
+            primarySidebarPinnedRowId('alpha-1'),
+        );
+    });
+
+    it('still prefers the Project group row when both copies are on screen', () => {
+        const rows = flattenPrimarySidebarRows(projects, () => true, {
+            expanded: true,
+            sessionIds: ['alpha-1'],
+        });
+        expect(rovingPrimarySidebarRowId(rows, undefined, 'alpha-1', 'alpha')).toBe('alpha-1');
     });
 
     it('returns undefined for an empty tree', () => {

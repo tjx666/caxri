@@ -6,6 +6,7 @@ import process from 'node:process';
 
 import type {
     BootstrapState,
+    FullStateChangeReason,
     PersistedWindowState,
     SessionRestorePlacement,
     TerminalKind,
@@ -24,6 +25,7 @@ import { createDeletionHandlers } from './deletion-handlers';
 import { DiagnosticsService } from './diagnostics';
 import type { DomainDependencies, DomainHandlers, DomainServices } from './domain-services';
 import { createIntrospectionServices } from './introspection';
+import { createOrderingHandlers } from './ordering-handlers';
 import { assertInsideRoot } from './path-security';
 import { ProjectStatusService } from './project-status';
 import { createRootServices } from './root-services';
@@ -383,12 +385,19 @@ export async function createDomainServices(
         projectStatus.setPolledSession(sessionId);
         if (shouldRestoreFallback && sessionId) restoreInterruptedTerminalsInBackground(sessionId);
     };
+    /**
+     * Announces that the whole workbench view has to be re-read. Twelve handlers send the identical envelope, and the
+     * `reason` is the only part that carries information — it is what the Renderer's command convergence matches on.
+     */
+    const sendFullStateChange = (reason: FullStateChangeReason): void => {
+        send({ event: 'state.changed', payload: { kind: 'full', reason } });
+    };
     const unarchiveSessions = (
         sessionIds: readonly string[],
         placement: SessionRestorePlacement,
     ) => {
         const restored = database.unarchiveSessions(sessionIds, placement);
-        send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.unarchive' } });
+        sendFullStateChange('session.unarchive');
         return restored;
     };
     const agentCommands = createAgentCommandRuntime({
@@ -579,16 +588,7 @@ export async function createDomainServices(
         'project.query': () => mainOwned('project.query'),
         'project.queryForPrincipal': ({ principal, query }) =>
             introspection.records.project(query, principal),
-        'project.reorder': ({ projectId, targetIndex }) => {
-            const reordered = database.reorderProject(projectId, targetIndex);
-            send({ event: 'state.changed', payload: { kind: 'full', reason: 'project.reorder' } });
-            return reordered;
-        },
-        'session.reorder': ({ sessionId, anchorSessionId, placement }) => {
-            database.reorderSession(sessionId, anchorSessionId, placement);
-            send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.reorder' } });
-            return null;
-        },
+        ...createOrderingHandlers({ database, sendFullStateChange }),
         'session.create': async ({ projectId, defaultAgent }) => {
             const project = database.getProject(projectId);
             if (!project) throw new CaxriError('NOT_FOUND', 'Project not found');
@@ -607,7 +607,7 @@ export async function createDomainServices(
             terminalSuspension.observeSelection();
             observeSelectedSession(created.session.id);
             if (created.terminal?.provider) coordinator.probeTerminal(created.terminal.id);
-            send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.create' } });
+            sendFullStateChange('session.create');
             return {
                 session: database.getSession(created.session.id)!,
                 terminal: created.terminal ? database.getTerminal(created.terminal.id)! : null,
@@ -621,10 +621,7 @@ export async function createDomainServices(
                 observeSelectedSession(sessionId);
                 restoreInterruptedTerminalsInBackground(sessionId);
                 coordinator.probeSessionPrimaryAgent(sessionId);
-                send({
-                    event: 'state.changed',
-                    payload: { kind: 'full', reason: 'session.select' },
-                });
+                sendFullStateChange('session.select');
                 return database.getSession(sessionId)!;
             }),
         'session.markRead': ({ sessionId, attentionEpoch }) => {
@@ -648,7 +645,7 @@ export async function createDomainServices(
             const session = database.archiveSession(sessionId);
             await terminalSuspension.suspendSession(sessionId);
             observeSelectedSession(selectedSessionId(), true);
-            send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.archive' } });
+            sendFullStateChange('session.archive');
             return session;
         },
         'session.detach': async ({ sessionId }) => {
@@ -657,7 +654,7 @@ export async function createDomainServices(
             // A queued restore could relaunch the Agent right after it was handed over; drop it first.
             terminalRestores.cancel(sessionId);
             await terminalSuspension.detachSession(sessionId);
-            send({ event: 'state.changed', payload: { kind: 'full', reason: 'session.detach' } });
+            sendFullStateChange('session.detach');
             return database.getSession(sessionId)!;
         },
         'session.resume': ({ sessionId }) =>
@@ -668,10 +665,7 @@ export async function createDomainServices(
                 observeSelectedSession(sessionId);
                 restoreInterruptedTerminalsInBackground(sessionId, { includeDetached: true });
                 coordinator.probeSessionPrimaryAgent(sessionId);
-                send({
-                    event: 'state.changed',
-                    payload: { kind: 'full', reason: 'session.resume' },
-                });
+                sendFullStateChange('session.resume');
                 return database.getSession(sessionId)!;
             }),
         'session.unarchive': ({ placement, sessionId }) =>
@@ -701,7 +695,7 @@ export async function createDomainServices(
         'terminal.create': async ({ sessionId, kind, cwd }) => {
             const terminal = await createAndStartTerminal(sessionId, kind, cwd);
             if (terminal.provider) coordinator.probeTerminal(terminal.id);
-            send({ event: 'state.changed', payload: { kind: 'full', reason: 'terminal.create' } });
+            sendFullStateChange('terminal.create');
             return terminal;
         },
         'terminal.openFileLink': () => mainOwned('terminal.openFileLink'),
@@ -725,7 +719,7 @@ export async function createDomainServices(
              * Closing the primary Agent Terminal promotes another one, whose metadata must catch up.
              */
             if (sessionId) coordinator.probeSessionPrimaryAgent(sessionId);
-            send({ event: 'state.changed', payload: { kind: 'full', reason: 'terminal.close' } });
+            sendFullStateChange('terminal.close');
             return null;
         },
         'terminal.attach': ({ cols, rows, terminalId }) =>

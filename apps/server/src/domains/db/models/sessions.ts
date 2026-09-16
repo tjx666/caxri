@@ -474,12 +474,46 @@ export class SessionsModel {
 
     /**
      * Archiving is reversible metadata; it never removes or stops the Session's Terminals.
+     *
+     * Archiving also clears the pin: the Pinned group lists active Sessions, and a row that is archived and pinned at
+     * once would be hidden from its Project group while still sitting at the top of the sidebar. Unarchiving therefore
+     * does not restore the pin — the user pins it again if they still want it there.
      */
     setArchived(id: string, archivedAt: number | null): boolean {
         return (
-            this.database.update(sessions).set({ archivedAt }).where(eq(sessions.id, id)).run()
-                .changes === 1
+            this.database
+                .update(sessions)
+                .set(archivedAt === null ? { archivedAt } : { archivedAt, pinnedAt: null })
+                .where(eq(sessions.id, id))
+                .run().changes === 1
         );
+    }
+
+    /**
+     * Pins or unpins one Session. A fresh pin lands after every Session already in the Pinned group, matching where the
+     * group renders it; unpinning leaves `pinnedOrder` behind because `pinnedAt` alone decides membership and the stale
+     * number is overwritten by the next pin.
+     */
+    setPinned(id: string, pinnedAt: number | null): boolean {
+        const pinnedOrder =
+            pinnedAt === null
+                ? undefined
+                : sql<number>`COALESCE((SELECT MAX(${sessions.pinnedOrder}) + 1 FROM ${sessions} WHERE ${sessions.pinnedAt} IS NOT NULL), 0)`;
+        return (
+            this.database
+                .update(sessions)
+                .set(pinnedOrder === undefined ? { pinnedAt } : { pinnedAt, pinnedOrder })
+                .where(eq(sessions.id, id))
+                .run().changes === 1
+        );
+    }
+
+    /**
+     * The facade validates membership and owns the transaction, exactly as it does for `reorder`.
+     */
+    reorderPinned(sessionIds: readonly string[]): void {
+        for (const [pinnedOrder, id] of sessionIds.entries())
+            this.database.update(sessions).set({ pinnedOrder }).where(eq(sessions.id, id)).run();
     }
 
     setPrimaryAgent(

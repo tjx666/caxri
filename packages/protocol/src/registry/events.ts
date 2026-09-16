@@ -47,6 +47,8 @@ const fullStateChangeReasonSchema = z.enum([
     'session.select',
     'session.archive',
     'session.reorder',
+    'session.reorderPinned',
+    'session.setPinned',
     'session.unarchive',
     'session.detach',
     'session.resume',
@@ -57,6 +59,12 @@ const fullStateChangeReasonSchema = z.enum([
     'terminal.moveToNewSession',
     'unknown',
 ]);
+
+/**
+ * Why the whole workbench view has to be re-read. Exported because handlers that announce one are spread across several
+ * modules, and the Renderer's command convergence matches on the exact string.
+ */
+export type FullStateChangeReason = z.infer<typeof fullStateChangeReasonSchema>;
 
 const stateChangeRecordIdsSchema = z.array(identifierSchema).max(64).default([]);
 

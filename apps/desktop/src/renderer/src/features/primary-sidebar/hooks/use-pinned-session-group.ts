@@ -1,0 +1,108 @@
+import { useCallback, useMemo, useState } from 'react';
+
+import type { ProjectRecord, SessionRecord } from '@caxri/protocol';
+
+import { didReorderPinnedSession } from '../../session/session-commands';
+import { pinnedSessionDropTarget, pinnedSessions } from '../pinned-session-order';
+import { PINNED_GROUP_ROW_ID } from '../primary-sidebar-tree';
+import { sessionWorktreeProject } from '../project-visibility';
+import type { SessionListWindow } from '../session-list-window';
+import { nextRevealedSessionCount, sessionListWindow } from '../session-list-window';
+import type { SessionOrderController } from './use-session-order';
+import { useSessionOrder } from './use-session-order';
+
+interface PinnedSessionGroupInput {
+    /**
+     * The full Project catalog, hidden worktree entries included: a pinned Session's owner may be one of them.
+     */
+    projects: readonly ProjectRecord[];
+    selectedSessionId: string | undefined;
+    /**
+     * Every Session, unfiltered. Deliberately not the Project groups' list, which is already frozen and ordered for
+     * their own drag — the Pinned group is a separate list with its own order.
+     */
+    sessions: readonly SessionRecord[];
+}
+
+export interface PinnedSessionGroupModel extends SessionListWindow<SessionRecord> {
+    /**
+     * Owning Project keyed by Session id, for the Project name each row shows beside its title.
+     */
+    projects: Record<string, ProjectRecord | undefined>;
+    /**
+     * Its own drag controller: one that accepts a drop between two Projects and writes `session.reorderPinned`. Sharing
+     * the Project groups' controller would make a drag in either group move the rows in both.
+     */
+    sessionOrder: SessionOrderController;
+    /**
+     * Steps the window forward by one reveal.
+     */
+    revealMore: () => void;
+    /**
+     * Every pinned Session in Pinned order, frozen while a drag is in flight — including the ones the window hides, so
+     * the heading's count stays the real membership.
+     */
+    sessions: SessionRecord[];
+    /**
+     * Workbench Root Projects keyed by Session id. Resolved separately from the Project groups' equivalent, which only
+     * covers the Sessions those groups render — a pinned Session in a collapsed Project is not in that set.
+     */
+    worktreeProjects: Record<string, ProjectRecord>;
+}
+
+/**
+ * Everything the Pinned group renders from: its membership, its order, its drag, and the two per-Session lookups its
+ * rows need. Extracted from `PrimarySidebar` so that component keeps owning only the tree's layout and focus.
+ */
+export function usePinnedSessionGroup({
+    projects,
+    selectedSessionId,
+    sessions,
+}: PinnedSessionGroupInput): PinnedSessionGroupModel {
+    const pinned = useMemo(() => pinnedSessions(sessions), [sessions]);
+    const sessionOrder = useSessionOrder(pinned, {
+        dropTargetAt: pinnedSessionDropTarget,
+        groupOf: () => PINNED_GROUP_ROW_ID,
+        reorder: didReorderPinnedSession,
+    });
+    const groupSessions = sessionOrder.sessions;
+    /**
+     * Kept in memory only, like each Project's window: a relaunch starts from the short list again.
+     */
+    const [revealedCount, setRevealedCount] = useState<number>();
+    const listWindow = useMemo(
+        () => sessionListWindow(groupSessions, revealedCount, selectedSessionId),
+        [groupSessions, revealedCount, selectedSessionId],
+    );
+    const windowCount = listWindow.windowCount;
+    const revealMore = useCallback(
+        () => setRevealedCount(nextRevealedSessionCount(windowCount)),
+        [windowCount],
+    );
+    const projectsById = useMemo(
+        () => new Map(projects.map((project) => [project.id, project])),
+        [projects],
+    );
+    const owningProjects = useMemo(() => {
+        const resolved: Record<string, ProjectRecord | undefined> = {};
+        for (const session of groupSessions)
+            resolved[session.id] = projectsById.get(session.projectId);
+        return resolved;
+    }, [projectsById, groupSessions]);
+    const worktreeProjects = useMemo(() => {
+        const resolved: Record<string, ProjectRecord> = {};
+        for (const session of groupSessions) {
+            const worktree = sessionWorktreeProject(session, projects);
+            if (worktree) resolved[session.id] = worktree;
+        }
+        return resolved;
+    }, [projects, groupSessions]);
+    return {
+        ...listWindow,
+        projects: owningProjects,
+        revealMore,
+        sessionOrder,
+        sessions: groupSessions,
+        worktreeProjects,
+    };
+}
