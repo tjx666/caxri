@@ -35,7 +35,7 @@ export function LinearIssueStatus({
     const label = (
         <>
             {issue.identifier}
-            {extra.length > 0 && <span className="ml-[5px] text-muted">+{extra.length}</span>}
+            {extra.length > 0 && <span className="ml-1 text-muted">+{extra.length}</span>}
         </>
     );
     // An identifier we recognized but could not resolve has no destination, so it must not look clickable. `StatusInfo`
