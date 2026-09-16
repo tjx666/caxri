@@ -12,6 +12,7 @@ import {
     MAX_SPLIT_RATIO,
     MAX_TABS_PER_PANE,
     MIN_SPLIT_RATIO,
+    orderPaneTabs,
     paneResourceKey,
 } from './pane-layout.js';
 
@@ -20,10 +21,11 @@ export type PaneIdFactory = () => string;
 const createId: PaneIdFactory = () => crypto.randomUUID();
 
 /**
- * The single reducer behind every Workbench layout mutation. It never inspects a tab's kind: a Terminal, a file, a
- * diff, and a transcript reorder, move, split, and close through exactly the same code. The one resource-dependent rule
- * lives in `isRepeatablePaneResource` and only decides whether opening a resource that is already somewhere in the tree
- * creates a second occurrence or reveals the existing one.
+ * The single reducer behind every Workbench layout mutation. A Terminal, a file, a diff, and a transcript reorder,
+ * move, split, and close through exactly the same code. Only two rules read a resource at all:
+ * `isRepeatablePaneResource` decides whether opening something already in the tree creates a second occurrence or
+ * reveals the existing one, and `orderPaneTabs` keeps each pane's Terminals ahead of its documents so the bar can
+ * anchor one segment and scroll the other.
  */
 
 export function createPaneLayout(
@@ -204,7 +206,7 @@ export function openResource(
             const pane = node as PaneNode;
             const tabs = replaced
                 ? pane.tabs.map((candidate) => (candidate.id === replaced.id ? tab : candidate))
-                : [...pane.tabs, tab];
+                : orderPaneTabs([...pane.tabs, tab]);
             return { ...pane, tabs, activeTabId: tab.id };
         }),
         activePaneId: target.id,
@@ -224,6 +226,9 @@ export function closeTab(layout: PaneLayout, tabId: string): PaneLayout {
 /**
  * Moves an occurrence into `targetPaneId`, optionally at a specific index. Every resource moves the same way; nothing
  * is ever duplicated by a move, which is what makes drag and drop kind-agnostic.
+ *
+ * A drop that would interleave the segments is normalized back by `orderPaneTabs`, so dragging a document to the far
+ * left lands it at the head of the document segment rather than ahead of the Terminals.
  */
 export function moveTab(
     layout: PaneLayout,
@@ -244,7 +249,7 @@ export function moveTab(
                 ? tabs.length
                 : Math.max(0, Math.min(targetIndex, tabs.length));
         tabs.splice(index, 0, found.tab);
-        return { ...pane, tabs, activeTabId: tabId };
+        return { ...pane, tabs: orderPaneTabs(tabs), activeTabId: tabId };
     };
     const target = findPane(withoutTab, targetPaneId);
     if (!target) return layout;
@@ -342,7 +347,7 @@ export function addPaneTerminalSilently(
         ...layout,
         root: replaceNode(layout.root, target.id, (node) => ({
             ...(node as PaneNode),
-            tabs: [...(node as PaneNode).tabs, tab],
+            tabs: orderPaneTabs([...(node as PaneNode).tabs, tab]),
         })),
     };
 }
@@ -419,10 +424,12 @@ export function paneTabIdsToClose(
     if (mode === 'one') return [tabId];
     if (mode === 'editors')
         return found.pane.tabs.flatMap((tab) => (tab.resource.kind === 'file' ? [tab.id] : []));
+    // Ordered, not raw: "to the Right" has to mean what the bar shows, including in a pane persisted before segments.
+    const paneTabs = orderPaneTabs(found.pane.tabs);
     const tabs =
         found.tab.resource.kind === 'terminal'
-            ? found.pane.tabs
-            : found.pane.tabs.filter((tab) => tab.resource.kind === found.tab.resource.kind);
+            ? paneTabs
+            : paneTabs.filter((tab) => tab.resource.kind === found.tab.resource.kind);
     const index = tabs.findIndex((tab) => tab.id === tabId);
     if (mode === 'all') return tabs.map((tab) => tab.id);
     if (mode === 'others') return tabs.flatMap((tab) => (tab.id === tabId ? [] : [tab.id]));

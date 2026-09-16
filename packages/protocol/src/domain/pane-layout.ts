@@ -120,9 +120,42 @@ export function isRepeatablePaneResource(resource: PaneResource): boolean {
 }
 
 /**
+ * A pane's tabs split into the two segments its bar lays out separately: Terminals, which stay anchored at the leading
+ * edge, and documents, which scroll behind them. Each segment keeps the relative order it had in `tabs`.
+ *
+ * The Workbench's subject is the Session's Agent conversation; the documents opened to read alongside it are transient.
+ * A single scrolling rail treats both the same and lets a handful of files push the Agent Terminal off screen, so the
+ * two are separated here — once, in the layout contract — rather than by a rendering rule the reducer could disagree
+ * with. {@link orderPaneTabs} is what keeps `PaneNode.tabs` itself in this order, so keyboard navigation, "Close to the
+ * Right", and the visual rail all walk one sequence.
+ */
+export function partitionPaneTabs(tabs: readonly PaneTab[]): {
+    scrolling: PaneTab[];
+    sticky: PaneTab[];
+} {
+    const sticky: PaneTab[] = [];
+    const scrolling: PaneTab[] = [];
+    for (const tab of tabs) (tab.resource.kind === 'terminal' ? sticky : scrolling).push(tab);
+    return { scrolling, sticky };
+}
+
+/**
+ * {@link partitionPaneTabs} flattened back into one list. A stable partition, so a reorder inside either segment
+ * survives and only a cross-segment position is normalized away.
+ */
+export function orderPaneTabs(tabs: readonly PaneTab[]): PaneTab[] {
+    const { scrolling, sticky } = partitionPaneTabs(tabs);
+    return sticky.length === 0 || scrolling.length === 0 ? [...tabs] : [...sticky, ...scrolling];
+}
+
+/**
  * Enforces what the tree shape cannot: bounded pane, node, and Terminal counts, unique node and tab identities, one
  * pane per Terminal, no resource listed twice inside a single pane, a pane-local active tab, an active pane that exists
  * and is a pane rather than a split, and non-empty panes everywhere except a root pane holding the whole Workbench.
+ *
+ * Segment order is deliberately not enforced here. {@link orderPaneTabs} establishes it on every write and
+ * {@link partitionPaneTabs} is what the bar renders from, so a layout persisted before the segments existed keeps
+ * loading and heals on its next tab operation instead of failing validation and costing the user their Workbench.
  */
 function checkPaneLayoutInvariants(
     layout: { root: PaneLayoutNode; activePaneId?: string },

@@ -25,6 +25,7 @@ export function Tooltip({
     children,
     content,
     disabled,
+    hoverOnly,
     shortcut,
     triggerId,
 }: {
@@ -39,6 +40,14 @@ export function Tooltip({
      * is only worth showing under a condition that changes at runtime.
      */
     disabled?: boolean;
+    /**
+     * Drops Base UI's keyboard-focus open, leaving the pointer as the only way to raise this tooltip.
+     *
+     * For a trigger the app itself focuses, a focus-opened tooltip is a popup the user never asked for and nothing
+     * dismisses: it sits over whatever is below the trigger until the next interaction. Use it only where the tooltip's
+     * text is already in the trigger's accessible name, so a screen reader still hears it.
+     */
+    hoverOnly?: boolean;
     shortcut?: string;
     /**
      * Required when the trigger element needs an `id` of its own (a WAI-ARIA `role="tab"`, for example).
@@ -77,9 +86,17 @@ export function Tooltip({
         <TooltipPrimitive.Root
             disabled={disabled}
             onOpenChange={
-                anchorMode === 'cursor'
+                hoverOnly || isCursorMode
                     ? (open, details) => {
-                          if (open) {
+                          /**
+                           * Base UI calls this before it commits the open, and honors `cancel()` by dropping the change
+                           * entirely — so the popup never mounts rather than mounting and being closed again.
+                           */
+                          if (hoverOnly && open && details.reason === 'trigger-focus') {
+                              details.cancel();
+                              return;
+                          }
+                          if (isCursorMode && open) {
                               setCursorAnchor(
                                   resolveTooltipCursorAnchor(
                                       open,

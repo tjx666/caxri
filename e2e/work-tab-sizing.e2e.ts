@@ -73,21 +73,33 @@ async function waitForTabMotionToSettle(page: Page): Promise<void> {
  */
 async function openDocumentTabs(page: Page, fileNames: readonly string[]): Promise<void> {
     const documentTabs = page.locator('.work-tabs .work-tab:not([data-terminal-id])');
+    // Counted from what is already open so a test can widen an existing set in a second call.
+    const alreadyOpen = await documentTabs.count();
     for (const [index, name] of fileNames.entries()) {
         // eslint-disable-next-line no-await-in-loop -- each open is causally ordered by the rendered tab receipt
         await page.getByRole('treeitem', { name, exact: true }).dblclick();
         // eslint-disable-next-line no-await-in-loop -- the next double-click must not race the current tab creation
-        await expect(documentTabs).toHaveCount(index + 1);
+        await expect(documentTabs).toHaveCount(alreadyOpen + index + 1);
     }
 }
 
-test('Terminal tabs fill the bar, Document tabs size to content, and the bar scrolls once both overflow', async () => {
+test('Terminal tabs anchor at the leading edge, Document tabs size to content and scroll past them', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-work-tabs-mixed-width-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const rootInput = join(testDirectory, 'project');
     await execFileAsync('mkdir', ['-p', rootInput]);
     const root = await realpath(rootInput);
-    const fileNames = ['a-short.ts', 'b-much-longer-document-name.ts'];
+    const firstFileNames = ['a-short.ts', 'b-much-longer-document-name.ts'];
+    // Enough long filenames that the document segment alone overflows a narrowed window.
+    const fileNames = [
+        ...firstFileNames,
+        'c-much-longer-document-name.ts',
+        'd-much-longer-document-name.ts',
+        'e-much-longer-document-name.ts',
+        'f-much-longer-document-name.ts',
+        'g-much-longer-document-name.ts',
+        'h-much-longer-document-name.ts',
+    ];
     for (const name of fileNames) {
         // eslint-disable-next-line no-await-in-loop -- sequential fixture writes, order does not matter but simplicity does
         await writeFile(join(root, name), '', 'utf8');
@@ -98,14 +110,56 @@ test('Terminal tabs fill the bar, Document tabs size to content, and the bar scr
         await createProjectSession(running.page);
         const strip = running.page.locator('.work-tabs');
         const scrollRail = running.page.locator('.work-tab-scroll');
+        const anchoredSegment = running.page.locator('.work-tab-sticky');
         const terminalTabs = strip.locator('.work-tab[data-terminal-id]');
         const documentTabs = strip.locator('.work-tab:not([data-terminal-id])');
 
-        await openDocumentTabs(running.page, fileNames);
+        // Both containers exist from the start; with no documents to make room for, the anchored one takes the whole
+        // bar and its Terminals still divide it evenly.
+        await expect(anchoredSegment).toHaveCount(1);
+        expect(
+            await anchoredSegment.evaluate((element) => {
+                const widths = [...element.querySelectorAll('.work-tab')].map(
+                    (tab) => tab.getBoundingClientRect().width,
+                );
+                return Math.round(Math.max(...widths) - Math.min(...widths));
+            }),
+        ).toBeLessThanOrEqual(1);
+
+        /**
+         * A tab must never change container: one that animated out of the rail while already mounted anchored would
+         * exist twice for the length of that animation, which no settled assertion can see. Opening the first document
+         * is where a kind-blind bar would make that move, so watch the DOM through it rather than after it.
+         */
+        await running.page.evaluate(() => {
+            const seen: number[] = [];
+            const record = () => {
+                const ids = [...document.querySelectorAll('.work-tabs .work-tab')].map(
+                    (tab) => (tab as HTMLElement).dataset.paneTabId ?? '',
+                );
+                seen.push(ids.length - new Set(ids).size);
+            };
+            record();
+            const observer = new MutationObserver(record);
+            observer.observe(document.body, { childList: true, subtree: true });
+            Object.assign(globalThis, { __paneTabDuplicates: seen });
+        });
+
+        await openDocumentTabs(running.page, firstFileNames);
         await expect(documentTabs).toHaveCount(2);
         await waitForTabMotionToSettle(running.page);
+        await expect(anchoredSegment).toHaveCount(1);
+        expect(
+            await running.page.evaluate(() =>
+                Math.max(
+                    ...((globalThis as { __paneTabDuplicates?: number[] }).__paneTabDuplicates ?? [
+                        0,
+                    ]),
+                ),
+            ),
+        ).toBe(0);
 
-        // A document uses its full filename while the neighboring Terminal has room to spare.
+        // A document uses its full filename, and the Terminal beside it keeps its own title readable.
         const documentWidths = await documentTabs.evaluateAll((elements) =>
             elements.map((element) => element.getBoundingClientRect().width),
         );
@@ -119,21 +173,52 @@ test('Terminal tabs fill the bar, Document tabs size to content, and the bar scr
                 .locator('.tab-label')
                 .evaluate((element) => element.scrollWidth <= element.clientWidth),
         ).toBe(true);
-        const terminalWidth = await terminalTabs
-            .first()
-            .evaluate((element) => element.getBoundingClientRect().width);
-        expect(terminalWidth).toBeGreaterThan(160);
+        expect(
+            await terminalTabs
+                .first()
+                .locator('.tab-label')
+                .evaluate((element) => element.scrollWidth <= element.clientWidth),
+        ).toBe(true);
         expect(
             await scrollRail.evaluate((element) => element.scrollWidth - element.clientWidth),
         ).toBeLessThanOrEqual(1);
 
-        // Terminals are the high-frequency case, so enough of them push the bar past its own width; once
-        // that happens the whole rail scrolls instead of every tab shrinking below its own floor. The default
-        // window is wide enough that 9 Terminal tabs alone would not overflow it, so narrow the viewport first.
+        /**
+         * The reason the segment exists: reading a handful of files must not cost the Session's Agent Terminal its
+         * place on the bar. Narrow the window and open the rest so the documents genuinely overflow.
+         */
         await running.page.setViewportSize({ width: 900, height: 700 });
-        // `cmd+t` rather than the "+" button: with no default Agent configured the button's primary half opens its
-        // agent menu instead of creating straight away (`NewTerminalButton`), and this spec is about the rail, not
-        // about which Agent starts.
+        await openDocumentTabs(running.page, fileNames.slice(firstFileNames.length));
+        await expect(documentTabs).toHaveCount(fileNames.length);
+        await waitForTabMotionToSettle(running.page);
+
+        expect(
+            await scrollRail.evaluate((element) => element.scrollWidth - element.clientWidth),
+        ).toBeGreaterThan(1);
+        const anchoredLeftBeforeScroll = await terminalTabs
+            .first()
+            .evaluate((element) => element.getBoundingClientRect().left);
+        await scrollRail.evaluate((element) => {
+            element.scrollLeft = element.scrollWidth;
+        });
+        await expect
+            .poll(async () => scrollRail.evaluate((element) => element.scrollLeft))
+            .toBeGreaterThan(1);
+        expect(
+            await terminalTabs.first().evaluate((element) => element.getBoundingClientRect().left),
+        ).toBeCloseTo(anchoredLeftBeforeScroll, 0);
+        await expect(terminalTabs.first()).toBeInViewport();
+        // The "+" action stays reachable outside the scrolling rail no matter how far it has scrolled.
+        await expect(running.page.getByRole('button', { name: 'New Terminal' })).toBeVisible();
+
+        /**
+         * The anchor is capped rather than unbounded: many Terminals scroll inside their own segment instead of
+         * squeezing the documents out in the other direction.
+         *
+         * `cmd+t` rather than the "+" button: with no default Agent configured the button's primary half opens its
+         * agent menu instead of creating straight away (`NewTerminalButton`), and this spec is about the rail, not
+         * about which Agent starts.
+         */
         for (let index = 0; index < 8; index += 1) {
             // eslint-disable-next-line no-await-in-loop -- each new tab depends on the previous one's enter animation settling
             await pressNewTerminal(running.page);
@@ -141,9 +226,23 @@ test('Terminal tabs fill the bar, Document tabs size to content, and the bar scr
         await expect(terminalTabs).toHaveCount(9);
         await waitForTabMotionToSettle(running.page);
 
-        expect(
-            await scrollRail.evaluate((element) => element.scrollWidth - element.clientWidth),
-        ).toBeGreaterThan(1);
+        const segments = await running.page.evaluate(() => {
+            const list = document.querySelector<HTMLElement>(
+                '[data-pane-tab-bar] [role="tablist"]',
+            );
+            const anchored = document.querySelector<HTMLElement>('.work-tab-sticky');
+            const rail = document.querySelector<HTMLElement>('.work-tab-scroll');
+            if (!list || !anchored || !rail) throw new Error('Work tab segments not found');
+            return {
+                anchoredOverflow: anchored.scrollWidth - anchored.clientWidth,
+                anchoredWidth: anchored.getBoundingClientRect().width,
+                listWidth: list.getBoundingClientRect().width,
+                railWidth: rail.getBoundingClientRect().width,
+            };
+        });
+        expect(segments.anchoredWidth).toBeLessThanOrEqual(segments.listWidth / 2 + 1);
+        expect(segments.anchoredOverflow).toBeGreaterThan(1);
+        expect(segments.railWidth).toBeGreaterThan(0);
         // Each Terminal keeps its displayed title readable even when document names consume the rail.
         expect(
             await terminalTabs
@@ -152,11 +251,7 @@ test('Terminal tabs fill the bar, Document tabs size to content, and the bar scr
                     elements.every((element) => element.scrollWidth <= element.clientWidth),
                 ),
         ).toBe(true);
-        // The "+" action stays reachable outside the scrolling rail no matter how far it has scrolled.
-        await expect(running.page.getByRole('button', { name: 'New Terminal' })).toBeVisible();
 
-        await terminalTabs.first().scrollIntoViewIfNeeded();
-        await expect(terminalTabs.first()).toBeInViewport();
         await terminalTabs.last().scrollIntoViewIfNeeded();
         await expect(terminalTabs.last()).toBeInViewport();
     } finally {

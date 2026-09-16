@@ -288,7 +288,8 @@ describe('pane layout reducer', () => {
         layout = openResource(layout, file('a.ts'), {}, id);
         layout = openResource(layout, terminal('terminal-2'), {}, id);
         layout = openResource(layout, file('b.ts'), {}, id);
-        const [, firstFile, , secondFile] = activePane(layout).tabs;
+        // Segment order: both Terminals, then both documents.
+        const [firstFile, secondFile] = activePane(layout).tabs.slice(2);
 
         expect(paneTabIdsToClose(layout, firstFile.id, 'one')).toEqual([firstFile.id]);
         expect(paneTabIdsToClose(layout, firstFile.id, 'others')).toEqual([secondFile.id]);
@@ -315,24 +316,25 @@ describe('pane layout reducer', () => {
         layout = openResource(layout, file('a.ts'), {}, id);
         layout = openResource(layout, terminal('terminal-2'), {}, id);
         layout = openResource(layout, file('b.ts'), {}, id);
-        const [firstTerminal, firstFile, secondTerminal, secondFile] = activePane(layout).tabs;
+        // Segment order: both Terminals, then both documents.
+        const [firstTerminal, secondTerminal, firstFile, secondFile] = activePane(layout).tabs;
 
         expect(paneTabIdsToClose(layout, firstTerminal.id, 'one')).toEqual([firstTerminal.id]);
         expect(paneTabIdsToClose(layout, firstTerminal.id, 'others')).toEqual([
-            firstFile.id,
             secondTerminal.id,
+            firstFile.id,
             secondFile.id,
         ]);
         expect(paneTabIdsToClose(layout, firstTerminal.id, 'right')).toEqual([
-            firstFile.id,
             secondTerminal.id,
+            firstFile.id,
             secondFile.id,
         ]);
         expect(paneTabIdsToClose(layout, secondFile.id, 'right')).toEqual([]);
         expect(paneTabIdsToClose(layout, firstTerminal.id, 'all')).toEqual([
             firstTerminal.id,
-            firstFile.id,
             secondTerminal.id,
+            firstFile.id,
             secondFile.id,
         ]);
         expect(paneTabIdsToClose(layout, firstTerminal.id, 'editors')).toEqual([
@@ -455,6 +457,68 @@ describe('pane layout reducer', () => {
         expect(splitTabIntoPane(layout, 'missing', activePane(layout).id, 'right', id)).toBe(
             layout,
         );
+    });
+});
+
+/**
+ * The bar anchors Terminals and scrolls documents past them, so the stored order has to agree with what it draws: a
+ * pane that interleaved them would make arrow-key focus and "Close to the Right" walk a sequence nobody can see.
+ */
+describe('pane tab segments', () => {
+    it('opens a document after every Terminal and a Terminal ahead of every document', () => {
+        const id = ids();
+        let layout = valid(createPaneLayout(terminal('term-1'), id));
+        const paneId = activePane(layout).id;
+        layout = valid(openResource(layout, file('a.ts'), {}, id));
+        layout = valid(openResource(layout, file('b.ts'), {}, id));
+        layout = valid(openResource(layout, terminal('term-2'), {}, id));
+        expect(tabResources(layout, paneId)).toEqual(['term-1', 'term-2', 'file', 'file']);
+    });
+
+    it('keeps a silently added Terminal ahead of the documents already open', () => {
+        const id = ids();
+        let layout = valid(createPaneLayout(file('a.ts'), id));
+        const paneId = activePane(layout).id;
+        layout = valid(addPaneTerminalSilently(layout, 'term-1', id));
+        expect(tabResources(layout, paneId)).toEqual(['term-1', 'file']);
+    });
+
+    it('pulls a document dropped ahead of the Terminals back to the head of its own segment', () => {
+        const id = ids();
+        let layout = valid(createPaneLayout(terminal('term-1'), id));
+        const paneId = activePane(layout).id;
+        layout = valid(openResource(layout, file('a.ts'), {}, id));
+        layout = valid(openResource(layout, file('b.ts'), {}, id));
+        const dropped = findResourceTabs(layout, file('b.ts'))[0].tab.id;
+        layout = valid(moveTab(layout, dropped, paneId, 0));
+        expect(tabResources(layout, paneId)).toEqual(['term-1', 'file', 'file']);
+        expect(findPane(layout, paneId)?.tabs[1].id).toBe(dropped);
+    });
+
+    it('reorders within a segment normally', () => {
+        const id = ids();
+        let layout = valid(createPaneLayout(terminal('term-1'), id));
+        const paneId = activePane(layout).id;
+        layout = valid(openResource(layout, terminal('term-2'), {}, id));
+        const second = findResourceTabs(layout, terminal('term-2'))[0].tab.id;
+        layout = valid(moveTab(layout, second, paneId, 0));
+        expect(tabResources(layout, paneId)).toEqual(['term-2', 'term-1']);
+    });
+
+    it('closes to the right of a Terminal in the order the bar shows, not the order a pane was persisted in', () => {
+        const id = ids();
+        let layout = valid(createPaneLayout(file('a.ts'), id));
+        const paneId = activePane(layout).id;
+        layout = valid(addPaneTerminalSilently(layout, 'term-1', id));
+        // A layout written before segments existed: the Terminal trails the document it now renders ahead of.
+        const stored = findPane(layout, paneId)!;
+        const interleaved: PaneLayout = {
+            ...layout,
+            root: { ...stored, tabs: stored.tabs.toReversed() },
+        };
+        const terminalTabId = findResourceTabs(interleaved, terminal('term-1'))[0].tab.id;
+        const documentTabId = findResourceTabs(interleaved, file('a.ts'))[0].tab.id;
+        expect(paneTabIdsToClose(interleaved, terminalTabId, 'right')).toEqual([documentTabId]);
     });
 });
 

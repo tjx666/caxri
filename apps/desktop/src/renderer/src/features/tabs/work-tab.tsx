@@ -34,6 +34,11 @@ import { cn } from '../../lib/utilities';
  * `disabled` (rather than unmounting the wrapper) is what suppresses a redundant tooltip: Base UI's trigger owns the
  * tab's DOM `id` whenever this wrapper renders, so mounting and unmounting it as the label's measured overflow changes
  * would make that id blink in and out from under `aria-controls` and roving focus.
+ *
+ * `hoverOnly` because a tab is routinely focused by the app rather than by the user: `useTabFocusRecovery` hands the
+ * active tab keyboard focus whenever a layout edit leaves focus on `document.body` — including after `Cmd+P` opens a
+ * Document — and a focus-opened path tooltip then parks itself over the top of the Editor with nothing to dismiss it.
+ * The path is in the tab's accessible name either way (`WorkTabLabel`'s `sr-only` span), so nothing is lost.
  */
 function MaybeTooltip({
     children,
@@ -48,7 +53,7 @@ function MaybeTooltip({
 }) {
     if (!content) return children;
     return (
-        <Tooltip content={content} disabled={disabled} triggerId={triggerId}>
+        <Tooltip content={content} disabled={disabled} hoverOnly triggerId={triggerId}>
             {children}
         </Tooltip>
     );
