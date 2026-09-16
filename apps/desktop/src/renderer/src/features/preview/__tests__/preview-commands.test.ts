@@ -1,5 +1,5 @@
 import type { PaneTab } from '@caxri/protocol';
-import { filePreviewTabPath } from '@caxri/protocol';
+import { externalEditorTabPath, filePreviewTabPath, gitFileDiffTabPath } from '@caxri/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -18,8 +18,13 @@ vi.mock('../../workbench/pane-actions', () => ({
     splitPaneTab: mocks.splitPaneTab,
 }));
 
-const { activePreviewSourcePath, canOpenActivePreview, openFilePreview, openFilePreviewToSide } =
-    await import('../preview-commands');
+const {
+    activePreviewSourcePath,
+    canOpenActivePreview,
+    openFilePreview,
+    openFilePreviewToSide,
+    previewSourcePath,
+} = await import('../preview-commands');
 
 function fileTab(path: string): PaneTab {
     return { id: 'tab-1', resource: { kind: 'file', path } };
@@ -60,6 +65,26 @@ describe('activePreviewSourcePath', () => {
         mocks.activeTab = fileTab('caxri-git-diff://file?path=%2Fp%2FREADME.md&ref=HEAD');
 
         expect(canOpenActivePreview()).toBe(false);
+    });
+});
+
+describe('previewSourcePath', () => {
+    it('names an ordinary document a previewer claims', () => {
+        expect(previewSourcePath('/p/README.md')).toBe('/p/README.md');
+        expect(previewSourcePath('/p/badge.svg')).toBe('/p/badge.svg');
+    });
+
+    it('resolves a preview tab back to its source', () => {
+        expect(previewSourcePath(filePreviewTabPath('/p/README.md'))).toBe('/p/README.md');
+    });
+
+    it('offers nothing for a file no previewer claims', () => {
+        expect(previewSourcePath('/p/src/index.ts')).toBeUndefined();
+    });
+
+    it('offers nothing for another virtual tab that happens to end in a previewable extension', () => {
+        expect(previewSourcePath(gitFileDiffTabPath('repo-1', '/p/README.md'))).toBeUndefined();
+        expect(previewSourcePath(externalEditorTabPath('doc-1', 'README.md'))).toBeUndefined();
     });
 });
 

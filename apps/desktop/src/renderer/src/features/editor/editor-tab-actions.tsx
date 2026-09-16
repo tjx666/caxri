@@ -11,6 +11,8 @@ import { Tooltip } from '../../components/ui/tooltip';
 import { resolveRepositoryFilePath as resolveRepoFilePath } from '../../lib/repository-file-path';
 import { useCaxriQuery } from '../../queries/client';
 import { useSelectedSession } from '../../stores/selectors';
+import { previewSourcePath } from '../preview/preview-commands';
+import { PreviewTabAction } from '../preview/preview-tab-action';
 import { openEditorTab, openFileForSession } from './document-commands';
 import { didNavigateDiffEditor, useDiffEditorActionState } from './git-diff-actions';
 import { GitDiffViewOptions } from './git-diff-view-options';
@@ -31,7 +33,13 @@ export function EditorTabActions({ path, paneId }: { paneId?: string; path: stri
             </>
         );
     }
-    return <FileEditorTabActions path={path} />;
+    const previewPath = previewSourcePath(path);
+    return (
+        <>
+            {previewPath && <PreviewTabAction path={previewPath} />}
+            <FileEditorTabActions path={path} />
+        </>
+    );
 }
 
 function FileEditorTabActions({ path }: { path: string }) {

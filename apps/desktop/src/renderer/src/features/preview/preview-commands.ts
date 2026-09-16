@@ -10,16 +10,27 @@ import {
 import { canPreviewPath } from './preview-registry';
 
 /**
+ * The Project file a preview of this editor tab would show: the tab's own document when a previewer claims it, or — for
+ * a preview tab — the document that preview is already showing. Every other virtual tab (a Git diff, a transcript, an
+ * external document) has no preview even when its encoded path ends in a previewable extension.
+ *
+ * This is the one predicate behind every preview entry point — the commands, the tab-rail icon, and both context menus
+ * — so a format registered in `preview-registry.ts` appears in all of them at once.
+ */
+export function previewSourcePath(tabPath: string): string | undefined {
+    const preview = parseFilePreviewTab(tabPath);
+    if (preview) return preview.path;
+    if (isVirtualEditorTabPath(tabPath)) return undefined;
+    return canPreviewPath(tabPath) ? tabPath : undefined;
+}
+
+/**
  * The file the preview commands act on: the active tab's document, or — when a preview tab is already focused — the
  * document that preview is showing, so re-running the command from the preview is a no-op instead of an error.
  */
 export function activePreviewSourcePath(): string | undefined {
     const tab = getActivePaneTab();
-    if (tab?.resource.kind !== 'file') return undefined;
-    const preview = parseFilePreviewTab(tab.resource.path);
-    if (preview) return preview.path;
-    if (isVirtualEditorTabPath(tab.resource.path)) return undefined;
-    return canPreviewPath(tab.resource.path) ? tab.resource.path : undefined;
+    return tab?.resource.kind === 'file' ? previewSourcePath(tab.resource.path) : undefined;
 }
 
 export function canOpenActivePreview(): boolean {

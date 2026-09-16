@@ -11,6 +11,8 @@ import {
     openFileWithDefaultApp,
     revealFile,
 } from '../../../lib/desktop-file-actions';
+import { openFilePreview } from '../../preview/preview-commands';
+import { canPreviewPath } from '../../preview/preview-registry';
 import { rememberFile } from './file-actions';
 import { BUSY_DISABLED_REASON } from './file-tree-item-types';
 
@@ -63,6 +65,11 @@ export function FileTreeItemMenu({
     return (
         <ContextMenuContent>
             <ContextMenuItem onClick={openEntry}>Open</ContextMenuItem>
+            {entry.kind === 'file' && canPreviewPath(entry.path) && (
+                <ContextMenuItem onClick={() => openFilePreview(entry.path)}>
+                    Open Preview
+                </ContextMenuItem>
+            )}
             {entry.kind === 'file' && (
                 <ContextMenuItem onClick={() => discard(openFileWithDefaultApp(entry.path))}>
                     Open with Default App
