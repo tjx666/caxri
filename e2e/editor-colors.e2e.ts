@@ -40,6 +40,13 @@ test('JSON and gitlink patches use VS Code-style Dracula colors', async () => {
         cwd: join(root, 'vendor/sub'),
     });
     await execFileAsync('git', ['add', 'vendor/sub'], { cwd: root });
+    /*
+     * The parent's change list hides a gitlink row whose submodule already has a repository section of its own, so the
+     * staged gitlink alone would leave the parent's group empty and its Open Changes action disabled. A second parent
+     * change keeps that action live; the aggregated diff behind it still carries the gitlink patch this test samples.
+     */
+    await writeFile(join(root, 'notes.txt'), 'gitlink patch coverage\n', 'utf8');
+    await execFileAsync('git', ['add', 'notes.txt'], { cwd: root });
 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
@@ -79,23 +86,27 @@ test('JSON and gitlink patches use VS Code-style Dracula colors', async () => {
         const primary = running.page.locator('.git-repository-section').filter({
             has: running.page.locator('.git-repository-row', { hasText: 'project' }),
         });
-        // A submodule row is a jump target that toggles the submodule's own repository
-        // section instead of opening a diff, so the gitlink patch renders through the
-        // aggregated Open Changes surface below.
+        // The submodule owns a repository section of its own, so the parent's change list drops
+        // the gitlink row rather than printing the same submodule twice. The gitlink patch is
+        // still reachable through the aggregated Open Changes surface below.
         const submoduleHeader = running.page
             .locator('.git-repository-section')
             .filter({ has: running.page.locator('.git-repository-kind', { hasText: 'submodule' }) })
             .locator('.git-repository-row');
         await expect(submoduleHeader).toHaveAttribute('aria-expanded', 'true');
-        await primary.locator('.git-submodule-row', { hasText: 'sub' }).click();
-        await expect(submoduleHeader).toHaveAttribute('aria-expanded', 'false');
-        await expect(running.page.locator('.git-file-diff')).toHaveCount(0);
+        await expect(primary.locator('.git-row', { hasText: 'sub' })).toHaveCount(0);
 
         await clickGitGroupAction(primary, 'Open Changes');
-        const patchEditor = running.page.locator('.git-multi-diff .git-patch-editor');
+        const gitlinkItem = running.page
+            .locator('.git-multi-diff-item')
+            .filter({ hasText: 'vendor/sub' });
+        // The stacked list virtualizes, so an item only mounts its editor once it nears the viewport.
+        await gitlinkItem.scrollIntoViewIfNeeded();
+        const patchEditor = gitlinkItem.locator('.git-patch-editor');
         await expect(patchEditor).toBeVisible();
         await expect(patchEditor).toContainText('Subproject commit');
-        await expect(running.page.locator('.git-multi-diff .monaco-diff-editor')).toHaveCount(0);
+        // A gitlink has no blob pair behind it, so it renders as a patch rather than a Monaco diff.
+        await expect(gitlinkItem.locator('.monaco-diff-editor')).toHaveCount(0);
 
         const removedLine = patchEditor.locator('.view-line').filter({ hasText: '-Subproject' });
         const addedLine = patchEditor.locator('.view-line').filter({ hasText: '+Subproject' });

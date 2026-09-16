@@ -74,7 +74,6 @@ export interface SourceControlResource {
      * Generic editor target, at most 8,192 characters. Omit it when no bounded target can be represented.
      */
     editorResource?: string;
-    navigationTargetId?: string;
     action?: SourceControlAction;
     /**
      * At most 32 secondary actions.
@@ -126,6 +125,15 @@ export interface SourceControlFileHistory {
     history: SourceControlHistoryDescriptor;
 }
 
+export interface SourceControlExternalLink {
+    url: string;
+    /**
+     * Names the destination in the row's tooltip and accessible description, so the modifier gesture is discoverable
+     * without a visible link glyph.
+     */
+    label: string;
+}
+
 export interface SourceControlProviderModel {
     id: string;
     label: string;
@@ -148,6 +156,12 @@ export interface SourceControlProviderModel {
     descriptionAccessibilityLabel: string;
     descriptionTooltip: string;
     countLabel: string;
+    /**
+     * Web page describing the changes this provider is currently showing — the pull request in Pull Request mode.
+     * Alt-clicking the provider row or its group caption opens it in the default browser, so the panel never has to
+     * spend row width on a link affordance that is empty in most modes.
+     */
+    externalLink?: SourceControlExternalLink;
     /**
      * Uncommitted work the selected mode is not showing, plus the mode that does show it. Deliberately not a
      * `SourceControlAction`: changing the panel's mode is the mode switch's job, and routing it through the action
@@ -221,9 +235,7 @@ export interface SourceControlHistoryDetails {
 }
 
 export type SourceControlActionEffect =
-    | { kind: 'focus'; targetId: string }
-    | { kind: 'open-editor'; resource: string }
-    | { kind: 'toast'; message: string; tone: 'success' };
+    { kind: 'open-editor'; resource: string } | { kind: 'toast'; message: string; tone: 'success' };
 
 export interface SourceControlActionResult {
     revision: string;

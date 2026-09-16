@@ -34,6 +34,31 @@ export function editorBreadcrumbSegments(
     });
 }
 
+export interface ReadOnlyBreadcrumbSegment {
+    label: string;
+    /**
+     * The trail down to and including this segment. A name can repeat inside one path (`src/app/src`), so the label
+     * alone is not a stable React key; the prefix is unique by construction.
+     */
+    trail: string;
+}
+
+/**
+ * Segments for a document the Project cannot browse — a file opened from outside every Project root, or one side of a
+ * Git diff. The trail is display-only for exactly that reason: there is no authorized directory listing behind a
+ * segment, so offering a picker would promise navigation the Renderer cannot perform.
+ *
+ * An absolute path keeps every ancestor (VS Code shows the same full trail for a file outside the workspace); a
+ * repository-relative diff path keeps the segments it already is.
+ */
+export function readOnlyBreadcrumbSegments(path: string): ReadOnlyBreadcrumbSegment[] {
+    const labels = path.split('/').filter(Boolean);
+    return labels.map((label, index) => ({
+        label,
+        trail: labels.slice(0, index + 1).join('/'),
+    }));
+}
+
 /**
  * VS Code opens a file breadcrumb on its containing directory, showing the selected segment among its siblings.
  */

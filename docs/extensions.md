@@ -200,10 +200,12 @@ restart. Different-Project operation records are neither returned nor controllab
 Git provider results carry opaque repository IDs selected by the Git domain. The Git extension turns raw
 summary, pull-request, commit, history, and remote-host results into the complete Source Control view
 model: modes, repository/group/resource descriptors, copy, counts, disclosure, icons, actions, and
-command bindings. Refresh, Sync, Discard All, single-file discard/delete, diff opening, history, and
-submodule navigation execute through revision-bound action capabilities. Renderer understands only
-generic snapshot/history/details/action operations and generic effects such as open-editor, focus,
-toast, and refresh. Resource identity remains stable and bounded independently from full Git paths.
+command bindings. Refresh, Sync, Discard All, single-file discard/delete, diff opening, and history
+execute through revision-bound action capabilities. Renderer understands only generic
+snapshot/history/details/action operations and generic effects such as open-editor, toast, and
+refresh. A provider may also publish one `externalLink`, which the Renderer opens in the default
+browser on an Alt-activated row instead of routing through the action registry — there is no
+Extension Host work behind it. Resource identity remains stable and bounded independently from full Git paths.
 Git also bounds path-derived labels, tooltips, accessibility text, and tree paths to the controlled
 surface contract. An encoded diff URI that exceeds the generic open-editor limit is omitted instead
 of invalidating the whole snapshot; destructive action arguments retain the full Server-authorized
