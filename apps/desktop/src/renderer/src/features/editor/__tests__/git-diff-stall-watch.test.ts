@@ -11,6 +11,7 @@ function createWatch(
         documentVisible?: boolean;
         pageAgeMs?: number;
         now?: () => number;
+        startupStalledNow?: number;
     } = {},
 ) {
     const reported: EditorWorkerStallDiagnostic[] = [];
@@ -25,7 +26,13 @@ function createWatch(
                     broadcast: 'ok' as const,
                 },
             ),
-        countEditorWorkers: () => 3,
+        readWorkerStartup: () => ({
+            created: 3,
+            started: 3 - (overrides.startupStalledNow ?? 0),
+            stalled: overrides.startupStalledNow ?? 0,
+            recovered: 0,
+            stalledNow: overrides.startupStalledNow ?? 0,
+        }),
         isDocumentVisible: () => overrides.documentVisible ?? false,
         readPageLoad: () => ({
             navigationType: 'reload',
@@ -76,8 +83,35 @@ describe('Git diff stall watch', () => {
             diffOpenCount: 1,
             stallCount: 1,
             editorWorkersCreated: 3,
+            editorWorkersStarted: 3,
+            editorWorkersStartupStalled: 0,
+            editorWorkersStartupStalledNow: 0,
         });
         expect(reported[0]?.waitMs).toBeGreaterThanOrEqual(5);
+    });
+
+    it('names a Worker that never started, so the surface can offer the recovery that matches it', async () => {
+        const outcomes: string[] = [];
+        const { watch } = createWatch({ startupStalledNow: 1 });
+
+        watch.observe({
+            waitForDiff: () => new Promise(() => {}),
+            readModels: models,
+            onOutcome: (outcome) => outcomes.push(outcome),
+        });
+        await vi.waitFor(() => expect(outcomes).toEqual(['worker-not-started']));
+    });
+
+    it('reports a plain stall while every Worker this window created did start', async () => {
+        const outcomes: string[] = [];
+        const { watch } = createWatch();
+
+        watch.observe({
+            waitForDiff: () => new Promise(() => {}),
+            readModels: models,
+            onOutcome: (outcome) => outcomes.push(outcome),
+        });
+        await vi.waitFor(() => expect(outcomes).toEqual(['stalled']));
     });
 
     it('records the recovery of a diff that arrives after its stall was reported', async () => {

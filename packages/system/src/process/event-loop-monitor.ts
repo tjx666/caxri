@@ -64,6 +64,35 @@ function stallLevel(kind: EventLoopStallKind, stallMs: number, warnMs: number): 
 }
 
 /**
+ * Per-lifetime totals for this process's event-loop gaps, so another diagnostic can say what the loop was doing when it
+ * fired instead of leaving a reader to join two logs by timestamp. Blocks and suspensions stay separate counters
+ * because only the former is a defect; see {@link EventLoopStallKind}.
+ */
+export interface EventLoopStallSummary {
+    blockCount: number;
+    /**
+     * Longest `event-loop-block` seen so far, in milliseconds; `0` while none has happened.
+     */
+    longestBlockMs: number;
+    /**
+     * Milliseconds since the most recent `event-loop-block` was observed, or `null` while none has happened. A small
+     * value next to an unrelated failure is what makes "the loop was blocked at that moment" evidence rather than a
+     * hypothesis.
+     */
+    msSinceLastBlock: number | null;
+    suspensionCount: number;
+}
+
+/**
+ * Declared as closure properties rather than methods: both are handed around on their own — a `stop` stored for
+ * shutdown, a `summary` passed to a diagnostic sink — and neither ever reads `this`.
+ */
+export interface EventLoopMonitor {
+    stop: () => void;
+    summary: () => EventLoopStallSummary;
+}
+
+/**
  * Logs one structured record per event-loop gap. A frozen loop previously left only a silence window in the logs, so
  * freezes had to be inferred from unrelated requests completing on the same millisecond; this timer makes the gap
  * itself a first-class, timestamped record with its magnitude. Timer-based rather than `monitorEventLoopDelay` so each
@@ -82,13 +111,17 @@ function stallLevel(kind: EventLoopStallKind, stallMs: number, warnMs: number): 
 export function startEventLoopMonitor(
     sink: EventLoopMonitorSink,
     options: EventLoopMonitorOptions = {},
-): () => void {
+): EventLoopMonitor {
     const intervalMs = options.intervalMs ?? EVENT_LOOP_MONITOR_INTERVAL_MS;
     const warnMs = options.warnMs ?? EVENT_LOOP_STALL_WARN_MS;
     const readNow = options.now ?? (() => performance.now());
     const readCpuUsage = options.cpuUsage ?? (() => process.cpuUsage());
     let expectedAt = readNow() + intervalMs;
     let lastCpuUsage = readCpuUsage();
+    let blockCount = 0;
+    let longestBlockMs = 0;
+    let suspensionCount = 0;
+    let lastBlockAt: number | undefined;
     const timer = setInterval(() => {
         const now = readNow();
         const cpuUsage = readCpuUsage();
@@ -102,6 +135,12 @@ export function startEventLoopMonitor(
             stallMs >= SUSPENSION_CEILING_MS || cpuDeltaMs < stallMs * SUSPENSION_CPU_RATIO
                 ? 'process-suspension'
                 : 'event-loop-block';
+        if (kind === 'process-suspension') suspensionCount += 1;
+        else {
+            blockCount += 1;
+            longestBlockMs = Math.max(longestBlockMs, Math.round(stallMs));
+            lastBlockAt = now;
+        }
         sink.write(stallLevel(kind, stallMs, warnMs), EVENT_LOOP_STALL_EVENT, {
             durationMs: Math.round(stallMs),
             fields: {
@@ -112,5 +151,14 @@ export function startEventLoopMonitor(
         });
     }, intervalMs);
     timer.unref();
-    return () => clearInterval(timer);
+    return {
+        stop: () => clearInterval(timer),
+        summary: () => ({
+            blockCount,
+            longestBlockMs,
+            msSinceLastBlock:
+                lastBlockAt === undefined ? null : Math.round(readNow() - lastBlockAt),
+            suspensionCount,
+        }),
+    };
 }

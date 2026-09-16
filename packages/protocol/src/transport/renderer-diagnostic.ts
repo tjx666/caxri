@@ -211,6 +211,19 @@ export const editorWorkerStallDiagnosticSchema = z.strictObject({
     diffOpenCount: editorWorkerCountSchema,
     stallCount: editorWorkerCountSchema,
     editorWorkersCreated: editorWorkerCountSchema,
+    /**
+     * How the Workers this window created actually behaved. `editorWorkersCreated` alone cannot separate "Monaco kept
+     * asking and every Worker ran" from "Monaco kept asking and none of them ever did": both grow the same way. A
+     * Worker counts as started once it has answered any message at all, which only a Worker whose script executed can
+     * do, and as a startup stall once it has missed that budget without answering.
+     */
+    editorWorkersStarted: editorWorkerCountSchema,
+    editorWorkersStartupStalled: editorWorkerCountSchema,
+    /**
+     * Startup-stalled Workers still held at the moment of this record. This is the field that lets a reader say the
+     * diff had no Worker to compute it, rather than that the computation was slow.
+     */
+    editorWorkersStartupStalledNow: editorWorkerCountSchema,
 });
 
 const performanceDurationSchema = z.number().nonnegative().max(120_000);
@@ -349,6 +362,15 @@ export const rendererDiagnosticSchema = z
         if (diagnostic.kind === 'editor-worker-stall') {
             if (diagnostic.stallCount > diagnostic.diffOpenCount)
                 addAggregateIssue(context, 'stallCount');
+            // A Worker is counted exactly once, as started or as a startup stall, so the two can never outnumber the
+            // Workers this window created.
+            if (
+                diagnostic.editorWorkersStarted + diagnostic.editorWorkersStartupStalled >
+                diagnostic.editorWorkersCreated
+            )
+                addAggregateIssue(context, 'editorWorkersStarted');
+            if (diagnostic.editorWorkersStartupStalledNow > diagnostic.editorWorkersStartupStalled)
+                addAggregateIssue(context, 'editorWorkersStartupStalledNow');
             if (diagnostic.workerRoundTrip === 'ok' && diagnostic.workerRoundTripMs === null)
                 addAggregateIssue(context, 'workerRoundTripMs');
             // The broadcast is only absent when nothing was probed at all; anything else must report what it observed,
