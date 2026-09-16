@@ -13,6 +13,8 @@ import { cn } from '../../../lib/utilities';
 import type { SourceControlController } from './hooks/use-source-control-controller';
 import { SourceControlHistory } from './source-control-history';
 import { SourceControlIcon } from './source-control-icon';
+import type { SourceControlRowMenuItem } from './source-control-row-menu';
+import { sourceControlActionMenuItems } from './source-control-row-menu';
 import { buildSourceControlResourceTree } from './source-control-tree';
 import { SourceControlTreeItems } from './source-control-tree-items';
 import { SourceControlTreeRow } from './source-control-tree-row';
@@ -47,6 +49,28 @@ function ProviderHeader({
             setRunningActionId(undefined);
         }
     };
+    /**
+     * The uncommitted notice joins the row's context menu rather than `provider.actions`, because the protocol
+     * deliberately keeps it out of the action registry (`sourceControlProviderSchema.uncommittedNotice`): a mode change
+     * dispatched as an action id would give one state change two dispatch paths. Carrying it here is what gives a
+     * keyboard user any entry point at all — the inline button is `tabIndex={-1}` like every other inline action in the
+     * tree, so `Shift+F10` is how it is reached.
+     */
+    const menuItems: SourceControlRowMenuItem[] = [
+        ...(uncommittedMode && provider.uncommittedNotice
+            ? [
+                  {
+                      id: `${provider.id}:uncommitted-notice`,
+                      label: provider.uncommittedNotice.accessibilityLabel,
+                      run: () => controller.selectMode(uncommittedMode),
+                  },
+              ]
+            : []),
+        ...sourceControlActionMenuItems(provider.actions, (action) => {
+            // eslint-disable-next-line no-void -- run owns progress and the controller owns errors
+            void run(action);
+        }),
+    ];
     return (
         <div className="git-repository-header group flex items-center bg-surface hover:bg-elevated">
             <SourceControlTreeRow
@@ -55,11 +79,7 @@ function ProviderHeader({
                 className="git-repository-row flex min-w-0 flex-1 cursor-pointer items-center gap-2 overflow-hidden border-0 bg-transparent p-2 text-left text-foreground"
                 aria-expanded={expanded}
                 title={provider.tooltip}
-                menuActions={provider.actions}
-                onMenuAction={(action) => {
-                    // eslint-disable-next-line no-void -- run owns progress and the controller owns errors
-                    void run(action);
-                }}
+                menuItems={menuItems}
                 onClick={() => controller.setProviderExpanded(provider.id, !expanded)}
             >
                 {/*
@@ -169,15 +189,14 @@ function GroupCaption({
     providerId: string;
 }) {
     return (
-        <div className="git-changes-caption flex items-center justify-between pr-2 text-[10px] font-bold tracking-[0.06em] text-muted uppercase">
+        <div className="git-changes-caption group flex items-center justify-between pr-2 text-[10px] font-bold tracking-[0.06em] text-muted uppercase">
             <SourceControlTreeRow
                 rowId={`group:${providerId}:${group.id}`}
                 level={2}
                 type="button"
                 className="flex h-7 min-w-0 flex-1 cursor-pointer items-center gap-1 border-0 bg-transparent px-2 text-left text-[10px] font-bold tracking-[0.06em] text-muted uppercase hover:text-foreground"
                 aria-expanded={expanded}
-                menuActions={group.actions}
-                onMenuAction={controller.runAction}
+                menuItems={sourceControlActionMenuItems(group.actions, controller.runAction)}
                 onClick={() => controller.setGroupExpanded(group.id, !expanded)}
             >
                 {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
@@ -187,8 +206,15 @@ function GroupCaption({
                 {group.actions.map((action) => (
                     <Tooltip content={action.tooltip ?? action.label} key={action.id}>
                         <Button
+                            /*
+                             * Revealed on hover or focus, exactly like the single-file toolbar. The group toolbar
+                             * carries `Discard All Changes`, which acts on the whole repository; leaving the loudest
+                             * destructive action permanently on screen while the narrower one hid behind hover
+                             * inverted the risk gradient. VS Code hides both by default and reveals them from one
+                             * rule (`scm.css` `.resource-group > .actions` beside `.resource … > .actions`).
+                             */
                             className={cn(
-                                'size-6',
+                                'hidden size-6 group-focus-within:flex group-hover:flex',
                                 action.emphasis === 'danger'
                                     ? 'git-discard-all'
                                     : 'git-open-changes',
@@ -302,6 +328,8 @@ export function SourceControlProviderSection({
                             <SourceControlHistory
                                 descriptor={provider.history}
                                 enabled={!controller.isRefreshing}
+                                level={2}
+                                rowIdPrefix={`history:${provider.id}`}
                                 runAction={controller.runAction}
                             />
                         )}

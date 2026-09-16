@@ -211,10 +211,11 @@ describe('path browser authority', () => {
                 linkKind: 'directory',
                 linkTarget: 'real-dir',
                 name: 'link-to-dir',
+                source: 'directory',
             },
             // A link the Server probe could not describe carries no invented metadata.
-            { kind: 'symlink', name: 'unprobed-link' },
-            { kind: 'file', name: 'plain.ts' },
+            { kind: 'symlink', name: 'unprobed-link', source: 'directory' },
+            { kind: 'file', name: 'plain.ts', source: 'directory' },
         ]);
     });
 

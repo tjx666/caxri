@@ -10,7 +10,7 @@ import type {
 } from '@caxri/protocol';
 import { Circle } from 'lucide-react';
 
-import { useNow } from '@/hooks/use-now';
+import { useRelativeTime } from '@/hooks/use-relative-time';
 
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '../../components/ui/hover-card';
 import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
@@ -18,10 +18,10 @@ import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { isRestoringPickerFocus } from '../../lib/picker-final-focus';
 import { cn } from '../../lib/utilities';
 import { openSessionPullRequest } from '../session/session-commands';
+import { pullRequestUnavailableLabel } from '../status-bar/pull-request-status-label';
 import { ProjectIcon } from './project-icon';
 import type { SessionActivityPresentation } from './session-activity';
 import {
-    formatSessionRelativeTime,
     sessionActivityPresentation,
     sessionToneCalloutClassName,
     sessionUnreadTone,
@@ -111,7 +111,13 @@ function SessionPullRequestDetails({
     if (unavailable)
         return (
             <div className="mt-2 text-[10px] leading-[1.45] text-muted">
-                <span className="font-medium">PR unknown</span>
+                {/*
+                 * The same named label the status-bar chip shows. A card that said `PR unknown` for all eight reasons
+                 * contradicted the chip sitting on the same screen, which has named them apart since `7763bd34`.
+                 */}
+                <span className="font-medium">
+                    {pullRequestUnavailableLabel(unavailable.reason)}
+                </span>
                 <p className="mt-0.5 mb-0">{unavailable.hint}</p>
             </div>
         );
@@ -147,14 +153,13 @@ export function SessionActivityCard({
 }) {
     const accessibleDescriptionId = useId();
     const [open, setOpen] = useState(false);
-    const now = useNow(30_000);
     const activity =
         terminal?.lastProcessState === 'detached'
             ? detachedActivityPresentation
             : sessionActivityPresentation(session.lastActivityState, terminal?.agentOperation);
     const agent = terminal?.kind ?? 'shell';
     const agentLabel = resolveAgentIcon(agent).label;
-    const lastOpened = formatSessionRelativeTime(session.lastOpenedAt, now);
+    const lastOpened = useRelativeTime(session.lastOpenedAt);
     const unreadAttention = unreadAttentionPresentation(session);
     const unread = unreadAttention ? `Unread attention: ${unreadAttention.label}` : undefined;
     const pullRequestPresentation = pullRequest

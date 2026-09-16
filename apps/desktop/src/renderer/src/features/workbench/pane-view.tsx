@@ -11,7 +11,6 @@ import {
 } from '@caxri/protocol';
 import { TerminalSquare } from 'lucide-react';
 
-import { Button } from '../../components/ui/button';
 import { Empty, EmptyMedia, EmptyTitle } from '../../components/ui/empty';
 import { usePointerDragResize } from '../../hooks/use-pointer-drag-resize';
 import {
@@ -24,7 +23,8 @@ import { cn } from '../../lib/utilities';
 import { useSessionState, useTerminal } from '../../stores/selectors';
 import { EditorSurface } from '../editor/editor-surface';
 import { workPanelId, workTabId } from '../tabs/work-tab-accessibility';
-import { createTerminal, didPasteIntoTerminal } from '../terminal/terminal-commands';
+import { NewTerminalButton } from '../terminal/new-terminal-button';
+import { didPasteIntoTerminal } from '../terminal/terminal-commands';
 import { TerminalPane } from '../terminal/terminal-pane';
 import { retainTerminalProgress } from '../terminal/terminal-progress';
 import { focusPane, movePaneTab, resizePaneSplit, splitPaneTab } from './pane-actions';
@@ -84,14 +84,7 @@ function EmptyPane() {
                 <TerminalSquare size={30} />
             </EmptyMedia>
             <EmptyTitle>No Terminal in this Session.</EmptyTitle>
-            <Button
-                onClick={() => {
-                    // eslint-disable-next-line no-void -- intentional floating-promise discard, createTerminal() reports its own errors via tryCommand
-                    void createTerminal('shell');
-                }}
-            >
-                New Terminal
-            </Button>
+            <NewTerminalButton appearance="labelled" />
         </Empty>
     );
 }

@@ -99,18 +99,25 @@ export const commandDefinitions: CommandDefinition[] = [
         nativeMenu: { menu: 'session', group: 0, order: 0 },
     },
     {
+        id: 'session.rename',
+        title: 'Rename Session',
+        category: 'Session',
+        description: 'Rename the selected Session in the Primary Side Bar',
+        nativeMenu: { menu: 'session', group: 0, order: 1 },
+    },
+    {
         id: 'session.delete',
         title: 'Delete Session',
         category: 'Session',
         description: 'Delete the selected Session and its Terminals without touching files on disk',
-        nativeMenu: { menu: 'session', group: 0, order: 1 },
+        nativeMenu: { menu: 'session', group: 0, order: 2 },
     },
     {
         id: 'session.archive',
         title: 'Archive Session',
         category: 'Session',
         description: 'Move the selected Session out of the sidebar and park its Terminals',
-        nativeMenu: { menu: 'session', group: 0, order: 2 },
+        nativeMenu: { menu: 'session', group: 0, order: 3 },
     },
     {
         id: 'session.detach',
@@ -171,6 +178,14 @@ export const commandDefinitions: CommandDefinition[] = [
         category: 'Session',
         description: 'Move forward again through the Sessions you stepped back from',
         nativeMenu: { menu: 'session', group: 2, order: 1 },
+    },
+    {
+        id: 'session.openArchived',
+        title: 'Show Archived Sessions',
+        category: 'Session',
+        description: 'Open the Archived Sessions manager to restore or delete a parked Session',
+        keywords: ['archive', 'archived', 'restore', 'unarchive'],
+        nativeMenu: { menu: 'session', group: 4, order: 0 },
     },
     {
         id: 'agentActions.open',
@@ -312,6 +327,13 @@ export const commandDefinitions: CommandDefinition[] = [
         keywords: ['markdown', 'md', 'render', 'svg', 'image', 'mermaid', 'split'],
     },
     {
+        id: 'editor.openImportLink',
+        title: 'Open Import Link',
+        category: 'Editor',
+        description: 'Open the file named by the relative import path under the editor cursor',
+        keywords: ['definition', 'follow', 'go to', 'module', 'specifier'],
+    },
+    {
         id: 'workbench.splitLeft',
         title: 'Split Left',
         category: 'Workbench',
@@ -365,6 +387,13 @@ export const commandDefinitions: CommandDefinition[] = [
         category: 'Workbench',
         description: "Move the active Terminal into a new Session in the Terminal's Project",
     },
+    {
+        id: 'workbench.selectRoot',
+        title: 'Select Workbench Root…',
+        category: 'Workbench',
+        description: 'Point Files, Editor, and Git at another Project root or linked worktree',
+        keywords: ['root', 'worktree'],
+    },
     ...filesCoreCommandDefinitions,
     {
         id: 'secondarySidebar.showGit',
@@ -412,6 +441,13 @@ export const commandDefinitions: CommandDefinition[] = [
         category: 'View',
         description: 'Show or hide the Primary Side Bar',
         nativeMenu: { menu: 'view', group: 0, order: 1 },
+    },
+    {
+        id: 'primarySidebar.focus',
+        title: 'Focus Primary Side Bar',
+        category: 'View',
+        description:
+            'Move keyboard focus into the Primary Side Bar, revealing it first when hidden',
     },
     {
         id: 'settings.open',
@@ -491,6 +527,13 @@ export const commandDefinitions: CommandDefinition[] = [
         category: 'Help',
         description: 'Export a privacy-safe diagnostics bundle',
         nativeMenu: { menu: 'help', group: 1, order: 1 },
+    },
+    {
+        id: 'git.switchBranch',
+        title: 'Switch Branch…',
+        category: 'Git',
+        description: "Check out another branch in the selected Session's repository",
+        keywords: ['checkout', 'git'],
     },
 ];
 
@@ -574,6 +617,12 @@ export const defaultKeybindings: Keybinding[] = [
      */
     { key: 'ctrl+alt+arrowleft', command: 'session.navigateBack' },
     { key: 'ctrl+alt+arrowright', command: 'session.navigateForward' },
+    /**
+     * `F2` is the rename chord in VS Code, Finder-adjacent file managers, and Windows Explorer alike, and it is the one
+     * key the Session row's own `Enter` cannot be: `Enter` only exists while that row holds keyboard focus, so the
+     * context menu had nothing real to advertise and the command palette could not offer Rename at all.
+     */
+    { key: 'f2', command: 'session.rename' },
     { key: 'cmd+shift+arrowup', command: 'terminal.previousCommand' },
     { key: 'cmd+shift+arrowdown', command: 'terminal.nextCommand' },
     { key: 'cmd+shift+r', command: 'terminal.restart' },
@@ -612,6 +661,12 @@ export const defaultKeybindings: Keybinding[] = [
     { key: 'cmd+shift+1', command: 'panel.showLogs' },
     { key: 'cmd+shift+2', command: 'panel.showInfo' },
     { key: 'cmd+[', command: 'primarySidebar.toggle' },
+    /**
+     * `Cmd+0` matches VS Code's Focus into Primary Side Bar. Toggling the side bar visible has never moved focus into
+     * it, so before this chord the Session tree was reachable only by Tabbing out of whatever owned focus — and a
+     * focused Terminal swallows Tab.
+     */
+    { key: 'cmd+0', command: 'primarySidebar.focus' },
     { key: 'cmd+]', command: 'secondarySidebar.toggle' },
     /**
      * `Cmd+J` matches VS Code's Toggle Panel chord, which this region is modeled on.
@@ -704,5 +759,13 @@ export const defaultKeybindingChanges = [
     {
         type: 'add',
         binding: { key: 'cmd+shift+b', command: 'developer.reportBug' },
+    },
+    {
+        type: 'add',
+        binding: { key: 'f2', command: 'session.rename' },
+    },
+    {
+        type: 'add',
+        binding: { key: 'cmd+0', command: 'primarySidebar.focus' },
     },
 ] satisfies readonly DefaultKeybindingChange[];

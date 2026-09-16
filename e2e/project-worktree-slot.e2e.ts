@@ -55,7 +55,7 @@ test('revealing a hidden worktree Session does not shift existing Project rows',
 
         const group = running.page.locator('.project-group');
         const rows = group.locator('.session-card');
-        const reveal = group.getByRole('button', { name: /^Show 2 more Sessions in / });
+        const reveal = group.getByRole('treeitem', { name: /^Show 2 more Sessions in / });
         await expect(rows).toHaveCount(5);
         await expect(reveal).toBeVisible();
         await expect(rows.locator('.session-worktree')).toHaveCount(5);

@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { ServerEvent } from '@caxri/protocol';
-import { CaxriError } from '@caxri/protocol';
-import { StructuredLogger } from '@caxri/system';
+import { agentProviderCatalog, CaxriError } from '@caxri/protocol';
+import { logEventCatalog, StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createTestDomainServices } from '../../__tests__/support/domain-services';
@@ -304,12 +304,14 @@ describe('Session rename', () => {
             () => {},
             createLogger(join(directory, 'logs')),
         );
+        const renameLogger = createLogger(join(directory, 'rename-logs'));
+        const write = vi.spyOn(renameLogger, 'write');
         const service = new SessionRenameService(
             database,
             agents,
             coordinator,
             () => {},
-            createLogger(join(directory, 'rename-logs')),
+            renameLogger,
         );
 
         try {
@@ -318,6 +320,70 @@ describe('Session rename', () => {
             ).resolves.toMatchObject({ displayTitle: 'Untitled no more', titleMode: 'manual' });
             expect(renameSession).not.toHaveBeenCalled();
             expect(database.getSession(created.session.id)?.displayTitle).toBe('Untitled no more');
+            expect(write).toHaveBeenCalledWith(
+                'info',
+                logEventCatalog.sessionRename.providerSyncSkipped,
+                { fields: { provider: 'codex', reason: 'agent-session-unidentified' } },
+            );
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
+
+    /**
+     * A provider with no rename integration is the third branch of the same rule: the title is Caxri's, so it commits
+     * locally and the provider write is skipped. The user is never told, because which Agent CLI can be renamed is an
+     * implementation detail, and the skip reason stays distinct from an Agent that has simply not started yet.
+     */
+    it('commits a rename locally when the provider cannot accept one', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-session-rename-unsupported-'));
+        temporaryDirectories.push(directory);
+        const projectRoot = join(directory, 'project');
+        await mkdir(projectRoot);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        expect(agentProviderCatalog.grok.capabilities.nativeRename).toBe(false);
+        const created = database.createSession(
+            database.createProject(projectRoot).id,
+            'grok',
+            projectRoot,
+        );
+        database.rebindAgentSession(created.terminal!.id, 'grok', 'agent-session-grok');
+        const renameSession = vi.fn();
+        const agents = new AgentService(
+            undefined,
+            createPendingAgentAdapters({ grok: { provider: 'grok', renameSession } }),
+        );
+        const coordinator = new AgentCoordinator(
+            database,
+            agents,
+            () => {},
+            createLogger(join(directory, 'logs')),
+        );
+        const renameLogger = createLogger(join(directory, 'rename-logs'));
+        const write = vi.spyOn(renameLogger, 'write');
+        const service = new SessionRenameService(
+            database,
+            agents,
+            coordinator,
+            () => {},
+            renameLogger,
+        );
+
+        try {
+            await expect(
+                service.rename(created.session.id, 'Named by hand'),
+            ).resolves.toMatchObject({ displayTitle: 'Named by hand', titleMode: 'manual' });
+            expect(renameSession).not.toHaveBeenCalled();
+            expect(database.getSession(created.session.id)).toMatchObject({
+                displayTitle: 'Named by hand',
+                titleMode: 'manual',
+            });
+            expect(write).toHaveBeenCalledWith(
+                'info',
+                logEventCatalog.sessionRename.providerSyncSkipped,
+                { fields: { provider: 'grok', reason: 'provider-rename-unsupported' } },
+            );
         } finally {
             coordinator.close();
             database.close();

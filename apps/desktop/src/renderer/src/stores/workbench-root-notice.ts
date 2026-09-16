@@ -55,7 +55,7 @@ export function workbenchRootNotice(
  * Session's Project rejects the request; `tryCommand` reports that as one error toast instead of an unhandled
  * rejection. The successful switch converges the Workbench through the `state.changed` Server publishes with it.
  */
-function undoFollowedWorkbenchRoot(sessionId: string, projectId: string): Promise<unknown> {
+export function undoFollowedWorkbenchRoot(sessionId: string, projectId: string): Promise<unknown> {
     return tryCommand('Unable to return to the previous Workbench Root', () =>
         caxri.request('session.selectWorkbenchRoot', { sessionId, projectId }),
     );
@@ -77,12 +77,15 @@ export function reportWorkbenchRootChange(
         ...(notice.kind === 'fallback' && { type: 'worktree-fallback' }),
         ...(undoProjectId && {
             action: {
-                label: 'Undo',
-                onSelect: () => {
-                    // Fire-and-forget: undoFollowedWorkbenchRoot funnels every failure into its own error toast.
-                    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-                    void undoFollowedWorkbenchRoot(payload.sessionId, undoProjectId);
+                id: 'workbench.undoFollowedRoot',
+                params: {
+                    sessionId: payload.sessionId,
+                    projectId: undoProjectId,
+                    followedProjectId: payload.workbenchProjectId,
                 },
+                accessibleLabel: notice.projectTitle
+                    ? `Undo the switch to worktree ${notice.projectTitle}`
+                    : 'Undo the switch to another worktree',
             },
         }),
     });

@@ -9,13 +9,23 @@ import { FileTypeIcon } from '../../../icons/files/file-type-icon';
 import { FILE_TREE_DRAG_TYPE } from '../../../lib/file-drag';
 import { resolveRepositoryFilePath as resolveRepoFilePath } from '../../../lib/repository-file-path';
 import { cn } from '../../../lib/utilities';
+import { sourceControlDecorationClassName } from './source-control-decorations';
 import { SourceControlIcon } from './source-control-icon';
+import { sourceControlActionMenuItems } from './source-control-row-menu';
 import type { SourceControlTreeNode } from './source-control-tree';
 import { sourceControlDirectoryExpansionKeys } from './source-control-tree';
 import { SourceControlTreeRow } from './source-control-tree-row';
 
 const resourceRowClassName =
     'git-row flex w-full items-center gap-2 h-7 px-2 border-0 bg-surface text-left cursor-pointer';
+
+/**
+ * The name and the status letter of a changed row wear the same `--git-*` color, which is the same color that file's
+ * name wears in the Files tree and on its tab. `undefined` for an undecorated row, which keeps the row's own color.
+ */
+function resourceColorClassName(resource: SourceControlResource): string | undefined {
+    return resource.decoration && sourceControlDecorationClassName(resource.decoration);
+}
 
 function Decoration({
     className,
@@ -31,9 +41,7 @@ function Decoration({
             className={cn(
                 `status status-${value.identifier}`,
                 'min-w-4 flex-none text-center font-mono font-bold',
-                value.tone === 'warning' && 'text-warning',
-                value.tone === 'success' && 'text-success',
-                value.tone === 'danger' && 'text-danger',
+                sourceControlDecorationClassName(value),
                 className,
             )}
         >
@@ -140,7 +148,11 @@ export function SourceControlTreeItems({
                     onClick={() => resource.action && runAction(resource.action)}
                 >
                     <SourceControlIcon className="shrink-0" icon={resource.icon} size={14} />
-                    <span className="min-w-0 flex-1 truncate">{node.name}</span>
+                    <span
+                        className={cn('min-w-0 flex-1 truncate', resourceColorClassName(resource))}
+                    >
+                        {node.name}
+                    </span>
                     {resource.description && (
                         <small className="shrink-0 text-[11px] whitespace-nowrap text-muted">
                             {resource.description}
@@ -155,8 +167,7 @@ export function SourceControlTreeItems({
                     <SourceControlTreeRow
                         rowId={`resource:${resource.id}`}
                         level={3 + depth}
-                        menuActions={trailingActions}
-                        onMenuAction={runAction}
+                        menuItems={sourceControlActionMenuItems(trailingActions, runAction)}
                         className={cn(resourceRowClassName, 'git-submodule-row hover:bg-elevated')}
                         style={{ paddingLeft: 10 + depth * 14 }}
                         title={resource.tooltip}
@@ -166,7 +177,14 @@ export function SourceControlTreeItems({
                         onClick={() => resource.action && runAction(resource.action)}
                     >
                         <SourceControlIcon className="shrink-0" icon={resource.icon} size={14} />
-                        <span className="min-w-0 flex-1 truncate">{node.name}</span>
+                        <span
+                            className={cn(
+                                'min-w-0 flex-1 truncate',
+                                resourceColorClassName(resource),
+                            )}
+                        >
+                            {node.name}
+                        </span>
                         {resource.description && (
                             <small className="shrink-0 text-[11px] whitespace-nowrap text-muted">
                                 {resource.description}
@@ -201,8 +219,7 @@ export function SourceControlTreeItems({
                 <SourceControlTreeRow
                     rowId={`resource:${resource.id}`}
                     level={3 + depth}
-                    menuActions={trailingActions}
-                    onMenuAction={runAction}
+                    menuItems={sourceControlActionMenuItems(trailingActions, runAction)}
                     className={cn(
                         resourceRowClassName,
                         'hover:bg-elevated',
@@ -216,7 +233,11 @@ export function SourceControlTreeItems({
                     onClick={() => resource.action && runAction(resource.action)}
                 >
                     <SourceControlIcon icon={resource.icon} />
-                    <span className="min-w-0 flex-1 truncate">{node.name}</span>
+                    <span
+                        className={cn('min-w-0 flex-1 truncate', resourceColorClassName(resource))}
+                    >
+                        {node.name}
+                    </span>
                     <Decoration
                         resource={resource}
                         className={

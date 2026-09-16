@@ -1,3 +1,4 @@
+import { terminalKindSchema } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 import { SquareDashed } from 'lucide-react';
 
@@ -14,17 +15,15 @@ import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { useDialogStore } from '../../stores/dialogs';
 import { useProjects } from '../../stores/selectors';
 import { cancelPendingSession, confirmPendingSession } from './session-commands';
-import { useTerminalKindRecencyStore } from './terminal-kind-recency';
 
 /**
  * Centered fallback for the one Terminal choice that has nothing to anchor to: adding a Project starts at the native
  * folder picker, which leaves no on-screen trigger behind. Every other entry point uses the Project row's anchored
- * `CreateSessionMenu`; both render the same kinds in the same recency order so the two surfaces cannot disagree.
+ * `CreateSessionMenu`; both render the protocol catalog in its declaration order so the two surfaces cannot disagree.
  */
 export function CreateSessionDialog() {
     const pendingRoot = useDialogStore((state) => state.pendingRoot);
     const pendingProjectId = useDialogStore((state) => state.pendingProjectId);
-    const order = useTerminalKindRecencyStore((state) => state.order);
     const projects = useProjects();
     const isOpen = Boolean(pendingRoot ?? pendingProjectId);
     // Mirrors the Server's Project-title derivation (`basename(rootPath)` in apps/server/src/domains/db/models/projects.ts) so
@@ -45,7 +44,7 @@ export function CreateSessionDialog() {
                     </DialogDescription>
                 </DialogHeader>
                 <div className="flex flex-col gap-1 p-2">
-                    {order.map((kind) => (
+                    {terminalKindSchema.options.map((kind) => (
                         <Button
                             key={kind}
                             className="justify-start"

@@ -16,13 +16,11 @@ import type {
     PathBrowserInputState,
     PathBrowserKeyIntent,
     PathBrowserMode,
-    PathBrowserResultKind,
 } from './path-browser';
 import {
     completePathQuery,
     parsePathBrowserInput,
     pathBrowserCreateCandidate,
-    pathBrowserEmptyMessage,
     pathBrowserKeyIntent,
     projectDirectoryPath,
 } from './path-browser';
@@ -33,20 +31,20 @@ import {
     openPathBrowserEntry,
     startPathBrowser,
 } from './path-browser-client';
+import type { PathBrowserEntry, PathBrowserRow } from './path-browser-rows';
+import {
+    firstSelectablePathBrowserIndex,
+    isSelectablePathBrowserRow,
+    nextSelectablePathBrowserIndex,
+    pathBrowserRows,
+} from './path-browser-rows';
 
 const PATH_BROWSER_QUERY_DEBOUNCE_MS = 120;
 const EMPTY_ENTRIES: MethodResult<'pathBrowser.start'>['entries'] = [];
 
 type PathBrowserSnapshot = MethodResult<'pathBrowser.start'>;
-export type PathBrowserEntry = PathBrowserSnapshot['entries'][number];
 
-/**
- * One selectable line of the dialog. Creation shares the list and the selection model with the results so a single
- * Enter path serves both, instead of living in a separate slot the keyboard cannot reach.
- */
-export type PathBrowserRow =
-    | { candidate: PathBrowserCreateCandidate; kind: 'create' }
-    | { entry: PathBrowserEntry; kind: 'entry' };
+export type { PathBrowserEntry, PathBrowserRow } from './path-browser-rows';
 
 type PathBrowserNavigationResult = MethodResult<'pathBrowser.navigate'>;
 
@@ -100,9 +98,8 @@ function isBrowseRedundant(state: {
  * Projects one snapshot plus the in-flight flags into everything the dialog renders.
  *
  * Results are shown only while the snapshot answers the current input, so a stale list never appears actionable.
- * Creation is decided against the current directory alone: Main falls back to a Project search only after an exhaustive
- * empty listing, so a search snapshot contributes neither matches nor truncation to that decision, and the offer can
- * sit in the same list as the search results.
+ * Creation is decided against the current directory alone: `projectSearch` rows name files elsewhere, so finding a
+ * same-named file in another folder must not silently remove the user's ability to create one here.
  */
 function derivePathBrowserView(state: {
     hasSyntaxError: boolean;
@@ -113,11 +110,9 @@ function derivePathBrowserView(state: {
     snapshot: PathBrowserSnapshot | undefined;
 }): {
     candidateToCreate: PathBrowserCreateCandidate | undefined;
-    emptyMessage: string | undefined;
+    directoryMatches: PathBrowserSnapshot['entries'];
     isResultsReady: boolean;
     isTruncated: boolean;
-    matches: PathBrowserSnapshot['entries'];
-    resultKind: PathBrowserResultKind;
     rows: PathBrowserRow[];
 } {
     const { hasSyntaxError, inputState, isFetching, isNavigating, isStarting, snapshot } = state;
@@ -125,30 +120,33 @@ function derivePathBrowserView(state: {
         snapshot?.mode === inputState.mode && snapshot.input === inputState.input;
     const isResultsReady =
         !isStarting && !isNavigating && !isFetching && isSnapshotCurrent && !hasSyntaxError;
-    const matches = isResultsReady ? snapshot.entries : EMPTY_ENTRIES;
-    const resultKind: PathBrowserResultKind = snapshot?.resultKind ?? 'directory';
-    const isProjectSearch = resultKind === 'projectSearch';
+    const entries = isResultsReady ? snapshot.entries : EMPTY_ENTRIES;
+    const directoryMatches = entries.filter((entry) => entry.source === 'directory');
     const isTruncated = snapshot?.truncated ?? false;
     const candidateToCreate =
         snapshot?.canCreate === true
             ? pathBrowserCreateCandidate(
                   inputState.mode,
                   inputState.input,
-                  isProjectSearch ? 0 : matches.length,
-                  isProjectSearch ? false : isTruncated,
+                  directoryMatches.length,
+                  isTruncated,
                   isResultsReady,
               )
             : undefined;
-    const rows: PathBrowserRow[] = matches.map((entry) => ({ entry, kind: 'entry' as const }));
-    if (candidateToCreate) rows.push({ candidate: candidateToCreate, kind: 'create' });
     return {
         candidateToCreate,
-        emptyMessage: pathBrowserEmptyMessage(rows.length, isTruncated, resultKind),
+        directoryMatches,
         isResultsReady,
         isTruncated,
-        matches,
-        resultKind,
-        rows,
+        rows: isResultsReady
+            ? pathBrowserRows({
+                  candidateToCreate,
+                  entries,
+                  isDirectoryTruncated: isTruncated,
+                  query: parsePathBrowserInput(inputState.input).filter,
+                  searchStatus: snapshot.projectSearch,
+              })
+            : [],
     };
 }
 
@@ -306,15 +304,7 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
         snapshot?.mode,
     ]);
 
-    const {
-        candidateToCreate,
-        emptyMessage,
-        isResultsReady,
-        isTruncated,
-        matches,
-        resultKind,
-        rows,
-    } = useMemo(
+    const { candidateToCreate, directoryMatches, isResultsReady, isTruncated, rows } = useMemo(
         () =>
             derivePathBrowserView({
                 hasSyntaxError,
@@ -327,7 +317,16 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
         [hasSyntaxError, inputState, isFetching, isNavigating, isStarting, snapshot],
     );
     const isListboxRendered = isResultsReady && !error;
-    const effectiveSelectedIndex = clamp(selectedIndex, Math.max(rows.length - 1, 0));
+    /**
+     * Headings and notices sit between the rows, so a clamped index can land on one. Falling forward to the first
+     * selectable row keeps Enter meaningful and keeps the footer hint describing what is actually highlighted.
+     */
+    const clampedIndex = clamp(selectedIndex, Math.max(rows.length - 1, 0));
+    const clampedRow = rows.at(clampedIndex);
+    const effectiveSelectedIndex =
+        clampedRow && isSelectablePathBrowserRow(clampedRow)
+            ? clampedIndex
+            : firstSelectablePathBrowserIndex(rows);
     const selectedRow = rows.at(effectiveSelectedIndex);
     const selected = selectedRow?.kind === 'entry' ? selectedRow.entry : undefined;
     const activeOptionId = selectedRow
@@ -506,21 +505,27 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
                 }
                 if (!selectedRow) return;
                 if (selectedRow.kind === 'create') runPathBrowserDetached(createFromQuery());
-                else choose(selectedRow.entry);
+                else if (selectedRow.kind === 'entry') choose(selectedRow.entry);
             },
             close: closePathBrowser,
             complete: applyCompletion,
             detachProject,
             enterDirectory: () => choose(selected),
             moveSelection: (delta) =>
-                setSelectedIndex((current) => (current + delta + rows.length) % rows.length),
+                setSelectedIndex((current) =>
+                    nextSelectablePathBrowserIndex(
+                        rows,
+                        clamp(current, Math.max(rows.length - 1, 0)),
+                        delta,
+                    ),
+                ),
             parent: goToParent,
         });
     };
 
     function applyCompletion(): void {
         if (syntaxError) return;
-        const completion = completePathQuery(matches, inputState.input, isTruncated, resultKind);
+        const completion = completePathQuery(directoryMatches, inputState.input, isTruncated);
         if (!completion) return;
         completedInputWithoutBrowse.current = completion;
         inputRevision.current += 1;
@@ -542,7 +547,6 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
         createFromQuery,
         displayedError: syntaxError ?? error,
         effectiveSelectedIndex,
-        emptyMessage,
         goToParent,
         handleKeyDown,
         input: inputState.input,
@@ -554,7 +558,6 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
         isTruncated,
         listboxId,
         mode: inputState.mode,
-        resultKind,
         rows,
         selectedRow,
         selectIndex: setSelectedIndex,

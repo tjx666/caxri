@@ -37,6 +37,7 @@ import * as Progress from '@/components/ui/progress';
 import * as Select from '@/components/ui/select';
 import * as Separator from '@/components/ui/separator';
 import * as Spinner from '@/components/ui/spinner';
+import * as SplitButton from '@/components/ui/split-button';
 import * as Switch from '@/components/ui/switch';
 import * as Textarea from '@/components/ui/textarea';
 import * as ToastOutlet from '@/features/toasts/toast-outlet';
@@ -51,10 +52,10 @@ import * as useFocusOnRevision from '@/hooks/use-focus-on-revision';
 import * as useIsOverflowing from '@/hooks/use-is-overflowing';
 import * as useLatestReference from '@/hooks/use-latest-reference';
 import * as useModalRegistration from '@/hooks/use-modal-registration';
-import * as useNow from '@/hooks/use-now';
 import * as useOnVisible from '@/hooks/use-on-visible';
 import * as usePointerDragResize from '@/hooks/use-pointer-drag-resize';
 import * as usePolledQuery from '@/hooks/use-polled-query';
+import * as useRelativeTime from '@/hooks/use-relative-time';
 import * as useShouldReduceMotion from '@/hooks/use-should-reduce-motion';
 import * as motionLib from '@/lib/motion';
 import * as utilities from '@/lib/utilities';
@@ -91,6 +92,7 @@ export default {
     '@/components/ui/select': Select,
     '@/components/ui/separator': Separator,
     '@/components/ui/spinner': Spinner,
+    '@/components/ui/split-button': SplitButton,
     '@/components/ui/switch': Switch,
     '@/components/ui/textarea': Textarea,
     '@/features/toasts/toast-outlet': ToastOutlet,
@@ -105,9 +107,9 @@ export default {
     '@/hooks/use-is-overflowing': useIsOverflowing,
     '@/hooks/use-latest-reference': useLatestReference,
     '@/hooks/use-modal-registration': useModalRegistration,
-    '@/hooks/use-now': useNow,
     '@/hooks/use-on-visible': useOnVisible,
     '@/hooks/use-pointer-drag-resize': usePointerDragResize,
     '@/hooks/use-polled-query': usePolledQuery,
+    '@/hooks/use-relative-time': useRelativeTime,
     '@/hooks/use-should-reduce-motion': useShouldReduceMotion,
 };

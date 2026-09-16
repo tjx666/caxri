@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { remoteDebuggingStateSchema } from '@caxri/protocol';
 import type { App } from 'electron';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -9,6 +10,7 @@ import {
     configureDesktopProfile,
     hasProfileSingleInstanceLock,
     installSecondInstanceFocus,
+    remoteDebuggingState,
 } from '../desktop-profile';
 
 const temporaryDirectories: string[] = [];
@@ -216,5 +218,53 @@ describe('profile single instance', () => {
         fixture.emit('second-instance');
         await vi.waitFor(() => expect(focus).toHaveBeenCalledTimes(2));
         expect(onError).not.toHaveBeenCalled();
+    });
+});
+
+describe('remote debugging disclosure', () => {
+    it('falls back to the profile default when CAXRI_DEV_CDP_PORT is exported empty', async () => {
+        const root = await temporaryDirectory('caxri-desktop-profile-empty-port-');
+        const { app, appended } = createFakeApp({
+            appDataPath: root,
+            userDataPath: join(root, 'electron-default'),
+        });
+
+        const profile = configureDesktopProfile(app, { CAXRI_DEV_CDP_PORT: '' });
+
+        // An empty value would otherwise reach Chromium as `--remote-debugging-port=` and produce a state the wire
+        // schema rejects, which fails the whole `argv.get` result the Settings dialog waits on.
+        expect(profile.remoteDebugging).toMatchObject({ port: '9223', source: 'profile-default' });
+        expect(appended).toEqual([{ key: 'remote-debugging-port', value: '9223' }]);
+        const state = remoteDebuggingState(profile);
+        expect(state).toEqual({ port: '9223', transport: 'port' });
+        expect(remoteDebuggingStateSchema.parse(state)).toEqual(state);
+    });
+
+    it('names no port when the command line asked Chromium to pick one', async () => {
+        const root = await temporaryDirectory('caxri-desktop-profile-ephemeral-');
+        const { app } = createFakeApp({
+            appDataPath: root,
+            remoteDebuggingPort: '',
+            userDataPath: join(root, 'electron-default'),
+        });
+
+        const state = remoteDebuggingState(configureDesktopProfile(app, {}));
+
+        expect(state).toEqual({ transport: 'port' });
+        expect(remoteDebuggingStateSchema.parse(state)).toEqual(state);
+    });
+
+    it('drops the Main-only source when a pipe is the open channel', async () => {
+        const root = await temporaryDirectory('caxri-desktop-profile-pipe-');
+        const { app } = createFakeApp({
+            appDataPath: root,
+            remoteDebuggingPipe: true,
+            userDataPath: join(root, 'electron-default'),
+        });
+
+        const state = remoteDebuggingState(configureDesktopProfile(app, {}));
+
+        expect(state).toEqual({ transport: 'pipe' });
+        expect(remoteDebuggingStateSchema.parse(state)).toEqual(state);
     });
 });

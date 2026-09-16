@@ -5,6 +5,10 @@ import { errorMessage, listPaneTerminalIds, paneSplitBlockedReason } from '@caxr
 
 import { closeDocumentTabs, saveActiveEditor } from '../features/editor/document-commands';
 import {
+    canOpenImportLinkAtCursor,
+    openImportLinkAtCursor,
+} from '../features/editor/import-link-commands';
+import {
     canSendActiveFileReference,
     sendActiveFileReferenceToTerminal,
 } from '../features/editor/send-file-reference';
@@ -13,6 +17,7 @@ import {
     openActiveFilePreview,
     openActiveFilePreviewToSide,
 } from '../features/preview/preview-commands';
+import { focusPrimarySidebar } from '../features/primary-sidebar/primary-sidebar-focus';
 import { toggleScreencastMode } from '../features/screencast/screencast';
 import {
     archiveSelectedSession,
@@ -24,19 +29,27 @@ import {
     detachSelectedSession,
     moveTerminalToNewSession,
     navigateSessionHistory,
+    openArchivedSessions,
     openSelectedProjectInExternalEditor,
     openSelectedSessionPullRequest,
+    renameSelectedSession,
     resumeSelectedSession,
     selectAdjacentSession,
     switchMruSession,
 } from '../features/session/session-commands';
+import {
+    canSelectWorkbenchRoot,
+    canSwitchBranch,
+    selectWorkbenchRootFromCommand,
+    switchBranchFromCommand,
+} from '../features/status-bar/status-bar-picker-commands';
 import { cycleActiveTab } from '../features/tabs/tab-navigation';
 import { isAgentProcessRunning } from '../features/terminal/terminal-agent-runtime';
 import {
     clearActiveTerminal,
     closeTerminal,
     copyActiveTerminalSelection,
-    createTerminal,
+    createDefaultTerminal,
     findInActiveTerminal,
     hasActiveTerminalSelection,
     navigateActiveTerminalCommand,
@@ -154,16 +167,18 @@ const commandContext: CommandContext = {
         deleteSelected: deleteSelectedSession,
         detachSelected: detachSelectedSession,
         navigateHistory: navigateSessionHistory,
+        openArchived: openArchivedSessions,
         openPullRequestSelected: openSelectedSessionPullRequest,
+        renameSelected: renameSelectedSession,
         resumeSelected: resumeSelectedSession,
         selectAdjacent: selectAdjacentSession,
         switchMru: switchMruSession,
     },
     terminal: {
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-        create: () => void createTerminal('shell'),
+        create: () => void createDefaultTerminal(),
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-        createInSplit: () => void createTerminal('shell', { split: 'right' }),
+        createInSplit: () => void createDefaultTerminal({ split: 'right' }),
         clearActive: () => {
             const terminalId = activeTerminalId();
             if (terminalId) clearActiveTerminal(terminalId);
@@ -251,6 +266,8 @@ const commandContext: CommandContext = {
             const isOnlySessionTerminal = !layout || listPaneTerminalIds(layout).length <= 1;
             moveTerminalToNewSession(tab.resource.terminalId, isOnlySessionTerminal);
         },
+        canSelectRoot: canSelectWorkbenchRoot,
+        selectRoot: selectWorkbenchRootFromCommand,
     },
     editor: {
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
@@ -261,6 +278,9 @@ const commandContext: CommandContext = {
         canOpenPreview: canOpenActivePreview,
         openPreview: openActiveFilePreview,
         openPreviewToSide: openActiveFilePreviewToSide,
+        canOpenImportLink: canOpenImportLinkAtCursor,
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        openImportLink: () => void openImportLinkAtCursor(),
     },
     secondarySidebar: {
         activateViewContainer: activateSecondarySidebarViewContainer,
@@ -271,7 +291,11 @@ const commandContext: CommandContext = {
             useChromeLayoutStore.getState().activatePanelViewContainer(id),
         toggle: () => useChromeLayoutStore.getState().togglePanel(),
     },
-    primarySidebar: { toggle: () => useChromeLayoutStore.getState().togglePrimarySidebar() },
+    primarySidebar: {
+        focus: focusPrimarySidebar,
+        toggle: () => useChromeLayoutStore.getState().togglePrimarySidebar(),
+    },
+    git: { canSwitchBranch, switchBranch: switchBranchFromCommand },
     dialogs: {
         openSettings: (view = 'ui') => useDialogStore.getState().openSettings(view),
         openPalette: () => useDialogStore.getState().setPaletteOpen(true),
@@ -304,14 +328,9 @@ const commandContext: CommandContext = {
                 },
                 {
                     recovery: (error) => ({
-                        label: 'Copy details',
-                        onSelect: () => {
-                            // eslint-disable-next-line no-void -- tryCommand reports clipboard failures through the toast
-                            void tryCommand('Copy details failed', () =>
-                                navigator.clipboard.writeText(
-                                    errorMessage(error, 'Unknown diagnostics export error'),
-                                ),
-                            );
+                        id: 'diagnostics.copyFailure',
+                        params: {
+                            text: errorMessage(error, 'Unknown diagnostics export error'),
                         },
                     }),
                 },

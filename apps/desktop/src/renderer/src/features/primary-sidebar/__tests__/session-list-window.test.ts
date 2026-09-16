@@ -58,10 +58,19 @@ describe('sessionListWindow', () => {
         expect(window.hiddenCount).toBe(0);
     });
 
-    it('keeps the selected Session visible when it sits past the window', () => {
+    it('pins the selected Session to the end of the window without revealing its neighbours', () => {
         const window = sessionListWindow(sessions(12), undefined, 'session-9');
-        expect(window.visibleSessions.at(-1)?.id).toBe('session-9');
-        expect(window.hiddenCount).toBe(3);
+        expect(window.visibleSessions.map((session) => session.id)).toEqual([
+            'session-1',
+            'session-2',
+            'session-3',
+            'session-4',
+            'session-5',
+            'session-9',
+        ]);
+        expect(window.windowCount).toBe(DEFAULT_VISIBLE_SESSION_COUNT);
+        // The reveal row survives the selection, so the Projects below keep their place.
+        expect(window.hiddenCount).toBe(6);
     });
 
     it('ignores a selected Session that belongs to another Project', () => {
@@ -77,22 +86,35 @@ describe('sessionListWindow', () => {
 });
 
 describe('nextRevealedSessionCount', () => {
-    it('adds one step to what is on screen', () => {
+    it('adds one step to the in-order window', () => {
         expect(nextRevealedSessionCount(DEFAULT_VISIBLE_SESSION_COUNT)).toBe(
             DEFAULT_VISIBLE_SESSION_COUNT + SESSION_REVEAL_STEP,
         );
     });
 
-    it('steps from a selection-widened window so the reveal row keeps its promise', () => {
-        const widened = sessionListWindow(sessions(30), undefined, 'session-9');
-        expect(widened.visibleSessions).toHaveLength(9);
-        const revealed = sessionListWindow(
-            sessions(30),
-            nextRevealedSessionCount(widened.visibleSessions.length),
-            'session-9',
+    /**
+     * The reveal row's label is a promise, and a pinned selected Session is already on screen. Both cases below would
+     * otherwise miscount it: absorbing the pin into the next window adds one row fewer than promised, and leaving it
+     * pinned adds one more.
+     */
+    it.each([
+        ['absorbs the pinned Session', 20, 'session-13'],
+        ['leaves the pinned Session outside the next window', 40, 'session-21'],
+        ['has no pinned Session at all', 40, undefined],
+        ['finishes the list in one step', 12, 'session-9'],
+    ])('adds exactly what the reveal row promised when it %s', (_case, total, selectedId) => {
+        const before = sessionListWindow(sessions(total), undefined, selectedId);
+        const after = sessionListWindow(
+            sessions(total),
+            nextRevealedSessionCount(before.windowCount),
+            selectedId,
         );
-        expect(revealed.visibleSessions.length - widened.visibleSessions.length).toBe(
-            widened.nextRevealCount,
+        expect(after.visibleSessions.length - before.visibleSessions.length).toBe(
+            before.nextRevealCount,
         );
+    });
+
+    it('promises nothing once the list is complete', () => {
+        expect(sessionListWindow(sessions(3), undefined, 'session-3').nextRevealCount).toBe(0);
     });
 });

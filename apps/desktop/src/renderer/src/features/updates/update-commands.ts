@@ -2,7 +2,9 @@ import type { UpdateState } from '@caxri/protocol';
 
 import { caxri } from '../../lib/caxri';
 import { createStore } from '../../lib/store';
-import { tryCommand } from '../../stores/toasts';
+import { pushToast, tryCommand } from '../../stores/toasts';
+import { useWorkbenchStore } from '../../stores/workbench';
+import { resolveUpdateAnnouncement } from './update-presentation';
 
 interface UpdateStoreState {
     open: boolean;
@@ -18,16 +20,59 @@ export const useUpdateStore = createStore<UpdateStoreState>('update', (set) => (
     setState: (state) => set({ state }),
 }));
 
-function applyState(state: UpdateState, shouldRevealAvailable = false): void {
-    useUpdateStore.setState({
-        state,
-        ...(shouldRevealAvailable && state.status === 'available' && { open: true }),
-    });
+/**
+ * Reads the persisted skip out of the Server snapshot. Not a hook: the announcement path runs from an event listener
+ * rather than from a render. `undefined` means the snapshot has not arrived yet, which the caller must treat as
+ * "unknown" rather than "nothing skipped".
+ */
+function skippedVersion(): string | null | undefined {
+    return useWorkbenchStore.getState().bootstrap?.settings['updates.skippedVersion'];
+}
+
+async function recordAcknowledgement(): Promise<void> {
+    try {
+        await caxri.request('updates.acknowledge');
+    } catch {
+        // Failing to record it costs at most one repeated notification after a window reload, which is not worth a
+        // failure toast of its own. The response is deliberately not written back into the store either: it would be
+        // a stale `available` if the user has already started a download in the meantime.
+    }
+}
+
+/**
+ * Tells Main this process has already offered the available version to the user, so a window reload — or a download
+ * cancelled back to `available` — re-reads the same release without prompting again.
+ */
+function acknowledgeAvailableUpdate(): void {
+    if (useUpdateStore.getState().state?.status !== 'available') return;
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see `recordAcknowledgement`
+    void recordAcknowledgement();
+}
+
+/**
+ * Opens the update dialog. Every route here is an explicit user act — the `Check for Updates` command, the status-bar
+ * chip, or the notification's `Show Update` — which is the distinction this feature turns on: automatic discovery gets
+ * a notification, never a modal that takes the screen and the Escape key away from whatever the user was doing.
+ */
+export function showUpdateDialog(): void {
+    useUpdateStore.getState().setOpen(true);
+    acknowledgeAvailableUpdate();
+}
+
+export function closeUpdateDialog(): void {
+    useUpdateStore.getState().setOpen(false);
 }
 
 async function requestState(label: string, request: () => Promise<UpdateState>): Promise<void> {
     const state = await tryCommand(label, request);
-    if (state) applyState(state);
+    if (state) useUpdateStore.getState().setState(state);
+}
+
+async function runManualCheck(): Promise<void> {
+    await requestState('Unable to check for updates', () => caxri.request('updates.check'));
+    // The dialog is already showing the result, so this process has offered the release however the check started;
+    // without this, closing the dialog and reloading the window would surface the same release a second time.
+    acknowledgeAvailableUpdate();
 }
 
 export function checkForUpdates(): void {
@@ -35,7 +80,7 @@ export function checkForUpdates(): void {
     // Fire-and-forget: `requestState` reports failures through `tryCommand`'s own toast, so this
     // synchronous-looking wrapper never needs to await the outcome.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-    void requestState('Unable to check for updates', () => caxri.request('updates.check'));
+    void runManualCheck();
 }
 
 export function downloadUpdate(): void {
@@ -56,26 +101,91 @@ export function openDownloadedUpdate(): void {
 }
 
 /**
- * Keeps the mounted update dialog synchronized with Main-owned download state.
+ * Persists `Skip this version` — the half of the two dismissals that outlives the process. Caxri stops offering the
+ * release until a newer one appears, and the `Skipped update version` row in Settings is where it can be taken back.
+ * The dialog closes only once the write succeeded, so a failed write never looks like a recorded decision.
+ */
+export async function skipUpdateVersion(version: string): Promise<void> {
+    const result = await tryCommand('Unable to skip this version', () =>
+        caxri.request('settings.patch', {
+            changes: [{ key: 'updates.skippedVersion', value: version }],
+        }),
+    );
+    if (!result) return;
+    closeUpdateDialog();
+    pushToast(
+        'info',
+        `Caxri will not offer ${version} again until a newer version is released. Settings can undo this.`,
+    );
+}
+
+export async function clearSkippedUpdateVersion(): Promise<void> {
+    await tryCommand('Unable to stop skipping this version', () =>
+        caxri.request('settings.patch', {
+            changes: [{ key: 'updates.skippedVersion', value: null }],
+        }),
+    );
+}
+
+function announceAvailableUpdate(state: UpdateState | undefined): void {
+    const announcement = resolveUpdateAnnouncement(state, skippedVersion());
+    if (!announcement) return;
+    pushToast('info', announcement.message, {
+        action: {
+            id: 'updates.show',
+            accessibleLabel: `Show the update to Caxri ${announcement.version}`,
+        },
+    });
+    acknowledgeAvailableUpdate();
+}
+
+/**
+ * Keeps the update surfaces synchronized with Main-owned check and download state, and raises the notification that
+ * replaced the automatic modal.
+ *
+ * The announcement waits for the Server snapshot that carries `updates.skippedVersion`. Main answers `updates.getState`
+ * from memory while the snapshot is still in flight, so announcing immediately would treat "the skip is not loaded yet"
+ * as "nothing is skipped" and prompt for exactly the release the user told Caxri to stop offering — most visibly right
+ * after a window reload, which is when both reads race.
  */
 export function subscribeUpdateState(): () => void {
     let isActive = true;
+    let isAnnouncementDeferred = false;
+
+    function applyState(state: UpdateState): void {
+        useUpdateStore.getState().setState(state);
+        if (useWorkbenchStore.getState().bootstrap === undefined) {
+            isAnnouncementDeferred = true;
+            return;
+        }
+        isAnnouncementDeferred = false;
+        announceAvailableUpdate(state);
+    }
+
     async function loadState(): Promise<void> {
         try {
             const state = await caxri.request('updates.getState');
-            if (isActive) applyState(state, true);
+            if (isActive) applyState(state);
         } catch {
             // Best-effort initial sync; the `updates.state` event subscription below still keeps
-            // the dialog current even if this initial read fails.
+            // the surfaces current even if this initial read fails.
         }
     }
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void loadState();
-    const unsubscribe = caxri.onEvent((event) => {
-        if (event.event === 'updates.state') applyState(event.payload, true);
+
+    const unsubscribeEvents = caxri.onEvent((event) => {
+        if (event.event === 'updates.state') applyState(event.payload);
+    });
+    const unsubscribeWorkbench = useWorkbenchStore.subscribe((workbench) => {
+        if (!isActive || !isAnnouncementDeferred || workbench.bootstrap === undefined) return;
+        isAnnouncementDeferred = false;
+        // Re-read rather than replaying the held state: a newer one may have landed while the snapshot was in flight.
+        announceAvailableUpdate(useUpdateStore.getState().state);
     });
     return () => {
         isActive = false;
-        unsubscribe();
+        unsubscribeEvents();
+        unsubscribeWorkbench();
     };
 }

@@ -15,6 +15,15 @@ import {
     TreeItemCollapsibleState,
 } from 'caxri';
 
+import {
+    checkLabel,
+    deploymentStateLabel,
+    projectStatusStateLabel,
+    publicationDescription,
+    publicationLabel,
+    REFRESH_ACTION_LABEL,
+} from './status-labels';
+
 export interface StatusNode {
     item: TreeItem;
     children?: readonly StatusNode[];
@@ -36,10 +45,6 @@ const deploymentIcons: Record<ProjectStatusState, string> = {
     ...stateIcons,
     neutral: 'circle-slash',
 };
-
-function deploymentStateLabel(deployment: ProjectStatusDeployment): string {
-    return deployment.state === 'neutral' ? 'canceled' : deployment.state;
-}
 
 const linearStateIcons: Partial<
     Record<NonNullable<ProjectStatusRepository['linearIssues'][number]['stateType']>, string>
@@ -91,15 +96,6 @@ const pullRequestPresentation = {
     closed: { icon: 'git-pull-request-closed', label: 'Closed', tone: 'danger' },
 } as const;
 
-const checkLabels: Record<ProjectStatusState, string> = {
-    success: 'CI passed',
-    failure: 'CI failed',
-    cancelled: 'CI cancelled',
-    pending: 'CI pending',
-    neutral: 'CI neutral',
-    unknown: 'CI unknown',
-};
-
 const repoPresentation: Record<
     ProjectStatusRepository['kind'],
     { description?: string; icon: string }
@@ -122,7 +118,7 @@ type ProjectStatusFailure = ProjectStatusRepository['errors'][number];
  * Failures that state one condition for the whole Project rather than a property of the repository that happened to
  * report them: a lost connection, and a provider budget the whole account shares. The root states each of these once
  * and the repository subtrees drop them — a Project holding a repository plus its submodule otherwise printed the same
- * account-level sentence twice, each with its own Retry button.
+ * account-level sentence twice, each with its own Refresh button.
  */
 const sharedFailureReasons = new Set<ProjectStatusFailure['reason']>(['network', 'rate-limited']);
 
@@ -349,42 +345,10 @@ function buildRepoChildren(
     const lifecycle = repo.pullRequest?.lifecycle
         ? pullRequestPresentation[repo.pullRequest.lifecycle]
         : undefined;
-    const publicationLabels = {
-        'checking': 'Checking origin…',
-        'unpublished': 'Not on origin',
-        'published': 'On origin',
-        'synced': 'Synced',
-        'ahead': `↑${publication?.ahead ?? 0}`,
-        'behind': `↓${publication?.behind ?? 0}`,
-        'diverged': `↑${publication?.ahead ?? 0} ↓${publication?.behind ?? 0}`,
-        'unknown': 'Unknown',
-        'no-origin': 'No origin',
-        'unsupported': 'Unknown',
-        'detached': 'Detached HEAD',
-        'unborn': 'No commits',
-    };
-    const publicationLabel = publication ? publicationLabels[publication.state] : undefined;
-    const branchDescription = [isDefaultBranch ? 'default' : undefined, publicationLabel]
+    const branchPublication = publication ? publicationLabel(publication) : undefined;
+    const branchDescription = [isDefaultBranch ? 'default' : undefined, branchPublication]
         .filter(Boolean)
         .join(' · ');
-    const publicationDescriptions: Partial<
-        Record<NonNullable<typeof publication>['state'], string>
-    > = {
-        'unpublished':
-            'No same-named branch exists on origin. It may exist on another remote or under another name.',
-        'published':
-            'The branch exists on origin, but local history is insufficient to compare commits. This does not confirm that every local commit has been pushed.',
-        'synced': 'Local and origin branch tips match at the checked time.',
-        'ahead': 'Local commits not on the compared origin branch at the checked time.',
-        'behind': 'Origin commits not on the local branch at the checked time.',
-        'diverged': 'Both branches have commits absent from the other at the checked time.',
-        'unknown': 'Could not verify the branch on origin. Refresh Project Status to retry.',
-        'unsupported': 'Remote verification currently supports GitHub origins only.',
-        'no-origin': 'This repository has no origin remote.',
-        'detached': 'HEAD is not attached to a local branch.',
-        'unborn': 'This branch has no commits yet.',
-        'checking': 'Checking the same-named branch on origin.',
-    };
     const nodes: StatusNode[] = [
         item(`${prefix}:branch`, repo.branch, {
             description: branchDescription.length > 0 ? branchDescription : undefined,
@@ -400,10 +364,10 @@ function buildRepoChildren(
                 .join(', '),
             url: repo.branchUrl,
             tooltip: {
-                ...((publicationLabel !== undefined || isDefaultBranch) && {
-                    badge: { label: publicationLabel ?? 'default', tone: 'neutral' },
+                ...((branchPublication !== undefined || isDefaultBranch) && {
+                    badge: { label: branchPublication ?? 'default', tone: 'neutral' },
                 }),
-                description: publication ? publicationDescriptions[publication.state] : undefined,
+                description: publication ? publicationDescription(publication.state) : undefined,
                 rows: [
                     ...(lifecycle && repo.pullRequest
                         ? [
@@ -529,7 +493,12 @@ function buildRepoChildren(
     }
     if (repo.pullRequest) {
         const pullRequest = repo.pullRequest;
-        const lifecycleLabel = lifecycle?.label ?? 'Unknown';
+        /**
+         * A pull request whose lifecycle the provider never sent is not a pull request in an unknown state — it is one
+         * we did not hear about. `Unknown` also already meant two other things in this tree, and reusing it a third
+         * time made the badge unreadable.
+         */
+        const lifecycleLabel = lifecycle?.label ?? 'Not reported';
         const children = pullRequest.checks.map((check, index) => {
             const duration = durationLabel(check.durationMs);
             return item(`${prefix}:check:${index}`, check.name, {
@@ -537,7 +506,10 @@ function buildRepoChildren(
                 icon: stateIcons[check.state],
                 url: check.url,
                 tooltip: {
-                    badge: { label: check.state, tone: stateTones[check.state] },
+                    badge: {
+                        label: projectStatusStateLabel(check.state),
+                        tone: stateTones[check.state],
+                    },
                     rows: [
                         ...(duration ? [{ label: 'duration', value: duration }] : []),
                         ...(check.url
@@ -564,12 +536,12 @@ function buildRepoChildren(
                  * the branch row (see `lifecycle` above), so this row no longer repeats it in the trailing slot.
                  */
                 icon: stateIcons[pullRequest.state],
-                accessibilityLabel: `#${pullRequest.number} ${pullRequest.title}, ${lifecycleLabel}, ${checkLabels[pullRequest.state]}`,
+                accessibilityLabel: `#${pullRequest.number} ${pullRequest.title}, ${lifecycleLabel}, ${checkLabel(pullRequest.state)}`,
                 url: pullRequest.url,
                 tooltip: {
                     badge: { label: lifecycleLabel, tone: lifecycle?.tone ?? 'neutral' },
                     rows: [
-                        { label: 'checks', value: checkLabels[pullRequest.state] },
+                        { label: 'checks', value: checkLabel(pullRequest.state) },
                         ...(pullRequest.hiddenCheckCount > 0
                             ? [
                                   {
@@ -608,10 +580,7 @@ function buildRepoChildren(
             command:
                 error.detailsView === 'logs'
                     ? { command: 'caxri.showLogs', title: 'Open Logs' }
-                    : {
-                          command: 'caxri.project-status.refresh',
-                          title: isFailure ? 'Retry' : 'Recheck',
-                      },
+                    : { command: 'caxri.project-status.refresh', title: REFRESH_ACTION_LABEL },
         });
         nodes.push(
             error.source === 'vercel'
@@ -680,7 +649,7 @@ export function buildStatusRootNodes(
                     icon: isMissingGitRepo ? 'git-branch' : 'circle-x',
                     command: {
                         command: 'caxri.project-status.refresh',
-                        title: isMissingGitRepo ? 'Refresh' : 'Retry',
+                        title: REFRESH_ACTION_LABEL,
                     },
                 },
             ),
@@ -694,7 +663,7 @@ export function buildStatusRootNodes(
                 icon: 'git-branch',
                 command: {
                     command: 'caxri.project-status.refresh',
-                    title: 'Refresh',
+                    title: REFRESH_ACTION_LABEL,
                 },
             }),
         ];
@@ -727,7 +696,7 @@ function networkNodes(errors: readonly ProjectStatusFailure[]): StatusNode[] {
                 ? `Caxri could not reach ${networkProviderListFormatter.format(names)}. Reconnect, then refresh.`
                 : first.hint,
             icon: 'cloud',
-            command: { command: 'caxri.project-status.refresh', title: 'Recheck' },
+            command: { command: 'caxri.project-status.refresh', title: REFRESH_ACTION_LABEL },
         }),
     ];
 }
@@ -745,8 +714,8 @@ function rateLimitNodes(errors: readonly ProjectStatusFailure[], now: number): S
         .map(([source, error]) => {
             /**
              * Caxri honours this pause itself and recovers without the user, so inside the window there is nothing to
-             * offer: Retry would spend a click on a request the limiter answers with this very error. Past the deadline
-             * — or with no deadline at all — the action comes back.
+             * offer: Refresh would spend a click on a request the limiter answers with this very error. Past the
+             * deadline — or with no deadline at all — the action comes back.
              */
             const isPaused = error.retryAt !== undefined && error.retryAt > now;
             return item(`status:rate-limit:${source}`, error.message, {
@@ -754,7 +723,10 @@ function rateLimitNodes(errors: readonly ProjectStatusFailure[], now: number): S
                 description: error.hint,
                 icon: 'hourglass',
                 ...(!isPaused && {
-                    command: { command: 'caxri.project-status.refresh', title: 'Retry' },
+                    command: {
+                        command: 'caxri.project-status.refresh',
+                        title: REFRESH_ACTION_LABEL,
+                    },
                 }),
             });
         });

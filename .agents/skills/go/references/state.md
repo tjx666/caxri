@@ -276,3 +276,24 @@ bun run .agents/skills/go/scripts/state.ts phase --help
   recorded. `decision_required` remains blocked after commenting until a new
   resolved decision revision is published. Identical resume attempts reuse the
   existing comment URL and never post duplicates.
+- Acceptance requires every issue to be assessed at the exact delivered head, so
+  a cross-issue repair that moves that head leaves each earlier assessment stale.
+  `Issue #N expectation drift assessment does not match the required head` is what
+  that looks like. Re-attest with the non-material form — it refreshes the
+  assessment head and leaves a published decision intact:
+
+  ```bash
+  bun run .agents/skills/go/scripts/state.ts drift-assess \
+    --state "$STATE" --number 42 --head-sha "$(git rev-parse HEAD)" \
+    --kind internal_detail --drift-key final-assessment
+  ```
+
+  Do not re-assert an unchanged decision as material drift instead. The
+  fingerprint is head-scoped, so the ledger reads that as a new revision and
+  demands a duplicate of the comment already published.
+
+- Re-attestation does not launder unfinished drift. A decision nobody published
+  or one still owed to the user rejects the non-material form with
+  `A non-material assessment cannot clear an unpublished material drift` or
+  `... a material drift that is still waiting on the user`. Publish it with
+  `drift-comment`, or publish the resolved revision, and then re-attest.

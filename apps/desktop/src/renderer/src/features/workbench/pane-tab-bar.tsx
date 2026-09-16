@@ -8,11 +8,9 @@ import {
     terminalDisplayTitle,
     terminalTabLabel,
 } from '@caxri/protocol';
-import { CircleAlert, Pause, Plus } from 'lucide-react';
+import { CircleAlert, Pause } from 'lucide-react';
 import { AnimatePresence, domAnimation, LazyMotion } from 'motion/react';
 
-import { CommandTooltip } from '../../components/command-tooltip';
-import { Button } from '../../components/ui/button';
 import { ContextMenuItem } from '../../components/ui/context-menu';
 import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
@@ -41,7 +39,8 @@ import { moveTerminalToNewSession } from '../session/session-commands';
 import { WorkTab } from '../tabs/work-tab';
 import type { WorkTabNavigationKey } from '../tabs/work-tab-accessibility';
 import { workTabId, workTabNavigationTarget } from '../tabs/work-tab-accessibility';
-import { closeTerminal, createTerminal } from '../terminal/terminal-commands';
+import { NewTerminalButton } from '../terminal/new-terminal-button';
+import { closeTerminal } from '../terminal/terminal-commands';
 import {
     terminalProgressAriaLabel,
     terminalProgressLabel,
@@ -376,21 +375,7 @@ function PaneTabActions({
     return (
         <div className="tab-actions flex h-11 flex-none items-center px-1 [-webkit-app-region:no-drag]">
             {editorPath && <EditorTabActions paneId={paneId} path={editorPath} />}
-            {hasTabsToSwitch && (
-                <CommandTooltip commandId="terminal.new">
-                    <Button
-                        size="icon"
-                        variant="ghost"
-                        aria-label="New Terminal"
-                        onClick={() => {
-                            // eslint-disable-next-line no-void -- intentional floating-promise discard, createTerminal() reports its own errors via tryCommand
-                            void createTerminal('shell', { paneId });
-                        }}
-                    >
-                        <Plus size={14} />
-                    </Button>
-                </CommandTooltip>
-            )}
+            {hasTabsToSwitch && <NewTerminalButton paneId={paneId} />}
         </div>
     );
 }

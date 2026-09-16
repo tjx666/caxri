@@ -107,7 +107,7 @@
     --tab-hover-foreground: #f8f8f2;
     --list-hover-background: #44475a75;
     --list-hover-foreground: #f8f8f2;
-    --list-focus-background: #44475a75;
+    --list-focus-background: #44475abf; /* Deliberately denser than hover; see `builtin-themes/dracula.ts`. */
     --list-focus-foreground: #f8f8f2;
     --list-active-selection-background: #44475a;
     --list-active-selection-foreground: #f8f8f2;

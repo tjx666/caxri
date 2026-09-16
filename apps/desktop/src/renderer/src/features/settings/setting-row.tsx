@@ -5,8 +5,15 @@ import type {
     AgentSkillHealth,
     AppSettings,
     ArgvConfigChanges,
+    IntegerSettingSpec,
 } from '@caxri/protocol';
-import { agentProviderCatalog, settingsSpecByKey } from '@caxri/protocol';
+import {
+    agentProviderCatalog,
+    DEFAULT_DELEGATION_DEPTH,
+    MAX_DELEGATION_DEPTH,
+    MIN_DELEGATION_DEPTH,
+    settingsSpecByKey,
+} from '@caxri/protocol';
 import { Archive, RotateCcw } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
@@ -30,7 +37,7 @@ import { IgnoredChecksForm } from './ignored-checks-form';
 import { IntegerControl } from './integer-control';
 import { MobileAccessForm } from './mobile-access-form';
 import { hasProviderAutonomy, withProviderAutonomy } from './provider-autonomy';
-import { hookHealthLabel, hookHealthTone } from './provider-health';
+import { hookHealthLabel, hookHealthTone, isHookAdapterAvailable } from './provider-health';
 import { ProviderRecoveryEditor } from './provider-recovery-editor';
 import { ProviderSkillHealth } from './provider-skill-health';
 import type { SettingRowDescriptor } from './settings-registry';
@@ -42,7 +49,11 @@ import { TrustedDomainsForm } from './trusted-domains-form';
 import { TrustedFoldersForm } from './trusted-folders-form';
 
 interface SettingRowHandlers {
-    onFieldChange: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
+    onFieldChange: <K extends keyof AppSettings>(
+        key: K,
+        value: AppSettings[K],
+        member?: string,
+    ) => void;
     onArgvConfigChange: (changes: ArgvConfigChanges) => void;
     onResetRow: (row: SettingRowDescriptor) => void;
 }
@@ -88,6 +99,12 @@ interface RowChromeProperties {
      * Optional live status caption under the description (hook health).
      */
     status?: ReactNode;
+    /**
+     * A full-width row's own on/off switch, kept at the row's right end like every other toggle in Settings while its
+     * expanded fields stay below. Without this the switch fell under the description and left-aligned, so one screen
+     * showed the same control in two places.
+     */
+    toggle?: ReactNode;
     fullWidth: boolean;
     labelFor?: string;
 }
@@ -99,6 +116,7 @@ function RowChrome({
     onReset,
     control,
     status,
+    toggle,
     fullWidth,
     labelFor,
 }: RowChromeProperties) {
@@ -143,7 +161,14 @@ function RowChrome({
             )}
             {fullWidth ? (
                 <Field className="gap-2">
-                    {labelBlock}
+                    {toggle ? (
+                        <div className="flex min-h-9 w-full items-start gap-4">
+                            {labelBlock}
+                            {toggle}
+                        </div>
+                    ) : (
+                        labelBlock
+                    )}
                     {control}
                 </Field>
             ) : (
@@ -156,9 +181,25 @@ function RowChrome({
     );
 }
 
+/**
+ * `agents.delegation` is one complex value, so its depth has no entry in `settingsSpecByKey` to render from. The bounds
+ * come from the schema that validates the write, not from numbers retyped here, so the control can never offer a value
+ * the write would reject.
+ */
+const DELEGATION_DEPTH_SPEC: IntegerSettingSpec = {
+    kind: 'integer',
+    key: 'agents.delegation',
+    title: 'Delegation depth',
+    category: 'agents',
+    min: MIN_DELEGATION_DEPTH,
+    max: MAX_DELEGATION_DEPTH,
+    default: DEFAULT_DELEGATION_DEPTH,
+};
+
 function rowControl(properties: SettingRowProperties): {
     control: ReactNode;
     status?: ReactNode;
+    toggle?: ReactNode;
     labelFor?: string;
 } {
     const { row, context, agentHookHealth, agentSkillHealth, trustedDomainsFocusRequestId } =
@@ -242,6 +283,11 @@ function rowControl(properties: SettingRowProperties): {
                 binding.field === 'hooks' ||
                 agentProviderCatalog[binding.provider].capabilities[binding.field];
             const isEnabled = supported && providerSettings[binding.field].enabled;
+            // A stored `true` for an adapter this platform cannot run is a preference, not a state. The switch shows
+            // what is actually in force; the caption under it says why.
+            const isAvailable =
+                binding.field !== 'hooks' ||
+                isHookAdapterAvailable(agentHookHealth?.[binding.provider]);
             const status =
                 binding.field === 'hooks' ? (
                     <FieldDescription
@@ -267,8 +313,8 @@ function rowControl(properties: SettingRowProperties): {
                     <Switch
                         id={controlId}
                         aria-label={label}
-                        checked={isEnabled}
-                        disabled={!supported}
+                        checked={isEnabled && isAvailable}
+                        disabled={!supported || !isAvailable}
                         className="mt-0.5"
                         onCheckedChange={(checked) =>
                             onFieldChange(
@@ -362,21 +408,30 @@ function rowControl(properties: SettingRowProperties): {
         }
         case 'provider-recovery': {
             const recovery = settings['agents.providers'][binding.provider].recovery;
+            const applyRecovery = (value: typeof recovery): void =>
+                onFieldChange(
+                    'agents.providers',
+                    withProviderField(settings, binding.provider, { recovery: value }),
+                );
             return {
                 labelFor: controlId,
-                control: (
+                toggle: (
+                    <Switch
+                        id={controlId}
+                        aria-label={`${agentProviderCatalog[binding.provider].displayName} network error recovery`}
+                        checked={recovery.enabled}
+                        className="mt-0.5"
+                        onCheckedChange={(enabled) => applyRecovery({ ...recovery, enabled })}
+                    />
+                ),
+                control: recovery.enabled ? (
                     <ProviderRecoveryEditor
                         id={controlId}
                         provider={binding.provider}
                         value={recovery}
-                        onChange={(value) =>
-                            onFieldChange(
-                                'agents.providers',
-                                withProviderField(settings, binding.provider, { recovery: value }),
-                            )
-                        }
+                        onChange={applyRecovery}
                     />
-                ),
+                ) : undefined,
             };
         }
         case 'provider-actions':
@@ -482,6 +537,25 @@ function rowControl(properties: SettingRowProperties): {
             };
         case 'mobile-access':
             return { control: <MobileAccessForm /> };
+        case 'delegation-depth':
+            return {
+                labelFor: controlId,
+                control: (
+                    <IntegerControl
+                        id={controlId}
+                        label={row.title}
+                        spec={DELEGATION_DEPTH_SPEC}
+                        value={settings['agents.delegation'].maxDepth}
+                        onChange={(value) =>
+                            onFieldChange(
+                                'agents.delegation',
+                                { ...settings['agents.delegation'], maxDepth: value },
+                                'maxDepth',
+                            )
+                        }
+                    />
+                ),
+            };
         case 'remote-debugging':
             return {
                 labelFor: controlId,
@@ -501,6 +575,18 @@ function rowControl(properties: SettingRowProperties): {
         case 'hardware-acceleration':
             return {
                 labelFor: controlId,
+                /**
+                 * The switch position alone says "off"; it does not say that the consequence is already in force on
+                 * every launch. A degradation the user opted into is still a degradation (DESIGN.md principle 9), and
+                 * after the restart that applied it there is nowhere else in the product that names it — so the row
+                 * states it in the warning tone, in the same words the notice used.
+                 */
+                status:
+                    argvConfig?.hardwareAcceleration === false ? (
+                        <FieldDescription role="status" tone="warning">
+                            Caxri starts with software rendering until this is turned back on.
+                        </FieldDescription>
+                    ) : undefined,
                 control: (
                     <Switch
                         id={controlId}
@@ -523,7 +609,7 @@ function rowControl(properties: SettingRowProperties): {
  */
 export function SettingRow(properties: SettingRowProperties) {
     const { row, context, handlers } = properties;
-    const { control, status, labelFor } = rowControl(properties);
+    const { control, status, toggle, labelFor } = rowControl(properties);
     return (
         <RowChrome
             control={control}
@@ -533,6 +619,7 @@ export function SettingRow(properties: SettingRowProperties) {
             resettable={isRowResettable(row.binding)}
             row={row}
             status={status}
+            toggle={toggle}
             onReset={() => handlers.onResetRow(row)}
         />
     );

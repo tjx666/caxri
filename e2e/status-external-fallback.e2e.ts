@@ -8,26 +8,43 @@ import { expect, test } from './support/fixtures.ts';
 import type { RunningCaxri } from './support/helpers.ts';
 import { createShellSession, launchCaxri } from './support/helpers.ts';
 
+/**
+ * Every row that offers the refresh command says `Refresh` — an error row that opens the logs instead still says `Open
+ * Logs`. Spelled out rather than read from `REFRESH_ACTION_LABEL`: a spec that imports the same constant the product
+ * renders would pass through any rename. `status-fallback.test.ts` pins the product side to this same word.
+ */
+const refreshAction = 'Refresh';
+
 const scenarios = [
-    { id: 'not-installed', title: 'Vercel CLI not installed', action: 'Recheck', icon: 'cloud' },
-    { id: 'not-logged-in', title: 'Vercel CLI not signed in', action: 'Recheck', icon: 'cloud' },
+    {
+        id: 'not-installed',
+        title: 'Vercel CLI not installed',
+        action: refreshAction,
+        icon: 'cloud',
+    },
+    {
+        id: 'not-logged-in',
+        title: 'Vercel CLI not signed in',
+        action: refreshAction,
+        icon: 'cloud',
+    },
     {
         id: 'not-linked',
         title: 'Repository not linked to Vercel',
-        action: 'Recheck',
+        action: refreshAction,
         icon: 'cloud',
     },
     {
         id: 'rate-limited',
         title: 'Vercel API limit reached',
         /**
-         * A rate limit is a wait Caxri is already honouring, so the row offers nothing to press: the request a Retry
+         * A rate limit is a wait Caxri is already honouring, so the row offers nothing to press: the request a Refresh
          * would send is exactly the one the limiter is refusing. The hourglass says the same thing in the icon.
          */
         action: undefined,
         icon: 'hourglass',
     },
-    { id: 'network', title: 'No network connection', action: 'Recheck', icon: 'cloud' },
+    { id: 'network', title: 'No network connection', action: refreshAction, icon: 'cloud' },
 ] as const;
 
 for (const scenario of scenarios) {

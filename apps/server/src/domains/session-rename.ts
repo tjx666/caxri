@@ -1,4 +1,9 @@
-import type { AgentProvider, ServerEvent, SessionRecord } from '@caxri/protocol';
+import type {
+    AgentProvider,
+    ServerEvent,
+    SessionRecord,
+    SessionRenameProviderSyncSkipReason,
+} from '@caxri/protocol';
 import { agentProviderCatalog, CaxriError, sessionRenameTitleSchema } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
@@ -67,6 +72,20 @@ export class SessionRenameService {
         private readonly queue = new SessionRenameQueue(),
     ) {}
 
+    /**
+     * Records why this rename reaches the Agent no further than Caxri's own database. Every caller still commits the
+     * title locally, and `renameSession` marks the Session manually titled, so automatic naming cannot overwrite it.
+     */
+    private skipProviderSynchronization(
+        provider: AgentProvider | undefined,
+        reason: SessionRenameProviderSyncSkipReason,
+    ): undefined {
+        this.logger.write('info', logEventCatalog.sessionRename.providerSyncSkipped, {
+            fields: { provider: provider ?? null, reason },
+        });
+        return;
+    }
+
     private async primaryAgentTarget(sessionId: string): Promise<AgentRenameTarget | undefined> {
         const session = this.database.getSession(sessionId);
         if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
@@ -75,10 +94,16 @@ export class SessionRenameService {
         if (!terminal) throw new CaxriError('INTERNAL', 'Primary Agent Terminal is missing');
         if (!terminal.provider)
             throw new CaxriError('INTERNAL', 'Primary Agent Terminal has no provider');
+        /**
+         * A provider without rename integration is the same situation as an Agent that has not produced a session yet:
+         * there is nothing to synchronize, which is an implementation fact rather than something the user did wrong.
+         * Refusing here also contradicted the Session row itself — double-click and Enter never consulted the
+         * capability, so the user typed a name, pressed Enter, and watched it vanish behind an error toast.
+         */
         if (!agentProviderCatalog[terminal.provider].capabilities.nativeRename)
-            throw new CaxriError(
-                'UNAVAILABLE',
-                `${agentProviderCatalog[terminal.provider].displayName} does not support native Session renaming`,
+            return this.skipProviderSynchronization(
+                terminal.provider,
+                'provider-rename-unsupported',
             );
         if (!terminal.agentSessionId) {
             await this.coordinator.probeTerminalNow(terminal.id);
@@ -94,15 +119,11 @@ export class SessionRenameService {
          * sync still commits the title locally, and `renameSession` marks the Session manually titled, so automatic
          * naming will not overwrite it once the Agent does start.
          */
-        if (!terminal?.agentSessionId) {
-            this.logger.write('info', logEventCatalog.sessionRename.providerSyncSkipped, {
-                fields: {
-                    provider: terminal?.provider ?? null,
-                    reason: 'agent-session-unidentified',
-                },
-            });
-            return undefined;
-        }
+        if (!terminal?.agentSessionId)
+            return this.skipProviderSynchronization(
+                terminal?.provider,
+                'agent-session-unidentified',
+            );
         if (!terminal.provider)
             throw new CaxriError('INTERNAL', 'Primary Agent Terminal has no provider');
         return {

@@ -1,8 +1,9 @@
 import type { ProjectStatusRepository, TreeItemRichTooltip } from 'caxri';
-import { ProjectStatusSummaryErrorMessage, TreeItemCollapsibleState } from 'caxri';
+import { TreeItemCollapsibleState } from 'caxri';
 import { describe, expect, it } from 'vitest';
 
-import { buildRepoNode, buildStatusRootNodes } from './status-tree';
+import { deploymentStateLabel } from '../status-labels';
+import { buildRepoNode } from '../status-tree';
 
 function iconId(node: ReturnType<typeof buildRepoNode>): string | undefined {
     return node.item.iconPath?.id;
@@ -40,7 +41,8 @@ describe('Status extension tree', () => {
                 );
             expect(rows).toHaveLength(3);
             for (const row of rows) {
-                const stateLabel = state === 'neutral' ? 'canceled' : state;
+                // Through the shared mapping, so the row never prints the provider's own word for the state.
+                const stateLabel = deploymentStateLabel(deployment);
                 expect(row.item.accessibilityInformation?.label).toContain(stateLabel);
                 expect(row.item.tooltip).toMatchObject({ badge: { label: stateLabel } });
                 // The environment rows keep the hash-heavy alias out of the row, never out of reach.
@@ -73,12 +75,12 @@ describe('Status extension tree', () => {
     it.each(['primary', 'submodule'] as const)(
         'keeps merged %s PRs distinct from every CI result',
         (kind) => {
-            for (const [state, checkLabel, checkIcon] of [
-                ['success', 'CI passed', 'circle-check'],
-                ['failure', 'CI failed', 'circle-x'],
-                ['pending', 'CI pending', 'loading'],
-                ['neutral', 'CI neutral', 'circle-outline'],
-                ['unknown', 'CI unknown', 'circle-dot'],
+            for (const [state, checkLabel, checkIcon, badgeLabel] of [
+                ['success', 'CI passed', 'circle-check', 'passed'],
+                ['failure', 'CI failed', 'circle-x', 'failed'],
+                ['pending', 'CI pending', 'loading', 'pending'],
+                ['neutral', 'CI neutral', 'circle-outline', 'neutral'],
+                ['unknown', 'CI unknown', 'circle-dot', 'unknown'],
             ] as const) {
                 const root = buildRepoNode({
                     id: 'fixture',
@@ -111,7 +113,9 @@ describe('Status extension tree', () => {
                     label: 'checks',
                     value: checkLabel,
                 });
-                expect(pr.children?.[0].item.tooltip).toMatchObject({ badge: { label: state } });
+                expect(pr.children?.[0].item.tooltip).toMatchObject({
+                    badge: { label: badgeLabel },
+                });
                 expect(pr.item.collapsibleState).toBe(
                     state === 'failure'
                         ? TreeItemCollapsibleState.Expanded
@@ -150,14 +154,14 @@ describe('Status extension tree', () => {
         const branch = node.children?.find((child) => child.item.id?.endsWith(':branch'));
         expect(branch?.item.iconPath?.id).toBe('git-pull-request-open');
         expect(pr?.item.description).toBeUndefined();
-        expect(pr?.item.accessibilityInformation?.label).toBe('#1 Cancelled, Open, CI cancelled');
+        expect(pr?.item.accessibilityInformation?.label).toBe('#1 Cancelled, Open, CI canceled');
         expect((pr?.item.tooltip as TreeItemRichTooltip).rows).toContainEqual({
             label: 'checks',
-            value: 'CI cancelled',
+            value: 'CI canceled',
         });
         const check = pr?.children?.[0]?.item;
         expect(check?.iconPath?.id).toBe('circle-slash');
-        expect(check?.tooltip).toMatchObject({ badge: { label: 'cancelled', tone: 'neutral' } });
+        expect(check?.tooltip).toMatchObject({ badge: { label: 'canceled', tone: 'neutral' } });
     });
 
     it.each([
@@ -165,7 +169,7 @@ describe('Status extension tree', () => {
         ['draft', 'git-pull-request-draft', 'Draft'],
         ['closed', 'git-pull-request-closed', 'Closed'],
         // An unreported lifecycle leaves the branch row on its own glyph rather than asserting a state.
-        [undefined, 'git-branch', 'Unknown'],
+        [undefined, 'git-branch', 'Not reported'],
     ] as const)(
         'shows %s lifecycle on the branch row without treating CI success as an open PR',
         (lifecycle, icon, label) => {
@@ -212,7 +216,9 @@ describe('Status extension tree', () => {
         ['behind', '↓1'],
         ['diverged', '↑2 ↓1'],
         ['published', 'On origin'],
-        ['unknown', 'Unknown'],
+        // A probe that failed and a remote nobody can probe are different answers, so they get different words.
+        ['unknown', 'Check failed'],
+        ['unsupported', 'Not supported'],
     ] as const)(
         'makes %s publication visible and explains its comparison target',
         (state, label) => {
@@ -392,7 +398,7 @@ describe('Status extension tree', () => {
         expect(children[6].children?.[0].item.tooltip).toEqual({
             kind: 'rich',
             title: 'production',
-            badge: { label: 'success', tone: 'success' },
+            badge: { label: 'passed', tone: 'success' },
             rows: [
                 {
                     label: 'alias',
@@ -417,11 +423,11 @@ describe('Status extension tree', () => {
          */
         expect(children[7].item.description).toBeUndefined();
         expect(children[7].item.accessibilityInformation?.label).toBe(
-            'Production, success · caxri.app',
+            'Production, passed · caxri.app',
         );
         expect(children[7].item.tooltip).toMatchObject({
             title: 'Production',
-            badge: { label: 'success', tone: 'success' },
+            badge: { label: 'passed', tone: 'success' },
             rows: [{ label: 'alias' }, { label: 'inspect', value: 'details' }],
         });
         expect(children[8].item.description).toBeUndefined();
@@ -603,7 +609,7 @@ describe('Status extension tree', () => {
         expect(pullRequest.item.tooltip).toEqual({
             kind: 'rich',
             title: '#307 Restore Project Status',
-            badge: { label: 'Unknown', tone: 'neutral' },
+            badge: { label: 'Not reported', tone: 'neutral' },
             rows: [
                 { label: 'checks', value: 'CI failed' },
                 { label: 'hidden', value: '1 ignored check' },
@@ -617,7 +623,7 @@ describe('Status extension tree', () => {
         expect(check.item.tooltip).toEqual({
             kind: 'rich',
             title: 'Test / App',
-            badge: { label: 'failure', tone: 'danger' },
+            badge: { label: 'failed', tone: 'danger' },
             rows: [
                 { label: 'duration', value: '2m 5s' },
                 {
@@ -668,7 +674,7 @@ describe('Status extension tree', () => {
         expect(production?.item.tooltip).toEqual({
             kind: 'rich',
             title: 'Production',
-            badge: { label: 'success', tone: 'success' },
+            badge: { label: 'passed', tone: 'success' },
             rows: [{ label: 'alias', value: 'caxri.app', url: 'https://caxri.app' }],
         });
     });
@@ -696,52 +702,6 @@ describe('Status extension tree', () => {
         expect(project?.value.endsWith('…')).toBe(true);
         // The clamp is display-only: the row still opens the complete destination.
         expect(project?.url).toBe(deploymentsUrl);
-    });
-
-    it('distinguishes empty, non-Git, and summary-error messages', () => {
-        const empty = buildStatusRootNodes({ repositories: [], refreshedAt: 1 });
-        const nonGit = buildStatusRootNodes({
-            repositories: [],
-            refreshedAt: 2,
-            error: ProjectStatusSummaryErrorMessage.missingGitRepository,
-        });
-        const failure = buildStatusRootNodes({
-            repositories: [],
-            refreshedAt: 3,
-            error: 'Project Status is unavailable.',
-        });
-
-        expect(empty[0].item).toMatchObject({
-            id: 'status:empty',
-            label: 'No repositories found',
-            description: 'Add a Git repository to this Project, then refresh.',
-            variant: 'message',
-        });
-        expect(empty[0].item.command).toMatchObject({
-            command: 'caxri.project-status.refresh',
-            title: 'Refresh',
-        });
-        expect(nonGit[0].item).toMatchObject({
-            id: 'status:summary:error',
-            label: 'No Git repository',
-            description: 'Initialize a Git repository in the Project root, then refresh.',
-            variant: 'message',
-        });
-        expect(iconId(nonGit[0])).toBe('git-branch');
-        expect(nonGit[0].item.command).toMatchObject({
-            command: 'caxri.project-status.refresh',
-            title: 'Refresh',
-        });
-        expect(failure[0].item).toMatchObject({
-            id: 'status:summary:error',
-            label: 'Project Status unavailable',
-            description: 'Project Status is unavailable.',
-            variant: 'message',
-        });
-        expect(failure[0].item.command).toMatchObject({
-            command: 'caxri.project-status.refresh',
-            title: 'Retry',
-        });
     });
 
     /**

@@ -1,10 +1,18 @@
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 import { clamp } from 'es-toolkit';
 import { X } from 'lucide-react';
 
 import { cn } from '../../lib/utilities';
+import { ScreenshotAnnotationCursor } from './screenshot-annotation-cursor';
+import type { AnnotationKeyboardState } from './screenshot-annotation-keyboard';
+import {
+    annotationCanvasDescription,
+    annotationKeyboardDraft,
+    EMPTY_ANNOTATION_KEYBOARD_STATE,
+    resolveAnnotationKey,
+} from './screenshot-annotation-keyboard';
 import type {
     AnnotationPoint,
     AnnotationSegment,
@@ -50,7 +58,6 @@ const hitProperties = {
     strokeWidth: HIT_STROKE_WIDTH,
     vectorEffect: 'non-scaling-stroke',
 } as const;
-
 function AnnotationShape({
     annotation,
     isSelected,
@@ -171,6 +178,10 @@ interface ScreenshotAnnotationCanvasProperties {
  * so the absolutely positioned `<svg>` and badge layer share exactly the image's box — that is what lets the overlay's
  * `viewBox` stay in natural image pixels and every stored coordinate mean the same thing in the exported file and in
  * the report text.
+ *
+ * The surface accepts two input paths that converge on the same `AnnotationSegment`: a pointer drag, handled inline
+ * below, and a keyboard gesture whose rules live in `screenshot-annotation-keyboard.ts` — see that module for the
+ * interaction model.
  */
 export function ScreenshotAnnotationCanvas({
     annotations,
@@ -189,6 +200,11 @@ export function ScreenshotAnnotationCanvas({
     const imageReference = useRef<HTMLImageElement>(null);
     const surfaceReference = useRef<SVGSVGElement>(null);
     const [draft, setDraft] = useState<AnnotationSegment>();
+    const [keyboard, setKeyboard] = useState<AnnotationKeyboardState>(
+        EMPTY_ANNOTATION_KEYBOARD_STATE,
+    );
+    const [announcement, setAnnouncement] = useState('');
+    const descriptionId = useId();
 
     useEffect(() => {
         const image = imageReference.current;
@@ -215,6 +231,9 @@ export function ScreenshotAnnotationCanvas({
         const point = pointFrom(event);
         onSelect(undefined);
         event.currentTarget.setPointerCapture(event.pointerId);
+        // One drag at a time: a half-built keyboard shape left on screen would be committed by the next Enter, at
+        // coordinates the pointer user never chose.
+        setKeyboard(EMPTY_ANNOTATION_KEYBOARD_STATE);
         setDraft({ x1: point.x, x2: point.x, y1: point.y, y2: point.y });
     };
 
@@ -235,16 +254,35 @@ export function ScreenshotAnnotationCanvas({
     };
 
     const handleKeyDown = (event: ReactKeyboardEvent<SVGSVGElement>): void => {
-        if (event.key !== 'Delete' && event.key !== 'Backspace') return;
-        // Only the drawing surface itself deletes shapes; a Backspace typed in a note textarea must edit that text.
+        // Only the drawing surface itself handles these keys; a Backspace typed in a note textarea must edit that text.
+        const outcome = resolveAnnotationKey(keyboard, event, {
+            hasSelection: selectedId !== undefined,
+            height,
+            kind: tool,
+            markCount: annotations.length,
+            scale,
+            width,
+        });
+        if (!outcome.handled) return;
         event.preventDefault();
-        onRemoveSelected();
+        // The dialog's Escape-to-close listener sits on `document`, above React's own, and does not check
+        // `defaultPrevented` — so only stopping propagation keeps a discarded shape from also closing the annotator.
+        event.stopPropagation();
+        // A shape being drawn owns the surface; leaving an old mark selected underneath it would only add a halo.
+        if (outcome.state.anchor && !keyboard.anchor) onSelect(undefined);
+        setKeyboard(outcome.state);
+        if (outcome.message) setAnnouncement(outcome.message);
+        if (outcome.removeSelected) onRemoveSelected();
+        if (outcome.commit) onCreate(outcome.commit);
     };
 
     const selectShape = (id: string): void => {
         onSelect(id);
         surfaceReference.current?.focus();
     };
+
+    // Both input paths produce the same shape, so the overlay only ever renders one in-progress mark.
+    const activeDraft = draft ?? annotationKeyboardDraft(keyboard);
 
     return (
         <div className="relative inline-block max-w-full">
@@ -258,9 +296,15 @@ export function ScreenshotAnnotationCanvas({
             />
             <svg
                 ref={surfaceReference}
-                aria-label="Drag to mark an area of the screenshot"
+                aria-describedby={descriptionId}
+                // The name is the control, not a how-to: it used to read "Drag to mark an area", which told a keyboard
+                // user to do the one thing they cannot. The gesture moved into the description below.
+                aria-label="Screenshot annotation canvas"
                 className={cn(
-                    'absolute inset-0 size-full touch-none outline-none',
+                    'group absolute inset-0 size-full touch-none outline-none',
+                    // A Tab stop has to show where focus is. `outline-none` sets Tailwind v4's `--tw-outline-style`,
+                    // so the focus ring has to restore the style as well as the width.
+                    'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent focus-visible:outline-solid',
                     tool === 'box' ? 'cursor-crosshair' : 'cursor-copy',
                 )}
                 role="application"
@@ -282,7 +326,12 @@ export function ScreenshotAnnotationCanvas({
                         onSelect={() => selectShape(annotation.id)}
                     />
                 ))}
-                {draft && <AnnotationShape annotation={{ ...draft, kind: tool }} scale={scale} />}
+                {activeDraft && (
+                    <AnnotationShape annotation={{ ...activeDraft, kind: tool }} scale={scale} />
+                )}
+                {keyboard.cursor && (
+                    <ScreenshotAnnotationCursor point={keyboard.cursor} scale={scale} />
+                )}
             </svg>
             <div className="pointer-events-none absolute inset-0">
                 {annotations.map((annotation, index) => (
@@ -297,6 +346,14 @@ export function ScreenshotAnnotationCanvas({
                         onSelect={() => selectShape(annotation.id)}
                     />
                 ))}
+            </div>
+            <span id={descriptionId} className="sr-only">
+                {annotationCanvasDescription(tool, annotations.length)}
+            </span>
+            {/* Drawing has no visible text of its own, so the geometry a sighted user reads off the overlay reaches a
+                screen reader here instead. */}
+            <div aria-live="polite" className="sr-only">
+                {announcement}
             </div>
         </div>
     );

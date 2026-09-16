@@ -18,6 +18,16 @@ interface SessionRowTriggerProperties extends ComponentProps<'div'> {
     onFocusChange: (isFocused: boolean) => void;
 }
 
+/**
+ * The Session row's focusable element, and therefore the row's `treeitem` itself. The tree semantics live here rather
+ * than on the layout wrapper around it: `aria-level`, `aria-selected`, and the roving `tabIndex` have to describe the
+ * element focus actually lands on, or a screen reader announces the row as a plain button and never reads its level or
+ * selection.
+ *
+ * While the row is renaming it keeps the `treeitem` role but gives up its `tabIndex`: the rename input inside it owns
+ * focus for as long as the edit lasts. That is the one composition DESIGN.md's tree rule allows — a `treeitem` may
+ * contain a text field, but must never be one.
+ */
 export function SessionRowTrigger({
     children,
     session,
@@ -48,17 +58,22 @@ export function SessionRowTrigger({
                 renaming && 'cursor-text',
                 sessionOrder.draggedId === session.id && 'opacity-50',
             )}
-            role={renaming ? undefined : 'button'}
+            role="treeitem"
+            aria-level={2}
+            aria-selected={selected}
             aria-keyshortcuts={renaming ? undefined : 'Alt+ArrowUp Alt+ArrowDown'}
             tabIndex={renaming ? undefined : roving ? 0 : -1}
             onFocus={(event) => onFocusChange(event.currentTarget.matches(':focus-visible'))}
             onBlur={() => onFocusChange(false)}
+            // A Session row deliberately carries no double-click gesture. Selecting a Session _is_ opening it — there
+            // is no second surface to raise — so the first click has already done everything a second one could, and
+            // `openSession` returns early for a Session that is already selected. Rename, the one meaning the gesture
+            // has nowhere else in this product, moved to `Enter`, `F2`, and the row's context menu (issue #982).
             onClick={() => {
                 // Fire-and-forget: didSelectSession reports its own failures through a toast.
                 // eslint-disable-next-line no-void -- intentional floating-promise discard
                 if (!renaming && !selected) void didSelectSession(session.id);
             }}
-            onDoubleClick={onBeginRename}
             onKeyDown={(event) => {
                 if (!renaming) sessionOrder.keyDown(event, session, visibleSessions);
                 if (event.defaultPrevented) return;

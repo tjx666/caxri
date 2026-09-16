@@ -6,6 +6,7 @@ import type {
     SessionState,
 } from '@caxri/protocol';
 import {
+    CaxriError,
     closeTabs,
     findResourceTabs,
     findTab,
@@ -33,7 +34,8 @@ import {
     sessionViewScope,
     useSessionViewStore,
 } from '../../stores/session-view';
-import { pushToast, tryCommand } from '../../stores/toasts';
+import type { ToastActionParameters } from '../../stores/toast-actions';
+import { tryCommand } from '../../stores/toasts';
 import { patchSessionState, persistSessionState, useWorkbenchStore } from '../../stores/workbench';
 import { closeTerminal } from '../terminal/terminal-commands';
 import { getActivePaneTab, getPaneLayout } from '../workbench/pane-actions';
@@ -188,28 +190,58 @@ export function openEditorTab(path: string, options: { preview?: boolean } = {})
 }
 
 /**
- * Reads a file into the Session document cache without opening a tab for it.
+ * Reads a file into the Session document cache without opening a tab for it. Resolves to the rejection when the read
+ * fails instead of swallowing it: `tryCommand` still owns the toast, which expires after four seconds, while the editor
+ * surface needs the same cause to replace its spinner with a state the user can recover from (issue #979).
  */
-export async function cacheDocument(sessionId: string, path: string): Promise<void> {
-    if (isVirtualEditorTabPath(path)) return;
+export async function cacheDocument(
+    sessionId: string,
+    path: string,
+): Promise<{ error: unknown } | undefined> {
+    if (isVirtualEditorTabPath(path)) return undefined;
     const operation = trackDocumentOperation(sessionId, path);
+    let failure: { error: unknown } | undefined;
     try {
-        await tryCommand('Unable to restore file', async () => {
-            const document = await caxri.request('files.read', { sessionId, path });
-            if (!operation.discarded)
-                useSessionViewStore.getState().cacheDocument(
-                    sessionId,
-                    {
-                        ...document,
-                        path: operation.path,
-                        dirty: false,
-                    },
-                    operation.workbenchProjectId,
-                );
+        // The label matches the sentence the editor surface paints, so one failure is not described two ways.
+        await tryCommand("Couldn't open this file", async () => {
+            try {
+                const document = await caxri.request('files.read', { sessionId, path });
+                if (!operation.discarded) {
+                    useSessionViewStore.getState().cacheDocument(
+                        sessionId,
+                        {
+                            ...document,
+                            path: operation.path,
+                            dirty: false,
+                        },
+                        operation.workbenchProjectId,
+                    );
+                    /**
+                     * Admission is budgeted, and a freshly read document is the newest entry rather than a protected
+                     * one, so the very write that admits it can evict it again when the Session already holds more
+                     * unsaved work than the cache allows. Reporting success then left the editor on a spinner that
+                     * nothing re-triggers, which is the state issue #979 exists to remove.
+                     */
+                    const cached = getSessionDocuments(sessionId, operation.workbenchProjectId)?.[
+                        operation.path
+                    ];
+                    if (!cached)
+                        throw new CaxriError(
+                            'CAPACITY',
+                            'There is no room left for another open file. Save or close some files, then try again.',
+                        );
+                }
+            } catch (error) {
+                // Recorded and rethrown rather than handled here, so `tryCommand` keeps sole ownership of the toast
+                // and of the rule that a cancelled request is not a failure worth reporting.
+                failure = { error };
+                throw error;
+            }
         });
     } finally {
         pendingDocumentOperations.delete(operation);
     }
+    return failure;
 }
 
 /**
@@ -361,27 +393,11 @@ async function didSaveDocumentAt(sessionId: string, path: string): Promise<boole
             },
             {
                 recovery: () => ({
-                    label: 'Retry',
-                    onSelect: () => {
-                        const state = sessionStateOf(sessionId);
-                        const tab =
-                            retryTabId && state
-                                ? findTab(state.paneLayout, retryTabId)?.tab
-                                : undefined;
-                        if (
-                            state?.workbenchProjectId !== operation.workbenchProjectId ||
-                            tab?.resource.kind !== 'file' ||
-                            tab.preview === true
-                        ) {
-                            pushToast(
-                                'error',
-                                'Save retry is no longer available because the editor was closed or its Project changed.',
-                            );
-                            return;
-                        }
-                        // Re-read the current buffer so a retry cannot overwrite edits made after the failed save.
-                        // eslint-disable-next-line no-void -- tryCommand reports retry failures through the toast
-                        void didSaveDocumentAt(sessionId, tab.resource.path);
+                    id: 'editor.retrySave',
+                    params: {
+                        sessionId,
+                        tabId: retryTabId,
+                        workbenchProjectId: operation.workbenchProjectId,
                     },
                 }),
             },
@@ -390,6 +406,45 @@ async function didSaveDocumentAt(sessionId: string, path: string): Promise<boole
         pendingDocumentOperations.delete(operation);
     }
     return isSaved;
+}
+
+type SaveRetryTarget = ToastActionParameters['editor.retrySave'];
+
+/**
+ * Which editor a failed save would be retried in, or undefined once there is no longer one.
+ *
+ * The buffer itself is deliberately not part of a retry's identity — it is re-read at retry time so a retry cannot
+ * overwrite edits made after the failure — so all that has to survive the notification is the tab. A preview tab is
+ * refused outright: recovering through a reusable slot would save a replacement document.
+ */
+function retrySaveTarget(target: SaveRetryTarget): FileTabTarget | undefined {
+    const state = sessionStateOf(target.sessionId);
+    const tab = state && target.tabId ? findTab(state.paneLayout, target.tabId)?.tab : undefined;
+    return state?.workbenchProjectId === target.workbenchProjectId &&
+        tab?.resource.kind === 'file' &&
+        tab.preview !== true
+        ? { path: tab.resource.path }
+        : undefined;
+}
+
+interface FileTabTarget {
+    path: string;
+}
+
+export function saveRetryUnavailableReason(target: SaveRetryTarget): string | undefined {
+    return retrySaveTarget(target)
+        ? undefined
+        : 'Save retry is no longer available because the editor was closed or its Project changed.';
+}
+
+/**
+ * Saves the document a failed save belonged to, from whatever its buffer holds now.
+ */
+export function retrySaveDocument(target: SaveRetryTarget): void {
+    const resolved = retrySaveTarget(target);
+    if (!resolved) return;
+    // eslint-disable-next-line no-void -- tryCommand reports retry failures through the toast
+    void didSaveDocumentAt(target.sessionId, resolved.path);
 }
 
 export async function saveActiveEditor(): Promise<void> {
@@ -622,27 +677,6 @@ function closeOpenEditorsUnderPathInSession(
 export function closeOpenEditorsUnderPath(workbenchProjectId: string, path: string): void {
     for (const rootSessionId of workbenchRootSessionIds())
         closeOpenEditorsUnderPathInSession(rootSessionId, workbenchProjectId, path);
-}
-
-/**
- * Retires every pane occurrence of a resolved virtual diff. A late read from a previous Workbench Root must never close
- * tabs in the newly selected root, even when their virtual paths happen to match.
- */
-export function closeResolvedGitDiff(
-    sessionId: string,
-    workbenchProjectId: string,
-    path: string,
-): void {
-    const current = sessionStateOf(sessionId);
-    if (!current || current.workbenchProjectId !== workbenchProjectId) return;
-    const closingIds = findResourceTabs(current.paneLayout, { kind: 'file', path }).map(
-        ({ tab }) => tab.id,
-    );
-    if (closingIds.length === 0) return;
-    patchSessionState(
-        { ...current, paneLayout: closeTabs(current.paneLayout, closingIds) },
-        'Resolved Git diff tabs could not be closed',
-    );
 }
 
 /**

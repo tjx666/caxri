@@ -61,27 +61,29 @@ roles below.
 
 ### Color roles (semantic layer over theme colors)
 
-| Token                                  | Role                                                                           |
-| -------------------------------------- | ------------------------------------------------------------------------------ |
-| `--background`                         | editor/terminal canvas                                                         |
-| `--surface`                            | chrome: primarySidebar, tab strip, secondarySidebar, status bar                |
-| `--elevated`                           | hover states, cards, popovers                                                  |
-| `--border`                             | 1px hairlines between regions                                                  |
-| `--foreground`                         | primary text                                                                   |
-| `--muted`                              | secondary text, inactive icons                                                 |
-| `--accent`                             | the single focus indicator + primary buttons                                   |
-| `--accent-foreground`                  | text/icons on accent fills (derived, not hardcoded)                            |
-| `--success` / `--warning` / `--danger` | status dots, exit banners, destructive buttons                                 |
-| `--merged`                             | landed work: the merged pull request glyph                                     |
-| `--badge`                              | neutral view-container count badge fill                                        |
-| `--badge-foreground`                   | text on `--badge` (derived, not hardcoded)                                     |
-| `--git-added` … `--git-conflicting`    | working-tree decorations: added, modified, deleted, untracked, conflicting     |
-| `--tab-*`                              | tab strip fill and label, per state: active, inactive, hover                   |
-| `--list-*`                             | tree and list rows, per state: hover, focus, active/inactive selection         |
-| `--title-bar-*`                        | window title bar fill and label, by whether the window is focused              |
-| `--overlay`                            | dialog backdrop: `color-mix(in srgb, var(--background) 60%, transparent)`      |
-| `--shadow`                             | elevation shadows: a theme value, read from `widget.shadow` on import          |
-| `--indicator`                          | neutral (non-accent) selected-tab underline for secondarySidebar/settings tabs |
+| Token                                                     | Role                                                                            |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `--background`                                            | editor/terminal canvas                                                          |
+| `--surface`                                               | chrome: primarySidebar, tab strip, secondarySidebar, status bar                 |
+| `--elevated`                                              | hover states, cards, popovers                                                   |
+| `--border`                                                | 1px hairlines between regions                                                   |
+| `--foreground`                                            | primary text                                                                    |
+| `--muted`                                                 | secondary text, inactive icons                                                  |
+| `--accent`                                                | the single focus indicator + primary buttons                                    |
+| `--accent-foreground`                                     | text/icons on accent fills (derived, not hardcoded)                             |
+| `--success` / `--warning` / `--danger`                    | status dots, exit banners, destructive buttons                                  |
+| `--merged`                                                | landed work: the merged pull request glyph                                      |
+| `--badge`                                                 | neutral view-container count badge fill                                         |
+| `--badge-foreground`                                      | text on `--badge` (derived, not hardcoded)                                      |
+| `--error-badge` / `--warning-badge`                       | severity view-container badge fills: the glyph chip, never a text color         |
+| `--error-badge-foreground` / `--warning-badge-foreground` | glyph on the severity fills (derived, not hardcoded)                            |
+| `--git-added` … `--git-conflicting`                       | working-tree decorations: added, modified, deleted, untracked, conflicting      |
+| `--tab-*`                                                 | tab strip fill and label, per state: active, inactive, hover                    |
+| `--list-*`                                                | tree, list, and picker rows, per state: hover, focus, active/inactive selection |
+| `--title-bar-*`                                           | window title bar fill and label, by whether the window is focused               |
+| `--overlay`                                               | dialog backdrop: `color-mix(in srgb, var(--background) 60%, transparent)`       |
+| `--shadow`                                                | elevation shadows: a theme value, read from `widget.shadow` on import           |
+| `--indicator`                                             | neutral (non-accent) selected-tab underline for secondarySidebar/settings tabs  |
 
 Derive `--accent-foreground`, `--danger-foreground`, `--badge-foreground`, and `--overlay` in one
 place from theme colors. The status bar uses `--surface` plus a top hairline — never an accent fill.
@@ -100,6 +102,15 @@ rewritten just because it equals another role, and none of these states writes b
 popup fill. Read the decision on
 [issue caxri#852](https://github.com/tjx666/caxri/issues/852#issuecomment-5656606135) for why each
 key was chosen.
+
+The pickers are list rows too: the command palette, the two status-bar pickers, the terminal link
+picker, the Agent actions dialog, and the `Cmd+P` path browser read `--list-*` exactly as the Files
+tree does, so one imported theme reaches all of them at once. They need fewer of the four states
+than a tree, because a picker's pointer selects whatever it passes over — the row under the cursor
+and the row the arrow keys are on are the same row, right up until the pointer stops and the keys
+carry on without it. The pickers built on `cmdk` answer that by painting only `--list-focus-*`; the
+path browser, which owns its own rows, by offering `--list-hover-*` to the rows that are not the
+keyboard row. Either way exactly one row looks current, never two.
 
 The two inactive title-bar roles need to know whether this window is the focused one, and CSS cannot
 ask: `:window-inactive` is a WebKit pseudo-class and Chromium, which is what Electron runs, has no
@@ -233,16 +244,37 @@ creates a Project or Session or enters durable Session state.
 **Status bar** — `--surface` background, top hairline, `meta` text in `--muted`. The left side
 shows Project and Git context. The right side follows the active tab: a normal file shows
 current-line blame, selection, cursor position, and language; a Terminal shows Terminal progress,
-process-tree memory, and child count. Transient Agent operations stay with the owning work tab
+process-tree memory, and child count. Blame lives here and nowhere else. The editor header once
+carried the file's last commit too, and on any line belonging to that commit the two read
+word-for-word the same; the status bar's is the finer answer, it follows the cursor, and it does not
+take width from the breadcrumbs. Transient Agent operations stay with the owning work tab
 instead of being duplicated here. Diff tabs show neither file nor Terminal details.
 Caxri status appears ONLY when degraded (`Reconnecting…` / `Caxri stopped`) as a
 `--warning`/`--danger` chip; healthy state shows nothing. The chip is informational — recovery
 lives in the native Relaunch dialog, so the chip never fakes an action it cannot perform. The same
-rule decides when a degraded chip becomes clickable: the Terminal's `DOM` renderer chip is a button
-when GPU acceleration is disabled or a failure has settled. Confirmation either enables acceleration
-in Settings or retries the current Terminal's GPU renderer without changing settings or restarting
-the Terminal. An explicit retry resets the window's GPU incident budget; subsequent failures still
-use the normal limits. Automatic recovery in progress stays informational to avoid duplicate retries.
+rule decides when a degraded chip becomes clickable: the Terminal's `Software` renderer chip is a
+button when GPU acceleration is disabled or a failure has settled. Confirmation either enables
+acceleration in Settings or retries the current Terminal's GPU renderer without changing settings or
+restarting the Terminal. A chip must never name a cause the Renderer cannot observe: a failed GPU
+probe says the GPU is unavailable right now and keeps offering the retry that recovers it, because
+the same probe passes again once a restarting GPU process is back. An explicit retry resets the
+window's GPU incident budget; subsequent failures still use the normal limits. Automatic recovery in
+progress stays informational to avoid duplicate retries. User-facing copy names the setting `hardware acceleration` and the
+state `software rendering`; implementation vocabulary (`DOM renderer`, `WebGL2`, `GPU Safe Mode`,
+`argv.json`) never reaches a label, tooltip, toast, or confirmation.
+A downloaded or downloading update is the one non-degraded chip on that rail, and it is `--muted`
+like Screencast Mode for exactly that reason: a release being available is not a degradation, and
+colouring it would spend the vocabulary reserved for a Caxri that is not working. It earns a
+permanent slot because the two states it carries — a download in flight, an install waiting — outlive
+any dialog the user closed, and automatic discovery raises a notification that expires rather than a
+modal that holds the screen. Clicking it opens the same dialog `Check for Updates` does.
+An open debugging channel earns the same kind of permanent muted slot, for the opposite reason: Caxri
+ships accepting Chrome DevTools Protocol connections on loopback, and a capability that lets any local
+program read every window and act as the user must be disclosed where the user can see it without
+going looking. It is a mode the build or the user chose, not a degradation, so it stays `--muted`; it
+reports what the process is actually doing rather than what `argv.jsonc` now says, because turning the
+switch off leaves the channel open until the next launch (principle 9). Clicking it opens its setting.
+
 Persistent metrics use concise icon-plus-value labels; explanatory prose belongs in their
 accessible names and hover tooltips. The notification bell is pinned to the far bottom-right corner,
 outside the right-hand chip rail, VS Code style: every chip beside it follows the active tab and
@@ -347,28 +379,62 @@ yellow Session attention ring keeps its separate meaning and position.
 
 The Status tab carries a compact, static badge anchored to the heartbeat icon's lower-right
 corner, following VS Code's activity-bar badge placement. Use a 16px minimum circular surface that
-grows into a capsule, `badge` text, and a surface-colored ring separating it from the icon. It
-counts failed PR checks and current production/preview deployments across the selected Session's
-repositories, deduplicated by identity. PR rollups, historical deployments, pending work, and
-provider-fetch errors do not inflate the number. Zero or unavailable status hides the badge;
-tooltip and accessible description expose the full count and categories. Switching tabs does not
-clear failures; switching Sessions changes the badge scope.
+grows into a capsule and a surface-colored ring separating it from the icon. The tab reports a
+severity, so the badge is the Workbench's error glyph on `--error-badge`, never a digit. It fires
+on failed PR checks and current production/preview deployments across the selected Session's
+repositories, deduplicated by identity; PR rollups, historical deployments, pending work, and
+provider-fetch errors do not raise it. Zero or unavailable status hides the badge; tooltip and
+accessible description expose the full count and categories. Switching tabs does not clear
+failures; switching Sessions changes the badge scope.
 
 Badges are an extension view capability, and an extension reports only meaning: a plain-text
 description plus one of `count`, `error`, or `warning`. Appearance is the Workbench's, so two views
-can never paint one container in two unrelated colors. A `count` badge uses
-`--badge`/`--badge-foreground`; `error` and `warning` use `--error-badge` and `--warning-badge` with
-their derived foregrounds, and each carries a fixed Workbench glyph inside the badge so severity
-survives without color. Those two roles are separate from `--danger` and `--warning`, which are text
-colors imported from the editor's error and warning squiggles and are not fills.
+can never paint one container in two unrelated colors. A `count` badge is a digit on
+`--badge`/`--badge-foreground`. An `error` or `warning` badge is a fixed Workbench glyph — never a
+digit — on `--error-badge` or `--warning-badge` with their derived foregrounds, so severity survives
+greyscale and color blindness; the two glyphs differ in shape, not only in fill. Those two roles are
+separate from `--danger` and `--warning`, which are text colors imported from the editor's error and
+warning squiggles and are not fills.
 
-Within a container the Workbench keeps the most severe kind present and totals only that kind,
-capped at `99+`; a severity with any uncounted badge shows its glyph alone rather than a partial
-total. Git counts all working-tree changes across the current Workbench Root's repositories,
-including hidden and truncated entries. Every contributing view's description reaches the
-accessible name whatever the digit shows. Badge reads activate declared providers even before their
-views open. Zero, no selected Session, and unavailable extension states hide the badge; counts
-never carry across Workbench scopes.
+Within a container, severity takes the badge outright: `error` beats `warning`, and either beats
+every tally, which then does not appear on the chip at all. Only `count` badges are totalled, capped
+at `99+`; severities are never summed, because a severity carries no count. A glyph and a digit never
+share one chip — the digit would displace the glyph and leave the fill as the only difference between
+`5` changes and `5` failures, which is nothing to a colorblind user or in a greyscale capture. This
+is VS Code's rule: its composite-bar badges are a strict `progress` > `icon` > `number` ladder, and
+its `ErrorBadge`/`WarningBadge` have no number field. Git counts all working-tree changes across the
+current Workbench Root's repositories, including hidden and truncated entries. Every contributing
+view's description reaches the accessible description and the tab tooltip whatever the chip shows, so
+a displaced tally stays announced and stays hoverable. Badge reads activate declared providers even
+before their views open. Zero, no selected Session, and unavailable extension states hide the badge;
+counts never carry across Workbench scopes.
+
+**Trees** — a tree is `role="tree"` with `role="treeitem"` rows, and the role sits on the element
+that takes focus, never on a layout wrapper around it: `aria-level`, `aria-selected`, and the roving
+`tabIndex` have to describe the thing the user is actually on. One tree is one Tab stop — exactly one
+row carries `tabIndex={0}`, the row focus would return to, and every other row carries `-1` — so Tab
+enters the tree once and arrows move inside it instead of walking every row in the document. A row
+being renamed is the one allowed exception: it keeps its `treeitem` role and hands its `tabIndex` to
+the input inside it for as long as the edit lasts. Anything that is not a row lives outside the tree
+element — an empty-state action, a live region — because inside `role="tree"` a focusable element has
+to be a real row holding that single Tab stop, and a static notice is not a row. The corollary runs
+both ways: a "show more" control renders _inside_ the tree as a real row, because it is focusable and
+therefore cannot be anything else. The one notice that cannot be lifted out is a lazy branch's
+in-place placeholder (loading, error, empty). It renders where that branch's children would, so it
+stays a `treeitem` — `aria-disabled`, never focusable, wrapping a `role="status"` region so its
+arrival is still announced — and arrow keys step over it to the next real row rather than parking
+focus on text. Right on an already-open branch whose first row is a placeholder does not step into
+it for the same reason: there is no row there to land on yet. Focus and hover are different states and never share a fill: hover is the
+pointer's guess, focus is where the keyboard is, and a tree that paints them identically leaves a
+keyboard user unable to see where they are. Which fill each tree draws still follows its surface —
+the PrimarySidebar's neutral rule means its focus ring is `--foreground`, not the accent the
+workbench's own trees use.
+
+**Treegrids** — a table whose rows nest is a `treegrid`, not a `tree`: sortable `columnheader`s and
+several data columns per row are only legal under a grid, and a `tree` would flatten them into one
+label. It follows the tree rules above with the row itself as the focus target — one roving Tab stop
+across all rows, arrows to move, Left/Right to collapse and expand — and a leaf renders no control
+of its own, because a row that is already focusable does not need a button inside it to be reached.
 
 **Tab strip** — active tab: `--background` fill joining it visually to the pane below,
 `--foreground` text, and a 2px `--accent` top border, VS Code style. Inactive: `--surface` +
@@ -418,8 +484,10 @@ chrome. This does not govern the Session list's right-edge running spinner.
 **Git decorations** — a file with working-tree changes reads the same wherever its name appears.
 The name takes the `--git-*` color of its change, and a single status letter (`M`, `A`, `D`, `U`…)
 sits at the trailing edge of the row or tab in the same color — the Files tree, the tab strip, and
-the diff headers all render that letter from one component. Source Control still paints its own
-from the Extension API's generic `tone`. The staged column
+the diff headers all render that letter from one component. Source Control resolves the same roles
+from the same table by reading its decoration's `identifier` back as a change kind; the Extension
+API's generic `tone` survives only as the fallback for a provider that is not Git, because three
+tones cannot hold five roles. The staged column
 wins when both are set, so a file staged as added and then edited reads `A` everywhere. The file
 type icon keeps its own color: it identifies the language, not the change. A directory in the Files
 tree takes the color of the most severe change anywhere beneath it (conflicted, then deleted,
@@ -523,7 +591,21 @@ section caption). One shared `PanelHeader` owns it, so a Project name, `Source C
 `Project Status` read as one system rather than three. The caption title carries no icon — the
 owning tab already shows one two pixels above, and repeating it there is the duplication this rule
 exists to prevent. Trailing toolbar actions may be hover-revealed, but only where the caption row
-has free space; an action that would sit on top of live text takes its own slot instead.
+has free space; an action that would sit on top of live text takes its own slot instead. A
+destructive action is never easier to reach than the narrower action it dwarfs: where a row's own
+`Discard Changes` is hover-revealed, the group's `Discard All Changes` is hover-revealed from the
+same rule, the way VS Code reveals both from one selector (`scm.css`, `.resource-group > .actions`
+beside `.resource … > .actions`).
+
+**Background refresh** — a panel that re-reads its own data never stops taking input while it does.
+The widget being refreshed carries `aria-busy`; `inert` is not a refresh state, because it drops
+focus to `<body>`, loses the roving position, and makes arrow navigation skip the whole widget for
+as long as the read lasts. An action bound to a revision the refresh may invalidate is refused at
+execution time with a readable reason, not disabled in advance — a control that vanishes and
+returns several times a minute is harder to use than one that explains itself once. Inside a
+`role="tree"`, every focusable element is either a real `treeitem` holding that tree's single
+roving Tab stop or lives outside the tree; the one exception is a text field, which a `treeitem`
+may contain but cannot be.
 
 **Content placement** — the SecondarySidebar holds hierarchical, navigable surfaces that read well
 in a narrow vertical rail (Files, Source Control, Project Status). Stream- and record-shaped
@@ -566,7 +648,9 @@ submodule otherwise printed the same account-level sentence twice, each with its
 limit is a wait rather than a fault, so it takes the hourglass instead of the danger tone, names the
 clock time Caxri resumes, and shows no action while that pause is still running — the retry it would
 offer is exactly the request the limiter is refusing. It keeps one row per provider, because each
-budget resets on its own schedule. The status bar's pull-request chip follows the same rule: it names
+budget resets on its own schedule. The update check is the deliberate counter-example: its
+pause is local bookkeeping and a manual check is defined to bypass it, so that surface names the
+resume time and keeps the action live, because there the button is not the request being refused. The status bar's pull-request chip follows the same rule: it names
 the reason it has no pull request to show (`PR rate limited`, `PR needs login`, `PR offline`) rather
 than the single `PR unknown` that was true of all eight reasons and useful for none, and its hover
 card carries the full recovery sentence.
@@ -700,25 +784,58 @@ disagree, and it moves only the approval tokens — a confinement argument such 
 untouched in both directions. Where a plain-language control and a raw field describe the same
 state, the raw field stays authoritative and the control reads from it.
 
-**Toasts** — three variants (`info`/`success`/`error`) with a 3px left bar in the status color and
-matching icon; `info` uses `--muted` for its bar (an accent bar would be a second accent). Sonner
-owns the queue, timers, keyboard access, and swipe dismissal. All three variants auto-dismiss after
-4s of visible, non-interacting time; only explicit `persist` notices stay until dismissed. Stack
+**Toasts** — four variants (`info`/`success`/`warning`/`error`) with a 3px left bar in the status
+color and matching icon; `info` uses `--muted` for its bar (an accent bar would be a second accent),
+`warning` uses `--warning`, `error` uses `--danger`. The last two are not degrees of the same thing
+and are not interchangeable: `warning` says the feature still works but on reduced terms and needs
+no immediate answer; `error` says the thing the user asked for did not happen. A degradation the
+user can keep working through is never an `error` — that would be a lie while the feature still
+runs — and never an `info` either, because neutral phrasing hides that the reduced terms are still
+in force. Do not add a fifth variant. Sonner owns the queue, timers, keyboard access, and swipe
+dismissal. Every variant auto-dismisses after 4s of visible, non-interacting time; only explicit
+`persist` notices stay until dismissed — including when their own action button is pressed, because
+such an action routinely opens a confirmation the user can still cancel and deleting the card first
+would take the only way back to the offer. Stack
 bottom-right above the status bar, with three visible cards. Hover or keyboard focus pauses expiry.
 Use the close or action button to dismiss; clicking the message body does not dismiss it. Sonner's
 internal transition/removal timing is a third-party exception to the motion token layers above;
 its built-in reduced-motion media rule disables animation. Theme overrides live in `styles/styles.css`.
+Notifications are the one floating surface that deliberately outranks a modal: the toaster stacks
+above the dialog popup instead of under its backdrop, because every failure raised inside the
+Settings dialog is reported through this channel and nowhere else, so sinking it there would turn
+each of those failures into silence. The dialog still owns Escape, the backdrop, and the pointer.
+What the exception does not buy is operability — the dialog's focus trap keeps the toast's own
+buttons out of Tab order — so a failure the dialog can report in place belongs in the dialog, not in
+a toast.
 
 **Notifications** — the status bar bell opens a 384px-wide, viewport-constrained popover with
 recent messages, Project context, occurrence counts, removal, clear-all, and a Settings shortcut.
 History holds at most 100 entries in this window's memory and never stores action callbacks;
-reloading the window clears it. Opening the center marks its entries read. Ordinary success
+reloading the window clears it. An entry whose popup offered a recovery — `Retry`, `Undo`,
+`Open Settings` — keeps offering it here, because four seconds is not how long a failure stays worth
+answering. The button is rebuilt from a recorded name plus plain data, so acting on it is the same
+command the popup would have run. Whether it still applies is asked at the click, never at render:
+a follow-up that no longer has a target replaces itself with one plain sentence saying so, which is
+the honest answer for a control that has been sitting in a list while the app moved on. Opening the center marks its entries read. Ordinary success
 feedback such as copying a path stays ephemeral. Native Agent and delivery alerts enter the
 same history without a second popup. Reminder popups offer an options button to stop showing
 that event type across all Projects; muted events remain in history without an unread count.
 Settings → Notifications restores those preferences and groups the existing native notification
 controls. Failures and persistent data-loss notices cannot be muted. Worktree fallback is an
 ordinary four-second reminder now that its record remains available in the center.
+
+**Software update** — a release Caxri finds on its own raises a notification and nothing more. A
+modal belongs to a user who asked; Caxri is opened while someone is already doing something else,
+and taking the screen and the Escape key for news that can wait is the nag this rule exists to
+prevent. The notification carries a `Show Update` action, which outlives it in the history, and the
+status-bar chip is what keeps the release reachable without opening either.
+
+The dialog offers two dismissals, side by side, because they are different answers rather than two
+strengths of one. `Close` means "not now": this app process stops offering the release, and the next
+launch offers it again. `Skip this version` is recorded in `updates.skippedVersion` and outlives the
+process, silencing the offer only until something newer appears — and it has a row in Settings, so
+the one durable consequence of the decision is visible where it can be taken back. A reflexive
+Escape must never be read as the second one.
 
 A workbench change the user did not perform announces itself. An Agent that moves a Session into a
 linked worktree re-roots Files, Source Control, Project Status, and the Editor, so it raises the
@@ -727,10 +844,18 @@ same ordinary four-second reminder as fallback — naming the destination and ca
 status bar. A switch the user performed themselves stays silent; the wire reason (`followed`)
 carries that distinction, since the picker and an Agent otherwise reach the same commit path.
 
-Some notices are held until dismissed rather than expiring. A GPU process crash and the moment
-repeated failures turn GPU acceleration off for the window both carry `Restart in GPU Safe Mode`,
-which is reachable from nowhere else — history stores no action callbacks — so a four-second expiry
-would remove the recovery route while the condition it reports still holds.
+Some notices are held until dismissed rather than expiring. A graphics failure and the moment
+repeated failures pin the whole window to software rendering are both `warning` notices held until
+dismissed: each reports a condition that is still true after four seconds, and one the user should
+decide about now rather than find later in the history. The
+two carry different routes because they leave the user with different decisions. While hardware
+acceleration is still on, the crash notice offers `Turn off hardware acceleration…` — the ellipsis
+is the standard promise that a question comes first, and the click itself changes nothing. Once the
+window is already pinned, repeating that offer would sell relief the user already has, so the
+escalated notice offers `Open Settings` instead: what is left to decide there is the durable
+preference. Turning hardware acceleration off is the one click in the product that changes how
+every future launch draws, so it passes the shared confirmation modal first, and that modal has to
+say all three consequences — it restarts now, it lasts past this session, Settings takes it back.
 
 A boot-flag write that only the next launch picks up is held for the same reason: the user is still
 inside the modal Settings dialog, and the notice carries the only statement of what the restart is
@@ -745,6 +870,15 @@ its own. The title asks the question, the message names the consequence, the but
 outcome ("Turn On", not "Yes"), the confirming button takes initial focus, and Escape, the close
 button, and an outside click all mean Cancel. It carries no danger styling on purpose: anything
 destructive enough to want it belongs in the native dialog above.
+
+A modal owns the screen for as long as it is up, so anything else standing on top of the workbench
+hides while one is open. A floating surface left rendered under the backdrop is not merely
+unreachable: its buttons still look pressable, and the click lands on the backdrop instead, which
+reads as an outside press and answers the dialog the user was not looking at. Focus has the
+matching rule — never name a disabled element as a dialog's initial focus. Base UI focuses exactly
+what the resolver returns and does not fall back, so focus stays outside the dialog entirely and
+keystrokes reach whatever is behind it. Name the element only once it can accept focus, and let the
+popup itself hold focus until then.
 
 ## Interaction rules
 
@@ -768,6 +902,20 @@ destructive enough to want it belongs in the native dialog above.
   exactly what the user wants while an Agent Terminal holds focus. Its chords stay in the same
   `Control+Option` family as the MRU switcher so the whole Session-navigation set is one gesture
   family, and none of them shadow a Terminal control sequence.
+- Revealing a chrome surface with a keybinding moves focus into it, and hiding it hands focus back to
+  wherever the reveal took it from. `Command+J` and `Command+]` carry the editable-target opt-in, so
+  they fire while a Terminal owns the keyboard; a toggle that changed only visibility would leave the
+  revealed surface unreachable (xterm swallows Tab) and, on the way back, drop the focused element so
+  the next Tab restarts from the top of the document. Hiding a surface while focus sits somewhere
+  else entirely is the one case that must not move focus: the user asked for screen space, not to
+  leave the Terminal they are typing in. Each surface names exactly one keyboard entry point — a
+  chrome tab bar's selected tab, a tree's roving row — and every command that focuses that surface
+  uses that same one.
+- `Command+0` moves focus into the PrimarySidebar tree, revealing the side bar first when it is
+  hidden, and `F2` renames the selected Session. Both exist because the keyboard otherwise had no way
+  in: showing the side bar has never moved focus into it, and the row's own `Enter`-to-rename works
+  only while that row already holds focus, so neither the context menu nor the command palette could
+  advertise a chord that worked from anywhere.
 
 ## Known gaps
 
@@ -779,9 +927,22 @@ resolving one requires updating the sections above in the same change.
   dedicated state tokens land, reuse the closest existing recipe instead of inventing another
   formula.
 - **Panel toggle shortcuts** — `Command+[` / `Command+]` collide with editor indent/navigate muscle
-  memory and, per the global-shortcut rule, cannot fire while focus is in Monaco or xterm — where
-  focus usually rests. Rebinding (e.g. `Command+B` for the PrimarySidebar) is an open product
-  decision.
+  memory. They do fire from Monaco and xterm (all three chrome toggles take the editable-target
+  opt-in, which is what makes the focus handoff above necessary), so what remains open is the
+  collision itself: rebinding, e.g. `Command+B` for the PrimarySidebar, is a product decision nobody
+  has made.
+- **Trees that can leave the Tab order** — a virtualized tree's single Tab stop lives on the roving
+  row, and the tree element itself is not focusable, so scrolling that row out of the virtual window
+  takes the whole tree out of Tab order until it scrolls back. Fixing it needs the roving model and
+  virtualization reconciled, not a `tabIndex` somewhere.
+- **Tree rows that are not treeitems** — four known violations of the Trees rule above survive
+  because removing them would cost a user-visible affordance: the extension tree's error row keeps a
+  focusable `Retry` button inside `role="tree"` (dropping it would make recovery unreachable), the
+  process `treegrid`'s column-header sort buttons and column resize separators are extra Tab stops
+  beside its single row stop, the PrimarySidebar still has two generic wrappers standing between
+  `role="tree"` and its rows, and clicking a Project's disclosure arrow moves focus to that arrow —
+  a `tabIndex={-1}` button, so never a Tab stop, but still a non-`treeitem` focus owner inside the
+  tree. Fixing any of them needs a real interaction design, not a role swap.
 - **Bug Report annotation ink** — `screenshot-annotations.ts` hard-codes `#f43f5e` and `#ffffff`
   instead of theme tokens. The same color has to appear in the live SVG overlay and in the
   rasterized JPEG the Agent opens, and no token can repaint bytes already written to a file.

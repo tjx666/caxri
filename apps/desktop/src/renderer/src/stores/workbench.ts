@@ -25,7 +25,6 @@ import {
 import { caxri } from '../lib/caxri';
 import { createStore } from '../lib/store';
 import { reportAutomaticNamingNotices } from './automatic-naming-notice';
-import { openSettings } from './dialogs';
 import { recordNotification, syncNotificationSettings } from './notifications';
 import { mergeStructurally } from './structural-sharing';
 import { describeFailure, isCancelledRequest, pushToast } from './toasts';
@@ -686,14 +685,14 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                         `Sent Esc and continue to ${providerName} after a matched recovery rule.`,
                         {
                             type: 'agent-recovery',
-                            action: { label: 'Open Settings', onSelect: openSettings },
+                            action: { id: 'settings.open' },
                         },
                     );
                 else
                     pushToast(
                         'error',
                         `Automatic recovery paused for ${providerName} after 3 attempts in 10 minutes.`,
-                        { action: { label: 'Open Settings', onSelect: openSettings } },
+                        { action: { id: 'settings.open' } },
                     );
                 return;
             }

@@ -49,6 +49,7 @@ function handler(
 ) {
     return createMainMethodHandler({
         getProcessExplorer: () => ({}) as ProcessExplorerWindowController,
+        getRemoteDebugging: () => ({ port: '9223', transport: 'port' }) as const,
         getUserDataPath: () => '/user-data',
         getSupervisor: () => ({ request }) as unknown as DesktopServerConnection,
         getUpdateService: () => ({}) as UpdateService,

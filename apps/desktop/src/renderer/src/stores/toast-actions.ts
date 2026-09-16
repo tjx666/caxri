@@ -1,0 +1,142 @@
+import type { PaneSplitSide, TerminalKind } from '@caxri/protocol';
+
+/**
+ * The argument each follow-up needs to run again later, and — through its keys — the closed set of follow-ups a
+ * notification may offer.
+ *
+ * A toast lives four seconds. The notification center keeps the last hundred messages but, by design, no closures, so
+ * until now the most actionable thing in the product was also the shortest-lived: once `Retry` or `Open Settings`
+ * scrolled away, the route was gone. A notification therefore carries the _name_ of what to do plus plain data, and the
+ * center rebuilds the button from that long after the toast expired.
+ *
+ * Everything here has to stay plain data for that to work, and none of it may be a document body: history is
+ * memory-only, but it is still somewhere source content must never land.
+ */
+export interface ToastActionParameters {
+    'diagnostics.copyFailure': { text: string };
+    'editor.retrySave': {
+        sessionId: string;
+        /**
+         * Undefined while the Session has no Project yet, which still has to compare equal to the Session's current
+         * value: a retry is refused because the editor moved, not because both sides were unset.
+         */
+        workbenchProjectId?: string;
+        tabId?: string;
+    };
+    'session.unarchive': { sessionId: string };
+    'settings.open': undefined;
+    'settings.openHardwareAcceleration': undefined;
+    'settings.turnOffHardwareAcceleration': undefined;
+    'terminal.create': {
+        sessionId: string;
+        kind: TerminalKind;
+        cwd?: string;
+        paneId?: string;
+        split?: PaneSplitSide;
+    };
+    'terminal.refresh': undefined;
+    'terminal.restart': {
+        terminalId: string;
+        /**
+         * The process this Terminal was running when the restart failed, absent when it was not running at all. Restart
+         * replaces a live PTY, so a retry taken long after the fact must first confirm nobody already restarted it —
+         * repeating a submitted restart would kill whatever is running now.
+         */
+        processId?: number;
+    };
+    'updates.show': undefined;
+    'workbench.undoFollowedRoot': {
+        sessionId: string;
+        /**
+         * The root to return to.
+         */
+        projectId: string;
+        /**
+         * The root the Agent moved to. Undo means "take back that move", so it stops applying the moment the Session is
+         * somewhere else — by then returning would be a third move the user never asked for.
+         */
+        followedProjectId: string;
+    };
+}
+
+export type ToastActionId = keyof ToastActionParameters;
+
+/**
+ * One follow-up as a notification carries it. `accessibleLabel` is the screen-reader name when the visible one is too
+ * short to stand alone — three `Retry` buttons in the history are three different retries.
+ */
+export type ToastAction = {
+    [Id in ToastActionId]: ToastActionParameters[Id] extends undefined
+        ? { id: Id; params?: undefined; accessibleLabel?: string }
+        : { id: Id; params: ToastActionParameters[Id]; accessibleLabel?: string };
+}[ToastActionId];
+
+/**
+ * One label per identity, so the live toast and the history entry cannot disagree about what the button offers.
+ */
+export const toastActionLabels: Record<ToastActionId, string> = {
+    'diagnostics.copyFailure': 'Copy details',
+    'editor.retrySave': 'Retry',
+    'session.unarchive': 'Undo',
+    'settings.open': 'Open Settings',
+    'settings.openHardwareAcceleration': 'Open Settings',
+    'settings.turnOffHardwareAcceleration': 'Turn off hardware acceleration…',
+    'terminal.create': 'Retry',
+    'terminal.refresh': 'Refresh',
+    'terminal.restart': 'Retry',
+    'updates.show': 'Show Update',
+    'workbench.undoFollowedRoot': 'Undo',
+};
+
+export interface ToastActionHandler<Id extends ToastActionId> {
+    /**
+     * A reader-facing sentence when this follow-up can no longer run — the Session was closed, the editor's Project
+     * changed — or undefined when it still can.
+     *
+     * Asked at click time, never at render time: a button that has been sitting in history for ten minutes must be
+     * judged against the state it is clicked in, and a history list does not re-render when that state moves.
+     */
+    unavailable?: (parameters: ToastActionParameters[Id]) => string | undefined;
+    run: (parameters: ToastActionParameters[Id]) => void;
+}
+
+export type ToastActionHandlers = { [Id in ToastActionId]: ToastActionHandler<Id> };
+
+/**
+ * The answer when the handlers were never installed. Reachable only if a notification is raised before the module graph
+ * that owns the handlers has evaluated; it fails closed rather than rendering a button that does nothing. It does not
+ * claim the follow-up is gone — nothing was checked — only that this window could not perform it.
+ */
+export const UNKNOWN_TOAST_ACTION_REASON = 'Caxri could not run this action.';
+
+const installed: { handlers?: ToastActionHandlers } = {};
+
+/**
+ * Installs what each follow-up actually does.
+ *
+ * The behavior lives outside this store because the store may not import feature modules — the Renderer forbids the
+ * import cycle that would create — while the features that raise notifications all import the store.
+ */
+export function configureToastActions(handlers: ToastActionHandlers): void {
+    installed.handlers = handlers;
+}
+
+/**
+ * Runs a follow-up now, or answers with the reason it cannot run. A caller that gets a reason must show it: the one
+ * outcome this contract rules out is a button that looks clickable and then silently does nothing.
+ */
+export function runToastAction(action: ToastAction): string | undefined {
+    /**
+     * Narrowing one handler against one action would need the union distributed across both at once, which TypeScript
+     * cannot express here. The pairing is guaranteed structurally instead: `ToastActionHandlers` is keyed by the same
+     * map that types `action.params`, so an id can only ever meet the handler declared for it.
+     */
+    const handler = installed.handlers?.[action.id] as
+        ToastActionHandler<ToastActionId> | undefined;
+    if (!handler) return UNKNOWN_TOAST_ACTION_REASON;
+    const parameters = action.params;
+    const reason = handler.unavailable?.(parameters);
+    if (reason) return reason;
+    handler.run(parameters);
+    return undefined;
+}

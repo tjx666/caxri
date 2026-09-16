@@ -16,7 +16,6 @@ const mocks = vi.hoisted(() => {
         pendingProjectId: undefined as string | undefined,
         pendingRoot: undefined as string | undefined,
         primarySidebarVisible: true,
-        recordTerminalKind: vi.fn(),
         setPrimarySidebarVisible: vi.fn(),
         getQueryData: vi.fn(),
         getSelectedSession: vi.fn(),
@@ -83,11 +82,6 @@ vi.mock('../../../stores/dialogs', () => ({
         })),
     },
 }));
-vi.mock('../terminal-kind-recency', () => ({
-    useTerminalKindRecencyStore: {
-        getState: vi.fn(() => ({ recordTerminalKind: mocks.recordTerminalKind })),
-    },
-}));
 vi.mock('../../../stores/selectors', () => ({
     getBootstrap: mocks.getBootstrap,
     getSelectedSession: mocks.getSelectedSession,
@@ -119,6 +113,8 @@ import {
     deleteSelectedSession,
     deleteSession,
     describeArchivedSession,
+    describeRestoredSession,
+    describeRestoredSessions,
     didReorderProject,
     didReorderSession,
     didSelectSession,
@@ -126,8 +122,11 @@ import {
     openProjectInExternalEditor,
     openSelectedProjectInExternalEditor,
     openSelectedSessionPullRequest,
+    openSession,
     selectAdjacentSession,
     selectProject,
+    unarchiveSession,
+    unarchiveSessions,
 } from '../session-commands';
 
 describe('Session actions', () => {
@@ -151,7 +150,6 @@ describe('Session actions', () => {
         mocks.tryCommand.mockClear();
         mocks.closeCreateSessionMenu.mockClear();
         mocks.openCreateSessionMenu.mockClear();
-        mocks.recordTerminalKind.mockClear();
         mocks.setPrimarySidebarVisible.mockClear();
         mocks.pendingProjectId = undefined;
         mocks.pendingRoot = undefined;
@@ -218,40 +216,33 @@ describe('Session actions', () => {
         expect(mocks.setPrimarySidebarVisible).not.toHaveBeenCalled();
     });
 
-    it('closes the menu, records the chosen kind, and creates the Session', async () => {
+    it('closes the menu and creates the Session with the chosen kind', async () => {
         chooseSessionTerminalKind('project-1', 'grok');
         await mocks.tryCommand.mock.results[0]?.value;
 
         expect(mocks.closeCreateSessionMenu).toHaveBeenCalled();
-        expect(mocks.recordTerminalKind).toHaveBeenCalledWith('grok');
         expect(mocks.caxriRequest).toHaveBeenCalledWith('session.create', {
             projectId: 'project-1',
             defaultAgent: 'grok',
         });
     });
 
-    /**
-     * "Start without a Terminal" names no Terminal the menu could lead with next time, so recording it would push a
-     * real preference down the list in exchange for an entry that can never be the most-used choice.
-     */
-    it('does not record a preference when the user starts without a Terminal', async () => {
+    it('creates a Session with no Terminal when the user starts without one', async () => {
         chooseSessionTerminalKind('project-1', null);
         await mocks.tryCommand.mock.results[0]?.value;
 
-        expect(mocks.recordTerminalKind).not.toHaveBeenCalled();
         expect(mocks.caxriRequest).toHaveBeenCalledWith('session.create', {
             projectId: 'project-1',
             defaultAgent: null,
         });
     });
 
-    it('records the kind chosen in the centered fallback dialog too, so both surfaces feed one order', async () => {
+    it('creates the Session from the centered fallback dialog with the chosen kind', async () => {
         mocks.pendingProjectId = 'project-2';
 
         confirmPendingSession('codex');
         await mocks.tryCommand.mock.results[0]?.value;
 
-        expect(mocks.recordTerminalKind).toHaveBeenCalledWith('codex');
         expect(mocks.caxriRequest).toHaveBeenCalledWith('session.create', {
             projectId: 'project-2',
             defaultAgent: 'codex',
@@ -607,7 +598,12 @@ describe('Session actions', () => {
         const [kind, message, options] = mocks.pushToast.mock.calls[0] ?? [];
         expect(kind).toBe('info');
         expect(message).toBe('Archived "api-fix"');
-        expect(options?.action?.label).toBe('Undo');
+        expect(options?.action).toEqual({
+            id: 'session.unarchive',
+            params: { sessionId: 'session-1' },
+            // A screen reader browsing the history by button hears only labels, so each Undo names its Session.
+            accessibleLabel: 'Undo archiving api-fix',
+        });
         // Archiving is reversible, so the notice takes the ordinary four-second expiry.
         expect(options?.persist).toBeUndefined();
     });
@@ -618,29 +614,24 @@ describe('Session actions', () => {
      */
     it('restores the archived Session in place when the notice Undo action is used', async () => {
         mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-1', displayTitle: 'api-fix' });
-        archiveSession('session-1');
-        await mocks.tryCommand.mock.results[0]?.value;
-        mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-1', displayTitle: 'api-fix' });
 
-        mocks.pushToast.mock.calls[0]?.[2]?.action?.onSelect();
-        await mocks.tryCommand.mock.results[1]?.value;
+        // What the notification center replays for `session.unarchive`.
+        unarchiveSession('session-1', 'unchanged');
+        await mocks.tryCommand.mock.results[0]?.value;
 
         expect(mocks.caxriRequest).toHaveBeenLastCalledWith('session.unarchive', {
             placement: 'unchanged',
             sessionId: 'session-1',
         });
-        expect(mocks.tryCommand.mock.calls[1]?.[2]).toEqual({ refresh: mocks.refreshWorkbench });
+        expect(mocks.tryCommand.mock.calls[0]?.[2]).toEqual({ refresh: mocks.refreshWorkbench });
     });
 
     it('reports a stale Undo as an error instead of throwing out of the notice', async () => {
-        mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-1', displayTitle: 'api-fix' });
-        archiveSession('session-1');
-        await mocks.tryCommand.mock.results[0]?.value;
-        // The Session was deleted, or the window navigated away, while the notice was still on screen.
+        // The Session was deleted, or the window navigated away, after the notice was raised.
         mocks.caxriRequest.mockRejectedValueOnce(new Error('Session not found'));
 
-        expect(() => mocks.pushToast.mock.calls[0]?.[2]?.action?.onSelect()).not.toThrow();
-        await mocks.tryCommand.mock.results[1]?.value;
+        expect(() => unarchiveSession('session-1', 'unchanged')).not.toThrow();
+        await mocks.tryCommand.mock.results[0]?.value;
 
         expect(mocks.pushToast).toHaveBeenLastCalledWith(
             'error',
@@ -671,6 +662,70 @@ describe('Session actions', () => {
             sessionId: 'session-2',
         });
         expect(mocks.pushToast).toHaveBeenCalledWith('info', 'Archived "docs"', expect.anything());
+    });
+
+    it('records an explicit restore as a named notice, the way an archive is recorded', async () => {
+        mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-1', displayTitle: 'api-fix' });
+
+        unarchiveSession('session-1');
+        await mocks.tryCommand.mock.results[0]?.value;
+
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('session.unarchive', {
+            placement: 'top',
+            sessionId: 'session-1',
+        });
+        expect(mocks.tryCommand.mock.calls[0]?.[2]).toEqual({ refresh: mocks.refreshWorkbench });
+        expect(mocks.pushToast).toHaveBeenCalledExactlyOnceWith('info', 'Restored "api-fix"');
+    });
+
+    it('leaves the archive notice Undo silent, since that notice already named the Session', async () => {
+        mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-1', displayTitle: 'api-fix' });
+
+        unarchiveSession('session-1', 'unchanged');
+        await mocks.tryCommand.mock.results[0]?.value;
+
+        expect(mocks.pushToast).not.toHaveBeenCalled();
+    });
+
+    it('stays silent when the restore request itself fails', async () => {
+        mocks.caxriRequest.mockRejectedValueOnce(new Error('Server is not ready'));
+
+        unarchiveSession('session-1');
+        await mocks.tryCommand.mock.results[0]?.value;
+
+        expect(mocks.pushToast).toHaveBeenCalledExactlyOnceWith(
+            'error',
+            'Session restore failed: Server is not ready',
+        );
+    });
+
+    it('counts a batch restore and reports what the Server actually restored', async () => {
+        mocks.caxriRequest.mockResolvedValueOnce([
+            { id: 'session-1', displayTitle: 'api-fix' },
+            { id: 'session-2', displayTitle: 'docs' },
+        ]);
+
+        unarchiveSessions(['session-1', 'session-2', 'session-3']);
+        await mocks.tryCommand.mock.results[0]?.value;
+
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('session.unarchiveMany', {
+            placement: 'top',
+            sessionIds: ['session-1', 'session-2', 'session-3'],
+        });
+        expect(mocks.pushToast).toHaveBeenCalledExactlyOnceWith('info', 'Restored 2 Sessions');
+    });
+
+    it('opens the Session a row double-click names, and leaves an open one alone', async () => {
+        mocks.getBootstrap.mockReturnValue({ selectedSessionId: 'session-2' });
+        mocks.caxriRequest.mockResolvedValueOnce({ id: 'session-1' });
+
+        openSession('session-2');
+        openSession('session-1');
+        await vi.waitFor(() => expect(mocks.caxriRequest).toHaveBeenCalledOnce());
+
+        expect(mocks.caxriRequest).toHaveBeenCalledWith('session.select', {
+            sessionId: 'session-1',
+        });
     });
 
     it('does not request a Terminal move when it is the only work tab', () => {
@@ -728,5 +783,18 @@ describe('Archived Session notice copy', () => {
         expect(message).toBe(`Archived "${'🚀'.repeat(48)}…"`);
         expect(message).not.toContain('�');
         expect(message.split('\u{D83D}').length - 1).toBe(48);
+    });
+});
+
+describe('Restored Session notice copy', () => {
+    it('reports a restore in the same shape as the archive it reverses', () => {
+        expect(describeRestoredSession('api-fix')).toBe('Restored "api-fix"');
+        expect(describeRestoredSession(undefined)).toBe('Restored Session');
+        expect(describeRestoredSession('a'.repeat(400))).toBe(`Restored "${'a'.repeat(48)}…"`);
+    });
+
+    it('counts a batch and names a batch of one', () => {
+        expect(describeRestoredSessions(['api-fix', 'docs'])).toBe('Restored 2 Sessions');
+        expect(describeRestoredSessions(['api-fix'])).toBe('Restored "api-fix"');
     });
 });

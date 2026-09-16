@@ -66,6 +66,13 @@ export function isRowModified(binding: SettingRowBinding, context: SettingsValue
             return settings['projectStatus.ignoredChecks'].length > 0;
         case 'files-exclude':
             return !isEqual(settings[binding.key], defaultAppSettings[binding.key]);
+        case 'delegation-depth':
+            // Only the depth belongs to this row; hand-written presets and caller bindings are edited in the source
+            // view and must not light up a row that cannot show them.
+            return (
+                settings['agents.delegation'].maxDepth !==
+                defaultAppSettings['agents.delegation'].maxDepth
+            );
         case 'remote-debugging':
             return argvConfig !== undefined && !argvConfig.remoteDebugging;
         case 'hardware-acceleration':
@@ -88,7 +95,16 @@ export function isRowResettable(binding: SettingRowBinding): boolean {
  * How to undo a row back to its shipped default; routes to the matching write channel.
  */
 export type RowResetAction =
-    | { kind: 'field'; key: keyof AppSettings; value: AppSettings[keyof AppSettings] }
+    | {
+          kind: 'field';
+          key: keyof AppSettings;
+          value: AppSettings[keyof AppSettings];
+          /**
+           * Set when the row owns one field of a complex setting, so the reset writes that field's own JSONC path and
+           * leaves the rest of the key — comments included — untouched.
+           */
+          member?: string;
+      }
     | { kind: 'argv'; changes: ArgvConfigChanges };
 
 export function rowResetAction(
@@ -176,6 +192,17 @@ export function rowResetAction(
                 kind: 'field',
                 key: binding.key,
                 value: structuredClone(defaultAppSettings[binding.key]),
+            };
+        case 'delegation-depth':
+            // Restores only the depth; the presets and caller bindings the user wrote survive the reset.
+            return {
+                kind: 'field',
+                key: 'agents.delegation',
+                member: 'maxDepth',
+                value: {
+                    ...settings['agents.delegation'],
+                    maxDepth: defaultAppSettings['agents.delegation'].maxDepth,
+                },
             };
         case 'remote-debugging':
             return { kind: 'argv', changes: { remoteDebugging: true } };

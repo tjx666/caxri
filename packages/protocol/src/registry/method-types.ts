@@ -131,6 +131,7 @@ export const effectfulCommandRecovery = {
     'bugReport.captureScreenshot': 'memory',
     'bugReport.saveScreenshot': 'memory',
     'bugReport.send': 'durable',
+    'updates.acknowledge': 'memory',
     'updates.download': 'memory',
     'updates.cancel': 'memory',
     'updates.open': 'memory',

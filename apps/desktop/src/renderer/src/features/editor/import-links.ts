@@ -57,3 +57,22 @@ export function findRelativeImportSpecifiers(
     }
     return matches;
 }
+
+/**
+ * The specifier the caret sits on, for the keyboard path that opens an import without ⌘-clicking it.
+ *
+ * Both edges count as a hit: a caret resting just past the closing character of `'./errors'` still reads to the user as
+ * being on that path, and refusing there would make the command feel like it missed.
+ */
+export function importSpecifierAtPosition(
+    matches: readonly ImportSpecifierMatch[],
+    lineNumber: number,
+    column: number,
+): ImportSpecifierMatch | undefined {
+    return matches.find(
+        (match) =>
+            match.lineNumber === lineNumber &&
+            column >= match.startColumn &&
+            column <= match.endColumn,
+    );
+}

@@ -41,6 +41,7 @@ function options(overrides: {
     return {
         getProcessExplorer: () =>
             overrides.processExplorer ?? ({} as ProcessExplorerWindowController),
+        getRemoteDebugging: () => ({ port: '9223', transport: 'port' }) as const,
         getUserDataPath: () => '/user-data',
         getSupervisor: () =>
             ({
@@ -377,6 +378,7 @@ describe('updates.* delegation', () => {
     it.each([
         ['updates.getState', 'getState'],
         ['updates.check', 'check'],
+        ['updates.acknowledge', 'acknowledge'],
         ['updates.download', 'download'],
         ['updates.cancel', 'cancel'],
         ['updates.open', 'open'],

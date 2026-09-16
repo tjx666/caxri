@@ -1,20 +1,20 @@
 import type { ViewBadge, ViewCatalogSnapshot, ViewContainerLocation } from '@caxri/protocol';
 
-export interface ContainerBadge {
-    /**
-     * Empty when the winning severity has no countable tally; the icon alone then carries the badge.
-     */
-    text: string;
-    description: string;
-    kind: ViewBadge['kind'];
-}
+/**
+ * The single badge a container tab draws.
+ *
+ * The union is the exclusivity rule: a severity has no `text`, so the chip structurally cannot paint a digit on a
+ * severity fill, and a `count` has no severity, so it always paints the neutral one. `description` always names every
+ * contributing view, including the ones whose tally the chip suppressed.
+ */
+export type ContainerBadge =
+    | { kind: 'count'; text: string; description: string }
+    | { kind: 'error' | 'warning'; description: string };
 
 /**
  * Highest first. A container shows one severity, never a stack of differently-colored badges.
  */
-const SEVERITY_ORDER = ['error', 'warning', 'count'] as const satisfies ReadonlyArray<
-    ViewBadge['kind']
->;
+const SEVERITY_ORDER = ['error', 'warning'] as const satisfies ReadonlyArray<ViewBadge['kind']>;
 
 /**
  * Every badge shares one cap, so a digit means the same width and the same thing on all of them.
@@ -46,51 +46,56 @@ export function badgeViews(
 }
 
 /**
- * Combines the badges of every view in a container into the single badge the container tab shows.
+ * Picks the one badge a container tab shows.
  *
- * Only the most severe kind present is tallied. Summing across kinds — the previous behavior — let a container with 20
- * ordinary items and 1 failure paint a red `21`, which reads as 21 failures. The description still names every
- * contributing view, so the dropped counts stay reachable without color or arithmetic.
+ * This is VS Code's composite-bar ladder with its top rung removed (Caxri has no progress badge): severity outranks
+ * tally, exactly one rung wins, and the winner renders alone — `getVisibleBadges()` in
+ * `src/vs/workbench/browser/parts/compositeBarActions.ts` returns the progress badges, else the icon badges, else the
+ * number badges, never a blend.
  *
- * A severity whose winning group has even one uncounted badge shows no digit at all rather than a total that silently
- * omits it.
+ * Severity replaces a tally instead of tinting it. A red `5` and a neutral `5` are the same size, shape, and position
+ * and differ only by fill, so a colorblind user or a greyscale screenshot cannot tell "5 failures" from "5 changes".
+ * Only `count` is totalled; summing across kinds once let 20 ordinary items and 1 failure paint a red `21`.
+ *
+ * The suppressed tally is not lost: every contributing badge's description is joined here, and the tab publishes that
+ * string as its tooltip and its accessible description.
+ */
+export function selectContainerBadge(badges: readonly ViewBadge[]): ContainerBadge | undefined {
+    // A severity has no tally to be zero, so only an explicit `count` of zero means "nothing here".
+    const present = badges.filter((badge) => badge.kind !== 'count' || badge.count > 0);
+    if (present.length === 0) return undefined;
+    const description = present.map(({ description }) => description).join(', ');
+    const severity = SEVERITY_ORDER.find((candidate) =>
+        present.some((badge) => badge.kind === candidate),
+    );
+    if (severity) return { kind: severity, description };
+    const total = present.reduce(
+        (sum, badge) =>
+            badge.kind === 'count' ? Math.min(Number.MAX_SAFE_INTEGER, sum + badge.count) : sum,
+        0,
+    );
+    return {
+        kind: 'count',
+        text: total > COUNT_LIMIT ? `${COUNT_LIMIT}+` : String(total),
+        description,
+    };
+}
+
+/**
+ * Groups every view's badge by container and reduces each group through {@link selectContainerBadge}.
  */
 export function aggregateContainerBadges(
     entries: ReadonlyArray<{ containerId: string; badge: ViewBadge | null | undefined }>,
 ): Readonly<Record<string, ContainerBadge | undefined>> {
     const grouped = new Map<string, ViewBadge[]>();
     for (const { containerId, badge } of entries) {
-        // A severity with no tally is still activity worth showing; only an explicit zero means "nothing here".
-        if (!badge || badge.count === 0) continue;
+        if (!badge) continue;
         grouped.set(containerId, [...(grouped.get(containerId) ?? []), badge]);
     }
     return Object.fromEntries(
-        [...grouped].map(([id, badges]) => {
-            const kind =
-                SEVERITY_ORDER.find((candidate) =>
-                    badges.some((badge) => badge.kind === candidate),
-                ) ?? 'count';
-            const winning = badges.filter((badge) => badge.kind === kind);
-            const total = winning.every(({ count }) => count !== undefined)
-                ? winning.reduce(
-                      (sum, { count }) => Math.min(Number.MAX_SAFE_INTEGER, sum + count!),
-                      0,
-                  )
-                : undefined;
-            return [
-                id,
-                {
-                    text:
-                        total === undefined
-                            ? ''
-                            : total > COUNT_LIMIT
-                              ? `${COUNT_LIMIT}+`
-                              : String(total),
-                    // Every view's description, not just the winning severity's: the badge hides counts, not causes.
-                    description: badges.map(({ description }) => description).join(', '),
-                    kind,
-                },
-            ];
+        [...grouped].flatMap(([id, badges]) => {
+            const selected = selectContainerBadge(badges);
+            return selected ? [[id, selected] as const] : [];
         }),
     );
 }

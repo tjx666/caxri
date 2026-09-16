@@ -31,6 +31,7 @@ import {
 import { subscribeViewEvents } from '../../view-event-bridge';
 import type { SourceControlClient } from '../../view-operation-client';
 import { controlledViewQueryKey } from '../../view-operation-client';
+import { REFRESHING_ACTION_MESSAGE } from '../source-control-history-state';
 import type { SourceControlPanelState } from '../source-control-panel-state';
 import { resolveSourceControlPanelState } from '../source-control-panel-state';
 import type { SourceControlViewNavigation } from '../source-control-state';
@@ -285,7 +286,11 @@ export function useSourceControlController(
     );
     const runAction = useCallback(
         async (action: SourceControlAction): Promise<void> => {
-            if (action.disabled || snapshot.isFetching || !snapshot.data) return;
+            if (action.disabled || !snapshot.data) return;
+            if (snapshot.isFetching) {
+                pushToast('warning', REFRESHING_ACTION_MESSAGE);
+                return;
+            }
             const revision = snapshot.data.revision;
             const result = await tryCommand(
                 action.errorMessage ??

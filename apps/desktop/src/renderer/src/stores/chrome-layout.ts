@@ -6,6 +6,7 @@ import { clamp } from 'es-toolkit';
 
 import { readLocalStorageJson, writeLocalStorageJson } from '../lib/local-storage';
 import { createStore } from '../lib/store';
+import { handOffChromeFocus } from './chrome-focus-handoff';
 
 /**
  * Renderer-local chrome layout: PrimarySidebar/SecondarySidebar widths, Panel height, their visibility, and the Panel's
@@ -208,8 +209,23 @@ interface ChromeLayoutState extends ChromeLayout {
     resetPrimarySidebarWidth(): void;
     resetSecondarySidebarWidth(): void;
     resetPanelHeight(): void;
+    /**
+     * Reveals or hides the PrimarySidebar and hands keyboard focus over with it; see {@link handOffChromeFocus}.
+     */
     togglePrimarySidebar(): void;
+    /**
+     * Reveals or hides the SecondarySidebar and hands keyboard focus over with it; see {@link handOffChromeFocus}.
+     */
     toggleSecondarySidebar(): void;
+    /**
+     * Reveals or hides the Panel and hands keyboard focus over with it; see {@link handOffChromeFocus}.
+     *
+     * The handoff is deliberately limited to the three toggles, which are always a user gesture. The programmatic
+     * setters below and {@link ChromeLayoutState.activatePanelViewContainer} also reveal a surface, but an extension's
+     * `view.reveal` reaches them too, and taking the keyboard away from a Terminal because a background provider asked
+     * for attention is the theft this rule exists to prevent — VS Code's own `TreeView.reveal` defaults `focus` to
+     * false for the same reason. Giving those paths an explicit opt-in is follow-up work, not a silent default.
+     */
     togglePanel(): void;
     setPrimarySidebarVisible(isVisible: boolean): void;
     setSecondarySidebarVisible(isVisible: boolean): void;
@@ -292,6 +308,9 @@ export const useChromeLayoutStore = createStore<ChromeLayoutState>('chrome-layou
             ...pickLayout(get()),
             primarySidebarVisible: isPrimarySidebarVisible,
         });
+        // `Cmd+[` carries the same editable-target opt-in as the other two toggles, so it owes the same handoff: without
+        // it, revealing leaves focus in the xterm that swallows Tab, and hiding unmounts the row `Cmd+0` just focused.
+        handOffChromeFocus('primarySidebar', isPrimarySidebarVisible);
         writePersistedLayout(layout);
         set(layout);
     },
@@ -301,6 +320,8 @@ export const useChromeLayoutStore = createStore<ChromeLayoutState>('chrome-layou
             ...pickLayout(get()),
             secondarySidebarVisible: isSecondarySidebarVisible,
         });
+        // Same contract as the Panel: `Cmd+]` reaches through a focused Terminal too, so it owes the same handoff.
+        handOffChromeFocus('secondarySidebar', isSecondarySidebarVisible);
         writePersistedLayout(layout);
         set(layout);
     },
@@ -321,10 +342,10 @@ export const useChromeLayoutStore = createStore<ChromeLayoutState>('chrome-layou
         set(layout);
     },
     togglePanel() {
-        const layout = fitCurrentViewport({
-            ...pickLayout(get()),
-            panelVisible: !get().panelVisible,
-        });
+        const isRevealing = !get().panelVisible;
+        const layout = fitCurrentViewport({ ...pickLayout(get()), panelVisible: isRevealing });
+        // Before `set`, so the handoff still sees the element that owns focus and the Panel that is about to unmount.
+        handOffChromeFocus('panel', isRevealing);
         writePersistedLayout(layout);
         set(layout);
     },

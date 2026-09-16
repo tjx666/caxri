@@ -1,7 +1,11 @@
-import { TreeItemCollapsibleState } from 'caxri';
+import { ProjectStatusSummaryErrorMessage, TreeItemCollapsibleState } from 'caxri';
 import { describe, expect, it } from 'vitest';
 
-import { buildRepoNode, buildStatusRootNodes } from './status-tree';
+import { buildRepoNode, buildStatusRootNodes } from '../status-tree';
+
+function iconId(node: ReturnType<typeof buildRepoNode>): string | undefined {
+    return node.item.iconPath?.id;
+}
 
 describe('Project Status fallback', () => {
     it.each([
@@ -35,7 +39,7 @@ describe('Project Status fallback', () => {
         expect(fallback?.iconPath?.id).toBe('cloud');
         expect(fallback?.command).toMatchObject({
             command: 'caxri.project-status.refresh',
-            title: 'Recheck',
+            title: 'Refresh',
         });
     });
 
@@ -60,7 +64,7 @@ describe('Project Status fallback', () => {
         )?.item;
         expect(failure?.variant).toBe('message');
         expect(failure?.iconPath?.id).toBe('circle-x');
-        expect(failure?.command?.title).toBe('Retry');
+        expect(failure?.command?.title).toBe('Refresh');
     });
 
     it('coalesces network failures across providers and repositories into one refresh action', () => {
@@ -93,7 +97,7 @@ describe('Project Status fallback', () => {
         });
         expect(nodes.filter((node) => node.item.label === 'No network connection')).toHaveLength(1);
         expect(nodes[0]?.item.variant).toBe('message');
-        expect(nodes[0]?.item.command?.title).toBe('Recheck');
+        expect(nodes[0]?.item.command?.title).toBe('Refresh');
         expect(nodes[0]?.item.description).toBe(
             'Caxri could not reach GitHub and Vercel. Reconnect, then refresh.',
         );
@@ -204,7 +208,54 @@ describe('Project Status fallback', () => {
         expect(nodes[0]?.item.id).toBe('status:rate-limit:vercel');
         expect(nodes[0]?.item.command).toMatchObject({
             command: 'caxri.project-status.refresh',
-            title: 'Retry',
+            title: 'Refresh',
+        });
+    });
+
+    it('distinguishes empty, non-Git, and summary-error messages', () => {
+        const empty = buildStatusRootNodes({ repositories: [], refreshedAt: 1 });
+        const nonGit = buildStatusRootNodes({
+            repositories: [],
+            refreshedAt: 2,
+            error: ProjectStatusSummaryErrorMessage.missingGitRepository,
+        });
+        const failure = buildStatusRootNodes({
+            repositories: [],
+            refreshedAt: 3,
+            error: 'Project Status is unavailable.',
+        });
+
+        expect(empty[0].item).toMatchObject({
+            id: 'status:empty',
+            label: 'No repositories found',
+            description: 'Add a Git repository to this Project, then refresh.',
+            variant: 'message',
+        });
+        expect(empty[0].item.command).toMatchObject({
+            command: 'caxri.project-status.refresh',
+            title: 'Refresh',
+        });
+        expect(nonGit[0].item).toMatchObject({
+            id: 'status:summary:error',
+            label: 'No Git repository',
+            description: 'Initialize a Git repository in the Project root, then refresh.',
+            variant: 'message',
+        });
+        expect(iconId(nonGit[0])).toBe('git-branch');
+        expect(nonGit[0].item.command).toMatchObject({
+            command: 'caxri.project-status.refresh',
+            title: 'Refresh',
+        });
+        expect(failure[0].item).toMatchObject({
+            id: 'status:summary:error',
+            label: 'Project Status unavailable',
+            description: 'Project Status is unavailable.',
+            variant: 'message',
+        });
+        // One command, one word for it: this row used to say Retry while the two above said Refresh.
+        expect(failure[0].item.command).toMatchObject({
+            command: 'caxri.project-status.refresh',
+            title: 'Refresh',
         });
     });
 });

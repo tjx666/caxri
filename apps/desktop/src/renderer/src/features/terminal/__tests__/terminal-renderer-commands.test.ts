@@ -25,9 +25,9 @@ import { registerTerminalRendererRetry } from '../terminal-renderer-status';
 
 const action = {
     confirmLabel: 'Turn On',
-    message: 'Terminals switch from the DOM renderer to WebGL immediately.',
+    message: 'Terminals start drawing with the GPU immediately.',
     preference: 'on' as const,
-    title: 'Turn on GPU acceleration?',
+    title: 'Turn on GPU acceleration for Terminals?',
 };
 
 beforeEach(() => {
@@ -80,8 +80,8 @@ describe('confirmTerminalRendererSwitch', () => {
 
         expect(mocks.showConfirm).toHaveBeenCalledWith({
             confirmLabel: 'Turn On',
-            message: 'Terminals switch from the DOM renderer to WebGL immediately.',
-            title: 'Turn on GPU acceleration?',
+            message: 'Terminals start drawing with the GPU immediately.',
+            title: 'Turn on GPU acceleration for Terminals?',
         });
     });
 

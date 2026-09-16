@@ -40,10 +40,12 @@ vi.mock('../../../stores/workbench', () => ({
     refreshWorkbench: mocks.refreshWorkbench,
 }));
 
+import type { ToastAction } from '../../../stores/toast-actions';
 import {
     clearActiveTerminal,
     copyActiveTerminalSelection,
     createTerminal,
+    createTerminalForSession,
     detachTerminalQuietly,
     didPasteIntoTerminal,
     focusTerminalById,
@@ -51,12 +53,14 @@ import {
     hasActiveTerminalSelection,
     isTerminalAttached,
     markTerminalAttached,
+    refreshTerminalState,
     registerTerminalClearHandler,
     registerTerminalFocusHandler,
     registerTerminalInputGate,
     registerTerminalPasteHandler,
     registerTerminalSelectionHandlers,
     restartTerminal,
+    restartTerminalWithRecovery,
     sendTerminalSequence,
     startNewAgentSession,
     whenTerminalAttached,
@@ -84,6 +88,18 @@ function terminalFixture(overrides: Partial<TerminalRecord> = {}): TerminalRecor
 
 function bootstrapWith(terminal: TerminalRecord): BootstrapState {
     return { terminals: [terminal] } as unknown as BootstrapState;
+}
+
+/**
+ * The follow-up a failed command offers. It is plain data now — a name plus the parameters to replay it with — so the
+ * notification center can still offer it long after the toast expired; the tests below assert the offer here and the
+ * work it performs by calling the same exported entry point the handler table routes to.
+ */
+function recoveryOf(call: number): (error?: unknown) => ToastAction {
+    const options = mocks.tryCommand.mock.calls[call]?.[2] as unknown as {
+        recovery: (error?: unknown) => ToastAction;
+    };
+    return options.recovery;
 }
 
 beforeEach(() => {
@@ -135,12 +151,14 @@ describe('restartTerminal (requestTerminalRestart reattach gate)', () => {
 
         restartTerminal('terminal-1');
         await mocks.tryCommand.mock.results[0]?.value;
-        const options = mocks.tryCommand.mock.calls[0]?.[2] as unknown as {
-            recovery: () => { label: string; onSelect: () => void };
-        };
-        const action = options.recovery();
-        expect(action.label).toBe('Retry');
-        action.onSelect();
+
+        expect(recoveryOf(0)()).toEqual({
+            id: 'terminal.restart',
+            params: { terminalId: 'terminal-1' },
+        });
+
+        // What that follow-up runs, exercised through the same entry point the notification's handler table calls.
+        restartTerminalWithRecovery('terminal-1');
         await mocks.tryCommand.mock.results[1]?.value;
 
         expect(mocks.caxriRequest).toHaveBeenNthCalledWith(3, 'terminal.restart', {
@@ -156,12 +174,10 @@ describe('restartTerminal (requestTerminalRestart reattach gate)', () => {
 
         restartTerminal('terminal-1');
         await mocks.tryCommand.mock.results[0]?.value;
-        const options = mocks.tryCommand.mock.calls[0]?.[2] as unknown as {
-            recovery: () => { label: string; onSelect: () => void };
-        };
-        const action = options.recovery();
-        expect(action.label).toBe('Refresh');
-        action.onSelect();
+
+        expect(recoveryOf(0)()).toEqual({ id: 'terminal.refresh' });
+
+        refreshTerminalState();
         await mocks.tryCommand.mock.results[1]?.value;
 
         expect(mocks.caxriRequest).toHaveBeenCalledTimes(1);
@@ -218,14 +234,23 @@ describe('createTerminal recovery', () => {
         mocks.caxriRequest.mockResolvedValue({ id: 'terminal-1' });
 
         await createTerminal('shell', { cwd: '/repo', paneId: 'pane-1' });
-        const options = mocks.tryCommand.mock.calls[0]?.[2] as unknown as {
-            recovery: (error: unknown) => { label: string; onSelect: () => void };
-        };
         mocks.getSelectedSession.mockReturnValue({ id: 'session-2' });
-        const action = options.recovery(new CaxriError('IO', 'Working directory is unavailable'));
-        expect(action.label).toBe('Retry');
-        action.onSelect();
-        await mocks.tryCommand.mock.results[1]?.value;
+
+        // The Session and placement are captured into the recorded parameters, so a retry taken after the selection
+        // moved still creates the Terminal the user asked for rather than one in whatever is selected now.
+        const action = recoveryOf(0)(new CaxriError('IO', 'Working directory is unavailable'));
+        expect(action).toEqual({
+            id: 'terminal.create',
+            params: {
+                sessionId: 'session-1',
+                kind: 'shell',
+                cwd: '/repo',
+                paneId: 'pane-1',
+                split: undefined,
+            },
+        });
+
+        await createTerminalForSession('session-1', 'shell', { cwd: '/repo', paneId: 'pane-1' });
 
         expect(mocks.caxriRequest).toHaveBeenNthCalledWith(2, 'terminal.create', {
             sessionId: 'session-1',
@@ -239,12 +264,12 @@ describe('createTerminal recovery', () => {
         mocks.caxriRequest.mockResolvedValue({ id: 'terminal-1' });
 
         await createTerminal();
-        const options = mocks.tryCommand.mock.calls[0]?.[2] as unknown as {
-            recovery: (error: unknown) => { label: string; onSelect: () => void };
-        };
-        const action = options.recovery(new CaxriError('TIMEOUT', 'No response'));
-        expect(action.label).toBe('Refresh');
-        action.onSelect();
+
+        expect(recoveryOf(0)(new CaxriError('TIMEOUT', 'No response'))).toEqual({
+            id: 'terminal.refresh',
+        });
+
+        refreshTerminalState();
         await mocks.tryCommand.mock.results[1]?.value;
 
         expect(mocks.caxriRequest).toHaveBeenCalledTimes(1);

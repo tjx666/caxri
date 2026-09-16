@@ -101,15 +101,19 @@ export function isQueryMethod(
  * must match the method's schema and the resolved data is `MethodResult<M>`, with no `any` at any point. Callers gate
  * an unavailable dependency (no Session selected, for instance) with `enabled: false` rather than skipping the hook —
  * the params value itself may be a placeholder in that case, since a disabled query never runs `queryFn`.
+ *
+ * `TData` is inferred from `select` when one is passed, so a caller can subscribe to a projection of the result instead
+ * of the whole thing. That is a subscription narrowing, not a formatting convenience: TanStack applies structural
+ * sharing to the projected value, so a caller re-renders only when its own slice actually changed.
  */
-export function useCaxriQuery<M extends CaxriMethod>(
+export function useCaxriQuery<M extends CaxriMethod, TData = MethodResult<M>>(
     method: M,
     parameters: MethodParameters<M>,
     options?: Omit<
-        UseQueryOptions<MethodResult<M>, Error, MethodResult<M>, CaxriQueryKey<M>>,
+        UseQueryOptions<MethodResult<M>, Error, TData, CaxriQueryKey<M>>,
         'queryKey' | 'queryFn'
     >,
-): UseQueryResult<MethodResult<M>, Error> {
+): UseQueryResult<TData, Error> {
     return useQuery({
         queryKey: caxriQueryKey(method, parameters),
         queryFn: () => caxri.request(method, ...([parameters] as ParametersArgument<M>)),

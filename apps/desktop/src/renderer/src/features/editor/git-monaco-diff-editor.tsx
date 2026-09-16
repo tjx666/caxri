@@ -1,20 +1,34 @@
-import { useEffectEvent, useLayoutEffect, useMemo, useRef } from 'react';
+import { useEffectEvent, useLayoutEffect, useMemo, useReducer, useRef } from 'react';
 
 import type { DiffEditorProps, MonacoDiffEditor } from '@monaco-editor/react';
 
+import { cn } from '@/lib/utilities';
+
+import { Empty, EmptyMedia, EmptyTitle } from '../../components/ui/empty';
+import { Spinner } from '../../components/ui/spinner';
 import { monaco } from '../../lib/monaco';
+import { EditorLoadFailure } from './editor-load-failure';
+import { editorLoadReducer, initialEditorLoadState } from './editor-load-state';
+import { gitDiffComputationAction } from './git-diff-computation-state';
 import { disposeGitDiffModels } from './git-diff-model-lifecycle';
+import type { GitDiffComputationOutcome } from './git-diff-stall-watch';
 import { gitDiffStallWatch } from './git-diff-stall-watch';
 import { useGitDiffViewStore } from './git-diff-view-store';
+
+const DIFF_RETRY_LABEL = 'Comparing these two versions again…';
+
+type GitDiffEditorProperties = DiffEditorProps & {
+    originalModelPath: string;
+    modifiedModelPath: string;
+    stacked: boolean;
+};
 
 /**
  * Explicit ownership lets unmount cancel diff work before disposing its text models.
  */
-export function GitMonacoDiffEditor(
-    properties: DiffEditorProps & {
-        originalModelPath: string;
-        modifiedModelPath: string;
-        stacked: boolean;
+function GitDiffEditorSurface(
+    properties: GitDiffEditorProperties & {
+        onOutcome: (outcome: GitDiffComputationOutcome) => void;
     },
 ) {
     const inlineView = useGitDiffViewStore((state) => state.inlineView);
@@ -65,7 +79,8 @@ export function GitMonacoDiffEditor(
         instance.revealFirstDiff();
         /**
          * Monaco computes the diff in a Web Worker, so a Worker that stops replying renders as an unchanged file rather
-         * than an error. The watcher records that case; it never changes what is shown. See issue #962.
+         * than an error. The watcher records that case (issue #962) and now also reports the outcome to this surface,
+         * which is what lets a diff that never computed say so instead of passing for an unchanged file (issue #978).
          */
         const cancelStallWatch = gitDiffStallWatch.observe({
             waitForDiff: () => viewModel.waitForDiff(),
@@ -74,6 +89,7 @@ export function GitMonacoDiffEditor(
                 modifiedLineCount: models.modified.getLineCount(),
                 identicalModels: models.original.getValue() === models.modified.getValue(),
             }),
+            onOutcome: (outcome) => properties.onOutcome(outcome),
         });
         properties.onMount?.(instance, monaco);
         return () => {
@@ -107,4 +123,62 @@ export function GitMonacoDiffEditor(
         properties.modifiedLanguage,
     ]);
     return <div ref={container} className="h-full w-full" />;
+}
+
+/**
+ * Owns what this diff surface is able to claim. Until the comparison answers, two panes with no highlights and an
+ * unchanged file are the same picture, so the outcome of each attempt decides whether the panes may be shown at all.
+ *
+ * Retry re-keys the editor rather than poking it: a diff is computed once per view model, so asking again means
+ * building a new one, and an unmount is what releases the models the abandoned attempt still held.
+ */
+export function GitMonacoDiffEditor(properties: GitDiffEditorProperties) {
+    const [computation, dispatchComputation] = useReducer(
+        editorLoadReducer,
+        initialEditorLoadState,
+    );
+    const attempt = computation.attempt;
+    const isStalled = computation.status === 'failed';
+    /**
+     * Only a retry gets a progress state. The first comparison resolves in well under a frame on any ordinary file, so
+     * announcing it would be a flicker; a retry is a request the user made by hand after being told nothing worked, and
+     * that one has to visibly do something.
+     */
+    const isRetrying = computation.status === 'loading' && attempt > 0;
+    const isCovered = isStalled || isRetrying;
+    return (
+        <div className="relative h-full w-full">
+            {/* The editor keeps its element and its models while a cover is up: hiding the panes is what stops them
+                being read as a verdict, and unmounting them would throw away a comparison that may still arrive. */}
+            <div className={cn('h-full w-full', isCovered && 'invisible')}>
+                <GitDiffEditorSurface
+                    key={attempt}
+                    {...properties}
+                    onOutcome={(outcome) =>
+                        dispatchComputation(gitDiffComputationAction(outcome, attempt))
+                    }
+                />
+            </div>
+            {isCovered && (
+                <div className="absolute inset-0 grid place-items-center bg-background">
+                    {isStalled ? (
+                        <EditorLoadFailure
+                            actionLabel="Retry"
+                            reason={computation.reason}
+                            onAction={() => dispatchComputation({ type: 'retried' })}
+                        />
+                    ) : (
+                        <Empty className="empty-work h-full flex-1">
+                            <EmptyMedia>
+                                <Spinner className="size-7" />
+                            </EmptyMedia>
+                            <EmptyTitle className="max-w-80 text-pretty text-muted">
+                                {DIFF_RETRY_LABEL}
+                            </EmptyTitle>
+                        </Empty>
+                    )}
+                </div>
+            )}
+        </div>
+    );
 }

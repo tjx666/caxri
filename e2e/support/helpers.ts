@@ -696,3 +696,27 @@ export async function revealSettingsSection(dialog: Locator, name: string): Prom
         .getByRole('button', { name, exact: true })
         .click();
 }
+
+/**
+ * Clicks a Source Control group toolbar action, such as `Open Changes` or `Discard All Changes`.
+ *
+ * Those buttons are revealed on hover or focus, the way VS Code reveals `.resource-group > .actions`: leaving the
+ * repository-wide destructive action permanently on screen while the narrower per-file one hid behind hover inverted
+ * the risk gradient. Playwright's `click()` waits for visibility instead of creating it, so a test has to reveal the
+ * toolbar the same way a user does — by putting the pointer on the caption row that owns it.
+ *
+ * The action is addressed by `aria-label` rather than by role: until the caption is hovered the button is `display:
+ * none`, which takes it out of the accessibility tree, so `getByRole` cannot find the very element whose toolbar we are
+ * trying to reveal. `filter({ has })` also re-roots its inner locator under each candidate, so that one is built from
+ * `page` instead of chaining off `repo`.
+ */
+export async function clickGitGroupAction(repo: Locator, name: string): Promise<void> {
+    // `JSON.stringify` quotes the value: a label carrying a quote would otherwise produce an invalid-selector parse
+    // error instead of a legible missing-element failure.
+    const selector = `.git-changes-actions button[aria-label=${JSON.stringify(name)}]`;
+    const caption = repo
+        .locator('.git-changes-caption')
+        .filter({ has: repo.page().locator(selector) });
+    await caption.hover();
+    await caption.locator(selector).click();
+}

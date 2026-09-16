@@ -52,14 +52,13 @@ export function useProjectSessionWindows({
     );
 
     /**
-     * Steps one Project's window forward. The next window is measured from what is on screen right now, so it always
-     * adds exactly the number the reveal row promised — even when the selected-Session guarantee already widened the
-     * window past the stored count.
+     * Steps one Project's window forward, measured from the in-order prefix on screen rather than the stored revealed
+     * count, so a window clamped to a short Session list steps from what the user can actually see.
      */
-    const revealMore = useCallback((projectId: string, visibleCount: number): void => {
+    const revealMore = useCallback((projectId: string, windowCount: number): void => {
         setRevealedCounts((current) => ({
             ...current,
-            [projectId]: nextRevealedSessionCount(visibleCount),
+            [projectId]: nextRevealedSessionCount(windowCount),
         }));
     }, []);
 

@@ -82,10 +82,12 @@ for (const mode of ['missing-cli', 'newer-incomplete', 'malformed-config', 'conf
                 .locator('[data-setting-row="agents.codex.hooks"]')
                 .getByRole('status');
             const expected = {
+                // Muted, not a warning: a missing CLI is a prerequisite the user has simply not installed yet, not
+                // something Caxri got wrong. Reserving the dot for states that need repair keeps it meaningful.
                 'missing-cli': {
                     kind: 'notInstalled',
-                    label: 'Waiting for the agent CLI to be installed',
-                    tone: 'warning',
+                    label: 'Not in effect — install the agent CLI first',
+                    tone: 'muted',
                 },
                 'newer-incomplete': {
                     kind: 'incompatible',
@@ -101,7 +103,11 @@ for (const mode of ['missing-cli', 'newer-incomplete', 'malformed-config', 'conf
             }[mode];
             await expect(caption).toContainText(expected.label);
             await expect(caption).toHaveAttribute('data-tone', expected.tone);
-            await expect(caption.locator('[aria-hidden="true"]')).toBeVisible();
+            // The dot is what carries an urgent state without relying on color, so it belongs to exactly the tones
+            // that ask the user to act (`field.tsx`).
+            await expect(caption.locator('[aria-hidden="true"]')).toHaveCount(
+                expected.tone === 'muted' ? 0 : 1,
+            );
             const health = await pageRequest<AgentHookHealthMap>(running.page, 'agentHooks.get');
             expect(health.codex).toMatchObject({ kind: expected.kind });
             expect(await identity()).toEqual(before);

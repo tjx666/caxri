@@ -59,7 +59,15 @@ export const draculaTheme: ThemeTokens = {
         tabHoverForeground: '#f8f8f2',
         listHoverBackground: '#44475a75',
         listHoverForeground: '#f8f8f2',
-        listFocusBackground: '#44475a75',
+        /**
+         * Upstream Dracula gives `list.focusBackground` and `list.hoverBackground` the same `#44475a75`, so the row the
+         * keyboard is on and the row the pointer happens to be over paint identically and a keyboard user cannot tell
+         * where focus is. VS Code keeps the two apart by weight — a quiet neutral wash for hover against a stronger,
+         * outlined fill for focus — so this raises the alpha of the palette's own selection grey instead of inventing a
+         * color: hover 46% < focus 75% < `listActiveSelectionBackground` opaque, which keeps the three list states in
+         * one ramp and still reads as Dracula.
+         */
+        listFocusBackground: '#44475abf',
         listFocusForeground: '#f8f8f2',
         listActiveSelectionBackground: '#44475a',
         listActiveSelectionForeground: '#f8f8f2',

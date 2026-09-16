@@ -130,28 +130,55 @@ describe('nextPrimarySidebarRowId', () => {
 });
 
 describe('primarySidebarHorizontalIntent', () => {
+    const expandedRows = flattenPrimarySidebarRows(projects, () => true);
+    const collapsedRows = flattenPrimarySidebarRows(projects, () => false);
     const projectRow = { id: 'alpha', kind: 'project' as const, projectId: 'alpha' };
     const sessionRow = { id: 'alpha-1', kind: 'session' as const, projectId: 'alpha' };
 
-    it('opens a collapsed Project on Right and does nothing when already open', () => {
-        expect(primarySidebarHorizontalIntent(projectRow, false, 'ArrowRight')).toEqual({
-            expanded: true,
+    it('opens a collapsed Project on Right', () => {
+        expect(
+            primarySidebarHorizontalIntent(collapsedRows, projectRow, false, 'ArrowRight'),
+        ).toEqual({ expanded: true });
+    });
+
+    /**
+     * The second Right press is what used to do nothing at all, leaving Down as the only way into a Project the user
+     * had just opened with the keyboard.
+     */
+    it('steps into the first Session of an already open Project on Right', () => {
+        expect(
+            primarySidebarHorizontalIntent(expandedRows, projectRow, true, 'ArrowRight'),
+        ).toEqual({ focusRowId: 'alpha-1' });
+    });
+
+    it('steps into the New Session row of an open Project that has no Sessions', () => {
+        const gammaRow = { id: 'gamma', kind: 'project' as const, projectId: 'gamma' };
+        expect(primarySidebarHorizontalIntent(expandedRows, gammaRow, true, 'ArrowRight')).toEqual({
+            focusRowId: gammaCreateRowId,
         });
-        expect(primarySidebarHorizontalIntent(projectRow, true, 'ArrowRight')).toEqual({});
+    });
+
+    it('does nothing on Right when an open Project renders no rows below its heading', () => {
+        const rows = flattenPrimarySidebarRows([{ id: 'alpha', sessionIds: [] }], () => false);
+        expect(primarySidebarHorizontalIntent(rows, projectRow, true, 'ArrowRight')).toEqual({});
     });
 
     it('closes an open Project on Left and does nothing when already closed', () => {
-        expect(primarySidebarHorizontalIntent(projectRow, true, 'ArrowLeft')).toEqual({
-            expanded: false,
-        });
-        expect(primarySidebarHorizontalIntent(projectRow, false, 'ArrowLeft')).toEqual({});
+        expect(primarySidebarHorizontalIntent(expandedRows, projectRow, true, 'ArrowLeft')).toEqual(
+            { expanded: false },
+        );
+        expect(
+            primarySidebarHorizontalIntent(collapsedRows, projectRow, false, 'ArrowLeft'),
+        ).toEqual({});
     });
 
     it('moves a Session row to its owning Project on Left and is a no-op on Right', () => {
-        expect(primarySidebarHorizontalIntent(sessionRow, true, 'ArrowLeft')).toEqual({
-            focusRowId: 'alpha',
-        });
-        expect(primarySidebarHorizontalIntent(sessionRow, true, 'ArrowRight')).toEqual({});
+        expect(primarySidebarHorizontalIntent(expandedRows, sessionRow, true, 'ArrowLeft')).toEqual(
+            { focusRowId: 'alpha' },
+        );
+        expect(
+            primarySidebarHorizontalIntent(expandedRows, sessionRow, true, 'ArrowRight'),
+        ).toEqual({});
     });
 
     it('treats a reveal row like a Session: Left goes to the Project, Right does nothing', () => {
@@ -160,10 +187,12 @@ describe('primarySidebarHorizontalIntent', () => {
             kind: 'reveal' as const,
             projectId: 'alpha',
         };
-        expect(primarySidebarHorizontalIntent(revealRow, true, 'ArrowLeft')).toEqual({
+        expect(primarySidebarHorizontalIntent(expandedRows, revealRow, true, 'ArrowLeft')).toEqual({
             focusRowId: 'alpha',
         });
-        expect(primarySidebarHorizontalIntent(revealRow, true, 'ArrowRight')).toEqual({});
+        expect(primarySidebarHorizontalIntent(expandedRows, revealRow, true, 'ArrowRight')).toEqual(
+            {},
+        );
     });
 
     it('treats a New Session row like a Session: Left goes to the Project, Right does nothing', () => {
@@ -172,10 +201,12 @@ describe('primarySidebarHorizontalIntent', () => {
             kind: 'createSession' as const,
             projectId: 'gamma',
         };
-        expect(primarySidebarHorizontalIntent(createRow, true, 'ArrowLeft')).toEqual({
+        expect(primarySidebarHorizontalIntent(expandedRows, createRow, true, 'ArrowLeft')).toEqual({
             focusRowId: 'gamma',
         });
-        expect(primarySidebarHorizontalIntent(createRow, true, 'ArrowRight')).toEqual({});
+        expect(primarySidebarHorizontalIntent(expandedRows, createRow, true, 'ArrowRight')).toEqual(
+            {},
+        );
     });
 });
 

@@ -1,72 +1,77 @@
+import type { KeyboardEvent } from 'react';
+
 import { ChevronDown, ChevronRight } from 'lucide-react';
 
 import { Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
 import { PROCESS_GRID_TEMPLATE } from './process-columns';
-import type { ProcessTreeNode } from './process-tree';
+import type { ProcessTreeRow } from './process-tree';
 
 const processRowCellClassName = 'flex items-center px-3 border-l border-border tabular-nums';
 
+/**
+ * One process in the tree grid, and the element keyboard focus lands on. The row itself is the focus target rather than
+ * a control inside it: the whole grid is a single Tab stop and arrow keys move between rows, so a leaf — which has no
+ * action at all — renders no control. It used to render its name as a `<button>` on every row, giving each row its own
+ * Tab stop and putting a pressable control on leaves where pressing it did nothing.
+ *
+ * The tooltip carries the untruncated command line, which is the whole point for a leaf process (an Agent CLI
+ * invocation runs far past any column width). It hangs off the row so the pointer and the keyboard both reach it.
+ */
 export function ProcessRow({
-    collapsed,
-    depth,
-    node,
-    toggle,
+    isRoving,
+    onKeyDown,
+    onToggle,
+    row,
 }: {
-    collapsed: Set<number>;
-    depth: number;
-    node: ProcessTreeNode;
-    toggle: (node: ProcessTreeNode, isRecursive: boolean) => void;
+    /**
+     * True while this row owns the grid's single Tab stop.
+     */
+    isRoving: boolean;
+    onKeyDown: (event: KeyboardEvent<HTMLDivElement>, row: ProcessTreeRow) => void;
+    onToggle: (row: ProcessTreeRow, isRecursive: boolean) => void;
+    row: ProcessTreeRow;
 }) {
-    const isExpandable = node.children.length > 0;
-    const isExpanded = isExpandable && !collapsed.has(node.pid);
+    const { depth, isExpandable, isExpanded, node, positionInSet, setSize } = row;
     return (
-        <>
+        <Tooltip anchorMode="cursor" content={node.name}>
             <div
-                className="process-row grid min-h-7 hover:bg-[color-mix(in_srgb,var(--foreground)_6%,transparent)]"
+                className={cn(
+                    'process-row grid min-h-7 outline-none hover:bg-[color-mix(in_srgb,var(--foreground)_6%,transparent)]',
+                    'focus-visible:bg-list-focus-background focus-visible:shadow-[inset_0_0_0_2px_var(--accent)]',
+                    isExpandable && 'cursor-pointer',
+                )}
                 role="row"
-                aria-level={depth + 1}
                 aria-expanded={isExpandable ? isExpanded : undefined}
+                aria-level={depth + 1}
+                aria-posinset={positionInSet}
+                aria-setsize={setSize}
                 data-process-pid={node.pid}
                 style={{ gridTemplateColumns: PROCESS_GRID_TEMPLATE }}
+                tabIndex={isRoving ? 0 : -1}
+                onClick={(event) => {
+                    if (isExpandable) onToggle(row, event.altKey);
+                }}
+                onKeyDown={(event) => onKeyDown(event, row)}
             >
                 <div
                     role="gridcell"
-                    className="process-name-cell flex min-w-0 items-center"
+                    className="process-name-cell flex min-w-0 items-center gap-1.5 overflow-hidden"
+                    data-process-name={node.name}
                     style={{ paddingLeft: 14 + depth * 20 }}
                 >
-                    {/*
-                     * The tooltip carries the untruncated command line, which is the whole point for a leaf process
-                     * (an Agent CLI invocation runs far past any column width). It is why the name control stays an
-                     * enabled button on a leaf row: a `disabled` button receives no pointer events in Chromium, so
-                     * every leaf row silently lost its hover explanation.
-                     */}
-                    <Tooltip anchorMode="cursor" content={node.name}>
-                        <button
-                            type="button"
-                            className={cn(
-                                'process-name flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden border-0 bg-transparent p-0 text-left focus-visible:outline focus-visible:outline-1 focus-visible:-outline-offset-1 focus-visible:outline-foreground',
-                                isExpandable ? 'cursor-pointer' : 'cursor-default',
-                            )}
-                            data-process-name={node.name}
-                            onClick={(event) => {
-                                if (isExpandable) toggle(node, event.altKey);
-                            }}
-                        >
-                            {isExpandable ? (
-                                isExpanded ? (
-                                    <ChevronDown className="w-3.5 shrink-0" size={14} />
-                                ) : (
-                                    <ChevronRight className="w-3.5 shrink-0" size={14} />
-                                )
-                            ) : (
-                                <span className="process-indent w-3.5 shrink-0" />
-                            )}
-                            <span className="overflow-hidden text-ellipsis whitespace-nowrap">
-                                {node.name}
-                            </span>
-                        </button>
-                    </Tooltip>
+                    {isExpandable ? (
+                        isExpanded ? (
+                            <ChevronDown aria-hidden="true" className="w-3.5 shrink-0" size={14} />
+                        ) : (
+                            <ChevronRight aria-hidden="true" className="w-3.5 shrink-0" size={14} />
+                        )
+                    ) : (
+                        <span className="process-indent w-3.5 shrink-0" />
+                    )}
+                    <span className="overflow-hidden text-ellipsis whitespace-nowrap">
+                        {node.name}
+                    </span>
                 </div>
                 <span role="gridcell" className={processRowCellClassName}>
                     {node.cpuPercent.toFixed(1)}
@@ -78,16 +83,6 @@ export function ProcessRow({
                     {node.pid}
                 </span>
             </div>
-            {isExpanded &&
-                node.children.map((child) => (
-                    <ProcessRow
-                        key={child.pid}
-                        node={child}
-                        depth={depth + 1}
-                        collapsed={collapsed}
-                        toggle={toggle}
-                    />
-                ))}
-        </>
+        </Tooltip>
     );
 }

@@ -37,7 +37,7 @@ test('Source Control navigates changed files with one tree Tab stop', async () =
         const group = tree.locator('[data-row-id^="group:"]').first();
         const directory = tree.locator('[data-row-id^="directory:"]');
         await expect(directory).toBeVisible();
-        await expect(rows).toHaveCount(24);
+        await expect(rows).toHaveCount(25);
         await expect(tree.locator('[role="treeitem"][tabindex="0"]')).toHaveCount(1);
 
         await provider.focus();
@@ -51,10 +51,10 @@ test('Source Control navigates changed files with one tree Tab stop', async () =
         await directory.focus();
         await running.page.keyboard.press('Alt+Enter');
         await expect(directory).toHaveAttribute('aria-expanded', 'false');
-        await expect(rows).toHaveCount(4);
+        await expect(rows).toHaveCount(5);
         await running.page.keyboard.press('Alt+Enter');
         await expect(directory).toHaveAttribute('aria-expanded', 'true');
-        await expect(rows).toHaveCount(24);
+        await expect(rows).toHaveCount(25);
         await running.page.keyboard.press('ArrowRight');
         await expect(tree.locator('[data-row-id$="nested/file-00.txt"]')).toBeFocused();
         await tree.screenshot({ path: test.info().outputPath('tree-focus-3-file.png') });
@@ -62,11 +62,17 @@ test('Source Control navigates changed files with one tree Tab stop', async () =
         await expect(directory).toBeFocused();
 
         await running.page.keyboard.press('End');
+        // End reaches the repository's collapsed `Commits` header, the last row of the tree.
         await expect(rows.last()).toBeFocused();
+        await expect(rows.last()).toHaveAttribute('aria-expanded', 'false');
+
+        // The row menu belongs to rows that carry actions; a section header has none.
+        const readme = tree.locator('[data-row-id$="README.md"]');
+        await readme.focus();
         await running.page.keyboard.press('Shift+F10');
         await expect(running.page.locator('[data-slot="context-menu-content"]')).toBeVisible();
         await running.page.keyboard.press('Escape');
-        await expect(rows.last()).toBeFocused();
+        await expect(readme).toBeFocused();
         await running.page.keyboard.press('Tab');
         expect(
             await running.page.evaluate(
@@ -75,7 +81,7 @@ test('Source Control navigates changed files with one tree Tab stop', async () =
         ).toBe(false);
         await tree.screenshot({ path: test.info().outputPath('tree-focus-4-left.png') });
 
-        await tree.locator('[data-row-id$="README.md"]').focus();
+        await readme.focus();
         await running.page.keyboard.press('Enter');
         await expect(
             running.page.getByRole('tab', { name: 'README.md', exact: true }),

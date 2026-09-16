@@ -18,7 +18,7 @@ describe('settingTitleForArgvKey', () => {
 
     it('returns the registry title rather than the flag name', () => {
         expect(settingTitleForArgvKey('hardwareAcceleration')).toBe('Hardware acceleration');
-        expect(settingTitleForArgvKey('remoteDebugging')).toBe('Remote debugging (CDP)');
+        expect(settingTitleForArgvKey('remoteDebugging')).toBe('Debugging port');
     });
 });
 
@@ -38,7 +38,7 @@ describe('argvRestartNotice', () => {
                 applied: { ...BOOT_BASELINE, remoteDebugging: false },
                 baseline: BOOT_BASELINE,
             }),
-        ).toBe('Restart Caxri to apply the new remote debugging (CDP) setting.');
+        ).toBe('Restart Caxri to apply the new debugging port setting.');
     });
 
     it('uses no implementation vocabulary for the file the write lands in', () => {
@@ -74,9 +74,7 @@ describe('argvRestartNotice', () => {
                 applied: { hardwareAcceleration: false, remoteDebugging: false },
                 baseline: BOOT_BASELINE,
             }),
-        ).toBe(
-            'Restart Caxri to apply the new hardware acceleration and remote debugging (CDP) settings.',
-        );
+        ).toBe('Restart Caxri to apply the new hardware acceleration and debugging port settings.');
     });
 
     it('drops a flag back out of the sentence once it returns to its launch value', () => {
@@ -85,7 +83,7 @@ describe('argvRestartNotice', () => {
                 applied: { hardwareAcceleration: true, remoteDebugging: false },
                 baseline: BOOT_BASELINE,
             }),
-        ).toBe('Restart Caxri to apply the new remote debugging (CDP) setting.');
+        ).toBe('Restart Caxri to apply the new debugging port setting.');
     });
 
     /**

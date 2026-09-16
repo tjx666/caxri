@@ -1,5 +1,4 @@
 import type { AgentActivityState, AgentOperation } from '@caxri/protocol';
-import { relativeTime } from '@caxri/utils';
 
 export interface SessionActivityPresentation {
     ariaLabel: string;
@@ -90,10 +89,6 @@ export function sessionUnreadTone(kind: AgentActivityState): SessionActivityPres
  */
 export function sessionToneCalloutClassName(tone: SessionActivityPresentation['tone']): string {
     return TONE_CALLOUT_CLASSNAME[tone];
-}
-
-export function formatSessionRelativeTime(timestamp: number, now = Date.now()): string {
-    return relativeTime(timestamp, now);
 }
 
 /**
