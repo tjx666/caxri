@@ -85,9 +85,10 @@ Vite's `.vite` directory is not a reusable production-output cache.
 - Reproduce the exact failed spec against a fresh production build with one worker and
   `--repeat-each=3`. A `parallel-safe` failure must also be exercised under its namespaced
   two-worker pool so local validation matches CI scheduling pressure.
-- Finish the complete repair batch and focused local gates before pushing once. Use exact-tree
-  `e2e-repair` for an eligible unprotected delta. Workflow, dependency, pool, fixture, and retry
-  policy changes remain fail-closed and require one final full run.
+- Finish the complete repair batch and focused local gates before pushing once. Use `e2e-repair`
+  only when the repair delta modifies existing top-level E2E specs and nothing else. Product,
+  workflow, dependency, pool, fixture, shared E2E support, spec-add/delete, and retry-policy changes
+  remain fail-closed and require one final full run.
 - After one ready-PR run has full checks, every E2E pool, and `CI gate` green, a later strict
   ancestor may reuse that macOS evidence only when its entire delta is documentation or the
   repository-owned `acceptance`/`go` skill. The current head still runs focused self-hosted checks;
@@ -102,24 +103,29 @@ a reusable ancestor run when an otherwise full ready-PR path needs E2E and has n
 parse error. A verified ancestor then recomputes the plan. Missing, malformed, stale, or unverifiable
 evidence fails closed to the event's ordinary row.
 
+`focused-e2e` runs changed-spec lint and type validation only. Playwright owns the behavioral test;
+this path does not invoke Vitest for an E2E-only repair.
+
 `mode` belongs to `RetryPolicyDecision`; the remaining three values belong to
 `CIExecutionPlan`. The table is a behavior map, not a second implementation of the state machine.
 
-| Input and validated precondition                                                    | `mode`                    | `checksScope`               | `e2eProfile`                        | `runE2E`       |
-| ----------------------------------------------------------------------------------- | ------------------------- | --------------------------- | ----------------------------------- | -------------- |
-| Eligible exact-tree PR retry                                                        | `e2e-only` / `e2e-repair` | `skipped`                   | `control`                           | yes            |
-| Missing or rejected retry evidence                                                  | `full`                    | Continue with the event row | Continue with the event row         | event row      |
-| `workflow_dispatch`, profile `skip` / `control` / `optimized`                       | `full`                    | `full`                      | `control` / `control` / `optimized` | no / yes / yes |
-| PR strict-ancestor full-green reuse; delta is documentation only                    | `full`                    | `focused-docs`              | `control`                           | no             |
-| PR strict-ancestor full-green reuse; delta includes only `go` / `acceptance` skills | `full`                    | `focused-skills`            | `control`                           | no             |
-| PR documentation only                                                               | `full`                    | `focused-docs`              | `control`                           | no             |
-| PR repository-skill and documentation only                                          | `full`                    | `focused-skills`            | `control`                           | no             |
-| Draft PR with any remaining source change                                           | `full`                    | `focused-source`            | `control`                           | no             |
-| Ready PR with any remaining source change                                           | `full`                    | `full`                      | `optimized`                         | yes            |
-| Non-release `push` containing only documentation or repository skills               | `full`                    | `full`                      | `optimized`                         | no             |
-| Non-release `push` with product, test, workflow, or unknown delta                   | `full`                    | `full`                      | `optimized`                         | yes            |
-| Exact release commit                                                                | `full`                    | `full`                      | `control`                           | yes            |
-| Unknown or missing event                                                            | `full`                    | `full`                      | `control`                           | yes            |
+| Input and validated precondition                                                    | `mode`       | `checksScope`               | `e2eProfile`                        | `runE2E`       |
+| ----------------------------------------------------------------------------------- | ------------ | --------------------------- | ----------------------------------- | -------------- |
+| Eligible unchanged-tree PR retry                                                    | `e2e-only`   | `skipped`                   | `control`                           | yes            |
+| Eligible modified-existing-spec-only repair                                         | `e2e-repair` | `focused-e2e`               | `focused`                           | yes            |
+| Product, shared E2E support, protected, unknown, or spec-add/delete repair delta    | `full`       | Continue with the event row | Continue with the event row         | event row      |
+| Missing or rejected retry evidence                                                  | `full`       | Continue with the event row | Continue with the event row         | event row      |
+| `workflow_dispatch`, profile `skip` / `control` / `optimized`                       | `full`       | `full`                      | `control` / `control` / `optimized` | no / yes / yes |
+| PR strict-ancestor full-green reuse; delta is documentation only                    | `full`       | `focused-docs`              | `control`                           | no             |
+| PR strict-ancestor full-green reuse; delta includes only `go` / `acceptance` skills | `full`       | `focused-skills`            | `control`                           | no             |
+| PR documentation only                                                               | `full`       | `focused-docs`              | `control`                           | no             |
+| PR repository-skill and documentation only                                          | `full`       | `focused-skills`            | `control`                           | no             |
+| Draft PR with any remaining source change                                           | `full`       | `focused-source`            | `control`                           | no             |
+| Ready PR with any remaining source change                                           | `full`       | `full`                      | `optimized`                         | yes            |
+| Non-release `push` containing only documentation or repository skills               | `full`       | `full`                      | `optimized`                         | no             |
+| Non-release `push` with product, test, workflow, or unknown delta                   | `full`       | `full`                      | `optimized`                         | yes            |
+| Exact release commit                                                                | `full`       | `full`                      | `control`                           | yes            |
+| Unknown or missing event                                                            | `full`       | `full`                      | `control`                           | yes            |
 
 The pure retry, execution-plan, and green-reuse evaluators each have focused tests. The ordered
 GitHub lookup and `main` orchestration glue remain fail-closed but do not have a direct IO-level
@@ -146,8 +152,9 @@ changing workflow wiring.
   namespaced workers followed by `desktop-exclusive` with one worker on the same `m2-24`; a failed
   first pool does not suppress the second pool. The `workflow_dispatch` worker input stays bounded
   to 2–4 for frozen same-head comparisons.
-- Every successful E2E-running path, including `e2e-repair`, finishes with the fixed Renderer
-  performance scenario. That step rebuilds a profiling React Renderer after the production-build
+- Every successful product-affecting E2E-running path finishes with the fixed Renderer performance
+  scenario. A spec-only `e2e-repair` reuses the failed head's unchanged product tree and skips it.
+  The benchmark step rebuilds a profiling React Renderer after the production-build
   suites, applies the per-surface budgets in
   [`docs/renderer-performance.md`](renderer-performance.md), and uploads its machine-readable receipt.
   `CI gate` requires the step output to be `success`; changing the gate, benchmark command, or
