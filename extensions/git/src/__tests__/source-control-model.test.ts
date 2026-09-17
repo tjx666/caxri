@@ -340,6 +340,17 @@ describe('Git source-control view model', () => {
         expect(longTitle.providers[0].descriptionTooltip).toContain(
             '2 local commits are not included in pull request #42',
         );
+
+        const singular = buildSourceControlViewModel({
+            mode: 'pull-request',
+            summary,
+            pullRequestsByRepository: new Map([
+                ['repo-1', { ...pullRequest, unpushedCommitCount: 1 }],
+            ]),
+        });
+        expect(singular.providers[0].descriptionTooltip).toContain(
+            '1 local commit is not included in pull request #42',
+        );
     });
 
     it('reports uncommitted work the Pull Request view is hiding, and stays quiet when there is none', () => {
