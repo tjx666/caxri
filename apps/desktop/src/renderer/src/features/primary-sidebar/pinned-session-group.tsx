@@ -201,7 +201,8 @@ export function PinnedSessionGroup({
                         {hiddenSessionCount > 0 && (
                             /*
                              * Same reveal row a Project group uses, for the same reason: a long Pinned list would push
-                             * every Project off the screen. The button is the row, so it carries the tree semantics.
+                             * every Project off the screen. The button is the row, so it carries the tree semantics. No
+                             * disclosure chevron: this is not a collapsible branch.
                              */
                             <button
                                 className="session-reveal flex h-7 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-muted hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
@@ -213,7 +214,7 @@ export function PinnedSessionGroup({
                                 tabIndex={revealRowId === rovingRowId ? 0 : -1}
                                 onClick={onRevealMoreSessions}
                             >
-                                <ChevronDown size={13} /> Show {nextRevealCount} more
+                                Show {nextRevealCount} more
                             </button>
                         )}
                     </div>

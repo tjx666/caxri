@@ -182,6 +182,7 @@ test('an over-full Pinned group closes with a reveal row instead of burying ever
         await expect.poll(() => pinnedOrder(page)).toEqual(pinnedIds.slice(0, 5));
         const reveal = page.locator('.pinned-session-group .session-reveal');
         await expect(reveal).toHaveAttribute('aria-label', 'Show 1 more pinned Session');
+        await expect(reveal.locator('svg')).toHaveCount(0);
         await reveal.click();
         await expect.poll(() => pinnedOrder(page)).toEqual(pinnedIds);
         // The final reveal unmounts the row itself, so focus lands on the row above it, not on the document body.
