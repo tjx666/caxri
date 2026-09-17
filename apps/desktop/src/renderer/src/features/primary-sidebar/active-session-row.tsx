@@ -120,7 +120,7 @@ export function ActiveSessionRow({
                 /*
                  * A leading fixed-width column, so every worktree marker in this group lands on one vertical line
                  * instead of trailing whichever title happened to be shortest. It sits outside the
-                 * `.session-indicators` track at the row's other end, which is sized for exactly one status glyph.
+                 * `.session-indicators` track at the row's other end, which grows only when one status glyph exists.
                  *
                  * VS Code's `worktree` codicon — a branch splitting off a trunk — rather than a second folder glyph.
                  * `FolderGit2` and `FolderSymlink` both read as one more folder mark next to the violet pull request
@@ -182,10 +182,12 @@ export function ActiveSessionRow({
                 </span>
             )}
             {/*
-             * One fixed-width slot keeps every Session's glyph aligned. Lifecycle signals take priority over the PR;
-             * the PR remains available from the hover card and menu while its row glyph is temporarily hidden.
+             * Lifecycle signals take priority over the PR. The wrapper follows the rendered glyph's width, so an idle
+             * Session with no PR gives the otherwise invisible 14px slot back to its title; every visible glyph still
+             * lands on the same right edge. The PR remains available from the hover card and menu while temporarily
+             * hidden.
              */}
-            <span className="session-indicators flex w-3.5 flex-none items-center justify-end">
+            <span className="session-indicators flex flex-none items-center justify-end">
                 <SessionStatusIndicator
                     className="transition-opacity group-hover/session-row:opacity-0"
                     fallback={

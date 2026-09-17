@@ -307,15 +307,21 @@ parent directory make every row a fuzzy hit and rank the real answer below noise
 shows the list unfiltered.
 
 **PrimarySidebar** — flatten the double-box nesting: project groups are a disclosure row
-(Folder/FolderOpen icon + name + count, no border, no card); sessions are flat rows indented 16px.
+(chevron + Folder/FolderOpen icon + name, no border, no card); sessions are flat rows indented 16px.
+The Project row keeps low-frequency metadata out of the resting list: hover or intentional keyboard
+focus opens a compact Portal card to the PrimarySidebar's right with the full name, active Session
+count, and complete root path. The treeitem's accessible name still includes the Session count, so
+moving the visible digit into the detail card does not make a collapsed Project opaque to assistive
+technology.
 Selection is an `--elevated` fill (radius 6), no border and no accent — the primarySidebar stays
 entirely neutral so the focused pane keeps the screen's one accent. Every Session row ends in one
-fixed-width 14px status slot at the right edge. Show only one glyph: unread attention, running work,
+trailing status track. Show only one 14px glyph at the right edge: unread attention, running work,
 or a detached Agent takes precedence over the pull request. The PR appears only when no lifecycle
 signal is visible; its hover-card link, context-menu entry, and keyboard command remain available
-while the row glyph is hidden. Keep the slot reserved even when empty, so titles never reflow and
-all status glyphs share one vertical line. The MRU switcher likewise reserves its status slot to
-stabilize the neighbouring relative timestamp. Unacknowledged attention wins and uses a warning ring/dot with a
+while the row glyph is hidden. A visible glyph claims the 14px track and every such glyph shares one
+vertical line; an idle Session with no PR collapses the empty track to zero so its title gains one
+more character while retaining the 8px separation from the right edge. The MRU switcher still
+reserves its status slot because its neighbouring relative timestamp must not shift. Unacknowledged attention wins and uses a warning ring/dot with a
 ping; there is deliberately no second, static amber state, so reading a Session is the only thing
 that clears the status and nothing can bring it back unread; active work (including compaction) uses
 a muted spinner; settled, idle, unknown, failed, and exited Sessions render no status, which hands

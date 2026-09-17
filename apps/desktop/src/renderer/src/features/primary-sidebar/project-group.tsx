@@ -1,4 +1,5 @@
 import type { DragEvent } from 'react';
+import { useState } from 'react';
 
 import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
 import { ChevronDown, ChevronRight, Paintbrush } from 'lucide-react';
@@ -16,6 +17,7 @@ import {
     primarySidebarCreateSessionRowId,
     primarySidebarRevealRowId,
 } from './primary-sidebar-tree';
+import { ProjectDetailsCard } from './project-details-card';
 import { describeProjectSessionCount } from './project-heading';
 import { ProjectIcon } from './project-icon';
 import type { ProjectDropTarget } from './project-order';
@@ -123,6 +125,7 @@ export function ProjectGroup({
     const projectDisclosureId = `project-sessions-${project.id}`;
     const revealRowId = primarySidebarRevealRowId(project.id);
     const createSessionRowId = primarySidebarCreateSessionRowId(project.id);
+    const [menuOpen, setMenuOpen] = useState(false);
     /**
      * The worktree marker's column is reserved for the whole group at once, so markers align and titles do not shift
      * sideways as Sessions come and go. Scoped to the group because a Project without one should not be indented for a
@@ -149,7 +152,7 @@ export function ProjectGroup({
                     <span className="absolute top-1/2 -left-0.5 size-1.5 -translate-y-1/2 rounded-full bg-accent" />
                 </div>
             )}
-            <ProjectRowMenu project={project}>
+            <ProjectRowMenu project={project} onOpenChange={setMenuOpen}>
                 {/*
                  * The Project drag source and the row's layout. Its tree semantics live on the `.project-select`
                  * button below, which is the element that owns the roving Tab stop: `aria-level`, `aria-selected`, and
@@ -190,52 +193,47 @@ export function ProjectGroup({
                             {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                         </button>
                     </Tooltip>
-                    <button
-                        className="project-select flex min-h-7 min-w-0 flex-1 cursor-pointer items-center gap-1.5 border-0 bg-transparent px-1 text-left text-inherit focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
-                        role="treeitem"
-                        aria-controls={projectDisclosureId}
-                        aria-expanded={expanded}
-                        aria-level={1}
-                        aria-selected={active}
-                        aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
-                        // The visible digit is `aria-hidden`, so the count reaches assistive technology named rather
-                        // than as a bare number trailing the title.
-                        aria-label={describeProjectSessionCount(
-                            project.displayTitle,
-                            projectSessions.length,
-                        )}
-                        data-row-id={project.id}
-                        tabIndex={project.id === rovingRowId ? 0 : -1}
-                        onClick={onToggle}
-                        onKeyDown={(event) => {
-                            if (!event.altKey) return;
-                            if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
-                                event.preventDefault();
-                                onMove(event.key === 'ArrowUp' ? -1 : 1);
-                            }
-                        }}
-                        title={project.rootPath}
-                    >
-                        <ProjectIcon
-                            className="flex-none"
-                            expanded={expanded}
-                            icon={project.icon}
-                        />
-                        <strong className="min-w-0 flex-1 overflow-hidden text-sm font-semibold text-ellipsis whitespace-nowrap">
-                            {project.displayTitle}
-                        </strong>
-                        {/*
-                         * The Session count stays on the heading in both states: while the Project is collapsed — which
-                         * auto-collapse can cause without the user asking — it is the only thing that says how much is
-                         * inside. Mirrors the archived-count digit in the footer.
-                         */}
-                        <span
-                            aria-hidden="true"
-                            className="project-session-count flex-none text-[11px] text-muted tabular-nums"
-                        >
-                            {projectSessions.length}
-                        </span>
-                    </button>
+                    <ProjectDetailsCard
+                        project={project}
+                        sessionCount={projectSessions.length}
+                        suppressed={menuOpen}
+                        trigger={
+                            <button
+                                className="project-select flex min-h-7 min-w-0 flex-1 cursor-pointer items-center gap-1.5 border-0 bg-transparent px-1 text-left text-inherit focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
+                                role="treeitem"
+                                aria-controls={projectDisclosureId}
+                                aria-expanded={expanded}
+                                aria-level={1}
+                                aria-selected={active}
+                                aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+                                // The count moved into the detail card visually but stays in the treeitem's name so
+                                // collapsed Projects remain equally informative to assistive technology.
+                                aria-label={describeProjectSessionCount(
+                                    project.displayTitle,
+                                    projectSessions.length,
+                                )}
+                                data-row-id={project.id}
+                                tabIndex={project.id === rovingRowId ? 0 : -1}
+                                onClick={onToggle}
+                                onKeyDown={(event) => {
+                                    if (!event.altKey) return;
+                                    if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+                                        event.preventDefault();
+                                        onMove(event.key === 'ArrowUp' ? -1 : 1);
+                                    }
+                                }}
+                            >
+                                <ProjectIcon
+                                    className="flex-none"
+                                    expanded={expanded}
+                                    icon={project.icon}
+                                />
+                                <strong className="min-w-0 flex-1 overflow-hidden text-sm font-semibold text-ellipsis whitespace-nowrap">
+                                    {project.displayTitle}
+                                </strong>
+                            </button>
+                        }
+                    />
                     <CommandTooltip commandId="project.customizeIcon">
                         <Button
                             className="pointer-events-none opacity-0 transition-opacity group-focus-within/project-heading:pointer-events-auto group-focus-within/project-heading:opacity-100 group-hover/project-heading:pointer-events-auto group-hover/project-heading:opacity-100"
