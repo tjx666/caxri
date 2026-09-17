@@ -41,6 +41,17 @@ describe('focused CI checks', () => {
         ]);
     });
 
+    it('does not run Vitest for a focused E2E spec repair', () => {
+        expect(focusedCheckArguments(['e2e/session-attention.e2e.ts'], 'focused-e2e')).toEqual([
+            'run',
+            '--silent',
+            'check',
+            'e2e/session-attention.e2e.ts',
+            '--lint',
+            '--type',
+        ]);
+    });
+
     it('keeps type validation on repository-skill changes', () => {
         expect(
             focusedCheckArguments(

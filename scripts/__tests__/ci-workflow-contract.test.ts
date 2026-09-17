@@ -306,7 +306,30 @@ describe('CI workflow contract', () => {
         expect(workflow).toContain('bun run scripts/report-e2e-manifest.ts');
     });
 
-    it('runs focused repair specs before the complete E2E suite and exposes one stable gate', () => {
+    it('keeps spec-only repair focused while exposing one stable gate', () => {
+        const document = parse(workflow) as { jobs: Record<string, { if: string }> };
+        const needs = {
+            'checks': { result: 'success' },
+            'retry-policy': {
+                result: 'success',
+                outputs: {
+                    checks_scope: 'focused-e2e',
+                    e2e_profile: 'focused',
+                    mode: 'e2e-repair',
+                    run_e2e: 'true',
+                },
+            },
+        };
+        const shouldRun = (job: 'checks' | 'e2e'): boolean => {
+            const expression = document.jobs[job].if
+                .replaceAll(/\$\{\{|\}\}/gu, '')
+                .replaceAll('needs.retry-policy', "needs['retry-policy']");
+            const result: unknown = runInNewContext(expression, {
+                cancelled: () => false,
+                needs,
+            });
+            return result === true;
+        };
         const e2eJob = workflow.match(/\n {2}e2e:\n([\s\S]*?)\n {2}ci:/u)?.[1];
         const focusedIndex = workflow.indexOf('run: bun run scripts/run-e2e-repair.ts');
         const fullIndex = workflow.indexOf('bun run scripts/run-e2e-pools.ts --pool control');
@@ -314,7 +337,9 @@ describe('CI workflow contract', () => {
         const receiptIndex = workflow.indexOf('name: Record actual E2E execution receipt');
 
         expect(focusedIndex).toBeGreaterThan(0);
-        expect(fullIndex).toBeGreaterThan(focusedIndex);
+        expect(fullIndex).toBeGreaterThan(0);
+        expect(shouldRun('checks')).toBe(true);
+        expect(shouldRun('e2e')).toBe(true);
         expect(e2eJob).toContain('ref: ${{ github.event.pull_request.head.sha || github.sha }}');
         expect(e2eJob).toContain(
             "if: always() && steps.e2e-build.outcome == 'success' && needs.retry-policy.outputs.e2e_profile == 'optimized'",
@@ -323,13 +348,20 @@ describe('CI workflow contract', () => {
             "if: always() && steps.e2e-build.outcome == 'success' && needs.retry-policy.outputs.e2e_profile == 'control'",
         );
         expect(e2eJob).toContain(
+            "if: always() && steps.e2e-build.outcome == 'success' && needs.retry-policy.outputs.e2e_profile == 'focused'",
+        );
+        expect(e2eJob).toContain(
             'renderer_performance_result: ${{ steps.renderer-performance.outcome }}',
         );
         expect(e2eJob).toContain('name: Run Renderer performance gate');
         expect(e2eJob).toContain('run: bun run benchmark:renderer');
         expect(e2eJob).toContain('name: Upload Renderer performance receipt');
         expect(e2eJob).toContain('path: test-results/receipts/renderer-performance.json');
-        expect(e2eJob).toContain("steps.focused-repair.outcome == 'success'");
+        expect(e2eJob).not.toContain("steps.focused-repair.outcome == 'success'");
+        expect(e2eJob).toContain("needs.retry-policy.outputs.e2e_profile != 'focused'");
+        expect(e2eJob).toContain(
+            "steps.e2e-build.outcome == 'success' && needs.retry-policy.outputs.e2e_profile != 'focused'",
+        );
         expect(performanceIndex).toBeGreaterThan(fullIndex);
         expect(receiptIndex).toBeGreaterThan(performanceIndex);
         expect(packageManifest.scripts['benchmark:renderer']).toContain(
@@ -346,6 +378,8 @@ describe('CI workflow contract', () => {
             'RENDERER_PERFORMANCE_RESULT: ${{ needs.e2e.outputs.renderer_performance_result }}',
         );
         expect(workflow).toContain('test "$RENDERER_PERFORMANCE_RESULT" = success');
+        expect(workflow).toContain('test "$RENDERER_PERFORMANCE_RESULT" = skipped');
+        expect(workflow).toContain('if test "$E2E_PROFILE" = focused; then');
         expect(workflow).not.toContain('if test "$MODE" != e2e-repair');
     });
 
