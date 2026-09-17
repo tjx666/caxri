@@ -340,9 +340,11 @@ the card and gives the modal ownership of Escape. Canceling a picker restores th
 control without reopening its detail card; a command's explicit focus handoff takes precedence.
 If the opening control disappeared, restore the current workbench Terminal when available.
 All non-archived Project and
-Session names and navigation icons use `--foreground`, including inactive rows. Clipped Session
-names reveal their tail after a 600ms title hover or keyboard-focus pause, moving at a steady
-reading speed and holding at the end. Leaving restores truncation; short names remain still.
+Session names and navigation icons use `--foreground`, including inactive rows. Overflowing Session
+and Project names clip with a right-edge fade instead of an ellipsis — the ellipsis glyph spends
+row width on punctuation. Clipped Session names reveal their tail after a 600ms title hover or
+keyboard-focus pause, moving at a steady reading speed and holding at the end. Leaving restores the
+fade; short names remain still.
 Reduced motion keeps titles static, with the full name available in the detail card. The `--elevated`
 selected fill, not dimmed neighbors, communicates selection. Project ordering uses the whole
 Project heading as its drag source. While dragging, dim only the source group and show a 2px
@@ -752,10 +754,11 @@ validated remote pull request head, and states any commits absent from that pull
 This count never borrows the branch's tracking-upstream state, which can point at a different ref.
 A repository with no pull request keeps the heading
 `Pull Request Changes` in Pull Request mode: leaving it at `Changes` made its zero read as a clean
-working tree instead of an absent pull request. On a repository row the counts outrank the
-repository name: the name ellipsizes when the row runs out of width, because the row's tooltip and
-the Project already carry it while the counts are stated nowhere else. A name that refused to
-shrink collapsed the meta span to zero width and printed the counts on top of the name.
+working tree instead of an absent pull request. On a repository row the folder name outranks the
+branch, matching VS Code's SCM provider row: the name takes its content width and the branch
+ellipsizes in the leftover space. Counts sit outside that leftover box as `shrink-0` so they still
+outrank both — they are stated nowhere else on the row — and a name that is still too wide after
+the branch has given way clips without an ellipsis, never by pushing the counts out of the row.
 
 **Git diff exclusions** — `git.diffExclude` hides matching repository-relative paths from Git
 change lists and from `Open Changes`; it ships filtering test files out by default, because a

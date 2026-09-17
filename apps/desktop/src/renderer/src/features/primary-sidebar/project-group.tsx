@@ -228,7 +228,7 @@ export function ProjectGroup({
                                     expanded={expanded}
                                     icon={project.icon}
                                 />
-                                <strong className="min-w-0 flex-1 overflow-hidden text-sm font-semibold text-ellipsis whitespace-nowrap">
+                                <strong className="overflow-fade min-w-0 flex-1 text-sm font-semibold">
                                     {project.displayTitle}
                                 </strong>
                             </button>

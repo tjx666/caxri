@@ -148,9 +148,9 @@ export interface SourceControlProviderModel {
      */
     rootPath?: string;
     /**
-     * The repository's branch. Atomic enough that an ellipsis destroys it — `feat/thing` and `feat/thing-2` both
-     * truncate to `feat/thi…` — so the panel protects its width and truncates the repository name instead, which the
-     * row's path tooltip still carries. Prose that a provider wants beside the row belongs in `descriptionTooltip`.
+     * The repository's branch. Shown after the folder name and allowed to ellipsize so the name stays readable — VS
+     * Code's SCM provider row does the same. Counts still outrank both. Prose that a provider wants beside the row
+     * belongs in `descriptionTooltip`.
      */
     description: string;
     descriptionAccessibilityLabel: string;

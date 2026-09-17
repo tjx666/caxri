@@ -190,7 +190,10 @@ test('long Session titles scroll at a readable speed and reset across pointer an
 
         await running.page.mouse.move(500, 300);
         await expect.poll(async () => (await titleMetrics(title)).transformX).toBe(0);
-        await expect(title).toHaveCSS('text-overflow', 'ellipsis');
+        await expect(title).toHaveCSS('text-overflow', 'clip');
+        const sessionCopy = card.locator('.session-copy');
+        await expect(sessionCopy).toHaveClass(/overflow-fade/);
+        await expect(sessionCopy).not.toHaveAttribute('data-overflow-fade', 'off');
 
         // Arrow navigation supplies keyboard modality, so the Session row's :focus-visible path is exercised.
         await running.page.locator('.project-select').focus();
