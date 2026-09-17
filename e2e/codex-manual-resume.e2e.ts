@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import type { AppSettings, BootstrapState } from '@caxri/protocol';
+import Database from 'better-sqlite3';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
@@ -15,6 +16,7 @@ import {
     typeTerminal,
 } from './support/helpers.ts';
 
+const INITIAL_THREAD = '019a0000-0000-7000-8000-000000000001';
 const RESUMED_THREAD = '019a0000-0000-7000-8000-000000000042';
 
 for (const entry of ['shell', 'codex', 'exited-codex'] as const) {
@@ -33,7 +35,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const cp = require('node:child_process');
 if (process.argv.includes('--version')) {
-  process.stdout.write('codex-cli 0.153.4\n');
+  process.stdout.write('codex-cli 0.154.0\n');
   process.exit(0);
 }
 // Model Codex 0.154's launch eligibility before allowing managed hooks to run.
@@ -41,7 +43,17 @@ if (process.env.CAXRI_MANAGED_AGENT === '1' &&
     !(process.argv[2] === '-c' && process.argv[3] === 'tui.auto_recap=false')) {
   process.exit(1);
 }
-let thread = process.argv.includes('resume') ? '${RESUMED_THREAD}' : '019a0000-0000-7000-8000-000000000001';
+let thread = process.argv.includes('resume') ? '${RESUMED_THREAD}' : '${INITIAL_THREAD}';
+let rolloutFile;
+function openRollout() {
+  if (rolloutFile !== undefined) fs.closeSync(rolloutFile);
+  const directory = path.join(process.env.CODEX_HOME, 'sessions', '2026', '01', '01');
+  fs.mkdirSync(directory, { recursive: true });
+  rolloutFile = fs.openSync(
+    path.join(directory, 'rollout-2026-01-01T00-00-00-' + thread + '.jsonl'),
+    'a',
+  );
+}
 function hook(event) {
   const config = JSON.parse(fs.readFileSync(path.join(process.env.CODEX_HOME, 'hooks.json'), 'utf8'));
   for (const group of config.hooks[event] ?? []) {
@@ -53,6 +65,7 @@ function hook(event) {
     }
   }
 }
+openRollout();
 hook('SessionStart');
 let input = '';
 process.stdin.setRawMode?.(true);
@@ -62,7 +75,7 @@ process.stdin.on('data', (chunk) => {
     if (character !== '\r' && character !== '\n') { input += character; continue; }
     const command = input; input = '';
     if (command === 'exit') process.exit(0);
-    else if (command.startsWith('/resume')) { thread = '${RESUMED_THREAD}'; hook('SessionStart'); }
+    else if (command.startsWith('/resume')) { thread = '${RESUMED_THREAD}'; openRollout(); hook('SessionStart'); }
     else if (command === 'work') hook('UserPromptSubmit');
     else if (command === 'finish') hook('Stop');
     process.stdout.write('Fixture input handled\r\n');
@@ -73,6 +86,23 @@ process.stdout.write('Fake Codex ready\r\n');
                 },
             },
         });
+        const codexState = agentMode.environment.CODEX_SQLITE_HOME;
+        if (!codexState) throw new Error('Fake Codex state directory is unavailable');
+        await mkdir(codexState, { recursive: true });
+        const stateDatabase = new Database(join(codexState, 'state_1.sqlite'));
+        stateDatabase.exec(
+            'CREATE TABLE threads (id TEXT PRIMARY KEY, cwd TEXT, title TEXT, name TEXT, created_at_ms INTEGER, updated_at_ms INTEGER, tokens_used INTEGER, archived INTEGER)',
+        );
+        stateDatabase.exec(
+            'CREATE TABLE thread_spawn_edges (parent_thread_id TEXT NOT NULL, child_thread_id TEXT NOT NULL PRIMARY KEY, status TEXT NOT NULL)',
+        );
+        const insertThread = stateDatabase.prepare(
+            'INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        );
+        const now = Date.now();
+        insertThread.run(INITIAL_THREAD, root, 'Initial fixture', null, now, now, 0, 0);
+        insertThread.run(RESUMED_THREAD, root, 'Resumed fixture', null, now + 1, now + 1, 0, 0);
+        stateDatabase.close();
         const running = await launchCaxri({
             agentMode,
             env: { CAXRI_E2E_AGENT_HOOKS: '1' },

@@ -435,6 +435,9 @@ process.stdin.on('end', () => {
         database.exec(
             'CREATE TABLE threads (id TEXT PRIMARY KEY, cwd TEXT, title TEXT, name TEXT, created_at_ms INTEGER, updated_at_ms INTEGER, tokens_used INTEGER, archived INTEGER)',
         );
+        database.exec(
+            'CREATE TABLE thread_spawn_edges (parent_thread_id TEXT NOT NULL, child_thread_id TEXT NOT NULL PRIMARY KEY, status TEXT NOT NULL)',
+        );
         database
             .prepare('INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
             .run(
@@ -459,6 +462,21 @@ process.stdin.on('end', () => {
                 0,
                 0,
             );
+        database
+            .prepare('INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+            .run(
+                'codex-session-child',
+                root,
+                'Synthetic child prompt',
+                null,
+                startedAt - 15_000,
+                startedAt - 15_000,
+                0,
+                0,
+            );
+        database
+            .prepare('INSERT INTO thread_spawn_edges VALUES (?, ?, ?)')
+            .run('codex-session-older', 'codex-session-child', 'active');
         database.close();
         const turnHistory = new Database(join(state, 'thread_history_1.sqlite'));
         turnHistory.exec(
@@ -511,8 +529,20 @@ process.stdin.on('end', () => {
             activitySource: 'latestTurn',
             activityTurnId: 'turn-resumed',
             sessionId: 'codex-session-older',
+            sessionIsSubagent: false,
             status: 'running',
             title: undefined,
+        });
+        await expect(
+            service.snapshot('codex', {
+                agentSessionId: 'codex-session-child',
+                rootPath: root,
+                processState: 'running',
+                startedAt,
+            }),
+        ).resolves.toMatchObject({
+            sessionId: 'codex-session-child',
+            sessionIsSubagent: true,
         });
         await expect(
             service.snapshot('codex', {

@@ -63,6 +63,7 @@ function snapshotRequestKey(provider: AgentProvider, context: AgentSnapshotConte
         context.correlationId ?? null,
         [...new Set(context.excludedAgentSessionIds)].toSorted((a, b) => a.localeCompare(b)),
         context.shellPid ?? null,
+        context.requireForegroundProcessIdentity ?? false,
         context.processState ?? null,
         context.startedAt ?? null,
     ]);
@@ -180,6 +181,7 @@ function createCliAdapter(
                 executable,
                 version,
                 sessionId: localState?.sessionId,
+                sessionIsSubagent: localState?.sessionIsSubagent,
                 title: localState?.title,
                 titleSource: localState?.titleSource,
                 usage: localState?.usage,
