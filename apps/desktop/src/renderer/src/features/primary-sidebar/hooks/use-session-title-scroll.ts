@@ -4,7 +4,8 @@ import { useShouldReduceMotion } from '@/hooks/use-should-reduce-motion';
 
 /**
  * Reveal only clipped titles, at a constant reading speed. Observing while active keeps sidebar resizing and font
- * loading accurate without installing a ResizeObserver for every idle Session. Cancellation restores ellipsis.
+ * loading accurate without installing a ResizeObserver for every idle Session. Cancellation restores the overflow
+ * fade.
  */
 export function useSessionTitleScroll(title: string, isDisabled: boolean) {
     const viewportReference = useRef<HTMLElement>(null);
@@ -17,11 +18,12 @@ export function useSessionTitleScroll(title: string, isDisabled: boolean) {
         const viewport = viewportReference.current;
         const text = textReference.current;
         if (!viewport || !text || isDisabled || reducedMotion || (!hovered && !focused)) return;
+        const fadeHost = viewport.closest('.overflow-fade');
         let animation: Animation | undefined;
         const reset = (): void => {
             animation?.cancel();
             animation = undefined;
-            viewport.style.removeProperty('text-overflow');
+            fadeHost?.removeAttribute('data-overflow-fade');
             text.style.removeProperty('max-width');
         };
         const reveal = (): void => {
@@ -30,7 +32,7 @@ export function useSessionTitleScroll(title: string, isDisabled: boolean) {
             if (distance <= 1) return;
             const travel = (distance / 35) * 1000;
             const duration = 600 + travel + 1200;
-            viewport.style.textOverflow = 'clip';
+            fadeHost?.setAttribute('data-overflow-fade', 'off');
             text.style.maxWidth = 'none';
             animation = text.animate(
                 [
