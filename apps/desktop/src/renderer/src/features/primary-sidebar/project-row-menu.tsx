@@ -13,13 +13,15 @@ import { openProjectRoot } from './project-path-commands';
 
 export function ProjectRowMenu({
     children,
+    onOpenChange,
     project,
 }: {
     children: ReactElement;
+    onOpenChange?: (isOpen: boolean) => void;
     project: ProjectRecord;
 }) {
     return (
-        <ContextMenu>
+        <ContextMenu onOpenChange={onOpenChange}>
             <ContextMenuTrigger render={children} />
             <ContextMenuContent aria-label={`${project.displayTitle} actions`}>
                 <ContextMenuItem onClick={() => copyFilePath(project.rootPath)}>
