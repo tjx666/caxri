@@ -119,13 +119,13 @@ function ProviderHeader({
                 }}
             >
                 {/*
-                 * The identity span is the one that gives way. `description` is always the branch, unreadable
-                 * ellipsized and present nowhere else on the row, so it holds its width and the repository name —
-                 * recoverable from the row's path tooltip — truncates instead. The 60% cap keeps the branch from
-                 * starving the name, and the counts stay `shrink-0` inside the meta span: before `min-w-0` was added
-                 * there they overflowed leftward and printed on top of the name.
+                 * VS Code SCM (`scm.css`): `.monaco-icon-label` is `flex: 0 1 auto; min-width: 0` and `.actions` is
+                 * `flex: 1 10000 auto; overflow: hidden` so the branch gives way first. Counts are a `shrink-0` sibling
+                 * rather than meta's min-content — putting the branch inside a `min-width: auto` box made that box as
+                 * wide as the full branch and crushed the folder name. A name that is still too wide after the branch
+                 * has given way clips without an ellipsis.
                  */}
-                <span className="git-repository-identity flex min-w-0 items-center gap-1">
+                <span className="git-repository-identity flex min-w-0 flex-initial items-center gap-1 overflow-hidden">
                     {expanded ? (
                         <ChevronDown className="shrink-0" size={13} />
                     ) : (
@@ -133,7 +133,7 @@ function ProviderHeader({
                     )}
                     {/* 14px matches the Project Status tree rows, so the two sidebar panels agree on repository glyph size. */}
                     <SourceControlIcon className="shrink-0" icon={provider.icon} size={14} />
-                    <strong className="git-repository-name min-w-0 truncate font-semibold">
+                    <strong className="git-repository-name min-w-0 overflow-hidden font-semibold whitespace-nowrap">
                         {provider.label}
                     </strong>
                     {provider.kindLabel && (
@@ -143,15 +143,15 @@ function ProviderHeader({
                     )}
                 </span>
                 <span
-                    className="git-repository-meta ml-auto flex max-w-[60%] min-w-0 shrink-0 items-center justify-end gap-1 text-[11px] text-muted"
+                    className="git-repository-meta ml-auto flex min-w-0 flex-[1_10000_auto] items-center justify-end overflow-hidden text-[11px] text-muted"
                     aria-label={provider.descriptionAccessibilityLabel}
                 >
                     <span className="git-repository-branch min-w-0 truncate">
                         {provider.description}
                     </span>
-                    <span className="git-repository-counts shrink-0 whitespace-nowrap">
-                        {provider.countLabel}
-                    </span>
+                </span>
+                <span className="git-repository-counts shrink-0 text-[11px] whitespace-nowrap text-muted">
+                    {provider.countLabel}
                 </span>
             </SourceControlTreeRow>
             {uncommittedMode && provider.uncommittedNotice && (

@@ -125,6 +125,25 @@
     }
 }
 
+/*
+ * Sidebar list labels clip overflowing text with a right-edge fade instead of an ellipsis. The
+ * ellipsis glyph spends ~3ch of row width on punctuation; a 16px mask keeps those characters
+ * readable and still marks the cut. Apply this to a flex-1 (or otherwise wider-than-content) box
+ * so short labels never reach the mask zone. `data-overflow-fade="off"` drops the mask while a
+ * Session title is scrolling to its tail, so the already-revealed end is not faded again.
+ *
+ * The mask uses black/transparent as luminance, not a theme color — it never paints.
+ */
+.overflow-fade {
+    overflow: hidden;
+    text-overflow: clip;
+    white-space: nowrap;
+}
+.overflow-fade:not([data-overflow-fade='off']) {
+    -webkit-mask-image: linear-gradient(to right, black calc(100% - 16px), transparent);
+    mask-image: linear-gradient(to right, black calc(100% - 16px), transparent);
+}
+
 /**
  * Applied to `<body>` for the duration of a `PanelDivider` drag (`panel-divider.tsx`). Selection
  * and pointer events are suppressed globally so the gesture survives crossing an xterm surface or

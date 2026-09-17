@@ -35,7 +35,7 @@ test('Git repositories lazy-load pageable commits and subtree history', async ()
         // eslint-disable-next-line no-await-in-loop
         await commit(root, index === 7 ? 'latest scoped commit' : `commit ${index}`);
     }
-    await initializeRepo(nested, 'nested-main');
+    await initializeRepo(nested, 'feat/nested-repository-long-branch-name');
     await writeFile(join(nested, 'nested.txt'), 'nested\n', 'utf8');
     await commit(nested, 'nested commit');
     const canonicalRoot = await realpath(root);
@@ -68,16 +68,12 @@ test('Git repositories lazy-load pageable commits and subtree history', async ()
         await running.page
             .locator('.git-panel')
             .screenshot({ path: test.info().outputPath('repository-icons.png') });
-        await expect(primary.locator('.git-repository-name')).toHaveCSS(
-            'text-overflow',
-            'ellipsis',
-        );
+        await expect(primary.locator('.git-repository-name')).toHaveCSS('text-overflow', 'clip');
         await expect(primary.locator('.git-repository-branch')).toHaveCSS(
             'text-overflow',
             'ellipsis',
         );
-        // The counts carry state that appears nowhere else on the row, so a long repository name must ellipsize
-        // rather than push them out of the row's clipped box.
+        // Counts are stated nowhere else on the row, so a long name must clip rather than push them out.
         const countsFit = await primary
             .locator('.git-repository-row')
             .first()
@@ -89,6 +85,27 @@ test('Git repositories lazy-load pageable commits and subtree history', async ()
                 );
             });
         expect(countsFit).toBe(true);
+        // Folder name outranks the branch: a clipped name means the branch has already given way.
+        const nestedLayout = await nestedSection
+            .locator('.git-repository-row')
+            .first()
+            .evaluate((row) => {
+                const name = row.querySelector('.git-repository-name');
+                const branch = row.querySelector('.git-repository-branch');
+                if (!(name instanceof HTMLElement) || !(branch instanceof HTMLElement)) return null;
+                return {
+                    branchClientWidth: branch.clientWidth,
+                    nameClientWidth: name.clientWidth,
+                    nameOverflow: name.scrollWidth - name.clientWidth,
+                };
+            });
+        expect(nestedLayout).not.toBeNull();
+        expect(nestedLayout?.nameClientWidth ?? 0).toBeGreaterThan(
+            nestedLayout?.branchClientWidth ?? 0,
+        );
+        if ((nestedLayout?.nameOverflow ?? 0) > 1) {
+            expect(nestedLayout?.branchClientWidth ?? 0).toBeLessThanOrEqual(24);
+        }
 
         await primary.getByRole('treeitem', { name: /Commits/ }).click();
         await expect(primary.locator('.commit-row')).toHaveCount(5);

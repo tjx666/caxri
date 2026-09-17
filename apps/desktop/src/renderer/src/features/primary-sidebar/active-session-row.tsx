@@ -155,14 +155,14 @@ export function ActiveSessionRow({
                     onCancel={onCancelRename}
                 />
             ) : (
-                <span className="session-copy flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+                <span className="session-copy overflow-fade flex min-w-0 flex-1 items-center gap-1">
                     <strong
                         ref={viewportReference}
-                        className="session-title min-w-0 overflow-hidden font-medium text-ellipsis whitespace-nowrap"
+                        className="session-title min-w-0 overflow-hidden font-medium whitespace-nowrap"
                         onPointerEnter={() => setHovered(true)}
                         onPointerLeave={() => setHovered(false)}
                     >
-                        <span ref={textReference} className="block w-max max-w-full truncate">
+                        <span ref={textReference} className="block w-max max-w-full">
                             {session.displayTitle}
                         </span>
                     </strong>
@@ -174,7 +174,7 @@ export function ActiveSessionRow({
                     {showProjectName && (
                         <span
                             aria-hidden="true"
-                            className="session-project min-w-0 shrink overflow-hidden text-[11px] text-ellipsis whitespace-nowrap text-muted"
+                            className="session-project min-w-0 shrink overflow-hidden text-[11px] whitespace-nowrap text-muted"
                         >
                             {project.displayTitle}
                         </span>
