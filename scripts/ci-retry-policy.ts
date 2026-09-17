@@ -16,7 +16,6 @@ export interface RetryHint {
     baseRunId: number;
     e2eTests?: string[];
     mode: 'e2e-only' | 'e2e-repair';
-    validatedTree: string;
 }
 
 export interface BaseRunEvidence {
@@ -56,10 +55,13 @@ interface GreenReuseResolution extends CIReusableGreenRun {
  * against the synthetic merge commit.
  */
 const fullChecksReceiptStep = 'Verify full platform checks';
+const e2eAuxiliaryReceiptStep = 'Verify E2E auxiliary contracts';
 
 export interface RetryPolicyInput {
+    addedOrDeletedFiles: string[];
     baseRunChangedFiles: string[];
     baseRun?: BaseRunEvidence;
+    baseRunTree?: string;
     changedFiles: string[];
     currentTree: string;
     eventName: string;
@@ -78,7 +80,7 @@ export interface RetryPolicyDecision {
     e2eTests?: string[];
     mode: 'e2e-only' | 'e2e-repair' | 'full';
     reason: string;
-    validatedTree?: string;
+    retryKind?: 'metadata-only' | 'spec-only';
 }
 
 const protectedPathPatterns = [
@@ -96,8 +98,15 @@ const protectedPathPatterns = [
     /^scripts\/run-e2e-[^/]+\.ts$/,
     /^scripts\/fixtures\//,
     /^scripts\/reporters\/e2e-receipt-reporter\.ts$/,
-    /^e2e\/(?:failure-isolation\.e2e|support\/(?:pools|worker-isolation))\.ts$/,
+    /^e2e\/support\//,
+    /^e2e\/editor\.performance\.e2e\.ts$/,
+    /^e2e\/failure-isolation\.e2e\.ts$/,
+    /^e2e\/mobile-acceptance-scenarios\.e2e\.ts$/,
+    /^e2e\/mobile-pairing-desktop-acceptance\.e2e\.ts$/,
+    /^e2e\/mobile-short-reply\.e2e\.ts$/,
+    /^e2e\/real-agent-smoke\.e2e\.ts$/,
     /^e2e\/renderer\.performance\.e2e\.ts$/,
+    /^e2e\/startup\.performance\.e2e\.ts$/,
     /^\.agents\/skills\/(?:quality-check|switch-worktree)\//,
     /^\.agents\/skills\/e2e-testing\//,
     /^\.agents\/skills\/(?:build|release)\//,
@@ -107,6 +116,23 @@ const protectedPathPatterns = [
 
 export function isProtectedRetryPath(path: string): boolean {
     return protectedPathPatterns.some((pattern) => pattern.test(path));
+}
+
+const ordinaryE2ESpecPattern = /^e2e\/[a-z0-9][a-z0-9-]*\.e2e\.ts$/u;
+
+export function retryDiffArguments(ancestor: string, current: string): string[] {
+    return ['diff', '--no-renames', '--name-only', '-z', `${ancestor}...${current}`];
+}
+
+export function retryAddedOrDeletedDiffArguments(ancestor: string, current: string): string[] {
+    return [
+        'diff',
+        '--no-renames',
+        '--diff-filter=AD',
+        '--name-only',
+        '-z',
+        `${ancestor}...${current}`,
+    ];
 }
 
 /**
@@ -130,37 +156,60 @@ export function summarizeE2EJobs(
     jobs: WorkflowJobRecord[] | undefined,
 ): Pick<BaseRunEvidence, 'e2eConclusion' | 'e2eFailurePool'> {
     const e2eJobs = jobs?.filter(({ name }) => name === 'e2e' || name?.startsWith('e2e / ')) ?? [];
+    if (
+        e2eJobs.length === 0 ||
+        e2eJobs.some(({ conclusion }) => conclusion !== 'success' && conclusion !== 'failure')
+    ) {
+        return {};
+    }
     const failed = e2eJobs.filter(({ conclusion }) => conclusion === 'failure');
-    const failedPools = [
-        ...new Set(
-            failed.flatMap((job) => {
-                if (job.name !== 'e2e') return [job.name?.slice('e2e / '.length)];
-                const stepPools = (job.steps ?? []).map(poolFromStep).filter(Boolean);
-                if (stepPools.length === 0) return ['control'];
-                return (job.steps ?? [])
-                    .filter((step) => step.conclusion === 'failure')
-                    .map(poolFromStep)
-                    .filter(Boolean);
-            }),
-        ),
-    ];
+    if (failed.length === 0) return { e2eConclusion: 'success' };
+    if (failed.length > 1) return { e2eConclusion: 'failure' };
+
     const e2eFailurePools = ['control', 'desktop-exclusive', 'parallel-safe'] as const;
-    const [onlyFailedPool] = failedPools;
+    const [failedJob] = failed;
+    const steps = failedJob.steps ?? [];
+    if (
+        steps.some(
+            ({ conclusion }) =>
+                conclusion !== 'success' && conclusion !== 'failure' && conclusion !== 'skipped',
+        )
+    ) {
+        return { e2eConclusion: 'failure' };
+    }
+    const failedSteps = steps.filter((step) => step.conclusion === 'failure');
+    let onlyFailedPool: string | undefined;
+    if (failedJob.name !== 'e2e') {
+        const jobPool = failedJob.name?.slice('e2e / '.length);
+        const failedStepPool = failedSteps.length === 1 ? poolFromStep(failedSteps[0]) : undefined;
+        if (failedStepPool === jobPool) onlyFailedPool = jobPool;
+    } else if (failedSteps.length === 1) {
+        onlyFailedPool = poolFromStep(failedSteps[0]);
+        if (
+            onlyFailedPool !== 'control' &&
+            (steps.find(({ name }) => name === e2eAuxiliaryReceiptStep)?.conclusion !== 'success' ||
+                (['parallel-safe', 'desktop-exclusive'] as const).some((pool) =>
+                    steps.every(
+                        (step) =>
+                            !(
+                                poolFromStep(step) === pool &&
+                                (step.conclusion === 'success' || step.conclusion === 'failure')
+                            ),
+                    ),
+                ))
+        ) {
+            onlyFailedPool = undefined;
+        }
+    }
     const e2eFailurePool =
         onlyFailedPool !== undefined &&
-        failedPools.length === 1 &&
         // `Array#includes` narrows its argument to the tuple's element type; widen the array's
         // type for the check instead of casting `onlyFailedPool` away from `string | undefined`.
         (e2eFailurePools as readonly string[]).includes(onlyFailedPool)
             ? (onlyFailedPool as (typeof e2eFailurePools)[number])
             : undefined;
     return {
-        e2eConclusion:
-            failed.length > 0
-                ? 'failure'
-                : e2eJobs.length > 0 && e2eJobs.every(({ conclusion }) => conclusion === 'success')
-                  ? 'success'
-                  : undefined,
+        e2eConclusion: 'failure',
         e2eFailurePool,
     };
 }
@@ -179,15 +228,11 @@ export function parseRetryHint(message: string): { error?: string; hint?: RetryH
         const mode = oneTrailer(message, 'CI-Mode');
         const baseRun = oneTrailer(message, 'CI-Base-Run');
         const e2eTests = oneTrailer(message, 'CI-E2E-Tests');
-        const validatedTree = oneTrailer(message, 'CI-Validated-Tree');
-        if (!mode && !baseRun && !e2eTests && !validatedTree) return {};
+        if (!mode && !baseRun && !e2eTests) return {};
         if (mode !== 'e2e-only' && mode !== 'e2e-repair') {
             return { error: 'CI-Mode must be e2e-only or e2e-repair' };
         }
         if (!baseRun || !/^\d+$/u.test(baseRun)) return { error: 'CI-Base-Run must be numeric' };
-        if (!validatedTree || !/^[0-9a-f]{40}$/u.test(validatedTree)) {
-            return { error: 'CI-Validated-Tree must be a full tree SHA' };
-        }
         let parsedEndToEndTests: string[] | undefined;
         if (e2eTests) {
             const value: unknown = JSON.parse(e2eTests);
@@ -209,9 +254,6 @@ export function parseRetryHint(message: string): { error?: string; hint?: RetryH
             }
             parsedEndToEndTests = [...new Set(value)];
         }
-        if (mode === 'e2e-repair' && !parsedEndToEndTests) {
-            return { error: 'CI-E2E-Tests is required for e2e-repair' };
-        }
         if (mode === 'e2e-only' && parsedEndToEndTests) {
             return { error: 'CI-E2E-Tests is only valid for e2e-repair' };
         }
@@ -220,7 +262,6 @@ export function parseRetryHint(message: string): { error?: string; hint?: RetryH
                 baseRunId: Number(baseRun),
                 e2eTests: parsedEndToEndTests,
                 mode,
-                validatedTree,
             },
         };
     } catch (error) {
@@ -236,7 +277,6 @@ export function evaluateRetryPolicy(input: RetryPolicyInput): RetryPolicyDecisio
         baseRunId: hint.baseRunId,
         mode: 'full',
         reason,
-        validatedTree: hint.validatedTree,
     });
     if (input.eventName !== 'pull_request') return full('retry hints are pull-request only');
     if (!input.pullRequestNumber || !input.pullRequestBaseSha) {
@@ -256,7 +296,6 @@ export function evaluateRetryPolicy(input: RetryPolicyInput): RetryPolicyDecisio
         return full('base run must have successful checks and failed e2e');
     }
     if (!input.isAncestor) return full('base run head is not an ancestor of the current head');
-    if (hint.validatedTree !== input.currentTree) return full('validated tree does not match HEAD');
     const protectedFile = input.changedFiles.find(isProtectedRetryPath);
     if (protectedFile) return full(`protected configuration changed: ${protectedFile}`);
     const protectedBaseRunFile = input.baseRunChangedFiles.find(isProtectedRetryPath);
@@ -264,13 +303,38 @@ export function evaluateRetryPolicy(input: RetryPolicyInput): RetryPolicyDecisio
         return full(`base run includes protected configuration: ${protectedBaseRunFile}`);
     }
     if (!base.e2eFailurePool) return full('base E2E failure did not isolate one logical pool');
+    if (hint.mode === 'e2e-only') {
+        if (input.changedFiles.length > 0 || input.baseRunTree !== input.currentTree) {
+            return full('e2e-only requires the base run tree to remain unchanged');
+        }
+        return {
+            baseRunId: hint.baseRunId,
+            e2ePool: base.e2eFailurePool,
+            mode: hint.mode,
+            reason: 'validated metadata-only retry is eligible',
+            retryKind: 'metadata-only',
+        };
+    }
+    if (input.changedFiles.length === 0) return full('e2e-repair requires a changed E2E spec');
+    if (input.addedOrDeletedFiles.length > 0) {
+        return full(
+            `E2E spec additions and deletions require full CI: ${input.addedOrDeletedFiles[0]}`,
+        );
+    }
+    const nonSpecFile = input.changedFiles.find((path) => !ordinaryE2ESpecPattern.test(path));
+    if (nonSpecFile) return full(`retry delta is not E2E spec-only: ${nonSpecFile}`);
+    const protectedNamedSpec = hint.e2eTests?.find(isProtectedRetryPath);
+    if (protectedNamedSpec) {
+        return full(`focused repair includes a protected spec: ${protectedNamedSpec}`);
+    }
+    const e2eTests = [...new Set([...input.changedFiles, ...(hint.e2eTests ?? [])])];
     return {
         baseRunId: hint.baseRunId,
         e2ePool: base.e2eFailurePool,
-        e2eTests: hint.e2eTests,
+        e2eTests,
         mode: hint.mode,
-        reason: 'validated exact-tree retry is eligible',
-        validatedTree: hint.validatedTree,
+        reason: 'validated E2E spec-only repair is eligible',
+        retryKind: 'spec-only',
     };
 }
 
@@ -295,7 +359,7 @@ function nullSeparatedPaths(value: string): string[] {
 }
 
 export function greenReuseDiffArguments(ancestor: string, current: string): string[] {
-    return ['diff', '--no-renames', '--name-only', '-z', `${ancestor}...${current}`];
+    return retryDiffArguments(ancestor, current);
 }
 
 async function githubJson(path: string): Promise<unknown> {
@@ -498,7 +562,7 @@ async function writeDecision(
                 `mode=${decision.mode}`,
                 `reason=${reason}`,
                 `base_run=${decision.baseRunId ?? ''}`,
-                `validated_tree=${decision.validatedTree ?? ''}`,
+                `retry_kind=${decision.retryKind ?? ''}`,
                 `e2e_tests=${JSON.stringify(decision.e2eTests ?? [])}`,
                 `e2e_pool=${decision.e2ePool ?? 'control'}`,
                 `checks_scope=${execution.checksScope}`,
@@ -513,7 +577,7 @@ async function writeDecision(
     if (summary) {
         await appendFile(
             summary,
-            `## CI execution plan\n\n- Mode: \`${decision.mode}\`\n- Retry reason: ${reason}\n- Checks: \`${execution.checksScope}\`\n- E2E: ${execution.runE2E ? `\`${execution.e2eProfile}\`` : 'skipped'}\n- Plan reason: ${execution.reason}\n- Base run: ${decision.baseRunId ?? 'none'}\n- Validated tree: \`${decision.validatedTree ?? 'none'}\`\n- Focused E2E: ${decision.e2eTests?.map((path) => `\`${path}\``).join(', ') ?? 'none'}\n- Failed E2E pool: \`${decision.e2ePool ?? 'control'}\`\n- Reused E2E run: ${greenReuse.reusableGreenRun?.runId ?? 'none'}\n- Reused E2E head: \`${greenReuse.reusableGreenRun?.headSha ?? 'none'}\`\n- Green reuse: ${greenReuse.reason.replaceAll(/[\r\n]+/gu, ' ')}\n- Pull-request changed files: ${allChangedFiles.length}\n- Current checks changed files: ${executionChangedFiles.length}\n`,
+            `## CI execution plan\n\n- Mode: \`${decision.mode}\`\n- Retry kind: \`${decision.retryKind ?? 'none'}\`\n- Retry reason: ${reason}\n- Checks: \`${execution.checksScope}\`\n- E2E: ${execution.runE2E ? `\`${execution.e2eProfile}\`` : 'skipped'}\n- Plan reason: ${execution.reason}\n- Base run: ${decision.baseRunId ?? 'none'}\n- Focused E2E: ${decision.e2eTests?.map((path) => `\`${path}\``).join(', ') ?? 'none'}\n- Failed E2E pool: \`${decision.e2ePool ?? 'control'}\`\n- Reused E2E run: ${greenReuse.reusableGreenRun?.runId ?? 'none'}\n- Reused E2E head: \`${greenReuse.reusableGreenRun?.headSha ?? 'none'}\`\n- Green reuse: ${greenReuse.reason.replaceAll(/[\r\n]+/gu, ' ')}\n- Pull-request changed files: ${allChangedFiles.length}\n- Current checks changed files: ${executionChangedFiles.length}\n`,
         );
     }
     process.stdout.write(`${JSON.stringify(decision)}\n`);
@@ -546,37 +610,44 @@ async function main(): Promise<void> {
         event.pull_request?.base?.sha ??
         (event.before && !/^0{40}$/u.test(event.before) ? event.before : undefined);
     const allChangedFiles = comparisonBase
-        ? nullSeparatedPaths(
-              await capture('git', ['diff', '--name-only', '-z', `${comparisonBase}...HEAD`]),
-          )
+        ? nullSeparatedPaths(await capture('git', retryDiffArguments(comparisonBase, 'HEAD')))
         : [];
     let baseRun: BaseRunEvidence | undefined;
     let isAncestor = false;
+    let baseRunTree: string | undefined;
     let retryChangedFiles: string[] = [];
+    let retryAddedOrDeletedFiles: string[] = [];
     let baseRunChangedFiles: string[] = [];
     if (parsed.hint) {
         try {
             baseRun = await loadBaseRun(repo, parsed.hint.baseRunId);
             await capture('git', ['merge-base', '--is-ancestor', baseRun.headSha, 'HEAD']);
             isAncestor = true;
+            baseRunTree = await capture('git', [
+                'rev-parse',
+                [baseRun.headSha, '^{tree}'].join(''),
+            ]);
             retryChangedFiles = nullSeparatedPaths(
-                await capture('git', ['diff', '--name-only', '-z', `${baseRun.headSha}...HEAD`]),
+                await capture('git', retryDiffArguments(baseRun.headSha, 'HEAD')),
+            );
+            retryAddedOrDeletedFiles = nullSeparatedPaths(
+                await capture('git', retryAddedOrDeletedDiffArguments(baseRun.headSha, 'HEAD')),
             );
             baseRunChangedFiles = nullSeparatedPaths(
-                await capture('git', [
-                    'diff',
-                    '--name-only',
-                    '-z',
-                    `${event.pull_request?.base?.sha ?? ''}...${baseRun.headSha}`,
-                ]),
+                await capture(
+                    'git',
+                    retryDiffArguments(event.pull_request?.base?.sha ?? '', baseRun.headSha),
+                ),
             );
         } catch (error) {
             parsed.error = `verification failed: ${error instanceof Error ? error.message : String(error)}`;
         }
     }
     const retryDecision = evaluateRetryPolicy({
+        addedOrDeletedFiles: retryAddedOrDeletedFiles,
         baseRun,
         baseRunChangedFiles,
+        baseRunTree,
         changedFiles: retryChangedFiles,
         currentTree,
         eventName: process.env.GITHUB_EVENT_NAME ?? '',
@@ -597,6 +668,7 @@ async function main(): Promise<void> {
             typeof packageVersion === 'string' && commitSubject === `release: v${packageVersion}`,
         pullRequestDraft: event.pull_request?.draft,
         retryMode: retryDecision.mode === 'full' ? undefined : retryDecision.mode,
+        retryKind: retryDecision.retryKind,
     };
     const initialExecution = evaluateCIExecutionPlan(executionInput);
     let greenReuse: { reason: string; reusableGreenRun?: GreenReuseResolution } = {
@@ -635,7 +707,8 @@ async function main(): Promise<void> {
         retryDecision,
         execution,
         allChangedFiles,
-        greenReuse.reusableGreenRun?.changedFiles ?? allChangedFiles,
+        greenReuse.reusableGreenRun?.changedFiles ??
+            (retryDecision.mode === 'full' ? allChangedFiles : retryChangedFiles),
         greenReuse,
     );
 }

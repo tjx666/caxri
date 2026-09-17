@@ -173,15 +173,33 @@ describe('CI execution plan', () => {
         ).toMatchObject({ runE2E: true });
     });
 
-    it('keeps eligible retry modes on macOS while skipping Linux checks', () => {
+    it('runs only focused checks and focused E2E for a spec-only repair', () => {
         expect(
             evaluateCIExecutionPlan({
-                changedFiles: ['apps/server/src/domains/index.ts'],
+                changedFiles: ['e2e/session-attention.e2e.ts'],
                 eventName: 'pull_request',
                 pullRequestDraft: false,
+                retryKind: 'spec-only',
                 retryMode: 'e2e-repair',
             }),
-        ).toMatchObject({ checksScope: 'skipped', runE2E: true });
+        ).toEqual({
+            checksScope: 'focused-e2e',
+            e2eProfile: 'focused',
+            reason: 'validated E2E spec-only repair',
+            runE2E: true,
+        });
+    });
+
+    it('keeps metadata-only E2E retries on the control profile without checks', () => {
+        expect(
+            evaluateCIExecutionPlan({
+                changedFiles: [],
+                eventName: 'pull_request',
+                pullRequestDraft: false,
+                retryKind: 'metadata-only',
+                retryMode: 'e2e-only',
+            }),
+        ).toMatchObject({ checksScope: 'skipped', e2eProfile: 'control', runE2E: true });
     });
 
     it('uses workflow dispatch to compare the same manifest under control and optimized profiles', () => {
