@@ -27,9 +27,9 @@ import {
     sessionToneCalloutClassName,
     sessionUnreadTone,
 } from './session-activity';
-import { sessionActivityCardDismissal } from './session-activity-card-dismissal';
 import { sessionPullRequestPresentation } from './session-pull-request';
 import { SessionPullRequestIndicator } from './session-pull-request-indicator';
+import { sidebarDetailCardDismissal } from './sidebar-detail-card-dismissal';
 
 /**
  * The detail card keeps the exact attention kind and its explanatory tone even though the list's compact status slot
@@ -191,7 +191,7 @@ export function SessionActivityCard({
 
     useEffect(() => {
         if (!open) return;
-        return sessionActivityCardDismissal(() => setOpen(false));
+        return sidebarDetailCardDismissal(() => setOpen(false));
     }, [open]);
 
     return (
