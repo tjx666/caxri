@@ -1,10 +1,10 @@
 import { useDialogStore } from '../../stores/dialogs';
 
 /**
- * Capture Escape before Xterm consumes it, while yielding ownership to modals. Modal opening also closes the card when
- * an inert sidebar prevents its normal blur cleanup.
+ * Capture Escape before Xterm consumes it, while yielding ownership to modals. Modal opening also closes an open
+ * sidebar detail card when an inert sidebar prevents its normal blur cleanup.
  */
-export function sessionActivityCardDismissal(close: () => void): () => void {
+export function sidebarDetailCardDismissal(close: () => void): () => void {
     const closeOnEscape = (event: KeyboardEvent): void => {
         if (event.key !== 'Escape' || useDialogStore.getState().isModalOpen()) return;
         event.preventDefault();

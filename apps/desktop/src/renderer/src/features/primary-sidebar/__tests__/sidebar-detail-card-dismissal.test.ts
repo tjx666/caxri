@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useDialogStore } from '../../../stores/dialogs';
-import { sessionActivityCardDismissal } from '../session-activity-card-dismissal';
+import { sidebarDetailCardDismissal } from '../sidebar-detail-card-dismissal';
 
 const fixture = {
     target: new EventTarget(),
@@ -28,10 +28,10 @@ function press(key: string): Event {
     return event;
 }
 
-describe('sessionActivityCardDismissal', () => {
+describe('sidebarDetailCardDismissal', () => {
     it('dismisses on Escape without intercepting other keys', () => {
         const close = vi.fn();
-        fixture.dispose = sessionActivityCardDismissal(close);
+        fixture.dispose = sidebarDetailCardDismissal(close);
         expect(press('Enter').defaultPrevented).toBe(false);
         expect(close).not.toHaveBeenCalled();
         expect(press('Escape').defaultPrevented).toBe(true);
@@ -40,7 +40,7 @@ describe('sessionActivityCardDismissal', () => {
 
     it('closes when a modal opens and leaves its Escape untouched', () => {
         const close = vi.fn();
-        fixture.dispose = sessionActivityCardDismissal(close);
+        fixture.dispose = sidebarDetailCardDismissal(close);
         useDialogStore.getState().registerModal('dismissal-test');
         expect(close).toHaveBeenCalledOnce();
         expect(press('Escape').defaultPrevented).toBe(false);
@@ -49,7 +49,7 @@ describe('sessionActivityCardDismissal', () => {
 
     it('releases both listeners when the card closes', () => {
         const close = vi.fn();
-        fixture.dispose = sessionActivityCardDismissal(close);
+        fixture.dispose = sidebarDetailCardDismissal(close);
         fixture.dispose();
         fixture.dispose = undefined;
         useDialogStore.getState().registerModal('dismissal-test');

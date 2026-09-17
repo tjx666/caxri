@@ -155,6 +155,68 @@ test('active and inactive Project navigation keeps full contrast', async () => {
     }
 });
 
+test('Project details move to a hover card and idle Session titles reclaim the empty status slot', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-project-details-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', root]);
+    const canonicalRoot = await realpath(root);
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        const sessionId = await createProjectSession(running.page);
+        const title = 'Production build failed because GitHub account authentication needs review';
+        await pageRequest(running.page, 'session.rename', { sessionId, displayTitle: title });
+
+        const projectHeading = running.page.locator('.project-heading');
+        const projectTitle = projectHeading.locator('.project-select');
+        await expect(projectHeading.locator('.project-session-count')).toHaveCount(0);
+        await expect(projectTitle).toHaveAccessibleName('project (1 Session)');
+
+        await projectTitle.hover();
+        const projectCard = running.page.locator('.project-details-card');
+        await expect(projectCard).toBeVisible();
+        await expect(projectCard.getByRole('heading', { name: 'project' })).toBeVisible();
+        await expect(projectCard.getByText('1 active Session', { exact: true })).toBeVisible();
+        await expect(projectCard.getByText(canonicalRoot, { exact: true })).toBeVisible();
+
+        await projectTitle.click({ button: 'right' });
+        await expect(running.page.getByRole('menu', { name: 'project actions' })).toBeVisible();
+        await expect(projectCard).not.toBeVisible();
+        await running.page.keyboard.press('Escape');
+
+        await running.page.mouse.move(500, 300);
+        await expect(projectCard).not.toBeVisible();
+        const card = sessionCard(running.page, sessionId);
+        await card.focus();
+        await running.page.keyboard.press('ArrowUp');
+        await expect(projectTitle).toBeFocused();
+        await expect(projectCard).toBeVisible({ timeout: 200 });
+        await expect(running.page.locator('.session-activity-card')).not.toBeVisible();
+
+        const metrics = await card.evaluate((element) => {
+            const titleViewport = element.querySelector<HTMLElement>('.session-title');
+            const titleText = titleViewport?.firstElementChild as HTMLElement | null;
+            const indicators = element.querySelector<HTMLElement>('.session-indicators');
+            if (!titleViewport || !titleText || !indicators)
+                throw new Error('Session title metrics are unavailable');
+            return {
+                indicatorWidth: indicators.getBoundingClientRect().width,
+                titleOverflow: titleText.scrollWidth - titleText.clientWidth,
+            };
+        });
+        expect(metrics.indicatorWidth).toBe(0);
+        expect(metrics.titleOverflow).toBeGreaterThan(0);
+
+        await running.page.screenshot({
+            path: test.info().outputPath('project-details-and-session-width.png'),
+        });
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
 test('Session rows support keyboard selection independently from rename', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-keyboard-e2e-'));
     const userData = join(testDirectory, 'user-data');
