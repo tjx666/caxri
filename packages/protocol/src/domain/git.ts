@@ -62,6 +62,7 @@ export const gitPullRequestChangesSchema = z.object({
     headRefName: z.string().min(1).max(1_024),
     baseOid: z.string().regex(/^[0-9a-f]{40}$/),
     headOid: z.string().regex(/^[0-9a-f]{40}$/),
+    unpushedCommitCount: z.number().int().nonnegative(),
     additions: z.number().int().nonnegative(),
     deletions: z.number().int().nonnegative(),
     files: z.array(gitFileStatusSchema).max(2_000),

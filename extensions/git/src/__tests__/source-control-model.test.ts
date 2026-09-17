@@ -259,6 +259,7 @@ describe('Git source-control view model', () => {
             headRefName: 'feature/extensions',
             baseOid: 'a'.repeat(40),
             headOid: 'b'.repeat(40),
+            unpushedCommitCount: 2,
             additions: 5,
             deletions: 2,
             files: [
@@ -284,9 +285,10 @@ describe('Git source-control view model', () => {
                 label: 'Open pull request #42 on the web',
             },
             descriptionAccessibilityLabel:
-                'feature/product-extensions, 1 ahead, 2 behind, Pull request #42 into main: Make Source Control generic',
+                'feature/product-extensions, 1 ahead, 2 behind, Pull request #42 into main: Make Source Control generic, 2 local commits are not included in pull request #42',
             descriptionTooltip:
-                'feature/product-extensions · 1 ahead, 2 behind · Pull request #42 into main: Make Source Control generic',
+                'feature/product-extensions · 1 ahead, 2 behind · Pull request #42 into main: Make Source Control generic · 2 local commits are not included in pull request #42',
+            countLabel: ' · 1 · 2 unpushed · 1 uncommitted',
             groups: [
                 {
                     label: 'PR #42 Changes',
@@ -312,6 +314,42 @@ describe('Git source-control view model', () => {
         });
         expect(empty.providers[0]?.groups[0]?.emptyMessage).toBe(
             'No pull request for this branch.',
+        );
+
+        const published = buildSourceControlViewModel({
+            mode: 'pull-request',
+            summary,
+            pullRequestsByRepository: new Map([
+                ['repo-1', { ...pullRequest, unpushedCommitCount: 0 }],
+            ]),
+        });
+        expect(published.providers[0].countLabel).not.toContain('unpushed');
+        expect(published.providers[0].descriptionTooltip).not.toContain('not included');
+
+        const longTitle = buildSourceControlViewModel({
+            mode: 'pull-request',
+            summary,
+            pullRequestsByRepository: new Map([
+                ['repo-1', { ...pullRequest, title: 'x'.repeat(3_970) }],
+            ]),
+        });
+        expect(longTitle.providers[0].descriptionAccessibilityLabel.length).toBeLessThanOrEqual(
+            4_096,
+        );
+        expect(longTitle.providers[0].descriptionTooltip.length).toBeLessThanOrEqual(4_096);
+        expect(longTitle.providers[0].descriptionTooltip).toContain(
+            '2 local commits are not included in pull request #42',
+        );
+
+        const singular = buildSourceControlViewModel({
+            mode: 'pull-request',
+            summary,
+            pullRequestsByRepository: new Map([
+                ['repo-1', { ...pullRequest, unpushedCommitCount: 1 }],
+            ]),
+        });
+        expect(singular.providers[0].descriptionTooltip).toContain(
+            '1 local commit is not included in pull request #42',
         );
     });
 
@@ -657,6 +695,7 @@ describe('Git source-control view model', () => {
                         headRefName: 'tests',
                         baseOid: 'a'.repeat(40),
                         headOid: 'b'.repeat(40),
+                        unpushedCommitCount: 0,
                         additions: 1,
                         deletions: 0,
                         files: [testFile],

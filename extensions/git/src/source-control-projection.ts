@@ -42,6 +42,14 @@ export function boundedActionLabel(label: string): string {
     return boundedSourceControlText(label, MAX_LABEL_LENGTH);
 }
 
+/**
+ * Keeps repository-row prose inside the public Source Control snapshot bound while preserving both the branch at the
+ * start and late state notices such as unpushed commits at the end.
+ */
+export function boundedSourceControlDescription(description: string): string {
+    return boundedSourceControlText(description, MAX_TOOLTIP_LENGTH);
+}
+
 export function boundedResourceTooltip(tooltip: string): string {
     return boundedSourceControlText(tooltip, MAX_TOOLTIP_LENGTH);
 }

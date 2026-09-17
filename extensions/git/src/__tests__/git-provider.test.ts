@@ -560,6 +560,7 @@ describe('GitProvider', () => {
             headRefName: 'feature/pull-request',
             baseOid: 'a'.repeat(40),
             headOid: 'b'.repeat(40),
+            unpushedCommitCount: 0,
             additions: 5,
             deletions: 2,
             files: [
@@ -622,6 +623,7 @@ describe('GitProvider', () => {
                 headRefName: repo.branch,
                 baseOid: 'a'.repeat(40),
                 headOid: repo.head,
+                unpushedCommitCount: 0,
                 additions: 5,
                 deletions: 2,
                 files: repo.files,

@@ -81,10 +81,24 @@ async function fixture() {
         resolveRepository: () => Promise.resolve(repo),
     });
     const request = { refresh: 0, repositoryId: repo.id, sessionId: 'session' };
-    return { base, commands, head, local, metadata, remote, request, service };
+    return { base, commands, head, local, metadata, remote, repo, request, service };
 }
 
 describe('pull request commit availability', () => {
+    it('counts commits reachable from local HEAD but absent from the Pull Request head', async () => {
+        const { local, repo, request, service } = await fixture();
+        await git(local, ['config', 'user.name', 'Caxri Test']);
+        await git(local, ['config', 'user.email', 'test@example.com']);
+        await writeFile(join(local, 'local-only.txt'), 'local\n');
+        await git(local, ['add', 'local-only.txt']);
+        await git(local, ['commit', '-m', 'local only']);
+        repo.head = (await git(local, ['rev-parse', 'HEAD'])).trim();
+
+        await expect(service.changes(request)).resolves.toMatchObject({
+            unpushedCommitCount: 1,
+        });
+    });
+
     it('loads a missing base without changing refs, FETCH_HEAD, index, or working files', async () => {
         const { base, commands, head, local, request, service } = await fixture();
         expect(await git(local, ['cat-file', '-t', base], { allowFailure: true })).toBe('');
