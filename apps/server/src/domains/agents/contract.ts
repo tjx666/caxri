@@ -36,6 +36,11 @@ export interface AgentSnapshotContext {
      * running Agent generation; it is never a filesystem or process-control authority.
      */
     shellPid?: number;
+    /**
+     * Fails closed when the provider cannot prove identity from the current PTY foreground process. Callers use this
+     * only for an already-bound Terminal transition; ordinary unbound discovery may still use provider heuristics.
+     */
+    requireForegroundProcessIdentity?: boolean;
     processState?: ProcessState;
     rootPath: string;
     /**
@@ -52,6 +57,10 @@ export interface LocalAgentState {
     activitySource?: 'exactTurn' | 'latestTurn';
     titleSource?: 'automatic' | 'explicit';
     sessionId?: string;
+    /**
+     * Provider-owned evidence that the selected conversation is a delegated child rather than a resumable root.
+     */
+    sessionIsSubagent?: boolean;
     status?: AgentActivityState;
     title?: string;
     usage?: Array<{ label: string; value: string }>;
@@ -60,6 +69,7 @@ export interface LocalAgentState {
 export interface AgentProbeSnapshot extends AgentSnapshot {
     activityTurnId?: string;
     activitySource?: LocalAgentState['activitySource'];
+    sessionIsSubagent?: boolean;
 }
 
 /**

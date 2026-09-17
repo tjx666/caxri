@@ -16,6 +16,7 @@ import {
 } from './coordinator-constants';
 import type { AgentCoordinatorOptions } from './coordinator-options';
 import { createRecoveringHookLaunchTracker } from './hook-launch-tracker';
+import { CodexHookSessionRebindTracker } from './hook-session-rebind';
 import type { AgentLifecycleSignal, AgentSignalDecision } from './hooks/contract';
 import { AgentIdleProof } from './idle-proof';
 import { AgentLifecycleWatchdogs, isStandaloneEscape } from './lifecycle-watchdogs';
@@ -60,6 +61,7 @@ export class AgentCoordinator {
     private readonly probeGenerations = new Map<string, number>();
     private readonly launchIdsByTerminal = new Map<string, string>();
     private readonly hookLaunches: ReturnType<typeof createRecoveringHookLaunchTracker>;
+    private readonly hookSessionRebinds: CodexHookSessionRebindTracker;
     private readonly attention = new AgentAttentionTracker();
     private readonly idleProof = new AgentIdleProof();
     private readonly work = new AgentWorkTracker((signal) =>
@@ -120,6 +122,13 @@ export class AgentCoordinator {
             options.refreshDelayMs ?? AGENT_METADATA_REFRESH_DELAY_MS,
             (terminalId: string) => this.probe(terminalId),
         );
+        this.hookSessionRebinds = new CodexHookSessionRebindTracker(
+            database,
+            agents,
+            (terminalId) => this.launchIdsByTerminal.get(terminalId),
+            (terminalId) => this.processIdentityProbe.currentPid(terminalId),
+            (terminalId) => this.refreshes.schedule(terminalId),
+        );
         this.lifecycleWatchdogs = new AgentLifecycleWatchdogs(
             options.compactionTimeoutMs ?? AGENT_COMPACTION_TIMEOUT_MS,
             options.runningWatchdogIntervalMs ?? AGENT_RUNNING_WATCHDOG_INTERVAL_MS,
@@ -151,6 +160,7 @@ export class AgentCoordinator {
     }
 
     private forgetLifecycleState(terminalId: string): void {
+        this.hookSessionRebinds.forget(terminalId);
         this.grokTurns.forget(terminalId);
         this.idleProof.invalidate(terminalId);
         this.attention.forget(terminalId);
@@ -239,6 +249,17 @@ export class AgentCoordinator {
                 return;
             }
             if (await this.probeProviderSwitch(terminal)) return;
+            if (
+                await this.hookSessionRebinds.probe(
+                    terminal,
+                    this.startedAtByTerminal.get(terminal.id) ?? terminal.createdAt,
+                )
+            ) {
+                const generation = (this.probeGenerations.get(terminal.id) ?? 0) + 1;
+                this.probeGenerations.set(terminal.id, generation);
+                this.refreshes.schedule(terminal.id);
+                return;
+            }
             const session = this.database.getSession(terminal.sessionId);
             if (!session) return;
             const excludedAgentSessionIds = [
@@ -645,12 +666,11 @@ export class AgentCoordinator {
             }
             // No default
         }
-        /**
-         * In-terminal session switches rebind identity and invalidate the previous metadata probe.
-         */
+        // Provider-specific identity authority fences in-terminal switches from inherited child hooks.
         let shouldRefreshMetadata =
             signal.phase === 'sessionIdentified' && Boolean(signal.agentSessionId);
         if (
+            !this.hookSessionRebinds.defer(signal, terminal) &&
             signal.agentSessionId &&
             signal.agentSessionId !== terminal.agentSessionId &&
             this.database.rebindAgentSession(
@@ -770,6 +790,7 @@ export class AgentCoordinator {
         this.probeGenerations.clear();
         this.launchIdsByTerminal.clear();
         this.hookLaunches.clear();
+        this.hookSessionRebinds.clear();
         this.idleProof.clear();
         this.attention.clear();
         this.work.clear();

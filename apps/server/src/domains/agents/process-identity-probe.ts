@@ -11,6 +11,14 @@ export class ProcessIdentityProbe {
         if (this.terminals.get(terminalId)?.pid !== pid) this.terminals.set(terminalId, { pid });
     }
 
+    /**
+     * Returns the current PTY root PID without consuming the unbound-discovery attempt budget. Bound Codex identity
+     * switches use it only to prove which rollout the foreground process still holds open.
+     */
+    currentPid(terminalId: string): number | undefined {
+        return this.terminals.get(terminalId)?.pid;
+    }
+
     take(terminal: TerminalRecord): number | undefined {
         if (
             terminal.provider !== 'codex' ||

@@ -132,4 +132,19 @@ describe('Codex idle Terminal binding', () => {
             }),
         ).resolves.toMatchObject({ sessionId: siblingThreadId });
     });
+
+    it('does not fall back when a bound-thread transition requires foreground proof', async () => {
+        const { root, service, startedAt } = await createIdleTerminalFixture();
+        detectForegroundAgentOpenFiles.mockResolvedValue([]);
+
+        await expect(
+            service.snapshot('codex', {
+                rootPath: root,
+                processState: 'running',
+                requireForegroundProcessIdentity: true,
+                shellPid: 4242,
+                startedAt,
+            }),
+        ).resolves.toMatchObject({ sessionId: undefined, title: undefined });
+    });
 });

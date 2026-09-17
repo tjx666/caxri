@@ -228,20 +228,24 @@ describe('AgentCoordinator session rebinding', () => {
         }
     });
 
-    it('refreshes the title when SessionStart identifies an already-bound resumed thread', async () => {
+    it('rebinds and refreshes the title when SessionStart confirms a persisted Codex thread', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-hook-session-start-'));
         temporaryDirectories.push(directory);
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const created = database.createSession(database.createProject(directory).id, 'codex');
-        database.rebindAgentSession(created.terminal!.id, 'codex', 'session-resumed');
-        const snapshot = vi.fn<AgentAdapter['snapshot']>(() =>
+        database.rebindAgentSession(created.terminal!.id, 'codex', 'session-original');
+        const snapshot = vi.fn<AgentAdapter['snapshot']>((context) =>
             Promise.resolve({
                 provider: 'codex',
                 status: 'running',
                 observedAt: Date.now(),
                 available: true,
-                sessionId: 'session-resumed',
-                title: 'Resumed Codex thread',
+                ...(context.agentSessionId === 'session-resumed' && {
+                    sessionId: 'session-resumed',
+                    sessionIsSubagent: false,
+                    title: 'Resumed Codex thread',
+                }),
+                ...(context.shellPid === 123 && { sessionId: 'session-resumed' }),
             }),
         );
         const coordinator = new AgentCoordinator(
@@ -254,6 +258,144 @@ describe('AgentCoordinator session rebinding', () => {
 
         try {
             coordinator.beginTerminalLaunch(created.terminal!.id, 'launch-1');
+            coordinator.observeOutput(created.terminal!.id, 123);
+            coordinator.observeLifecycleSignal({
+                agentSessionId: 'session-resumed',
+                launchId: 'launch-1',
+                phase: 'sessionIdentified',
+                provider: 'codex',
+                terminalId: created.terminal!.id,
+            });
+
+            await coordinator.probeTerminalNow(created.terminal!.id);
+            expect(database.getTerminal(created.terminal!.id)?.agentSessionId).toBe(
+                'session-resumed',
+            );
+            await coordinator.probeTerminalNow(created.terminal!.id);
+            await expect
+                .poll(() => database.getSession(created.session.id)?.displayTitle)
+                .toBe('Resumed Codex thread');
+            expect(database.getTerminal(created.terminal!.id)?.title).toBe('Resumed Codex thread');
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
+
+    it('keeps a persisted root-like Codex background thread from replacing the foreground thread', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-codex-child-hook-identity-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+        database.rebindAgentSession(created.terminal!.id, 'codex', 'main-thread');
+        const coordinator = new AgentCoordinator(
+            database,
+            createAgents((context) => {
+                if (context.shellPid === 123)
+                    return Promise.resolve({
+                        provider: 'codex',
+                        status: 'running',
+                        observedAt: Date.now(),
+                        available: true,
+                        sessionId: 'main-thread',
+                    });
+                const selectedSession = context.agentSessionId;
+                return Promise.resolve({
+                    provider: 'codex',
+                    status: 'running',
+                    observedAt: Date.now(),
+                    available: true,
+                    ...(selectedSession && {
+                        sessionId: selectedSession,
+                        sessionIsSubagent: false,
+                    }),
+                });
+            }),
+            () => {},
+            createLogger(join(directory, 'logs')),
+            { refreshDelayMs: 60_000 },
+        );
+
+        try {
+            coordinator.beginTerminalLaunch(created.terminal!.id, 'launch-1');
+            coordinator.observeOutput(created.terminal!.id, 123);
+            expect(
+                coordinator.observeLifecycleSignal({
+                    agentSessionId: 'background-thread',
+                    agentTurnId: 'background-turn',
+                    launchId: 'launch-1',
+                    phase: 'turnStarted',
+                    provider: 'codex',
+                    terminalId: created.terminal!.id,
+                }),
+            ).toBe('accepted');
+
+            expect(database.getTerminal(created.terminal!.id)?.agentSessionId).toBe('main-thread');
+            expect(database.getSession(created.session.id)?.lastActivityState).toBe('running');
+
+            coordinator.observeLifecycleSignal({
+                agentSessionId: 'background-thread',
+                launchId: 'launch-1',
+                phase: 'sessionIdentified',
+                provider: 'codex',
+                terminalId: created.terminal!.id,
+            });
+            await coordinator.probeTerminalNow(created.terminal!.id);
+            expect(database.getTerminal(created.terminal!.id)?.agentSessionId).toBe('main-thread');
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
+
+    it('retries a transient Codex root-thread confirmation failure', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-codex-rebind-retry-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+        database.rebindAgentSession(created.terminal!.id, 'codex', 'session-original');
+        let confirmationAttempts = 0;
+        const coordinator = new AgentCoordinator(
+            database,
+            createAgents((context) => {
+                if (context.agentSessionId === 'session-resumed') {
+                    if (context.correlationId?.includes(':hook-session-rebind:')) {
+                        confirmationAttempts += 1;
+                        if (confirmationAttempts === 1)
+                            return Promise.reject(new Error('transient state read failure'));
+                    }
+                    return Promise.resolve({
+                        provider: 'codex',
+                        status: 'running',
+                        observedAt: Date.now(),
+                        available: true,
+                        sessionId: 'session-resumed',
+                        sessionIsSubagent: false,
+                    });
+                }
+                if (context.shellPid === 123)
+                    return Promise.resolve({
+                        provider: 'codex',
+                        status: 'running',
+                        observedAt: Date.now(),
+                        available: true,
+                        sessionId: 'session-resumed',
+                    });
+                return Promise.resolve({
+                    provider: 'codex',
+                    status: 'running',
+                    observedAt: Date.now(),
+                    available: true,
+                });
+            }),
+            () => {},
+            createLogger(join(directory, 'logs')),
+            { refreshDelayMs: 5 },
+        );
+
+        try {
+            coordinator.beginTerminalLaunch(created.terminal!.id, 'launch-1');
+            coordinator.observeOutput(created.terminal!.id, 123);
             coordinator.observeLifecycleSignal({
                 agentSessionId: 'session-resumed',
                 launchId: 'launch-1',
@@ -263,10 +405,74 @@ describe('AgentCoordinator session rebinding', () => {
             });
 
             await expect
-                .poll(() => database.getSession(created.session.id)?.displayTitle)
-                .toBe('Resumed Codex thread');
-            expect(database.getTerminal(created.terminal!.id)?.title).toBe('Resumed Codex thread');
+                .poll(() => database.getTerminal(created.terminal!.id)?.agentSessionId)
+                .toBe('session-resumed');
+            expect(confirmationAttempts).toBe(2);
         } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
+
+    it('discards a Codex foreground confirmation after its launch retires', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-codex-rebind-launch-race-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+        database.rebindAgentSession(created.terminal!.id, 'codex', 'session-original');
+        const foregroundEntered = Promise.withResolvers<void>();
+        const releaseForeground = Promise.withResolvers<void>();
+        const coordinator = new AgentCoordinator(
+            database,
+            createAgents(async (context) => {
+                if (context.shellPid === 123) {
+                    foregroundEntered.resolve();
+                    await releaseForeground.promise;
+                    return {
+                        provider: 'codex',
+                        status: 'running',
+                        observedAt: Date.now(),
+                        available: true,
+                        sessionId: 'session-resumed',
+                    };
+                }
+                return {
+                    provider: 'codex',
+                    status: 'running',
+                    observedAt: Date.now(),
+                    available: true,
+                    ...(context.agentSessionId === 'session-resumed' && {
+                        sessionId: 'session-resumed',
+                        sessionIsSubagent: false,
+                    }),
+                };
+            }),
+            () => {},
+            createLogger(join(directory, 'logs')),
+            { refreshDelayMs: 60_000 },
+        );
+
+        try {
+            coordinator.beginTerminalLaunch(created.terminal!.id, 'launch-1');
+            coordinator.observeOutput(created.terminal!.id, 123);
+            coordinator.observeLifecycleSignal({
+                agentSessionId: 'session-resumed',
+                launchId: 'launch-1',
+                phase: 'sessionIdentified',
+                provider: 'codex',
+                terminalId: created.terminal!.id,
+            });
+            const pending = coordinator.probeTerminalNow(created.terminal!.id);
+            await foregroundEntered.promise;
+            coordinator.beginTerminalLaunch(created.terminal!.id, 'launch-2');
+            releaseForeground.resolve();
+            await pending;
+
+            expect(database.getTerminal(created.terminal!.id)?.agentSessionId).toBe(
+                'session-original',
+            );
+        } finally {
+            releaseForeground.resolve();
             coordinator.close();
             database.close();
         }
