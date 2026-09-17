@@ -31,6 +31,37 @@ describe('findTerminalLinks with CJK prose', () => {
         }
     });
 
+    it('detaches a full-width label colon when persisted word separators omit CJK punctuation', () => {
+        const persistedSeparators = ' ()[]{}\',"`─‘’“”|';
+        const prefix = 'Model Config：';
+        const path = '.local-config/example_model_config.assembled.json';
+
+        expect(findTerminalLinks(`${prefix}${path}`, persistedSeparators)).toEqual([
+            {
+                endIndex: prefix.length + path.length,
+                kind: 'file',
+                startIndex: prefix.length,
+                target: path,
+                text: path,
+            },
+        ]);
+        expect(findTerminalLinks('docs：v2/file.ts', persistedSeparators)).toMatchObject([
+            { kind: 'file', target: 'docs：v2/file.ts' },
+        ]);
+        expect(findTerminalLinks('字段说明：src/example.ts', persistedSeparators)).toMatchObject([
+            { kind: 'file', target: 'src/example.ts' },
+        ]);
+        expect(
+            findTerminalLinks('Model Config：~/example/path.json:7', persistedSeparators),
+        ).toMatchObject([
+            {
+                kind: 'file',
+                target: '~/example/path.json',
+                location: { mode: 'line', startLine: 7, endLine: 7 },
+            },
+        ]);
+    });
+
     it('preserves colons inside explicit paths and file URLs', () => {
         for (const path of ['./说明:src/example.ts', 'docs/说明:目录/example.ts']) {
             expect(findTerminalLinks(`${path}:57`)).toMatchObject([
