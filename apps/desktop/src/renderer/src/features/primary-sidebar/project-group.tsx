@@ -303,7 +303,9 @@ export function ProjectGroup({
                         {hiddenSessionCount > 0 && (
                             /*
                              * The button is the row: it holds the roving Tab stop, so it carries the tree semantics
-                             * itself instead of sitting inside a `treeitem` wrapper focus never reaches.
+                             * itself instead of sitting inside a `treeitem` wrapper focus never reaches. No disclosure
+                             * chevron: this is not a collapsible branch, and a twistie would spend width on a meaning
+                             * the row does not have.
                              */
                             <button
                                 className="session-reveal flex h-7 w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-2 text-muted hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none"
@@ -315,7 +317,7 @@ export function ProjectGroup({
                                 tabIndex={revealRowId === rovingRowId ? 0 : -1}
                                 onClick={onRevealMoreSessions}
                             >
-                                <ChevronDown size={13} /> Show {nextRevealCount} more
+                                Show {nextRevealCount} more
                             </button>
                         )}
                         {visibleSessions.length === 0 && (
