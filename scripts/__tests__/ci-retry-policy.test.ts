@@ -10,11 +10,15 @@ import {
     greenReuseDiffArguments,
     isProtectedRetryPath,
     parseRetryHint,
+    retryAddedOrDeletedDiffArguments,
+    retryDiffArguments,
     summarizeE2EJobs,
 } from '../ci-retry-policy';
 
 const tree = 'a'.repeat(40);
+const baseTree = 'b'.repeat(40);
 const eligible: RetryPolicyInput = {
+    addedOrDeletedFiles: [],
     baseRun: {
         baseSha: 'base',
         checksConclusion: 'success',
@@ -27,10 +31,15 @@ const eligible: RetryPolicyInput = {
         workflowPath: '.github/workflows/ci.yml',
     },
     baseRunChangedFiles: ['apps/server/src/domains/base.ts'],
-    changedFiles: ['apps/server/src/domains/index.ts'],
+    baseRunTree: baseTree,
+    changedFiles: ['e2e/session-attention.e2e.ts'],
     currentTree: tree,
     eventName: 'pull_request',
-    hint: { baseRunId: 123, mode: 'e2e-only', validatedTree: tree },
+    hint: {
+        baseRunId: 123,
+        e2eTests: ['e2e/session-attention.e2e.ts'],
+        mode: 'e2e-repair',
+    },
     isAncestor: true,
     pullRequestBaseSha: 'base',
     pullRequestNumber: 17,
@@ -39,41 +48,45 @@ const eligible: RetryPolicyInput = {
 };
 
 describe('CI retry policy', () => {
-    it('parses one complete immutable retry receipt', () => {
-        expect(
-            parseRetryHint(
-                `repair\n\nCI-Mode: e2e-only\nCI-Base-Run: 123\nCI-Validated-Tree: ${tree}`,
-            ),
-        ).toEqual({ hint: eligible.hint });
+    it('parses the failed run pointer and optional focused repair specs', () => {
+        expect(parseRetryHint(`retry\n\nCI-Mode: e2e-only\nCI-Base-Run: 123`)).toEqual({
+            hint: { baseRunId: 123, mode: 'e2e-only' },
+        });
         expect(parseRetryHint('ordinary commit')).toEqual({});
         expect(parseRetryHint('CI-Mode: e2e-only')).toEqual({
             error: 'CI-Base-Run must be numeric',
         });
+        expect(parseRetryHint('CI-Mode: e2e-repair\nCI-Base-Run: 123')).toEqual({
+            hint: { baseRunId: 123, mode: 'e2e-repair' },
+        });
         expect(
             parseRetryHint(
-                `repair\n\nCI-Mode: e2e-repair\nCI-Base-Run: 123\nCI-E2E-Tests: ["e2e/files.e2e.ts"]\nCI-Validated-Tree: ${tree}`,
+                'repair\n\nCI-Mode: e2e-repair\nCI-Base-Run: 123\nCI-E2E-Tests: ["e2e/files.e2e.ts"]',
             ),
         ).toEqual({
             hint: {
-                ...eligible.hint,
+                baseRunId: 123,
                 e2eTests: ['e2e/files.e2e.ts'],
                 mode: 'e2e-repair',
             },
         });
         expect(
             parseRetryHint(
-                `repair\n\nCI-Mode: e2e-repair\nCI-Base-Run: 123\nCI-E2E-Tests: ["e2e/renderer.performance.e2e.ts"]\nCI-Validated-Tree: ${tree}`,
+                'repair\n\nCI-Mode: e2e-repair\nCI-Base-Run: 123\nCI-E2E-Tests: ["e2e/renderer.performance.e2e.ts"]',
             ),
         ).toEqual({
             error: 'Renderer performance requires the profiling CI gate, not e2e-repair',
         });
     });
 
-    it('admits only the exact PR tree with successful checks and failed e2e', () => {
-        expect(evaluateRetryPolicy(eligible)).toMatchObject({ mode: 'e2e-only' });
+    it('admits only a modified existing E2E spec after successful checks and one failed pool', () => {
+        expect(evaluateRetryPolicy(eligible)).toMatchObject({
+            e2eTests: ['e2e/session-attention.e2e.ts'],
+            mode: 'e2e-repair',
+            retryKind: 'spec-only',
+        });
         for (const input of [
             { ...eligible, eventName: 'push' },
-            { ...eligible, currentTree: 'b'.repeat(40) },
             { ...eligible, isAncestor: false },
             { ...eligible, pullRequestBaseSha: 'changed' },
             { ...eligible, workflowPath: '.github/workflows/other.yml' },
@@ -82,9 +95,74 @@ describe('CI retry policy', () => {
                 baseRun: { ...eligible.baseRun!, checksConclusion: 'failure' },
             },
             { ...eligible, changedFiles: ['pnpm-lock.yaml'] },
+            { ...eligible, changedFiles: ['apps/server/src/domains/index.ts'] },
+            { ...eligible, addedOrDeletedFiles: ['e2e/session-attention.e2e.ts'] },
             { ...eligible, baseRunChangedFiles: ['.github/workflows/ci.yml'] },
         ]) {
             expect(evaluateRetryPolicy(input).mode).toBe('full');
+        }
+    });
+
+    it('admits e2e-only only when the base run tree is unchanged', () => {
+        const metadataOnly: RetryPolicyInput = {
+            ...eligible,
+            changedFiles: [],
+            currentTree: baseTree,
+            hint: { baseRunId: 123, mode: 'e2e-only' },
+        };
+        expect(evaluateRetryPolicy(metadataOnly)).toMatchObject({
+            mode: 'e2e-only',
+            retryKind: 'metadata-only',
+        });
+        expect(evaluateRetryPolicy({ ...metadataOnly, currentTree: tree })).toMatchObject({
+            mode: 'full',
+        });
+        expect(
+            evaluateRetryPolicy({
+                ...metadataOnly,
+                changedFiles: ['e2e/session-attention.e2e.ts'],
+            }),
+        ).toMatchObject({ mode: 'full' });
+    });
+
+    it('always includes every changed spec in the focused repair set', () => {
+        expect(
+            evaluateRetryPolicy({
+                ...eligible,
+                changedFiles: ['e2e/session-attention.e2e.ts', 'e2e/session-pull-request.e2e.ts'],
+                hint: {
+                    baseRunId: 123,
+                    e2eTests: ['e2e/session-attention.e2e.ts'],
+                    mode: 'e2e-repair',
+                },
+            }),
+        ).toMatchObject({
+            e2eTests: ['e2e/session-attention.e2e.ts', 'e2e/session-pull-request.e2e.ts'],
+        });
+    });
+
+    it('does not admit a protected spec through the optional focused list', () => {
+        for (const spec of [
+            'e2e/failure-isolation.e2e.ts',
+            'e2e/editor.performance.e2e.ts',
+            'e2e/mobile-acceptance-scenarios.e2e.ts',
+            'e2e/mobile-pairing-desktop-acceptance.e2e.ts',
+            'e2e/mobile-short-reply.e2e.ts',
+            'e2e/real-agent-smoke.e2e.ts',
+            'e2e/renderer.performance.e2e.ts',
+            'e2e/startup.performance.e2e.ts',
+        ]) {
+            expect(
+                evaluateRetryPolicy({
+                    ...eligible,
+                    hint: {
+                        baseRunId: 123,
+                        e2eTests: [spec],
+                        mode: 'e2e-repair',
+                    },
+                }),
+                spec,
+            ).toMatchObject({ mode: 'full' });
         }
     });
 
@@ -107,11 +185,15 @@ describe('CI retry policy', () => {
     it('aggregates legacy, split, and single-machine E2E jobs while preserving one failed pool', () => {
         expect(summarizeE2EJobs([{ name: 'e2e', conclusion: 'failure' }])).toEqual({
             e2eConclusion: 'failure',
-            e2eFailurePool: 'control',
+            e2eFailurePool: undefined,
         });
         expect(
             summarizeE2EJobs([
-                { name: 'e2e / parallel-safe', conclusion: 'failure' },
+                {
+                    name: 'e2e / parallel-safe',
+                    conclusion: 'failure',
+                    steps: [{ conclusion: 'failure', name: 'Run parallel-safe pool' }],
+                },
                 { name: 'e2e / desktop-exclusive', conclusion: 'success' },
             ]),
         ).toEqual({ e2eConclusion: 'failure', e2eFailurePool: 'parallel-safe' });
@@ -135,6 +217,65 @@ describe('CI retry policy', () => {
                     steps: [
                         { conclusion: 'failure', name: 'Run parallel-safe pool' },
                         { conclusion: 'success', name: 'Run desktop-exclusive pool' },
+                        { conclusion: 'failure', name: 'Verify E2E auxiliary contracts' },
+                    ],
+                },
+            ]),
+        ).toEqual({ e2eConclusion: 'failure', e2eFailurePool: undefined });
+        expect(
+            summarizeE2EJobs([
+                {
+                    name: 'e2e / parallel-safe',
+                    conclusion: 'failure',
+                    steps: [{ conclusion: 'failure', name: 'Build Electron bundles' }],
+                },
+                { name: 'e2e / desktop-exclusive', conclusion: 'success' },
+            ]),
+        ).toEqual({ e2eConclusion: 'failure', e2eFailurePool: undefined });
+        expect(
+            summarizeE2EJobs([
+                {
+                    name: 'e2e',
+                    conclusion: 'failure',
+                    steps: [
+                        { conclusion: 'failure', name: 'Run parallel-safe pool' },
+                        { conclusion: 'cancelled', name: 'Run desktop-exclusive pool' },
+                    ],
+                },
+            ]),
+        ).toEqual({ e2eConclusion: 'failure', e2eFailurePool: undefined });
+        expect(
+            summarizeE2EJobs([
+                {
+                    name: 'e2e / parallel-safe',
+                    conclusion: 'failure',
+                    steps: [{ conclusion: 'failure', name: 'Run parallel-safe pool' }],
+                },
+                { name: 'e2e / desktop-exclusive', conclusion: 'cancelled' },
+            ]),
+        ).toEqual({ e2eConclusion: undefined, e2eFailurePool: undefined });
+        expect(
+            summarizeE2EJobs([
+                {
+                    conclusion: 'failure',
+                    name: 'e2e',
+                    steps: [
+                        { conclusion: 'failure', name: 'Run parallel-safe pool' },
+                        { conclusion: 'success', name: 'Run desktop-exclusive pool' },
+                        { conclusion: 'skipped', name: 'Verify E2E auxiliary contracts' },
+                    ],
+                },
+            ]),
+        ).toEqual({ e2eConclusion: 'failure', e2eFailurePool: undefined });
+        expect(
+            summarizeE2EJobs([
+                {
+                    conclusion: 'failure',
+                    name: 'e2e',
+                    steps: [
+                        { conclusion: 'failure', name: 'Run parallel-safe pool' },
+                        { conclusion: 'success', name: 'Run desktop-exclusive pool' },
+                        { conclusion: 'success', name: 'Verify E2E auxiliary contracts' },
                     ],
                 },
             ]),
@@ -269,10 +410,21 @@ describe('CI retry policy', () => {
         ).toMatchObject({ checksConclusion: 'failure', fullChecksConclusion: undefined });
     });
 
-    it('disables rename detection so moving product code into an allowed path cannot hide it', () => {
+    it('disables rename detection for retry and green-reuse diffs', () => {
         expect(greenReuseDiffArguments('ancestor', 'current')).toEqual([
             'diff',
             '--no-renames',
+            '--name-only',
+            '-z',
+            'ancestor...current',
+        ]);
+        expect(retryDiffArguments('ancestor', 'current')).toEqual(
+            greenReuseDiffArguments('ancestor', 'current'),
+        );
+        expect(retryAddedOrDeletedDiffArguments('ancestor', 'current')).toEqual([
+            'diff',
+            '--no-renames',
+            '--diff-filter=AD',
             '--name-only',
             '-z',
             'ancestor...current',
@@ -306,6 +458,8 @@ describe('CI retry policy', () => {
             '.agents/skills/switch-worktree/scripts/desktop-lease.ts',
             'e2e/support/pools.ts',
             'e2e/support/worker-isolation.ts',
+            'e2e/support/fixtures.ts',
+            'e2e/support/helpers.ts',
             'scripts/ci-checks-worktree.ts',
             'scripts/ci-concurrent-validation.ts',
             'scripts/ci-execution-plan.ts',
@@ -325,8 +479,14 @@ describe('CI retry policy', () => {
             'scripts/fixtures/e2e-census.fixture.ts',
             'scripts/run-ci-parity.ts',
             'scripts/self-hosted-runner.ts',
+            'e2e/editor.performance.e2e.ts',
             'e2e/failure-isolation.e2e.ts',
+            'e2e/mobile-acceptance-scenarios.e2e.ts',
+            'e2e/mobile-pairing-desktop-acceptance.e2e.ts',
+            'e2e/mobile-short-reply.e2e.ts',
+            'e2e/real-agent-smoke.e2e.ts',
             'e2e/renderer.performance.e2e.ts',
+            'e2e/startup.performance.e2e.ts',
             'RELEASING.md',
         ]) {
             expect(isProtectedRetryPath(path), path).toBe(true);

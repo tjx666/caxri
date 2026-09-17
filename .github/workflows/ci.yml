@@ -82,7 +82,7 @@ jobs:
       mode: ${{ steps.policy.outputs.mode }}
       reason: ${{ steps.policy.outputs.reason }}
       base_run: ${{ steps.policy.outputs.base_run }}
-      validated_tree: ${{ steps.policy.outputs.validated_tree }}
+      retry_kind: ${{ steps.policy.outputs.retry_kind }}
       e2e_tests: ${{ steps.policy.outputs.e2e_tests }}
       e2e_pool: ${{ steps.policy.outputs.e2e_pool }}
       checks_scope: ${{ steps.policy.outputs.checks_scope }}
@@ -124,7 +124,6 @@ jobs:
   checks:
     needs: retry-policy
     if: >-
-      needs.retry-policy.outputs.mode == 'full' &&
       needs.retry-policy.outputs.checks_scope != 'skipped' &&
       (
         needs.retry-policy.outputs.checks_scope != 'full' ||
@@ -206,7 +205,10 @@ jobs:
         ) ||
         (
           (needs.retry-policy.outputs.mode == 'e2e-only' || needs.retry-policy.outputs.mode == 'e2e-repair') &&
-          needs.checks.result == 'skipped'
+          (
+            (needs.retry-policy.outputs.checks_scope == 'skipped' && needs.checks.result == 'skipped') ||
+            (needs.retry-policy.outputs.checks_scope != 'skipped' && needs.checks.result == 'success')
+          )
         )
       )
     runs-on: [self-hosted, macOS, ARM64, caxri-e2e]
@@ -357,7 +359,7 @@ jobs:
         run: bun run scripts/ci-metrics.ts --label "Server artifact native compatibility" -- bun run spike:native
       - name: Run focused repair specs
         id: focused-repair
-        if: always() && steps.e2e-build.outcome == 'success' && needs.retry-policy.outputs.mode == 'e2e-repair'
+        if: always() && steps.e2e-build.outcome == 'success' && needs.retry-policy.outputs.e2e_profile == 'focused'
         env:
           CI_E2E_POOL: ${{ needs.retry-policy.outputs.e2e_pool }}
           CI_E2E_TESTS: ${{ needs.retry-policy.outputs.e2e_tests }}
@@ -376,7 +378,7 @@ jobs:
           bun run scripts/run-e2e-failure-isolation.ts
       - name: Prove bounded E2E failure census
         id: failure-census
-        if: always() && steps.e2e-build.outcome == 'success'
+        if: always() && steps.e2e-build.outcome == 'success' && needs.retry-policy.outputs.e2e_profile != 'focused'
         run: bun run scripts/run-e2e-census-fixture.ts
       - name: Run parallel-safe pool
         id: parallel-safe
@@ -400,14 +402,13 @@ jobs:
           always() &&
           (
             steps.concurrent-full.outcome == 'success' ||
-            steps.focused-repair.outcome == 'success' ||
             steps.control.outcome == 'success' ||
             steps.desktop-exclusive.outcome == 'success'
           )
         run: bun run benchmark:renderer
       - name: Record actual E2E execution receipt
         id: execution-receipt
-        if: always() && steps.e2e-build.outcome == 'success'
+        if: always() && steps.e2e-build.outcome == 'success' && needs.retry-policy.outputs.e2e_profile != 'focused'
         run: >-
           bun run scripts/report-e2e-manifest.ts
           ${{ needs.retry-policy.outputs.e2e_profile == 'optimized' && 'parallel-safe desktop-exclusive' || 'control' }}
@@ -548,17 +549,25 @@ jobs:
             elif test "$CHECKS_SCOPE" = skipped; then
               test "$CHECKS_RESULT" = skipped
             else
-              test "$CHECKS_SCOPE" = full || test "$CHECKS_SCOPE" = focused-docs || test "$CHECKS_SCOPE" = focused-harness || test "$CHECKS_SCOPE" = focused-skills || test "$CHECKS_SCOPE" = focused-source
+              test "$CHECKS_SCOPE" = full || test "$CHECKS_SCOPE" = focused-docs || test "$CHECKS_SCOPE" = focused-e2e || test "$CHECKS_SCOPE" = focused-harness || test "$CHECKS_SCOPE" = focused-skills || test "$CHECKS_SCOPE" = focused-source
               test "$CHECKS_RESULT" = success
             fi
           else
             test "$MODE" = e2e-only || test "$MODE" = e2e-repair
-            test "$CHECKS_SCOPE" = skipped
-            test "$CHECKS_RESULT" = skipped
+            if test "$CHECKS_SCOPE" = skipped; then
+              test "$CHECKS_RESULT" = skipped
+            else
+              test "$CHECKS_SCOPE" = focused-e2e
+              test "$CHECKS_RESULT" = success
+            fi
           fi
           if test "$SHOULD_RUN_E2E" = true; then
             test "$E2E_RESULT" = success
-            test "$RENDERER_PERFORMANCE_RESULT" = success
+            if test "$E2E_PROFILE" = focused; then
+              test "$RENDERER_PERFORMANCE_RESULT" = skipped
+            else
+              test "$RENDERER_PERFORMANCE_RESULT" = success
+            fi
           else
             test "$E2E_RESULT" = skipped
           fi

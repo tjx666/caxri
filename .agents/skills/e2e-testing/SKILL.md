@@ -224,22 +224,26 @@ following controls when collecting a new comparison:
 
 ## Controlled PR retries
 
-For a new repair commit after a base run's `checks` passed and `e2e` failed, first run the complete
-platform-check command sequence from `.github/workflows/ci.yml` on the clean commit. Then amend
-only commit metadata with this immutable receipt, using the exact tree printed before the amend:
+For the same failed SHA, use `gh run rerun <run-id> --failed`; do not create a metadata-only commit.
+When a new commit changes only the contents of existing top-level `e2e/*.e2e.ts` specs, reproduce
+each changed spec against a fresh production build with the focused command above, then add:
 
 ```text
-CI-Mode: e2e-only
+CI-Mode: e2e-repair
 CI-Base-Run: <failed-run-id>
-CI-Validated-Tree: <git rev-parse HEAD^{tree}>
 ```
 
-Use `CI-Mode: e2e-repair` plus one `CI-E2E-Tests: ["e2e/example.e2e.ts"]` JSON trailer when one or
-more named specs should fail fast before the complete E2E suite. The CI policy admits the shortcut
-only for the same PR, base SHA, workflow, ancestor head, and exact tree; malformed, stale, missing,
-or protected-configuration evidence falls back to full CI. A focused pass is diagnostic only and
-always continues to the complete suite on the same macOS runner. For the same SHA, prefer
-`gh run rerun <run-id> --failed` without adding trailers.
+The policy derives the required spec set from the failed-head-to-current-head Git diff. Add one
+`CI-E2E-Tests: ["e2e/related.e2e.ts"]` JSON trailer only to include additional related specs; it can
+never remove a changed spec. CI runs focused lint/type checks plus those specs and skips the
+unrelated control suite and Renderer benchmark.
+
+`e2e-repair` is fail-closed: product source, shared `e2e/support/**`, runner, workflow, dependency,
+protected-spec, unknown, or spec-add/delete deltas use the ordinary full ready-PR path. `e2e-only`
+remains available only for an unchanged base-run tree, but prefer the same-SHA rerun above. The
+policy verifies the same PR, base SHA, workflow, ancestor head, successful base checks, one isolated
+failed E2E pool, and the actual diff on the runner; no local full-platform self-attestation is part
+of the contract.
 
 Do not push one repair per observed assertion. Download the original failure artifacts, inspect the
 whole failed spec and its async/locator assumptions, finish the repair batch locally, then create

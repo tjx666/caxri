@@ -14,7 +14,7 @@ export function focusedCheckArguments(
     paths: readonly string[],
     scope: Extract<
         CIChecksScope,
-        'focused-docs' | 'focused-harness' | 'focused-skills' | 'focused-source'
+        'focused-docs' | 'focused-e2e' | 'focused-harness' | 'focused-skills' | 'focused-source'
     >,
 ): string[] {
     return [
@@ -23,7 +23,7 @@ export function focusedCheckArguments(
         'check',
         ...paths,
         '--lint',
-        '--test',
+        ...(scope === 'focused-e2e' ? [] : ['--test']),
         ...(scope === 'focused-docs' || scope === 'focused-harness' ? [] : ['--type']),
     ];
 }
@@ -102,6 +102,7 @@ async function main(): Promise<void> {
     const scope = process.env.CI_CHECKS_SCOPE;
     if (
         scope !== 'focused-docs' &&
+        scope !== 'focused-e2e' &&
         scope !== 'focused-harness' &&
         scope !== 'focused-skills' &&
         scope !== 'focused-source'

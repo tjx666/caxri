@@ -1,8 +1,14 @@
 import { isReusableGreenDeltaPath, isReusableGreenSkillPath } from './ci-green-reuse';
 
 export type CIChecksScope =
-    'focused-docs' | 'focused-harness' | 'focused-skills' | 'focused-source' | 'full' | 'skipped';
-type CIE2EProfile = 'control' | 'optimized';
+    | 'focused-docs'
+    | 'focused-e2e'
+    | 'focused-harness'
+    | 'focused-skills'
+    | 'focused-source'
+    | 'full'
+    | 'skipped';
+type CIE2EProfile = 'control' | 'focused' | 'optimized';
 
 export interface CIExecutionPlanInput {
     changedFiles: string[];
@@ -10,6 +16,7 @@ export interface CIExecutionPlanInput {
     eventName: string;
     isReleaseCommit?: boolean;
     pullRequestDraft?: boolean;
+    retryKind?: 'metadata-only' | 'spec-only';
     reusableGreenRun?: CIReusableGreenRun;
     retryMode?: 'e2e-only' | 'e2e-repair';
 }
@@ -60,11 +67,19 @@ function areAllPathsMatching(
  * re-evaluates the same source SHA with `draft=false`, promoting it to full CI.
  */
 export function evaluateCIExecutionPlan(input: CIExecutionPlanInput): CIExecutionPlan {
-    if (input.retryMode) {
+    if (input.retryMode && input.retryKind === 'metadata-only') {
         return {
             checksScope: 'skipped',
             e2eProfile: 'control',
             reason: `validated ${input.retryMode} receipt`,
+            runE2E: true,
+        };
+    }
+    if (input.retryMode === 'e2e-repair' && input.retryKind === 'spec-only') {
+        return {
+            checksScope: 'focused-e2e',
+            e2eProfile: 'focused',
+            reason: 'validated E2E spec-only repair',
             runE2E: true,
         };
     }
