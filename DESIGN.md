@@ -365,10 +365,12 @@ tooltip instead of a bespoke label. Archived Sessions use one stable PrimarySide
 with a global count. Search, filters, Project-grouped results, restore, and delete live in a
 full-width management dialog. Project disclosures contain active Sessions only, so low-frequency
 history never fragments navigation. A disclosure renders its first five Sessions in sidebar order
-plus a `Show N more` row that reveals ten more per activation and disappears once the list is
-complete, so a busy Project never buries the Projects below it. The selected Session always
-renders even when it sits below that window. The revealed count is per-Renderer-lifetime: a relaunch starts from the short list
-the same way it starts scrolled to the top.
+plus a text-only `Show N more` row that reveals ten more per activation and disappears once the list
+is complete, so a busy Project never buries the Projects below it. The row has no disclosure chevron:
+it is not a collapsible branch, and a twistie would spend width on a meaning it does not have. The
+selected Session always renders even when it sits below that window. The revealed count is
+per-Renderer-lifetime: a relaunch starts from the short list the same way it starts scrolled to the
+top.
 
 Pinning a Session adds a global `Pinned` group above every Project instead of moving the Session out
 of its own. The Session keeps its Project row, because a pin is a shortcut to a Session rather than a
