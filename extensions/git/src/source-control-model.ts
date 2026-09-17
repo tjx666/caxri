@@ -16,6 +16,7 @@ import { isGlobMatch, ProjectStatusSummaryErrorMessage } from 'caxri';
 import {
     boundedActionLabel,
     boundedEditorResource,
+    boundedSourceControlDescription,
     sourceControlResourceProjection,
 } from './source-control-projection';
 import { boundedSourceControlResourceId } from './source-control-resource-id';
@@ -482,12 +483,22 @@ export function buildSourceControlViewModel({
                 : details
                   ? `${details.commit.shortSha} ${details.commit.subject}`
                   : undefined;
-            const descriptionAccessibilityLabel = [repo.branch, aheadBehindLabel, revisionSummary]
-                .filter(Boolean)
-                .join(', ');
-            const descriptionTooltip = [repo.branch, aheadBehindLabel, revisionSummary]
-                .filter(Boolean)
-                .join(' · ');
+            const unpushedCommitCount =
+                mode === 'pull-request' ? (pullRequest?.unpushedCommitCount ?? 0) : 0;
+            const unpushedSummary =
+                pullRequest && unpushedCommitCount > 0
+                    ? `${unpushedCommitCount} local commit${unpushedCommitCount === 1 ? '' : 's'} ${unpushedCommitCount === 1 ? 'is' : 'are'} not included in pull request #${pullRequest.number}`
+                    : undefined;
+            const descriptionAccessibilityLabel = boundedSourceControlDescription(
+                [repo.branch, aheadBehindLabel, revisionSummary, unpushedSummary]
+                    .filter(Boolean)
+                    .join(', '),
+            );
+            const descriptionTooltip = boundedSourceControlDescription(
+                [repo.branch, aheadBehindLabel, revisionSummary, unpushedSummary]
+                    .filter(Boolean)
+                    .join(' · '),
+            );
             const groupLabel = pullRequest
                 ? `PR #${pullRequest.number} Changes`
                 : mode === 'commit'
@@ -563,7 +574,7 @@ export function buildSourceControlViewModel({
                 countLabel:
                     mode === 'pull-request' && detailErrorsByRepo.has(repo.id)
                         ? ' · Unavailable'
-                        : `${mode === 'working' ? ` · ↑${repo.ahead} ↓${repo.behind}` : ''} · ${count}${uncommittedCount > 0 ? ` · ${uncommittedCount} uncommitted` : ''}`,
+                        : `${mode === 'working' ? ` · ↑${repo.ahead} ↓${repo.behind}` : ''} · ${count}${unpushedCommitCount > 0 ? ` · ${unpushedCommitCount} unpushed` : ''}${uncommittedCount > 0 ? ` · ${uncommittedCount} uncommitted` : ''}`,
                 ...(uncommittedCount > 0 && {
                     uncommittedNotice: {
                         modeId: 'working',

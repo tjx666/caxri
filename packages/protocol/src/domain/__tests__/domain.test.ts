@@ -400,6 +400,7 @@ describe('sha-based identity regexes', () => {
                 headRefName: 'feature',
                 baseOid: sha,
                 headOid: 'not-a-sha',
+                unpushedCommitCount: 0,
                 additions: 1,
                 deletions: 0,
                 files: [],

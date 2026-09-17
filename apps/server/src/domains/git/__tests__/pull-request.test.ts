@@ -83,11 +83,37 @@ describe('parsePullRequestView', () => {
 });
 
 describe('GitPullRequestService', () => {
+    it('reports local commits that are not included in the remote Pull Request head', async () => {
+        const current = { ...repo('session-a', 'repository'), head: 'c'.repeat(40) };
+        const git = vi.fn((_cwd: string, arguments_: string[]) => {
+            if (arguments_[0] === 'cat-file') return Promise.resolve('commit\n');
+            if (arguments_[0] === 'rev-list') return Promise.resolve('2\n');
+            return Promise.resolve('');
+        });
+        const service = new GitPullRequestService({
+            git,
+            pullRequestView: () => Promise.resolve(pullRequestView(1)),
+            resolveRepository: () => Promise.resolve(current),
+        });
+
+        await expect(changes(service, 'session-a')).resolves.toMatchObject({
+            unpushedCommitCount: 2,
+        });
+        expect(git).toHaveBeenCalledWith(current.rootPath, [
+            'rev-list',
+            '--count',
+            `${HEAD_OID}..${current.head}`,
+            '--',
+        ]);
+    });
+
     it('misses cache when the resolved repository branch or head changes', async () => {
         let current = repo('session-a', 'repository');
         const viewPullRequest = vi.fn(() => Promise.resolve(pullRequestView(1)));
         const service = new GitPullRequestService({
-            git: vi.fn(() => Promise.resolve('')),
+            git: vi.fn((_cwd: string, arguments_: string[]) =>
+                Promise.resolve(arguments_[0] === 'rev-list' ? '1\n' : ''),
+            ),
             pullRequestView: viewPullRequest,
             resolveRepository: () => Promise.resolve(current),
         });

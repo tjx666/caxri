@@ -217,6 +217,7 @@ describe('gitPullRequestChangesSchema url and ref bounds', () => {
         headRefName: 'feature',
         baseOid: sha,
         headOid: sha,
+        unpushedCommitCount: 0,
         additions: 1,
         deletions: 0,
         files: [],
@@ -235,6 +236,16 @@ describe('gitPullRequestChangesSchema url and ref bounds', () => {
         expect(gitPullRequestChangesSchema.safeParse({ ...base, url: 'not-a-url' }).success).toBe(
             false,
         );
+    });
+
+    it('rejects a negative unpushed commit count', () => {
+        expect(
+            gitPullRequestChangesSchema.safeParse({
+                ...base,
+                url: 'https://github.com/example/repo/pull/1',
+                unpushedCommitCount: -1,
+            }).success,
+        ).toBe(false);
     });
 
     it('rejects an empty ref name', () => {
