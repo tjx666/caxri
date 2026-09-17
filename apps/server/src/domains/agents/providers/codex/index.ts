@@ -257,6 +257,7 @@ interface SqliteColumn {
 
 interface CodexThreadRow {
     id: string;
+    session_is_subagent?: number | null;
     title?: string;
     tokens_used?: number;
 }
@@ -462,6 +463,16 @@ async function readCodexState(
                 ),
             );
             if (['id', 'cwd'].some((column) => !columns.has(column))) continue;
+            const spawnEdgeColumns = new Set(
+                (
+                    database
+                        .prepare('PRAGMA table_info(thread_spawn_edges)')
+                        .all() as SqliteColumn[]
+                ).map((column) => column.name),
+            );
+            const sessionIsSubagentExpression = spawnEdgeColumns.has('child_thread_id')
+                ? 'EXISTS (SELECT 1 FROM thread_spawn_edges WHERE child_thread_id = selected.id)'
+                : 'NULL';
             const updatedColumn = columns.has('updated_at_ms')
                 ? 'updated_at_ms'
                 : columns.has('updated_at')
@@ -567,7 +578,8 @@ async function readCodexState(
                                 LIMIT 1
                             ) THEN NULL
                             ELSE candidate_title
-                        END AS title${tokens}
+                        END AS title,
+                        ${sessionIsSubagentExpression} AS session_is_subagent${tokens}
                     FROM selected`,
                 )
                 .get(
@@ -608,6 +620,11 @@ async function readCodexState(
     return {
         ...turnState,
         sessionId: selectedRow.id,
+        sessionIsSubagent:
+            selectedRow.session_is_subagent === null ||
+            selectedRow.session_is_subagent === undefined
+                ? undefined
+                : selectedRow.session_is_subagent === 1,
         title: selectedRow.title?.trim(),
         usage:
             typeof selectedRow.tokens_used === 'number' && selectedRow.tokens_used > 0
@@ -679,7 +696,8 @@ export const codexProvider: AgentProviderDescriptor = {
             environment,
             stateDirectories,
         );
-        if (processState !== undefined) return processState ?? undefined;
+        if (processState !== undefined || context.requireForegroundProcessIdentity)
+            return processState ?? undefined;
         return readCodexState(context, stateDirectories);
     },
     renameSession: renameCodexSession,
