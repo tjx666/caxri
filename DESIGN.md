@@ -740,7 +740,11 @@ file list with that commit's or that pull request's files, so a repository holdi
 renders identically to a clean one. A mode that answers one question must not silently answer a
 different one, so the repository row states the count it is not showing (`· 3 uncommitted`) and
 carries a diff-mark button back to Working Tree Changes. Both disappear at zero rather than sitting
-there reading `0 uncommitted`. A repository with no pull request keeps the heading
+there reading `0 uncommitted`. Pull Request mode also compares the local HEAD directly with the
+validated remote pull request head, and states any commits absent from that pull request as
+`· 2 unpushed`; its tooltip explains that those local commits are not included in the pull request.
+This count never borrows the branch's tracking-upstream state, which can point at a different ref.
+A repository with no pull request keeps the heading
 `Pull Request Changes` in Pull Request mode: leaving it at `Changes` made its zero read as a clean
 working tree instead of an absent pull request. On a repository row the counts outrank the
 repository name: the name ellipsizes when the row runs out of width, because the row's tooltip and

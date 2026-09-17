@@ -107,6 +107,12 @@ function parseLineStats(output: string): { additions: number; deletions: number 
     return { additions, deletions };
 }
 
+function parseCommitCount(output: string): number {
+    const value = output.trim();
+    if (!/^\d+$/.test(value)) throw new CaxriError('GIT', 'Git returned a malformed commit count');
+    return Number(value);
+}
+
 function pullRequestFileStatus(file: NameStatusFile): GitFileStatus {
     const code =
         file.status === 'added'
@@ -275,7 +281,7 @@ export class GitPullRequestService {
                 const view = parsePullRequestView(output);
                 await this.ensureCommits(repo.rootPath, view);
                 const range = `${view.baseRefOid}...${view.headRefOid}`;
-                const [filesOutput, lineStatsOutput] = await Promise.all([
+                const [filesOutput, lineStatsOutput, unpushedCommitCount] = await Promise.all([
                     this.dependencies.git(repo.rootPath, [
                         'diff',
                         '--name-status',
@@ -291,6 +297,17 @@ export class GitPullRequestService {
                         range,
                         '--',
                     ]),
+                    repo.head && repo.head !== view.headRefOid
+                        ? (async () =>
+                              parseCommitCount(
+                                  await this.dependencies.git(repo.rootPath, [
+                                      'rev-list',
+                                      '--count',
+                                      `${view.headRefOid}..${repo.head}`,
+                                      '--',
+                                  ]),
+                              ))()
+                        : Promise.resolve(0),
                 ]);
                 const result: GitPullRequestChanges = {
                     repositoryId: repo.id,
@@ -301,6 +318,7 @@ export class GitPullRequestService {
                     headRefName: view.headRefName.slice(0, 1_024),
                     baseOid: view.baseRefOid,
                     headOid: view.headRefOid,
+                    unpushedCommitCount,
                     ...parseLineStats(lineStatsOutput),
                     files: parseNameStatus(filesOutput)
                         .slice(0, MAX_PULL_REQUEST_FILES)

@@ -41,6 +41,7 @@ export interface GitPullRequestChanges {
     headRefName: string;
     baseOid: string;
     headOid: string;
+    unpushedCommitCount: number;
     additions: number;
     deletions: number;
     files: GitFileStatus[];
