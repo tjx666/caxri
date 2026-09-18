@@ -152,7 +152,7 @@ Long working-directory names use the provider's bounded `.cwd` marker lookup; th
 reader still rejects symlinked or otherwise unsafe transcript paths. Grok hooks are required for
 managed launch and use the owned `hooks/caxri.json` file. The Provider renders the preallocated
 identity and private-file pointer through Server-owned fields, keeping user-supplied identity and
-positional overrides rejected. The workspace sandbox remains required. Native session rename is not
+positional overrides rejected. Native session rename is not
 currently supported.
 
 Controlled native validation with Grok 1.0.24 found a startup limitation on macOS: its read-only

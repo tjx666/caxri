@@ -130,11 +130,16 @@ describe('Grok Build launch contract', () => {
         ['--sandbox', 'off'],
         ['--sandbox=workspace', '--continue'],
         ['--sandbox', 'workspace', '--session-id=other'],
-        [],
     ])('rejects unsafe launch overrides %j', async (...arguments_) => {
         await expect(
             grokProvider.prepareLaunch!({ ...(await context()), args: arguments_ }),
         ).rejects.toThrow();
+    });
+
+    it('accepts YOLO without a sandbox argument', async () => {
+        const input = await context();
+        const prepared = await grokProvider.prepareLaunch!({ ...input, args: ['--yolo'] });
+        expect(prepared.args).toEqual(['--yolo', '--session-id', prepared.agentSessionId]);
     });
 
     it.each([undefined, 'grok 1.0.23', 'grok 2.0.0'])(
