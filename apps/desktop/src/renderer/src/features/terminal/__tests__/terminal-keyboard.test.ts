@@ -96,6 +96,36 @@ describe('isClipboardContainingImage', () => {
 });
 
 describe('registerTerminalClipboardHandlers', () => {
+    it('stops an empty Terminal copy from reaching Chromium', () => {
+        const helper = {} as Element;
+        const container = Object.assign(new EventTarget(), {
+            contains: (node: Node | null) => node === helper,
+        }) as HTMLElement;
+        const testDocument = Object.assign(new EventTarget(), {
+            activeElement: helper,
+        }) as Document;
+        const unregister = registerTerminalClipboardHandlers({
+            canAcceptAgentInput: () => true,
+            container,
+            document: testDocument,
+            getSelection: () => '',
+            imagePasteInput: () => {},
+            pasteImage: vi.fn(),
+            pasteText: vi.fn(() => false),
+        });
+        const event = new Event('copy', { bubbles: true, cancelable: true }) as ClipboardEvent;
+        const setData = vi.fn();
+        Object.defineProperty(event, 'clipboardData', {
+            value: { setData },
+        });
+
+        testDocument.dispatchEvent(event);
+
+        expect(event.defaultPrevented).toBe(true);
+        expect(setData).not.toHaveBeenCalled();
+        unregister();
+    });
+
     it('claims long text paste before xterm can receive the original', () => {
         const container = new EventTarget() as HTMLElement;
         const testDocument = new EventTarget() as Document;
@@ -135,13 +165,18 @@ describe('writeTerminalSelectionToCopyEvent', () => {
         expect(setData).toHaveBeenCalledWith('text/plain', 'PANE_TWO');
     });
 
-    it('leaves copy unchanged without a selection or writable clipboard data', () => {
+    it('blocks an empty native copy so it cannot wipe the clipboard', () => {
+        const setData = vi.fn();
         const preventDefault = vi.fn();
 
-        writeTerminalSelectionToCopyEvent(
-            { clipboardData: { setData: vi.fn() }, preventDefault },
-            '',
-        );
+        writeTerminalSelectionToCopyEvent({ clipboardData: { setData }, preventDefault }, '');
+        expect(preventDefault).toHaveBeenCalledOnce();
+        expect(setData).not.toHaveBeenCalled();
+    });
+
+    it('leaves a non-empty copy unchanged without writable clipboard data', () => {
+        const preventDefault = vi.fn();
+
         writeTerminalSelectionToCopyEvent({ clipboardData: null, preventDefault }, 'text');
         expect(preventDefault).not.toHaveBeenCalled();
     });
