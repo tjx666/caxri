@@ -23,13 +23,19 @@ interface TerminalClipboardHandlerOptions {
  * Supplies xterm's internal selection to the browser's standard copy event. xterm renders text into a canvas-backed
  * surface rather than a native DOM selection, so Electron's Edit > Copy role needs this bridge to preserve Terminal
  * copying while sharing `Cmd+C` with Monaco and ordinary inputs.
+ *
+ * An empty xterm selection must still `preventDefault`. The focused helper textarea is empty, and Chromium's default
+ * copy would write that empty string over the system clipboard — including a copy an Agent TUI just made through OSC 52
+ * or the native pasteboard, whose highlight is not an xterm selection.
  */
 export function writeTerminalSelectionToCopyEvent(
     event: ClipboardCopyEventLike,
     selection: string,
 ): void {
-    if (!selection || !event.clipboardData) return;
-    event.clipboardData.setData('text/plain', selection);
+    if (selection) {
+        if (!event.clipboardData) return;
+        event.clipboardData.setData('text/plain', selection);
+    }
     event.preventDefault();
 }
 
