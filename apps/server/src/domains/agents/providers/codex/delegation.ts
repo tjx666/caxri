@@ -1,4 +1,5 @@
 import { CaxriError } from '@caxri/protocol';
+import { expandLaunchArguments } from '@caxri/utils';
 import { coerce, gte } from 'semver';
 
 import type {
@@ -90,13 +91,14 @@ export const codexDelegationAdapter: AgentDelegationAdapter = {
     createSessionId: () => {},
     validateLaunch: (launch) => {
         validateDelegationArguments(launch, valueFlags, booleanFlags);
-        for (let index = 0; index < launch.args.length; index++) {
-            const argument = launch.args[index];
+        const arguments_ = expandLaunchArguments(launch.args);
+        for (let index = 0; index < arguments_.length; index++) {
+            const argument = arguments_[index];
             const flag = argument.split('=', 1)[0];
             if (flag !== '-c' && flag !== '--config') continue;
             const value = argument.includes('=')
                 ? argument.slice(flag.length + 1)
-                : launch.args[++index];
+                : arguments_[++index];
             if (
                 !/^model_reasoning_effort=(?:low|medium|high|xhigh|max|ultra|"(?:low|medium|high|xhigh|max|ultra)")$/u.test(
                     value,

@@ -8,10 +8,13 @@ Grok, implement an xAI API client, or introduce another chat interface.
 
 The managed launcher requires Grok Build 1.0.24 or later within major version 1.
 The verified baseline is `1.0.24 (68e414c661e3) [stable]` on macOS arm64.
-Default arguments are `--always-approve --sandbox workspace`. Keep the workspace
-sandbox: it prevents Grok's shared leader from moving work outside the Terminal's
-process lifetime. Automatic background suspension is disabled for this provider.
-Do not substitute `--no-leader`: the verified binary rejects that newer option.
+Default arguments are `--yolo` (`--yolo` is Grok Build's alias for
+`--always-approve`). Caxri does not inject `--sandbox`; Grok Build's own default
+is `off` (unrestricted). A user who wants confinement can add `--sandbox workspace`
+or another documented mode in Initial arguments — a flag and its value may share a
+line — and `prepareLaunch` passes that value through unchanged. Automatic background suspension is disabled for this
+provider. Do not substitute `--no-leader`: the verified binary rejects that newer
+option.
 
 Caxri owns the launch session arguments. A new Terminal receives a fresh UUID via
 `--session-id`; restore uses `--resume` with the exact confirmed conversation UUID.

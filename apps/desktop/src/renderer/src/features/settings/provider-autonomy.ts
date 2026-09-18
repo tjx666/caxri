@@ -1,11 +1,19 @@
 import type { AgentProvider } from '@caxri/protocol';
 import { agentProviderCatalog, defaultAgentProviderSettings } from '@caxri/protocol';
+import { expandLaunchArguments } from '@caxri/utils';
 
 /**
  * Whether the Agent acts without asking is not a stored preference: it is exactly whether the provider's autonomy
  * tokens sit in its launch arguments. Keeping the Settings switch derived over the same list the user can hand-edit
  * means one source of truth, so a raw edit and the switch can never disagree.
  */
+
+/**
+ * Grok Build documents `--always-approve` as the flag and `--yolo` as its alias. The catalog ships `--yolo` so Settings
+ * shows the named YOLO mode; this alias still counts as the same bypass so a persisted longer flag cannot stay behind
+ * after the switch is turned off.
+ */
+const GROK_AUTONOMY_ALIASES: ReadonlyArray<readonly string[]> = [['--always-approve']];
 
 /**
  * Index of the first contiguous occurrence of `run` inside the launch arguments at or after `from`, or -1. Autonomy
@@ -18,6 +26,11 @@ function indexOfRun(arguments_: readonly string[], run: readonly string[], from:
     return -1;
 }
 
+function autonomyRuns(provider: AgentProvider): ReadonlyArray<readonly string[]> {
+    const run = agentProviderCatalog[provider].autonomyArgs;
+    return provider === 'grok' ? [run, ...GROK_AUTONOMY_ALIASES] : [run];
+}
+
 /**
  * Whether these launch arguments already start `provider` without per-action approval.
  */
@@ -25,7 +38,8 @@ export function hasProviderAutonomy(
     arguments_: readonly string[],
     provider: AgentProvider,
 ): boolean {
-    return indexOfRun(arguments_, agentProviderCatalog[provider].autonomyArgs, 0) !== -1;
+    const tokens = expandLaunchArguments(arguments_);
+    return autonomyRuns(provider).some((run) => indexOfRun(tokens, run, 0) !== -1);
 }
 
 /**
@@ -50,13 +64,17 @@ export function withProviderAutonomy(
     isEnabled: boolean,
 ): string[] {
     const run = agentProviderCatalog[provider].autonomyArgs;
-    if (isEnabled)
-        return hasProviderAutonomy(arguments_, provider)
-            ? [...arguments_]
-            : [...run, ...arguments_];
-    const next = [...arguments_];
-    for (let at = indexOfRun(next, run, 0); at !== -1; at = indexOfRun(next, run, at)) {
-        next.splice(at, run.length);
+    const tokens = expandLaunchArguments(arguments_);
+    if (isEnabled) return hasProviderAutonomy(tokens, provider) ? [...tokens] : [...run, ...tokens];
+    const next = [...tokens];
+    for (const candidate of autonomyRuns(provider)) {
+        for (
+            let at = indexOfRun(next, candidate, 0);
+            at !== -1;
+            at = indexOfRun(next, candidate, at)
+        ) {
+            next.splice(at, candidate.length);
+        }
     }
     return next;
 }

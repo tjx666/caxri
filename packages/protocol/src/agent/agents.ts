@@ -155,7 +155,11 @@ export const agentProviderCatalog = {
         imageInput: { kind: 'systemClipboardPaste', terminalInput: '\u{16}' },
     },
     grok: {
-        autonomyArgs: ['--always-approve'],
+        /**
+         * `--yolo` is Grok Build's documented alias for `--always-approve`. Settings still treats the longer flag as
+         * the same bypass so a persisted `--always-approve` cannot survive turning the switch off.
+         */
+        autonomyArgs: ['--yolo'],
         capabilities: {
             actions: false,
             automaticSuspension: false,
@@ -163,10 +167,7 @@ export const agentProviderCatalog = {
             nativeRename: false,
             pasteSummary: false,
         },
-        /**
-         * Non-off confinement keeps Grok's work inside the Terminal process lifetime instead of a shared leader.
-         */
-        defaultLaunchArgs: ['--always-approve', '--sandbox', 'workspace'],
+        defaultLaunchArgs: ['--yolo'],
         displayName: 'Grok Build',
         executableName: 'grok',
         imageInput: undefined,

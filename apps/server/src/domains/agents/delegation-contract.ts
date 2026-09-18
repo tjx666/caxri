@@ -5,6 +5,7 @@ import type {
     DelegationSelection,
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
+import { expandLaunchArguments } from '@caxri/utils';
 
 export interface DelegationEvidence {
     sessionId: string;
@@ -63,14 +64,15 @@ export function validateDelegationArguments(
     valueFlags: ReadonlySet<string>,
     booleanFlags: ReadonlySet<string>,
 ): void {
-    for (let index = 0; index < launch.args.length; index++) {
-        const argument = launch.args[index];
+    const arguments_ = expandLaunchArguments(launch.args);
+    for (let index = 0; index < arguments_.length; index++) {
+        const argument = arguments_[index];
         const flag = argument.split('=', 1)[0];
         if (booleanFlags.has(argument)) continue;
         if (valueFlags.has(flag)) {
             const value = argument.includes('=')
                 ? argument.slice(flag.length + 1)
-                : launch.args[++index];
+                : arguments_[++index];
             if (value && !value.startsWith('-')) continue;
         }
         throw new CaxriError(
@@ -88,9 +90,10 @@ export function replaceDelegationArguments(
     flags: ReadonlySet<string>,
     replacement: readonly string[],
 ): AgentLaunchSettings {
+    const source = expandLaunchArguments(launch.args);
     const arguments_: string[] = [];
-    for (let index = 0; index < launch.args.length; index++) {
-        const argument = launch.args[index];
+    for (let index = 0; index < source.length; index++) {
+        const argument = source[index];
         if (flags.has(argument.split('=', 1)[0])) {
             if (!argument.includes('=')) index++;
         } else arguments_.push(argument);
