@@ -32,6 +32,9 @@ const allowedArbitraryClasses = new Set([
     'pb-[3px]',
     'pl-[78px]',
     'pl-[84px]',
+    // Session hover Pin/Archive cluster: DESIGN.md "Primary Sidebar" reserves this width so titles fade before the
+    // icons instead of painting through their transparent strokes.
+    'pr-[var(--session-hover-actions)]',
     'pt-[3px]',
     'px-[5px]',
     // The two status-bar glyph boxes, sized to the text tier beside them; DESIGN.md "Spacing and radius" states why
