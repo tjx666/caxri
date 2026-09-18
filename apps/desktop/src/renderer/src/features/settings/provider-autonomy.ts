@@ -1,5 +1,6 @@
 import type { AgentProvider } from '@caxri/protocol';
 import { agentProviderCatalog, defaultAgentProviderSettings } from '@caxri/protocol';
+import { expandLaunchArguments } from '@caxri/utils';
 
 /**
  * Whether the Agent acts without asking is not a stored preference: it is exactly whether the provider's autonomy
@@ -37,7 +38,8 @@ export function hasProviderAutonomy(
     arguments_: readonly string[],
     provider: AgentProvider,
 ): boolean {
-    return autonomyRuns(provider).some((run) => indexOfRun(arguments_, run, 0) !== -1);
+    const tokens = expandLaunchArguments(arguments_);
+    return autonomyRuns(provider).some((run) => indexOfRun(tokens, run, 0) !== -1);
 }
 
 /**
@@ -62,11 +64,9 @@ export function withProviderAutonomy(
     isEnabled: boolean,
 ): string[] {
     const run = agentProviderCatalog[provider].autonomyArgs;
-    if (isEnabled)
-        return hasProviderAutonomy(arguments_, provider)
-            ? [...arguments_]
-            : [...run, ...arguments_];
-    const next = [...arguments_];
+    const tokens = expandLaunchArguments(arguments_);
+    if (isEnabled) return hasProviderAutonomy(tokens, provider) ? [...tokens] : [...run, ...tokens];
+    const next = [...tokens];
     for (const candidate of autonomyRuns(provider)) {
         for (
             let at = indexOfRun(next, candidate, 0);

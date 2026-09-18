@@ -36,6 +36,7 @@ describe('hasProviderAutonomy', () => {
         expect(hasProviderAutonomy(['--always-approve', '--sandbox', 'workspace'], 'grok')).toBe(
             true,
         );
+        expect(hasProviderAutonomy(['--yolo --sandbox workspace'], 'grok')).toBe(true);
     });
 });
 
@@ -62,6 +63,14 @@ describe('withProviderAutonomy', () => {
         const off = withProviderAutonomy(withSandbox, 'grok', false);
         expect(off).toEqual(['--sandbox', 'workspace']);
         expect(withProviderAutonomy(off, 'grok', true)).toEqual(withSandbox);
+        expect(withProviderAutonomy(['--yolo', '--sandbox workspace'], 'grok', false)).toEqual([
+            '--sandbox',
+            'workspace',
+        ]);
+        expect(withProviderAutonomy(['--yolo', '--model', 'opus 4'], 'grok', false)).toEqual([
+            '--model',
+            'opus 4',
+        ]);
     });
 
     it('drops a persisted Grok Build --always-approve without inserting a second --yolo', () => {

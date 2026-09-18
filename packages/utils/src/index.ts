@@ -12,6 +12,7 @@ export * from './format-bytes.js';
 export * from './git-remote.js';
 export * from './glob-match.js';
 export * from './grid-burst.js';
+export * from './launch-arguments.js';
 export * from './path-basename.js';
 export * from './redaction.js';
 export * from './relative-time.js';

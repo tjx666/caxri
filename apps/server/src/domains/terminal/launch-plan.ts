@@ -19,6 +19,7 @@ import {
     logEventCatalog,
     readE2EAgentPolicy,
 } from '@caxri/system';
+import { expandLaunchArguments } from '@caxri/utils';
 
 // Server providers use the public domain barrel by architecture contract.
 // oxlint-disable-next-line react-doctor/no-barrel-import
@@ -129,7 +130,7 @@ export class TerminalLaunchPlanner {
                 );
                 const agentArguments = [
                     ...(agentProviders[record.kind].managedLaunchArguments ?? []),
-                    ...launch.args,
+                    ...expandLaunchArguments(launch.args),
                 ];
                 if (start?.resumeAgentSessionId && !agentProviders[record.kind].prepareLaunch) {
                     agentArguments.push(
