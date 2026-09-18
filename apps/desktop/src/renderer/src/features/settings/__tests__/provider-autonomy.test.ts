@@ -30,6 +30,13 @@ describe('hasProviderAutonomy', () => {
     it('ignores a token that only looks like the bypass', () => {
         expect(hasProviderAutonomy(['--always-approve-nothing'], 'grok')).toBe(false);
     });
+
+    it('treats Grok Build --always-approve as the same bypass as --yolo', () => {
+        expect(hasProviderAutonomy(['--yolo'], 'grok')).toBe(true);
+        expect(hasProviderAutonomy(['--always-approve', '--sandbox', 'workspace'], 'grok')).toBe(
+            true,
+        );
+    });
 });
 
 describe('withProviderAutonomy', () => {
@@ -59,6 +66,16 @@ describe('withProviderAutonomy', () => {
         expect(off).toEqual(['--sandbox', 'workspace']);
         expect(withProviderAutonomy(off, 'grok', true)).toEqual([
             ...defaultAgentProviderSettings.grok.launch.args,
+        ]);
+    });
+
+    it('drops a persisted Grok Build --always-approve without inserting a second --yolo', () => {
+        const persisted = ['--always-approve', '--sandbox', 'workspace', '--verbose'];
+        expect(withProviderAutonomy(persisted, 'grok', true)).toEqual(persisted);
+        expect(withProviderAutonomy(persisted, 'grok', false)).toEqual([
+            '--sandbox',
+            'workspace',
+            '--verbose',
         ]);
     });
 

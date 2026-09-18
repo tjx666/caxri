@@ -24,7 +24,7 @@ describe('agentProviderCatalog autonomy arguments', () => {
     });
 
     it('keeps Grok Build confinement out of the approval bypass', () => {
-        expect(agentProviderCatalog.grok.autonomyArgs).toEqual(['--always-approve']);
+        expect(agentProviderCatalog.grok.autonomyArgs).toEqual(['--yolo']);
         expect(agentProviderCatalog.grok.autonomyArgs).not.toContain('--sandbox');
         expect(agentProviderCatalog.grok.autonomyArgs).not.toContain('workspace');
     });
@@ -79,6 +79,11 @@ describe('defaultAgentProviderSettings', () => {
         ]);
         expect(defaultAgentProviderSettings.codex.launch.args).toEqual([
             '--dangerously-bypass-approvals-and-sandbox',
+        ]);
+        expect(defaultAgentProviderSettings.grok.launch.args).toEqual([
+            '--yolo',
+            '--sandbox',
+            'workspace',
         ]);
     });
 });
