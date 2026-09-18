@@ -15,6 +15,7 @@ import type {
     TerminalRecord,
 } from '@caxri/protocol';
 import { agentProviderCatalog, CaxriError } from '@caxri/protocol';
+import { expandLaunchArguments } from '@caxri/utils';
 
 import type { AgentMessagingProbeInput } from '../agent-messaging';
 import { AgentMessagingCapabilityProbe, pendingMessagingCapability } from '../agent-messaging';
@@ -70,9 +71,10 @@ export function classifyAgentPermission(
     launch: AgentLaunchSettings,
 ): AgentPermissionClass {
     if (launch.executable !== agentProviderCatalog[provider].executableName) return 'unknown';
-    if (launch.args.some((argument) => ELEVATED_ARGUMENTS[provider].has(argument)))
+    const arguments_ = expandLaunchArguments(launch.args);
+    if (arguments_.some((argument) => ELEVATED_ARGUMENTS[provider].has(argument)))
         return 'elevated';
-    if (launch.args.length === 0) return 'standard';
+    if (arguments_.length === 0) return 'standard';
     return 'unknown';
 }
 

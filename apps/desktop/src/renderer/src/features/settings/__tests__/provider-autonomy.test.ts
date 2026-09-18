@@ -30,6 +30,14 @@ describe('hasProviderAutonomy', () => {
     it('ignores a token that only looks like the bypass', () => {
         expect(hasProviderAutonomy(['--always-approve-nothing'], 'grok')).toBe(false);
     });
+
+    it('treats Grok Build --always-approve as the same bypass as --yolo', () => {
+        expect(hasProviderAutonomy(['--yolo'], 'grok')).toBe(true);
+        expect(hasProviderAutonomy(['--always-approve', '--sandbox', 'workspace'], 'grok')).toBe(
+            true,
+        );
+        expect(hasProviderAutonomy(['--yolo --sandbox workspace'], 'grok')).toBe(true);
+    });
 });
 
 describe('withProviderAutonomy', () => {
@@ -50,15 +58,28 @@ describe('withProviderAutonomy', () => {
         ).toEqual(['--profile', 'work']);
     });
 
-    it('leaves Grok Build confinement alone in both directions', () => {
-        const off = withProviderAutonomy(
-            defaultAgentProviderSettings.grok.launch.args,
-            'grok',
-            false,
-        );
+    it('leaves a hand-added Grok Build --sandbox workspace in both directions', () => {
+        const withSandbox = ['--yolo', '--sandbox', 'workspace'];
+        const off = withProviderAutonomy(withSandbox, 'grok', false);
         expect(off).toEqual(['--sandbox', 'workspace']);
-        expect(withProviderAutonomy(off, 'grok', true)).toEqual([
-            ...defaultAgentProviderSettings.grok.launch.args,
+        expect(withProviderAutonomy(off, 'grok', true)).toEqual(withSandbox);
+        expect(withProviderAutonomy(['--yolo', '--sandbox workspace'], 'grok', false)).toEqual([
+            '--sandbox',
+            'workspace',
+        ]);
+        expect(withProviderAutonomy(['--yolo', '--model', 'opus 4'], 'grok', false)).toEqual([
+            '--model',
+            'opus 4',
+        ]);
+    });
+
+    it('drops a persisted Grok Build --always-approve without inserting a second --yolo', () => {
+        const persisted = ['--always-approve', '--sandbox', 'workspace', '--verbose'];
+        expect(withProviderAutonomy(persisted, 'grok', true)).toEqual(persisted);
+        expect(withProviderAutonomy(persisted, 'grok', false)).toEqual([
+            '--sandbox',
+            'workspace',
+            '--verbose',
         ]);
     });
 

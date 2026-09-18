@@ -118,7 +118,7 @@ describe('isRowModified', () => {
         const action = rowResetAction(binding, current);
         if (action?.kind !== 'field') throw new Error('expected a field reset');
         expect((action.value as AppSettings['agents.providers']).grok.launch.args).toEqual([
-            '--always-approve',
+            '--yolo',
             '--sandbox',
             'workspace',
             '--verbose',

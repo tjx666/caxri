@@ -474,8 +474,9 @@ const sourceControlProviderModelSchema = z.object({
     rootPath: z.string().min(1).max(4_096).optional(),
     /**
      * The repository's branch. Shown after the folder name and allowed to ellipsize so the name stays readable — VS
-     * Code's SCM provider row does the same. Counts still outrank both. Prose that a provider wants beside the row
-     * belongs in `descriptionTooltip`.
+     * Code's SCM provider row does the same. If the name is still too wide after the branch has given way, the name
+     * ellipsizes too. Counts still outrank both. Prose that a provider wants beside the row belongs in
+     * `descriptionTooltip`.
      */
     description: z.string().max(4_096),
     descriptionAccessibilityLabel: z.string().min(1).max(4_096),

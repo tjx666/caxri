@@ -372,6 +372,12 @@ describe('AgentEndpointLifecycle', () => {
                 args: ['--dangerously-bypass-approvals-and-sandbox'],
             }),
         ).toBe('elevated');
+        expect(
+            classifyAgentPermission('grok', {
+                executable: 'grok',
+                args: ['--yolo --sandbox workspace'],
+            }),
+        ).toBe('elevated');
         expect(classifyAgentPermission('claude', { executable: '/custom/claude', args: [] })).toBe(
             'unknown',
         );

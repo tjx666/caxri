@@ -26,7 +26,6 @@ import {
 } from '../../components/ui/field';
 import { Input } from '../../components/ui/input';
 import { Switch } from '../../components/ui/switch';
-import { Textarea } from '../../components/ui/textarea';
 import { Tooltip } from '../../components/ui/tooltip';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { setArchivedSessionsOpen, setSettingsOpen } from '../../stores/dialogs';
@@ -35,6 +34,7 @@ import { EnumControl } from './enum-control';
 import { FilesExcludeEditor } from './files-exclude-editor';
 import { IgnoredChecksForm } from './ignored-checks-form';
 import { IntegerControl } from './integer-control';
+import { LaunchArgumentsField } from './launch-arguments-field';
 import { MobileAccessForm } from './mobile-access-form';
 import { hasProviderAutonomy, withProviderAutonomy } from './provider-autonomy';
 import { hookHealthLabel, hookHealthTone, isHookAdapterAvailable } from './provider-health';
@@ -384,21 +384,15 @@ function rowControl(properties: SettingRowProperties): {
             return {
                 labelFor: controlId,
                 control: (
-                    <Textarea
+                    <LaunchArgumentsField
                         id={controlId}
-                        aria-label={`${providerName} initial arguments`}
-                        className="bg-background text-foreground"
-                        value={launch.args.join('\n')}
-                        onChange={(event) =>
+                        label={`${providerName} initial arguments`}
+                        args={launch.args}
+                        onChange={(arguments_) =>
                             onFieldChange(
                                 'agents.providers',
                                 withProviderField(settings, binding.provider, {
-                                    launch: {
-                                        ...launch,
-                                        args: event.target.value
-                                            .split('\n')
-                                            .filter((argument) => argument.length > 0),
-                                    },
+                                    launch: { ...launch, args: arguments_ },
                                 }),
                             )
                         }
