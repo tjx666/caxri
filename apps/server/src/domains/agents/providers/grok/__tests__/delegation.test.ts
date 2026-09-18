@@ -239,4 +239,12 @@ describe('Grok exact delegation completion', () => {
                 grokDelegationAdapter.validateLaunch({ executable: 'grok', args: arguments_ }),
             ).toThrow();
     });
+    it.each(['--yolo', '--always-approve'])(
+        'preserves an already configured %s bypass without adding one',
+        (flag) => {
+            expect(() =>
+                grokDelegationAdapter.validateLaunch({ executable: 'grok', args: [flag] }),
+            ).not.toThrow();
+        },
+    );
 });
