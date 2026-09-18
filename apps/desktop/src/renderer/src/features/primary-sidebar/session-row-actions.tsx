@@ -11,11 +11,15 @@ const actionButton =
 /**
  * The Session row's hover actions. Both buttons are `tabIndex={-1}`: the tree has one roving Tab stop, and the keyboard
  * reaches Archive through `Delete` and the pin through the row's context menu.
+ *
+ * `right-1` plus two `size-5` buttons and `gap-0.5` is 2.875rem. The owning `.session-row` publishes that width as
+ * `--session-hover-actions`, and the card reserves it on hover so overflowing titles fade before this cluster instead
+ * of painting through the transparent Lucide strokes.
  */
 export function SessionRowActions({ session }: { session: SessionRecord }) {
     const pinned = isPinnedSession(session);
     return (
-        <div className="session-row-actions pointer-events-none absolute top-1/2 right-1 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity group-hover/session-row:pointer-events-auto group-hover/session-row:opacity-100">
+        <div className="session-row-actions pointer-events-none absolute top-1/2 right-1 z-10 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity group-hover/session-row:pointer-events-auto group-hover/session-row:opacity-100">
             <Tooltip content={pinned ? 'Unpin Session' : 'Pin Session'}>
                 <button
                     type="button"

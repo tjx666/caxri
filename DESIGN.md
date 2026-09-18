@@ -329,9 +329,11 @@ the edge position to a pull request glyph. Thus a
 failed process is not a persistent list alert, while reliable unread attention remains visible
 regardless of its exact kind. Motion and shape carry the glance signal without changing title
 weight, and the accessible label plus the Session hover/focus card preserve exact lifecycle and
-attention details. On pointer hover, the Archive action replaces the track's trailing glyph in the
-same position; keyboard focus keeps the track visible because Delete already owns the keyboard
-action. The Portal
+attention details. On pointer hover, Pin and Archive occupy a reserved cluster at the row's right
+edge; the title (and a Pinned row's Project name) clips with the same right-edge fade before that
+cluster, and the trailing status glyph collapses so it does not double-reserve. Keyboard focus keeps
+the track visible because Delete already owns the keyboard action; the hover buttons stay outside
+the tree's single Tab stop. The Portal
 card opens to the PrimarySidebar's right after a short hover delay (or immediately on intentional keyboard focus),
 collision-shifts within the viewport, and shows only the full title, Project, primary Agent,
 activity explanation, the pull request when one exists, the `Worktree` the Session works in when
