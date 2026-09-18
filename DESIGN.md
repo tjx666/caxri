@@ -370,7 +370,10 @@ is complete, so a busy Project never buries the Projects below it. The row has n
 it is not a collapsible branch, and a twistie would spend width on a meaning it does not have. The
 selected Session always renders even when it sits below that window. The revealed count is
 per-Renderer-lifetime: a relaunch starts from the short list the same way it starts scrolled to the
-top.
+top. When the Session list has scrolled away from the top, a VS Code-style inset `--shadow` sits
+under the header across the list's top edge and clears as soon as the list returns to the start. The
+list uses a quiet 8px scrollbar whose thumb deepens on hover instead of expanding into the
+macOS overlay track.
 
 Pinning a Session adds a global `Pinned` group above every Project instead of moving the Session out
 of its own. The Session keeps its Project row, because a pin is a shortcut to a Session rather than a
@@ -731,14 +734,15 @@ when opened; each commit opens that file's read-only diff directly. Terminal, di
 editors omit the disclosure entirely. Repository-scoped `Commits` stays nested under each repository
 and keeps its optional path input and commit-details disclosure.
 
-Every row carries the hover text its own width cannot: a file row names its full path, a folder row
-names the recursive-expand gesture, and a repository row adds its branch and, in Pull Request mode,
-the pull request Option-click opens. Option-click is the panel's one modifier gesture and it always
-means "skip the row's default and go to the thing itself": on a file row it opens the working file
-instead of its diff, and on a repository row or its `PR #<n> Changes` caption it opens that pull
-request in the default browser. A row that offers it says so in its own tooltip and advertises
-`aria-keyshortcuts`, so the panel never spends row width on a link glyph that is empty in most
-modes. A deleted file has no working copy left, so it keeps the diff activation only.
+File and folder rows do not open a hover tooltip: the path is already the row's accessible name, and
+a cursor-anchored card over the adjacent diff is worse than a truncated label. Repository rows still
+carry the hover text their own width cannot — branch, and in Pull Request mode the pull request
+Option-click opens. Option-click is the panel's one modifier gesture and it always means "skip the
+row's default and go to the thing itself": on a file row it opens the working file instead of its
+diff, and on a repository row or its `PR #<n> Changes` caption it opens that pull request in the
+default browser. A file row that offers it advertises `aria-keyshortcuts` without spending a tooltip
+on the gesture. Trailing Discard actions and the panel header keep their tooltips. A deleted file
+has no working copy left, so it keeps the diff activation only.
 
 A submodule the panel already lists as its own repository section does not also appear as a gitlink
 row in its parent's change list — the section carries the same submodule with its branch and its
