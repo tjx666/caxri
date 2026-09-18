@@ -60,6 +60,12 @@ function handleResourceDragStart(
     event.dataTransfer.setData(FILE_TREE_DRAG_TYPE, resourcePath);
 }
 
+/**
+ * File and folder rows omit a hover tooltip on purpose: the path is already the row's accessible name, and a
+ * cursor-anchored card sits over the adjacent diff while the user is reading it. Option-click stays on
+ * `aria-keyshortcuts` (files) and the Alt+Enter / Alt-click handlers (folders). Trailing Discard actions keep their own
+ * tooltips.
+ */
 export function SourceControlTreeItems({
     activeEditorResource,
     depth = 0,
@@ -92,7 +98,6 @@ export function SourceControlTreeItems({
                         style={{ paddingLeft: 8 + depth * 14 }}
                         aria-expanded={isExpanded}
                         data-path={node.path}
-                        tooltip={`${node.path}\nOption-click to ${isExpanded ? 'collapse' : 'expand'} every folder inside`}
                         onClick={(event) =>
                             setDirectoriesExpanded(
                                 event.altKey
@@ -164,11 +169,6 @@ export function SourceControlTreeItems({
                     )}
                     style={{ paddingLeft: 10 + depth * 14 }}
                     data-path={resource.path}
-                    tooltip={
-                        openablePath
-                            ? `${resource.tooltip}\nOption-click to open the file`
-                            : resource.tooltip
-                    }
                     aria-label={resource.accessibilityLabel}
                     aria-keyshortcuts={openablePath ? 'Alt' : undefined}
                     draggable={Boolean(resourcePath)}

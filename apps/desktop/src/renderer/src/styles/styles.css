@@ -179,6 +179,43 @@
     background: var(--muted);
 }
 
+/*
+ * Native macOS overlay scrollbars expand on hover into a wide light track that covers Session titles. Keep a quiet
+ * 8px rail (same geometry as the Terminal slider) whose thumb deepens on hover instead of growing. `::-webkit-scrollbar`
+ * width is what turns overlay expansion off in Chromium; `scrollbar-width` covers the Firefox-shaped fallback.
+ *
+ * The inset shadow is painted on the shell, not the overflow box: an inset `box-shadow` on `.project-list` would sit
+ * in its padding, above the first visible row, instead of overlaying it the way VS Code's `.shadow.top` does.
+ */
+.project-list {
+    scrollbar-color: color-mix(in srgb, var(--muted) 45%, transparent) transparent;
+    scrollbar-width: thin;
+}
+.project-list::-webkit-scrollbar {
+    width: 8px;
+}
+.project-list::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--muted) 45%, transparent);
+    background-clip: padding-box;
+}
+.project-list::-webkit-scrollbar-thumb:hover,
+.project-list::-webkit-scrollbar-thumb:active {
+    background: color-mix(in srgb, var(--muted) 80%, var(--foreground));
+    background-clip: padding-box;
+}
+.project-list-shell:has(> .project-list[data-scrolled='true'])::after {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    z-index: 1;
+    height: 6px;
+    pointer-events: none;
+    box-shadow: var(--shadow) 0 6px 6px -6px inset;
+}
+
 /* The 24px breadcrumb rail must remain visually quiet while still allowing horizontal scrolling;
    the active file segment scrolls itself into view whenever the editor path changes. */
 .editor-breadcrumbs {
