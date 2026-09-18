@@ -264,3 +264,78 @@ test('short titles stay still and title scroll recomputes after rename, resize, 
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
+
+test('hovering a long Session title keeps the title from painting under Pin and Archive', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-hover-actions-clip-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await mkdir(root, { recursive: true });
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        await createProjectSession(running.page);
+        const sessionId = await selectedSessionId(running.page);
+        const longTitle = 'Investigate this overflowing session title under the hover actions';
+        await pageRequest(running.page, 'session.rename', {
+            displayTitle: longTitle,
+            sessionId,
+        });
+
+        const card = sessionCard(running.page, sessionId);
+        const row = running.page.locator('.session-row').filter({ has: card });
+        const sessionCopy = card.locator('.session-copy');
+        const rowActions = row.locator('.session-row-actions');
+        await expect(card.locator('.session-title')).toContainText(longTitle);
+        await expect
+            .poll(async () => (await titleMetrics(card.locator('.session-title'))).distance)
+            .toBeGreaterThan(12);
+
+        const idleCopyRight = await sessionCopy.evaluate(
+            (element) => element.getBoundingClientRect().right,
+        );
+
+        await card.hover();
+        await expect(rowActions).toHaveCSS('opacity', '1');
+        await expect(running.page.getByRole('button', { name: `Pin ${longTitle}` })).toBeVisible();
+        await expect(
+            running.page.getByRole('button', { name: `Archive ${longTitle}` }),
+        ).toBeVisible();
+
+        const hovered = await card.evaluate((element) => {
+            const copy = element.querySelector('.session-copy');
+            const actions = element.closest('.session-row')?.querySelector('.session-row-actions');
+            if (!copy || !actions) throw new Error('Session title or hover actions are missing');
+            const copyBox = copy.getBoundingClientRect();
+            const actionsBox = actions.getBoundingClientRect();
+            return {
+                actionsLeft: actionsBox.left,
+                copyRight: copyBox.right,
+            };
+        });
+        expect(hovered.copyRight).toBeLessThanOrEqual(hovered.actionsLeft);
+        expect(hovered.copyRight).toBeLessThan(idleCopyRight);
+
+        await running.page.screenshot({
+            path: test.info().outputPath('session-hover-actions-clip.png'),
+        });
+
+        await running.page.mouse.move(500, 300);
+        await expect(rowActions).toHaveCSS('opacity', '0');
+        await expect
+            .poll(async () =>
+                sessionCopy.evaluate((element) => element.getBoundingClientRect().right),
+            )
+            .toBeGreaterThan(hovered.copyRight);
+
+        await running.page.screenshot({
+            path: test.info().outputPath('session-idle-title-full-width.png'),
+        });
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
