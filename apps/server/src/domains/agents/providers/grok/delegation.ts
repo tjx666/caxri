@@ -183,6 +183,7 @@ export const grokDelegationAdapter: AgentDelegationAdapter = {
                 '--fullscreen',
                 '--disable-web-search',
                 '--always-approve',
+                '--yolo',
             ]),
         ),
     selectLaunch: (launch, selection) =>

@@ -342,7 +342,7 @@ input; an unconfirmed startup settles as `startup_not_ready` after 15 seconds.
 
 Grok supports explicit model, reasoning effort, sandbox, permission mode and tool restrictions.
 Session selectors, headless modes and unknown overrides fail before launch. An already configured
-`--always-approve` is preserved; Caxri never adds it.
+`--always-approve` or `--yolo` is preserved; Caxri never adds it.
 
 Ordinary automated coverage uses isolated fake providers. Real-provider checks use only the guarded
 debug procedure, a fixed synthetic task, and content-free evidence.
