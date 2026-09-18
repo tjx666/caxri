@@ -247,4 +247,12 @@ describe('Grok exact delegation completion', () => {
             ).not.toThrow();
         },
     );
+    it('accepts a persisted one-line sandbox flag and value', () => {
+        expect(() =>
+            grokDelegationAdapter.validateLaunch({
+                executable: 'grok',
+                args: ['--yolo', '--sandbox workspace'],
+            }),
+        ).not.toThrow();
+    });
 });

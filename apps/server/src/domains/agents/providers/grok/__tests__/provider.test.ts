@@ -127,7 +127,6 @@ describe('Grok Build launch contract', () => {
     });
 
     it.each([
-        ['--sandbox', 'off'],
         ['--sandbox=workspace', '--continue'],
         ['--sandbox', 'workspace', '--session-id=other'],
     ])('rejects unsafe launch overrides %j', async (...arguments_) => {
@@ -136,11 +135,24 @@ describe('Grok Build launch contract', () => {
         ).rejects.toThrow();
     });
 
-    it('accepts YOLO without a sandbox argument', async () => {
-        const input = await context();
-        const prepared = await grokProvider.prepareLaunch!({ ...input, args: ['--yolo'] });
-        expect(prepared.args).toEqual(['--yolo', '--session-id', prepared.agentSessionId]);
-    });
+    it.each([
+        [['--yolo'], ['--yolo']],
+        [
+            ['--yolo', '--sandbox', 'off'],
+            ['--yolo', '--sandbox', 'off'],
+        ],
+        [
+            ['--yolo', '--sandbox workspace'],
+            ['--yolo', '--sandbox', 'workspace'],
+        ],
+    ] as const)(
+        'accepts YOLO launch %j without requiring a workspace sandbox',
+        async (arguments_, argv) => {
+            const input = await context();
+            const prepared = await grokProvider.prepareLaunch!({ ...input, args: [...arguments_] });
+            expect(prepared.args).toEqual([...argv, '--session-id', prepared.agentSessionId]);
+        },
+    );
 
     it.each([undefined, 'grok 1.0.23', 'grok 2.0.0'])(
         'rejects unsupported versions %s',

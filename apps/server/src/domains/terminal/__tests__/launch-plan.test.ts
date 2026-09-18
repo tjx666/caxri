@@ -85,6 +85,23 @@ describe('TerminalLaunchPlanner managed Agent launch', () => {
             expect(launch.args).toEqual(['--profile', 'focused']);
         },
     );
+
+    it('splits a flag and value saved on one line', async () => {
+        const launch = { executable: 'codex', args: ['--profile focused'] };
+        const planner = new TerminalLaunchPlanner({
+            logger: new StructuredLogger('/tmp/caxri-launch-plan-test-logs'),
+            resolveExecutable: (kind) =>
+                Promise.resolve(kind === 'shell' ? '/bin/zsh' : '/usr/local/bin/codex'),
+        });
+        const resolved = await planner.resolve(record, { launchSettings: launch });
+        if (!resolved.ok) throw resolved.error;
+        expect(resolved.value.agent?.args).toEqual([
+            '-c',
+            'tui.auto_recap=false',
+            '--profile',
+            'focused',
+        ]);
+    });
     it('keeps the long-lived Shell free of Agent credentials and launches the Agent as its child', async () => {
         const shellIntegration = vi.fn((_executable: string, environment: NodeJS.ProcessEnv) => ({
             args: ['--caxri-shell'],

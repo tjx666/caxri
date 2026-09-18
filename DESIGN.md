@@ -854,7 +854,8 @@ change reaches Terminals started from now on. The Switch is derived over the sam
 user can hand-edit rather than a second stored preference, so a raw edit and the Switch can never
 disagree, and it moves only the approval tokens — a confinement argument such as Grok Build's
 `--sandbox workspace` decides where the Agent may work, not whether it asks first, and survives
-untouched in both directions. Where a plain-language control and a raw field describe the same
+untouched in both directions. Initial arguments are command-line argv: a flag and its value may
+share a line. Where a plain-language control and a raw field describe the same
 state, the raw field stays authoritative and the control reads from it.
 
 **Toasts** — four variants (`info`/`success`/`warning`/`error`) with a 3px left bar in the status

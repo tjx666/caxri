@@ -3,6 +3,7 @@ import { realpath, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { CaxriError } from '@caxri/protocol';
+import { expandLaunchArguments } from '@caxri/utils';
 
 import type { AgentProviderDescriptor } from '../../contract';
 import { grokDelegationAdapter } from './delegation';
@@ -24,6 +25,11 @@ export const grokProvider: AgentProviderDescriptor = {
      */
     readState: readGrokState,
     resumeArguments: (sessionId) => ['--resume', sessionId],
+    /**
+     * Caxri owns Session identity and process lifetime, not Grok's sandbox. `--sandbox` is optional user confinement:
+     * omit it (Grok's default is `off`, unrestricted) or pass any documented mode, including `off`. Do not reintroduce
+     * a workspace-only gate.
+     */
     prepareLaunch: async ({
         args,
         assignedAgentSessionId,
@@ -38,6 +44,7 @@ export const grokProvider: AgentProviderDescriptor = {
                 'UNAVAILABLE',
                 'Grok Build 1.0.24 or later in major version 1 is required',
             );
+        const launchArguments = expandLaunchArguments(args);
         const conflicting = new Set([
             '--',
             '--session-id',
@@ -55,20 +62,11 @@ export const grokProvider: AgentProviderDescriptor = {
             '--print',
             '-p',
         ]);
-        if (args.some((argument) => conflicting.has(argument.split('=', 1)[0])))
+        if (launchArguments.some((argument) => conflicting.has(argument.split('=', 1)[0])))
             throw new CaxriError(
                 'VALIDATION',
                 'Caxri manages Grok Build Session identity and process ownership',
             );
-        const sandboxValues = args.flatMap((argument, index) =>
-            argument === '--sandbox'
-                ? [args[index + 1]]
-                : argument.startsWith('--sandbox=')
-                  ? [argument.slice(10)]
-                  : [],
-        );
-        if (sandboxValues.some((value) => value !== 'workspace'))
-            throw new CaxriError('VALIDATION', 'Grok Build --sandbox must be workspace when set');
         if (
             resumeAgentSessionId &&
             assignedAgentSessionId &&
@@ -101,7 +99,7 @@ export const grokProvider: AgentProviderDescriptor = {
         return {
             agentSessionId,
             args: [
-                ...args,
+                ...launchArguments,
                 resumeAgentSessionId ? '--resume' : '--session-id',
                 agentSessionId,
                 ...(initialPrompt ? ['--', initialPrompt] : []),

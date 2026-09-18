@@ -208,9 +208,17 @@ function providerRows(provider: AgentProvider): SettingRowDescriptor[] {
             ...shared,
             id: `agents.${provider}.args`,
             title: 'Initial arguments',
-            description: 'One argument per line, passed on every launch',
+            description:
+                'Passed on every launch. Write flags the way you would on the command line; a flag and its value can share a line.',
             binding: { type: 'provider-launch', provider, field: 'args' },
-            haystack: lower(['arguments', 'args', 'flags', 'launch', ...providerTerms]),
+            haystack: lower([
+                'arguments',
+                'args',
+                'flags',
+                'launch',
+                'command line',
+                ...providerTerms,
+            ]),
         },
     ];
 }
