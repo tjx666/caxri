@@ -57,16 +57,11 @@ describe('withProviderAutonomy', () => {
         ).toEqual(['--profile', 'work']);
     });
 
-    it('leaves Grok Build confinement alone in both directions', () => {
-        const off = withProviderAutonomy(
-            defaultAgentProviderSettings.grok.launch.args,
-            'grok',
-            false,
-        );
+    it('leaves a hand-added Grok Build --sandbox workspace in both directions', () => {
+        const withSandbox = ['--yolo', '--sandbox', 'workspace'];
+        const off = withProviderAutonomy(withSandbox, 'grok', false);
         expect(off).toEqual(['--sandbox', 'workspace']);
-        expect(withProviderAutonomy(off, 'grok', true)).toEqual([
-            ...defaultAgentProviderSettings.grok.launch.args,
-        ]);
+        expect(withProviderAutonomy(off, 'grok', true)).toEqual(withSandbox);
     });
 
     it('drops a persisted Grok Build --always-approve without inserting a second --yolo', () => {
