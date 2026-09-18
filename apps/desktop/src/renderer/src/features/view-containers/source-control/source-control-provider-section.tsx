@@ -120,10 +120,10 @@ function ProviderHeader({
             >
                 {/*
                  * VS Code SCM (`scm.css`): `.monaco-icon-label` is `flex: 0 1 auto; min-width: 0` and `.actions` is
-                 * `flex: 1 10000 auto; overflow: hidden` so the branch gives way first. Counts are a `shrink-0` sibling
-                 * rather than meta's min-content — putting the branch inside a `min-width: auto` box made that box as
-                 * wide as the full branch and crushed the folder name. A name that is still too wide after the branch
-                 * has given way clips without an ellipsis.
+                 * `flex: 1 10000 auto; overflow: hidden` so the branch gives way first. The name container itself uses
+                 * `text-overflow: ellipsis`. Counts are a `shrink-0` sibling rather than meta's min-content — putting
+                 * the branch inside a `min-width: auto` box made that box as wide as the full branch and crushed the
+                 * folder name. A name that is still too wide after the branch has given way ellipsizes too.
                  */}
                 <span className="git-repository-identity flex min-w-0 flex-initial items-center gap-1 overflow-hidden">
                     {expanded ? (
@@ -133,7 +133,7 @@ function ProviderHeader({
                     )}
                     {/* 14px matches the Project Status tree rows, so the two sidebar panels agree on repository glyph size. */}
                     <SourceControlIcon className="shrink-0" icon={provider.icon} size={14} />
-                    <strong className="git-repository-name min-w-0 overflow-hidden font-semibold whitespace-nowrap">
+                    <strong className="git-repository-name min-w-0 truncate font-semibold">
                         {provider.label}
                     </strong>
                     {provider.kindLabel && (

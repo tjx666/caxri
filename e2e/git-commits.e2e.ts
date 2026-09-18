@@ -68,12 +68,15 @@ test('Git repositories lazy-load pageable commits and subtree history', async ()
         await running.page
             .locator('.git-panel')
             .screenshot({ path: test.info().outputPath('repository-icons.png') });
-        await expect(primary.locator('.git-repository-name')).toHaveCSS('text-overflow', 'clip');
+        await expect(primary.locator('.git-repository-name')).toHaveCSS(
+            'text-overflow',
+            'ellipsis',
+        );
         await expect(primary.locator('.git-repository-branch')).toHaveCSS(
             'text-overflow',
             'ellipsis',
         );
-        // Counts are stated nowhere else on the row, so a long name must clip rather than push them out.
+        // Counts are stated nowhere else on the row, so a long name must ellipsize rather than push them out.
         const countsFit = await primary
             .locator('.git-repository-row')
             .first()
@@ -85,7 +88,7 @@ test('Git repositories lazy-load pageable commits and subtree history', async ()
                 );
             });
         expect(countsFit).toBe(true);
-        // Folder name outranks the branch: a clipped name means the branch has already given way.
+        // Folder name outranks the branch: an overflowing name means the branch has already given way.
         const nestedLayout = await nestedSection
             .locator('.git-repository-row')
             .first()

@@ -344,9 +344,10 @@ If the opening control disappeared, restore the current workbench Terminal when 
 All non-archived Project and
 Session names and navigation icons use `--foreground`, including inactive rows. Overflowing Session
 and Project names clip with a right-edge fade instead of an ellipsis — the ellipsis glyph spends
-row width on punctuation. Clipped Session names reveal their tail after a 600ms title hover or
-keyboard-focus pause, moving at a steady reading speed and holding at the end. Leaving restores the
-fade; short names remain still.
+row width on punctuation. The fade is about one character at the 13px UI size, matching Codex.
+Clipped Session names reveal their tail after a 600ms title hover or keyboard-focus pause, moving
+at a steady reading speed and holding at the end. Leaving restores the fade; short names remain
+still.
 Reduced motion keeps titles static, with the full name available in the detail card. The `--elevated`
 selected fill, not dimmed neighbors, communicates selection. Project ordering uses the whole
 Project heading as its drag source. While dragging, dim only the source group and show a 2px
@@ -765,8 +766,8 @@ A repository with no pull request keeps the heading
 working tree instead of an absent pull request. On a repository row the folder name outranks the
 branch, matching VS Code's SCM provider row: the name takes its content width and the branch
 ellipsizes in the leftover space. Counts sit outside that leftover box as `shrink-0` so they still
-outrank both — they are stated nowhere else on the row — and a name that is still too wide after
-the branch has given way clips without an ellipsis, never by pushing the counts out of the row.
+outrank both — they are stated nowhere else on the row. A name that is still too wide after the
+branch has given way ellipsizes too, never by pushing the counts out of the row.
 
 **Git diff exclusions** — `git.diffExclude` hides matching repository-relative paths from Git
 change lists and from `Open Changes`; it ships filtering test files out by default, because a
