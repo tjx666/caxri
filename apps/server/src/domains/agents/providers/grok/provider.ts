@@ -67,11 +67,8 @@ export const grokProvider: AgentProviderDescriptor = {
                   ? [argument.slice(10)]
                   : [],
         );
-        if (sandboxValues.length === 0 || sandboxValues.some((value) => value !== 'workspace'))
-            throw new CaxriError(
-                'VALIDATION',
-                'Grok Build requires the workspace sandbox to keep Agent processes inside the Terminal lifetime',
-            );
+        if (sandboxValues.some((value) => value !== 'workspace'))
+            throw new CaxriError('VALIDATION', 'Grok Build --sandbox must be workspace when set');
         if (
             resumeAgentSessionId &&
             assignedAgentSessionId &&
