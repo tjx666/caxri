@@ -185,9 +185,10 @@ export function ActiveSessionRow({
              * Lifecycle signals take priority over the PR. The wrapper follows the rendered glyph's width, so an idle
              * Session with no PR gives the otherwise invisible 14px slot back to its title; every visible glyph still
              * lands on the same right edge. The PR remains available from the hover card and menu while temporarily
-             * hidden.
+             * hidden. Pointer hover collapses the slot entirely: Pin/Archive need ~42px, and leaving a 14px ghost
+             * track would still let the title paint through those glyphs.
              */}
-            <span className="session-indicators flex flex-none items-center justify-end">
+            <span className="session-indicators flex flex-none items-center justify-end group-hover/session-row:w-0 group-hover/session-row:min-w-0 group-hover/session-row:overflow-hidden">
                 <SessionStatusIndicator
                     className="transition-opacity group-hover/session-row:opacity-0"
                     fallback={
@@ -210,7 +211,7 @@ export function ActiveSessionRow({
      * focus never reaches describe nothing.
      */
     const row = (
-        <div className="session-row group/session-row relative">
+        <div className="session-row group/session-row relative [--session-hover-actions:2.875rem]">
             {sessionOrder.dropTarget?.anchorSessionId === session.id && (
                 <div
                     aria-hidden="true"
