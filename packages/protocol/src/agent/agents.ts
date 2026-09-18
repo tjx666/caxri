@@ -167,10 +167,7 @@ export const agentProviderCatalog = {
             nativeRename: false,
             pasteSummary: false,
         },
-        /**
-         * Non-off confinement keeps Grok's work inside the Terminal process lifetime instead of a shared leader.
-         */
-        defaultLaunchArgs: ['--yolo', '--sandbox', 'workspace'],
+        defaultLaunchArgs: ['--yolo'],
         displayName: 'Grok Build',
         executableName: 'grok',
         imageInput: undefined,

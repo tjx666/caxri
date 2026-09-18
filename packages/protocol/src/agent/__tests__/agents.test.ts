@@ -40,13 +40,12 @@ describe('agentProviderCatalog autonomy arguments', () => {
 });
 
 describe('defaultAgentProviderSettings', () => {
-    it('keeps unsupported Grok capabilities off and confines its managed process', () => {
+    it('keeps unsupported Grok capabilities off', () => {
         expect(defaultAgentProviderSettings.grok.messaging.enabled).toBe(false);
         expect(defaultAgentProviderSettings.grok.pasteSummary.enabled).toBe(false);
         expect(agentProviderCatalog.grok.capabilities.nativeRename).toBe(false);
         expect(agentProviderCatalog.grok.capabilities.actions).toBe(false);
         expect(agentProviderCatalog.grok.capabilities.automaticSuspension).toBe(false);
-        expect(defaultAgentProviderSettings.grok.launch.args).toContain('workspace');
     });
     it('derives one entry per catalogued provider with its own executable name', () => {
         const alphabetical = (a: string, b: string) => a.localeCompare(b);
@@ -80,10 +79,6 @@ describe('defaultAgentProviderSettings', () => {
         expect(defaultAgentProviderSettings.codex.launch.args).toEqual([
             '--dangerously-bypass-approvals-and-sandbox',
         ]);
-        expect(defaultAgentProviderSettings.grok.launch.args).toEqual([
-            '--yolo',
-            '--sandbox',
-            'workspace',
-        ]);
+        expect(defaultAgentProviderSettings.grok.launch.args).toEqual(['--yolo']);
     });
 });
