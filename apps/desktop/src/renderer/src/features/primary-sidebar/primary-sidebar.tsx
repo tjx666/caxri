@@ -27,6 +27,7 @@ import { useSessionOrder } from './hooks/use-session-order';
 import { useSessionPullRequestPoll } from './hooks/use-session-pull-request';
 import { useSessionRename } from './hooks/use-session-rename';
 import { PinnedSessionGroup } from './pinned-session-group';
+import { unpinnedSessions } from './pinned-session-order';
 import { PrimarySidebarFooter } from './primary-sidebar-footer';
 import { PrimarySidebarHeader } from './primary-sidebar-header';
 import { PINNED_GROUP_ROW_ID, primarySidebarPinnedRowId } from './primary-sidebar-tree';
@@ -72,7 +73,7 @@ export function PrimarySidebar() {
     // Owns the cadence only; each Session row subscribes to its own slice of the snapshot this keeps fresh.
     useSessionPullRequestPoll();
     const orderedSessions = useMemo(
-        () => activeSessionsInSidebarOrder(projects, sessions),
+        () => unpinnedSessions(activeSessionsInSidebarOrder(projects, sessions)),
         [projects, sessions],
     );
     const sessionOrder = useSessionOrder(orderedSessions);

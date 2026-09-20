@@ -1,7 +1,7 @@
 import type { SessionRecord } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { pinnedSessionDropTarget, pinnedSessions } from '../pinned-session-order';
+import { pinnedSessionDropTarget, pinnedSessions, unpinnedSessions } from '../pinned-session-order';
 
 function session(id: string, overrides: Partial<SessionRecord> = {}): SessionRecord {
     return {
@@ -36,6 +36,39 @@ describe('pinnedSessions', () => {
     it('drops an archived Session even while it still carries a pin', () => {
         const sessions = [session('a', { archivedAt: 5, pinnedAt: 10, pinnedOrder: 0 })];
         expect(pinnedSessions(sessions)).toEqual([]);
+    });
+});
+
+describe('unpinnedSessions', () => {
+    it('withholds every pinned Session from the Project groups, keeping the rest in order', () => {
+        const sessions = [
+            session('a', { pinnedAt: 10, pinnedOrder: 0 }),
+            session('b'),
+            session('c', { pinnedAt: 20, pinnedOrder: 1 }),
+            session('d'),
+        ];
+        expect(unpinnedSessions(sessions).map((row) => row.id)).toEqual(['b', 'd']);
+    });
+
+    it('leaves every row standing when nothing is pinned', () => {
+        const sessions = [session('a'), session('b')];
+        expect(unpinnedSessions(sessions).map((row) => row.id)).toEqual(['a', 'b']);
+    });
+
+    it('splits the list with pinnedSessions, so no Session is listed twice or lost', () => {
+        const sessions = [
+            session('a', { pinnedAt: 10, pinnedOrder: 0 }),
+            session('b'),
+            session('c', { pinnedAt: 20, pinnedOrder: 1 }),
+        ];
+        const listed = [...pinnedSessions(sessions), ...unpinnedSessions(sessions)].map(
+            (row) => row.id,
+        );
+        expect(listed.toSorted((left, right) => left.localeCompare(right))).toEqual([
+            'a',
+            'b',
+            'c',
+        ]);
     });
 });
 
