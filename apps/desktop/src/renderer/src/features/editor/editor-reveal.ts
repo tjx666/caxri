@@ -51,11 +51,18 @@ export function hasPendingEditorIntent(now: number = Date.now()): boolean {
     );
 }
 
+/**
+ * Queues the strongest intent rather than the latest one. `applyReveal` and `applyNavigation` both end in
+ * `editor.focus()`, so a bare `focus` asks for strictly less than a queued `match` or `navigation` — and one open can
+ * legitimately queue both under the same key: `openFileForSession` queues the location first, then focuses the model in
+ * the same tick. Overwriting there would open the file and leave the caret on line 1.
+ */
 function queueIntent(
     target: Map<string, EditorRevealIntent>,
     key: string,
     intent: EditorRevealIntent,
 ): void {
+    if (intent.kind === 'focus' && target.get(key)) return;
     target.set(key, intent);
     intentQueueState.queuedAt = Date.now();
 }
