@@ -21,6 +21,13 @@ test('Editor breadcrumbs browse siblings with one keyboard focus model', async (
         writeFile(join(components, 'sibling.ts'), 'export const sibling = true;\n', 'utf8'),
         writeFile(utilityPath, 'export const utility = true;\n', 'utf8'),
         symlink(join(components, 'sibling.ts'), join(components, 'linked.ts')),
+        ...Array.from({ length: 40 }, (_, index) =>
+            writeFile(
+                join(components, `a-${String(index).padStart(2, '0')}.ts`),
+                `export const item${index} = true;\n`,
+                'utf8',
+            ),
+        ),
     ]);
 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
@@ -64,6 +71,25 @@ test('Editor breadcrumbs browse siblings with one keyboard focus model', async (
             'aria-selected',
             'true',
         );
+        await expect
+            .poll(() => componentSiblings.evaluate((element) => element.scrollTop))
+            .toBeGreaterThan(0);
+        const pointerTarget = componentSiblings.getByRole('option').nth(5);
+        await componentSiblings.evaluate((element) => {
+            element.scrollTop = 154;
+        });
+        const scrollTopBeforePointer = await componentSiblings.evaluate(
+            (element) => element.scrollTop,
+        );
+        await pointerTarget.dispatchEvent('pointermove', { pointerType: 'mouse' });
+        await expect(pointerTarget).toHaveAttribute('aria-selected', 'true');
+        await expect
+            .poll(() => componentSiblings.evaluate((element) => element.scrollTop))
+            .toBe(scrollTopBeforePointer);
+        await componentSiblings.press('Home');
+        await expect
+            .poll(() => componentSiblings.evaluate((element) => element.scrollTop))
+            .toBeLessThan(scrollTopBeforePointer);
         await expect(
             componentSiblings.getByRole('option', {
                 name: 'linked.ts',

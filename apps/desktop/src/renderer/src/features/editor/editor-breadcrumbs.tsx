@@ -19,12 +19,16 @@ import { editorBreadcrumbSegments } from './editor-breadcrumbs-model';
 import { focusEditor } from './editor-reveal';
 
 export function EditorBreadcrumbs({
+    accessibilityLabel,
+    onEscapeToEditor,
     paneId,
     path,
     projectRoot,
     sessionId,
     workbenchProjectId,
 }: {
+    accessibilityLabel?: string;
+    onEscapeToEditor?: () => void;
     paneId: string;
     path: string;
     projectRoot: string;
@@ -79,7 +83,8 @@ export function EditorBreadcrumbs({
             }
             case 'Escape': {
                 event.preventDefault();
-                focusEditor(modelPath, paneId);
+                if (onEscapeToEditor) onEscapeToEditor();
+                else focusEditor(modelPath, paneId);
                 break;
             }
         }
@@ -101,7 +106,10 @@ export function EditorBreadcrumbs({
             {({ payload }) => (
                 <>
                     <nav
-                        aria-label={`File breadcrumbs: ${segments.at(-1)?.relativePath ?? path}`}
+                        aria-label={
+                            accessibilityLabel ??
+                            `File breadcrumbs: ${segments.at(-1)?.relativePath ?? path}`
+                        }
                         className="editor-breadcrumbs flex min-w-0 flex-1 items-center overflow-x-auto px-2 text-[12px] text-muted"
                     >
                         {segments.map((segment, index) => (
