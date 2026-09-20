@@ -342,6 +342,24 @@ describe('CaxriDatabase Agent metadata', () => {
         database.close();
     });
 
+    /**
+     * The Session title is bounded at 200 characters and this path is also reached automatically with a provider's own
+     * thread name, so the tab bound has to be applied here rather than assumed. A Terminal title over
+     * `MAX_TERMINAL_TITLE_LENGTH` is replayed as `agentEndpoint.begin.name` on the next launch and rejected there.
+     */
+    it('holds a renamed Agent tab to the Terminal title bound', async () => {
+        const directory = await temporaryDirectory('caxri-db-rename-agent-tab-bound-');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+        const primary = created.terminal!;
+
+        database.renameSession(created.session.id, 'y'.repeat(180));
+
+        expect(database.getSession(created.session.id)?.displayTitle).toBe('y'.repeat(180));
+        expect(database.getTerminal(primary.id)?.title).toBe('y'.repeat(MAX_TERMINAL_TITLE_LENGTH));
+        database.close();
+    });
+
     it('keeps Untitled while promoting an Agent Terminal before metadata arrives', async () => {
         const directory = await temporaryDirectory('caxri-db-primary-agent-succession-');
         const database = new CaxriDatabase(join(directory, 'state.db'));
