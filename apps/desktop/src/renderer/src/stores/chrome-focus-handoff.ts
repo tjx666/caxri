@@ -113,6 +113,12 @@ export function focusChromeSurface(surfaceId: ChromeSurfaceId): void {
     // DOM lib types declare `document` as always present, but this module also loads under Vitest's Node environment.
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- see comment above
     if (typeof document === 'undefined') return;
+    const surface = document.querySelector(SURFACE_SELECTORS[surfaceId]);
+    const active = document.activeElement;
+    if (surface?.contains(active)) return;
+    if (active instanceof HTMLElement && active !== document.body)
+        focusOrigins.set(surfaceId, active);
+    else focusOrigins.delete(surfaceId);
     requestAnimationFrame(() => focusSurfaceEntry(surfaceId));
 }
 

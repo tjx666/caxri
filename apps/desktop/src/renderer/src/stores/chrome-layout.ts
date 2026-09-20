@@ -210,7 +210,9 @@ interface ChromeLayoutState extends ChromeLayout {
     resetSecondarySidebarWidth(): void;
     resetPanelHeight(): void;
     /**
-     * Reveals or hides the PrimarySidebar and hands keyboard focus over with it; see {@link handOffChromeFocus}.
+     * Reveals or hides the PrimarySidebar. Revealing preserves the current workbench focus because
+     * `primarySidebar.focus` is the explicit keyboard-entry command; hiding still hands focus back when the side bar
+     * owned it.
      */
     togglePrimarySidebar(): void;
     /**
@@ -308,9 +310,10 @@ export const useChromeLayoutStore = createStore<ChromeLayoutState>('chrome-layou
             ...pickLayout(get()),
             primarySidebarVisible: isPrimarySidebarVisible,
         });
-        // `Cmd+[` carries the same editable-target opt-in as the other two toggles, so it owes the same handoff: without
-        // it, revealing leaves focus in the xterm that swallows Tab, and hiding unmounts the row `Cmd+0` just focused.
-        handOffChromeFocus('primarySidebar', isPrimarySidebarVisible);
+        // `Cmd+0` owns keyboard entry into the Primary Side Bar. `Cmd+[` only changes visibility, matching its command
+        // description and preserving the Terminal/editor caret; when hiding, the handoff still rescues focus from a
+        // row that is about to unmount.
+        if (!isPrimarySidebarVisible) handOffChromeFocus('primarySidebar', false);
         writePersistedLayout(layout);
         set(layout);
     },
