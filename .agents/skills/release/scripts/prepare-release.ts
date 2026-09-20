@@ -1,28 +1,21 @@
 import { randomUUID } from 'node:crypto';
-import { readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
 
 import { execFileAsync } from '@caxri/system';
 import { gt, inc, valid } from 'semver';
 
-export const PRODUCT_MANIFEST_PATHS = [
-    'package.json',
-    'apps/cli/package.json',
-    'apps/desktop/package.json',
-    'apps/server/package.json',
-    'packages/agent-skills/package.json',
-    'packages/client/package.json',
-    'packages/extension-api/package.json',
-] as const;
+import {
+    discoverReleaseManifestPaths,
+    parseManifest,
+    PRODUCT_MANIFEST_PATHS,
+    updateManifest,
+    updateVersionSource,
+    VERSION_SOURCES,
+} from './release-sources';
 
-const VERSION_SOURCES = [
-    { constant: 'CLI_VERSION', path: 'apps/cli/src/version.ts' },
-    {
-        constant: 'SKILL_BUNDLE_VERSION',
-        path: 'packages/agent-skills/src/version.ts',
-    },
-] as const;
+export { discoverReleaseManifestPaths } from './release-sources';
 
 type ReleaseIncrement = 'major' | 'minor' | 'patch';
 
@@ -32,11 +25,6 @@ interface FileChange {
     path: string;
 }
 
-interface PackageManifest {
-    engines?: { caxri?: string };
-    version?: string;
-}
-
 export interface PreparedRelease {
     changedPaths: string[];
     previousVersion: string;
@@ -44,28 +32,11 @@ export interface PreparedRelease {
 }
 
 export type GitReader = (arguments_: string[], cwd: string) => Promise<string>;
-export type ReleaseSourceReader = (path: string, cwd: string) => Promise<string>;
 
 const defaultGitReader: GitReader = async (arguments_, cwd) => {
     const { stdout } = await execFileAsync('git', arguments_, { cwd, encoding: 'utf8' });
     return stdout.trim();
 };
-
-const defaultPreviousReleaseSourceReader: ReleaseSourceReader = async (path, cwd) => {
-    const { stdout } = await execFileAsync('git', ['show', `HEAD^:${path}`], {
-        cwd,
-        encoding: 'utf8',
-    });
-    return stdout;
-};
-
-function parseManifest(source: string, path: string): PackageManifest {
-    try {
-        return JSON.parse(source) as PackageManifest;
-    } catch (error) {
-        throw new Error(`${path} is not valid JSON`, { cause: error });
-    }
-}
 
 function nextVersion(currentVersion: string, target: string): string {
     if (!valid(currentVersion)) throw new Error(`Current version is not valid SemVer: ${currentVersion}`);
@@ -81,51 +52,6 @@ function nextVersion(currentVersion: string, target: string): string {
         throw new Error(`Release version ${version} must be newer than ${currentVersion}`);
     }
     return version;
-}
-
-function updateManifest(
-    source: string,
-    path: string,
-    currentVersion: string,
-    version: string,
-): string {
-    const manifest = parseManifest(source, path);
-    if (manifest.version !== currentVersion) {
-        throw new Error(
-            `${path} version ${String(manifest.version)} does not match ${currentVersion}`,
-        );
-    }
-    manifest.version = version;
-
-    if (path.startsWith('extensions/')) {
-        const expectedEngine = `^${currentVersion}`;
-        if (manifest.engines?.caxri !== expectedEngine) {
-            throw new Error(
-                `${path} engines.caxri ${String(manifest.engines?.caxri)} does not match ${expectedEngine}`,
-            );
-        }
-        manifest.engines.caxri = `^${version}`;
-    }
-
-    return `${JSON.stringify(manifest, undefined, 4)}\n`;
-}
-
-function updateVersionSource(
-    source: string,
-    path: string,
-    constant: string,
-    currentVersion: string,
-    version: string,
-): string {
-    const currentDeclaration = `export const ${constant} = '${currentVersion}';`;
-    const matches = source.split(currentDeclaration).length - 1;
-    if (matches !== 1) {
-        throw new Error(`${path} must contain exactly one ${constant} declaration for ${currentVersion}`);
-    }
-    return source.replace(
-        currentDeclaration,
-        () => `export const ${constant} = '${version}';`,
-    );
 }
 
 async function writeAtomic(path: string, source: string): Promise<void> {
@@ -178,122 +104,6 @@ export async function assertReleaseSource(
     const head = await readGit(['rev-parse', 'HEAD'], root);
     const upstream = await readGit(['rev-parse', '@{upstream}'], root);
     if (head !== upstream) throw new Error('Release preparation requires main to match its upstream');
-}
-
-export async function discoverReleaseManifestPaths(cwd: string): Promise<string[]> {
-    const extensionEntries = await readdir(join(resolve(cwd), 'extensions'), {
-        withFileTypes: true,
-    });
-    const extensionManifests = extensionEntries
-        .filter((entry) => entry.isDirectory())
-        .map((entry) => `extensions/${entry.name}/package.json`)
-        .toSorted((left, right) => left.localeCompare(right));
-    return [...PRODUCT_MANIFEST_PATHS, ...extensionManifests];
-}
-
-/**
- * Returns the exact file set written by `release:prepare`, which CI uses to keep its release fast-path fail-closed.
- */
-export async function discoverReleaseSourcePaths(cwd: string): Promise<string[]> {
-    return [
-        ...(await discoverReleaseManifestPaths(cwd)),
-        ...VERSION_SOURCES.map(({ path }) => path),
-    ];
-}
-
-function hasExactPathSet(actual: readonly string[], expected: readonly string[]): boolean {
-    const actualPaths = new Set(actual);
-    const expectedPaths = new Set(expected);
-    return (
-        actual.length > 0 &&
-        actualPaths.size === actual.length &&
-        expectedPaths.size === expected.length &&
-        actualPaths.size === expectedPaths.size &&
-        expected.every((path) => actualPaths.has(path))
-    );
-}
-
-/**
- * Verifies that the current commit contains exactly the source rewrite `release:prepare` would produce from its first
- * parent. A trusted title and allowed paths are not enough: dependency or script edits inside an allowed manifest must
- * fall back to normal main-push CI.
- */
-export async function isExactReleasePreparationDelta(
-    cwd: string,
-    changedPaths: readonly string[],
-    readPreviousSource: ReleaseSourceReader = defaultPreviousReleaseSourceReader,
-): Promise<boolean> {
-    const root = resolve(cwd);
-    try {
-        const manifestPaths = await discoverReleaseManifestPaths(root);
-        const sourcePaths = [
-            ...manifestPaths,
-            ...VERSION_SOURCES.map(({ path }) => path),
-        ];
-        if (!hasExactPathSet(changedPaths, sourcePaths)) return false;
-
-        const currentSources = new Map(
-            await Promise.all(
-                sourcePaths.map(async (path) => [
-                    path,
-                    await readFile(join(root, path), 'utf8'),
-                ] as const),
-            ),
-        );
-        const previousSources = new Map(
-            await Promise.all(
-                sourcePaths.map(async (path) => [
-                    path,
-                    await readPreviousSource(path, root),
-                ] as const),
-            ),
-        );
-        const currentVersion = parseManifest(
-            currentSources.get(PRODUCT_MANIFEST_PATHS[0]) ?? '',
-            PRODUCT_MANIFEST_PATHS[0],
-        ).version;
-        const previousVersion = parseManifest(
-            previousSources.get(PRODUCT_MANIFEST_PATHS[0]) ?? '',
-            PRODUCT_MANIFEST_PATHS[0],
-        ).version;
-        if (
-            typeof currentVersion !== 'string' ||
-            typeof previousVersion !== 'string' ||
-            !gt(currentVersion, previousVersion)
-        )
-            return false;
-
-        for (const path of manifestPaths) {
-            const currentSource = currentSources.get(path);
-            const previousSource = previousSources.get(path);
-            if (
-                currentSource === undefined ||
-                previousSource === undefined ||
-                currentSource !== updateManifest(previousSource, path, previousVersion, currentVersion)
-            )
-                return false;
-        }
-        for (const { constant, path } of VERSION_SOURCES) {
-            const currentSource = currentSources.get(path);
-            const previousSource = previousSources.get(path);
-            if (
-                currentSource === undefined ||
-                previousSource === undefined ||
-                currentSource !==
-                    updateVersionSource(
-                        previousSource,
-                        path,
-                        constant,
-                        previousVersion,
-                        currentVersion,
-                    )
-            )
-                return false;
-        }
-        return true;
-    } catch {
-        return false;
-    }
 }
 
 export async function prepareRelease(cwd: string, target: string): Promise<PreparedRelease> {

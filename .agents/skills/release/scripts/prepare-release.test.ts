@@ -4,14 +4,14 @@ import { dirname, join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { GitReader, ReleaseSourceReader } from './prepare-release';
+import type { GitReader } from './prepare-release';
+import { assertReleaseSource, prepareRelease, runPrepareRelease } from './prepare-release';
+import type { ReleaseSourceReader } from './release-sources';
 import {
-    assertReleaseSource,
     discoverReleaseSourcePaths,
     isExactReleasePreparationDelta,
-    prepareRelease,
-    runPrepareRelease,
-} from './prepare-release';
+    isStrictlyNewerVersion,
+} from './release-sources';
 
 const temporaryDirectories: string[] = [];
 const manifests = [
@@ -85,6 +85,15 @@ function cleanMainGit(overrides: Record<string, string> = {}): GitReader {
 }
 
 describe('release version preparation', () => {
+    it('compares strict SemVer without runtime dependencies in the pre-install CI boundary', () => {
+        expect(isStrictlyNewerVersion('0.0.25', '0.0.24')).toBe(true);
+        expect(isStrictlyNewerVersion('1.0.0', '1.0.0-rc.1')).toBe(true);
+        expect(isStrictlyNewerVersion('1.0.0-rc.10', '1.0.0-rc.2')).toBe(true);
+        expect(isStrictlyNewerVersion('1.0.0+next', '1.0.0+previous')).toBe(false);
+        expect(isStrictlyNewerVersion('1.2', '1.1.9')).toBe(false);
+        expect(isStrictlyNewerVersion('1.0.0-01', '1.0.0-1')).toBe(false);
+    });
+
     it('updates every coupled version source and extension engine range', async () => {
         const cwd = await fixture();
         const sourcePaths = await discoverReleaseSourcePaths(cwd);

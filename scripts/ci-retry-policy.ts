@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import { appendFile, readFile } from 'node:fs/promises';
 import process from 'node:process';
 
-import { isExactReleasePreparationDelta } from '../.agents/skills/release/scripts/prepare-release';
+import { isExactReleasePreparationDelta } from '../.agents/skills/release/scripts/release-sources';
 import type {
     CIExecutionPlan,
     CIExecutionPlanInput,
