@@ -101,17 +101,17 @@ test('Cmd+P lazily browses Project paths from Terminal, Editor, and Files focus'
         const readmeTab = running.page.locator('.work-tab', { hasText: 'README.md' });
         await expect(readmeTab).toBeVisible();
         /**
-         * Focus recovery hands the new Document tab keyboard focus, and the pointer never went near the tab bar. A path
-         * tooltip opened from that focus would hang over the top-left of the Editor with nothing to dismiss it — and
-         * swallow the click below.
+         * Picking a file and pressing Enter puts the keyboard in the Editor, with no focus ring left on the new
+         * Document tab and no pointer needed. Asserted without clicking the Editor first: that click used to be
+         * required, and what it hid was that focus recovery had claimed the tab button instead.
          */
-        await expect(running.page.locator('.tooltip-popup')).toHaveCount(0);
-
         const editor = running.page.locator('.monaco-editor').first();
-        await editor.click({ position: { x: 120, y: 24 } });
         await expect
             .poll(() => editor.evaluate((element) => element.contains(document.activeElement)))
             .toBe(true);
+        await expect(readmeTab.locator(':focus')).toHaveCount(0);
+        // A path tooltip opened from tab focus would hang over the top-left of the Editor with nothing to dismiss it.
+        await expect(running.page.locator('.tooltip-popup')).toHaveCount(0);
         await running.page.keyboard.press('Meta+P');
         dialog = running.page.getByRole('dialog');
         input = dialog.getByRole('combobox', { name: 'File path' });

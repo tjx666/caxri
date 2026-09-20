@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { AgentProviderPasteSummaryGenerationContext } from '../../contract';
+import type { AgentProviderLowCostGenerationContext } from '../../contract';
 import { MACOS_SANDBOX_EXECUTABLE, prepareLowCostSandbox } from '../../low-cost-sandbox';
 import { agentCommandEnvironment, assertAgentRenameVersion } from '../../rename';
 import { runAgentTextCommand } from '../../text-generation';
@@ -19,7 +19,7 @@ const CLAUDE_LOW_COST_GENERATION_MINIMUM_VERSION = '2.1.232';
  * transformation, while Claude Code can still use the provider account already authenticated in its configured home.
  */
 export async function generateClaudeLowCostText(
-    context: AgentProviderPasteSummaryGenerationContext,
+    context: AgentProviderLowCostGenerationContext,
     systemInstructions: string,
     operation: string,
     timeoutMs?: number,

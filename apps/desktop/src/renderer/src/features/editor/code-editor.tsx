@@ -199,8 +199,9 @@ export function CodeEditor({
             }}
             onChange={handleChange}
             options={{
+                // `editor.wordWrap` belongs to the file editor, so this surface takes it from the base options rather
+                // than forcing `off` the way the diff and transcript surfaces do for their own layout reasons.
                 ...editorOptions,
-                wordWrap: 'off',
                 readOnly: readOnly === true,
                 domReadOnly: readOnly === true,
                 find: { addExtraSpaceOnTop: false },

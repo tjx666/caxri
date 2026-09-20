@@ -134,8 +134,8 @@ describe('runtime invalidation matches the production key factories', () => {
         const agentActions = caxriQueryKey('agentActions.list', { terminalId: 'terminal-a' });
         const fileTree = controlledViewQueryKey(
             scope.viewId,
-            'files.search',
-            { query: 'x', mode: 'name' },
+            'files.list',
+            { directory: '/project' },
             scope.workbenchProjectId,
         );
         for (const key of [summary, pullRequests, gitSummary, transcript, agentActions, fileTree])

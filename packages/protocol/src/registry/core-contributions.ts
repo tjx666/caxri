@@ -34,17 +34,13 @@ export const filesCoreCommandDefinitions = [
         allowInEditable: true,
         execution: 'viewCatalog',
     },
-    {
-        id: 'secondarySidebar.searchFiles',
-        title: 'Search Files',
-        category: 'Secondary Side Bar',
-        description: 'Search files in the selected Project',
-        allowInEditable: true,
-        execution: 'viewCatalog',
-        nativeMenu: { menu: 'view', group: 0, order: 0 },
-    },
 ] as const satisfies readonly WorkbenchCoreCommandDefinition[];
 
+/**
+ * `cmd+shift+f` stays in the Files contribution's default set even though its command is no longer a Files view
+ * command: a keybinding is a key and a command id, and this is still the shortcut a user reaches for from the file
+ * tree. Moving it would rewrite the default set's order for no behavioral gain.
+ */
 export const filesCoreKeybindings = [
     { key: 'cmd+1', command: 'secondarySidebar.showFiles' },
     { key: 'cmd+shift+f', command: 'secondarySidebar.searchFiles' },
@@ -53,7 +49,6 @@ export const filesCoreKeybindings = [
 const filesCoreActions = [
     { commandId: 'caxri.files.newFile', role: 'resource.createFile' },
     { commandId: 'caxri.files.newFolder', role: 'resource.createFolder' },
-    { commandId: 'secondarySidebar.searchFiles', role: 'resource.search' },
     { commandId: 'caxri.files.collapseFolders', role: 'resource.collapse' },
     { commandId: 'caxri.files.refresh', role: 'resource.refresh' },
 ] as const satisfies ReadonlyArray<{

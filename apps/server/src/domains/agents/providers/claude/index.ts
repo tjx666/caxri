@@ -12,7 +12,6 @@ import type {
     LocalAgentState,
 } from '../../contract';
 import { canonicalPath, isOpaqueAgentSessionId, projectDirectories } from '../../contract';
-import { AGENT_PASTE_SUMMARY_SYSTEM_INSTRUCTIONS } from '../../paste-summary-generation';
 import {
     agentCommandEnvironment,
     assertAgentRenameVersion,
@@ -380,15 +379,6 @@ export const claudeProvider: AgentProviderDescriptor = {
     },
     hooks: claudeHookAdapter,
     id: 'claude',
-    pasteSummary: {
-        summarize: (context) =>
-            generateClaudeLowCostText(
-                context,
-                AGENT_PASTE_SUMMARY_SYSTEM_INSTRUCTIONS,
-                'Long paste summary',
-                10_000,
-            ),
-    },
     probeCacheCounters: claudeMetadataCacheCounters,
     readState: (context, environment) =>
         readClaudeState(context, resolveClaudeConfigDirectory(environment)),

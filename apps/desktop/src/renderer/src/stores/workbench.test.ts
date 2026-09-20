@@ -524,12 +524,12 @@ describe('workbench Runtime events', () => {
                 kind: 'file',
                 path: '/project/file.ts',
                 location: { mode: 'line', startLine: 12, endLine: 14 },
+                focusEditor: true,
             },
         });
         expect(handlers.onDesktopOpen).toHaveBeenCalledWith('session-1', '/project/file.ts', {
-            mode: 'line',
-            startLine: 12,
-            endLine: 14,
+            location: { mode: 'line', startLine: 12, endLine: 14 },
+            focusEditor: true,
         });
         unsubscribe();
     });

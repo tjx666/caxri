@@ -30,6 +30,24 @@ describe('built-in themes', () => {
         }
     });
 
+    /**
+     * Three of the eight themes used to paint hover, keyboard focus, and selection in one identical fill, which left a
+     * keyboard user with nothing marking the row they were on. Asserted across every theme rather than the three that
+     * were broken, because the two ways it happened — an upstream that only distinguishes two of the three states, and
+     * an importer fallback that collapsed all four onto one role — can reach any of them. See issue #1006.
+     */
+    it('keeps list hover, keyboard focus, and selection visually apart in every theme', () => {
+        for (const theme of builtinThemes) {
+            const { listActiveSelectionBackground, listFocusBackground, listHoverBackground } =
+                theme.colors;
+            expect(
+                new Set([listHoverBackground, listFocusBackground, listActiveSelectionBackground])
+                    .size,
+                `${theme.id} list state fills`,
+            ).toBe(3);
+        }
+    });
+
     it('keeps primary and secondary text at WCAG AA across app, Terminal, and editor surfaces', () => {
         for (const theme of builtinThemes) {
             const { background, elevated, foreground, muted, surface } = theme.colors;

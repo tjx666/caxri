@@ -25,6 +25,7 @@ describe('Status extension tree', () => {
                 kind: 'primary',
                 name: 'project',
                 branch: 'main',
+                acceptances: [],
                 linearIssues: [],
                 errors: [],
                 deployments: {
@@ -78,7 +79,8 @@ describe('Status extension tree', () => {
             for (const [state, checkLabel, checkIcon, badgeLabel] of [
                 ['success', 'CI passed', 'circle-check', 'passed'],
                 ['failure', 'CI failed', 'circle-x', 'failed'],
-                ['pending', 'CI pending', 'loading', 'pending'],
+                ['pending', 'CI running', 'loading', 'running'],
+                ['queued', 'CI queued', 'circle-small-filled', 'queued'],
                 ['neutral', 'CI neutral', 'circle-outline', 'neutral'],
                 ['unknown', 'CI unknown', 'circle-dot', 'unknown'],
             ] as const) {
@@ -87,6 +89,7 @@ describe('Status extension tree', () => {
                     name: 'fixture',
                     branch: 'feature/status',
                     kind,
+                    acceptances: [],
                     linearIssues: [],
                     errors: [],
                     pullRequest: {
@@ -131,6 +134,7 @@ describe('Status extension tree', () => {
             kind: 'primary',
             name: 'Project',
             branch: 'feature',
+            acceptances: [],
             linearIssues: [],
             errors: [],
             pullRequest: {
@@ -178,6 +182,7 @@ describe('Status extension tree', () => {
                 name: 'fixture',
                 branch: 'feature/status',
                 kind: 'primary',
+                acceptances: [],
                 linearIssues: [],
                 errors: [],
                 pullRequest: {
@@ -228,6 +233,7 @@ describe('Status extension tree', () => {
                 name: 'project',
                 branch: 'feature/status',
                 defaultBranch: 'feature/status',
+                acceptances: [],
                 linearIssues: [],
                 errors: [],
                 publication: {
@@ -260,6 +266,7 @@ describe('Status extension tree', () => {
             defaultBranch: 'main',
             githubUrl: 'https://github.com/tjx666/caxri',
             branchUrl: 'https://github.com/tjx666/caxri/tree/feature/status',
+            acceptances: [],
             linearIssues: [
                 {
                     identifier: 'CAX-1',
@@ -414,7 +421,7 @@ describe('Status extension tree', () => {
             ],
         });
         expect(children[6].children?.[1].item.tooltip).toMatchObject({
-            badge: { label: 'pending', tone: 'warning' },
+            badge: { label: 'running', tone: 'warning' },
             rows: [{ label: 'alias', value: 'preview-branch.vercel.app' }],
         });
         /**
@@ -422,6 +429,15 @@ describe('Status extension tree', () => {
          * card and in the accessible name instead of taking half the row's width to be truncated.
          */
         expect(children[7].item.description).toBeUndefined();
+        /**
+         * The one row on this panel that means the work is live gets its own glyph. A green check shared with every
+         * passing CI check answered "did a check pass?", never "did it ship?".
+         */
+        expect(iconId(children[7])).toBe('rocket');
+        expect(iconId(children[6].children![0])).toBe('rocket');
+        // Preview keeps the shared state glyph, and so does a production deployment that did not succeed.
+        expect(iconId(children[8])).toBe('circle-x');
+        expect(iconId(children[6].children![1])).toBe('loading');
         expect(children[7].item.accessibilityInformation?.label).toBe(
             'Production, passed · caxri.app',
         );
@@ -451,6 +467,7 @@ describe('Status extension tree', () => {
             kind: 'primary',
             name: 'caxri',
             branch: 'main',
+            acceptances: [],
             linearIssues: [
                 { identifier: 'CAX-1', stateType: 'triage' },
                 { identifier: 'CAX-2', stateType: 'unstarted' },
@@ -494,6 +511,7 @@ describe('Status extension tree', () => {
             defaultBranch: 'main',
             githubUrl: 'https://github.com/tjx666/caxri',
             branchUrl: 'https://github.com/tjx666/caxri/tree/feature/status',
+            acceptances: [],
             linearIssues: [
                 {
                     identifier: 'CAX-4',
@@ -655,6 +673,7 @@ describe('Status extension tree', () => {
             name: 'caxri',
             branch: 'main',
             defaultBranch: 'main',
+            acceptances: [],
             linearIssues: [],
             deployments: {
                 url: 'https://vercel.com/tjx666/caxri/deployments',
@@ -687,6 +706,7 @@ describe('Status extension tree', () => {
             name: 'caxri',
             branch: 'main',
             defaultBranch: 'main',
+            acceptances: [],
             linearIssues: [],
             deployments: { url: deploymentsUrl, branchDeployments: [] },
             errors: [],
@@ -716,6 +736,7 @@ describe('Status extension tree', () => {
                 kind: 'primary',
                 name: 'caxri',
                 branch: 'main',
+                acceptances: [],
                 linearIssues: [
                     {
                         identifier: 'CAX-1',
@@ -746,6 +767,7 @@ describe('Status extension tree', () => {
             kind: 'submodule',
             name: 'dependency',
             branch: 'main',
+            acceptances: [],
             linearIssues: [],
             errors: [],
         });

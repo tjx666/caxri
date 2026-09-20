@@ -22,7 +22,11 @@ function wasCollapsed(): boolean {
  * Whether the Pinned group is open, remembered across launches. Defaults to open: a user who has pinned something has
  * said it is what they want to see first, so a first launch that hid it behind a chevron would bury the feature.
  */
-export function usePinnedCollapse(): { expanded: boolean; toggle: () => void } {
+export function usePinnedCollapse(): {
+    expand: () => void;
+    expanded: boolean;
+    toggle: () => void;
+} {
     const [collapsed, setCollapsed] = useState(wasCollapsed);
     useEffect(() => {
         if (!isBrowser()) return;
@@ -33,5 +37,7 @@ export function usePinnedCollapse(): { expanded: boolean; toggle: () => void } {
         }
     }, [collapsed]);
     const toggle = useCallback(() => setCollapsed((current) => !current), []);
-    return { expanded: !collapsed, toggle };
+    // For commands that must put a pinned Session's row on screen before acting on it, such as `session.rename`.
+    const expand = useCallback(() => setCollapsed(false), []);
+    return { expand, expanded: !collapsed, toggle };
 }

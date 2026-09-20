@@ -117,6 +117,7 @@ export interface CommandContext {
         openSettings(view?: SettingsView): void;
         openPalette(): void;
         openPathBrowser(): void;
+        openProjectSearch(): void;
     };
     windows: { openProcessExplorer(): void };
     developer: { reportBug(): void; toggleScreencastMode(): void };

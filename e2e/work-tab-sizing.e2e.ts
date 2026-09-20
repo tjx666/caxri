@@ -195,6 +195,33 @@ test('Terminal tabs anchor at the leading edge, Document tabs size to content an
         expect(
             await scrollRail.evaluate((element) => element.scrollWidth - element.clientWidth),
         ).toBeGreaterThan(1);
+
+        /**
+         * The document just opened is the active one, and it must already be readable without the user scrolling the
+         * rail. Measured against the rail rather than the viewport because the rail is what clips it. Polled because a
+         * tab enters from `maxWidth: 0` and the reveal keeps re-running while that animation widens it
+         * (`useActiveTabReveal` in `apps/desktop/src/renderer/src/features/workbench/pane-tab-reveal.ts`) — a one-shot
+         * reveal measured at creation time computes a near-zero delta and leaves the tab off the end of the bar.
+         *
+         * "Readable" is the leading edge, not the whole box. At this window width one of these filenames is wider than
+         * the rail that holds it, and the reveal aligns such a tab to the rail's start rather than its end — the same
+         * choice VS Code's `doLayoutTabsNonWrapping` makes, because scrolling to the tail of a name shows the reader
+         * the extension and hides the part that tells the files apart.
+         */
+        await expect
+            .poll(async () =>
+                running.page.evaluate(() => {
+                    const rail = document.querySelector<HTMLElement>('.work-tab-scroll');
+                    const tab = rail?.querySelector<HTMLElement>('[data-tab-active="true"]');
+                    if (!rail || !tab) return;
+                    const railRect = rail.getBoundingClientRect();
+                    const tabRect = tab.getBoundingClientRect();
+                    if (tabRect.left < railRect.left - 1) return false;
+                    return tabRect.right <= railRect.right + 1 || tabRect.left <= railRect.left + 1;
+                }),
+            )
+            .toBe(true);
+
         const anchoredLeftBeforeScroll = await terminalTabs
             .first()
             .evaluate((element) => element.getBoundingClientRect().left);
@@ -674,6 +701,20 @@ test('the bar hides "+" with no tabs at all and reserves its drag corner only wi
         await expect(running.page.locator('.primary-sidebar-title')).toHaveCount(0);
         await expect(dragCorner).toHaveCount(1);
         await expect(dragCorner).toHaveJSProperty('offsetWidth', 32);
+
+        /**
+         * A side-by-side split ends the leading bar in the middle of the window, where its neighbour's first tab begins
+         * — not in the window corner. Reserving the strip there wedges dead space between "+" and that neighbour, which
+         * is the opposite of what the corner exists for. The traffic-light inset on the same bar still gives the window
+         * somewhere to be dragged from.
+         */
+        await running.page.keyboard.press('Meta+Backslash');
+        await expect(running.page.locator('[data-pane-tab-bar]')).toHaveCount(2);
+        await expect(dragCorner).toHaveCount(0);
+        await running.page.keyboard.press('Meta+w');
+        await expect(running.page.locator('[data-pane-tab-bar]')).toHaveCount(1);
+        await expect(dragCorner).toHaveCount(1);
+
         await running.page.keyboard.press('Meta+BracketLeft');
         await expect(dragCorner).toHaveCount(0);
 

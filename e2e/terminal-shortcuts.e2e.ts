@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { AppSettings } from '@caxri/protocol';
-import { MAX_TERMINAL_INPUT_LENGTH } from '@caxri/protocol';
+import { MAX_LONG_PASTE_CHARACTERS, MAX_TERMINAL_INPUT_LENGTH } from '@caxri/protocol';
 import { execFileAsync } from '@caxri/system';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
@@ -480,7 +480,7 @@ test('Codex Terminal preserves an oversized bracketed paste across private input
             'settings.get',
         );
         const settings = structuredClone(currentSettings.value);
-        settings['agents.providers'].codex.pasteSummary.enabled = false;
+        settings['terminal.longPasteThreshold'] = MAX_LONG_PASTE_CHARACTERS;
         await pageRequest(running.page, 'settings.update', {
             source: JSON.stringify(settings, null, 2),
         });

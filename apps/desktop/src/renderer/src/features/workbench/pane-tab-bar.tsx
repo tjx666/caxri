@@ -1,5 +1,5 @@
 import type { ReactNode, RefObject } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 
 import type { PaneNode, PaneTab, TerminalRecord } from '@caxri/protocol';
 import {
@@ -51,6 +51,7 @@ import {
 import { selectPaneTab } from './pane-actions';
 import { EDITOR_PATH_DRAG_TYPE, PANE_TAB_DRAG_TYPE } from './pane-drop-zone';
 import { PaneTabMenu } from './pane-tab-menu';
+import { useActiveTabReveal } from './pane-tab-reveal';
 import { useScrollEdges } from './tab-scroll-edges';
 import { usePaneTabDrag } from './use-pane-tab-drag';
 
@@ -533,6 +534,12 @@ function PaneTabScrollRail({
         <div role="none" className={cn('relative flex', className)}>
             <div
                 ref={scrollReference}
+                /**
+                 * Marks the element that actually scrolls, so `useActiveTabReveal` can measure the active tab against
+                 * its own rail: the tab's offset parent is the inner flex list, and either segment can be the one
+                 * holding it.
+                 */
+                data-tab-scroll-rail=""
                 className={cn('relative flex min-w-0 flex-1 overflow-x-auto', scrollClassName)}
             >
                 <div
@@ -679,6 +686,7 @@ export function PaneTabBar({
     isRootBar,
     pane,
     paneLabel,
+    spansWindowWidth,
 }: {
     /**
      * Whether the Workbench holds more than one tab. Every affordance a tab bar adds on top of the tabs themselves —
@@ -692,6 +700,11 @@ export function PaneTabBar({
     isRootBar: boolean;
     pane: PaneNode;
     paneLabel: string;
+    /**
+     * Whether this bar reaches the window's right edge. False for the leading pane of a side-by-side split, where the
+     * drag corner below would otherwise sit in the middle of the window rather than in it.
+     */
+    spansWindowWidth: boolean;
 }) {
     const isPrimarySidebarVisible = useChromeLayoutStore((state) => state.primarySidebarVisible);
     const isFullScreen = useIsFullScreen();
@@ -717,16 +730,7 @@ export function PaneTabBar({
     const activeTab = pane.tabs.find((tab) => tab.id === pane.activeTabId) ?? pane.tabs.at(0);
     const activeTabId = activeTab?.id;
     const editorPath = activeEditorPath(activeTab);
-    /**
-     * `overflow-x-auto` has no built-in cue for "the active tab is off to the side," so selecting or creating a tab
-     * that lands outside the visible bar must scroll it into view itself. Queried from the whole tablist because either
-     * segment can overflow, and `inline: 'nearest'` scrolls whichever one actually holds the tab.
-     */
-    useEffect(() => {
-        listReference.current
-            ?.querySelector<HTMLElement>('[data-tab-active="true"]')
-            ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-    }, [activeTabId]);
+    useActiveTabReveal(listReference, activeTabId, isDropTarget);
     return (
         <div
             className={cn(
@@ -770,8 +774,11 @@ export function PaneTabBar({
                 whole titlebar and nothing in it would be draggable. The corner inherits the bar's drag region and
                 stays just wide enough to grab. It exists only for that state: `primary-sidebar-title` is a drag
                 region of its own, so while the sidebar is open the window already moves from there and reserving a
-                second strip would only wedge dead space beside "+" — iTerm2 ends its bar at the button too. */}
-            {isRootBar && !isPrimarySidebarVisible && (
+                second strip would only wedge dead space beside "+" — iTerm2 ends its bar at the button too. The same
+                goes for a bar that stops in the middle of the window: the leading pane of a side-by-side split has a
+                neighbour on its right, not the window corner, so reserving the strip there is the dead space this
+                exists to avoid rather than the grab handle it exists to provide. */}
+            {isRootBar && spansWindowWidth && !isPrimarySidebarVisible && (
                 <div aria-hidden="true" className="work-tabs-drag-handle h-11 w-8 flex-none" />
             )}
         </div>

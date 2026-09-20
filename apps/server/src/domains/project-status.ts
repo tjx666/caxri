@@ -1,11 +1,10 @@
-import { homedir } from 'node:os';
-
 import type {
     AppSettings,
     GitRepositorySummary as GitRepoSummary,
     ProjectStatusError,
     ProjectStatusOverview,
     ProjectStatusRepository as ProjectStatusRepo,
+    ProjectStatusState,
     ProjectStatusSummary,
     ServerEvent,
 } from '@caxri/protocol';
@@ -17,6 +16,7 @@ import { ProjectStatusSummaryErrorMessage as statusError } from 'caxri';
 
 import type { ExternalStatusRunner, ExternalStatusSource } from './external-status';
 import {
+    AcceptanceStore,
     ExternalStatusCliError,
     GitHubPullRequestStore,
     isNoPullRequest,
@@ -26,39 +26,25 @@ import {
     runExternalStatusCommand,
 } from './external-status';
 import type { GitService } from './git';
+import { loadOverviewAcceptances, loadPullRequestAcceptances } from './project-status-acceptance';
 import { ProjectStatusAlertTracker } from './project-status-alerts';
 import type { BranchPublicationContext } from './project-status-branch';
 import { prepareStatusRepo, readBranchPublication } from './project-status-branch';
 import type { VercelLink } from './project-status-external';
-import {
-    hasLocalVercelLink,
-    projectStatusCliError,
-    projectStatusNoDeploymentsError,
-    vcListArguments,
-} from './project-status-external';
-import {
-    loadOverviewLinearIssues,
-    loadPullRequestLinearIssues,
-    readConversationLinearReferences,
-} from './project-status-linear';
+import { projectStatusCliError } from './project-status-external';
+import { loadOverviewLinearIssues, loadPullRequestLinearIssues } from './project-status-linear';
 import {
     githubPullRequestSchema,
     parseExternalJson,
     parseGitHubPullRequest,
-    parseVercelList,
-    vercelTeamListSchema,
 } from './project-status-parse';
-import { mapProjectStatusDeployment } from './project-status-vercel';
+import { loadVercelDeployments } from './project-status-vercel';
 import type { SessionTranscriptContext } from './session-context';
 import { SingleFlight } from './single-flight';
 
 export { extractLinearReferences } from './project-status-external';
 export { parseGitHubRemote } from '@caxri/utils';
 
-/**
- * Caps the process-lifetime `vercelLinks` cache so long-running sessions can't grow it unbounded.
- */
-const VERCEL_LINK_CACHE_LIMIT = 256;
 const SUMMARY_CACHE_LIMIT = 128;
 /**
  * Cache lifetime adapts to what the snapshot contains, because that is also what paces the resident poller below. A
@@ -68,6 +54,10 @@ const SUMMARY_CACHE_LIMIT = 128;
  */
 const SUMMARY_PENDING_CACHE_TTL_MS = 20_000;
 const SUMMARY_SETTLED_CACHE_TTL_MS = 120_000;
+/**
+ * The states that make a snapshot worth re-asking for on the short window.
+ */
+const IN_FLIGHT_STATES = new Set<ProjectStatusState>(['pending', 'queued']);
 /**
  * A failed refresh must back off _further_ than a successful one, never less. The previous 30s retried a rate-limited
  * `gh` twice as often as a healthy one, which is how a transient limit turned into a sustained one.
@@ -136,9 +126,11 @@ export class ProjectStatusService {
     private readonly sessionGenerations = new Map<string, number>();
     private nextSessionGeneration = 0;
     /**
-     * LRU-bounded (see `VERCEL_LINK_CACHE_LIMIT`) so this process-lifetime cache can't grow unbounded.
+     * `owner/repo` → its Vercel project, held here so the lookup survives one refresh; `loadVercelDeployments` owns the
+     * bound it is kept under.
      */
     private readonly vercelLinks = new Map<string, VercelLink>();
+    private readonly acceptance: AcceptanceStore;
     private readonly github: GitHubPullRequestStore;
     private readonly linear: LinearIssueStore;
     private readonly alerts = new ProjectStatusAlertTracker();
@@ -160,6 +152,14 @@ export class ProjectStatusService {
          */
         this.linear = new LinearIssueStore(
             (arguments_, cwd, subject) => this.runCommand('linear', arguments_, cwd, subject),
+            { now: () => this.now() },
+        );
+        /**
+         * Same sharing as Linear above, and for the same reason: the Status panel's acceptance rows and the status
+         * bar's leading report ask for the same bundles, so one store means one `lh` spawn per report.
+         */
+        this.acceptance = new AcceptanceStore(
+            (arguments_, cwd) => this.runCommand('lh', arguments_, cwd),
             { now: () => this.now() },
         );
     }
@@ -201,6 +201,23 @@ export class ProjectStatusService {
                 exitCode: null,
             },
         });
+    }
+
+    /**
+     * What this Session's own Agent conversation named. Read once per overview and handed to both chips:
+     * `SessionContextService` scans incrementally and shares the in-flight read, but asking it twice still costs a
+     * second pass over everything the Agent appended.
+     */
+    private async readConversation(
+        sessionId: string,
+    ): Promise<SessionTranscriptContext | undefined> {
+        try {
+            return await this.options.sessionContext?.(sessionId);
+        } catch {
+            // The conversation is the weakest source either chip has, so an unreadable transcript degrades to "no extra
+            // context" rather than failing the overview the status bar draws from.
+            return undefined;
+        }
     }
 
     private async loadOverview(sessionId: string): Promise<ProjectStatusOverview> {
@@ -257,6 +274,18 @@ export class ProjectStatusService {
                 }
             }
         }
+        const conversation = await this.readConversation(sessionId);
+        const [linearIssues, acceptances] = await Promise.all([
+            loadOverviewLinearIssues(this.linear, repo.rootPath, {
+                branch: repo.branch,
+                conversation: conversation?.linearReferences ?? [],
+                pullRequestBody,
+            }),
+            loadOverviewAcceptances(this.acceptance, repo.rootPath, {
+                conversation: conversation?.acceptanceReferences ?? [],
+                pullRequestBody,
+            }),
+        ]);
         return {
             repository: {
                 id: repo.id,
@@ -269,14 +298,8 @@ export class ProjectStatusService {
                 deletions: repo.deletions,
                 pullRequest,
                 ...(pullRequestUnavailable && { pullRequestUnavailable }),
-                linearIssues: await loadOverviewLinearIssues(this.linear, repo.rootPath, {
-                    branch: repo.branch,
-                    conversation: await readConversationLinearReferences(
-                        sessionId,
-                        this.options.sessionContext,
-                    ),
-                    pullRequestBody,
-                }),
+                linearIssues,
+                acceptances,
             },
             refreshedAt: this.now(),
         };
@@ -345,7 +368,15 @@ export class ProjectStatusService {
     ): Promise<ProjectStatusRepo> {
         const [githubState, vercelState, branchState] = await Promise.all([
             this.loadGitHub(prepared.repository.rootPath, prepared.context, isForced),
-            this.loadVercel(prepared.context, prepared.repository.rootPath),
+            loadVercelDeployments(
+                {
+                    links: this.vercelLinks,
+                    onParseFailure: (error) => this.logExternalParseFailure('vc', error),
+                    run: (arguments_, cwd) => this.runCommand('vc', arguments_, cwd),
+                },
+                prepared.context,
+                prepared.repository.rootPath,
+            ),
             readBranchPublication(
                 prepared.context,
                 (source, arguments_, cwd) => this.runCommand(source, arguments_, cwd),
@@ -360,6 +391,7 @@ export class ProjectStatusService {
             branchUrl: branchState.branchUrl,
             pullRequest: githubState.pullRequest,
             linearIssues: githubState.linearIssues,
+            acceptances: githubState.acceptances,
             deployments: vercelState.deployments,
             errors: [
                 ...githubState.errors,
@@ -377,13 +409,19 @@ export class ProjectStatusService {
         context: RepoContext,
         isForced: boolean,
     ): Promise<
-        Pick<ProjectStatusRepo, 'pullRequest' | 'linearIssues'> & {
+        Pick<ProjectStatusRepo, 'pullRequest' | 'linearIssues' | 'acceptances'> & {
             errors: ProjectStatusError[];
         }
     > {
-        if (!context.owner || !context.repo || !context.branch) {
-            return { linearIssues: [], errors: [] };
-        }
+        /**
+         * A function, not a shared literal: each `return` gets its own arrays rather than aliases of one.
+         */
+        const empty = (): { acceptances: []; linearIssues: []; errors: ProjectStatusError[] } => ({
+            acceptances: [],
+            linearIssues: [],
+            errors: [],
+        });
+        if (!context.owner || !context.repo || !context.branch) return empty();
         try {
             const output = await this.github.view({
                 branch: context.branch,
@@ -393,131 +431,41 @@ export class ProjectStatusService {
                 owner: context.owner,
                 repo: context.repo,
             });
-            if (!output) return { linearIssues: [], errors: [] };
+            if (!output) return empty();
             const parsed = parseGitHubPullRequest(output, this.ignoredChecks());
-            const linear = await loadPullRequestLinearIssues(this.linear, cwd, parsed.body, {
-                isForced,
-                onParseFailure: (error) => this.logExternalParseFailure('linear', error),
-            });
+            /**
+             * Both readers work from the same already-fetched body, and neither blocks the other: a Linear outage must
+             * not hide the acceptance verdict, and an `lh` that is not installed must not hide the linked issues.
+             */
+            const [linear, acceptance] = await Promise.all([
+                loadPullRequestLinearIssues(this.linear, cwd, parsed.body, {
+                    isForced,
+                    onParseFailure: (error) => this.logExternalParseFailure('linear', error),
+                }),
+                loadPullRequestAcceptances(this.acceptance, cwd, parsed.body, {
+                    isForced,
+                    onParseFailure: (error) => this.logExternalParseFailure('lh', error),
+                }),
+            ]);
             return {
                 pullRequest: parsed.pullRequest,
                 linearIssues: linear.issues,
-                errors: linear.error ? [linear.error] : [],
+                acceptances: acceptance.acceptances,
+                errors: [
+                    ...(linear.error ? [linear.error] : []),
+                    ...(acceptance.error ? [acceptance.error] : []),
+                ],
             };
         } catch (error) {
-            if (isNoPullRequest(error)) return { linearIssues: [], errors: [] };
+            if (isNoPullRequest(error)) return empty();
             this.logExternalParseFailure('gh', error);
             const failure =
                 error instanceof ExternalStatusCliError
                     ? error
                     : new ExternalStatusCliError('gh', 'other', String(error));
             return {
-                linearIssues: [],
+                ...empty(),
                 errors: [projectStatusCliError('gh', failure.kind, { retryAt: failure.retryAt })],
-            };
-        }
-    }
-
-    private async findVercelLink(owner: string, repo: string): Promise<VercelLink | undefined> {
-        const key = `${owner}/${repo}`;
-        const cached = this.vercelLinks.get(key);
-        if (cached) {
-            rememberBounded(this.vercelLinks, key, cached, VERCEL_LINK_CACHE_LIMIT);
-            return cached;
-        }
-        const teamsJson = await this.runCommand(
-            'vc',
-            ['teams', 'ls', '--format', 'json'],
-            homedir(),
-        );
-        const parsed = parseExternalJson(teamsJson, vercelTeamListSchema, 'Vercel team list');
-        const teams = (Array.isArray(parsed) ? parsed : (parsed.teams ?? [])).flatMap((team) =>
-            team.slug ? [team.slug] : [],
-        );
-        const links = await Promise.all(
-            teams.map(async (team): Promise<VercelLink | undefined> => {
-                const output = await this.runCommand(
-                    'vc',
-                    vcListArguments(team, { githubOrg: owner, githubRepo: repo }),
-                    homedir(),
-                );
-                const project = parseVercelList(output)[0]?.name;
-                return project ? { team, project } : undefined;
-            }),
-        );
-        const link = links.find((candidate): candidate is VercelLink => Boolean(candidate));
-        if (link) rememberBounded(this.vercelLinks, key, link, VERCEL_LINK_CACHE_LIMIT);
-        return link;
-    }
-
-    private async loadVercel(
-        context: RepoContext,
-        rootPath: string,
-    ): Promise<Pick<ProjectStatusRepo, 'deployments'> & { errors: ProjectStatusError[] }> {
-        if (!context.owner || !context.repo) return { errors: [] };
-        try {
-            const link = await this.findVercelLink(context.owner, context.repo);
-            if (!link)
-                return {
-                    errors: [
-                        (await hasLocalVercelLink(rootPath))
-                            ? projectStatusNoDeploymentsError()
-                            : projectStatusCliError('vc', 'not-linked'),
-                    ],
-                };
-            const baseMeta = { githubOrg: context.owner, githubRepo: context.repo };
-            const results = await Promise.all([
-                this.runCommand(
-                    'vc',
-                    vcListArguments(link.team, { ...baseMeta, githubCommitRef: context.branch }),
-                    homedir(),
-                ),
-                this.runCommand(
-                    'vc',
-                    vcListArguments(link.team, baseMeta, 'production'),
-                    homedir(),
-                ),
-                context.head
-                    ? this.runCommand(
-                          'vc',
-                          vcListArguments(link.team, { githubCommitSha: context.head }, 'preview'),
-                          homedir(),
-                      )
-                    : Promise.resolve('[]'),
-            ]);
-            const branchDeployments = parseVercelList(results[0])
-                .slice(0, 10)
-                .flatMap((deployment) => {
-                    const mapped = mapProjectStatusDeployment(deployment, undefined, link);
-                    return mapped ? [mapped] : [];
-                });
-            const production = mapProjectStatusDeployment(
-                parseVercelList(results[1])[0] ?? {},
-                'production',
-                link,
-            );
-            const preview = mapProjectStatusDeployment(
-                parseVercelList(results[2])[0] ?? {},
-                'preview',
-                link,
-            );
-            return {
-                deployments: {
-                    url: `https://vercel.com/${link.team}/${link.project}/deployments?filterBranch=${encodeURIComponent(context.branch)}`,
-                    branchDeployments,
-                    production,
-                    preview,
-                },
-                errors: [],
-            };
-        } catch (error) {
-            this.logExternalParseFailure('vc', error);
-            const failure =
-                error instanceof ExternalStatusCliError
-                    ? error
-                    : new ExternalStatusCliError('vc', 'other', String(error));
-            return {
-                errors: [projectStatusCliError('vc', failure.kind, { retryAt: failure.retryAt })],
             };
         }
     }
@@ -529,11 +477,17 @@ export class ProjectStatusService {
     private summaryCacheTtlMs(summary: ProjectStatusSummary, hasFailures: boolean): number {
         if (hasFailures) return this.options.failureCacheTtlMs ?? SUMMARY_FAILURE_CACHE_TTL_MS;
         if (this.options.cacheTtlMs !== undefined) return this.options.cacheTtlMs;
+        /*
+         * `queued` counts as in flight. A queued run is the state most likely to be stale a second later — it is
+         * waiting for a runner, and the transition to `pending` is the one thing the split between the two states
+         * exists to show. Holding it for the settled window would report "not started" for up to two minutes after it
+         * started, and for a repository reporting through commit statuses rather than check runs, for the whole run.
+         */
         const isPending = summary.repositories.some(
             (repo) =>
-                repo.pullRequest?.state === 'pending' ||
-                repo.deployments?.production?.state === 'pending' ||
-                repo.deployments?.preview?.state === 'pending',
+                IN_FLIGHT_STATES.has(repo.pullRequest?.state ?? 'unknown') ||
+                IN_FLIGHT_STATES.has(repo.deployments?.production?.state ?? 'unknown') ||
+                IN_FLIGHT_STATES.has(repo.deployments?.preview?.state ?? 'unknown'),
         );
         return isPending ? SUMMARY_PENDING_CACHE_TTL_MS : SUMMARY_SETTLED_CACHE_TTL_MS;
     }

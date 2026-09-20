@@ -299,6 +299,7 @@ const commandContext: CommandContext = {
     dialogs: {
         openSettings: (view = 'ui') => useDialogStore.getState().openSettings(view),
         openPalette: () => useDialogStore.getState().setPaletteOpen(true),
+        openProjectSearch: () => useDialogStore.getState().setProjectSearchOpen(true),
         openPathBrowser: () => {
             const bootstrap = getBootstrap();
             if (getSelectedSession() && selectSelectedProject(bootstrap))

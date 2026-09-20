@@ -131,7 +131,7 @@ function RowChrome({
                 {modified && resettable && (
                     <Tooltip content="Reset to default">
                         <Button
-                            aria-label={`Reset ${row.title} to default`}
+                            aria-label={`Reset ${row.accessibleTitle} to default`}
                             className="size-5 min-h-0 p-0 text-muted opacity-0 group-focus-within/setting:opacity-100 group-hover/setting:opacity-100 hover:text-foreground"
                             size="icon"
                             variant="ghost"
@@ -218,7 +218,7 @@ function rowControl(properties: SettingRowProperties): {
                     control: (
                         <Switch
                             id={controlId}
-                            aria-label={row.title}
+                            aria-label={row.accessibleTitle}
                             checked={settings[binding.key] as boolean}
                             className="mt-0.5"
                             onCheckedChange={(checked) => onFieldChange(binding.key, checked)}
@@ -231,7 +231,7 @@ function rowControl(properties: SettingRowProperties): {
                     control: (
                         <IntegerControl
                             id={controlId}
-                            label={row.title}
+                            label={row.accessibleTitle}
                             spec={spec}
                             value={settings[binding.key] as number}
                             onChange={(value) => onFieldChange(binding.key, value)}
@@ -244,7 +244,7 @@ function rowControl(properties: SettingRowProperties): {
                     control: (
                         <EnumControl
                             id={controlId}
-                            label={row.title}
+                            label={row.accessibleTitle}
                             spec={spec}
                             value={settings[binding.key] as string | null}
                             renderOptionIcon={
@@ -264,7 +264,7 @@ function rowControl(properties: SettingRowProperties): {
                     control: (
                         <StringControl
                             id={controlId}
-                            label={row.title}
+                            label={row.accessibleTitle}
                             spec={spec}
                             value={settings[binding.key] as string | null}
                             onChange={(value) =>
@@ -300,11 +300,7 @@ function rowControl(properties: SettingRowProperties): {
                     <FieldDescription>Unavailable for {providerName}.</FieldDescription>
                 ) : undefined;
             const label = `${providerName} ${
-                binding.field === 'hooks'
-                    ? 'lifecycle hooks'
-                    : binding.field === 'pasteSummary'
-                      ? 'long paste summaries'
-                      : 'peer messaging'
+                binding.field === 'hooks' ? 'lifecycle hooks' : 'peer messaging'
             }`;
             return {
                 labelFor: controlId,
@@ -537,7 +533,7 @@ function rowControl(properties: SettingRowProperties): {
                 control: (
                     <IntegerControl
                         id={controlId}
-                        label={row.title}
+                        label={row.accessibleTitle}
                         spec={DELEGATION_DEPTH_SPEC}
                         value={settings['agents.delegation'].maxDepth}
                         onChange={(value) =>
@@ -556,7 +552,7 @@ function rowControl(properties: SettingRowProperties): {
                 control: (
                     <Switch
                         id={controlId}
-                        aria-label={row.title}
+                        aria-label={row.accessibleTitle}
                         checked={argvConfig?.remoteDebugging ?? true}
                         className="mt-0.5"
                         disabled={!argvConfig}
@@ -584,7 +580,7 @@ function rowControl(properties: SettingRowProperties): {
                 control: (
                     <Switch
                         id={controlId}
-                        aria-label={row.title}
+                        aria-label={row.accessibleTitle}
                         checked={argvConfig?.hardwareAcceleration ?? true}
                         className="mt-0.5"
                         disabled={!argvConfig}

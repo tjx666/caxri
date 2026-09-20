@@ -66,19 +66,11 @@ interface AgentMessagingSettings {
     enabled: boolean;
 }
 
-interface AgentPasteSummarySettings {
-    /**
-     * Authorizes one low-cost model call when Caxri replaces a long Terminal paste with a local-file reference.
-     */
-    enabled: boolean;
-}
-
 export interface AgentProviderSettings {
     actions: AgentActionsSettings;
     hooks: AgentHookSettings;
     launch: AgentLaunchSettings;
     messaging: AgentMessagingSettings;
-    pasteSummary: AgentPasteSummarySettings;
     recovery: AgentOutputRecoverySettings;
 }
 
@@ -102,7 +94,6 @@ export interface AgentProviderCatalogEntry {
         automaticSuspension: boolean;
         messaging: boolean;
         nativeRename: boolean;
-        pasteSummary: boolean;
     };
     /**
      * Human-readable name shown in the Renderer (e.g. Settings, Create Session dialog).
@@ -133,7 +124,6 @@ export const agentProviderCatalog = {
             automaticSuspension: true,
             messaging: true,
             nativeRename: true,
-            pasteSummary: true,
         },
         defaultLaunchArgs: ['--dangerously-skip-permissions'],
         displayName: 'Claude Code',
@@ -147,7 +137,6 @@ export const agentProviderCatalog = {
             automaticSuspension: true,
             messaging: true,
             nativeRename: true,
-            pasteSummary: true,
         },
         defaultLaunchArgs: ['--dangerously-bypass-approvals-and-sandbox'],
         displayName: 'Codex',
@@ -165,7 +154,6 @@ export const agentProviderCatalog = {
             automaticSuspension: false,
             messaging: false,
             nativeRename: false,
-            pasteSummary: false,
         },
         defaultLaunchArgs: ['--yolo'],
         displayName: 'Grok Build',
@@ -184,7 +172,6 @@ export const defaultAgentProviderSettings = Object.fromEntries(
             actions: structuredClone(defaultAgentActionsSettings),
             hooks: { enabled: true },
             messaging: { enabled: agentProviderCatalog[provider].capabilities.messaging },
-            pasteSummary: { enabled: agentProviderCatalog[provider].capabilities.pasteSummary },
             recovery: { ...defaultAgentOutputRecoverySettings, patterns: [] },
             launch: {
                 executable: agentProviderCatalog[provider].executableName,

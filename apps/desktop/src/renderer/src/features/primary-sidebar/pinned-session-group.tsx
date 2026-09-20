@@ -129,8 +129,9 @@ export function PinnedSessionGroup({
                     aria-expanded={expanded}
                     aria-level={1}
                     aria-selected={false}
-                    // The visible digit is `aria-hidden`, so the count reaches assistive technology named rather than
-                    // as a bare number trailing the heading.
+                    // The heading shows no digit — the group is short by construction and the rows themselves are the
+                    // answer — so the membership reaches assistive technology here instead, where a collapsed group
+                    // would otherwise announce nothing about what it holds.
                     aria-label={`Pinned, ${sessions.length} ${sessions.length === 1 ? 'Session' : 'Sessions'}`}
                     data-row-id={PINNED_GROUP_ROW_ID}
                     tabIndex={PINNED_GROUP_ROW_ID === rovingRowId ? 0 : -1}
@@ -140,16 +141,6 @@ export function PinnedSessionGroup({
                     <strong className="overflow-fade min-w-0 flex-1 text-sm font-semibold">
                         Pinned
                     </strong>
-                    {/*
-                     * The count stays on the heading in both states: while the group is collapsed it is the only thing
-                     * that says how much is inside. Mirrors the Project heading's digit.
-                     */}
-                    <span
-                        aria-hidden="true"
-                        className="pinned-session-count flex-none text-[11px] text-muted tabular-nums"
-                    >
-                        {sessions.length}
-                    </span>
                 </button>
             </div>
             <DisclosureMotion

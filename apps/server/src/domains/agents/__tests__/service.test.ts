@@ -417,19 +417,19 @@ describe('Agent adapter fallback', () => {
         ).rejects.toBe(error);
     });
 
-    it('delegates paste summaries only to the selected provider', async () => {
-        const context = { cwd: '/project', prompt: 'long paste fixture' };
-        const summarizePaste = vi.fn<NonNullable<AgentAdapter['summarizePaste']>>(() =>
-            Promise.resolve('Compact summary'),
+    it('delegates low-cost text generation only to the selected provider', async () => {
+        const context = { cwd: '/project', prompt: 'session title fixture' };
+        const generateTitle = vi.fn<NonNullable<AgentAdapter['generateTitle']>>(() =>
+            Promise.resolve('Compact title'),
         );
-        const claudeSummarize = vi.fn<NonNullable<AgentAdapter['summarizePaste']>>();
+        const claudeGenerateTitle = vi.fn<NonNullable<AgentAdapter['generateTitle']>>();
         const service = createTestAgentService({
-            claude: { provider: 'claude', summarizePaste: claudeSummarize },
-            codex: { provider: 'codex', summarizePaste },
+            claude: { provider: 'claude', generateTitle: claudeGenerateTitle },
+            codex: { provider: 'codex', generateTitle },
         });
 
-        await expect(service.summarizePaste('codex', context)).resolves.toBe('Compact summary');
-        expect(summarizePaste).toHaveBeenCalledWith(context);
-        expect(claudeSummarize).not.toHaveBeenCalled();
+        await expect(service.generateTitle('codex', context)).resolves.toBe('Compact title');
+        expect(generateTitle).toHaveBeenCalledWith(context);
+        expect(claudeGenerateTitle).not.toHaveBeenCalled();
     });
 });

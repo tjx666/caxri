@@ -104,13 +104,17 @@ export interface AgentSessionRenameResult {
     displayTitle: string;
 }
 
-export interface AgentPasteSummaryGenerationContext {
+/**
+ * Input for a bounded, single-turn text transformation run on a provider's cheapest model. Automatic Session naming is
+ * the only caller; the Terminal's long pastes are saved to a file rather than summarized.
+ */
+export interface AgentLowCostGenerationContext {
     cwd: string;
     prompt: string;
     signal?: AbortSignal;
 }
 
-export interface AgentProviderPasteSummaryGenerationContext extends AgentPasteSummaryGenerationContext {
+export interface AgentProviderLowCostGenerationContext extends AgentLowCostGenerationContext {
     environment: AgentEnvironment;
     executable: string;
     version: string;
@@ -208,13 +212,10 @@ export interface AgentProviderDescriptor {
         context: Pick<AgentSnapshotContext, 'agentSessionId' | 'agentTurnId'>,
         environment: AgentEnvironment,
     ): Promise<LocalAgentState['status']>;
-    generateTitle?(context: AgentProviderPasteSummaryGenerationContext): Promise<string>;
+    generateTitle?(context: AgentProviderLowCostGenerationContext): Promise<string>;
     actions?: AgentActionDiscoveryAdapter;
     hooks?: AgentHookAdapter;
     id: AgentProvider;
-    pasteSummary?: {
-        summarize(context: AgentProviderPasteSummaryGenerationContext): Promise<string>;
-    };
     readState(
         context: AgentSnapshotContext,
         environment: AgentEnvironment,

@@ -85,7 +85,6 @@ export async function createDomainServices(
         agentHooks,
         agentLaunchSettings,
         agentOutputRecoverySettings,
-        agents,
         coordinator,
         sessionRenames,
     } = agentRuntime;
@@ -187,7 +186,6 @@ export async function createDomainServices(
     const longPastes = new LongPasteService(
         userDataPath,
         database,
-        agents,
         () => configuration.getSettings().value,
         (terminalId) => terminals.agentLaunchId(terminalId),
     );

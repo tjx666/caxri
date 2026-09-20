@@ -9,6 +9,7 @@ function repo_(overrides: Partial<ProjectStatusRepository> = {}): ProjectStatusR
         name: 'Project',
         kind: 'primary',
         branch: 'feature',
+        acceptances: [],
         linearIssues: [],
         errors: [],
         ...overrides,

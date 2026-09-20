@@ -148,7 +148,7 @@ describe('Codex provider', () => {
     ] as const)(
         'uses the low-cost model and blocks %s (symlink: %s)',
         async (instructionName, isSymlink) => {
-            const directory = await mkdtemp(join(tmpdir(), 'caxri-codex-paste-summary-command-'));
+            const directory = await mkdtemp(join(tmpdir(), 'caxri-codex-low-cost-command-'));
             temporaryDirectories.push(directory);
             const executable = join(directory, 'codex.cjs');
             const argumentsPath = join(directory, 'arguments.json');
@@ -187,7 +187,7 @@ process.stdin.on('end', () => {
     writeFileSync(${JSON.stringify(inputPath)}, input);
     process.stdout.write(JSON.stringify({
         type: 'item.completed',
-        item: { type: 'agent_message', text: 'Compact paste summary' },
+        item: { type: 'agent_message', text: 'Compact session title' },
     }) + '\n');
 });
 `,
@@ -196,17 +196,17 @@ process.stdin.on('end', () => {
             await chmod(executable, 0o700);
 
             await expect(
-                codexProvider.pasteSummary?.summarize({
+                codexProvider.generateTitle?.({
                     cwd: projectDirectory,
                     environment: {
                         homeDirectory: directory,
                         variables: { CODEX_HOME: codexHome },
                     },
                     executable,
-                    prompt: 'long paste fixture',
+                    prompt: 'session title fixture',
                     version: 'codex-cli 0.122.0',
                 }),
-            ).resolves.toBe('Compact paste summary');
+            ).resolves.toBe('Compact session title');
             const arguments_ = JSON.parse(await readFile(argumentsPath, 'utf8')) as string[];
             expect(arguments_).toEqual(
                 expect.arrayContaining([
@@ -226,14 +226,11 @@ process.stdin.on('end', () => {
                     'web_search="disabled"',
                 ]),
             );
-            expect(arguments_.join(' ')).not.toContain('long paste fixture');
+            expect(arguments_.join(' ')).not.toContain('session title fixture');
             const generatedInput = await readFile(inputPath, 'utf8');
-            expect(generatedInput).toContain('long paste fixture');
+            expect(generatedInput).toContain('session title fixture');
             expect(generatedInput).toContain(
-                'If the text is a log, build trace, test output, or diagnostic dump:',
-            );
-            expect(generatedInput).toContain(
-                'Drop timestamps, progress lines, successful steps, repeated warnings, duplicate frames, and status spam unless they are causal.',
+                'Generate a concise coding-session title from the conversation below.',
             );
             expect(await readFile(cwdPath, 'utf8')).not.toBe(projectDirectory);
             const exposure = JSON.parse(await readFile(exposurePath, 'utf8')) as {
@@ -249,11 +246,11 @@ process.stdin.on('end', () => {
 
     it('rejects Codex versions before the required low-cost generation flags were introduced', async () => {
         await expect(
-            codexProvider.pasteSummary?.summarize({
+            codexProvider.generateTitle?.({
                 cwd: '/project',
                 environment: { homeDirectory: '/missing', variables: {} },
                 executable: '/missing/codex',
-                prompt: 'long paste fixture',
+                prompt: 'session title fixture',
                 version: 'codex-cli 0.121.9',
             }),
         ).rejects.toMatchObject({ code: 'UNAVAILABLE' });

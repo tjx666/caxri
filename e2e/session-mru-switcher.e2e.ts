@@ -177,8 +177,8 @@ test('Session MRU default reaches through Monaco and form focus without intercep
         await pathInput.fill('readme');
         await expect(pathInput).toHaveAttribute('aria-busy', 'false');
         await pathInput.press('Enter');
+        // No compensating click: opening a file from the picker is expected to put the keyboard in the Editor itself.
         const editor = running.page.locator('.monaco-editor').first();
-        await editor.click({ position: { x: 120, y: 24 } });
         await expect
             .poll(() => editor.evaluate((element) => element.contains(document.activeElement)))
             .toBe(true);
@@ -196,7 +196,7 @@ test('Session MRU default reaches through Monaco and form focus without intercep
             ),
         ).toBeVisible();
         await running.page.keyboard.press('Meta+Shift+F');
-        const searchInput = running.page.getByRole('textbox', { name: 'Find Project files' });
+        const searchInput = running.page.getByRole('combobox', { name: 'Find Project files' });
         await expect(searchInput).toBeFocused();
         const composingEventWasNotCanceled = await searchInput.evaluate((target) =>
             target.dispatchEvent(
@@ -216,6 +216,9 @@ test('Session MRU default reaches through Monaco and form focus without intercep
             running.page.getByRole('listbox', { name: 'Recently used Sessions' }),
         ).toHaveCount(0);
 
+        // Search Files is a modal overlay now, and a modal holds the keyboard until it is dismissed.
+        await running.page.keyboard.press('Escape');
+        await expect(searchInput).toHaveCount(0);
         await quickSwitch(running.page);
         await expect.poll(() => selectedSessionId(running.page)).toBe(sessionB);
     } finally {

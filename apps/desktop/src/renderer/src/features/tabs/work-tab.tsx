@@ -426,7 +426,9 @@ export function WorkTab({
             style={style}
             className={cn(
                 'work-tab group relative flex items-center bg-tab-inactive-background text-tab-inactive-foreground [-webkit-app-region:no-drag] hover:bg-tab-hover-background hover:text-tab-hover-foreground',
-                'min-w-0',
+                // Balances `tab-select`'s own leading `px-2` around the trailing slot, so the close button's hover fill
+                // stops short of the tab's separator instead of running into it the way VS Code's never does.
+                'min-w-0 pr-1.5',
                 showTrailingSeparator && 'border-r border-border',
                 fill
                     ? // `basis-0` is what makes the division even: without it flex distributes only the

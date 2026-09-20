@@ -1,8 +1,6 @@
 import type {
     Command,
-    ProjectStatusDeployment,
     ProjectStatusRepository,
-    ProjectStatusState,
     ProjectStatusSummary,
     TreeItemRichTooltip,
     TreeItemTooltipRow,
@@ -16,95 +14,39 @@ import {
 } from 'caxri';
 
 import {
+    acceptanceDescription,
+    acceptanceRowLabel,
+    acceptanceStatusLabel,
+    acceptanceVerdictLabel,
     checkLabel,
     deploymentStateLabel,
+    durationLabel,
+    ignoredChecksLabel,
     projectStatusStateLabel,
     publicationDescription,
     publicationLabel,
     REFRESH_ACTION_LABEL,
 } from './status-labels';
+import type { StatusTooltip } from './status-presentation';
+import {
+    deploymentAccessibilityLabel,
+    deploymentIcon,
+    deploymentRowDescription,
+    deploymentRowLabel,
+    deploymentTooltip,
+    linearBadgeTones,
+    linearIcon,
+    linkText,
+    pullRequestPresentation,
+    repoPresentation,
+    stateIcons,
+    stateTones,
+} from './status-presentation';
 
 export interface StatusNode {
     item: TreeItem;
     children?: readonly StatusNode[];
 }
-
-const stateIcons: Record<ProjectStatusState, string> = {
-    success: 'circle-check',
-    failure: 'circle-x',
-    cancelled: 'circle-slash',
-    pending: 'loading',
-    neutral: 'circle-outline',
-    unknown: 'circle-dot',
-};
-
-/**
- * Vercel cancellation stays neutral for aggregation but must remain recognizable in deployment rows.
- */
-const deploymentIcons: Record<ProjectStatusState, string> = {
-    ...stateIcons,
-    neutral: 'circle-slash',
-};
-
-const linearStateIcons: Partial<
-    Record<NonNullable<ProjectStatusRepository['linearIssues'][number]['stateType']>, string>
-> = {
-    backlog: 'linear-backlog',
-    canceled: 'linear-canceled',
-    completed: 'linear-completed',
-    duplicate: 'linear-duplicate',
-    started: 'linear-started',
-    triage: 'linear-triage',
-    unstarted: 'linear-unstarted',
-};
-
-/**
- * Badge tone for the state name shown in an issue's hover card. Deliberately not `stateTones[linearState(…)]`: that
- * mapping calls every `started` state pending, and Linear files "In Review" and "Ready to Merge" under `started`
- * alongside "In Progress". Calling those three the same kind of in-flight is the honest reading; the icon carries the
- * workspace's own color for the distinction.
- */
-const linearBadgeTones: Partial<
-    Record<
-        NonNullable<ProjectStatusRepository['linearIssues'][number]['stateType']>,
-        'danger' | 'neutral' | 'success' | 'warning'
-    >
-> = {
-    completed: 'success',
-    triage: 'warning',
-};
-
-const stateTones: Record<ProjectStatusState, 'danger' | 'neutral' | 'success' | 'warning'> = {
-    success: 'success',
-    failure: 'danger',
-    cancelled: 'neutral',
-    pending: 'warning',
-    neutral: 'neutral',
-    unknown: 'neutral',
-};
-
-/**
- * `label` is deliberately absent from either row's own description: the glyph already says the lifecycle in the same
- * colors GitHub uses — green open, grey draft, purple merged, red closed — so repeating "Open" beside it spent the
- * row's scarce width restating the icon. It stays on the hover card's badge and in the accessible name, which is where
- * a reader who cannot use the color needs it.
- */
-const pullRequestPresentation = {
-    open: { icon: 'git-pull-request-open', label: 'Open', tone: 'success' },
-    draft: { icon: 'git-pull-request-draft', label: 'Draft', tone: 'neutral' },
-    merged: { icon: 'git-merge', label: 'Merged', tone: 'neutral' },
-    closed: { icon: 'git-pull-request-closed', label: 'Closed', tone: 'danger' },
-} as const;
-
-const repoPresentation: Record<
-    ProjectStatusRepository['kind'],
-    { description?: string; icon: string }
-> = {
-    primary: { icon: 'repo' },
-    worktree: { description: 'worktree', icon: 'worktree' },
-    nested: { description: 'nested', icon: 'repo' },
-    submodule: { description: 'submodule', icon: 'archive' },
-};
 
 const missingGitRepoErrors = new Set<string>([
     ProjectStatusSummaryErrorMessage.missingGitRepository,
@@ -123,47 +65,11 @@ type ProjectStatusFailure = ProjectStatusRepository['errors'][number];
 const sharedFailureReasons = new Set<ProjectStatusFailure['reason']>(['network', 'rate-limited']);
 
 const providerNames = {
+    acceptance: 'LobeHub',
     github: 'GitHub',
     linear: 'Linear',
     vercel: 'Vercel',
 } as const satisfies Record<ProjectStatusFailure['source'], string>;
-
-/**
- * The parts a row contributes to its hover card. `title` defaults to the row label; the row's own `url` is appended as
- * the trailing `link` row by {@link richTooltip}.
- */
-interface StatusTooltip {
-    badge?: TreeItemRichTooltip['badge'];
-    description?: string;
-    rows?: readonly TreeItemTooltipRow[];
-    title?: string;
-}
-
-/**
- * A tooltip row value is capped at 2048 characters by the process boundary, while a provider URL may be much longer.
- * Clamping well below that bound keeps one pathological deployment URL from rejecting the whole `getChildren` batch.
- */
-const MAX_LINK_TEXT_LENGTH = 256;
-
-/**
- * Drops the scheme so a link stays readable inside the bounded hover card at SecondarySidebar width. The row keeps the
- * untouched `url`, so a clamped display text still opens the full destination.
- */
-function linkText(url: string): string {
-    const text = url.replace(/^https?:\/\//, '');
-    return text.length > MAX_LINK_TEXT_LENGTH
-        ? `${text.slice(0, MAX_LINK_TEXT_LENGTH - 1)}…`
-        : text;
-}
-
-function durationLabel(durationMs: number | undefined): string | undefined {
-    if (durationMs === undefined) return undefined;
-    const seconds = Math.round(durationMs / 1_000);
-    if (seconds < 60) return `${seconds}s`;
-    const minutes = Math.floor(seconds / 60);
-    const remainder = seconds % 60;
-    return remainder === 0 ? `${minutes}m` : `${minutes}m ${remainder}s`;
-}
 
 function item(
     id: string,
@@ -234,95 +140,6 @@ function richTooltip(
                 ? [...rows, { label: 'link', value: linkText(url), url }]
                 : rows,
     };
-}
-
-function ignoredChecksLabel(count: number): string {
-    return `${count} ignored check${count === 1 ? '' : 's'}`;
-}
-
-/**
- * Seven hex characters is the abbreviation Git and GitHub both display, so a row and the commit page a reader compares
- * it against agree without truncating a Vercel deployment's full 40-character SHA differently from either.
- */
-function shortCommitSha(sha: string): string {
-    return sha.slice(0, 7);
-}
-
-/**
- * What the deployment built, not where it landed. A Vercel alias is a generated hash that is already unreadable at
- * SecondarySidebar width, while the commit subject answers the question a deployment list is actually asked. Falls back
- * to the alias for a direct CLI upload, which carries no Git provenance.
- */
-function deploymentRowLabel(deployment: ProjectStatusDeployment): string {
-    return deployment.commit?.message ?? deployment.hostname;
-}
-
-function deploymentRowDescription(deployment: ProjectStatusDeployment): string | undefined {
-    return deployment.commit ? shortCommitSha(deployment.commit.sha) : undefined;
-}
-
-/**
- * Screen readers keep every identifier the visible row had to give up — the commit subject and the alias — while a part
- * the label already announced is dropped rather than repeated.
- */
-function deploymentAccessibilityLabel(
-    lead: string,
-    detail: string,
-    deployment: ProjectStatusDeployment,
-): string {
-    return [`${lead}, ${detail}`, deployment.commit?.message, deployment.hostname]
-        .filter((part) => part !== undefined && part !== lead)
-        .join(' · ');
-}
-
-function deploymentTooltip(title: string, deployment: ProjectStatusDeployment): StatusTooltip {
-    const { commit } = deployment;
-    return {
-        title,
-        badge: { label: deploymentStateLabel(deployment), tone: stateTones[deployment.state] },
-        rows: [
-            ...(commit
-                ? [
-                      {
-                          label: 'commit',
-                          value: [shortCommitSha(commit.sha), commit.message]
-                              .filter(Boolean)
-                              .join(' '),
-                          ...(commit.url && { url: commit.url }),
-                      },
-                  ]
-                : []),
-            ...(commit?.authorLogin ? [{ label: 'author', value: commit.authorLogin }] : []),
-            { label: 'alias', value: deployment.hostname, url: deployment.url },
-            ...(deployment.inspectorUrl
-                ? [{ label: 'inspect', value: 'details', url: deployment.inspectorUrl }]
-                : []),
-            ...(deployment.createdAt === undefined
-                ? []
-                : [
-                      {
-                          label: 'created',
-                          value: new Date(deployment.createdAt).toLocaleString(),
-                      },
-                  ]),
-        ],
-    };
-}
-
-function linearState(
-    stateType: ProjectStatusRepository['linearIssues'][number]['stateType'],
-): ProjectStatusState {
-    if (stateType === 'completed') return 'success';
-    if (stateType === 'canceled' || stateType === 'duplicate') return 'neutral';
-    if (stateType === 'started') return 'pending';
-    return 'unknown';
-}
-
-function linearIcon(
-    stateType: ProjectStatusRepository['linearIssues'][number]['stateType'],
-): string {
-    const customIcon = stateType ? linearStateIcons[stateType] : undefined;
-    return customIcon ?? stateIcons[linearState(stateType)];
 }
 
 /**
@@ -429,6 +246,50 @@ function buildRepoChildren(
             ),
         );
     }
+    for (const acceptance of repo.acceptances) {
+        const { state } = acceptance;
+        nodes.push(
+            item(`${prefix}:acceptance:${acceptance.id}`, acceptanceRowLabel(acceptance), {
+                accessibilityLabel: [
+                    acceptanceRowLabel(acceptance),
+                    acceptance.status && acceptanceStatusLabel(acceptance.status),
+                    acceptance.verdict && acceptanceVerdictLabel(acceptance.verdict),
+                    acceptanceDescription(acceptance),
+                ]
+                    .filter(Boolean)
+                    .join(', '),
+                description: acceptanceDescription(acceptance),
+                icon: stateIcons[state],
+                url: acceptance.url,
+                tooltip: {
+                    ...(acceptance.status && {
+                        badge: {
+                            label: acceptanceStatusLabel(acceptance.status),
+                            tone: stateTones[state],
+                        },
+                    }),
+                    rows: [
+                        acceptance.verdict
+                            ? {
+                                  label: 'verdict',
+                                  value: acceptanceVerdictLabel(acceptance.verdict),
+                              }
+                            : undefined,
+                        acceptance.totalChecks === undefined ||
+                        acceptance.passedChecks === undefined
+                            ? undefined
+                            : {
+                                  label: 'checks',
+                                  value: `${acceptance.passedChecks} of ${acceptance.totalChecks} passed`,
+                              },
+                        acceptance.round === undefined
+                            ? undefined
+                            : { label: 'round', value: `${acceptance.round}` },
+                    ].filter((row): row is TreeItemTooltipRow => row !== undefined),
+                },
+            }),
+        );
+    }
     if (repo.deployments) {
         const { branchDeployments, url: deploymentsUrl } = repo.deployments;
         const environments = [...new Set(branchDeployments.map(({ environment }) => environment))];
@@ -461,7 +322,7 @@ function buildRepoChildren(
                             `${deployment.environment} · ${deploymentStateLabel(deployment)}`,
                             deployment,
                         ),
-                        icon: deploymentIcons[deployment.state],
+                        icon: deploymentIcon(deployment),
                         tooltip: deploymentTooltip(deployment.environment, deployment),
                         url: deployment.inspectorUrl,
                     }),
@@ -484,7 +345,7 @@ function buildRepoChildren(
                      */
                     description: deploymentRowDescription(deployment),
                     accessibilityLabel: deploymentAccessibilityLabel(label, stateLabel, deployment),
-                    icon: deploymentIcons[deployment.state],
+                    icon: deploymentIcon(deployment),
                     tooltip: deploymentTooltip(label, deployment),
                     url: deployment.inspectorUrl,
                 }),

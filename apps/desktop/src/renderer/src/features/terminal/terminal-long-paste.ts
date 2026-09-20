@@ -1,76 +1,43 @@
-import type { AgentProvider, AppSettings, TerminalLongPasteResult } from '@caxri/protocol';
-import { agentProviderCatalog } from '@caxri/protocol';
-
-/**
- * User settings cannot enable a summary integration that the provider does not implement.
- */
-export function isProviderLongPasteEnabled(
-    provider: AgentProvider | undefined,
-    providers: AppSettings['agents.providers'],
-): boolean {
-    return provider
-        ? agentProviderCatalog[provider].capabilities.pasteSummary &&
-              providers[provider].pasteSummary.enabled
-        : false;
-}
+import type { TerminalLongPasteResult } from '@caxri/protocol';
 
 export function shouldPrepareLongPaste(options: {
     canAcceptAgentInput: boolean;
-    enabled: boolean;
     text: string;
     threshold: number;
 }): boolean {
-    return (
-        options.canAcceptAgentInput && options.enabled && options.text.length > options.threshold
-    );
+    return options.canAcceptAgentInput && options.text.length > options.threshold;
 }
 
+/**
+ * What the Agent sees in place of the pasted text.
+ *
+ * Caxri used to summarize the paste itself with a low-cost model call before the Agent saw anything, which held
+ * Terminal input for the length of that call and left nothing behind when it timed out. The Agent is better placed to
+ * decide what the text is worth: it can read the file, grep it, or hand it to a small-model subagent. So this says
+ * where the file is, how big it is, and names the subagent route — and then gets out of the way.
+ */
 export function formatLongPasteReference(
     result: Exclude<TerminalLongPasteResult, { status: 'passthrough' }>,
 ): string {
-    const filePath = JSON.stringify(result.filePath);
     const lines = `${result.lineCount} ${result.lineCount === 1 ? 'line' : 'lines'}`;
     const characters = `${result.characterCount} ${result.characterCount === 1 ? 'character' : 'characters'}`;
-    const header = [
-        result.status === 'unavailable'
-            ? '[Long paste saved locally; summary unavailable]'
-            : '[Long paste saved locally]',
-        `Original file: ${filePath}`,
-        `Original size: ${lines}, ${characters}`,
-    ];
-    if (result.status === 'unavailable') {
-        const reason =
-            result.reason === 'sandboxBoundaryConflict'
-                ? 'Summary blocked by the Project sandbox boundary. Choose a more specific Project folder.'
-                : result.reason === 'sandboxPathUnavailable'
-                  ? 'Summary unavailable because its sandbox paths could not be verified.'
-                  : undefined;
-        return [
-            ...header,
-            ...(reason ? [reason] : []),
-            '',
-            'Read the original file for the exact content.',
-        ].join('\n');
-    }
-    const summary = result.summary.replaceAll(/\r\n?/gu, '\n').trim();
     return [
-        ...header,
+        '[Long paste saved locally]',
+        `Original file: ${JSON.stringify(result.filePath)}`,
+        `Original size: ${lines}, ${characters}`,
         '',
-        'Summary:',
-        summary,
-        '',
-        'Read the original file for exact details.',
+        'Read the original file for the exact content.',
+        'If a summary is enough, delegate it to a subagent on a small, fast model so the full text stays out of this conversation.',
     ].join('\n');
 }
 
 interface TerminalLongPasteControllerOptions {
     canAcceptAgentInput(): boolean;
-    enabled(): boolean;
     onFailure(): void;
     /**
-     * Called when a paste arrives while a previous long paste is still being summarized. The controller deliberately
-     * drops the new paste instead of queueing it, so this is the caller's only signal that user input was silently
-     * discarded; wire it to a toast so the drop is not invisible.
+     * Called when a paste arrives while a previous long paste is still being saved. The controller deliberately drops
+     * the new paste instead of queueing it, so this is the caller's only signal that user input was silently discarded;
+     * wire it to a toast so the drop is not invisible.
      */
     onDropped(): void;
     onPendingChange(isPending: boolean): void;
@@ -102,7 +69,7 @@ export class TerminalLongPasteInputRoute {
 
 /**
  * Claims an eligible paste synchronously so xterm cannot send the original before the Server saves it. Pending work
- * owns the Terminal input gate until the summary or path-only fallback has been pasted in the same position.
+ * owns the Terminal input gate until the file reference has been pasted in the same position.
  */
 export class TerminalLongPasteController {
     private isDisposed = false;
@@ -156,7 +123,6 @@ export class TerminalLongPasteController {
         if (
             !shouldPrepareLongPaste({
                 canAcceptAgentInput: this.options.canAcceptAgentInput(),
-                enabled: this.options.enabled(),
                 text,
                 threshold: this.options.threshold(),
             })
@@ -175,7 +141,7 @@ export class TerminalLongPasteController {
             this.options.onDropped();
             return;
         }
-        const shouldClaimInput = this.options.canAcceptAgentInput() && this.options.enabled();
+        const shouldClaimInput = this.options.canAcceptAgentInput();
         if (!shouldClaimInput) {
             const text = await readText();
             if (text && !this.isDisposed) this.options.paste(text);
@@ -190,7 +156,7 @@ export class TerminalLongPasteController {
         try {
             const text = await readText();
             if (!text || this.isDisposed || !this.options.canAcceptAgentInput()) return;
-            if (this.options.enabled() && text.length > this.options.threshold()) {
+            if (text.length > this.options.threshold()) {
                 await this.prepare(text);
                 return;
             }
@@ -212,7 +178,6 @@ export class TerminalLongPasteController {
 
 interface TerminalLongPasteRuntimeSnapshot {
     canAcceptAgentInput: boolean;
-    longPasteEnabled: boolean;
     longPasteThreshold: number;
     processState: string;
 }
@@ -235,7 +200,6 @@ export function createTerminalLongPasteRuntime(options: {
     return {
         controller: new TerminalLongPasteController({
             canAcceptAgentInput: () => options.latest().canAcceptAgentInput,
-            enabled: () => options.latest().longPasteEnabled,
             onDropped: options.onDropped,
             onFailure: options.onFailure,
             onPendingChange: (pending) =>

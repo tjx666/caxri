@@ -63,19 +63,29 @@ describe('flattenPrimarySidebarRows', () => {
     });
 
     it('puts the Pinned group ahead of every Project, with namespaced row ids', () => {
-        const rows = flattenPrimarySidebarRows(projects, () => true, {
-            expanded: true,
-            sessionIds: ['beta-1', 'alpha-2'],
-        });
-        expect(rows.map((row) => row.id).slice(0, 3)).toEqual([
+        // Pinning moves a Session, so the caller hands the pinned ids to the Pinned group and withholds them from the
+        // owning Project — `beta` is left with no Sessions of its own and falls back to its "New Session" row.
+        const rows = flattenPrimarySidebarRows(
+            [
+                { id: 'alpha', sessionIds: ['alpha-1'] },
+                { id: 'beta', sessionIds: [] },
+            ],
+            () => true,
+            { expanded: true, sessionIds: ['beta-1', 'alpha-2'] },
+        );
+        expect(rows.map((row) => row.id)).toEqual([
             PINNED_GROUP_ROW_ID,
             primarySidebarPinnedRowId('beta-1'),
             primarySidebarPinnedRowId('alpha-2'),
+            'alpha',
+            'alpha-1',
+            'beta',
+            primarySidebarCreateSessionRowId('beta'),
         ]);
-        // The same Session is still listed under its own Project, and the two rows never share an id.
+        // A pinned Session is reachable at exactly one row, under a Pinned-namespaced id no Project row can collide
+        // with.
         expect(rows.filter((row) => row.sessionId === 'alpha-2').map((row) => row.id)).toEqual([
             primarySidebarPinnedRowId('alpha-2'),
-            'alpha-2',
         ]);
     });
 

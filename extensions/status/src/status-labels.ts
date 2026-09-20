@@ -1,6 +1,77 @@
-import type { ProjectStatusDeployment, ProjectStatusRepository, ProjectStatusState } from 'caxri';
+import type {
+    AcceptanceStatus,
+    AcceptanceVerdict,
+    ProjectStatusAcceptance,
+    ProjectStatusDeployment,
+    ProjectStatusRepository,
+    ProjectStatusState,
+} from 'caxri';
 
 type ProjectStatusPublication = NonNullable<ProjectStatusRepository['publication']>;
+
+/**
+ * Lifecycle wording, spelled out rather than title-cased from the enum. `delivered` and `accepted` differ by who acted
+ * — the Agent finished, a person agreed — and that distinction is the whole reason a reviewer opens this row.
+ *
+ * Kept byte-identical to `STATUS_LABELS` in the Desktop status bar's `acceptance-label` module, together with
+ * {@link acceptanceVerdictLabels} and its counterpart there. The two cannot share a module — the architecture boundary
+ * forbids Desktop importing `extension-api`, and `extension-api` imports nothing — so the copies are the contract:
+ * change one and this row and the status bar chip name the same report two different things, with nothing failing.
+ */
+const acceptanceStatusLabels: Record<AcceptanceStatus, string> = {
+    pending: 'Not started',
+    planned: 'Plan ready',
+    verifying: 'Verifying',
+    repairing: 'Repairing',
+    delivered: 'Awaiting review',
+    accepted: 'Accepted',
+    closed: 'Closed',
+    rejected: 'Rejected',
+    errored: 'Errored',
+};
+
+const acceptanceVerdictLabels: Record<AcceptanceVerdict, string> = {
+    passed: 'Checks passed',
+    failed: 'Checks failed',
+    uncertain: 'Checks inconclusive',
+};
+
+export function acceptanceStatusLabel(status: AcceptanceStatus): string {
+    return acceptanceStatusLabels[status];
+}
+
+export function acceptanceVerdictLabel(verdict: AcceptanceVerdict): string {
+    return acceptanceVerdictLabels[verdict];
+}
+
+/**
+ * The row's own text. The subject is what a person recognizes; the opaque id never appears, because it identifies a
+ * private acceptance record and tells a reader nothing it could not get from the link itself.
+ */
+export function acceptanceRowLabel(acceptance: ProjectStatusAcceptance): string {
+    return acceptance.title ?? 'Acceptance report';
+}
+
+/**
+ * The row's trailing description: the check tally, then the round. Unlike the Linear row's state, neither is carried by
+ * the glyph, so this is the only place the panel can state how much of the verification actually passed.
+ *
+ * An unpinned link on a multi-round report says `latest of 3` rather than naming a number, because it is the report
+ * that was addressed and the round that answered may change under the same link.
+ */
+export function acceptanceDescription(acceptance: ProjectStatusAcceptance): string | undefined {
+    const tally =
+        acceptance.totalChecks === undefined || acceptance.passedChecks === undefined
+            ? undefined
+            : `${acceptance.passedChecks}/${acceptance.totalChecks}`;
+    const round =
+        acceptance.round === undefined
+            ? acceptance.roundCount !== undefined && acceptance.roundCount > 1
+                ? `latest of ${acceptance.roundCount}`
+                : undefined
+            : `round ${acceptance.round}`;
+    return [tally, round].filter(Boolean).join(' · ') || undefined;
+}
 
 /**
  * Every row that offers `caxri.project-status.refresh` says the same word. The command has one registered title
@@ -18,7 +89,9 @@ const stateLabels: Record<ProjectStatusState, string> = {
     success: 'passed',
     failure: 'failed',
     cancelled: 'canceled',
-    pending: 'pending',
+    // "running", not "pending": the point of splitting these two states is that one of them has actually started.
+    pending: 'running',
+    queued: 'queued',
     neutral: 'neutral',
     unknown: 'unknown',
 };
@@ -82,4 +155,17 @@ export function publicationDescription(state: ProjectStatusPublication['state'])
         'checking': 'Checking the same-named branch on origin.',
     };
     return descriptions[state];
+}
+
+export function durationLabel(durationMs: number | undefined): string | undefined {
+    if (durationMs === undefined) return undefined;
+    const seconds = Math.round(durationMs / 1_000);
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    const remainder = seconds % 60;
+    return remainder === 0 ? `${minutes}m` : `${minutes}m ${remainder}s`;
+}
+
+export function ignoredChecksLabel(count: number): string {
+    return `${count} ignored check${count === 1 ? '' : 's'}`;
 }

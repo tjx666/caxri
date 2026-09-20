@@ -1,25 +1,16 @@
-import { defaultAgentProviderSettings } from '@caxri/protocol';
+import type { TerminalLongPasteResult } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
     formatLongPasteReference,
-    isProviderLongPasteEnabled,
     shouldPrepareLongPaste,
     TerminalLongPasteController,
     TerminalLongPasteInputRoute,
 } from '../terminal-long-paste';
 
-describe('long Terminal paste', () => {
-    it('keeps unsupported providers disabled even when their saved setting enables summaries', () => {
-        const providers = structuredClone(defaultAgentProviderSettings);
-        providers.grok.pasteSummary.enabled = true;
-        expect(isProviderLongPasteEnabled('grok', providers)).toBe(false);
-        expect(isProviderLongPasteEnabled(undefined, providers)).toBe(false);
-        expect(isProviderLongPasteEnabled('codex', providers)).toBe(true);
-        providers.codex.pasteSummary.enabled = false;
-        expect(isProviderLongPasteEnabled('codex', providers)).toBe(false);
-    });
+type SavedLongPaste = Extract<TerminalLongPasteResult, { status: 'saved' }>;
 
+describe('long Terminal paste', () => {
     it.each(['stopped', 'disposed'] as const)(
         'does not deliver a delayed native paste after the Agent is %s',
         async (state) => {
@@ -28,7 +19,6 @@ describe('long Terminal paste', () => {
             const paste = vi.fn();
             const controller = new TerminalLongPasteController({
                 canAcceptAgentInput: () => isRunning,
-                enabled: () => true,
                 onDropped: vi.fn(),
                 onFailure: vi.fn(),
                 onPendingChange: vi.fn(),
@@ -58,7 +48,6 @@ describe('long Terminal paste', () => {
             const onFailure = vi.fn();
             const controller = new TerminalLongPasteController({
                 canAcceptAgentInput: () => true,
-                enabled: () => true,
                 onDropped: vi.fn(),
                 onFailure,
                 onPendingChange: (value) => pending.push(value),
@@ -79,11 +68,10 @@ describe('long Terminal paste', () => {
         },
     );
 
-    it('triggers only above the configurable threshold for a running enabled Agent', () => {
+    it('triggers only above the configurable threshold for a running Agent', () => {
         expect(
             shouldPrepareLongPaste({
                 canAcceptAgentInput: true,
-                enabled: true,
                 text: 'x'.repeat(1_024),
                 threshold: 1_024,
             }),
@@ -91,7 +79,6 @@ describe('long Terminal paste', () => {
         expect(
             shouldPrepareLongPaste({
                 canAcceptAgentInput: true,
-                enabled: true,
                 text: 'x'.repeat(1_025),
                 threshold: 1_024,
             }),
@@ -99,29 +86,20 @@ describe('long Terminal paste', () => {
         expect(
             shouldPrepareLongPaste({
                 canAcceptAgentInput: false,
-                enabled: true,
                 text: 'x'.repeat(2_000),
                 threshold: 1_024,
             }),
         ).toBe(false);
     });
 
-    it('locks input synchronously and pastes only the summary and original file path', async () => {
+    it('locks input synchronously and pastes only the reference to the saved original', async () => {
         const pending: boolean[] = [];
         const pasted: string[] = [];
         const expectedLaunchIds: string[] = [];
-        const request = Promise.withResolvers<{
-            agentLaunchId: string;
-            characterCount: number;
-            filePath: string;
-            lineCount: number;
-            status: 'summarized';
-            summary: string;
-        }>();
+        const request = Promise.withResolvers<SavedLongPaste>();
         const onDropped = vi.fn();
         const controller = new TerminalLongPasteController({
             canAcceptAgentInput: () => true,
-            enabled: () => true,
             onDropped,
             onFailure: vi.fn(),
             onPendingChange: (value) => pending.push(value),
@@ -146,37 +124,23 @@ describe('long Terminal paste', () => {
             characterCount: 1_145,
             filePath: '/local/paste.txt',
             lineCount: 3,
-            status: 'summarized',
-            summary: 'Actual failure: command exited with code 42.\n- src/task.ts:17',
+            status: 'saved',
         });
         await vi.waitFor(() => expect(controller.isPending()).toBe(false));
 
         expect(pending).toEqual([true, false]);
         expect(expectedLaunchIds).toEqual(['launch-1']);
-        expect(pasted).toEqual([
-            formatLongPasteReference({
-                agentLaunchId: 'launch-1',
-                characterCount: 1_145,
-                filePath: '/local/paste.txt',
-                lineCount: 3,
-                status: 'summarized',
-                summary: 'Actual failure: command exited with code 42.\n- src/task.ts:17',
-            }),
-        ]);
         expect(pasted[0]).not.toContain('original original');
-        expect(pasted[0]).toBe(
+        expect(pasted).toEqual([
             [
                 '[Long paste saved locally]',
                 'Original file: "/local/paste.txt"',
                 'Original size: 3 lines, 1145 characters',
                 '',
-                'Summary:',
-                'Actual failure: command exited with code 42.',
-                '- src/task.ts:17',
-                '',
-                'Read the original file for exact details.',
+                'Read the original file for the exact content.',
+                'If a summary is enough, delegate it to a subagent on a small, fast model so the full text stays out of this conversation.',
             ].join('\n'),
-        );
+        ]);
     });
 
     it('tags only the synchronous xterm paste emission with the expected Agent process', () => {
@@ -185,7 +149,7 @@ describe('long Terminal paste', () => {
             observed = route.expectedAgentLaunchId();
         });
 
-        route.paste('summary reference', 'launch-2');
+        route.paste('saved paste reference', 'launch-2');
 
         expect(observed).toBe('launch-2');
         expect(route.expectedAgentLaunchId()).toBeUndefined();
@@ -196,11 +160,10 @@ describe('long Terminal paste', () => {
         const onFailure = vi.fn();
         const controller = new TerminalLongPasteController({
             canAcceptAgentInput: () => true,
-            enabled: () => true,
             onDropped: vi.fn(),
             onFailure,
-            onPendingChange: vi.fn(),
             paste,
+            onPendingChange: vi.fn(),
             pasteAgentExact: paste,
             request: () => Promise.reject(new Error('save failed')),
             threshold: () => 1,
@@ -215,7 +178,6 @@ describe('long Terminal paste', () => {
         const pending: boolean[] = [];
         const controller = new TerminalLongPasteController({
             canAcceptAgentInput: () => true,
-            enabled: () => true,
             onDropped: vi.fn(),
             onFailure: vi.fn(),
             onPendingChange: (value) => pending.push(value),
@@ -234,21 +196,13 @@ describe('long Terminal paste', () => {
 
     it('claims a context-menu paste before the asynchronous clipboard read can be overtaken', async () => {
         const clipboard = Promise.withResolvers<string>();
-        const summary = Promise.withResolvers<{
-            agentLaunchId: string;
-            characterCount: number;
-            filePath: string;
-            lineCount: number;
-            status: 'summarized';
-            summary: string;
-        }>();
+        const saved = Promise.withResolvers<SavedLongPaste>();
         const pending: boolean[] = [];
         const paste = vi.fn();
-        const request = vi.fn(() => summary.promise);
+        const request = vi.fn(() => saved.promise);
         const onDropped = vi.fn();
         const controller = new TerminalLongPasteController({
             canAcceptAgentInput: () => true,
-            enabled: () => true,
             onDropped,
             onFailure: vi.fn(),
             onPendingChange: (value) => pending.push(value),
@@ -266,29 +220,18 @@ describe('long Terminal paste', () => {
         clipboard.resolve('long clipboard text');
         await vi.waitFor(() => expect(request).toHaveBeenCalledWith('long clipboard text'));
         expect(controller.isPending()).toBe(true);
-        summary.resolve({
+        const result: SavedLongPaste = {
             agentLaunchId: 'launch-1',
             characterCount: 19,
             filePath: '/local/paste.txt',
             lineCount: 1,
-            status: 'summarized',
-            summary: 'Summary',
-        });
+            status: 'saved',
+        };
+        saved.resolve(result);
         await operation;
 
         expect(pending).toEqual([true, false]);
-        expect(paste).toHaveBeenCalledOnce();
-        expect(paste).toHaveBeenCalledWith(
-            formatLongPasteReference({
-                agentLaunchId: 'launch-1',
-                characterCount: 19,
-                filePath: '/local/paste.txt',
-                lineCount: 1,
-                status: 'summarized',
-                summary: 'Summary',
-            }),
-            'launch-1',
-        );
+        expect(paste).toHaveBeenCalledExactlyOnceWith(formatLongPasteReference(result), 'launch-1');
     });
 
     it('drops and reports a second clipboard paste while one is still pending', async () => {
@@ -297,7 +240,6 @@ describe('long Terminal paste', () => {
         const paste = vi.fn();
         const controller = new TerminalLongPasteController({
             canAcceptAgentInput: () => true,
-            enabled: () => true,
             onDropped,
             onFailure: vi.fn(),
             onPendingChange: vi.fn(),
@@ -320,37 +262,24 @@ describe('long Terminal paste', () => {
         await first;
     });
 
-    it('formats the path-only fallback as readable lines with the original size', () => {
+    it('states the original size in singular units and names the subagent route', () => {
         expect(
             formatLongPasteReference({
                 agentLaunchId: 'launch-1',
                 characterCount: 2_048,
                 filePath: '/local/paste.txt',
                 lineCount: 1,
-                status: 'unavailable',
+                status: 'saved',
             }),
         ).toBe(
             [
-                '[Long paste saved locally; summary unavailable]',
+                '[Long paste saved locally]',
                 'Original file: "/local/paste.txt"',
                 'Original size: 1 line, 2048 characters',
                 '',
                 'Read the original file for the exact content.',
+                'If a summary is enough, delegate it to a subagent on a small, fast model so the full text stays out of this conversation.',
             ].join('\n'),
         );
-    });
-
-    it('explains an ancestor Project sandbox conflict while retaining the original file reference', () => {
-        const result = formatLongPasteReference({
-            agentLaunchId: 'launch-1',
-            characterCount: 2048,
-            filePath: '/local/paste.txt',
-            lineCount: 1,
-            status: 'unavailable',
-            reason: 'sandboxBoundaryConflict',
-        });
-        expect(result).toContain('Choose a more specific Project folder.');
-        expect(result).toContain('Original file: "/local/paste.txt"');
-        expect(result).toContain('Read the original file for the exact content.');
     });
 });

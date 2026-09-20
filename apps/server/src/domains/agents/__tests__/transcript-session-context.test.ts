@@ -183,6 +183,54 @@ describe('transcript session context scanning', () => {
         );
     });
 
+    it('collects the acceptance reports a conversation linked, most recent last', () => {
+        const first = 'a1b2c3d4-5e6f-4a7b-8c9d-0e1f2a3b4c5d';
+        const second = 'f0e1d2c3-b4a5-4968-8778-695a4b3c2d1e';
+        const scan = scanned([
+            claudeRecord('user', [
+                { type: 'text', text: `check https://app.lobehub.com/acceptance/${first}?r=2` },
+            ]),
+            claudeRecord('assistant', [
+                {
+                    type: 'tool_use',
+                    id: 't1',
+                    input: { command: `open https://app.lobehub.com/acceptance/${second}` },
+                },
+            ]),
+        ]);
+        expect(scan.acceptanceReferences).toEqual([{ id: first, round: 2 }, { id: second }]);
+    });
+
+    it('moves a re-mentioned report to the most recent position, and lets a later round replace an earlier one', () => {
+        const id = 'a1b2c3d4-5e6f-4a7b-8c9d-0e1f2a3b4c5d';
+        const other = 'f0e1d2c3-b4a5-4968-8778-695a4b3c2d1e';
+        const scan = scanned([
+            claudeRecord('user', [
+                { type: 'text', text: `https://app.lobehub.com/acceptance/${id}?turn=1` },
+            ]),
+            claudeRecord('user', [
+                { type: 'text', text: `https://app.lobehub.com/acceptance/${other}` },
+            ]),
+            claudeRecord('assistant', [
+                { type: 'text', text: `https://app.lobehub.com/acceptance/${id}?turn=3` },
+            ]),
+        ]);
+        expect(scan.acceptanceReferences).toEqual([{ id: other }, { id, round: 3 }]);
+    });
+
+    it('keeps a known round when the report is mentioned again without one', () => {
+        const id = 'a1b2c3d4-5e6f-4a7b-8c9d-0e1f2a3b4c5d';
+        const scan = scanned([
+            claudeRecord('user', [
+                { type: 'text', text: `https://app.lobehub.com/acceptance/${id}?turn=2` },
+            ]),
+            claudeRecord('assistant', [
+                { type: 'text', text: `done: https://app.lobehub.com/acceptance/${id}` },
+            ]),
+        ]);
+        expect(scan.acceptanceReferences).toEqual([{ id, round: 2 }]);
+    });
+
     it('bounds the worktree flag run so a pathological command line cannot stall the scan', () => {
         const flags = '-f '.repeat(60);
         const started = performance.now();

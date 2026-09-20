@@ -1,12 +1,22 @@
 import type {
+    AcceptanceStatus,
+    AcceptanceVerdict,
+    ProjectStatusAcceptance,
     ProjectStatusCheck,
     ProjectStatusLinearIssue,
     ProjectStatusRepository as ProjectStatusRepo,
     ProjectStatusState,
     SessionPullRequestState,
 } from '@caxri/protocol';
-import { CaxriError, hexColorSchema, isIgnoredCheck } from '@caxri/protocol';
+import {
+    acceptanceProjectStatusState,
+    CaxriError,
+    hexColorSchema,
+    isIgnoredCheck,
+} from '@caxri/protocol';
 import { z } from 'zod';
+
+import { acceptanceUrl } from './acceptance-link';
 
 /**
  * Wire shapes and projections for the three external CLIs Project Status reads. Kept beside `./project-status.ts`
@@ -145,6 +155,79 @@ export function mapLinearIssue(
     };
 }
 
+const acceptanceReportSchema = z.object({
+    passedChecks: z.number().nullish(),
+    totalChecks: z.number().nullish(),
+    verdict: z.string().nullish(),
+});
+
+/**
+ * Only the fields the two Caxri surfaces draw. The bundle also carries every check, every review, and a usage ledger;
+ * `--json acceptance,subject,latestReport,rounds` already leaves those behind, and this schema is the second guard.
+ */
+const acceptanceRoundSchema = z.object({
+    report: acceptanceReportSchema.nullish(),
+    run: z.object({ roundIndex: z.number().nullish() }).nullish(),
+});
+
+export const acceptanceBundleSchema = z.object({
+    acceptance: z.object({ status: z.string().nullish() }).nullish(),
+    latestReport: acceptanceReportSchema.nullish(),
+    rounds: z.array(acceptanceRoundSchema).nullish(),
+    subject: z.object({ title: z.string().nullish() }).nullish(),
+});
+
+const ACCEPTANCE_STATUSES = new Set<AcceptanceStatus>([
+    'accepted',
+    'closed',
+    'delivered',
+    'errored',
+    'pending',
+    'planned',
+    'rejected',
+    'repairing',
+    'verifying',
+]);
+const ACCEPTANCE_VERDICTS = new Set<AcceptanceVerdict>(['failed', 'passed', 'uncertain']);
+
+/**
+ * Projects one acceptance bundle onto the wire shape, answering for the round the link pinned rather than for the
+ * report as a whole. A link that named round 2 must keep reporting round 2 after round 3 runs: that is what makes a
+ * pasted link a stable reference instead of a moving one. Without a pinned round the latest report answers.
+ */
+export function mapAcceptanceBundle(
+    bundle: z.infer<typeof acceptanceBundleSchema>,
+    reference: { id: string; round?: number },
+): ProjectStatusAcceptance {
+    const rounds = bundle.rounds ?? [];
+    const pinned = reference.round
+        ? rounds.find((round) => round.run?.roundIndex === reference.round)
+        : undefined;
+    const report = pinned?.report ?? bundle.latestReport;
+    const rawStatus = bundle.acceptance?.status ?? undefined;
+    const rawVerdict = report?.verdict ?? undefined;
+    // Provider strings are narrowed here rather than in the schema so an enum value Caxri has not seen yet leaves the
+    // field absent instead of rejecting the whole bundle and blanking a report the user can otherwise read.
+    const status = ACCEPTANCE_STATUSES.has(rawStatus as AcceptanceStatus)
+        ? (rawStatus as AcceptanceStatus)
+        : undefined;
+    const verdict = ACCEPTANCE_VERDICTS.has(rawVerdict as AcceptanceVerdict)
+        ? (rawVerdict as AcceptanceVerdict)
+        : undefined;
+    return {
+        id: reference.id,
+        state: acceptanceProjectStatusState({ status, verdict }),
+        url: acceptanceUrl(reference.id, reference.round),
+        ...(reference.round && { round: reference.round }),
+        ...(bundle.subject?.title && { title: bundle.subject.title }),
+        ...(status && { status }),
+        ...(verdict && { verdict }),
+        ...(typeof report?.passedChecks === 'number' && { passedChecks: report.passedChecks }),
+        ...(typeof report?.totalChecks === 'number' && { totalChecks: report.totalChecks }),
+        ...(rounds.length > 0 && { roundCount: rounds.length }),
+    };
+}
+
 const SUCCESS_RESULTS = new Set(['SUCCESS', 'NEUTRAL', 'SKIPPED', 'COMPLETED']);
 const FAILURE_RESULTS = new Set([
     'FAILURE',
@@ -154,7 +237,15 @@ const FAILURE_RESULTS = new Set([
     'STARTUP_FAILURE',
     'ERROR',
 ]);
-const PENDING_RESULTS = new Set(['IN_PROGRESS', 'QUEUED', 'PENDING', 'EXPECTED']);
+/**
+ * Actually executing. GitHub reports this as a `status`, never as a `conclusion`.
+ */
+const RUNNING_RESULTS = new Set(['IN_PROGRESS']);
+/**
+ * Accepted but not started. `PENDING` and `EXPECTED` are the commit-status API's equivalents of a queued check run: a
+ * context that has been registered and has reported no result yet.
+ */
+const QUEUED_RESULTS = new Set(['QUEUED', 'WAITING', 'REQUESTED', 'PENDING', 'EXPECTED']);
 
 export function parseExternalJson<T>(value: string, schema: z.ZodType<T>, label: string): T {
     let parsed: unknown;
@@ -171,7 +262,8 @@ export function parseExternalJson<T>(value: string, schema: z.ZodType<T>, label:
 function checkState(check: GitHubCheck): ProjectStatusState {
     const status = (check.status ?? '').toUpperCase();
     const result = (check.conclusion ?? check.state ?? '').toUpperCase();
-    if (PENDING_RESULTS.has(status) || PENDING_RESULTS.has(result)) return 'pending';
+    if (RUNNING_RESULTS.has(status) || RUNNING_RESULTS.has(result)) return 'pending';
+    if (QUEUED_RESULTS.has(status) || QUEUED_RESULTS.has(result)) return 'queued';
     if (FAILURE_RESULTS.has(result)) return 'failure';
     if (result === 'CANCELLED') return 'cancelled';
     if (SUCCESS_RESULTS.has(result)) return 'success';
@@ -181,6 +273,9 @@ function checkState(check: GitHubCheck): ProjectStatusState {
 function aggregateChecks(checks: ProjectStatusCheck[]): ProjectStatusState {
     if (checks.some((check) => check.state === 'failure')) return 'failure';
     if (checks.length === 0 || checks.some((check) => check.state === 'pending')) return 'pending';
+    // Nothing is running yet, but the run is not over either. Rolled up as `queued` rather than `pending` so the
+    // summary can say a run has not started, which is the difference between waiting on a runner and waiting on CI.
+    if (checks.some((check) => check.state === 'queued')) return 'queued';
     /**
      * Cancellation is visible but non-blocking once another terminal check supplies the rollup outcome. Preserve it as
      * the parent state only when cancellation is the sole outcome, because that set did not prove any work passed.
@@ -206,7 +301,21 @@ function projectCheck(check: GitHubCheck): ProjectStatusCheck {
     };
 }
 
-const CHECK_ORDER: ProjectStatusState[] = ['failure', 'pending', 'cancelled', 'success', 'neutral'];
+/**
+ * Reading order for one pull request's checks: what went wrong first, then what is still moving, then what is settled.
+ * A state missing from this list sorts to `-1` and jumps ahead of the failures, so every member of
+ * `projectStatusStateSchema` has to appear here — including `unknown`, which is what an unrecognized provider result
+ * becomes.
+ */
+const CHECK_ORDER: ProjectStatusState[] = [
+    'failure',
+    'pending',
+    'queued',
+    'cancelled',
+    'success',
+    'neutral',
+    'unknown',
+];
 
 /**
  * Both PR surfaces use the same lifecycle projection; a closed draft is closed, not draft.

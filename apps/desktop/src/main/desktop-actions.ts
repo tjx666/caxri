@@ -46,6 +46,7 @@ export function createDesktopActions({
                     kind: target.kind,
                     ...(target.kind === 'file' && { path: target.path }),
                     ...(target.location && { location: target.location }),
+                    ...(target.focusEditor && { focusEditor: target.focusEditor }),
                 },
             }),
         openInEditor: (path, editorCommand) => launchExternalEditor(editorCommand, path),

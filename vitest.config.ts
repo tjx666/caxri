@@ -125,6 +125,7 @@ export default defineConfig({
         alias: workspaceAliases,
     },
     test: {
+        globalSetup: ['./vitest.global-setup.ts'],
         environment: 'node',
         testTimeout: 15_000,
         hookTimeout: 15_000,

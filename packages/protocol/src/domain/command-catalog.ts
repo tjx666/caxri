@@ -395,6 +395,20 @@ export const commandDefinitions: CommandDefinition[] = [
         keywords: ['root', 'worktree'],
     },
     ...filesCoreCommandDefinitions,
+    /*
+     * Declared here rather than in the Files contribution, and deliberately without `execution: 'viewCatalog'`: Search
+     * Files opens a centered overlay that belongs to no view container. Leaving it catalog-owned would route it through
+     * `didExecuteViewCatalogCommand`, which reveals a command's owning container before dispatching it — so every
+     * `Cmd+Shift+F` would also pop the Files sidebar open behind the overlay. The id and its `cmd+shift+f` default are
+     * unchanged, so the recorded keybinding migration from `inspector.searchFiles` still applies.
+     */
+    {
+        id: 'secondarySidebar.searchFiles',
+        title: 'Search Files',
+        category: 'Secondary Side Bar',
+        description: 'Search files in the selected Project',
+        nativeMenu: { menu: 'view', group: 0, order: 0 },
+    },
     {
         id: 'secondarySidebar.showGit',
         title: 'Show Git',

@@ -11,6 +11,7 @@ export * from './file-preview.js';
 export * from './file-search.js';
 export * from './git-diff.js';
 export * from './logging.js';
+export * from './low-cost-generation.js';
 export * from './pane-layout.js';
 export * from './pane-layout-reducer.js';
 export * from './project-customization.js';

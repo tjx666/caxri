@@ -158,7 +158,15 @@ export function ActiveSessionRow({
                 <span className="session-copy overflow-fade flex min-w-0 flex-1 items-center gap-1">
                     <strong
                         ref={viewportReference}
-                        className="session-title min-w-0 overflow-hidden font-medium whitespace-nowrap"
+                        /*
+                         * `flex-none` with `max-w-full` is what makes the title win the row. Both items were
+                         * shrinkable before, and flexbox shrinks in proportion to each item's own width — so a long
+                         * Project name took the larger share of the row and clipped an eight-character Session title
+                         * down to two, which reads as the Project name covering the title rather than as either one
+                         * being truncated. The title now claims its natural width up to the whole row, and the Project
+                         * name takes whatever is left.
+                         */
+                        className="session-title max-w-full min-w-0 flex-none overflow-hidden font-medium whitespace-nowrap"
                         onPointerEnter={() => setHovered(true)}
                         onPointerLeave={() => setHovered(false)}
                     >
@@ -174,7 +182,7 @@ export function ActiveSessionRow({
                     {showProjectName && (
                         <span
                             aria-hidden="true"
-                            className="session-project min-w-0 shrink overflow-hidden text-[11px] whitespace-nowrap text-muted"
+                            className="session-project min-w-0 flex-1 basis-0 overflow-hidden text-[11px] whitespace-nowrap text-muted"
                         >
                             {project.displayTitle}
                         </span>

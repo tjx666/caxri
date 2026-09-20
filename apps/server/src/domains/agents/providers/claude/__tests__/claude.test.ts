@@ -126,7 +126,7 @@ process.stdin.setEncoding('utf8');
 process.stdin.on('data', (chunk) => { input += chunk; });
 process.stdin.on('end', () => {
     writeFileSync(${JSON.stringify(inputPath)}, input);
-    process.stdout.write('Claude Paste Summary');
+    process.stdout.write('Claude Session Title');
 });
 `,
                 'utf8',
@@ -138,14 +138,14 @@ process.stdin.on('end', () => {
             };
 
             await expect(
-                claudeProvider.pasteSummary?.summarize({
+                claudeProvider.generateTitle?.({
                     cwd: projectDirectory,
                     environment: claudeEnvironment,
                     executable,
-                    prompt: 'long paste fixture',
+                    prompt: 'session title fixture',
                     version: '2.1.251 (Claude Code)',
                 }),
-            ).resolves.toBe('Claude Paste Summary');
+            ).resolves.toBe('Claude Session Title');
             const arguments_ = JSON.parse(await readFile(argumentsPath, 'utf8')) as string[];
             expect(arguments_).toEqual(
                 expect.arrayContaining([
@@ -156,10 +156,10 @@ process.stdin.on('end', () => {
                 ]),
             );
             expect(arguments_[arguments_.indexOf('--system-prompt') + 1]).toContain(
-                'If the text is a log, build trace, test output, or diagnostic dump:',
+                'Generate a concise coding-session title from the conversation below.',
             );
-            expect(arguments_.join(' ')).not.toContain('long paste fixture');
-            expect(await readFile(inputPath, 'utf8')).toBe('long paste fixture');
+            expect(arguments_.join(' ')).not.toContain('session title fixture');
+            expect(await readFile(inputPath, 'utf8')).toBe('session title fixture');
             expect(await readFile(cwdPath, 'utf8')).not.toBe(projectDirectory);
             /**
              * Claude Code resolves its user memory from the configuration directory, so an isolated cwd alone cannot
