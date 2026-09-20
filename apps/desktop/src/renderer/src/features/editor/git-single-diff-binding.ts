@@ -60,6 +60,7 @@ export function bindSingleDiffEditor(
     const modelListener = editor.onDidChangeModel(syncDecorations);
     const sizeListener = editor.onDidContentSizeChange(syncHeight);
     const actions: DiffEditorActions = {
+        focus: () => editor.focus(),
         getLineChanges: () => {
             const count = changedLineCount(editor);
             if (!count) return [];

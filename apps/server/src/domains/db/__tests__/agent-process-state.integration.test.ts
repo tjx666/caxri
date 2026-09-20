@@ -97,6 +97,34 @@ describe('Agent child-process state persistence', () => {
         database.close();
     });
 
+    it('promotes a running secondary Agent when the primary foreground Agent exits', async () => {
+        const directory = await temporaryDirectory('caxri-db-agent-primary-failover-');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const project = database.createProject(directory);
+        const created = database.createSession(project.id, 'shell');
+        const primary = created.terminal!;
+        const secondary = database.createTerminal(created.session.id, 'shell');
+        database.updateTerminalState(primary.id, 'running');
+        database.updateTerminalState(secondary.id, 'running');
+        expect(database.promoteShellToAgent(primary.id, 'codex')).toBe(true);
+        expect(database.promoteShellToAgent(secondary.id, 'codex')).toBe(true);
+        expect(database.rebindAgentSession(primary.id, 'codex', 'codex-session-1')).toBe(true);
+        expect(database.rebindAgentSession(secondary.id, 'codex', 'codex-session-2')).toBe(true);
+
+        expect(database.revokeForegroundAgentProvider(primary.id, 'codex')).toBe(true);
+
+        expect(database.getSession(created.session.id)?.primaryAgentTerminalId).toBe(secondary.id);
+        expect(database.getTerminal(primary.id)).toMatchObject({
+            agentSessionId: 'codex-session-1',
+            lastAgentProcessState: 'stopped',
+        });
+        expect(database.getTerminal(secondary.id)).toMatchObject({
+            agentSessionId: 'codex-session-2',
+            lastAgentProcessState: 'running',
+        });
+        database.close();
+    });
+
     it.each([
         ['unclean', 'interrupted'],
         ['orderly', 'interrupted'],

@@ -79,7 +79,9 @@ whether an interactive Agent is starting, running, or stopped in that Terminal; 
 separately by the in-memory launch ID and Agent process ID. Agent exit therefore returns to the same live Shell
 without emitting `terminal.exit`; only the Shell root exiting stops the Terminal. Durable
 provider, title, and Agent session identity remain attached to the Terminal so a later explicit resume can
-start another managed generation. A manually launched foreground Agent receives no managed identity or control;
+start another managed generation. If another Agent Terminal in the same Session is still live, it becomes the
+primary Agent when the current primary exits; without a live successor, the stopped Terminal stays primary so its
+durable identity remains the resume target. A manually launched foreground Agent receives no managed identity or control;
 bounded process probes only publish and later revoke its interactive availability.
 Long-paste preparation returns an explicit native-paste result for these manually launched Agents before
 saving or summarizing text. Managed Agents retain generation-fenced summaries and file-reference fallback;

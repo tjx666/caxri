@@ -216,6 +216,20 @@ export class TerminalManager {
         });
     }
 
+    private emitAgentExitState(terminalId: string, state: 'dead' | 'stopped'): void {
+        if (!this.database.getTerminal(terminalId)) return;
+        const changedSessionId = this.database.updateAgentProcessExitState(terminalId, state);
+        this.onAgentStateChanged?.(terminalId, state);
+        this.emit({
+            event: 'state.changed',
+            payload: {
+                kind: 'records',
+                sessionIds: changedSessionId ? [changedSessionId] : [],
+                terminalIds: [terminalId],
+            },
+        });
+    }
+
     private prepareAgentStartWaiter(terminalId: string, launchId: string): void {
         this.agentStartWaiters.get(terminalId)?.resolve(false);
         const { promise, resolve } = Promise.withResolvers<boolean>();
@@ -267,7 +281,7 @@ export class TerminalManager {
         this.settleAgentStart(event.terminalId, event.launchId, false);
         this.execution.configureOutputRecovery(event.terminalId, undefined);
         const state = event.exitCode === 0 && !event.signal ? 'stopped' : 'dead';
-        this.emitAgentState(event.terminalId, state);
+        this.emitAgentExitState(event.terminalId, state);
         await this.retireCoreLifecycle(event.terminalId, event.launchId);
     }
 

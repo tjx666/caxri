@@ -99,6 +99,49 @@ describe('external editor documents', () => {
         expect(mocks.request).not.toHaveBeenCalled();
     });
 
+    it('reuses the open tab identity when Main refreshes the same external path', () => {
+        installSession();
+
+        const firstPath = openExternalEditorDocument({
+            sessionId: 'session-1',
+            workbenchProjectId: 'project-1',
+            document: {
+                id: 'external-1',
+                name: 'outside.sql',
+                displayPath: '/tmp/outside.sql',
+                content: 'select 1;',
+                mtimeMs: 10,
+                size: 9,
+                readOnly: true,
+            },
+        });
+        const refreshedPath = openExternalEditorDocument({
+            sessionId: 'session-1',
+            workbenchProjectId: 'project-1',
+            document: {
+                id: 'external-2',
+                name: 'outside.sql',
+                displayPath: '/tmp/outside.sql',
+                content: 'select 2;',
+                mtimeMs: 20,
+                size: 9,
+                readOnly: true,
+            },
+        });
+
+        expect(refreshedPath).toBe(firstPath);
+        if (!firstPath) throw new Error('Expected an external editor path');
+        const state = useWorkbenchStore.getState().bootstrap!.sessionStates[0];
+        expect(findResourceTabs(state.paneLayout, { kind: 'file', path: firstPath })).toHaveLength(
+            1,
+        );
+        expect(getSessionDocuments('session-1', 'project-1')?.[firstPath]).toMatchObject({
+            content: 'select 2;',
+            displayPath: '/tmp/outside.sql',
+            mtimeMs: 20,
+        });
+    });
+
     it('rejects a stale Workbench Project without caching content', () => {
         installSession();
 

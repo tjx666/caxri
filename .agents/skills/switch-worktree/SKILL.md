@@ -24,11 +24,13 @@ equally when the request arrives midway through an existing conversation. A run 
 workflow follows `go`'s own orchestration instead. Inspection, listing, and dev-launch-only requests
 do not activate this delivery flow. Run it end to end without pausing for permission between stages:
 
-The same delivery authorization applies when an implementation or bug-fix request causes the agent
-to create the task worktree under the repository's standing orders. The user does not need to say
-"switch worktree", "commit", "open a PR", or "merge" separately. A follow-up correcting an early
-stop continues the original delivery scope. Only an explicit analysis-only, local-only, or no-merge
-restriction narrows that scope; do not invent one because the agent chose the worktree itself.
+Reuse an existing related worktree and branch for follow-up implementation, bug reports, and
+corrections in the same conversation. They are one delivery batch by default, even when they arrive
+as separate messages. Do not create a worktree merely because another defect was reported. Create
+one only when the user explicitly asks, or after explaining why another checkout is necessary and
+receiving confirmation through the question tool. Once this delivery flow is active, the user does
+not need to say "commit", "open a PR", or "merge" separately. Only an explicit analysis-only,
+local-only, or no-merge restriction narrows that scope.
 
 1. Ensure a GitHub issue tracks the task: when the request references an existing issue, use it;
    otherwise create one first (`gh issue create`, Simplified Chinese title and body, technical
@@ -36,8 +38,11 @@ restriction narrows that scope; do not invent one because the agent chose the wo
    from the branch work and the eventual PR.
 2. Implement and validate the change in the isolated worktree.
 3. Review the completed local work (light `deep-review` scope) and repair validated P0/P1 findings.
-4. Call the Skill tool with "pull-request" to push the branch and open a pull request.
-5. Watch CI on the PR, repair failures, and re-push until checks are green.
+4. Call the Skill tool with "pull-request" to push the branch and create or update the delivery
+   batch's single pull request.
+5. Keep one current CI run for the batch. Cancel an obsolete run before re-pushing, then watch the
+   replacement, repair failures, and re-push until checks are green. Do not enqueue sibling pull
+   requests against the shared runner for fixes that belong to the same delivery.
 6. Merge the PR, close the linked issues, and synchronize the primary checkout.
 7. File a GitHub issue (same language conventions) for any debt or follow-up the delivery leaves
    behind — deferred findings, known flakes, consciously skipped scope — so nothing survives only
@@ -54,10 +59,11 @@ local checks is not completion while PR creation, CI, merge, issue closeout, or 
 still pending. Continue authorized work; if a concrete blocker prevents progress, report the exact
 unfinished step and blocker instead of declaring the task complete.
 
-When moving an in-progress implementation into a task worktree after a user correction, carry
-the original task and this delivery checklist forward. Migration is an intermediate repair, not
-a completion boundary. A request to adjust contributor instructions during that work does not
-cancel the remaining delivery steps unless the user explicitly says to stop or narrow delivery.
+When a user correction changes the owning checkout, carry the original task and this delivery
+checklist forward in the existing worktree whenever possible. Moving the implementation is an
+exception that requires the user's explicit request or confirmation, not an automatic repair. A
+request to adjust contributor instructions during that work does not cancel the remaining delivery
+steps unless the user explicitly says to stop or narrow delivery.
 
 At entry, record which delivery steps are complete and which remain. A generic instruction to
 avoid unrequested remote mutations does not narrow this explicitly activated workflow: the request
@@ -73,10 +79,14 @@ pause or a concrete decision, missing authority, or failed infrastructure that c
 within scope; ordinary queue length and elapsed time do not satisfy that exception.
 
 When repeated CI failures expose a previously tracked defect outside the PR's code, preserve the
-failed runs and report the exact blocker. Repair it in a separate task worktree only when the current
-request or an active workflow explicitly includes that additional scope.
+failed runs and report the exact blocker. Do not create a separate repair worktree unless the user
+explicitly requests or confirms that split.
 
 ## Create or resolve a checkout
+
+Resolve and reuse an existing checkout whenever the current delivery already owns one. The
+`create` command is not a default implementation step: run it only after the user explicitly asks
+for a new worktree or confirms the split after the agent explains why it is necessary.
 
 Create a semantic branch from the latest `origin/main`, install independent dependencies with `ni`,
 prepare native `node-pty` artifacts, and initialize an isolated Caxri profile:
