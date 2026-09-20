@@ -42,6 +42,8 @@ export function reconcileDefaultSettings(
 ): DefaultSettingChange[] {
     return changes.filter((change) => {
         const stored = JSON.stringify(settings[change.key]);
-        return stored === JSON.stringify(change.previous) && stored !== JSON.stringify(change.current);
+        return (
+            stored === JSON.stringify(change.previous) && stored !== JSON.stringify(change.current)
+        );
     });
 }

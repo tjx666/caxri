@@ -157,7 +157,6 @@ describe('ConfigurationService', () => {
         ).toEqual([{ key: 'cmd+t', commands: ['terminal.new', 'session.create'] }]);
     });
 
-
     it('preserves contextual Terminal sequence arguments and rejects an invalid sequence binding', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-terminal-sequence-'));
         temporaryDirectories.push(directory);

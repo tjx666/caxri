@@ -2,15 +2,15 @@
  * Turns one configuration file's bytes into the value the Server runs on, adopting reviewed default changes on the way.
  *
  * Each file is materialized on first launch with every key at its default, so improving a default afterwards reaches
- * nobody who already has the file. Reconciliation closes that gap without overwriting a deliberate choice: only a
- * value that still matches the exact superseded default is rewritten, and the rewritten bytes are re-validated before
- * they are handed back, so a reconciliation that would produce an invalid file fails loudly instead of landing.
+ * nobody who already has the file. Reconciliation closes that gap without overwriting a deliberate choice: only a value
+ * that still matches the exact superseded default is rewritten, and the rewritten bytes are re-validated before they
+ * are handed back, so a reconciliation that would produce an invalid file fails loudly instead of landing.
  *
  * Kept out of `config.ts` because these are pure source-to-value transforms with no service state, which is also what
  * lets them be tested without a config directory on disk.
  */
 
-import type { AppSettings,Keybinding, ThemeTokens  } from '@caxri/protocol';
+import type { AppSettings, Keybinding, ThemeTokens } from '@caxri/protocol';
 import {
     appSettingsFileSchema,
     configurationSourceSchema as configSourceSchema,

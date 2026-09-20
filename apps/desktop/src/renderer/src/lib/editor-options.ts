@@ -52,20 +52,20 @@ export const EDITOR_OPTION_KEYS = [
 ] as const satisfies ReadonlyArray<keyof EditorOptionSettings>;
 
 /**
- * Monaco spells this one `true | false | 'active'` rather than as a plain enum, so the three-way setting is mapped
- * here instead of being stored in Monaco's own shape — a settings file should not have to know that.
+ * Monaco spells this one `true | false | 'active'` rather than as a plain enum, so the three-way setting is mapped here
+ * instead of being stored in Monaco's own shape — a settings file should not have to know that.
  */
 const BRACKET_PAIR_GUIDES = { active: 'active', all: true, off: false } as const;
 
 /**
  * Base options every Monaco surface (code editor, config editor, transcript, Git diffs) starts from. Callers spread
- * this first and override per-surface fields such as `readOnly` after it. Settings-driven fields are resolved here so
- * a new `editor.*` setting reaches every surface through one place.
+ * this first and override per-surface fields such as `readOnly` after it. Settings-driven fields are resolved here so a
+ * new `editor.*` setting reaches every surface through one place.
  *
- * The defaults deliberately turn on behavior VS Code ships on and Monaco leaves off, because a standalone Monaco is
- * the editor core without the product decisions layered on top of it — sticky scroll, bracket pair colorization, and
- * linked editing are all things a VS Code user has every reason to expect and no way to ask for. Each one is a
- * setting rather than a hardcode, so the opinion is a starting point rather than a verdict.
+ * The defaults deliberately turn on behavior VS Code ships on and Monaco leaves off, because a standalone Monaco is the
+ * editor core without the product decisions layered on top of it — sticky scroll, bracket pair colorization, and linked
+ * editing are all things a VS Code user has every reason to expect and no way to ask for. Each one is a setting rather
+ * than a hardcode, so the opinion is a starting point rather than a verdict.
  */
 export function resolveEditorOptions(
     settings: EditorOptionSettings | undefined = defaultAppSettings,

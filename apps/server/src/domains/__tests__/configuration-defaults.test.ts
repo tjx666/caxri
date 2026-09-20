@@ -57,9 +57,9 @@ describe('Configuration default reconciliation', () => {
     });
 
     /**
-     * `settings.jsonc` is written with every key materialized at its default, so improving a default reaches nobody
-     * who already has the file. The Terminal word separators are the case that exposed it: an install predating
-     * Chinese punctuation kept selecting a whole sentence on double-click.
+     * `settings.jsonc` is written with every key materialized at its default, so improving a default reaches nobody who
+     * already has the file. The Terminal word separators are the case that exposed it: an install predating Chinese
+     * punctuation kept selecting a whole sentence on double-click.
      */
     it('carries a superseded settings default forward while leaving a customized key alone', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-settings-migration-'));
