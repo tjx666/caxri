@@ -23,6 +23,7 @@ import type Database from 'better-sqlite3';
 import type { AgentLifecycleSignal } from '../agents';
 import type { ShutdownReason } from '../session-policy';
 import {
+    chooseLivePrimaryAgentSuccessor,
     choosePrimaryAgentForNewTerminal,
     choosePrimaryAgentSuccessor,
     DEFAULT_SESSION_TITLE,
@@ -88,6 +89,21 @@ export class CaxriDatabase {
         if (assignment) this.db.sessions.setPrimaryAgent(sessionId, assignment);
         this.db.sessions.addTerminalToAllRootStates(sessionId, terminal.id);
         return terminal;
+    }
+
+    private promoteLivePrimaryAgentSuccessor(exitedTerminalId: string): string | undefined {
+        const terminal = this.db.terminals.get(exitedTerminalId);
+        if (!terminal) return;
+        const session = this.db.sessions.get(terminal.sessionId);
+        if (!session) return;
+        const succession = chooseLivePrimaryAgentSuccessor(
+            this.db.terminals.list(terminal.sessionId),
+            session,
+            exitedTerminalId,
+        );
+        if (!succession) return;
+        this.db.sessions.setPrimaryAgent(session.id, succession);
+        return session.id;
     }
 
     /**
@@ -373,7 +389,12 @@ export class CaxriDatabase {
     }
 
     revokeForegroundAgentProvider(terminalId: string, provider: AgentProvider): boolean {
-        return this.agentIdentity.revokeForegroundAgentProvider(terminalId, provider);
+        return this.db.transaction(() => {
+            if (!this.agentIdentity.revokeForegroundAgentProvider(terminalId, provider))
+                return false;
+            this.promoteLivePrimaryAgentSuccessor(terminalId);
+            return true;
+        });
     }
 
     promoteShellToAgent(
@@ -648,6 +669,14 @@ export class CaxriDatabase {
 
     updateAgentProcessState(id: string, state: ProcessState): void {
         this.db.transaction(() => this.db.terminals.updateAgentProcessState(id, state));
+    }
+
+    updateAgentProcessExitState(id: string, state: 'dead' | 'stopped'): string | undefined {
+        return this.db.transaction(() => {
+            if (!this.db.terminals.get(id)) return;
+            this.db.terminals.updateAgentProcessState(id, state);
+            return this.promoteLivePrimaryAgentSuccessor(id);
+        });
     }
 
     markAgentProcessesShutdown(reason: ShutdownReason): void {
