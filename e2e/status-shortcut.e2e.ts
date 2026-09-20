@@ -57,10 +57,14 @@ test('Project Status shortcut works from editable focus and keeps its live bindi
             ),
         );
         expect(composingEventWasNotCanceled).toBe(true);
-        await expectSelected(running.page, 'Files');
-        // Search Files is a modal overlay now, and a modal holds the keyboard until it is dismissed.
+        /**
+         * Search Files is a modal overlay now, so it both holds the keyboard until it is dismissed and takes the rest
+         * of the window out of the accessibility tree. The view container is still Files underneath — but that can only
+         * be asserted after the overlay closes, because while it is open the sidebar tab is not reachable by role.
+         */
         await running.page.keyboard.press('Escape');
         await expect(searchInput).toHaveCount(0);
+        await expectSelected(running.page, 'Files');
         await running.page.keyboard.press('Meta+3');
         await expectSelected(running.page, 'Status');
 
