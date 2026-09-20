@@ -2,6 +2,7 @@ import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import {
     focusEditor,
+    hasPendingEditorIntent,
     queueEditorNavigation,
     registerEditorRevealTarget,
     revealEditorNavigation,
@@ -122,5 +123,40 @@ describe('Editor navigation', () => {
         mount('/project/queued-shared.ts', queuedLeft, 'pane-left');
         expect(queuedRight.focus).not.toHaveBeenCalled();
         expect(queuedLeft.focus).toHaveBeenCalledOnce();
+    });
+});
+
+/**
+ * The signal `useTabFocusRecovery` reads to stand down. Monaco is lazily imported, so between opening a file with focus
+ * and the commit that mounts its Editor, nothing is focused — and focus recovery would otherwise read that as a loss
+ * and paint a focus ring on the new Document tab.
+ */
+describe('pending Editor intent', () => {
+    it('reports nothing outstanding once the queued intent reaches its Editor', () => {
+        focusEditor('/project/pending-focus.ts');
+        expect(hasPendingEditorIntent()).toBe(true);
+
+        const mounted = editor();
+        mount('/project/pending-focus.ts', mounted);
+        expect(hasPendingEditorIntent()).toBe(false);
+    });
+
+    it('covers a queued navigation, which also ends in focus', () => {
+        queueEditorNavigation('/project/pending-navigation.ts', {
+            mode: 'caret',
+            line: 3,
+            column: 1,
+        });
+        expect(hasPendingEditorIntent()).toBe(true);
+
+        const mounted = editor();
+        mount('/project/pending-navigation.ts', mounted);
+        expect(hasPendingEditorIntent()).toBe(false);
+    });
+
+    it('expires so an Editor that never mounts cannot disable focus recovery for the session', () => {
+        focusEditor('/project/never-mounts.ts');
+        expect(hasPendingEditorIntent(Date.now() + 1_999)).toBe(true);
+        expect(hasPendingEditorIntent(Date.now() + 2_001)).toBe(false);
     });
 });

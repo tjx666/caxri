@@ -67,8 +67,11 @@ import {
 function useRuntimeAttachment(): void {
     useEffect(() => {
         const desktopOpenQueue = createDesktopOpenQueue({
-            openFile: async (sessionId, path, location) => {
-                return openFileForSession(sessionId, path, location ? { location } : {});
+            openFile: async (sessionId, path, options) => {
+                return openFileForSession(sessionId, path, {
+                    ...(options?.location && { location: options.location }),
+                    ...(options?.focusEditor && { focus: true }),
+                });
             },
             selectSession: didSelectSession,
         });
@@ -78,7 +81,7 @@ function useRuntimeAttachment(): void {
         return subscribeWorkbenchEvents({
             onCommand: (command, wasViaAccelerator) =>
                 runCommand(command, undefined, { viaAccelerator: wasViaAccelerator }),
-            onDesktopOpen: (sessionId, path, location) => {
+            onDesktopOpen: (sessionId, path, options) => {
                 // Fire-and-forget: a rejection here surfaces through the global
                 // `unhandledrejection` reporter (see renderer-error-reporter.ts), which is the
                 // established pattern for one-shot Server-triggered opens.
@@ -86,7 +89,8 @@ function useRuntimeAttachment(): void {
                 void desktopOpenQueue.enqueue({
                     sessionId,
                     ...(path && { path }),
-                    ...(location && { location }),
+                    ...(options?.location && { location: options.location }),
+                    ...(options?.focusEditor && { focusEditor: true }),
                 });
             },
         });

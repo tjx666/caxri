@@ -177,8 +177,8 @@ test('Session MRU default reaches through Monaco and form focus without intercep
         await pathInput.fill('readme');
         await expect(pathInput).toHaveAttribute('aria-busy', 'false');
         await pathInput.press('Enter');
+        // No compensating click: opening a file from the picker is expected to put the keyboard in the Editor itself.
         const editor = running.page.locator('.monaco-editor').first();
-        await editor.click({ position: { x: 120, y: 24 } });
         await expect
             .poll(() => editor.evaluate((element) => element.contains(document.activeElement)))
             .toBe(true);

@@ -97,7 +97,14 @@ export const desktopHostMethods = {
     },
     'desktop.openFile': {
         ...hostDesktopControl,
-        params: desktopOpenParametersSchema,
+        /**
+         * `focusEditor` carries the caller's intent, because this one method serves requests that mean very different
+         * things. Picking a file in the file picker or clicking a path link in a Terminal is "I want to read and edit
+         * this now", so the keyboard belongs in the editor; `caxri open <path>` from a shell is not, and stealing the
+         * keyboard there would interrupt whatever the window was already doing. It is not window focus — that is
+         * `desktop.focus`.
+         */
+        params: desktopOpenParametersSchema.extend({ focusEditor: z.boolean().default(false) }),
         result: desktopTargetResultSchema.extend({ state: z.literal('requested') }),
     },
     'files.reveal': {

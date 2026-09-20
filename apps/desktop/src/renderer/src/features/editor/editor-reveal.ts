@@ -25,6 +25,41 @@ type EditorRevealIntent =
 const pending = new Map<string, EditorRevealIntent>();
 const pendingByInstance = new Map<string, EditorRevealIntent>();
 
+/**
+ * When the most recent intent was queued, or `0` once one has been applied. Every intent kind ends in `editor.focus()`,
+ * so between queueing one and the commit that mounts the model, keyboard focus genuinely sits on `document.body` —
+ * which is indistinguishable from the loss `useTabFocusRecovery` exists to repair. Without this signal, opening a file
+ * from the file picker paints a focus ring on the freshly created tab for as long as Monaco's lazy import takes, and
+ * then pulls focus into the editor anyway.
+ */
+const intentQueueState = { queuedAt: 0 };
+
+/**
+ * Bounded rather than a plain flag so a model that never mounts — its tab closed mid-open, a surface that failed to
+ * render — cannot switch focus recovery off for the rest of the session. Generous next to Monaco's lazy import, short
+ * next to any human reaction.
+ */
+const QUEUED_INTENT_GRACE_MS = 2_000;
+
+/**
+ * Whether an Editor intent is queued for a model that has not mounted yet, and is still recent enough to be believed.
+ * Read by `useTabFocusRecovery` to stand down instead of claiming focus that is already spoken for.
+ */
+export function hasPendingEditorIntent(now: number = Date.now()): boolean {
+    return (
+        intentQueueState.queuedAt !== 0 && now - intentQueueState.queuedAt < QUEUED_INTENT_GRACE_MS
+    );
+}
+
+function queueIntent(
+    target: Map<string, EditorRevealIntent>,
+    key: string,
+    intent: EditorRevealIntent,
+): void {
+    target.set(key, intent);
+    intentQueueState.queuedAt = Date.now();
+}
+
 function pendingInstanceKey(path: string, instanceId: string): string {
     return JSON.stringify([path, instanceId]);
 }
@@ -78,6 +113,7 @@ function applyNavigation(editor: MonacoEditor, target: EditorNavigationTarget): 
 }
 
 function applyIntent(editor: MonacoEditor, intent: EditorRevealIntent): void {
+    intentQueueState.queuedAt = 0;
     if (intent.kind === 'focus') editor.focus();
     else if (intent.kind === 'match') applyReveal(editor, intent.target);
     else applyNavigation(editor, intent.target);
@@ -131,14 +167,14 @@ export function mountedEditor(path: string, instanceId?: string): MonacoEditor |
 export function revealEditorMatch(path: string, target: EditorRevealTarget): void {
     const editor = registeredEditor(path);
     if (editor) applyReveal(editor, target);
-    else pending.set(path, { kind: 'match', target });
+    else queueIntent(pending, path, { kind: 'match', target });
 }
 
 /**
  * Queues a reveal without touching a still-registered editor that the current React commit is replacing.
  */
 export function queueEditorNavigation(path: string, target: EditorNavigationTarget): void {
-    pending.set(path, { kind: 'navigation', target });
+    queueIntent(pending, path, { kind: 'navigation', target });
 }
 
 /**
@@ -149,8 +185,8 @@ export function focusEditor(path: string, instanceId?: string): void {
     const editor = registeredEditor(path, instanceId);
     if (editor) editor.focus();
     else if (instanceId)
-        pendingByInstance.set(pendingInstanceKey(path, instanceId), { kind: 'focus' });
-    else pending.set(path, { kind: 'focus' });
+        queueIntent(pendingByInstance, pendingInstanceKey(path, instanceId), { kind: 'focus' });
+    else queueIntent(pending, path, { kind: 'focus' });
 }
 
 /**
