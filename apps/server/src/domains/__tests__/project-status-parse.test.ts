@@ -104,6 +104,31 @@ describe('Vercel deployment details', () => {
         ).toMatchObject({ inspectorUrl: 'https://vercel.com/team/project/Fallback123' });
     });
 
+    it.each([
+        { readyState: 'QUEUED', state: 'queued' },
+        { readyState: 'INITIALIZING', state: 'pending' },
+        { readyState: 'BUILDING', state: 'pending' },
+    ])('reports $readyState as $state', ({ readyState, state }) => {
+        const [deployment] = parseVercelList(
+            JSON.stringify({
+                deployments: [
+                    {
+                        uid: 'dpl_State123',
+                        readyState,
+                        url: 'project-state-team.vercel.app',
+                    },
+                ],
+            }),
+        );
+
+        expect(
+            mapProjectStatusDeployment(deployment, 'production', {
+                team: 'team',
+                project: 'project',
+            }),
+        ).toMatchObject({ state });
+    });
+
     it('carries the triggering commit, reduced to its subject line', () => {
         const [deployment] = parseVercelList(
             JSON.stringify({
