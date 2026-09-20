@@ -165,6 +165,7 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 openSettings: record('dialogs.openSettings'),
                 openPalette: record('dialogs.openPalette'),
                 openPathBrowser: record('dialogs.openPathBrowser'),
+                openProjectSearch: record('dialogs.openProjectSearch'),
             },
             windows: { openProcessExplorer: record('windows.openProcessExplorer') },
             developer: {

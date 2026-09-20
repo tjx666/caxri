@@ -1,33 +1,21 @@
-import type { CommandId } from '@caxri/protocol';
-import { FilePlus, FolderPlus, Search, SquareMinus } from 'lucide-react';
+import { FilePlus, FolderPlus, SquareMinus } from 'lucide-react';
 
-import { getRegisteredCommand } from '../../../commands/registry';
-import { CommandTooltip } from '../../../components/command-tooltip';
 import { PanelHeader } from '../../../components/panel-header';
 import { Button } from '../../../components/ui/button';
 import { Tooltip } from '../../../components/ui/tooltip';
-import { useCommandShortcut } from '../../../lib/keybindings';
-import { cn } from '../../../lib/utilities';
-import { useControlledViewActionCommand } from '../controlled-view-context';
 import type { ResourceExplorerController } from './use-resource-explorer-controller';
 
 const captionActionClassName = 'shrink-0';
 
 export function ResourceExplorerHeader({ controller }: { controller: ResourceExplorerController }) {
-    const searchCommand = useControlledViewActionCommand('resource.search');
-    const searchShortcut = useCommandShortcut((searchCommand ?? '') as CommandId);
-    const isBuiltinSearchCommand =
-        searchCommand !== undefined && getRegisteredCommand(searchCommand) !== undefined;
     const {
         collapseFolders,
         createRootFile,
         createRootFolder,
         fileCaptionRef,
-        isSearchVisible,
         project,
         rootPathCaption,
         session,
-        toggleSearch,
     } = controller;
 
     return (
@@ -60,41 +48,6 @@ export function ResourceExplorerHeader({ controller }: { controller: ResourceExp
                             <FolderPlus size={13} />
                         </Button>
                     </Tooltip>
-                    {isBuiltinSearchCommand ? (
-                        <CommandTooltip commandId={searchCommand as CommandId}>
-                            <Button
-                                className={cn(
-                                    isSearchVisible
-                                        ? 'pointer-events-auto shrink-0 bg-elevated text-foreground opacity-100'
-                                        : captionActionClassName,
-                                )}
-                                size="icon"
-                                variant="ghost"
-                                aria-label="Search Files"
-                                aria-pressed={isSearchVisible}
-                                onClick={toggleSearch}
-                            >
-                                <Search size={13} />
-                            </Button>
-                        </CommandTooltip>
-                    ) : (
-                        <Tooltip content="Search Files" shortcut={searchShortcut}>
-                            <Button
-                                className={cn(
-                                    isSearchVisible
-                                        ? 'pointer-events-auto shrink-0 bg-elevated text-foreground opacity-100'
-                                        : captionActionClassName,
-                                )}
-                                size="icon"
-                                variant="ghost"
-                                aria-label="Search Files"
-                                aria-pressed={isSearchVisible}
-                                onClick={toggleSearch}
-                            >
-                                <Search size={13} />
-                            </Button>
-                        </Tooltip>
-                    )}
                     <Tooltip content="Collapse Folders">
                         <Button
                             className={captionActionClassName}

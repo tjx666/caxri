@@ -42,7 +42,7 @@ test('Project Status shortcut works from editable focus and keeps its live bindi
         await running.page.keyboard.press('Meta+1');
         await expectSelected(running.page, 'Files');
         await running.page.keyboard.press('Meta+Shift+F');
-        const searchInput = running.page.getByRole('textbox', { name: 'Find Project files' });
+        const searchInput = running.page.getByRole('combobox', { name: 'Find Project files' });
         await expect(searchInput).toBeFocused();
         const composingEventWasNotCanceled = await searchInput.evaluate((target) =>
             target.dispatchEvent(
@@ -58,6 +58,9 @@ test('Project Status shortcut works from editable focus and keeps its live bindi
         );
         expect(composingEventWasNotCanceled).toBe(true);
         await expectSelected(running.page, 'Files');
+        // Search Files is a modal overlay now, and a modal holds the keyboard until it is dismissed.
+        await running.page.keyboard.press('Escape');
+        await expect(searchInput).toHaveCount(0);
         await running.page.keyboard.press('Meta+3');
         await expectSelected(running.page, 'Status');
 
