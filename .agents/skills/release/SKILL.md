@@ -45,14 +45,17 @@ beyond the packaged application itself.
   source. It intentionally stops before commit, push, tag, or publication.
 - `.github/workflows/release.yml` is the only remote release path. An exact
   `release: v<package-version>` commit pushed to `main` must satisfy the release preparation in
-  `RELEASING.md` and the exact-release CI profile in `docs/ci-performance.md`. Only a successful CI
-  `workflow_run` for the same commit may start packaging.
+  `RELEASING.md` and the exact-release CI profile in `docs/ci-performance.md`. Its lightweight CI
+  run preserves the trusted `workflow_run` handoff but skips platform checks and E2E, relying on the
+  merged changes' PR CI. The fast-path requires the commit to match `release:prepare`'s exact path
+  set and generated contents; any additional, missing, or modified content falls back to normal
+  main-push CI. Only a successful CI `workflow_run` for the same commit may start packaging.
 - Normal commits follow the event plan in `docs/ci-performance.md`. Source pushes may run optimized
   E2E, but they never package or publish a release.
-- The release workflow validates the version and tag, trusts the successful CI gates for the same
-  commit SHA, builds and probes the unsigned Apple Silicon DMG, verifies it, and publishes the DMG
-  and SHA-256 checksum without repeating the full test suite. Runner routing, availability, trust,
-  and recovery follow `docs/self-hosted-runner.md`.
+- The release workflow validates the version and tag, builds and probes the unsigned Apple Silicon
+  DMG, verifies it, and publishes the DMG and SHA-256 checksum. Packaged-app verification remains a
+  release responsibility even though product checks and the full E2E suite stay in PR CI. Runner
+  routing, availability, trust, and recovery follow `docs/self-hosted-runner.md`.
 - Follow `RELEASING.md` when preparing the release commit. Creating or pushing that commit still
   requires explicit user authorization because the push triggers the remote release.
 - After the GitHub Release publishes successfully, install it locally by default with

@@ -3,17 +3,18 @@
 Caxri currently publishes an unsigned Apple Silicon DMG for personal use. The event- and
 change-specific CI profile, including whether E2E runs, is owned by the decision matrix in
 [`docs/ci-performance.md`](docs/ci-performance.md). A commit whose subject is exactly
-`release: v<package-version>` selects the full checks and control E2E profile on the repository
-self-hosted runner. After that CI succeeds, the same runner builds the DMG and creates the matching
-Git tag and GitHub Release. Runner labels, availability, and recovery are owned by
+`release: v<package-version>` selects a lightweight CI trust gate that skips platform checks and
+E2E, relying on the merged changes' PR CI. This fast-path requires the changed-file set to match
+the exact paths and generated contents from `release:prepare`; any additional, missing, or modified
+content falls back to normal main-push CI. After that gate succeeds, the release runner builds the
+DMG and creates the matching Git tag and GitHub Release. Runner labels, availability, and recovery are owned by
 [`docs/self-hosted-runner.md`](docs/self-hosted-runner.md).
 
 ## Create a release
 
 Update the root application version before committing. The public API, Agent skill package, CLI
 workspace, bundled extension versions, bundled extension `engines.caxri` ranges, and version
-sources must move in lockstep. The workspace and CLI artifact contract tests fail release CI when
-they diverge, or when a bundled extension rejects the new Desktop version:
+sources must move in lockstep. The preparation command validates that contract before writing:
 
 ```bash
 bun run release:prepare -- patch # also accepts minor, major, or an explicit newer SemVer
@@ -32,11 +33,11 @@ writing, updates all coupled manifests, extension compatibility ranges, and Type
 and restores already-written files if a later write fails. It never commits, tags, pushes, or
 publishes; those remain explicit steps because the release commit triggers remote publication.
 
-CI rejects the release path unless its self-hosted gates and full macOS E2E suite pass. The
-downstream workflow then rejects a release when the commit subject and package version differ, or
-when the tag already exists. It builds an arm64 DMG, launches the packaged application through the
-startup benchmark, verifies the disk image, writes a SHA-256 checksum, and publishes both files to
-GitHub Releases without repeating the CI gates.
+The lightweight CI run rechecks both the trusted exact-release event and the exact prepared output
+without repeating platform checks or E2E. The downstream workflow rejects a release when the commit
+subject and package version differ, or when the tag already exists. It builds an arm64 DMG, launches
+the packaged application through the startup benchmark, verifies the disk image, writes a SHA-256
+checksum, and publishes both files to GitHub Releases.
 
 Every CI and Release stage follows the self-hosted availability contract above. The Release job
 uses a short-lived `contents: write` token and does not persist checkout credentials.
