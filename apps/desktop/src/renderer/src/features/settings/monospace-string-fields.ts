@@ -8,6 +8,7 @@ const MONOSPACE_STRING_SETTING_KEYS: ReadonlySet<string> = new Set([
     'terminal.wordSeparators',
     'terminal.fontFamily',
     'editor.fontFamily',
+    'editor.wordSeparators',
 ]);
 
 export function isMonospaceStringSetting(key: string): boolean {
