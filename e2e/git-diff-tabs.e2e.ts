@@ -5,7 +5,12 @@ import { join } from 'node:path';
 import { execFileAsync } from '@caxri/system';
 
 import { expect, test } from './support/fixtures.ts';
-import { clickGitGroupAction, createProjectSession, launchCaxri } from './support/helpers.ts';
+import {
+    clickGitFileAction,
+    clickGitGroupAction,
+    createProjectSession,
+    launchCaxri,
+} from './support/helpers.ts';
 
 // Duplicated instead of imported: E2E runs against the packaged app and must not pull Renderer modules into the test
 // process, which is how every other spec carries Renderer copy. `git-diff-resolution.test.ts` pins the constant to this
@@ -92,12 +97,37 @@ test('Discard All Changes resolves the working diff in place without an error no
         await writeFile(join(root, 'tracked.txt'), trackedWorking);
         await repo.getByRole('treeitem', { name: 'tracked.txt', exact: true }).click();
         await expect(page.locator('.git-file-diff')).toBeVisible();
-        await repo
-            .getByRole('button', { name: 'Discard changes in tracked.txt', exact: true })
-            .click();
+        await clickGitFileAction(repo, 'tracked.txt', 'Discard changes in tracked.txt');
         await expect(repo.getByText('Working tree clean.', { exact: true })).toBeVisible();
         await expect(page.getByText(resolvedDiffReason, { exact: true })).toBeVisible();
         await expect(page.locator('[data-sonner-toast][data-type="error"]')).toHaveCount(0);
+
+        /**
+         * The same resolution inside the stacked Changes view. Two honest outcomes are possible and which one lands is
+         * a race: the row can only carry the notice while the repository summary still lists the file, so if that
+         * refresh wins the whole list reports a clean tree instead. Both are accepted. What must never come back is the
+         * third outcome this fix removed — the file heading still on screen above an empty box, which reads as a
+         * rendering failure rather than as news about the file.
+         */
+        await writeFile(join(root, 'tracked.txt'), trackedWorking);
+        await clickGitGroupAction(repo, 'Open Changes');
+        const stackedItem = page.locator('.git-multi-diff-item').filter({ hasText: 'tracked.txt' });
+        await expect(stackedItem.locator('.monaco-diff-editor')).toBeVisible();
+        await clickGitFileAction(repo, 'tracked.txt', 'Discard changes in tracked.txt');
+        await expect
+            .poll(async () => {
+                if ((await stackedItem.count()) === 0)
+                    return (await page
+                        .locator('.empty-work', { hasText: 'Working tree clean.' })
+                        .count()) > 0
+                        ? 'clean'
+                        : 'missing';
+                return (await stackedItem.getByText(resolvedDiffReason, { exact: true }).count()) >
+                    0
+                    ? 'resolved'
+                    : 'blank';
+            })
+            .toMatch(/^(clean|resolved)$/);
     } finally {
         await running.app.close();
         await rm(testDirectory, { recursive: true, force: true });

@@ -14,6 +14,7 @@ const row = (
     category,
     subcategory,
     title: id,
+    accessibleTitle: id,
     binding: { type: 'setting', key: 'terminal.fontSize' },
     haystack,
 });

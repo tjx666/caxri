@@ -150,6 +150,8 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
             path: resolved.path,
             sessionId: target.sessionId,
             launchIfNeeded: false,
+            // Clicking a path link in a Terminal is a request to read that file, so the keyboard follows it.
+            focusEditor: true,
             ...(parameters.location && { location: parameters.location }),
         });
         return { opened: true as const };
@@ -176,6 +178,11 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
             path: target.path,
             sessionId: target.sessionId,
             launchIfNeeded: false,
+            /**
+             * The user picked this file and pressed Enter; the next thing they type belongs in it, not on the tab
+             * button that focus recovery would otherwise hand them. Matches VS Code's Quick Open.
+             */
+            focusEditor: true,
         });
         return { opened: true as const };
     }

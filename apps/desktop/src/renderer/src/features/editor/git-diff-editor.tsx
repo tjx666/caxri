@@ -43,15 +43,19 @@ function FileDiffResult({
     editorInstanceId,
     error,
     isError,
+    isFetching,
     navigationKey,
     sessionId,
     tab,
+    onRetry,
 }: {
     document?: GitDiffDocument | null;
     editorInstanceId: string;
     error: Error | null;
     isError: boolean;
+    isFetching: boolean;
     navigationKey: string;
+    onRetry: () => void;
     sessionId?: string;
     tab: Extract<GitDiffTab, { kind: 'commit-file' | 'file' }>;
 }) {
@@ -63,11 +67,18 @@ function FileDiffResult({
     );
     useToastOnQueryError(isError, error, 'Unable to open Git diff');
     if (!sessionId || document === null) return null;
+    /**
+     * A pull request or commit diff that fails to read used to leave the reason on screen with no way out, while the
+     * working-tree path beside it offered `Check again`. The same read can succeed a moment later — the branch was
+     * mid-fetch, the delivery CLI was not authenticated yet — so every diff tab now offers the retry. See issue #1004.
+     */
     if (isError)
         return (
-            <div className={emptyWorkClassName}>
-                {describeFailure(error, 'Unable to open Git diff')}
-            </div>
+            <EditorLoadFailure
+                actionLabel={resolvedGitDiffActionLabel(isFetching)}
+                reason={describeFailure(error, 'Unable to open Git diff')}
+                onAction={onRetry}
+            />
         );
     if (!document) return <div className={emptyWorkClassName}>Loading diff…</div>;
     const renamedFrom =
@@ -180,9 +191,14 @@ function WorkingFileDiffEditor({
             editorInstanceId={editorInstanceId}
             error={error}
             isError={isError}
+            isFetching={isFetching}
             navigationKey={navigationKey}
             sessionId={sessionId}
             tab={tab}
+            onRetry={() => {
+                // eslint-disable-next-line no-void -- intentional floating-promise discard; `isError` reports a rejected refetch
+                void refetch();
+            }}
         />
     );
 }
@@ -200,7 +216,9 @@ function PullRequestFileDiffEditor({
     const {
         data: document,
         isError,
+        isFetching,
         error,
+        refetch,
     } = useCaxriQuery(
         'git.pullRequestDiffDocument',
         { sessionId: sessionId ?? '', repositoryId: tab.repositoryId, path: tab.path },
@@ -212,9 +230,14 @@ function PullRequestFileDiffEditor({
             editorInstanceId={editorInstanceId}
             error={error}
             isError={isError}
+            isFetching={isFetching}
             navigationKey={navigationKey}
             sessionId={sessionId}
             tab={tab}
+            onRetry={() => {
+                // eslint-disable-next-line no-void -- intentional floating-promise discard; `isError` reports a rejected refetch
+                void refetch();
+            }}
         />
     );
 }
@@ -232,7 +255,9 @@ function CommitFileDiffEditor({
     const {
         data: document,
         isError,
+        isFetching,
         error,
+        refetch,
     } = useCaxriQuery(
         'git.commitDiffDocument',
         {
@@ -250,9 +275,14 @@ function CommitFileDiffEditor({
             editorInstanceId={editorInstanceId}
             error={error}
             isError={isError}
+            isFetching={isFetching}
             navigationKey={navigationKey}
             sessionId={sessionId}
             tab={tab}
+            onRetry={() => {
+                // eslint-disable-next-line no-void -- intentional floating-promise discard; `isError` reports a rejected refetch
+                void refetch();
+            }}
         />
     );
 }
@@ -277,7 +307,14 @@ function GitChangesDiffResult({
     source: GitDiffTab['source'];
 }) {
     useToastOnQueryError(isError, error, 'Unable to open Git diff');
-    if (document === null) return null;
+    /**
+     * A working-tree diff resolves to `null` when the change is committed, staged, or undone — routinely by an Agent
+     * working in the background while the user is still reading this list. The row used to go blank under its own
+     * heading, which reads as a rendering failure rather than as news about the file. Said in one line and without a
+     * retry, because the list header above already refreshes every file at once. See issue #1004.
+     */
+    if (document === null)
+        return <div className={gitMultiDiffPlaceholderClassName}>{RESOLVED_GIT_DIFF_REASON}</div>;
     if (isError)
         return (
             <div className={gitMultiDiffErrorClassName}>

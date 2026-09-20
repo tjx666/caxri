@@ -234,6 +234,11 @@ action that a shortcut, a menu, and the palette all reach does not also earn a h
 in a 44px rail. The collapsed PrimarySidebar preserves the same 44px-tall drag region beneath the
 traffic lights.
 
+**Files caption actions** — `New File`, `New Folder`, `Collapse Folders`, in that order. Search left
+this row when the centered overlay took the job: a caption 34px tall has to share its width with a
+Project name, and a shortcut, a menu and the palette all reach the overlay already, so a glyph there
+bought nothing.
+
 **Welcome** — heading "Project-first development." Body copy uses "folder" to match VS Code's
 Open Folder / Add Folder to Workspace, not "directory" or "local folder". The primary action is
 Add Project.
@@ -250,7 +255,18 @@ a read-only virtual Editor tab in the current Session, survives only for the Ren
 creates a Project or Session or enters durable Session state.
 
 **Status bar** — `--surface` background, top hairline, `meta` text in `--muted`. The left side
-shows Project and Git context. The right side follows the active tab: a normal file shows
+shows Project and Git context, plus the delivery chips the current branch resolves to: its pull
+request, its Linear issue, and its acceptance report. Each one is a chip only when the branch
+actually has that thing; none of them holds a slot to say "none". A delivery chip leads with
+whatever a person would say out loud about it, so the Linear chip leads with `ABC-123` while an
+acceptance — which has only an opaque id — spends its width on the passed-check tally in the colour
+of the current verdict, and keeps the subject, round, and provenance on the hover card. A link Caxri
+recognized but could not read is `unknown`: `--muted` and not clickable, because it has no
+destination and must not look like it does. When the window is too narrow for all of them they drop
+one at a time, lowest first: child-process count, memory, Linear issue, acceptance, pull request.
+Acceptance outranks Linear because it reports whether the current work passed, which changes what
+the reviewer does next; the pull request survives longest because it is the branch's identity.
+The right side follows the active tab: a normal file shows
 current-line blame, selection, cursor position, and language; a Terminal shows Terminal progress,
 process-tree memory, and child count. Blame lives here and nowhere else. The editor header once
 carried the file's last commit too, and on any line belonging to that commit the two read
@@ -378,26 +394,27 @@ under the header across the list's top edge and clears as soon as the list retur
 list uses a quiet 8px scrollbar whose thumb deepens on hover instead of expanding into the
 macOS overlay track.
 
-Pinning a Session adds a global `Pinned` group above every Project instead of moving the Session out
-of its own. The Session keeps its Project row, because a pin is a shortcut to a Session rather than a
-relocation of it, and the week's important work usually spans several Projects. The two copies
-therefore say different things: the Pinned row's accessible description opens with `In Pinned group.`
-and the Project row's with `Pinned.`. A selected pinned Session does report `aria-selected` on both
-rows — leaving the Pinned copy unselected would make the row a keyboard user is standing on announce
-itself as not selected, which is the worse lie, and the sidebar tree already carries a second
-selected row in the owning Project's heading. The group heading mirrors a Project heading — a
-disclosure, its name, and a trailing count that stays visible while collapsed because it is then the
-only thing saying how much is inside — but takes the `Pin` glyph instead of a folder. Its rows trail
-the owning Project's name in `--muted`, allowed to shrink to nothing so a long Session title still
-wins the row; without it the group would stack titles from several Projects with nothing to tell them
-apart. Pinned is its own list with its own order and its own drag: a fresh pin lands after everything
-already there, and a drag inside Pinned never moves the same Session inside its Project. It reuses
-the Project disclosure's five-row window and `Show N more` row, so a long Pinned list cannot push
-every Project off screen. Pinning is reachable from the row's hover action — the `Pin` glyph, tinted
-`--accent` while pinned — and from the row's context menu, which is where the keyboard reaches it,
-since the hover buttons stay outside the tree's single Tab stop. Archiving clears the pin, because a
-Session archived and pinned at once would be hidden from its Project group while still sitting at the
-top of the sidebar; unarchiving does not restore it, since the pin was a separate decision.
+Pinning a Session moves it into a global `Pinned` group above every Project and takes it out of its
+own Project group. It is one Session, so the sidebar shows it once: two rows for one thing made the
+list longer without making anything easier to find, and left every Project count and window
+describing rows the group no longer owned. The Pinned row's accessible description opens with
+`In Pinned group.` so its owner is still audible, and the row trails the owning Project's name for
+the same reason. The group heading mirrors a Project heading — a disclosure and its name — but takes
+the `Pin` glyph instead of a folder, and carries no trailing count: the group is short by
+construction, and its membership reaches assistive technology through the heading's accessible name
+instead. Its rows trail the owning Project's name in `--muted`, allowed to shrink to nothing so a
+long Session title still wins the row; without it the group would stack titles from several Projects
+with nothing to tell them apart. Pinned is its own list with its own order and its own drag: a fresh
+pin lands after everything already there, and unpinning returns the Session to its Project group in
+that group's own order. It reuses the Project disclosure's five-row window and `Show N more` row, so
+a long Pinned list cannot push every Project off screen. A Project whose every Session is pinned
+keeps its heading and shows the same empty-group menu as a Project with no Sessions at all — the
+Project is still there, and hiding it would make pinning look like it deleted something. Pinning is
+reachable from the row's hover action — the `Pin` glyph, tinted `--accent` while pinned — and from
+the row's context menu, which is where the keyboard reaches it, since the hover buttons stay outside
+the tree's single Tab stop. Archiving clears the pin, because an archived Session would otherwise
+keep sitting at the top of the sidebar; unarchiving does not restore it, since the pin was a separate
+decision.
 
 A Session working in a Git worktree rather than its Project root is marked by the VS Code `worktree`
 codicon in a leading fixed-width 14px column, reserved for the whole Project group at once so every
@@ -460,7 +477,12 @@ that takes focus, never on a layout wrapper around it: `aria-level`, `aria-selec
 row carries `tabIndex={0}`, the row focus would return to, and every other row carries `-1` — so Tab
 enters the tree once and arrows move inside it instead of walking every row in the document. A row
 being renamed is the one allowed exception: it keeps its `treeitem` role and hands its `tabIndex` to
-the input inside it for as long as the edit lasts. Anything that is not a row lives outside the tree
+the input inside it for as long as the edit lasts. A tree driven from a field the user is still
+typing in is the other: there the rows are all `tabIndex={-1}`, the field keeps focus and carries
+`role="combobox"` with `aria-controls` and `aria-activedescendant`, and that attribute is what names
+the current row. This is the standard combobox pairing, not a second focus model — a tree may adopt
+it only when a field owns the tree's whole navigation, never as a way to avoid giving rows a roving
+Tab stop. Anything that is not a row lives outside the tree
 element — an empty-state action, a live region — because inside `role="tree"` a focusable element has
 to be a real row holding that single Tab stop, and a static notice is not a row. The corollary runs
 both ways: a "show more" control renders _inside_ the tree as a real row, because it is focusable and
@@ -801,6 +823,25 @@ thing they are aiming at defeats the surface.
 
 **Command palette** — rows show command title left, `kbd` shortcut hint right (render from live
 keybindings, `badge` size, `--elevated` chips). Group headings stay. Width 560px.
+
+**Project search** — `Command+Shift+F` opens a centered overlay 70% of the window in each direction,
+not a panel inside Files. Search is a workspace-wide question and its answer wants two columns; a
+310px sidebar could show a file list or a line of context, never both, and it paid for the panel by
+hiding the file tree the results are about. The overlay leaves the tree on screen behind it. It is
+the one surface built on the picker shell that takes the Dialog scrim rather than the picker's
+transparent one: a picker stays see-through because the user is aiming at the workbench underneath
+it, while this surface carries its own preview and is itself what the user is reading, so dimming
+the workbench is honest about the workbench being inert. It reads as controls / results / preview:
+one row of query field, the three content-mode toggles, and the Name–Content segments; then results
+on the left at 42% and a snippet of the selected file on the right, four lines of context each side
+of the match, read through `files.read` rather than by widening what a search result carries — every
+scan would otherwise pay for context the user reads one file at a time. A name result has no line to
+center on and shows the head of the file, which is what tells a reader which of nine `index.ts` they
+found. Focus never leaves the field: `↑`/`↓` move the selection and hold at both ends rather than
+wrapping, `Enter` opens, `Command+Enter` opens to the side, and a pointer selects with one click and
+opens with two. The single click deliberately no longer opens a preview tab the way the sidebar's
+did — the pane beside the results already is that preview, and a tab opening behind a modal is a
+change the user cannot see. Opening a result dismisses the overlay, and a fresh open starts empty.
 
 **Session switcher** — the hold-to-cycle MRU overlay (`Recently used Sessions`) is a modal moment
 that ends on key release, so it wears the picker scrim above rather than the Dialog one, and the

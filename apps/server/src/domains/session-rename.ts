@@ -169,7 +169,15 @@ export class SessionRenameService {
             const renamed = this.database.renameSession(sessionId, appliedTitle);
             this.emit({
                 event: 'state.changed',
-                payload: { kind: 'records', sessionIds: [sessionId], terminalIds: [] },
+                payload: {
+                    kind: 'records',
+                    sessionIds: [sessionId],
+                    // `renameSession` retitles the primary Agent Terminal with the Session, and the Renderer refreshes
+                    // Terminal records only for the ids named here.
+                    terminalIds: renamed.primaryAgentTerminalId
+                        ? [renamed.primaryAgentTerminalId]
+                        : [],
+                },
             });
             return renamed;
         };

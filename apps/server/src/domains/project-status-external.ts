@@ -95,6 +95,68 @@ export function projectStatusNoDeploymentsError(): ProjectStatusError {
     };
 }
 
+/**
+ * What each provider CLI is called in front of the user, and what it is being asked for. Held as one record rather than
+ * a chain of ternaries so adding a provider is a single entry and no branch can be missed: an `lh` failure that fell
+ * through to Linear's copy would tell the user to run `linear config` to fix an acceptance report.
+ *
+ * `providerName` is separate from `displayName` because a rate limit belongs to the service's account budget, not to
+ * the executable that happened to discover it — that copy names the service, while the prerequisites name the binary
+ * the user has to install.
+ */
+const CLI_PROVIDERS = {
+    gh: {
+        displayName: 'GitHub CLI',
+        installHint:
+            'Pull requests for this repository need the GitHub CLI. Install it, then recheck.',
+        loginCommand: 'gh auth login',
+        providerName: 'GitHub',
+        resource: 'pull requests',
+        source: 'github',
+    },
+    lh: {
+        displayName: 'LobeHub CLI',
+        installHint:
+            'Acceptance reports need the LobeHub CLI. Install it with npm i -g @lobehub/cli, then recheck.',
+        loginCommand: 'lh login',
+        providerName: 'LobeHub',
+        resource: 'acceptance reports',
+        source: 'acceptance',
+    },
+    linear: {
+        displayName: 'Linear CLI',
+        installHint: 'Linked issues need the Linear CLI. Install it, then recheck.',
+        linkHint: 'Run linear config in this repository, then recheck.',
+        loginCommand: 'linear auth login',
+        providerName: 'Linear',
+        resource: 'linked issues',
+        source: 'linear',
+    },
+    vc: {
+        displayName: 'Vercel CLI',
+        installHint:
+            'Deployments for this repository need the Vercel CLI. Install it with npm i -g vercel, then recheck.',
+        linkHint: 'Run vc link in this repository, then recheck.',
+        linkMessage: 'Repository not linked to Vercel',
+        loginCommand: 'vc login',
+        providerName: 'Vercel',
+        resource: 'deployments',
+        source: 'vercel',
+    },
+} as const satisfies Record<
+    Exclude<ExternalStatusSource, 'git'>,
+    {
+        displayName: string;
+        installHint: string;
+        linkHint?: string;
+        linkMessage?: string;
+        loginCommand: string;
+        providerName: string;
+        resource: string;
+        source: ProjectStatusError['source'];
+    }
+>;
+
 export function projectStatusCliError(
     command: ExternalStatusSource,
     kind: CliFailureKind,
@@ -107,20 +169,15 @@ export function projectStatusCliError(
     } = {},
 ): ProjectStatusError {
     const { retryAt, subject } = options;
-    const source = command === 'gh' ? 'github' : command === 'vc' ? 'vercel' : 'linear';
-    const displayName =
-        command === 'gh' ? 'GitHub CLI' : command === 'vc' ? 'Vercel CLI' : 'Linear CLI';
+    // `git` is local and never reaches this reporter; fall back to the GitHub copy rather than widening every entry.
+    const provider = CLI_PROVIDERS[command === 'git' ? 'gh' : command];
+    const { displayName, providerName, source } = provider;
     if (kind === 'not-found') {
         return {
             source,
             kind: 'prerequisite',
             message: `${displayName} not installed`,
-            hint:
-                command === 'gh'
-                    ? 'Pull requests for this repository need the GitHub CLI. Install it, then recheck.'
-                    : command === 'vc'
-                      ? 'Deployments for this repository need the Vercel CLI. Install it with npm i -g vercel, then recheck.'
-                      : 'Linked issues need the Linear CLI. Install it, then recheck.',
+            hint: provider.installHint,
         };
     }
     if (kind === 'not-logged-in') {
@@ -128,19 +185,17 @@ export function projectStatusCliError(
             source,
             kind: 'prerequisite',
             message: `${displayName} not signed in`,
-            hint: `Run ${command} ${command === 'vc' ? 'login' : 'auth login'} in a Terminal, then recheck.`,
+            hint: `Run ${provider.loginCommand} in a Terminal, then recheck.`,
         };
     }
     if (kind === 'not-linked') {
+        const linkMessage = 'linkMessage' in provider ? provider.linkMessage : undefined;
+        const linkHint = 'linkHint' in provider ? provider.linkHint : undefined;
         return {
             source,
             kind: 'prerequisite',
-            message:
-                command === 'vc' ? 'Repository not linked to Vercel' : `${displayName} not linked`,
-            hint:
-                command === 'vc'
-                    ? 'Run vc link in this repository, then recheck.'
-                    : 'Run linear config in this repository, then recheck.',
+            message: linkMessage ?? `${displayName} not linked`,
+            hint: linkHint ?? `Configure ${providerName} for this repository, then recheck.`,
         };
     }
     if (kind === 'network')
@@ -160,11 +215,6 @@ export function projectStatusCliError(
             hint: 'Check your proxy or certificates, then retry.',
         };
     if (kind === 'rate-limited') {
-        /**
-         * A rate limit belongs to the provider's account budget, not to the CLI that happened to discover it, so this
-         * copy names the service while the prerequisites above keep naming the executable the user has to install.
-         */
-        const providerName = command === 'gh' ? 'GitHub' : command === 'vc' ? 'Vercel' : 'Linear';
         const retryTime = retryTimeLabel(retryAt);
         return {
             source,
@@ -184,13 +234,11 @@ export function projectStatusCliError(
             message: `${displayName} timed out`,
             hint: 'Check the network or proxy, then refresh.',
         };
-    const resource =
-        command === 'vc' ? 'deployments' : command === 'gh' ? 'pull requests' : 'linked issues';
     return {
         source,
         kind: 'failure',
         message: subject ? `${displayName}: ${subject} failed` : `${displayName} failed`,
-        hint: `Something went wrong while loading ${resource}. Open Logs for details.`,
+        hint: `Something went wrong while loading ${provider.resource}. Open Logs for details.`,
         detailsView: 'logs',
     };
 }

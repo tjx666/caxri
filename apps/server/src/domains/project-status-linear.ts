@@ -10,7 +10,6 @@ import { isNonIssuePrefix } from './agents';
 import type { LinearIssueStore } from './external-status';
 import { ExternalStatusCliError } from './external-status';
 import { extractLinearReferences, projectStatusCliError } from './project-status-external';
-import type { SessionTranscriptContext } from './session-context';
 
 /**
  * How many issues one branch may lead with. The status bar renders the first and counts the rest, and a branch that
@@ -204,20 +203,4 @@ export async function loadOverviewLinearIssues(
             source: candidate.source,
         })),
     ];
-}
-
-/**
- * The Linear markers this Session's own conversation named. An unreadable transcript is the weakest of the three
- * sources and must never fail the overview the status bar draws from.
- */
-export async function readConversationLinearReferences(
-    sessionId: string,
-    read?: (sessionId: string) => Promise<SessionTranscriptContext | undefined>,
-): Promise<readonly TranscriptLinearReference[]> {
-    if (!read) return [];
-    try {
-        return (await read(sessionId))?.linearReferences ?? [];
-    } catch {
-        return [];
-    }
 }

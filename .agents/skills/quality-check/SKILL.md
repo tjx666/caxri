@@ -65,4 +65,9 @@ Use these when a focused `check` is the wrong width, not as the default after ev
 - Format: `bun run format` / `bun run format:check`. Markdown: `bun run format:md` /
   `bun run format:md:check`.
 - Full local gates: `bun run lint` (syntactic ESLint), `bun run lint:type-aware` (oxlint/tsgolint
-  type-aware rules — see `docs/type-aware-linting.md`), `bun run typecheck`, and `bun run test`.
+  type-aware rules — see `docs/type-aware-linting.md`), and `bun run typecheck`.
+- `bun run test` is **not** one of them. The full unit suite is a remote gate that CI runs on every
+  pushed head, so `bun run test` and a bare `vitest run` refuse to start locally. Only the user
+  authorizes a local full run, by setting `CAXRI_FULL_SUITE_AUTHORIZED=1`; an agent never sets that
+  variable on its own judgement. Use `bun run check <changed files>` or name the test files with
+  `rtk vitest run <file>` instead.

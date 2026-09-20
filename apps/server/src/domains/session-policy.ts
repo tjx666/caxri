@@ -207,9 +207,9 @@ export interface AgentMetadataDecision {
      */
     agentSessionId: string | undefined;
     /**
-     * New title for the Terminal row, present only when the Agent reported one that differs from what the row already
-     * carries. Unlike `sessionPatch` below this applies to every Agent Terminal, primary or not: each Terminal's tab
-     * shows its own Agent conversation, so a secondary Agent must not be left displaying its provider name.
+     * New title for the Terminal row, present only when it differs from what the row already carries. Unlike
+     * `sessionPatch` below this applies to every Agent Terminal, primary or not: a secondary Agent's tab shows its own
+     * conversation name, so it must not be left displaying the bare provider name.
      */
     terminalTitle?: string;
     /**
@@ -349,10 +349,11 @@ export function decideAgentMetadataUpdate(
     snapshot: AgentSnapshot,
 ): AgentMetadataDecision | undefined {
     if (!terminal.provider || terminal.provider !== snapshot.provider) return undefined;
-    const displayTitle =
-        session.titleMode === 'manual'
-            ? session.displayTitle
-            : agentDisplayTitle(snapshot.title, session.displayTitle);
+    const isPrimaryAgent = terminal.id === session.primaryAgentTerminalId;
+    const isManuallyTitled = session.titleMode === 'manual';
+    const displayTitle = isManuallyTitled
+        ? session.displayTitle
+        : agentDisplayTitle(snapshot.title, session.displayTitle);
     /**
      * A targeted probe may temporarily miss a hook-bound thread when the provider store has not flushed it yet or its
      * recorded cwd differs from the Terminal cwd. Only launch reset explicitly clears an identity; an empty snapshot
@@ -372,10 +373,19 @@ export function decideAgentMetadataUpdate(
      * `Terminal.title` is re-sent as `agentEndpoint.begin.name` on the next launch, where the Server schema rejects
      * anything past 200 characters and would fail the start. `normalizeTerminalTitle` is the same flatten/sanitize/cap
      * pass OSC 0/2 titles already go through, so both title sources land in the tab under one bound.
+     *
+     * The primary Agent's tab is the Session's own face, so a Session the user named by hand wins over the Agent's
+     * conversation name there. Without this the two halves of one Session disagreed on screen — the sidebar row kept
+     * the typed name while the tab drifted to whatever the Agent CLI last called its thread. That is not an edge case:
+     * `SessionRenameService` commits the local title but skips provider synchronization for a provider without native
+     * rename and for an Agent that has not produced a session yet, and an Agent may rename its own thread afterwards in
+     * any event. A secondary Agent Terminal is unaffected — its tab is the only thing naming that conversation.
      */
-    const terminalTitle =
-        normalizeTerminalTitle(agentDisplayTitle(snapshot.title, terminal.title)) ?? terminal.title;
-    const isPrimaryAgent = terminal.id === session.primaryAgentTerminalId;
+    const preferredTitle =
+        isPrimaryAgent && isManuallyTitled
+            ? session.displayTitle
+            : agentDisplayTitle(snapshot.title, terminal.title);
+    const terminalTitle = normalizeTerminalTitle(preferredTitle) ?? terminal.title;
     const lastActivityState = metadataActivityState(session, snapshot.status);
     const attentionKind = isPrimaryAgent
         ? reliableAttentionTransition(session, lastActivityState, snapshot.attentionKind)

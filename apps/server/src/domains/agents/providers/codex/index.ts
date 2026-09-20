@@ -15,7 +15,6 @@ import type {
     LocalAgentState,
 } from '../../contract';
 import { canonicalPath, isOpaqueAgentSessionId, projectDirectories } from '../../contract';
-import { AGENT_PASTE_SUMMARY_SYSTEM_INSTRUCTIONS } from '../../paste-summary-generation';
 import type { ProcessOpenFile } from '../../process-detection';
 import { detectForegroundAgentOpenFiles } from '../../process-detection';
 import {
@@ -680,15 +679,6 @@ export const codexProvider: AgentProviderDescriptor = {
      * https://github.com/openai/codex/blob/rust-v0.154.0/codex-rs/tui/src/lib.rs#L988-L998
      */
     managedLaunchArguments: ['-c', 'tui.auto_recap=false'],
-    pasteSummary: {
-        summarize: (context) =>
-            generateCodexLowCostText(
-                context,
-                AGENT_PASTE_SUMMARY_SYSTEM_INSTRUCTIONS,
-                'Long paste summary',
-                10_000,
-            ),
-    },
     readState: async (context, environment) => {
         const stateDirectories = resolveCodexStateDirectories(environment);
         const processState = await readCodexStateFromProcess(

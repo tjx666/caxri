@@ -307,6 +307,59 @@ describe('CaxriDatabase Agent metadata', () => {
         database.close();
     });
 
+    /**
+     * A rename that reaches no further than Caxri's own database — a provider without native rename, or an Agent that
+     * has not produced a session yet — used to leave the tab on the Agent's conversation name indefinitely, because no
+     * later metadata probe would ever carry the typed name. The sidebar row and the tab then showed one Session under
+     * two different names.
+     */
+    it('retitles the primary Agent Terminal with the Session it belongs to', async () => {
+        const directory = await temporaryDirectory('caxri-db-rename-agent-tab-');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+        const primary = created.terminal!;
+        const secondary = database.createTerminal(created.session.id, 'claude');
+
+        database.updateAgentMetadata(primary.id, {
+            provider: 'codex',
+            available: true,
+            observedAt: Date.now(),
+            sessionId: 'codex-session-1',
+            status: 'running',
+            title: 'Resume unfinished work',
+        });
+        expect(database.getTerminal(primary.id)?.title).toBe('Resume unfinished work');
+
+        database.renameSession(created.session.id, 'Trace the router logs');
+
+        expect(database.getSession(created.session.id)).toMatchObject({
+            displayTitle: 'Trace the router logs',
+            primaryAgentTerminalId: primary.id,
+        });
+        expect(database.getTerminal(primary.id)?.title).toBe('Trace the router logs');
+        // A secondary Agent's tab is the only thing naming that conversation, so the Session's name is not its own.
+        expect(database.getTerminal(secondary.id)?.title).toBe('Claude Code');
+        database.close();
+    });
+
+    /**
+     * The Session title is bounded at 200 characters and this path is also reached automatically with a provider's own
+     * thread name, so the tab bound has to be applied here rather than assumed. A Terminal title over
+     * `MAX_TERMINAL_TITLE_LENGTH` is replayed as `agentEndpoint.begin.name` on the next launch and rejected there.
+     */
+    it('holds a renamed Agent tab to the Terminal title bound', async () => {
+        const directory = await temporaryDirectory('caxri-db-rename-agent-tab-bound-');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+        const primary = created.terminal!;
+
+        database.renameSession(created.session.id, 'y'.repeat(180));
+
+        expect(database.getSession(created.session.id)?.displayTitle).toBe('y'.repeat(180));
+        expect(database.getTerminal(primary.id)?.title).toBe('y'.repeat(MAX_TERMINAL_TITLE_LENGTH));
+        database.close();
+    });
+
     it('keeps Untitled while promoting an Agent Terminal before metadata arrives', async () => {
         const directory = await temporaryDirectory('caxri-db-primary-agent-succession-');
         const database = new CaxriDatabase(join(directory, 'state.db'));

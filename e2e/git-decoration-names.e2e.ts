@@ -67,8 +67,8 @@ test('Search and breadcrumbs show the same exact-file Git decoration as Files', 
         await picker.screenshot({ path: test.info().outputPath('breadcrumb-picker.png') });
         await running.page.keyboard.press('Escape');
 
-        await running.page.getByRole('button', { name: 'Search Files' }).click();
-        const nameSearch = running.page.getByRole('textbox', { name: 'Find Project files' });
+        await running.page.keyboard.press('Meta+Shift+F');
+        const nameSearch = running.page.getByRole('combobox', { name: 'Find Project files' });
         await nameSearch.fill('.txt');
         const nameResults = running.page.locator('.search-results');
         const dirtyName = nameResults.locator('.search-result[title$="dirty.txt"]');
@@ -82,7 +82,9 @@ test('Search and breadcrumbs show the same exact-file Git decoration as Files', 
         await nameResults.screenshot({ path: test.info().outputPath('search-results.png') });
 
         await running.page.getByRole('button', { name: 'Content', exact: true }).click();
-        await running.page.getByRole('textbox', { name: 'Search Project contents' }).fill('Needle');
+        await running.page
+            .getByRole('combobox', { name: 'Search Project contents' })
+            .fill('Needle');
         const dirtyGroup = running.page.locator('.search-result-group[title="src/dirty.txt"]');
         await expect(dirtyGroup.locator('.status-modified')).toHaveText('M');
         await expect(dirtyGroup.getByRole('button').first()).toHaveAccessibleDescription(

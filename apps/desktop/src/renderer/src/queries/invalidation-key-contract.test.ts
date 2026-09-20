@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('../lib/caxri', () => ({ caxri: mocks }));
 
+import { projectSearchQueryKey } from '../features/project-search/project-search-query';
 import type { ExtensionTreeScope } from '../features/view-containers/extension-tree-client';
 import { cacheTreeChildren } from '../features/view-containers/extension-tree-client';
 import { controlledViewQueryKey } from '../features/view-containers/view-operation-client';
@@ -145,13 +146,9 @@ describe('invalidation predicates match factory-built query keys', () => {
         const summary = caxriQueryKey('projectStatus.summary', { sessionId: SESSION_ID });
         const pullRequests = caxriQueryKey('session.pullRequests', undefined as never);
         const directListing = caxriQueryKey('files.list', { sessionId: SESSION_ID });
-        const controlledSearch = controlledViewQueryKey(
-            VIEW_ID,
-            'files.search',
-            { query: 'todo' },
-            CONTEXT_KEY,
-        );
-        for (const key of [summary, pullRequests, directListing, controlledSearch])
+        // The overlay's own flat key, not a controlled-view one: Project search left the Files view container.
+        const overlaySearch = projectSearchQueryKey(CONTEXT_KEY, { query: 'todo' });
+        for (const key of [summary, pullRequests, directListing, overlaySearch])
             queryClient.setQueryData(key, {});
 
         emit(queryClient, {
@@ -162,7 +159,7 @@ describe('invalidation predicates match factory-built query keys', () => {
         expect(isInvalidated(queryClient, summary)).toBe(true);
         expect(isInvalidated(queryClient, pullRequests)).toBe(true);
         expect(isInvalidated(queryClient, directListing)).toBe(true);
-        expect(isInvalidated(queryClient, controlledSearch)).toBe(true);
+        expect(isInvalidated(queryClient, overlaySearch)).toBe(true);
     });
 
     it('invalidates the Agent transcript read its change event names', () => {

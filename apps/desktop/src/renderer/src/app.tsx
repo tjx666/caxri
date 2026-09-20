@@ -16,6 +16,7 @@ import { CommandPalette } from './features/palette/command-palette';
 import { PathBrowserDialog } from './features/path-browser/path-browser-dialog';
 import { PrimarySidebar } from './features/primary-sidebar/primary-sidebar';
 import { ProjectIconDialog } from './features/primary-sidebar/project-icon-dialog';
+import { ProjectSearchDialog } from './features/project-search/project-search-dialog';
 import { RendererPerformanceProfiler } from './features/renderer-performance/renderer-performance-profiler';
 import { ScreencastOverlay } from './features/screencast/screencast-overlay';
 import { SecondarySidebar } from './features/secondary-sidebar/secondary-sidebar';
@@ -67,8 +68,11 @@ import {
 function useRuntimeAttachment(): void {
     useEffect(() => {
         const desktopOpenQueue = createDesktopOpenQueue({
-            openFile: async (sessionId, path, location) => {
-                return openFileForSession(sessionId, path, location ? { location } : {});
+            openFile: async (sessionId, path, options) => {
+                return openFileForSession(sessionId, path, {
+                    ...(options?.location && { location: options.location }),
+                    ...(options?.focusEditor && { focus: true }),
+                });
             },
             selectSession: didSelectSession,
         });
@@ -78,7 +82,7 @@ function useRuntimeAttachment(): void {
         return subscribeWorkbenchEvents({
             onCommand: (command, wasViaAccelerator) =>
                 runCommand(command, undefined, { viaAccelerator: wasViaAccelerator }),
-            onDesktopOpen: (sessionId, path, location) => {
+            onDesktopOpen: (sessionId, path, options) => {
                 // Fire-and-forget: a rejection here surfaces through the global
                 // `unhandledrejection` reporter (see renderer-error-reporter.ts), which is the
                 // established pattern for one-shot Server-triggered opens.
@@ -86,7 +90,8 @@ function useRuntimeAttachment(): void {
                 void desktopOpenQueue.enqueue({
                     sessionId,
                     ...(path && { path }),
-                    ...(location && { location }),
+                    ...(options?.location && { location: options.location }),
+                    ...(options?.focusEditor && { focusEditor: true }),
                 });
             },
         });
@@ -240,6 +245,7 @@ export function App() {
                 <SettingsDialog />
                 <UpdateDialog />
                 <CommandPalette />
+                <ProjectSearchDialog />
                 <AgentActionsDialog />
                 <PathBrowserDialog />
                 <BugReportDialog />

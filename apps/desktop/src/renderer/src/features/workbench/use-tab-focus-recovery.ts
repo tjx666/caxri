@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 
 import type { PaneLayout } from '@caxri/protocol';
 
+import { hasPendingEditorIntent } from '../editor/editor-reveal';
 import { workTabId } from '../tabs/work-tab-accessibility';
 import type { PaneFocusOrigin } from './tab-focus-recovery';
 import { planTabFocusRecovery } from './tab-focus-recovery';
@@ -32,6 +33,13 @@ export function useTabFocusRecovery(layout: PaneLayout | undefined): void {
             // Recovering only from `document.body` — the browser's "nothing is focused" state — keeps this to repairing
             // a loss rather than competing for focus with anything that legitimately took it in the meantime.
             if (document.activeElement !== document.body) return;
+            /**
+             * An Editor that is about to take focus has already said so. Monaco is lazily imported, so a file opened
+             * with focus (the file picker, a Terminal path link) leaves focus on `document.body` for the frames between
+             * the layout commit and the editor mounting — which reads here as a loss to repair. Claiming the tab button
+             * in the meantime paints a focus ring the user never asked for and then loses it again to the editor.
+             */
+            if (hasPendingEditorIntent()) return;
             const target = planTabFocusRecovery(layoutReference.current, focusOrigin.current);
             if (!target) return;
             /**

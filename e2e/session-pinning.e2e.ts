@@ -68,16 +68,46 @@ test('pinning lifts Sessions from several Projects into one group that survives 
 
         await togglePin(projectRow(alphaProject.id, alpha.id), 'Alpha');
         await expect.poll(() => pinnedOrder(page())).toEqual([alpha.id]);
-        // The Session stays listed under its own Project: the group is a second view, not a folder it moved into.
-        await expect(projectRow(alphaProject.id, alpha.id)).toBeVisible();
+        // Pinning moves the Session: it leaves its own Project group and is listed once, under Pinned. The emptied
+        // Project keeps its heading and falls back to the same "New Session" row an untouched empty Project shows.
+        await expect(projectRow(alphaProject.id, alpha.id)).toHaveCount(0);
+        await expect(
+            page().locator(`.project-group[data-project-id="${alphaProject.id}"] .empty-project`),
+        ).toBeVisible();
         // Pinned rows name their owning Project, which is the only thing telling two Projects' Sessions apart here.
         await expect(page().locator('.pinned-session-group .session-project').first()).toHaveText(
             alphaProject.displayTitle,
         );
         /**
-         * The pin has no visible mark on either row, so the accessible description is what carries it — and the two
-         * copies of the Session say different things: the Project row reports that it is pinned, the Pinned row reports
-         * which group the user is standing in.
+         * The title and the Project name used to shrink in proportion to their own widths, so a long Project name
+         * claimed the larger share of a crowded row and clipped the Session title down to a couple of characters —
+         * which reads as the Project name covering the title rather than as either one being truncated. The Project
+         * name has to give up all of its space before the title loses any, whatever the sidebar's current width is.
+         */
+        await pageRequest(page(), 'session.rename', {
+            sessionId: alpha.id,
+            displayTitle: 'Alpha Session title long enough to crowd its Project name',
+        });
+        await expect
+            .poll(() =>
+                page()
+                    .locator('.pinned-session-group .session-card')
+                    .first()
+                    .evaluate((card) => {
+                        const title = card.querySelector('.session-title');
+                        const project = card.querySelector('.session-project');
+                        if (!title || !project) return 'row is missing a part';
+                        return title.scrollWidth > title.clientWidth + 1 &&
+                            project.getBoundingClientRect().width > 0
+                            ? 'the Project name kept width while the title was clipped'
+                            : 'ok';
+                    }),
+            )
+            .toBe('ok');
+        await pageRequest(page(), 'session.rename', { sessionId: alpha.id, displayTitle: 'Alpha' });
+        /**
+         * The pin has no visible mark on the row, so the accessible description is the only thing that says the row is
+         * pinned at all.
          */
         const describedBy = (selector: string) =>
             page().evaluate((cardSelector) => {
@@ -88,13 +118,6 @@ test('pinning lifts Sessions from several Projects into one group that survives 
         await expect
             .poll(() => describedBy('.pinned-session-group .session-card'))
             .toMatch(/^In Pinned group\./);
-        await expect
-            .poll(() =>
-                describedBy(
-                    `.project-group[data-project-id="${alphaProject.id}"] [data-session-id="${alpha.id}"]`,
-                ),
-            )
-            .toMatch(/^Pinned\./);
 
         await togglePin(projectRow(betaProject.id, beta.id), 'Beta');
         await expect.poll(() => pinnedOrder(page())).toEqual([alpha.id, beta.id]);
@@ -107,9 +130,11 @@ test('pinning lifts Sessions from several Projects into one group that survives 
             .locator('.project-list')
             .screenshot({ path: test.info().outputPath('session-pinned.png') });
 
-        // Collapsing the group keeps the heading and its count while hiding the rows.
+        // Collapsing the group keeps the heading while hiding the rows. The heading shows no count digit; the
+        // membership reaches assistive technology through its accessible name instead.
         const heading = page().locator('[data-row-id="pinned-sessions"]');
         await expect(heading).toHaveAttribute('aria-label', 'Pinned, 2 Sessions');
+        await expect(heading).toHaveText('Pinned');
         await heading.click();
         await expect.poll(() => pinnedOrder(page())).toEqual([]);
         await expect(heading).toBeVisible();
@@ -136,9 +161,53 @@ test('pinning lifts Sessions from several Projects into one group that survives 
         await expect.poll(() => pinnedOrder(page())).toEqual([beta.id]);
         await togglePin(pinnedRow(beta.id), 'Beta');
         await expect(page().locator('.pinned-session-group')).toHaveCount(0);
-        // Archiving is what removes a Session everywhere else; unpinning leaves both Projects intact.
+        // Unpinning is the other half of the move: each Session returns to the Project group it came from.
         await expect(projectRow(alphaProject.id, alpha.id)).toBeVisible();
         await expect(projectRow(betaProject.id, beta.id)).toBeVisible();
+    } finally {
+        await running.app.close();
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+test('the rename command finds a pinned Session in the group that actually holds it', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-pinned-rename-e2e-'));
+    const root = join(directory, 'project');
+    await mkdir(root);
+    const running = await launchCaxri({
+        userDataDir: join(directory, 'profile'),
+        testRootPath: root,
+    });
+    try {
+        const { page } = running;
+        await createProjectSession(page);
+        const bootstrap = await pageRequest<{ sessions: Array<{ id: string }> }>(
+            page,
+            'app.bootstrap',
+        );
+        const sessionId = bootstrap.sessions[0].id;
+        await pageRequest(page, 'session.setPinned', { sessionId, pinned: true });
+        await pageRequest(page, 'session.select', { sessionId });
+
+        // Collapsed, so the row the rename editor replaces is not mounted when the command runs.
+        const heading = page.locator('[data-row-id="pinned-sessions"]');
+        await heading.click();
+        await expect.poll(() => pinnedOrder(page)).toEqual([]);
+
+        await page.keyboard.press('F2');
+
+        /*
+         * Pinning moves the Session out of its Project group, so the row the command has to reveal lives under Pinned
+         * and nowhere else. Expanding the Project instead left the editor attached to a row that does not exist: the
+         * command appeared to do nothing, and the phantom rename surfaced later as an unexplained editor.
+         */
+        const pinnedRow = page.locator(`[data-row-id="pinned-session:${sessionId}"]`);
+        await expect(pinnedRow).toBeVisible();
+        const input = pinnedRow.getByRole('textbox', { name: 'Rename Untitled' });
+        await expect(input).toBeFocused();
+        await input.fill('Pinned rename');
+        await input.press('Enter');
+        await expect(pinnedRow.locator('strong')).toHaveText('Pinned rename');
     } finally {
         await running.app.close();
         await rm(directory, { recursive: true, force: true });

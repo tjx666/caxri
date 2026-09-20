@@ -16,7 +16,7 @@ export type SettingRowBinding =
     | {
           type: 'provider-toggle';
           provider: AgentProvider;
-          field: 'hooks' | 'messaging' | 'pasteSummary';
+          field: 'hooks' | 'messaging';
       }
     | { type: 'provider-recovery'; provider: AgentProvider }
     | { type: 'provider-autonomy'; provider: AgentProvider }
@@ -45,6 +45,16 @@ export interface SettingRowDescriptor {
      */
     subcategory?: string;
     title: string;
+    /**
+     * Accessible name for the row's control, which is `title` unless another row shares it.
+     *
+     * The Settings page is one flat virtualized list, so a category heading is a sibling of its rows rather than a
+     * container that owns them. Assistive technology therefore reads a control's name with no trace of the heading
+     * above it, and "Font size" under Terminal is indistinguishable from "Font size" under Editor. A duplicated title
+     * is prefixed with its category so the name stays unique app-wide; the visible label keeps the short title, which
+     * WCAG 2.5.3 allows because the accessible name still contains it.
+     */
+    accessibleTitle: string;
     description?: string;
     binding: SettingRowBinding;
     /**
@@ -52,6 +62,11 @@ export interface SettingRowDescriptor {
      */
     haystack: string;
 }
+
+/**
+ * A row before the registry resolves its accessible name, which can only be decided once every row is known.
+ */
+type SettingRowSource = Omit<SettingRowDescriptor, 'accessibleTitle'>;
 
 export interface SettingsCategory {
     id: SettingCategoryId;
@@ -76,7 +91,7 @@ function specHaystack(spec: SettingSpec, extra: Array<string | undefined> = []):
     ]);
 }
 
-function specRow(key: SettingKey, extra?: Partial<SettingRowDescriptor>): SettingRowDescriptor {
+function specRow(key: SettingKey, extra?: Partial<SettingRowSource>): SettingRowSource {
     const spec: SettingSpec = settingsSpecByKey[key];
     return {
         id: spec.key,
@@ -89,7 +104,7 @@ function specRow(key: SettingKey, extra?: Partial<SettingRowDescriptor>): Settin
     };
 }
 
-function providerRows(provider: AgentProvider): SettingRowDescriptor[] {
+function providerRows(provider: AgentProvider): SettingRowSource[] {
     const providerName = agentProviderCatalog[provider].displayName;
     const shared = { category: 'agents' as const, subcategory: providerName };
     const providerTerms = [provider, providerName, 'agent', 'provider'];
@@ -132,21 +147,6 @@ function providerRows(provider: AgentProvider): SettingRowDescriptor[] {
                 'without stopping the Terminal; restart only if the CLI adapter is unavailable.',
             binding: { type: 'provider-toggle', provider, field: 'messaging' },
             haystack: lower(['peer messaging', 'inbox', ...providerTerms]),
-        },
-        {
-            ...shared,
-            id: `agents.${provider}.pasteSummary`,
-            title: 'Summarize long pastes',
-            description:
-                'Saves long pasted text locally and uses one extra low-cost model call before inserting a summary and file path. Disable this to keep ordinary paste behavior.',
-            binding: { type: 'provider-toggle', provider, field: 'pasteSummary' },
-            haystack: lower([
-                'summarize long pastes',
-                'clipboard',
-                'context',
-                'model call',
-                ...providerTerms,
-            ]),
         },
         {
             ...shared,
@@ -227,7 +227,7 @@ const categoryTitles = Object.fromEntries(
     settingCategories.map((category) => [category.id, category.title]),
 ) as Record<SettingCategoryId, string>;
 
-const rows: SettingRowDescriptor[] = [
+const rows: SettingRowSource[] = [
     specRow('session.defaultAgent'),
     specRow('primarySidebar.autoCollapseProjects'),
     specRow('workbench.newWorktreeBehavior'),
@@ -297,7 +297,22 @@ const rows: SettingRowDescriptor[] = [
     },
     specRow('terminal.defaultWorkingDirectory'),
     specRow('editor.fontFamily'),
+    specRow('editor.fontSize'),
+    specRow('editor.wordWrap'),
+    specRow('editor.wordSeparators'),
+    specRow('editor.minimap.enabled'),
+    specRow('editor.stickyScroll.enabled'),
+    specRow('editor.bracketPairColorization.enabled'),
+    specRow('editor.guides.bracketPairs'),
+    specRow('editor.renderWhitespace'),
+    specRow('editor.linkedEditing'),
+    specRow('editor.autoClosingDelete'),
+    specRow('editor.stickyTabStops'),
     specRow('editor.unfoldOnClickAfterEndOfLine'),
+    specRow('editor.dragAndDrop'),
+    specRow('editor.cursorBlinking'),
+    specRow('editor.cursorSmoothCaretAnimation'),
+    specRow('editor.smoothScrolling'),
     {
         ...specRow('security.trustedDomains'),
         binding: { type: 'trusted-domains' },
@@ -375,14 +390,37 @@ const rows: SettingRowDescriptor[] = [
 ];
 
 /**
+ * Bindings whose control takes its accessible name from the row title, and therefore need a category prefix when two
+ * rows share that title. Every other binding renders a dedicated editor that already names itself after the thing it
+ * edits (`Claude Code lifecycle hooks`), so prefixing it would rename a row that was never ambiguous. Keep this in step
+ * with the `row.accessibleTitle` uses in `setting-row.tsx`.
+ */
+export const titleNamedBindings = new Set<SettingRowBinding['type']>([
+    'delegation-depth',
+    'hardware-acceleration',
+    'remote-debugging',
+    'setting',
+]);
+
+/**
  * Display-order authority for the Settings page: rows grouped by category, flattened top to bottom. The table of
  * contents, the virtualized list, and search all derive from this array. Category and subcategory titles join each
  * row's haystack so "terminal" or "claude" matches the whole group.
  */
-export const settingsRows: SettingRowDescriptor[] = rows.map((row) => ({
-    ...row,
-    haystack: lower([row.haystack, categoryTitles[row.category], row.subcategory]),
-}));
+export const settingsRows: SettingRowDescriptor[] = (() => {
+    const titleCounts = new Map<string, number>();
+    for (const row of rows)
+        if (titleNamedBindings.has(row.binding.type))
+            titleCounts.set(row.title, (titleCounts.get(row.title) ?? 0) + 1);
+    return rows.map((row) => ({
+        ...row,
+        accessibleTitle:
+            (titleCounts.get(row.title) ?? 0) > 1
+                ? `${categoryTitles[row.category]} ${row.title}`
+                : row.title,
+        haystack: lower([row.haystack, categoryTitles[row.category], row.subcategory]),
+    }));
+})();
 
 /**
  * Resolves a subcategory heading back to its Agent provider for identity icons.

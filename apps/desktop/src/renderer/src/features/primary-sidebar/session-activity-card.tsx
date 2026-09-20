@@ -8,7 +8,6 @@ import type {
     SessionRecord,
     TerminalRecord,
 } from '@caxri/protocol';
-import { isPinnedSession } from '@caxri/protocol';
 import { Circle } from 'lucide-react';
 
 import { useRelativeTime } from '@/hooks/use-relative-time';
@@ -174,9 +173,9 @@ export function SessionActivityCard({
         ? sessionPullRequestPresentation(pullRequest)
         : undefined;
     const accessibleDescription = [
-        // The pin has no visible mark on the row itself — it is the group the row sits in — so this sentence is the
-        // only thing that tells a screen-reader user which copy of a doubly listed Session they are on.
-        inPinnedGroup ? 'In Pinned group.' : isPinnedSession(session) && 'Pinned.',
+        // The pin has no visible mark on the row itself — it is the group the row sits in — and a pinned Session is
+        // listed only there, so this sentence is the only thing that says the row is pinned at all.
+        inPinnedGroup && 'In Pinned group.',
         `Project ${project.displayTitle}.`,
         `Agent ${agentLabel}.`,
         activity.ariaLabel,

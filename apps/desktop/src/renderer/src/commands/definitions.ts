@@ -296,6 +296,17 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('commandPalette.open', (context) => context.dialogs.openPalette(), {
         allowInEditable: true,
     }),
+    /*
+     * Declared in the shared catalog as a Files view-container command, but handled here: `executeCommand` prefers a
+     * Renderer registration and only falls through to the view catalog when none exists. That fallthrough is exactly
+     * what has to be avoided — `didExecuteViewCatalogCommand` reveals a command's owning view container before
+     * dispatching it, so leaving this to the catalog would pop the Files sidebar open every time the overlay opened.
+     * Registering it here keeps the catalog entry, the `cmd+shift+f` default, and the recorded keybinding migration
+     * history untouched while the command itself now opens a surface that belongs to no view container.
+     */
+    fromCatalog('secondarySidebar.searchFiles', (context) => context.dialogs.openProjectSearch(), {
+        allowInEditable: true,
+    }),
     fromCatalog('processExplorer.open', (context) => context.windows.openProcessExplorer()),
     fromCatalog(
         'developer.toggleScreencastMode',

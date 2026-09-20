@@ -166,6 +166,6 @@ describe('Grok Build launch contract', () => {
     it('does not advertise unverified native capabilities', () => {
         expect(grokProvider).not.toHaveProperty('renameSession');
         expect(grokProvider.actions).toBeUndefined();
-        expect(grokProvider.pasteSummary).toBeUndefined();
+        expect(grokProvider).not.toHaveProperty('generateTitle');
     });
 });

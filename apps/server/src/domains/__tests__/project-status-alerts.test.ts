@@ -16,6 +16,7 @@ function repo(overrides: Partial<ProjectStatusRepository> = {}): ProjectStatusRe
         rootPath: '/Users/me/code/caxri',
         branch: 'feat/example',
         githubUrl: 'https://github.com/tjx666/caxri',
+        acceptances: [],
         linearIssues: [],
         errors: [],
         ...overrides,

@@ -560,7 +560,7 @@ describe('Acceptance Agent fixtures', () => {
         }
     });
 
-    it('drives paste summaries for both providers and rejects unrecognized text generation', async () => {
+    it('drives session auto-naming for both providers and rejects unrecognized text generation', async () => {
         const userDataDirectory = await mkdtemp(join(tmpdir(), 'caxri-acceptance-agent-fixture-'));
         directories.push(userDataDirectory);
         const fixture = await prepareAcceptanceAgentFixture({
@@ -568,8 +568,8 @@ describe('Acceptance Agent fixtures', () => {
             sourceEnvironment: { PATH: '/usr/bin:/bin' },
             userDataDir: userDataDirectory,
         });
-        const pasteSummaryInstructions =
-            'If the text is a log, build trace, test output, or diagnostic dump:';
+        const titleInstructions =
+            'Generate a concise coding-session title from the conversation below.';
         await expect(
             runFixture(
                 fixtureExecutable(fixture, 'claude'),
@@ -581,11 +581,11 @@ describe('Acceptance Agent fixtures', () => {
         await expect(
             runFixture(
                 fixtureExecutable(fixture, 'claude'),
-                ['--print', '--model', 'haiku', '--system-prompt', pasteSummaryInstructions],
+                ['--print', '--model', 'haiku', '--system-prompt', titleInstructions],
                 fixture.environment,
                 'CAXRI_ACCEPTANCE_PRIVATE_CLAUDE',
             ),
-        ).resolves.toContain('Actual error: build failed with code E42');
+        ).resolves.toContain('Repair Session Naming');
         await expect(
             runFixture(
                 fixtureExecutable(fixture, 'codex'),
@@ -599,9 +599,9 @@ describe('Acceptance Agent fixtures', () => {
                 fixtureExecutable(fixture, 'codex'),
                 ['exec', '--skip-git-repo-check', '-'],
                 fixture.environment,
-                `${pasteSummaryInstructions}\n\nCAXRI_ACCEPTANCE_PRIVATE_CODEX`,
+                `${titleInstructions}\n\nCAXRI_ACCEPTANCE_PRIVATE_CODEX`,
             ),
-        ).resolves.toContain('Actual error: build failed with code E42');
+        ).resolves.toContain('Repair Session Naming');
 
         await expect(readReceipts(fixture.environment.CLAUDE_CONFIG_DIR!)).resolves.toContainEqual(
             expect.objectContaining({ kind: 'unexpectedTextGeneration', provider: 'claude' }),

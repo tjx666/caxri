@@ -1,7 +1,7 @@
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
-import type { ProjectRecord } from '@caxri/protocol';
-import { defaultAppSettings } from '@caxri/protocol';
+import type { ProjectRecord, SessionRecord } from '@caxri/protocol';
+import { defaultAppSettings, isPinnedSession } from '@caxri/protocol';
 import { Plus } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
@@ -27,11 +27,12 @@ import { useSessionOrder } from './hooks/use-session-order';
 import { useSessionPullRequestPoll } from './hooks/use-session-pull-request';
 import { useSessionRename } from './hooks/use-session-rename';
 import { PinnedSessionGroup } from './pinned-session-group';
+import { unpinnedSessions } from './pinned-session-order';
 import { PrimarySidebarFooter } from './primary-sidebar-footer';
 import { PrimarySidebarHeader } from './primary-sidebar-header';
 import { PINNED_GROUP_ROW_ID, primarySidebarPinnedRowId } from './primary-sidebar-tree';
 import { handlePrimarySidebarTreeKey } from './primary-sidebar-tree-keys';
-import { ProjectGroup } from './project-group';
+import { ProjectGroupList } from './project-group-list';
 import { hasProjectDragType } from './project-order';
 import { sessionWorktreeProject, topLevelProjects } from './project-visibility';
 import { SESSION_REVEAL_STEP } from './session-list-window';
@@ -68,11 +69,10 @@ export function PrimarySidebar() {
         sessions,
     });
     const [animatedProjectIds, setAnimatedProjectIds] = useState<Set<string>>(() => new Set());
-    const sessionRename = useSessionRename(sessions, projectCollapse.expandProject);
     // Owns the cadence only; each Session row subscribes to its own slice of the snapshot this keeps fresh.
     useSessionPullRequestPoll();
     const orderedSessions = useMemo(
-        () => activeSessionsInSidebarOrder(projects, sessions),
+        () => unpinnedSessions(activeSessionsInSidebarOrder(projects, sessions)),
         [projects, sessions],
     );
     const sessionOrder = useSessionOrder(orderedSessions);
@@ -96,6 +96,24 @@ export function PrimarySidebar() {
         selectedSessionId,
         sessions,
     });
+
+    /**
+     * Where `session.rename` has to put its editor. A pinned Session is withheld from its Project group, so the Project
+     * row this used to target does not exist for one — expanding that Project would reveal nothing and the rename would
+     * silently no-op.
+     */
+    const revealSessionRow = useCallback(
+        (session: SessionRecord): string => {
+            if (isPinnedSession(session)) {
+                pinnedCollapse.expand();
+                return primarySidebarPinnedRowId(session.id);
+            }
+            projectCollapse.expandProject(session.projectId);
+            return session.id;
+        },
+        [pinnedCollapse, projectCollapse],
+    );
+    const sessionRename = useSessionRename(sessions, revealSessionRow);
 
     const isProjectExpanded = projectCollapse.isProjectExpanded;
 
@@ -251,61 +269,21 @@ export function PrimarySidebar() {
                             visibleSessions={pinnedGroup.visibleSessions}
                             worktreeProjects={pinnedGroup.worktreeProjects}
                         />
-                        {projectWindows.map((sessionWindow) => {
-                            const {
-                                hiddenCount,
-                                nextRevealCount,
-                                project,
-                                projectSessions,
-                                visibleSessions,
-                            } = sessionWindow;
-                            return (
-                                <ProjectGroup
-                                    key={project.id}
-                                    active={project.id === selectedProjectId}
-                                    animateProject={animatedProjectIds.has(project.id)}
-                                    dragged={projectOrder.draggedProjectId === project.id}
-                                    expanded={isProjectExpanded(project.id)}
-                                    focusRenameInput={sessionRename.focusRenameInput}
-                                    hiddenSessionCount={hiddenCount}
-                                    nextRevealCount={nextRevealCount}
-                                    onBeginRename={sessionRename.beginRename}
-                                    onBlurRename={sessionRename.blurRename}
-                                    onCancelRename={sessionRename.cancelRename}
-                                    onCommitRename={sessionRename.commitRename}
-                                    onDragEnd={projectOrder.endDrag}
-                                    onDragOver={(event) =>
-                                        projectOrder.updateDropTarget(event, project.id)
-                                    }
-                                    onDragStart={(event) =>
-                                        projectOrder.startDrag(event, project.id)
-                                    }
-                                    onDrop={(event) => projectOrder.drop(event, project.id)}
-                                    onMove={(delta) =>
-                                        projectOrder.move(project.id, project.displayTitle, delta)
-                                    }
-                                    onRenameValueChange={sessionRename.onRenameValueChange}
-                                    onRevealMoreSessions={() => revealMoreSessions(sessionWindow)}
-                                    onToggle={() => toggleProject(project.id)}
-                                    project={project}
-                                    projectSessions={projectSessions}
-                                    projectDropTarget={
-                                        projectOrder.projectDropTarget?.projectId === project.id
-                                            ? projectOrder.projectDropTarget
-                                            : undefined
-                                    }
-                                    renameError={sessionRename.renameError}
-                                    renameValue={sessionRename.renameValue}
-                                    renamingRowId={sessionRename.renamingRowId}
-                                    rovingRowId={rovingRowId}
-                                    selectedSessionId={selectedSessionId}
-                                    sessionOrder={sessionOrder}
-                                    terminals={terminals}
-                                    visibleSessions={visibleSessions}
-                                    worktreeProjects={worktreeProjects}
-                                />
-                            );
-                        })}
+                        <ProjectGroupList
+                            animatedProjectIds={animatedProjectIds}
+                            isProjectExpanded={isProjectExpanded}
+                            onRevealMoreSessions={revealMoreSessions}
+                            onToggleProject={toggleProject}
+                            projectOrder={projectOrder}
+                            projectWindows={projectWindows}
+                            rovingRowId={rovingRowId}
+                            selectedProjectId={selectedProjectId}
+                            selectedSessionId={selectedSessionId}
+                            sessionOrder={sessionOrder}
+                            sessionRename={sessionRename}
+                            terminals={terminals}
+                            worktreeProjects={worktreeProjects}
+                        />
                     </div>
                     {projects.length === 0 && (
                         <button

@@ -164,7 +164,9 @@ export class LinearIssueStore {
         if (cached) {
             const ttl =
                 lookup.maxAgeMs ??
-                (cached.error ? FAILURE_TTL_MS : (this.options.issueTtlMs ?? ISSUE_TTL_MS));
+                (cached.error
+                    ? (this.options.failureTtlMs ?? FAILURE_TTL_MS)
+                    : (this.options.issueTtlMs ?? ISSUE_TTL_MS));
             if (this.now() - cached.fetchedAt < ttl) {
                 rememberBounded(this.issues, key, cached, MAX_ISSUE_RECORDS);
                 if (cached.error) throw cached.error;

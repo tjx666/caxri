@@ -114,11 +114,10 @@ failure concurrently from the shell.
 
 ## Exercise Agent lifecycle behavior through fixed fake processes
 
-The fixed Agent also supports Caxri's two low-cost transformations. Automatic naming carries
+The fixed Agent also supports Caxri's one low-cost transformation, automatic naming. It carries
 Claude's title instructions in `--system-prompt` and Codex's instructions at the start of stdin;
 the conversation stays on stdin. The fixture returns a fixed title without interpreting the
-conversation. Unknown transformations still fail, so normal naming must not be simulated with a
-long-paste summary request.
+conversation. Unknown transformations still fail.
 
 **Situation:** A desktop case needs Claude Code or Codex discovery, hooks, terminal interaction,
 metadata, or provider-side renaming without using the developer's installed provider or data.

@@ -252,7 +252,19 @@ export interface ExtensionContext {
 }
 
 export type ProjectStatusState =
-    'success' | 'failure' | 'cancelled' | 'pending' | 'neutral' | 'unknown';
+    | 'success'
+    | 'failure'
+    | 'cancelled'
+    /**
+     * Executing right now.
+     */
+    | 'pending'
+    /**
+     * Accepted but not started — waiting for a runner.
+     */
+    | 'queued'
+    | 'neutral'
+    | 'unknown';
 
 export interface ProjectStatusCheck {
     name: string;
@@ -274,6 +286,53 @@ export interface ProjectStatusLinearIssue {
      * colors independently, so a state Linear shows green renders as whatever tone the type is quantized to.
      */
     stateColor?: string;
+}
+
+/**
+ * Where an acceptance report sits in its own lifecycle. Distinct from {@link AcceptanceVerdict}: a report can be
+ * `repairing` after a round already returned `failed`, and `accepted` is a person's decision rather than a run's
+ * result.
+ */
+export type AcceptanceStatus =
+    | 'pending'
+    | 'planned'
+    | 'verifying'
+    | 'repairing'
+    | 'delivered'
+    | 'accepted'
+    | 'closed'
+    | 'rejected'
+    | 'errored';
+
+/**
+ * What one verification round concluded. `uncertain` is a real third outcome, not a missing value: a round that could
+ * not decide is explicitly different from one that has not finished.
+ */
+export type AcceptanceVerdict = 'passed' | 'failed' | 'uncertain';
+
+/**
+ * One acceptance report a branch is delivering against. Everything past `id` and `state` is absent until the report
+ * resolves, so a link Caxri recognized but could not read still renders as itself.
+ */
+export interface ProjectStatusAcceptance {
+    id: string;
+    /**
+     * The report reduced to the same vocabulary a check or a deployment reports, so a view can draw all three from one
+     * presentation. Caxri computes it from `status` and `verdict`; a view must not re-derive it.
+     */
+    state: ProjectStatusState;
+    url?: string;
+    /**
+     * The 1-based round the link pinned, when it named one. Absent means the link addressed the report as a whole, and
+     * the latest round is the one that answered for it.
+     */
+    round?: number;
+    title?: string;
+    status?: AcceptanceStatus;
+    verdict?: AcceptanceVerdict;
+    passedChecks?: number;
+    totalChecks?: number;
+    roundCount?: number;
 }
 
 /**
@@ -301,7 +360,7 @@ export interface ProjectStatusDeployment {
 }
 
 export interface ProjectStatusError {
-    source: 'github' | 'linear' | 'vercel';
+    source: 'acceptance' | 'github' | 'linear' | 'vercel';
     kind: 'prerequisite' | 'failure';
     /**
      * Present when the failure describes the whole Project rather than the repository reporting it — a lost connection,
@@ -362,6 +421,7 @@ export interface ProjectStatusRepository {
         lifecycle?: 'draft' | 'open' | 'merged' | 'closed';
     };
     linearIssues: ProjectStatusLinearIssue[];
+    acceptances: ProjectStatusAcceptance[];
     deployments?: {
         url: string;
         branchDeployments: ProjectStatusDeployment[];

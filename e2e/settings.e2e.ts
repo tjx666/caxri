@@ -137,11 +137,11 @@ test('Settings keeps actions visible and provides highlighted editors and live T
             .getByLabel('New Terminal working directory')
             .evaluate((element) => element.getBoundingClientRect().width);
         const scalarWidth = await dialog
-            .getByRole('spinbutton', { name: 'Font size' })
+            .getByRole('spinbutton', { name: 'Terminal Font size' })
             .evaluate((element) => element.getBoundingClientRect().width);
         expect(workingDirectoryWidth).toBeGreaterThan(scalarWidth + 100);
 
-        await dialog.getByRole('spinbutton', { name: 'Font size' }).fill('14');
+        await dialog.getByRole('spinbutton', { name: 'Terminal Font size' }).fill('14');
         await revealSettingsSection(dialog, 'Claude Code');
         // The toggle starts enabled, so round-trip it off and back on to exercise the write path
         // in each direction.
@@ -181,7 +181,6 @@ test('Settings keeps actions visible and provides highlighted editors and live T
                                 hooks: { enabled: boolean };
                                 launch: { executable: string; args: string[] };
                                 messaging: { enabled: boolean };
-                                pasteSummary: { enabled: boolean };
                                 recovery: {
                                     enabled: boolean;
                                     patterns: string[];
@@ -202,7 +201,6 @@ test('Settings keeps actions visible and provides highlighted editors and live T
                     args: defaultAgentProviderSettings.claude.launch.args,
                 },
                 messaging: { enabled: true },
-                pasteSummary: { enabled: true },
                 recovery: {
                     enabled: false,
                     patterns: [],
@@ -215,7 +213,7 @@ test('Settings keeps actions visible and provides highlighted editors and live T
         // per-category match counts; clearing restores the full list.
         const searchInput = dialog.getByLabel('Search settings');
         await searchInput.fill('font size');
-        await expect(dialog.getByRole('spinbutton', { name: 'Font size' })).toBeVisible();
+        await expect(dialog.getByRole('spinbutton', { name: 'Terminal Font size' })).toBeVisible();
         await expect(dialog.getByRole('combobox', { name: 'Default agent' })).toHaveCount(0);
         await searchInput.fill('no-setting-matches-this');
         await expect(dialog.getByText(/No settings match/)).toBeVisible();
@@ -290,7 +288,9 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
         await expect(sourceEditor.locator('.view-lines')).toContainText('keep-source-comment');
         await dialog.getByRole('button', { name: 'UI' }).click();
         await revealSettingsSection(dialog, 'Terminal');
-        await expect(dialog.getByRole('spinbutton', { name: 'Font size' })).toHaveValue('17');
+        await expect(dialog.getByRole('spinbutton', { name: 'Terminal Font size' })).toHaveValue(
+            '17',
+        );
         // The source editor commits on blur/leaving the view instead of behind Apply, and there is
         // no per-tab dirty marker anymore — the persisted value already reflects the edit.
         await expect
@@ -316,7 +316,9 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
         // the last-known-good value instead of showing something broken.
         await dialog.getByRole('button', { name: 'UI' }).click();
         await revealSettingsSection(dialog, 'Terminal');
-        await expect(dialog.getByRole('spinbutton', { name: 'Font size' })).toHaveValue('17');
+        await expect(dialog.getByRole('spinbutton', { name: 'Terminal Font size' })).toHaveValue(
+            '17',
+        );
         await expect(dialog.locator('.monaco-editor')).toHaveCount(0);
         await expect
             .poll(async () => {
@@ -372,7 +374,9 @@ test('Settings source mode preserves drafts across tabs and discards an invalid 
         await running.page.keyboard.press('Meta+,');
         dialog = running.page.getByRole('dialog');
         await revealSettingsSection(dialog, 'Terminal');
-        await expect(dialog.getByRole('spinbutton', { name: 'Font size' })).toHaveValue('17');
+        await expect(dialog.getByRole('spinbutton', { name: 'Terminal Font size' })).toHaveValue(
+            '17',
+        );
         await expect(dialog.locator('.monaco-editor')).toHaveCount(0);
         await expect
             .poll(async () => {

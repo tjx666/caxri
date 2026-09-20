@@ -18,7 +18,7 @@ import {
     updateStateSchema,
 } from '../domain/domain.js';
 import { editorNavigationTargetSchema } from '../domain/editor.js';
-import { lowCostSandboxFailureReasonSchema } from '../domain/terminal-long-paste.js';
+import { lowCostSandboxFailureReasonSchema } from '../domain/low-cost-generation.js';
 import {
     extensionIdSchema,
     extensionViewChangeSchema,
@@ -298,11 +298,16 @@ export const serverEventPayloads = {
      * this independently so background panes discard invalid WebGL contexts without touching their PTY lifecycle.
      */
     'gpu.recoveryRequested': z.object({ correlationId: z.uuid() }),
+    /**
+     * `focusEditor` is the opening caller's intent, forwarded unchanged from `desktop.openFile`; see that method for
+     * why the same event can legitimately want the keyboard in the editor or want it left alone.
+     */
     'desktop.openRequested': z.object({
         sessionId: identifierSchema,
         kind: z.enum(['file', 'directory']),
         path: pathSchema.optional(),
         location: editorNavigationTargetSchema.optional(),
+        focusEditor: z.boolean().optional(),
     }),
     /**
      * `viaAccelerator` distinguishes a native menu item fired by its keyboard accelerator from one fired by an actual

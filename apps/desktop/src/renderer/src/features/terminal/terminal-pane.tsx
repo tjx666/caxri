@@ -46,7 +46,6 @@ import { getTerminalExitPresentation } from './terminal-exit-presentation';
 import { terminalFontFamily } from './terminal-fonts';
 import { openTerminalLinkPicker } from './terminal-link-actions';
 import { TerminalLinkPicker } from './terminal-link-picker';
-import { isProviderLongPasteEnabled } from './terminal-long-paste';
 import type { TerminalSearchOptions } from './terminal-search';
 import {
     initialTerminalSearchState,
@@ -224,7 +223,6 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
     const imagePasteInput = provider
         ? agentProviderCatalog[provider].imageInput?.terminalInput
         : undefined;
-    const longPasteEnabled = isProviderLongPasteEnabled(provider, settings['agents.providers']);
     const longPasteThreshold = settings['terminal.longPasteThreshold'];
     const canAcceptAgentInput = isAgentProcessRunning(terminal?.lastAgentProcessState);
     const terminalTheme = theme?.terminal;
@@ -253,7 +251,6 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         gpuAcceleration,
         githubRepositories: referenceContext?.githubRepositories ?? [],
         imagePasteInput,
-        longPasteEnabled,
         longPasteThreshold,
         osc52ClipboardWrite: isOsc52ClipboardWrite,
         processState,
@@ -414,7 +411,7 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
                     className="-ml-2 flex min-h-7 flex-none items-center gap-2 border-t border-border bg-surface px-2 text-[11px] text-muted"
                     role="status"
                 >
-                    <Spinner size={14} /> Summarizing pasted text…
+                    <Spinner size={14} /> Saving pasted text…
                 </div>
             )}
             <TerminalRecoveryBar

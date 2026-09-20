@@ -65,9 +65,6 @@ const agentHooksSettingsSchema = z
 const agentMessagingSettingsSchema = z
     .object({ enabled: z.boolean().default(true) })
     .default({ enabled: true });
-const agentPasteSummarySettingsSchema = z
-    .object({ enabled: z.boolean().default(true) })
-    .default({ enabled: true });
 const agentOutputRecoverySettingsSchema = z
     .object({
         enabled: z.boolean(),
@@ -100,7 +97,6 @@ const agentProviderSettingsSchema = z.object({
     hooks: agentHooksSettingsSchema,
     launch: agentLaunchSettingsSchema,
     messaging: agentMessagingSettingsSchema,
-    pasteSummary: agentPasteSummarySettingsSchema,
     recovery: agentOutputRecoverySettingsSchema,
 });
 
@@ -197,6 +193,39 @@ export const appSettingsSchema = z.object({
     'terminal.fontFamily': nullableStringField(spec['terminal.fontFamily']),
     'terminal.fontSize': integerField(spec['terminal.fontSize']),
     'editor.fontFamily': nullableStringField(spec['editor.fontFamily']),
+    'editor.fontSize': integerField(spec['editor.fontSize']),
+    'editor.wordWrap': z
+        .enum(enumValues(spec['editor.wordWrap'].options))
+        .default(spec['editor.wordWrap'].default),
+    // Same reason as `terminal.wordSeparators`: a leading space is itself a separator, so no `.trim()`.
+    'editor.wordSeparators': z
+        .string()
+        .max(spec['editor.wordSeparators'].maxLength)
+        .default(spec['editor.wordSeparators'].default),
+    'editor.autoClosingDelete': z
+        .enum(enumValues(spec['editor.autoClosingDelete'].options))
+        .default(spec['editor.autoClosingDelete'].default),
+    'editor.linkedEditing': booleanField(spec['editor.linkedEditing']),
+    'editor.stickyScroll.enabled': booleanField(spec['editor.stickyScroll.enabled']),
+    'editor.stickyTabStops': booleanField(spec['editor.stickyTabStops']),
+    'editor.bracketPairColorization.enabled': booleanField(
+        spec['editor.bracketPairColorization.enabled'],
+    ),
+    'editor.guides.bracketPairs': z
+        .enum(enumValues(spec['editor.guides.bracketPairs'].options))
+        .default(spec['editor.guides.bracketPairs'].default),
+    'editor.renderWhitespace': z
+        .enum(enumValues(spec['editor.renderWhitespace'].options))
+        .default(spec['editor.renderWhitespace'].default),
+    'editor.cursorBlinking': z
+        .enum(enumValues(spec['editor.cursorBlinking'].options))
+        .default(spec['editor.cursorBlinking'].default),
+    'editor.cursorSmoothCaretAnimation': z
+        .enum(enumValues(spec['editor.cursorSmoothCaretAnimation'].options))
+        .default(spec['editor.cursorSmoothCaretAnimation'].default),
+    'editor.smoothScrolling': booleanField(spec['editor.smoothScrolling']),
+    'editor.dragAndDrop': booleanField(spec['editor.dragAndDrop']),
+    'editor.minimap.enabled': booleanField(spec['editor.minimap.enabled']),
     'editor.unfoldOnClickAfterEndOfLine': booleanField(spec['editor.unfoldOnClickAfterEndOfLine']),
     'terminal.scrollback': integerField(spec['terminal.scrollback']),
     'terminal.longPasteThreshold': integerField(spec['terminal.longPasteThreshold']),

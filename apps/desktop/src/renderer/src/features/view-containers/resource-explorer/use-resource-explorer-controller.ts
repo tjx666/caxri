@@ -26,7 +26,6 @@ import {
     isPathBlockedByFileOperations,
     useFileOperationStore,
 } from './file-operation-state';
-import { closeFileSearch, requestFileSearchFocus, useFileSearchStore } from './file-search-state';
 import {
     clearScopeRevealPath,
     collapseScope,
@@ -130,7 +129,6 @@ export interface ResourceExplorerController {
     isRootPasteDisabled: boolean;
     isRootPasteEmpty: boolean;
     isRootPasteBlocked: boolean;
-    isSearchVisible: boolean;
     onProjectRootDragOver: (event: DragEvent) => void;
     pasteIntoProjectRoot: () => void;
     pendingOperation: PendingFileOperation | undefined;
@@ -140,10 +138,8 @@ export interface ResourceExplorerController {
     requestFocus: (target: FocusTarget) => void;
     rootPathCaption: string;
     scopeId: string;
-    searchFocusRevision: number;
     session: SessionRecord;
     setEditing: (request?: EditRequest) => void;
-    toggleSearch: () => void;
 }
 
 /**
@@ -158,11 +154,9 @@ export function useResourceExplorerController(): ResourceExplorerController | un
     const activeFilePath = activeResource?.kind === 'file' ? activeResource.path : undefined;
     const createFileCommand = useControlledViewActionCommand('resource.createFile');
     const createFolderCommand = useControlledViewActionCommand('resource.createFolder');
-    const searchCommand = useControlledViewActionCommand('resource.search');
     const collapseCommand = useControlledViewActionCommand('resource.collapse');
     const session = useSelectedSession();
     const project = useSelectedWorkbenchProject();
-    const sessionId = session?.id;
     const sessionRootPath = session?.rootPath;
     const scopeId = session ? `${session.id}:${session.workbenchProjectId}` : undefined;
     const clipboard = useFileClipboardStore((state) => state.entry);
@@ -182,24 +176,14 @@ export function useResourceExplorerController(): ResourceExplorerController | un
         request: EditRequest;
         scopeId: string;
     }>();
-    const isSearchVisible = useFileSearchStore(
-        (state) => Boolean(sessionId) && state.activeSessionId === sessionId,
-    );
-    const searchFocusRevision = useFileSearchStore((state) => state.focusRevision);
     useEffect(() => {
-        if (
-            !isContainerActive ||
-            isSearchVisible ||
-            !scopeId ||
-            !sessionRootPath ||
-            !activeFilePath
-        ) {
+        if (!isContainerActive || !scopeId || !sessionRootPath || !activeFilePath) {
             if (scopeId) clearScopeRevealPath(scopeId);
             return;
         }
         if (!didRevealPathInScope(scopeId, sessionRootPath, activeFilePath))
             clearScopeRevealPath(scopeId);
-    }, [activeFilePath, isContainerActive, isSearchVisible, scopeId, sessionRootPath]);
+    }, [activeFilePath, isContainerActive, scopeId, sessionRootPath]);
     useEffect(
         () => () => {
             if (scopeId) clearScopeRevealPath(scopeId);
@@ -212,9 +196,6 @@ export function useResourceExplorerController(): ResourceExplorerController | un
                 ? () => {}
                 : subscribeCoreViewCommands(viewId, scopeId, ({ role }) => {
                       switch (role) {
-                          case 'resource.search':
-                              requestFileSearchFocus(session.id);
-                              break;
                           case 'resource.collapse':
                               collapseScope(scopeId);
                               setCollapseRevision((value) => value + 1);
@@ -250,12 +231,6 @@ export function useResourceExplorerController(): ResourceExplorerController | un
                       }
                   }),
         [scopeId, session, viewId],
-    );
-    useEffect(
-        () => () => {
-            if (sessionId) closeFileSearch(sessionId);
-        },
-        [sessionId],
     );
     useEffect(() => subscribeResourceExplorerScopePruning(), []);
 
@@ -322,7 +297,6 @@ export function useResourceExplorerController(): ResourceExplorerController | un
         isRootPasteDisabled: isRootPasteEmpty || isRootPasteBlocked,
         isRootPasteEmpty,
         isRootPasteBlocked,
-        isSearchVisible,
         onProjectRootDragOver: (event) => {
             if (isRootPasteBlocked || !hasDraggedPath(event)) return;
             event.preventDefault();
@@ -337,13 +311,8 @@ export function useResourceExplorerController(): ResourceExplorerController | un
         requestFocus,
         rootPathCaption: fileTreeRootCaption(session.rootPath),
         scopeId,
-        searchFocusRevision,
         session,
         setEditing,
-        toggleSearch: () => {
-            if (isSearchVisible) closeFileSearch(session.id);
-            else if (searchCommand) executeCommand(searchCommand);
-        },
     };
 }
 

@@ -253,7 +253,11 @@ pushing, never as a reason to iterate through full runs.
 
 ## Remote full suite
 
-Never run `bun run test:e2e` locally during an ordinary run. When focused coverage is insufficient,
+Never run `bun run test:e2e` locally during an ordinary run. The command enforces this itself: both
+`bun run test:e2e` and a bare `playwright test` refuse to start without authorization, before the
+desktop build runs. Only the user grants it, by setting `CAXRI_FULL_SUITE_AUTHORIZED=1`; an agent
+never sets that variable on its own judgement. GitHub Actions is authorized by its own `CI`
+variable. When focused coverage is insufficient,
 use an authorized topic branch and draft PR; GitHub Actions runs checks and the full Electron suite
 on the repository self-hosted `m2-24` runner. `docs/self-hosted-runner.md` owns its labels, offline
 behavior, and recovery contract. Inspect failures, repair the same branch, and wait for replacement

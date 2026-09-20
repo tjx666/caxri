@@ -10,6 +10,9 @@
  *   (`processExplorer.open`), so they are the cheapest to hide first.
  * - The Linear issue chip goes next: it is a pointer to a tracker outside Caxri, and the same issue is reachable from the
  *   Status panel's own Linear rows.
+ * - The acceptance chip survives one step longer than Linear. Both point outside Caxri and both repeat a Status panel
+ *   row, but this one is the only place in the bar that says whether the work the Session just did actually passed —
+ *   the reading a user checks most often while a verification round is running.
  * - The pull request chip duplicates the Git panel, so it goes after that.
  * - The notification bell, degraded-backend/runtime chips, active Terminal progress, the update chip, the open debugging
  *   channel chip, and the Project root + branch pickers are never included here — they have no other on-screen home and
@@ -20,6 +23,7 @@
  *   resort for the pathological case where even that never-hide set doesn't fit.
  */
 export interface ChipVisibility {
+    acceptance: boolean;
     childProcessCount: boolean;
     linearIssue: boolean;
     memory: boolean;
@@ -35,10 +39,12 @@ export const CHIP_PRIORITY_BREAKPOINTS = {
     childProcessCount: 752,
     memory: 680,
     linearIssue: 610,
-    pullRequest: 545,
+    acceptance: 545,
+    pullRequest: 480,
 } as const;
 
 const ALL_VISIBLE: ChipVisibility = {
+    acceptance: true,
     childProcessCount: true,
     linearIssue: true,
     memory: true,
@@ -53,6 +59,7 @@ const ALL_VISIBLE: ChipVisibility = {
 export function resolveChipVisibility(width: number): ChipVisibility {
     if (width <= 0) return ALL_VISIBLE;
     return {
+        acceptance: width >= CHIP_PRIORITY_BREAKPOINTS.acceptance,
         childProcessCount: width >= CHIP_PRIORITY_BREAKPOINTS.childProcessCount,
         linearIssue: width >= CHIP_PRIORITY_BREAKPOINTS.linearIssue,
         memory: width >= CHIP_PRIORITY_BREAKPOINTS.memory,

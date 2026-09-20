@@ -52,6 +52,7 @@ import {
     reorderSessionInProject,
     setSessionPinned,
 } from './session-ordering';
+import { renameSessionWithPrimaryAgentTab } from './session-title';
 import { assertTerminalCapacity } from './terminal-capacity';
 
 /**
@@ -349,11 +350,7 @@ export class CaxriDatabase {
     }
 
     renameSession(sessionId: string, displayTitle: string): SessionRecord {
-        const normalizedTitle = displayTitle.trim();
-        if (!normalizedTitle) throw new CaxriError('VALIDATION', 'Session name is required');
-        if (!this.db.sessions.rename(sessionId, normalizedTitle))
-            throw new CaxriError('NOT_FOUND', 'Session not found');
-        return this.db.sessions.get(sessionId)!;
+        return renameSessionWithPrimaryAgentTab(this.db, sessionId, displayTitle);
     }
 
     automaticSessionNaming(sessionId: string) {

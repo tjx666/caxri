@@ -3,6 +3,7 @@ import process from 'node:process';
 import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
+    globalSetup: './e2e/support/full-suite-guard.ts',
     testDir: './e2e',
     testMatch: '**/*.e2e.ts',
     outputDir: process.env.CAXRI_E2E_OUTPUT_DIR ?? 'test-results',

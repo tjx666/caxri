@@ -158,7 +158,6 @@ test('long Session titles scroll at a readable speed and reset across pointer an
             )
             .toBe(true);
         if (!endSample) throw new Error('Session title did not reach its scroll end');
-        const endTransform = Math.round(endSample.transformX);
         const endGeometry = await title.evaluate((element) => {
             const text = element.querySelector('span');
             if (!text) throw new Error('Session title text span is missing at scroll end');
@@ -172,21 +171,29 @@ test('long Session titles scroll at a readable speed and reset across pointer an
         });
         expect(endGeometry.rightGap).toBeLessThanOrEqual(2);
         expect(Math.abs(endGeometry.clientWidth - endGeometry.scrollWidth)).toBeLessThanOrEqual(2);
+        /**
+         * The title must come to rest at its end and stay there. The target cannot be a transform sampled earlier: the
+         * poll above accepts the last pixel of travel (`<= -distance + 1`), so its sample can be a frame short of where
+         * the animation rests, and waiting for that value again never succeeds. Wait for the transform to stop changing
+         * instead, then assert where it stopped — the same guarantee, without assuming which frame was seen.
+         */
         let stableSince: number | undefined;
+        let stableAt: number | undefined;
         await expect
             .poll(
                 async () => {
                     const current = await titleMetrics(title);
-                    if (Math.round(current.transformX) !== endTransform) {
-                        stableSince = undefined;
+                    const rounded = Math.round(current.transformX);
+                    if (rounded !== stableAt) {
+                        stableAt = rounded;
+                        stableSince = current.now;
                         return NaN;
                     }
-                    stableSince ??= current.now;
-                    return current.now - stableSince >= 300 ? endTransform : NaN;
+                    return current.now - stableSince! >= 300 ? rounded : NaN;
                 },
-                { intervals: [100, 100, 200, 300], timeout: 1_500 },
+                { intervals: [100, 100, 200, 300], timeout: 2_500 },
             )
-            .toBe(endTransform);
+            .toBeLessThanOrEqual(-Math.round(distance) + 1);
 
         await running.page.mouse.move(500, 300);
         await expect.poll(async () => (await titleMetrics(title)).transformX).toBe(0);

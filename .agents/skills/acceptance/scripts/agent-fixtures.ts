@@ -189,7 +189,6 @@ const currentTitle = (sessionId) => {
 };
 // Native Codex titles remain distinct from Caxri's low-cost generated title.
 const nativeCodexTitle = (count) => count === 1 ? 'Codex Native Title' : 'Codex Renewed Title';
-const generatedPasteSummary = 'Actual error: build failed with code E42 at src/task.ts:17; repeated progress lines were omitted.';
 
 const resumeIndex = process.argv.indexOf('--resume');
 const renameCommand = process.argv.at(-1) ?? '';
@@ -217,19 +216,16 @@ if (isClaudeGeneration || isCodexGeneration) {
   process.stdin.setEncoding('utf8');
   process.stdin.on('data', (chunk) => { input += chunk; });
   process.stdin.on('end', () => {
-    // Claude carries system instructions in argv; Codex prepends them to stdin. Recognize only
-    // the two product transformations so an unrelated invocation still fails the fixture.
+    // Claude carries system instructions in argv; Codex prepends them to stdin. Session
+    // auto-naming is the only low-cost transformation the product performs, so an unrelated
+    // invocation still fails the fixture.
     const titleInstruction = 'Generate a concise coding-session title from the conversation below.';
-    const pasteSummaryInstruction = 'If the text is a log, build trace, test output, or diagnostic dump:';
     const systemPromptIndex = process.argv.indexOf('--system-prompt');
     const systemPrompt = systemPromptIndex >= 0 ? process.argv[systemPromptIndex + 1] : undefined;
     const isTitle = provider === 'claude'
       ? systemPrompt?.startsWith(titleInstruction)
       : input.startsWith(titleInstruction);
-    const isPasteSummary = provider === 'claude'
-      ? systemPrompt?.includes(pasteSummaryInstruction)
-      : input.includes(pasteSummaryInstruction);
-    if (!isTitle && !isPasteSummary) {
+    if (!isTitle) {
       appendReceipt({ kind: 'unexpectedTextGeneration', provider });
       process.exit(7);
       return;
@@ -237,7 +233,7 @@ if (isClaudeGeneration || isCodexGeneration) {
     const mode = consumeMode();
     const count = nextCount();
     const sessionId = mode.sessionId ?? '';
-    const fallbackText = isTitle ? 'Repair Session Naming' : generatedPasteSummary;
+    const fallbackText = 'Repair Session Naming';
     const text = mode.kind === 'same' ? currentTitle(sessionId) : (mode.title ?? fallbackText);
     appendReceipt({
       argumentContainsPrivateInput: process.argv.join(' ').includes(privateMarker),
