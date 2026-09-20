@@ -65,16 +65,24 @@ directories.
 - Caxri currently has a single human maintainer (the repository owner), who usually runs multiple
   coding-agent sessions in parallel. Expect sibling sessions to be changing the repository at the
   same time as yours.
-- Before modifying code, use a worktree dedicated to the current session's task. If this session
-  does not already have a related worktree, create and switch to one with `switch-worktree` before
-  editing. This is the default even for small fixes or a clean checkout. Do not modify code
-  directly on `main` or an unrelated task's branch unless the user explicitly requests it.
+- Before modifying code, reuse the existing worktree and branch for the current delivery. Treat
+  follow-up reports and corrections in the same conversation as one delivery batch by default;
+  keep their commits, pull request, and CI on that existing branch. Do not create another worktree
+  unless the user explicitly asks for one or confirms it after the agent explains why another
+  checkout is necessary. If no related worktree exists, use the question tool before creating one.
+  Do not modify code directly on `main` or an unrelated task's branch unless the user explicitly
+  requests it.
 - Before the public release, the maintainer iterates through coding agents and wants proactive
   delivery: an implementation or bug-fix request that lands in a task worktree delegates the whole
   loop — commit, push, PR, CI repair, merge, issue closeout, primary-checkout sync — as defined in
   `switch-worktree`'s default delivery flow. Do not stop at a green local check to ask whether to
   open or merge the PR; only an explicit analysis-only, local-only, or no-merge instruction narrows
   that scope.
+- Keep one open pull request and one current CI run for a delivery batch. Add later fixes to the
+  existing branch and update its pull request instead of opening sibling pull requests. Split only
+  across different repositories or release boundaries, when the existing branch cannot safely own
+  the change, or when the user explicitly requests it; otherwise ask before splitting. Cancel an
+  obsolete run before pushing a replacement so the shared runner performs only useful work.
 - With explicit user authorization, small fixes and minor features may be committed directly on
   `main` and pushed without a pull request. `main` and remote branches can move at any moment.
 - When you encounter commits you did not author — after a branch switch, fetch, rebase, or a PR
