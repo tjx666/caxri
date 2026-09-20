@@ -34,7 +34,12 @@ function treeRow(rowId: string): HTMLElement | null {
  */
 export function useSessionRename(
     sessions: SessionRecord[],
-    expandProject: (projectId: string) => void,
+    /**
+     * Puts the Session's row on screen and returns the row id that now holds it. Supplied by `PrimarySidebar` because
+     * only it knows which of the two groups owns a given Session: pinning moves a Session out of its Project group, so
+     * the group to expand and the row id to rename both depend on the pin state.
+     */
+    revealSessionRow: (session: SessionRecord) => string,
 ): SessionRenameController {
     const [renamingRowId, setRenamingRowId] = useState<string>();
     const [renameValue, setRenameValue] = useState('');
@@ -129,7 +134,7 @@ export function useSessionRename(
      */
     const renameRequest = useDialogStore((state) => state.renameSessionRequest);
     const latestBeginRename = useLatestReference(beginRename);
-    const latestExpandProject = useLatestReference(expandProject);
+    const latestRevealSessionRow = useLatestReference(revealSessionRow);
     const latestSessions = useLatestReference(sessions);
     useEffect(() => {
         if (!renameRequest) return;
@@ -137,13 +142,12 @@ export function useSessionRename(
             (candidate) => candidate.id === renameRequest.sessionId,
         );
         if (session) {
-            // The rename editor _is_ the Session row, and a collapsed Project unmounts it. Without this the command
+            // The rename editor _is_ the Session row, and a collapsed group unmounts it. Without this the command
             // would put a Session nobody can see into rename mode: nothing happens on screen, and the row opens in an
-            // editor the user never asked for whenever they later expand that Project.
-            latestExpandProject.current(session.projectId);
-            // Always the Project group's row: that is the one `expandProject` just guaranteed is on screen. The Pinned
-            // group may be collapsed, and its copy is a second view of the same Session rather than the canonical one.
-            latestBeginRename.current(session.id, session.displayTitle, session.id);
+            // editor the user never asked for whenever they later expand that group. The row id has to come back from
+            // the same call, because a pinned Session has no row under its Project at all.
+            const rowId = latestRevealSessionRow.current(session);
+            latestBeginRename.current(session.id, session.displayTitle, rowId);
         }
         // Consumed, not just observed. `Cmd+[` unmounts the whole side bar, so a request left standing would run again
         // on the next reveal and drop the row back into an editor nobody asked for. A mount-time revision baseline
