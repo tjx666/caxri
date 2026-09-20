@@ -77,6 +77,17 @@ function leadingPaneId(node: PaneLayoutNode): string {
     return node.type === 'pane' ? node.id : leadingPaneId(node.first);
 }
 
+/**
+ * Whether the leading pane's tab bar reaches the window's right edge. It does until a side-by-side split puts another
+ * pane beside it, after which the bar is only as wide as its own pane and anything it reserves at its trailing end —
+ * the drag corner — lands in the middle of the window instead of in the corner, wedged between the "+" button and the
+ * neighbouring pane's first tab.
+ */
+function isLeadingBarWindowWide(node: PaneLayoutNode): boolean {
+    if (node.type === 'pane') return true;
+    return node.direction !== 'horizontal' && isLeadingBarWindowWide(node.first);
+}
+
 function EmptyPane() {
     return (
         <Empty className="empty-work h-full flex-1">
@@ -113,10 +124,12 @@ function PaneBox({
     isLeading,
     layout,
     pane,
+    spansWindowWidth,
 }: {
     isLeading: boolean;
     layout: PaneLayout;
     pane: PaneNode;
+    spansWindowWidth: boolean;
 }) {
     const [activeDropZone, setActiveDropZone] = useState<PaneDropZone>();
     const isActivePane = layout.activePaneId === pane.id;
@@ -253,6 +266,7 @@ function PaneBox({
                 isRootBar={isLeading}
                 pane={pane}
                 paneLabel={paneLabel}
+                spansWindowWidth={spansWindowWidth}
             />
             <div
                 className="pane-surface relative min-h-0 flex-1"
@@ -430,6 +444,7 @@ export function PaneView() {
                         isLeading={pane.id === leadingPaneId(layout.root)}
                         layout={layout}
                         pane={pane}
+                        spansWindowWidth={isLeadingBarWindowWide(layout.root)}
                     />
                 </PaneMountPortal>
             ))}

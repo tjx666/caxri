@@ -701,6 +701,20 @@ test('the bar hides "+" with no tabs at all and reserves its drag corner only wi
         await expect(running.page.locator('.primary-sidebar-title')).toHaveCount(0);
         await expect(dragCorner).toHaveCount(1);
         await expect(dragCorner).toHaveJSProperty('offsetWidth', 32);
+
+        /**
+         * A side-by-side split ends the leading bar in the middle of the window, where its neighbour's first tab begins
+         * — not in the window corner. Reserving the strip there wedges dead space between "+" and that neighbour, which
+         * is the opposite of what the corner exists for. The traffic-light inset on the same bar still gives the window
+         * somewhere to be dragged from.
+         */
+        await running.page.keyboard.press('Meta+Backslash');
+        await expect(running.page.locator('[data-pane-tab-bar]')).toHaveCount(2);
+        await expect(dragCorner).toHaveCount(0);
+        await running.page.keyboard.press('Meta+w');
+        await expect(running.page.locator('[data-pane-tab-bar]')).toHaveCount(1);
+        await expect(dragCorner).toHaveCount(1);
+
         await running.page.keyboard.press('Meta+BracketLeft');
         await expect(dragCorner).toHaveCount(0);
 
