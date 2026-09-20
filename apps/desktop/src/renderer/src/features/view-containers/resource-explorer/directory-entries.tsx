@@ -34,6 +34,7 @@ import {
     useIsPathExpanded,
     useIsPathFocusRequested,
     useIsPathSelected,
+    usePathRevealRevision,
 } from './resource-explorer-scope-store';
 import { fileTreeRowDescription, fileTreeRowTooltip } from './resource-explorer-state';
 import { useFileTreeItemInteractions } from './use-file-tree-item-interactions';
@@ -325,6 +326,7 @@ function FileTreeItem({
     const selected = useIsPathSelected(scopeId, entry.path);
     const hasSelection = useHasScopeSelection(scopeId);
     const isFocusRequested = useIsPathFocusRequested(scopeId, entry.path);
+    const revealRevision = usePathRevealRevision(scopeId, entry.path);
     const {
         activateEntry,
         clipboard,
@@ -360,6 +362,7 @@ function FileTreeItem({
         isFocusRequested,
         isSelected: selected,
         projectId,
+        revealRevision,
         scopeId,
         sessionId,
         setEditing,

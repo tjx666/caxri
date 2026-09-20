@@ -119,6 +119,21 @@ export function fileOperationsForProject(
 }
 
 /**
+ * An expanded symlink with missing metadata can only come from an active-file ancestor reveal; manual activation probes
+ * its kind first. Expansion stays a UI hint: listing that path remains Server-authorized, so a replaced link fails
+ * closed there.
+ */
+export function isFileTreeDirectory(
+    entry: Pick<FileEntry, 'kind' | 'linkKind'>,
+    resolvedKind: 'file' | 'directory' | undefined,
+    isExpanded: boolean,
+): boolean {
+    if (entry.kind !== 'symlink') return isDirectoryEntry(entry);
+    if (resolvedKind !== undefined) return resolvedKind === 'directory';
+    return isDirectoryEntry(entry) || (entry.linkKind === undefined && isExpanded);
+}
+
+/**
  * A symlink row states where it points and why it is inert, because its icon can otherwise be mistaken for the real
  * folder or file it mirrors. Every other row shows its path plus whichever qualifiers apply.
  *

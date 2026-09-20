@@ -7,6 +7,7 @@ import {
     fileTreeRootCaption,
     fileTreeRowDescription,
     fileTreeRowTooltip,
+    isFileTreeDirectory,
     knownDirectoryChildrenFromQueries,
     scopedValue,
     setScopedPathExpanded,
@@ -16,6 +17,15 @@ import {
 } from '../resource-explorer-state';
 
 describe('Resource Explorer state', () => {
+    it('keeps an expanded symlink directory navigable when its type probe omitted metadata', () => {
+        const entry = { kind: 'symlink' as const };
+
+        expect(isFileTreeDirectory(entry, undefined, false)).toBe(false);
+        expect(isFileTreeDirectory(entry, undefined, true)).toBe(true);
+        expect(isFileTreeDirectory(entry, 'directory', false)).toBe(true);
+        expect(isFileTreeDirectory({ ...entry, linkKind: 'file' }, undefined, true)).toBe(false);
+    });
+
     it('keeps selection, focus, and editing state isolated by Session scope', () => {
         const initial = { 'session-a:project-a': '/project-a/src' };
         const updated = setScopedValue(initial, 'session-b:project-b', '/project-b/docs');

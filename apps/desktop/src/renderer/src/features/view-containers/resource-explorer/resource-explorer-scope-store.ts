@@ -1,3 +1,4 @@
+import { isPathAtOrBelow, parentDirectoryPath } from '../../../lib/file-path';
 import { createStore } from '../../../lib/store';
 import { queryClient } from '../../../queries/client';
 import { useWorkbenchStore } from '../../../stores/workbench';
@@ -18,6 +19,7 @@ import {
 interface ResourceExplorerScopeState {
     expandedByScope: Record<string, string[]>;
     focusByScope: Record<string, string | undefined>;
+    revealByScope: Record<string, { path: string; revision: number } | undefined>;
     selectionByScope: Record<string, string | undefined>;
 }
 
@@ -26,6 +28,7 @@ export const useResourceExplorerScopeStore = createStore<ResourceExplorerScopeSt
     () => ({
         expandedByScope: {},
         focusByScope: {},
+        revealByScope: {},
         selectionByScope: {},
     }),
 );
@@ -48,6 +51,13 @@ export function useIsPathFocusRequested(scopeId: string, path: string): boolean 
     return useResourceExplorerScopeStore((state) => state.focusByScope[scopeId] === path);
 }
 
+export function usePathRevealRevision(scopeId: string, path: string): number | undefined {
+    return useResourceExplorerScopeStore((state) => {
+        const reveal = state.revealByScope[scopeId];
+        return reveal?.path === path ? reveal.revision : undefined;
+    });
+}
+
 export function setScopeSelectedPath(scopeId: string, path: string | undefined): void {
     useResourceExplorerScopeStore.setState((state) => ({
         selectionByScope: setScopedValue(state.selectionByScope, scopeId, path),
@@ -60,6 +70,59 @@ export function setScopeFocusPath(scopeId: string, path: string | undefined): vo
             ? state
             : { focusByScope: setScopedValue(state.focusByScope, scopeId, path) },
     );
+}
+
+/**
+ * Reveals a Project entry without moving keyboard focus: every ancestor directory becomes expanded, the entry becomes
+ * the tree selection, and a revision tells the eventual lazy-mounted row to scroll into view. Existing disclosure state
+ * is merged rather than replaced so following the Editor never collapses a branch the user opened explicitly.
+ */
+export function didRevealPathInScope(scopeId: string, projectRoot: string, path: string): boolean {
+    if (path === projectRoot || !isPathAtOrBelow(path, projectRoot)) return false;
+
+    const ancestors: string[] = [];
+    let current = parentDirectoryPath(path);
+    while (current !== projectRoot) {
+        if (!isPathAtOrBelow(current, projectRoot)) return false;
+        ancestors.unshift(current);
+        current = parentDirectoryPath(current);
+    }
+
+    useResourceExplorerScopeStore.setState((state) => {
+        const expanded = new Set(state.expandedByScope[scopeId]);
+        for (const ancestor of ancestors) expanded.add(ancestor);
+        return {
+            expandedByScope: setScopedValue(state.expandedByScope, scopeId, [...expanded]),
+            revealByScope: setScopedValue(state.revealByScope, scopeId, {
+                path,
+                revision: (state.revealByScope[scopeId]?.revision ?? 0) + 1,
+            }),
+            selectionByScope: setScopedValue(state.selectionByScope, scopeId, path),
+        };
+    });
+    return true;
+}
+
+/**
+ * Clears a one-shot reveal request. A row supplies the token it consumed so it cannot erase a newer request that won
+ * between render and its effect; callers invalidating the whole scope omit the token.
+ */
+export function clearScopeRevealPath(
+    scopeId: string,
+    expected?: { path: string; revision: number },
+): void {
+    useResourceExplorerScopeStore.setState((state) => {
+        const current = state.revealByScope[scopeId];
+        if (
+            current === undefined ||
+            (expected !== undefined &&
+                (current.path !== expected.path || current.revision !== expected.revision))
+        )
+            return state;
+        return {
+            revealByScope: setScopedValue(state.revealByScope, scopeId, undefined),
+        };
+    });
 }
 
 export function setScopePathExpanded(
@@ -155,12 +218,14 @@ export function pruneResourceExplorerScopes(liveSessionIds: ReadonlySet<string>)
     useResourceExplorerScopeStore.setState((state) => {
         const expandedByScope = withoutScopes(state.expandedByScope, isStale);
         const focusByScope = withoutScopes(state.focusByScope, isStale);
+        const revealByScope = withoutScopes(state.revealByScope, isStale);
         const selectionByScope = withoutScopes(state.selectionByScope, isStale);
         return expandedByScope === state.expandedByScope &&
             focusByScope === state.focusByScope &&
+            revealByScope === state.revealByScope &&
             selectionByScope === state.selectionByScope
             ? state
-            : { expandedByScope, focusByScope, selectionByScope };
+            : { expandedByScope, focusByScope, revealByScope, selectionByScope };
     });
 }
 
