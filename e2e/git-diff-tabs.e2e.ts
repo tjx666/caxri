@@ -98,6 +98,19 @@ test('Discard All Changes resolves the working diff in place without an error no
         await expect(repo.getByText('Working tree clean.', { exact: true })).toBeVisible();
         await expect(page.getByText(resolvedDiffReason, { exact: true })).toBeVisible();
         await expect(page.locator('[data-sonner-toast][data-type="error"]')).toHaveCount(0);
+
+        /**
+         * The same resolution inside the stacked Changes view. That row used to go blank under its own still-visible
+         * file heading, which reads as a rendering failure rather than as news about the file.
+         */
+        await writeFile(join(root, 'tracked.txt'), trackedWorking);
+        await clickGitGroupAction(repo, 'Open Changes');
+        const stackedItem = page.locator('.git-multi-diff-item').filter({ hasText: 'tracked.txt' });
+        await expect(stackedItem.locator('.monaco-diff-editor')).toBeVisible();
+        await repo
+            .getByRole('button', { name: 'Discard changes in tracked.txt', exact: true })
+            .click();
+        await expect(stackedItem.getByText(resolvedDiffReason, { exact: true })).toBeVisible();
     } finally {
         await running.app.close();
         await rm(testDirectory, { recursive: true, force: true });
