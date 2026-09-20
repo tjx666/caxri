@@ -79,6 +79,33 @@ test('pinning lifts Sessions from several Projects into one group that survives 
             alphaProject.displayTitle,
         );
         /**
+         * The title and the Project name used to shrink in proportion to their own widths, so a long Project name
+         * claimed the larger share of a crowded row and clipped the Session title down to a couple of characters —
+         * which reads as the Project name covering the title rather than as either one being truncated. The Project
+         * name has to give up all of its space before the title loses any, whatever the sidebar's current width is.
+         */
+        await pageRequest(page(), 'session.rename', {
+            sessionId: alpha.id,
+            displayTitle: 'Alpha Session title long enough to crowd its Project name',
+        });
+        await expect
+            .poll(() =>
+                page()
+                    .locator('.pinned-session-group .session-card')
+                    .first()
+                    .evaluate((card) => {
+                        const title = card.querySelector('.session-title');
+                        const project = card.querySelector('.session-project');
+                        if (!title || !project) return 'row is missing a part';
+                        return title.scrollWidth > title.clientWidth + 1 &&
+                            project.getBoundingClientRect().width > 0
+                            ? 'the Project name kept width while the title was clipped'
+                            : 'ok';
+                    }),
+            )
+            .toBe('ok');
+        await pageRequest(page(), 'session.rename', { sessionId: alpha.id, displayTitle: 'Alpha' });
+        /**
          * The pin has no visible mark on the row, so the accessible description is the only thing that says the row is
          * pinned at all.
          */
