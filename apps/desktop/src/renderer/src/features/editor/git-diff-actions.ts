@@ -9,7 +9,7 @@ export type DiffNavigationDirection = 'next' | 'previous';
  */
 export type DiffEditorActions = Pick<
     MonacoDiffEditor,
-    'getLineChanges' | 'goToDiff' | 'onDidUpdateDiff'
+    'focus' | 'getLineChanges' | 'goToDiff' | 'onDidUpdateDiff'
 >;
 
 export interface DiffEditorActionState {
@@ -118,6 +118,13 @@ export function didNavigateDiffEditor(
     updateSnapshot(key, registration);
     if (!registration.hasChanges) return false;
     registration.editor.goToDiff(direction);
+    return true;
+}
+
+export function didFocusDiffEditor(tabPath: string, paneId: string): boolean {
+    const registration = registrations.get(registrationKey(tabPath, paneId));
+    if (!registration) return false;
+    registration.editor.focus();
     return true;
 }
 

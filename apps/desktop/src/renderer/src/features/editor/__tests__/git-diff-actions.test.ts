@@ -2,6 +2,7 @@ import type { MonacoDiffEditor } from '@monaco-editor/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+    didFocusDiffEditor,
     didNavigateDiffEditor,
     getDiffEditorActionState,
     registerDiffEditorActions,
@@ -10,6 +11,7 @@ import {
 
 interface FakeDiffEditor {
     editor: MonacoDiffEditor;
+    focus: ReturnType<typeof vi.fn>;
     goToDiff: ReturnType<typeof vi.fn>;
     setChanges: (hasChanges: boolean) => void;
 }
@@ -17,8 +19,10 @@ interface FakeDiffEditor {
 function fakeDiffEditor(): FakeDiffEditor {
     let hasChanges = false;
     const listeners = new Set<() => void>();
+    const focus = vi.fn();
     const goToDiff = vi.fn();
     const editor = {
+        focus,
         getLineChanges: () => (hasChanges ? [{}] : null),
         goToDiff,
         onDidUpdateDiff: (listener: () => void) => {
@@ -28,6 +32,7 @@ function fakeDiffEditor(): FakeDiffEditor {
     } as unknown as MonacoDiffEditor;
     return {
         editor,
+        focus,
         goToDiff,
         setChanges: (next) => {
             hasChanges = next;
@@ -45,6 +50,8 @@ describe('Git diff editor actions', () => {
 
         expect(getDiffEditorActionState('/diff', 'pane-1')).toEqual({ hasChanges: false });
         expect(didNavigateDiffEditor('/diff', 'pane-1', 'next')).toBe(false);
+        expect(didFocusDiffEditor('/diff', 'pane-1')).toBe(true);
+        expect(fake.focus).toHaveBeenCalledTimes(1);
         expect(fake.goToDiff).not.toHaveBeenCalled();
 
         fake.setChanges(true);
@@ -57,6 +64,7 @@ describe('Git diff editor actions', () => {
         unregister();
         expect(getDiffEditorActionState('/diff', 'pane-1')).toEqual({ hasChanges: false });
         expect(didNavigateDiffEditor('/diff', 'pane-1', 'previous')).toBe(false);
+        expect(didFocusDiffEditor('/diff', 'pane-1')).toBe(false);
         unsubscribe();
     });
 

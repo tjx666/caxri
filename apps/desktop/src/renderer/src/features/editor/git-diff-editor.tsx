@@ -9,13 +9,16 @@ import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
 import { FileTypeIcon } from '../../icons/files/file-type-icon';
 import { gitDecorationForFile } from '../../lib/git-decorations';
+import { resolveRepositoryFilePath as resolveRepoFilePath } from '../../lib/repository-file-path';
 import { useCaxriQuery, useToastOnQueryError } from '../../queries/client';
 import { useSelectedSession } from '../../stores/selectors';
 import { describeFailure } from '../../stores/toasts';
 import { openFile } from './document-commands';
+import { EditorBreadcrumbs } from './editor-breadcrumbs';
 import { EditorLoadFailure } from './editor-load-failure';
 import { EditorPathBreadcrumbs } from './editor-path-breadcrumbs';
 import { GitChangesDiffList } from './git-changes-diff-list';
+import { didFocusDiffEditor } from './git-diff-actions';
 import {
     RESOLVED_GIT_DIFF_REASON,
     resolvedGitDiffActionLabel,
@@ -52,6 +55,12 @@ function FileDiffResult({
     sessionId?: string;
     tab: Extract<GitDiffTab, { kind: 'commit-file' | 'file' }>;
 }) {
+    const selectedSession = useSelectedSession();
+    const { data: summary } = useCaxriQuery(
+        'git.summary',
+        { sessionId: sessionId ?? '' },
+        { enabled: Boolean(sessionId) },
+    );
     useToastOnQueryError(isError, error, 'Unable to open Git diff');
     if (!sessionId || document === null) return null;
     if (isError)
@@ -65,18 +74,43 @@ function FileDiffResult({
         document.originalPath && document.originalPath !== document.path
             ? ` (renamed from ${document.originalPath})`
             : '';
+    const repo = summary?.isRepository
+        ? summary.repositories.find((candidate) => candidate.id === tab.repositoryId)
+        : undefined;
+    const absolutePath = resolveRepoFilePath(repo?.rootPath, document.path);
+    const browseContext =
+        repo &&
+        absolutePath &&
+        selectedSession?.id === sessionId &&
+        selectedSession.workbenchProjectId
+            ? {
+                  absolutePath,
+                  projectRoot: repo.rootPath,
+                  workbenchProjectId: selectedSession.workbenchProjectId,
+              }
+            : undefined;
     return (
         <div className="git-file-diff absolute inset-0 flex flex-col overflow-hidden">
-            {/*
-             * Same rail metrics as the file editor so switching between a file and its diff does not move the first
-             * line of content. The diff path is repository-relative and has no browsable Project ancestry behind it,
-             * so the trail stays display-only.
-             */}
+            {/* Same rail metrics as the file editor so switching surfaces does not move the first line of content. */}
             <div className="flex h-6 shrink-0 items-center overflow-hidden border-b border-border bg-surface">
-                <EditorPathBreadcrumbs
-                    accessibilityLabel={`Diff breadcrumbs: ${document.path}${renamedFrom}`}
-                    path={document.path}
-                />
+                {browseContext ? (
+                    <EditorBreadcrumbs
+                        accessibilityLabel={`Diff breadcrumbs: ${document.path}${renamedFrom}`}
+                        onEscapeToEditor={() => {
+                            didFocusDiffEditor(navigationKey, editorInstanceId);
+                        }}
+                        paneId={editorInstanceId}
+                        path={browseContext.absolutePath}
+                        projectRoot={browseContext.projectRoot}
+                        sessionId={sessionId}
+                        workbenchProjectId={browseContext.workbenchProjectId}
+                    />
+                ) : (
+                    <EditorPathBreadcrumbs
+                        accessibilityLabel={`Diff breadcrumbs: ${document.path}${renamedFrom}`}
+                        path={document.path}
+                    />
+                )}
             </div>
             <div className="relative min-h-0 flex-1">
                 <GitDiffSurface
