@@ -241,6 +241,8 @@ describe('AgentCoordinator session rebinding', () => {
                 observedAt: Date.now(),
                 available: true,
                 ...(context.agentSessionId === 'session-resumed' && {
+                    activitySource: 'latestTurn' as const,
+                    activityTurnId: 'resumed-turn',
                     sessionId: 'session-resumed',
                     sessionIsSubagent: false,
                     title: 'Resumed Codex thread',
@@ -276,6 +278,7 @@ describe('AgentCoordinator session rebinding', () => {
                 .poll(() => database.getSession(created.session.id)?.displayTitle)
                 .toBe('Resumed Codex thread');
             expect(database.getTerminal(created.terminal!.id)?.title).toBe('Resumed Codex thread');
+            expect(database.getSession(created.session.id)?.lastActivityState).toBe('running');
         } finally {
             coordinator.close();
             database.close();
