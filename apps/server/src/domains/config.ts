@@ -23,27 +23,29 @@ import {
     CaxriError,
     configurationSourceSchema as configSourceSchema,
     defaultAppSettings,
-    defaultKeybindingChanges,
     defaultKeybindings,
     errorMessage,
     findKeybindingConflicts,
     inspectableSettingsSchema,
-    keybindingsFileSchema,
     MAX_CONFIGURATION_SOURCE_BYTES,
     MAX_TRUSTED_DOMAINS,
     MAX_TRUSTED_FOLDERS,
-    normalizeBuiltinTheme,
     normalizeTrustedDomainRule,
     normalizeTrustedFolderRule,
     pushRecentAgentAction,
-    reconcileDefaultKeybindings,
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog, parseJsonc, redactLogValue } from '@caxri/system';
 import { applyEdits, modify } from 'jsonc-parser';
 
 import { atomicWrite } from './atomic-file';
-import { draculaTheme, importTheme, parseCaxriTheme, serializeTheme } from './theme';
+import {
+    JSONC_FORMATTING_OPTIONS,
+    prepareKeybindingsSource,
+    prepareSettingsSource,
+    prepareThemeSource,
+} from './config-reconcile';
+import { draculaTheme, importTheme, serializeTheme } from './theme';
 import type { WatchHandle } from './watch-hub';
 import { WatchHub } from './watch-hub';
 
@@ -66,7 +68,6 @@ class ConfigSourceReadError extends Error {
 
 const WATCH_SETTLE_DELAY_MS = 100;
 const FALLBACK_POLL_INTERVAL_MS = 250;
-const JSONC_FORMATTING_OPTIONS = { tabSize: 2, insertSpaces: true, eol: '\n' };
 interface ConfigServiceOptions {
     /**
      * Overrides the fallback watcher cadence for deterministic integration tests.
@@ -197,7 +198,7 @@ export class ConfigService {
             return;
         }
         try {
-            const prepared = this.prepare(kind, source, kind === 'keybindings');
+            const prepared = this.prepare(kind, source, kind !== 'theme');
             if (prepared.source !== source) {
                 try {
                     await this.writeConfigSource(path, prepared.source);
@@ -265,84 +266,31 @@ export class ConfigService {
         try {
             configSourceSchema.parse(source);
             if (kind === 'settings') {
-                const settings = appSettingsFileSchema.parse(parseJsonc(source));
+                const prepared = prepareSettingsSource(source, shouldReconcileDefaults);
                 return {
-                    source,
+                    source: prepared.source,
                     apply: () => {
-                        this.settings = settings;
-                        this.settingsSource = source;
+                        this.settings = prepared.value;
+                        this.settingsSource = prepared.source;
                     },
                 };
             }
             if (kind === 'keybindings') {
-                let preparedSource = source;
-                let keybindings = keybindingsFileSchema.parse(parseJsonc(source));
-                if (shouldReconcileDefaults) {
-                    const reconciliation = reconcileDefaultKeybindings(
-                        keybindings,
-                        defaultKeybindingChanges,
-                    );
-                    for (const replacement of reconciliation.replacements) {
-                        for (const property of ['key', 'command', 'when'] as const) {
-                            if (
-                                keybindings[replacement.index]?.[property] !==
-                                replacement.binding[property]
-                            )
-                                preparedSource = applyEdits(
-                                    preparedSource,
-                                    modify(
-                                        preparedSource,
-                                        [replacement.index, property],
-                                        replacement.binding[property],
-                                        { formattingOptions: JSONC_FORMATTING_OPTIONS },
-                                    ),
-                                );
-                        }
-                    }
-                    let bindingCount = keybindings.length;
-                    for (const addition of reconciliation.additions) {
-                        preparedSource = applyEdits(
-                            preparedSource,
-                            modify(preparedSource, [bindingCount], addition, {
-                                formattingOptions: JSONC_FORMATTING_OPTIONS,
-                            }),
-                        );
-                        bindingCount += 1;
-                    }
-                    if (preparedSource !== source) {
-                        configSourceSchema.parse(preparedSource);
-                        keybindings = keybindingsFileSchema.parse(parseJsonc(preparedSource));
-                    }
-                }
+                const prepared = prepareKeybindingsSource(source, shouldReconcileDefaults);
                 return {
-                    source: preparedSource,
+                    source: prepared.source,
                     apply: () => {
-                        this.keybindings = keybindings;
-                        this.keybindingsSource = preparedSource;
+                        this.keybindings = prepared.value;
+                        this.keybindingsSource = prepared.source;
                     },
                 };
             }
-            const parsedTheme = parseCaxriTheme(source);
-            const theme = normalizeBuiltinTheme(parsedTheme);
-            let preparedSource = source;
-            if (theme !== parsedTheme) {
-                /**
-                 * Built-in identity is metadata. Editing only these two leaves preserves comments and formatting in
-                 * externally maintained JSONC theme files while preventing an edited preset from posing as built-in.
-                 */
-                for (const property of ['id', 'source'] as const)
-                    preparedSource = applyEdits(
-                        preparedSource,
-                        modify(preparedSource, [property], theme[property], {
-                            formattingOptions: JSONC_FORMATTING_OPTIONS,
-                        }),
-                    );
-            }
+            const prepared = prepareThemeSource(source);
             return {
-                source: preparedSource,
+                source: prepared.source,
                 apply: () => {
-                    this.theme = theme;
-                    this.themeSource = preparedSource;
+                    this.theme = prepared.value;
+                    this.themeSource = prepared.source;
                 },
             };
         } catch (error) {
