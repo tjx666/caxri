@@ -255,7 +255,18 @@ a read-only virtual Editor tab in the current Session, survives only for the Ren
 creates a Project or Session or enters durable Session state.
 
 **Status bar** — `--surface` background, top hairline, `meta` text in `--muted`. The left side
-shows Project and Git context. The right side follows the active tab: a normal file shows
+shows Project and Git context, plus the delivery chips the current branch resolves to: its pull
+request, its Linear issue, and its acceptance report. Each one is a chip only when the branch
+actually has that thing; none of them holds a slot to say "none". A delivery chip leads with
+whatever a person would say out loud about it, so the Linear chip leads with `ABC-123` while an
+acceptance — which has only an opaque id — spends its width on the passed-check tally in the colour
+of the current verdict, and keeps the subject, round, and provenance on the hover card. A link Caxri
+recognized but could not read is `unknown`: `--muted` and not clickable, because it has no
+destination and must not look like it does. When the window is too narrow for all of them they drop
+one at a time, lowest first: child-process count, memory, Linear issue, acceptance, pull request.
+Acceptance outranks Linear because it reports whether the current work passed, which changes what
+the reviewer does next; the pull request survives longest because it is the branch's identity.
+The right side follows the active tab: a normal file shows
 current-line blame, selection, cursor position, and language; a Terminal shows Terminal progress,
 process-tree memory, and child count. Blame lives here and nowhere else. The editor header once
 carried the file's last commit too, and on any line belonging to that commit the two read

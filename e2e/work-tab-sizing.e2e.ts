@@ -202,6 +202,11 @@ test('Terminal tabs anchor at the leading edge, Document tabs size to content an
          * tab enters from `maxWidth: 0` and the reveal keeps re-running while that animation widens it
          * (`useActiveTabReveal` in `apps/desktop/src/renderer/src/features/workbench/pane-tab-reveal.ts`) — a one-shot
          * reveal measured at creation time computes a near-zero delta and leaves the tab off the end of the bar.
+         *
+         * "Readable" is the leading edge, not the whole box. At this window width one of these filenames is wider than
+         * the rail that holds it, and the reveal aligns such a tab to the rail's start rather than its end — the same
+         * choice VS Code's `doLayoutTabsNonWrapping` makes, because scrolling to the tail of a name shows the reader
+         * the extension and hides the part that tells the files apart.
          */
         await expect
             .poll(async () =>
@@ -211,7 +216,8 @@ test('Terminal tabs anchor at the leading edge, Document tabs size to content an
                     if (!rail || !tab) return;
                     const railRect = rail.getBoundingClientRect();
                     const tabRect = tab.getBoundingClientRect();
-                    return tabRect.left >= railRect.left - 1 && tabRect.right <= railRect.right + 1;
+                    if (tabRect.left < railRect.left - 1) return false;
+                    return tabRect.right <= railRect.right + 1 || tabRect.left <= railRect.left + 1;
                 }),
             )
             .toBe(true);

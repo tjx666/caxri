@@ -720,3 +720,20 @@ export async function clickGitGroupAction(repo: Locator, name: string): Promise<
     await caption.hover();
     await caption.locator(selector).click();
 }
+
+/**
+ * Clicks a Source Control per-file row action, such as `Discard changes in tracked.txt`.
+ *
+ * Same reveal-on-hover contract as {@link clickGitGroupAction}, one level down: the action lives on the file row, so the
+ * pointer has to be on that row. Selecting the row first happens to leave the pointer there, which is why a test that
+ * opens the file's diff before discarding it can look like it needs no hover at all — until a step in between moves the
+ * pointer somewhere else and the button is `display: none` again.
+ */
+export async function clickGitFileAction(
+    repo: Locator,
+    fileName: string,
+    name: string,
+): Promise<void> {
+    await repo.getByRole('treeitem', { name: fileName, exact: true }).hover();
+    await repo.getByRole('button', { name, exact: true }).click();
+}
