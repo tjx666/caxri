@@ -159,9 +159,16 @@ describe('VS Code control state colors', () => {
         expect(colors).toMatchObject({
             background: '#1e1e1e',
             elevated: '#2d2d30',
-            listActiveSelectionBackground: '#2d2d30',
-            listHoverBackground: '#2d2d30',
-            listInactiveSelectionBackground: '#2d2d30',
+            /**
+             * The list state fills walk to VS Code's own registry defaults rather than to `elevated`, which is what a
+             * theme declaring them in the TypeScript color registry actually renders. Collapsing all four onto
+             * `elevated` is what made hover, keyboard focus, and selection identical. See issue #1006.
+             */
+            listActiveSelectionBackground: '#04395e',
+            listActiveSelectionForeground: '#ffffff',
+            listFocusBackground: '#04395e59',
+            listHoverBackground: '#2a2d2e',
+            listInactiveSelectionBackground: '#37373d',
             shadow: DEFAULT_SHADOW,
             // Nothing walks back the other way: the three surfaces keep the values their own keys gave them.
             surface: '#252526',
@@ -208,6 +215,69 @@ describe('VS Code control state colors', () => {
         });
     });
 
+    /**
+     * The light half of the same fallback. An imported light theme that leaves its list states to the registry must not
+     * be handed the dark fills, and the brightness is read from the resolved canvas rather than the declared `type`.
+     */
+    it('walks a light theme to the light registry defaults for its list states', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-light-list-'));
+        temporaryDirectories.push(directory);
+        const path = join(directory, 'light.json');
+        await writeFile(
+            path,
+            JSON.stringify({
+                name: 'Bare light',
+                type: 'light',
+                colors: {
+                    'editor.background': '#ffffff',
+                    'editor.foreground': '#1f1f1f',
+                    'foreground': '#3b3b3b',
+                },
+            }),
+            'utf8',
+        );
+
+        const { colors } = await importTheme(path, draculaTheme);
+
+        expect(colors).toMatchObject({
+            listActiveSelectionBackground: '#0060c0',
+            listActiveSelectionForeground: '#ffffff',
+            listFocusBackground: '#0060c059',
+            listHoverBackground: '#f0f0f0',
+            listInactiveSelectionBackground: '#e4e6f1',
+        });
+    });
+
+    /**
+     * The fallback only fills in what the theme left out. A theme that names its own selection keeps its own color and
+     * its own foreground, so the registry blue never overrides an author's palette.
+     */
+    it('leaves a declared selection color and its foreground fallback alone', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-own-list-'));
+        temporaryDirectories.push(directory);
+        const path = join(directory, 'dark.json');
+        await writeFile(
+            path,
+            JSON.stringify({
+                name: 'Own selection',
+                type: 'dark',
+                colors: {
+                    'editor.background': '#1e1e1e',
+                    'foreground': '#d4d4d4',
+                    'list.activeSelectionBackground': '#bbbbbb',
+                },
+            }),
+            'utf8',
+        );
+
+        const { colors } = await importTheme(path, draculaTheme);
+
+        expect(colors).toMatchObject({
+            listActiveSelectionBackground: '#bbbbbb',
+            listActiveSelectionForeground: '#d4d4d4',
+        });
+    });
+
     it('ignores an unusable state color instead of persisting it', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-vscode-bad-state-'));
         temporaryDirectories.push(directory);
@@ -233,7 +303,7 @@ describe('VS Code control state colors', () => {
         const { colors } = await importTheme(path, draculaTheme);
 
         expect(colors).toMatchObject({
-            listHoverBackground: '#2d2d30',
+            listHoverBackground: '#2a2d2e',
             shadow: '#00000088',
             tabActiveBackground: '#1e1e1e',
         });

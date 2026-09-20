@@ -35,11 +35,18 @@ export const oneDarkProTheme: ThemeTokens = {
         tabInactiveForeground: '#9da5b4',
         tabHoverBackground: '#323842',
         tabHoverForeground: '#abb2bf',
+        /**
+         * Upstream One Dark Pro gives `list.hoverBackground` and `list.activeSelectionBackground` the same `#2c313a`,
+         * so the row the pointer happens to be over and the row that is actually selected paint identically. The same
+         * weight ramp `dracula.ts` uses fixes it without inventing a hue: the palette's own selection grey `#3e4451`
+         * becomes the opaque selection, `#323842` stays the keyboard focus between them, and hover keeps the lightest
+         * `#2c313a`. See issue #1006.
+         */
         listHoverBackground: '#2c313a',
         listHoverForeground: '#abb2bf',
         listFocusBackground: '#323842',
         listFocusForeground: '#f0f0f0',
-        listActiveSelectionBackground: '#2c313a',
+        listActiveSelectionBackground: '#3e4451',
         listActiveSelectionForeground: '#d7dae0',
         listInactiveSelectionBackground: '#323842',
         listInactiveSelectionForeground: '#d7dae0',

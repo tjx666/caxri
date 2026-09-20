@@ -211,6 +211,55 @@ export function isLightVsCodeTheme(
     return contrastRatio(editorBackground, '#000000') > contrastRatio(editorBackground, '#ffffff');
 }
 
+/**
+ * VS Code's own registry defaults for the list state fills, which is what a theme that declares them in the TypeScript
+ * color registry rather than in its JSON actually renders. See
+ * `competitors/vscode/src/vs/platform/theme/common/colors/listColors.ts`.
+ *
+ * `elevated` used to stand in for all four, which is why Dark+ painted hover, keyboard focus, and selection in one
+ * identical grey: a keyboard user had nothing at all marking the row they were on. See issue #1006.
+ *
+ * Focus is the one deviation from the registry. VS Code draws it as an outline (`list.focusOutline`) over no background
+ * at all, and Caxri has no outline token for a list row, so focus takes the selection hue at a third of its weight
+ * instead. That keeps the three states on one ramp — a neutral wash for the pointer, the selection hue for the
+ * keyboard, that hue opaque for the current item — the same shape `dracula.ts` already uses.
+ */
+const LIST_STATE_FOCUS_ALPHA = '59';
+const VSCODE_LIST_STATE_DEFAULTS = {
+    dark: {
+        activeSelectionBackground: '#04395e',
+        activeSelectionForeground: '#ffffff',
+        hoverBackground: '#2a2d2e',
+        inactiveSelectionBackground: '#37373d',
+    },
+    light: {
+        activeSelectionBackground: '#0060c0',
+        activeSelectionForeground: '#ffffff',
+        hoverBackground: '#f0f0f0',
+        inactiveSelectionBackground: '#e4e6f1',
+    },
+} as const;
+
+/**
+ * Picks the registry defaults by the brightness of the theme's own canvas, so an imported light theme never gets the
+ * dark list fills. Derived from the resolved background rather than the theme's declared `type`, because these
+ * fallbacks run after `background` is already settled and a mis-declared `type` would be visible here immediately.
+ */
+function listStateDefaults(background: string): {
+    activeSelectionBackground: string;
+    activeSelectionForeground: string;
+    focusBackground: string;
+    hoverBackground: string;
+    inactiveSelectionBackground: string;
+} {
+    const isLight = contrastRatio(background, '#000000') > contrastRatio(background, '#ffffff');
+    const defaults = isLight ? VSCODE_LIST_STATE_DEFAULTS.light : VSCODE_LIST_STATE_DEFAULTS.dark;
+    return {
+        ...defaults,
+        focusBackground: `${defaults.activeSelectionBackground}${LIST_STATE_FOCUS_ALPHA}`,
+    };
+}
+
 export function hasMappedVsCodeColor(colors: Record<string, unknown>): boolean {
     for (const key of VSCODE_MAPPED_COLOR_KEYS) {
         if (normalizedHex(colors[key], '')) return true;
@@ -239,6 +288,7 @@ export function applyVsCodeControlColors(
 ): void {
     const alpha = { preserveAlpha: true };
     const { background, elevated, foreground, muted, surface } = theme.colors;
+    const list = listStateDefaults(background);
     theme.colors.tabActiveBackground = firstHex(
         colors,
         ['tab.activeBackground'],
@@ -260,14 +310,24 @@ export function applyVsCodeControlColors(
     theme.colors.tabInactiveForeground = firstHex(colors, ['tab.inactiveForeground'], muted, alpha);
     theme.colors.tabHoverBackground = firstHex(colors, ['tab.hoverBackground'], elevated, alpha);
     theme.colors.tabHoverForeground = firstHex(colors, ['tab.hoverForeground'], foreground, alpha);
-    theme.colors.listHoverBackground = firstHex(colors, ['list.hoverBackground'], elevated, alpha);
+    theme.colors.listHoverBackground = firstHex(
+        colors,
+        ['list.hoverBackground'],
+        list.hoverBackground,
+        alpha,
+    );
     theme.colors.listHoverForeground = firstHex(
         colors,
         ['list.hoverForeground'],
         foreground,
         alpha,
     );
-    theme.colors.listFocusBackground = firstHex(colors, ['list.focusBackground'], elevated, alpha);
+    theme.colors.listFocusBackground = firstHex(
+        colors,
+        ['list.focusBackground'],
+        list.focusBackground,
+        alpha,
+    );
     theme.colors.listFocusForeground = firstHex(
         colors,
         ['list.focusForeground'],
@@ -277,19 +337,23 @@ export function applyVsCodeControlColors(
     theme.colors.listActiveSelectionBackground = firstHex(
         colors,
         ['list.activeSelectionBackground'],
-        elevated,
+        list.activeSelectionBackground,
         alpha,
     );
     theme.colors.listActiveSelectionForeground = firstHex(
         colors,
         ['list.activeSelectionForeground'],
-        foreground,
+        /**
+         * White rather than the theme's own foreground, because the fallback selection fill is a saturated blue. A
+         * theme that declares its own selection background keeps its own foreground fallback through the key above.
+         */
+        colors['list.activeSelectionBackground'] ? foreground : list.activeSelectionForeground,
         alpha,
     );
     theme.colors.listInactiveSelectionBackground = firstHex(
         colors,
         ['list.inactiveSelectionBackground', 'list.activeSelectionBackground'],
-        theme.colors.listActiveSelectionBackground,
+        list.inactiveSelectionBackground,
         alpha,
     );
     theme.colors.listInactiveSelectionForeground = firstHex(
