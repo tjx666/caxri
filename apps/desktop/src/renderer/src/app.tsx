@@ -16,6 +16,7 @@ import { CommandPalette } from './features/palette/command-palette';
 import { PathBrowserDialog } from './features/path-browser/path-browser-dialog';
 import { PrimarySidebar } from './features/primary-sidebar/primary-sidebar';
 import { ProjectIconDialog } from './features/primary-sidebar/project-icon-dialog';
+import { ProjectSearchDialog } from './features/project-search/project-search-dialog';
 import { RendererPerformanceProfiler } from './features/renderer-performance/renderer-performance-profiler';
 import { ScreencastOverlay } from './features/screencast/screencast-overlay';
 import { SecondarySidebar } from './features/secondary-sidebar/secondary-sidebar';
@@ -244,6 +245,7 @@ export function App() {
                 <SettingsDialog />
                 <UpdateDialog />
                 <CommandPalette />
+                <ProjectSearchDialog />
                 <AgentActionsDialog />
                 <PathBrowserDialog />
                 <BugReportDialog />

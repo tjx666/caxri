@@ -31,6 +31,7 @@ interface DialogState {
     settingsOpen: boolean;
     settingsRequest: { id: number; view: SettingsView; provider?: AgentProvider };
     paletteOpen: boolean;
+    projectSearchOpen: boolean;
     agentActionsOpen: boolean;
     agentActionsTerminalId?: string;
     pathBrowserOpen: boolean;
@@ -80,6 +81,7 @@ interface DialogState {
     openSettings(view?: SettingsView, provider?: AgentProvider): void;
     setSettingsOpen(isOpen: boolean): void;
     setPaletteOpen(isOpen: boolean): void;
+    setProjectSearchOpen(isOpen: boolean): void;
     openAgentActions(terminalId: string): void;
     setAgentActionsOpen(isOpen: boolean): void;
     setPathBrowserOpen(isOpen: boolean): void;
@@ -114,6 +116,7 @@ export const useDialogStore = createStore<DialogState>('dialogs', (set, get) => 
     settingsOpen: false,
     settingsRequest: { id: 0, view: 'ui' },
     paletteOpen: false,
+    projectSearchOpen: false,
     agentActionsOpen: false,
     agentActionsTerminalId: undefined,
     pathBrowserOpen: false,
@@ -134,6 +137,7 @@ export const useDialogStore = createStore<DialogState>('dialogs', (set, get) => 
         })),
     setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
     setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
+    setProjectSearchOpen: (projectSearchOpen) => set({ projectSearchOpen }),
     openAgentActions: (agentActionsTerminalId) =>
         set({ agentActionsOpen: true, agentActionsTerminalId }),
     setAgentActionsOpen: (agentActionsOpen) => set({ agentActionsOpen }),
@@ -187,6 +191,8 @@ export const setArchivedSessionsOpen = (isOpen: boolean): void =>
     useDialogStore.getState().setArchivedSessionsOpen(isOpen);
 export const setPaletteOpen = (isOpen: boolean): void =>
     useDialogStore.getState().setPaletteOpen(isOpen);
+export const setProjectSearchOpen = (isOpen: boolean): void =>
+    useDialogStore.getState().setProjectSearchOpen(isOpen);
 export const setAgentActionsOpen = (isOpen: boolean): void =>
     useDialogStore.getState().setAgentActionsOpen(isOpen);
 export const setPathBrowserOpen = (isOpen: boolean): void =>

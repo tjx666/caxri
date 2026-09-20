@@ -2,7 +2,6 @@ import { DirectoryEntries } from './directory-entries';
 import { FileConflictDialog } from './file-conflict-dialog';
 import { FileTreeRootContextMenu } from './file-tree-root-context-menu';
 import { PendingFileOperationStatus } from './pending-file-operation-status';
-import { ProjectSearch } from './project-search';
 import { ResourceExplorerHeader } from './resource-explorer-header';
 import type { ResourceExplorerController } from './use-resource-explorer-controller';
 
@@ -48,16 +47,7 @@ export function ResourceExplorerContent({
                     onCancel={controller.cancelPendingOperation}
                 />
             )}
-            {controller.isSearchVisible ? (
-                <ProjectSearch
-                    key={controller.scopeId}
-                    focusRevision={controller.searchFocusRevision}
-                    sessionId={controller.session.id}
-                    scopeId={controller.scopeId}
-                />
-            ) : (
-                <FileTreeRootContextMenu controller={controller}>{tree}</FileTreeRootContextMenu>
-            )}
+            <FileTreeRootContextMenu controller={controller}>{tree}</FileTreeRootContextMenu>
             <FileConflictDialog />
         </div>
     );

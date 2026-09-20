@@ -234,6 +234,11 @@ action that a shortcut, a menu, and the palette all reach does not also earn a h
 in a 44px rail. The collapsed PrimarySidebar preserves the same 44px-tall drag region beneath the
 traffic lights.
 
+**Files caption actions** — `New File`, `New Folder`, `Collapse Folders`, in that order. Search left
+this row when the centered overlay took the job: a caption 34px tall has to share its width with a
+Project name, and a shortcut, a menu and the palette all reach the overlay already, so a glyph there
+bought nothing.
+
 **Welcome** — heading "Project-first development." Body copy uses "folder" to match VS Code's
 Open Folder / Add Folder to Workspace, not "directory" or "local folder". The primary action is
 Add Project.
@@ -461,7 +466,12 @@ that takes focus, never on a layout wrapper around it: `aria-level`, `aria-selec
 row carries `tabIndex={0}`, the row focus would return to, and every other row carries `-1` — so Tab
 enters the tree once and arrows move inside it instead of walking every row in the document. A row
 being renamed is the one allowed exception: it keeps its `treeitem` role and hands its `tabIndex` to
-the input inside it for as long as the edit lasts. Anything that is not a row lives outside the tree
+the input inside it for as long as the edit lasts. A tree driven from a field the user is still
+typing in is the other: there the rows are all `tabIndex={-1}`, the field keeps focus and carries
+`role="combobox"` with `aria-controls` and `aria-activedescendant`, and that attribute is what names
+the current row. This is the standard combobox pairing, not a second focus model — a tree may adopt
+it only when a field owns the tree's whole navigation, never as a way to avoid giving rows a roving
+Tab stop. Anything that is not a row lives outside the tree
 element — an empty-state action, a live region — because inside `role="tree"` a focusable element has
 to be a real row holding that single Tab stop, and a static notice is not a row. The corollary runs
 both ways: a "show more" control renders _inside_ the tree as a real row, because it is focusable and
@@ -802,6 +812,25 @@ thing they are aiming at defeats the surface.
 
 **Command palette** — rows show command title left, `kbd` shortcut hint right (render from live
 keybindings, `badge` size, `--elevated` chips). Group headings stay. Width 560px.
+
+**Project search** — `Command+Shift+F` opens a centered overlay 70% of the window in each direction,
+not a panel inside Files. Search is a workspace-wide question and its answer wants two columns; a
+310px sidebar could show a file list or a line of context, never both, and it paid for the panel by
+hiding the file tree the results are about. The overlay leaves the tree on screen behind it. It is
+the one surface built on the picker shell that takes the Dialog scrim rather than the picker's
+transparent one: a picker stays see-through because the user is aiming at the workbench underneath
+it, while this surface carries its own preview and is itself what the user is reading, so dimming
+the workbench is honest about the workbench being inert. It reads as controls / results / preview:
+one row of query field, the three content-mode toggles, and the Name–Content segments; then results
+on the left at 42% and a snippet of the selected file on the right, four lines of context each side
+of the match, read through `files.read` rather than by widening what a search result carries — every
+scan would otherwise pay for context the user reads one file at a time. A name result has no line to
+center on and shows the head of the file, which is what tells a reader which of nine `index.ts` they
+found. Focus never leaves the field: `↑`/`↓` move the selection and hold at both ends rather than
+wrapping, `Enter` opens, `Command+Enter` opens to the side, and a pointer selects with one click and
+opens with two. The single click deliberately no longer opens a preview tab the way the sidebar's
+did — the pane beside the results already is that preview, and a tab opening behind a modal is a
+change the user cannot see. Opening a result dismisses the overlay, and a fresh open starts empty.
 
 **Session switcher** — the hold-to-cycle MRU overlay (`Recently used Sessions`) is a modal moment
 that ends on key release, so it wears the picker scrim above rather than the Dialog one, and the
