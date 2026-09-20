@@ -139,21 +139,28 @@ describe('CI execution plan', () => {
         ).toMatchObject({ checksScope: 'full', runE2E: true });
     });
 
-    it('runs source main pushes with optimized E2E and release commits with the control suite', () => {
+    it('runs source main pushes with optimized E2E and skips duplicate gates for release commits', () => {
         expect(
             evaluateCIExecutionPlan({
                 changedFiles: ['apps/desktop/src/main/index.ts'],
                 eventName: 'push',
-                isReleaseCommit: false,
+                isVerifiedReleaseCommit: false,
             }),
         ).toMatchObject({ checksScope: 'full', e2eProfile: 'optimized', runE2E: true });
         expect(
             evaluateCIExecutionPlan({
                 changedFiles: ['package.json'],
                 eventName: 'push',
-                isReleaseCommit: true,
+                isVerifiedReleaseCommit: true,
             }),
-        ).toMatchObject({ checksScope: 'full', e2eProfile: 'control', runE2E: true });
+        ).toMatchObject({ checksScope: 'skipped', e2eProfile: 'control', runE2E: false });
+        expect(
+            evaluateCIExecutionPlan({
+                changedFiles: ['package.json', 'apps/desktop/src/main/index.ts'],
+                eventName: 'push',
+                isVerifiedReleaseCommit: false,
+            }),
+        ).toMatchObject({ checksScope: 'full', e2eProfile: 'optimized', runE2E: true });
     });
 
     it('skips E2E only for documentation or skill-only main pushes and fails closed on empty deltas', () => {
@@ -161,14 +168,14 @@ describe('CI execution plan', () => {
             evaluateCIExecutionPlan({
                 changedFiles: ['docs/quality-toolchain.md', '.agents/skills/go/SKILL.md'],
                 eventName: 'push',
-                isReleaseCommit: false,
+                isVerifiedReleaseCommit: false,
             }),
         ).toMatchObject({ checksScope: 'full', e2eProfile: 'control', runE2E: false });
         expect(
             evaluateCIExecutionPlan({
                 changedFiles: [],
                 eventName: 'push',
-                isReleaseCommit: false,
+                isVerifiedReleaseCommit: false,
             }),
         ).toMatchObject({ runE2E: true });
     });
@@ -227,7 +234,7 @@ describe('CI execution plan', () => {
             {
                 changedFiles: ['apps/desktop/src/main/index.ts'],
                 eventName: 'push',
-                isReleaseCommit: false,
+                isVerifiedReleaseCommit: false,
             },
             {
                 changedFiles: [],

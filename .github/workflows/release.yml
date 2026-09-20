@@ -12,8 +12,8 @@ concurrency:
 
 jobs:
   release:
-    # CI already owns every quality gate and the full macOS E2E suite. Wait for that workflow so
-    # release commits consume one E2E runner instead of executing the same suite twice.
+    # PR CI owns the product quality gates. The exact release commit's lightweight CI run rechecks
+    # this trusted main-push boundary without repeating platform checks or the macOS E2E suite.
     # GitHub evaluates this condition before checkout; the trust-policy contract binds its literals
     # to .github/ci-trust-policy.json and the shared action rechecks them after checkout.
     if: >-

@@ -44,10 +44,19 @@ export interface PreparedRelease {
 }
 
 export type GitReader = (arguments_: string[], cwd: string) => Promise<string>;
+export type ReleaseSourceReader = (path: string, cwd: string) => Promise<string>;
 
 const defaultGitReader: GitReader = async (arguments_, cwd) => {
     const { stdout } = await execFileAsync('git', arguments_, { cwd, encoding: 'utf8' });
     return stdout.trim();
+};
+
+const defaultPreviousReleaseSourceReader: ReleaseSourceReader = async (path, cwd) => {
+    const { stdout } = await execFileAsync('git', ['show', `HEAD^:${path}`], {
+        cwd,
+        encoding: 'utf8',
+    });
+    return stdout;
 };
 
 function parseManifest(source: string, path: string): PackageManifest {
@@ -180,6 +189,111 @@ export async function discoverReleaseManifestPaths(cwd: string): Promise<string[
         .map((entry) => `extensions/${entry.name}/package.json`)
         .toSorted((left, right) => left.localeCompare(right));
     return [...PRODUCT_MANIFEST_PATHS, ...extensionManifests];
+}
+
+/**
+ * Returns the exact file set written by `release:prepare`, which CI uses to keep its release fast-path fail-closed.
+ */
+export async function discoverReleaseSourcePaths(cwd: string): Promise<string[]> {
+    return [
+        ...(await discoverReleaseManifestPaths(cwd)),
+        ...VERSION_SOURCES.map(({ path }) => path),
+    ];
+}
+
+function hasExactPathSet(actual: readonly string[], expected: readonly string[]): boolean {
+    const actualPaths = new Set(actual);
+    const expectedPaths = new Set(expected);
+    return (
+        actual.length > 0 &&
+        actualPaths.size === actual.length &&
+        expectedPaths.size === expected.length &&
+        actualPaths.size === expectedPaths.size &&
+        expected.every((path) => actualPaths.has(path))
+    );
+}
+
+/**
+ * Verifies that the current commit contains exactly the source rewrite `release:prepare` would produce from its first
+ * parent. A trusted title and allowed paths are not enough: dependency or script edits inside an allowed manifest must
+ * fall back to normal main-push CI.
+ */
+export async function isExactReleasePreparationDelta(
+    cwd: string,
+    changedPaths: readonly string[],
+    readPreviousSource: ReleaseSourceReader = defaultPreviousReleaseSourceReader,
+): Promise<boolean> {
+    const root = resolve(cwd);
+    try {
+        const manifestPaths = await discoverReleaseManifestPaths(root);
+        const sourcePaths = [
+            ...manifestPaths,
+            ...VERSION_SOURCES.map(({ path }) => path),
+        ];
+        if (!hasExactPathSet(changedPaths, sourcePaths)) return false;
+
+        const currentSources = new Map(
+            await Promise.all(
+                sourcePaths.map(async (path) => [
+                    path,
+                    await readFile(join(root, path), 'utf8'),
+                ] as const),
+            ),
+        );
+        const previousSources = new Map(
+            await Promise.all(
+                sourcePaths.map(async (path) => [
+                    path,
+                    await readPreviousSource(path, root),
+                ] as const),
+            ),
+        );
+        const currentVersion = parseManifest(
+            currentSources.get(PRODUCT_MANIFEST_PATHS[0]) ?? '',
+            PRODUCT_MANIFEST_PATHS[0],
+        ).version;
+        const previousVersion = parseManifest(
+            previousSources.get(PRODUCT_MANIFEST_PATHS[0]) ?? '',
+            PRODUCT_MANIFEST_PATHS[0],
+        ).version;
+        if (
+            typeof currentVersion !== 'string' ||
+            typeof previousVersion !== 'string' ||
+            !gt(currentVersion, previousVersion)
+        )
+            return false;
+
+        for (const path of manifestPaths) {
+            const currentSource = currentSources.get(path);
+            const previousSource = previousSources.get(path);
+            if (
+                currentSource === undefined ||
+                previousSource === undefined ||
+                currentSource !== updateManifest(previousSource, path, previousVersion, currentVersion)
+            )
+                return false;
+        }
+        for (const { constant, path } of VERSION_SOURCES) {
+            const currentSource = currentSources.get(path);
+            const previousSource = previousSources.get(path);
+            if (
+                currentSource === undefined ||
+                previousSource === undefined ||
+                currentSource !==
+                    updateVersionSource(
+                        previousSource,
+                        path,
+                        constant,
+                        previousVersion,
+                        currentVersion,
+                    )
+            )
+                return false;
+        }
+        return true;
+    } catch {
+        return false;
+    }
 }
 
 export async function prepareRelease(cwd: string, target: string): Promise<PreparedRelease> {

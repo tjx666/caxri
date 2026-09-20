@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { appendFile, readFile } from 'node:fs/promises';
 import process from 'node:process';
 
+import { isExactReleasePreparationDelta } from '../.agents/skills/release/scripts/prepare-release';
 import type {
     CIExecutionPlan,
     CIExecutionPlanInput,
@@ -660,12 +661,16 @@ async function main(): Promise<void> {
         workflowPath: '.github/workflows/ci.yml',
     });
     const packageVersion = (JSON.parse(packageManifest) as { version?: string }).version;
+    const hasReleaseIdentity =
+        typeof packageVersion === 'string' && commitSubject === `release: v${packageVersion}`;
+    const isVerifiedReleaseCommit =
+        hasReleaseIdentity &&
+        (await isExactReleasePreparationDelta(process.cwd(), allChangedFiles));
     const executionInput: CIExecutionPlanInput = {
         changedFiles: allChangedFiles,
         dispatchE2EProfile: event.inputs?.e2e_profile,
         eventName: process.env.GITHUB_EVENT_NAME ?? '',
-        isReleaseCommit:
-            typeof packageVersion === 'string' && commitSubject === `release: v${packageVersion}`,
+        isVerifiedReleaseCommit,
         pullRequestDraft: event.pull_request?.draft,
         retryMode: retryDecision.mode === 'full' ? undefined : retryDecision.mode,
         retryKind: retryDecision.retryKind,

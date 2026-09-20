@@ -4,11 +4,13 @@ import { dirname, join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type {GitReader} from './prepare-release';
+import type { GitReader, ReleaseSourceReader } from './prepare-release';
 import {
     assertReleaseSource,
+    discoverReleaseSourcePaths,
+    isExactReleasePreparationDelta,
     prepareRelease,
-    runPrepareRelease
+    runPrepareRelease,
 } from './prepare-release';
 
 const temporaryDirectories: string[] = [];
@@ -85,6 +87,20 @@ function cleanMainGit(overrides: Record<string, string> = {}): GitReader {
 describe('release version preparation', () => {
     it('updates every coupled version source and extension engine range', async () => {
         const cwd = await fixture();
+        const sourcePaths = await discoverReleaseSourcePaths(cwd);
+        const previousSources = new Map(
+            await Promise.all(
+                sourcePaths.map(async (path) => [
+                    path,
+                    await readFile(join(cwd, path), 'utf8'),
+                ] as const),
+            ),
+        );
+        const readPreviousSource: ReleaseSourceReader = async (path) => {
+            const source = previousSources.get(path);
+            if (source === undefined) throw new Error(`Missing previous source for ${path}`);
+            return source;
+        };
 
         const result = await prepareRelease(cwd, 'patch');
 
@@ -93,6 +109,20 @@ describe('release version preparation', () => {
             version: '0.0.25',
         });
         expect(result.changedPaths).toHaveLength(12);
+        expect(sourcePaths).toEqual(result.changedPaths);
+        await expect(
+            isExactReleasePreparationDelta(cwd, result.changedPaths, readPreviousSource),
+        ).resolves.toBe(true);
+        await expect(
+            isExactReleasePreparationDelta(
+                cwd,
+                [...result.changedPaths, 'apps/desktop/src/main/index.ts'],
+                readPreviousSource,
+            ),
+        ).resolves.toBe(false);
+        await expect(
+            isExactReleasePreparationDelta(cwd, result.changedPaths.slice(1), readPreviousSource),
+        ).resolves.toBe(false);
         const updatedManifests = await Promise.all(
             manifests.map(async (path) => ({
                 manifest: JSON.parse(await readFile(join(cwd, path), 'utf8')) as {
@@ -112,6 +142,19 @@ describe('release version preparation', () => {
         await expect(
             readFile(join(cwd, 'packages/agent-skills/src/version.ts'), 'utf8'),
         ).resolves.toContain("SKILL_BUNDLE_VERSION = '0.0.25'");
+
+        const rootManifest = JSON.parse(await readFile(join(cwd, 'package.json'), 'utf8')) as {
+            scripts?: Record<string, string>;
+        };
+        rootManifest.scripts = { release: 'unexpected' };
+        await writeFile(
+            join(cwd, 'package.json'),
+            `${JSON.stringify(rootManifest, undefined, 4)}\n`,
+            'utf8',
+        );
+        await expect(
+            isExactReleasePreparationDelta(cwd, result.changedPaths, readPreviousSource),
+        ).resolves.toBe(false);
     });
 
     it('validates all current sources before writing any changes', async () => {
