@@ -103,9 +103,13 @@ test('Project search opens name results and reveals grouped content matches', as
         /*
          * The overlay leaves the Files view container alone: the tree stays mounted and visible behind it, which is the
          * behavior change this suite is here to pin. The inline panel used to replace the tree in the sidebar.
+         *
+         * Located by attribute rather than by role: a modal dialog takes the rest of the window out of the
+         * accessibility tree, so while the overlay is open `getByRole('treeitem')` cannot see a row that is still
+         * plainly on screen. That is correct modal behavior, and the claim here is about the pixels, not the roles.
          */
         await expect(
-            running.page.getByRole('treeitem', { name: 'node_modules', exact: true }),
+            running.page.locator('[role="treeitem"][aria-label="node_modules"]'),
         ).toBeVisible();
         const modeSegments = running.page.locator('.search-mode-segments');
         const [nameBounds, contentBounds, segmentBounds] = await Promise.all([
@@ -120,7 +124,8 @@ test('Project search opens name results and reveals grouped content matches', as
         expect(nameBounds!.width + contentBounds!.width).toBeGreaterThan(segmentBounds!.width - 8);
 
         await nameSearch.fill('target-name');
-        // Scoped to `.search-results`: the Files tree stays on screen behind the overlay and owns `treeitem` rows too.
+        // Scoped to `.search-results`: the Files tree is still on screen behind the overlay, so the locator is pinned
+        // to the overlay rather than to whatever the sidebar happens to be showing.
         const nameResult = running.page
             .locator('.search-results .search-result')
             .filter({ hasText: 'target-name.ts' });

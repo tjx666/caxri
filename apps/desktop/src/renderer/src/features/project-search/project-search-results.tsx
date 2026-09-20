@@ -22,8 +22,12 @@ export interface ProjectSearchResultHandlers {
     selectedKey: string | undefined;
 }
 
+/**
+ * Reads the `--list-*` roles like every other picker, so one imported VS Code theme reaches this surface too. The
+ * current row is painted with the focus fill rather than the selection fill: the keyboard drives it from the input.
+ */
 const rowClassName =
-    'search-result flex w-full cursor-pointer items-center border-0 bg-transparent text-left text-foreground hover:bg-elevated aria-selected:bg-[var(--selection)] aria-selected:text-foreground';
+    'search-result flex w-full cursor-pointer items-center border-0 bg-transparent text-left text-foreground hover:bg-list-hover-background hover:text-list-hover-foreground aria-selected:bg-list-focus-background aria-selected:text-list-focus-foreground';
 
 /**
  * A result row is a `treeitem` that never takes focus: the input keeps it, and `aria-activedescendant` on the input is

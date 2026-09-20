@@ -40,11 +40,14 @@ const searchOptionClassName =
 const NO_MATCHES: FileSearchMatch[] = [];
 
 /**
- * DOM id of one result row. A match key carries a path, so it can hold anything a filename can; only the characters
- * that survive `getElementById` and `aria-activedescendant` unambiguously are kept.
+ * DOM id of one result row. A match key carries a path, so it can hold anything a filename can — including the ASCII
+ * whitespace an id may not contain. Percent-encoded rather than filtered, because the mapping has to stay injective: a
+ * filter that folds every non-ASCII character into one placeholder gives `笔记.md` and `文档.md` the same id, and
+ * `aria-activedescendant` then names the wrong row. The lookup escapes the result with `CSS.escape`, so the remaining
+ * punctuation needs no further treatment.
  */
 function rowElementId(prefix: string, matchKey: string): string {
-    return `${prefix}-${matchKey.replaceAll(/[^\w.:-]/g, '_')}`;
+    return `${prefix}-${encodeURIComponent(matchKey)}`;
 }
 
 /**
