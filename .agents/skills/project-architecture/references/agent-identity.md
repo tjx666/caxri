@@ -40,16 +40,19 @@ provider-authoritative result to SQLite inside a per-Session queue so a slower e
 one. It sets `title_mode` to `manual`, which stops the metadata probe from replacing the user's title with a later
 provider-native one.
 
-Long-paste summaries and automatic titles use a macOS `sandbox-exec` profile that
+Automatic titles use a macOS `sandbox-exec` profile that
 denies reads of the Project root and of the global instruction files the CLI offers no switch for (`AGENTS.md` and
 `AGENTS.override.md` for Codex, `CLAUDE.md` and `CLAUDE.local.md` for Claude), because an isolated working directory
-alone cannot reach a file the CLI resolves from its own configuration directory. Pasted text and model output never
-enter logs, events, diagnostics, SQLite, or UI.
+alone cannot reach a file the CLI resolves from its own configuration directory. The conversation and model output
+never enter logs, events, diagnostics, SQLite, or UI.
+
+Long Terminal pastes never reach a model here. The original is saved to an owner-only local file and the Agent receives
+its path plus a note that a summary can be delegated to a subagent, because a model call on the paste path holds
+Terminal input until it returns.
 
 Preflight rejects ancestor Projects containing required provider/runtime paths. Instruction denials
 cover both link entries and resolved targets; only missing instruction files are tolerated. A blocked
-automatic-naming launch emits one notice and does not retry until a new launch, while long paste
-retains its original file and reports the closed failure reason. See
+automatic-naming launch emits one notice and does not retry until a new launch. See
 [Low-cost generation sandbox](../../../../docs/low-cost-generation.md) for recovery and threat-model limits.
 
 Every managed Agent inherits the public, non-authorizing `CAXRI_MANAGED_AGENT=1` marker, which a user's own hook script

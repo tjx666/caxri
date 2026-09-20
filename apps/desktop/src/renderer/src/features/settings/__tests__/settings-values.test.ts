@@ -76,17 +76,6 @@ describe('isRowModified', () => {
         });
         expect(isRowModified(toggle, { settings: current })).toBe(true);
 
-        const pasteSummary = {
-            type: 'provider-toggle',
-            provider: 'codex',
-            field: 'pasteSummary',
-        } as const;
-        expect(isRowModified(pasteSummary, { settings: current })).toBe(false);
-        current['agents.providers'] = withProviderField(current, 'codex', {
-            pasteSummary: { enabled: !current['agents.providers'].codex.pasteSummary.enabled },
-        });
-        expect(isRowModified(pasteSummary, { settings: current })).toBe(true);
-
         const launch = { type: 'provider-launch', provider: 'codex', field: 'args' } as const;
         expect(isRowModified(launch, { settings: current })).toBe(false);
         current['agents.providers'] = withProviderField(current, 'codex', {

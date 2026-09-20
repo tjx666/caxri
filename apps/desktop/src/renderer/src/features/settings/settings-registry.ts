@@ -16,7 +16,7 @@ export type SettingRowBinding =
     | {
           type: 'provider-toggle';
           provider: AgentProvider;
-          field: 'hooks' | 'messaging' | 'pasteSummary';
+          field: 'hooks' | 'messaging';
       }
     | { type: 'provider-recovery'; provider: AgentProvider }
     | { type: 'provider-autonomy'; provider: AgentProvider }
@@ -132,21 +132,6 @@ function providerRows(provider: AgentProvider): SettingRowDescriptor[] {
                 'without stopping the Terminal; restart only if the CLI adapter is unavailable.',
             binding: { type: 'provider-toggle', provider, field: 'messaging' },
             haystack: lower(['peer messaging', 'inbox', ...providerTerms]),
-        },
-        {
-            ...shared,
-            id: `agents.${provider}.pasteSummary`,
-            title: 'Summarize long pastes',
-            description:
-                'Saves long pasted text locally and uses one extra low-cost model call before inserting a summary and file path. Disable this to keep ordinary paste behavior.',
-            binding: { type: 'provider-toggle', provider, field: 'pasteSummary' },
-            haystack: lower([
-                'summarize long pastes',
-                'clipboard',
-                'context',
-                'model call',
-                ...providerTerms,
-            ]),
         },
         {
             ...shared,

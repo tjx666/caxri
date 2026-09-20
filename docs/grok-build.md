@@ -46,7 +46,7 @@ foreground process confirmation before promotion to Grok.
 
 Precise approval/question waiting is not advertised: a generic notification is
 not sufficient evidence that the main turn is waiting for a human. Native rename,
-Agent messaging, paste summaries, and bundled skills/actions are unavailable in
+Agent messaging and bundled skills/actions are unavailable in
 this integration. Rename fails explicitly instead of saving a Caxri-only alias.
 
 ## Conversation title

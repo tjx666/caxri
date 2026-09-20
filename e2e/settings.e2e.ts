@@ -181,7 +181,6 @@ test('Settings keeps actions visible and provides highlighted editors and live T
                                 hooks: { enabled: boolean };
                                 launch: { executable: string; args: string[] };
                                 messaging: { enabled: boolean };
-                                pasteSummary: { enabled: boolean };
                                 recovery: {
                                     enabled: boolean;
                                     patterns: string[];
@@ -202,7 +201,6 @@ test('Settings keeps actions visible and provides highlighted editors and live T
                     args: defaultAgentProviderSettings.claude.launch.args,
                 },
                 messaging: { enabled: true },
-                pasteSummary: { enabled: true },
                 recovery: {
                     enabled: false,
                     patterns: [],

@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { AgentProviderPasteSummaryGenerationContext } from '../../contract';
+import type { AgentProviderLowCostGenerationContext } from '../../contract';
 import { MACOS_SANDBOX_EXECUTABLE, prepareLowCostSandbox } from '../../low-cost-sandbox';
 import { agentCommandEnvironment, assertAgentRenameVersion } from '../../rename';
 import { runAgentTextCommand } from '../../text-generation';
@@ -38,7 +38,7 @@ function parseCodexText(stdout: string): string {
  * files and the Project itself while leaving provider authentication and model network access intact.
  */
 export async function generateCodexLowCostText(
-    context: AgentProviderPasteSummaryGenerationContext,
+    context: AgentProviderLowCostGenerationContext,
     systemInstructions: string,
     operation: string,
     timeoutMs?: number,

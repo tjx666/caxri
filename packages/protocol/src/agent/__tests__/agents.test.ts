@@ -42,7 +42,6 @@ describe('agentProviderCatalog autonomy arguments', () => {
 describe('defaultAgentProviderSettings', () => {
     it('keeps unsupported Grok capabilities off', () => {
         expect(defaultAgentProviderSettings.grok.messaging.enabled).toBe(false);
-        expect(defaultAgentProviderSettings.grok.pasteSummary.enabled).toBe(false);
         expect(agentProviderCatalog.grok.capabilities.nativeRename).toBe(false);
         expect(agentProviderCatalog.grok.capabilities.actions).toBe(false);
         expect(agentProviderCatalog.grok.capabilities.automaticSuspension).toBe(false);

@@ -300,11 +300,7 @@ function rowControl(properties: SettingRowProperties): {
                     <FieldDescription>Unavailable for {providerName}.</FieldDescription>
                 ) : undefined;
             const label = `${providerName} ${
-                binding.field === 'hooks'
-                    ? 'lifecycle hooks'
-                    : binding.field === 'pasteSummary'
-                      ? 'long paste summaries'
-                      : 'peer messaging'
+                binding.field === 'hooks' ? 'lifecycle hooks' : 'peer messaging'
             }`;
             return {
                 labelFor: controlId,
