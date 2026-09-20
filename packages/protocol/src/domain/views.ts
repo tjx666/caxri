@@ -145,10 +145,13 @@ export const controlledViewPresentationSchema = z.object({
     refreshErrorMessage: z.string().min(1).max(2_048),
 });
 
+/**
+ * Project search is deliberately absent: it is a workbench-wide overlay reached by command, not a view-container
+ * action, so there is no surface left that could render a `resource.search` button for a view to declare.
+ */
 export const extensionViewActionRoleSchema = z.enum([
     'resource.createFile',
     'resource.createFolder',
-    'resource.search',
     'resource.collapse',
     'resource.refresh',
 ]);

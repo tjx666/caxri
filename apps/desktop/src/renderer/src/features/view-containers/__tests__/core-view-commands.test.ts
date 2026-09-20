@@ -12,9 +12,9 @@ describe('Workbench Core view commands', () => {
     it('replays a command exactly once when its hidden controlled view mounts', () => {
         const command = {
             arguments: [],
-            commandId: 'workbench.example.search',
+            commandId: 'workbench.example.refresh',
             contextKey: 'session-a:project-a',
-            role: 'resource.search' as const,
+            role: 'resource.refresh' as const,
             viewId: 'workbench.example.view',
         };
         const listener = vi.fn();
@@ -50,9 +50,9 @@ describe('Workbench Core view commands', () => {
     it('evicts the oldest pending view key once the pending-key cap is reached', () => {
         const first = {
             arguments: [],
-            commandId: 'workbench.example.search',
+            commandId: 'workbench.example.refresh',
             contextKey: 'session-oldest:project-a',
-            role: 'resource.search' as const,
+            role: 'resource.refresh' as const,
             viewId: 'workbench.example.view',
         };
         dispatchCoreViewCommand(first);

@@ -22,12 +22,10 @@ const FILE_CHANGE_INVALIDATION_DEBOUNCE_MS = 150;
 /**
  * `files.operation.get` and `files.operation.list` are deliberately absent: the Resource Explorer issues those as
  * direct `caxri.request` calls (`resource-explorer-client.ts`), so they are never cached under a controlled-view key
- * and listing them here matched nothing.
+ * and listing them here matched nothing. `files.search` left for the same reason when Project search moved out of the
+ * view container into its own overlay, which caches under the flat `projectSearchQueryKey` instead.
  */
-const RESOURCE_EXPLORER_READ_OPERATIONS = new Set<ControlledViewQueryOperation>([
-    'files.list',
-    'files.search',
-]);
+const RESOURCE_EXPLORER_READ_OPERATIONS = new Set<ControlledViewQueryOperation>(['files.list']);
 const SOURCE_CONTROL_CONTENT_OPERATIONS = new Set<ControlledViewQueryOperation>([
     'source.snapshot',
 ]);
@@ -136,7 +134,6 @@ function isControlledOperationMatch(
         return false;
     const changes = options.changes;
     if (!changes || changes.length === 0 || options.overflow) return true;
-    if (parameters.operation === 'files.search') return true;
     if (parameters.operation !== 'files.list') return true;
     const arguments_ = parameters.arguments;
     if (typeof arguments_ !== 'object' || arguments_ === null) return true;
@@ -190,6 +187,19 @@ function invalidateFileDependentQueries(
                     batch.gitIgnoreRulesChanged,
                 );
             if (isDirectFileListingMatch) return true;
+            /*
+             * The Project search overlay is not a controlled view: it caches under the flat
+             * `['files.search', `${sessionId}:${workbenchProjectId}`, options]` key `projectSearchQueryKey` builds.
+             * Any write anywhere in the Project can add or drop a hit, so the whole scope is invalidated rather than
+             * one directory — an open search would otherwise keep listing matches at paths that no longer hold them.
+             */
+            if (
+                isQueryMethod(query.queryKey, 'files.search') &&
+                sessionIds.some(
+                    (sessionId) => query.queryKey[1] === `${sessionId}:${workbenchProjectId}`,
+                )
+            )
+                return true;
             return sessionIds.some((sessionId) =>
                 isControlledOperationMatch(query.queryKey, RESOURCE_EXPLORER_READ_OPERATIONS, {
                     context: { kind: 'session', sessionId, workbenchProjectId },
@@ -327,10 +337,12 @@ function invalidateFileTreeQueries(queryClient: ReturnType<typeof useQueryClient
                 { operation?: ControlledViewQueryOperation } | undefined,
             ];
             return (
-                isQueryMethod(query.queryKey, 'files.list') ||
+                // The Project search overlay caches under a flat `['files.search', scopeId, options]` key of its own,
+                // so it needs its own arm here: a search left open while an Agent writes files would otherwise keep
+                // listing hits at paths that no longer contain them.
+                isQueryMethod(query.queryKey, 'files.list', 'files.search') ||
                 (isQueryMethod(query.queryKey, CONTROLLED_VIEW_QUERY_METHOD) &&
-                    (parameters?.operation === 'files.list' ||
-                        parameters?.operation === 'files.search'))
+                    parameters?.operation === 'files.list')
             );
         },
     });

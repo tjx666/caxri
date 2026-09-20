@@ -86,8 +86,6 @@ const client = {
         mocks.request('files.move', { sessionId: 'session-a', ...options }),
     rename: (options: Parameters<ResourceExplorerClient['rename']>[0]) =>
         mocks.request('files.rename', { sessionId: 'session-a', ...options }),
-    search: (options: Parameters<ResourceExplorerClient['search']>[0]) =>
-        mocks.request('files.search', { sessionId: 'session-a', ...options }),
     trash: (path: string, options?: Parameters<ResourceExplorerClient['trash']>[1]) =>
         mocks.request('files.trash', { sessionId: 'session-a', path, ...options }),
 } satisfies Record<keyof ResourceExplorerClient, unknown> as unknown as ResourceExplorerClient;
