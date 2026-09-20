@@ -469,7 +469,7 @@ esac
         await expect(
             tree
                 .getByRole('treeitem', {
-                    name: 'chore: bump the deploy target, production · pending · project-queued-tjx666.vercel.app',
+                    name: 'chore: bump the deploy target, production · queued · project-queued-tjx666.vercel.app',
                     exact: true,
                 })
                 .locator('[data-theme-icon="circle-arrow-up"]'),

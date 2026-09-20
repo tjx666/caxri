@@ -65,7 +65,10 @@ function deploymentState(deployment: VercelDeployment): ProjectStatusState {
     const state = (deployment.readyState ?? deployment.state ?? '').toUpperCase();
     if (state === 'READY') return 'success';
     if (state === 'ERROR') return 'failure';
-    if (['BUILDING', 'QUEUED', 'INITIALIZING'].includes(state)) return 'pending';
+    // `QUEUED` is waiting for a build slot and has produced nothing yet, so it gets the queued glyph rather than the
+    // running one. `INITIALIZING` already owns a build and is reported as running, like GitHub does for its checks.
+    if (state === 'QUEUED') return 'queued';
+    if (['BUILDING', 'INITIALIZING'].includes(state)) return 'pending';
     return state === 'CANCELED' ? 'neutral' : 'unknown';
 }
 
