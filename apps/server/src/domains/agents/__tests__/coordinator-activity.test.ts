@@ -35,6 +35,45 @@ afterEach(async () => {
 });
 
 describe('AgentCoordinator Session Activity', () => {
+    it('accepts a running latest turn as evidence after an explicit Terminal resume', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-resume-activity-'));
+        temporaryDirectories.push(directory);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const created = database.createSession(database.createProject(directory).id, 'codex');
+        database.rebindAgentSession(created.terminal!.id, 'codex', 'resumed-thread');
+        const snapshot: AgentAdapter['snapshot'] = () =>
+            Promise.resolve({
+                activitySource: 'latestTurn',
+                activityTurnId: 'resumed-turn',
+                available: true,
+                observedAt: Date.now(),
+                provider: 'codex',
+                sessionId: 'resumed-thread',
+                status: 'running',
+            });
+        const renameSession: AgentAdapter['renameSession'] = () => new Promise<never>(() => {});
+        const adapters: Record<AgentProvider, AgentAdapter> = {
+            claude: { provider: 'claude', renameSession, snapshot },
+            codex: { provider: 'codex', renameSession, snapshot },
+            grok: { provider: 'grok', renameSession, snapshot },
+        };
+        const coordinator = new AgentCoordinator(
+            database,
+            new AgentService(undefined, adapters),
+            () => {},
+            createLogger(join(directory, 'logs')),
+        );
+
+        try {
+            coordinator.prepareTerminalResume(created.terminal!.id);
+            await coordinator.probeTerminalNow(created.terminal!.id);
+            expect(database.getSession(created.session.id)?.lastActivityState).toBe('running');
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
+
     it('does not derive Session activity from a process-only baseline probe', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-process-baseline-'));
         temporaryDirectories.push(directory);
