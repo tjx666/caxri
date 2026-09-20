@@ -19,6 +19,26 @@ describe('settingsRows', () => {
         expect(missing).toEqual([]);
     });
 
+    /**
+     * The page is one flat virtualized list, so a category heading never owns the rows under it. Two controls sharing
+     * an accessible name are therefore indistinguishable to assistive technology anywhere in the app, and to any test
+     * that addresses a control by role and name.
+     */
+    it('gives every row a unique accessible name across categories', () => {
+        const names = settingsRows
+            .filter((row) => row.binding.type === 'setting')
+            .map((row) => row.accessibleTitle);
+        const duplicates = names.filter((name, index) => names.indexOf(name) !== index);
+        expect([...new Set(duplicates)]).toEqual([]);
+    });
+
+    it('keeps the visible title inside the accessible name so the label still matches', () => {
+        const mismatched = settingsRows
+            .filter((row) => !row.accessibleTitle.includes(row.title))
+            .map((row) => row.id);
+        expect(mismatched).toEqual([]);
+    });
+
     it('keeps row ids unique so the virtualized list can key on them', () => {
         expect(new Set(settingsRows.map((row) => row.id)).size).toBe(settingsRows.length);
     });

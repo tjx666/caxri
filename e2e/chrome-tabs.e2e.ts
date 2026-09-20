@@ -232,7 +232,7 @@ test('SecondarySidebar and Settings share accessible moving chrome tabs', async 
          * (visually unchanged) tab through that write rather than drifting or losing alignment.
          */
         await revealSettingsSection(dialog, 'Terminal');
-        await dialog.getByRole('spinbutton', { name: 'Font size' }).fill('14');
+        await dialog.getByRole('spinbutton', { name: 'Terminal Font size' }).fill('14');
         await expect
             .poll(async () => {
                 const settings = await pageRequest<{ value: { 'terminal.fontSize': number } }>(
