@@ -257,6 +257,7 @@ export class AgentCoordinator {
             ) {
                 const generation = (this.probeGenerations.get(terminal.id) ?? 0) + 1;
                 this.probeGenerations.set(terminal.id, generation);
+                this.metadataActivityBaselines.set(terminal.id, null);
                 this.refreshes.schedule(terminal.id);
                 return;
             }
@@ -683,6 +684,7 @@ export class AgentCoordinator {
                 signal.terminalId,
                 (this.probeGenerations.get(signal.terminalId) ?? 0) + 1,
             );
+            this.metadataActivityBaselines.set(signal.terminalId, null);
             shouldRefreshMetadata = true;
         }
         if (shouldRefreshMetadata) this.refreshes.schedule(signal.terminalId);
@@ -703,9 +705,6 @@ export class AgentCoordinator {
             }
     }
 
-    /**
-     * Starts a fresh correlation window before a new Agent process can see historical metadata.
-     */
     prepareTerminalStart(terminalId: string): void {
         const terminal = this.database.getTerminal(terminalId);
         if (!terminal?.provider) return;
@@ -727,9 +726,6 @@ export class AgentCoordinator {
         this.database.resetAgentMetadataForStart(terminalId, startedAt);
     }
 
-    /**
-     * Starts a new process generation while preserving the Agent session it will resume.
-     */
     prepareTerminalResume(terminalId: string): void {
         const terminal = this.database.getTerminal(terminalId);
         if (!terminal?.provider) return;
@@ -739,7 +735,7 @@ export class AgentCoordinator {
         this.processIdentityProbe.forget(terminalId);
         this.shellInputs.delete(terminalId);
         this.startedAtByTerminal.set(terminalId, Date.now());
-        this.metadataActivityBaselines.delete(terminalId);
+        this.metadataActivityBaselines.set(terminalId, null);
         this.forgetLifecycleState(terminalId);
     }
 

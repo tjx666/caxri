@@ -103,6 +103,14 @@ process.stdout.write('Fake Codex ready\r\n');
         insertThread.run(INITIAL_THREAD, root, 'Initial fixture', null, now, now, 0, 0);
         insertThread.run(RESUMED_THREAD, root, 'Resumed fixture', null, now + 1, now + 1, 0, 0);
         stateDatabase.close();
+        const turnHistory = new Database(join(codexState, 'thread_history_1.sqlite'));
+        turnHistory.exec(
+            'CREATE TABLE thread_turns (thread_id TEXT, turn_id TEXT, rollout_ordinal INTEGER, status TEXT, completed_at INTEGER)',
+        );
+        turnHistory
+            .prepare('INSERT INTO thread_turns VALUES (?, ?, ?, ?, ?)')
+            .run(RESUMED_THREAD, 'resumed-in-progress-turn', 1, 'inProgress', null);
+        turnHistory.close();
         const running = await launchCaxri({
             agentMode,
             env: { CAXRI_E2E_AGENT_HOOKS: '1' },
@@ -136,8 +144,23 @@ process.stdout.write('Fake Codex ready\r\n');
                 await createProjectSession(running.page, 'codex');
             }
             await expect(running.page.locator('.xterm-rows')).toContainText('Fake Codex ready');
-            if (entry === 'codex') await typeTerminal(running.page, `/resume ${RESUMED_THREAD}`);
-            else if (entry === 'exited-codex') {
+            const status = running.page.locator('[data-session-status="running"]');
+            if (entry === 'codex') {
+                await typeTerminal(running.page, `/resume ${RESUMED_THREAD}`);
+                await expect
+                    .poll(async () => {
+                        const state = await pageRequest<BootstrapState>(
+                            running.page,
+                            'app.bootstrap',
+                        );
+                        return {
+                            activity: state.sessions[0]?.lastActivityState,
+                            agentSessionId: state.terminals[0]?.agentSessionId,
+                        };
+                    })
+                    .toEqual({ activity: 'running', agentSessionId: RESUMED_THREAD });
+                await expect(status).toBeVisible();
+            } else if (entry === 'exited-codex') {
                 await typeTerminal(running.page, 'exit');
                 await expect
                     .poll(async () => {
@@ -166,7 +189,6 @@ process.stdout.write('Fake Codex ready\r\n');
                     return state.terminals[0]?.agentSessionId;
                 })
                 .toBe(RESUMED_THREAD);
-            const status = running.page.locator('[data-session-status="running"]');
             await expect(status).toBeVisible();
             await running.page.screenshot({ path: testInfo.outputPath('resumed-running.png') });
             await typeTerminal(running.page, 'finish');
