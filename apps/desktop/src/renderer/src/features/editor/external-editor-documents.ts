@@ -1,6 +1,6 @@
-import { externalEditorTabPath } from '@caxri/protocol';
+import { externalEditorTabPath, isExternalEditorTabPath } from '@caxri/protocol';
 
-import { useSessionViewStore } from '../../stores/session-view';
+import { getSessionDocuments, useSessionViewStore } from '../../stores/session-view';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { didOpenEditorTabForSession } from './document-commands';
 
@@ -33,7 +33,16 @@ export function openExternalEditorDocument({
                 state.sessionId === sessionId && state.workbenchProjectId === workbenchProjectId,
         );
     if (!sessionState) return false;
-    const path = externalEditorTabPath(document.id, document.name);
+    const existingPath = Object.entries(
+        getSessionDocuments(sessionId, workbenchProjectId) ?? {},
+    ).find(
+        ([path, cached]) =>
+            isExternalEditorTabPath(path) &&
+            cached.ephemeral &&
+            cached.readOnly &&
+            cached.displayPath === document.displayPath,
+    )?.[0];
+    const path = existingPath ?? externalEditorTabPath(document.id, document.name);
     const view = useSessionViewStore.getState();
     const didCache = view.cacheDocument(
         sessionId,
