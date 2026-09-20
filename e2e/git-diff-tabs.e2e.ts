@@ -24,6 +24,7 @@ test('Discard All Changes resolves the working diff in place without an error no
     await execFileAsync('git', ['config', 'user.email', 'caxri@example.com'], { cwd: root });
     await execFileAsync('git', ['config', 'user.name', 'Caxri E2E'], { cwd: root });
     await writeFile(join(root, 'tracked.txt'), trackedCommitted);
+    await writeFile(join(root, 'sibling.txt'), 'sibling\n');
     await execFileAsync('git', ['add', '.'], { cwd: root });
     await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: root });
     await writeFile(join(root, 'tracked.txt'), trackedWorking);
@@ -38,6 +39,26 @@ test('Discard All Changes resolves the working diff in place without an error no
         const repo = page.locator('.git-repository-section');
         await repo.getByRole('treeitem', { name: 'tracked.txt', exact: true }).click();
         await expect(page.locator('.git-file-diff')).toBeVisible();
+        const diffBreadcrumb = page.getByRole('button', {
+            name: 'Browse tracked.txt',
+            exact: true,
+        });
+        await diffBreadcrumb.click();
+        await expect(
+            page
+                .getByRole('listbox', { name: 'Contents of Project root' })
+                .getByRole('option', { name: 'sibling.txt', exact: true }),
+        ).toBeVisible();
+        await page.keyboard.press('Escape');
+        await expect(diffBreadcrumb).toBeFocused();
+        await page.keyboard.press('Escape');
+        await expect
+            .poll(() =>
+                page
+                    .locator('.git-file-diff .monaco-diff-editor')
+                    .evaluate((editor) => editor.contains(document.activeElement)),
+            )
+            .toBe(true);
         // The repository-wide destructive action stays out of sight until its caption row is hovered or focused, the
         // way VS Code hides `.resource-group > .actions`. `clickGitGroupAction` reveals it either way, so without this
         // line a regression that left the whole toolbar on screen would pass everywhere.
