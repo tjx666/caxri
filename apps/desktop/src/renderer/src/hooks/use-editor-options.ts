@@ -2,7 +2,6 @@ import { useMemo } from 'react';
 
 import type { editor as Monaco } from 'monaco-editor';
 
-import type { EditorOptionSettings } from '../lib/editor-options';
 import { EDITOR_OPTION_KEYS, resolveEditorOptions } from '../lib/editor-options';
 import { useWorkbenchStore } from '../stores/workbench';
 
@@ -15,9 +14,7 @@ import { useWorkbenchStore } from '../stores/workbench';
  */
 export function useEditorOptions(): Monaco.IEditorOptions & Monaco.IGlobalEditorOptions {
     const settings = useWorkbenchStore((state) => state.bootstrap?.settings);
-    const signature =
-        settings &&
-        JSON.stringify(EDITOR_OPTION_KEYS.map((key) => settings[key as keyof EditorOptionSettings]));
+    const signature = settings && JSON.stringify(EDITOR_OPTION_KEYS.map((key) => settings[key]));
     return useMemo(
         () => resolveEditorOptions(settings),
         // `signature` is the value identity of the only slice of `settings` this hook reads; see the note above.
