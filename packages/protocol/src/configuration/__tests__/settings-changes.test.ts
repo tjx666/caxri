@@ -50,7 +50,7 @@ describe('Default settings reconciliation', () => {
             'terminal.wordSeparators': ' ()[]{}\',"`─‘’“”|',
         });
 
-        expect(adopted?.key).toBe('terminal.wordSeparators');
-        expect(adopted?.current).toContain('，');
+        expect(adopted.key).toBe('terminal.wordSeparators');
+        expect(adopted.current).toContain('，');
     });
 });
