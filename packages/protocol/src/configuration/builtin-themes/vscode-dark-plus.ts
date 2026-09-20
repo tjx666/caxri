@@ -37,18 +37,19 @@ export const vscodeDarkPlusTheme: ThemeTokens = {
         tabHoverBackground: '#2d2d30',
         tabHoverForeground: '#d4d4d4',
         /**
-         * Dark+ declares its list and tab state colors in VS Code's TypeScript color registry rather than in
-         * `dark_plus.json`, so the four list fills below all resolve to `elevated` through the documented fallback —
-         * the same result an import of that file produces. Matching the registry would make the preset and an import of
-         * its own source disagree.
+         * Dark+ declares its list state colors in VS Code's TypeScript color registry rather than in `dark_plus.json`,
+         * so the four fills below come from the importer's fallback rather than from that file. They used to collapse
+         * onto one `elevated` grey, which left hover, keyboard focus, and selection indistinguishable; the fallback now
+         * reproduces the registry's own values, so the preset and an import of Dark+'s own source still agree. See
+         * `listStateDefaults` in `apps/server/src/domains/theme-colors.ts` and issue #1006.
          */
-        listHoverBackground: '#2d2d30',
+        listHoverBackground: '#2a2d2e',
         listHoverForeground: '#d4d4d4',
-        listFocusBackground: '#2d2d30',
+        listFocusBackground: '#04395e59',
         listFocusForeground: '#d4d4d4',
-        listActiveSelectionBackground: '#2d2d30',
-        listActiveSelectionForeground: '#d4d4d4',
-        listInactiveSelectionBackground: '#2d2d30',
+        listActiveSelectionBackground: '#04395e',
+        listActiveSelectionForeground: '#ffffff',
+        listInactiveSelectionBackground: '#37373d',
         listInactiveSelectionForeground: '#d4d4d4',
         titleBarActiveBackground: '#252526',
         titleBarActiveForeground: '#d4d4d4',
