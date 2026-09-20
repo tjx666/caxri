@@ -7,12 +7,14 @@ import { executeCommand } from '../../../commands/execute';
 import { dragPath, hasDraggedPath } from '../../../lib/file-drag';
 import { queryClient } from '../../../queries/client';
 import { useSelectedSession, useSelectedWorkbenchProject } from '../../../stores/selectors';
+import { useActivePaneTab } from '../../workbench/pane-actions';
 import {
     useControlledView,
     useControlledViewActionCommand,
     useResourceExplorerClient,
 } from '../controlled-view-context';
 import { subscribeCoreViewCommands } from '../core-view-commands';
+import { useIsViewContainerActive } from '../view-container-activity';
 import type { EditRequest, FocusTarget } from './directory-entries';
 import { BUSY_DISABLED_REASON } from './directory-entries';
 import { cancelFileOperation, moveFile, pasteFile } from './file-actions';
@@ -26,7 +28,9 @@ import {
 } from './file-operation-state';
 import { closeFileSearch, requestFileSearchFocus, useFileSearchStore } from './file-search-state';
 import {
+    clearScopeRevealPath,
     collapseScope,
+    didRevealPathInScope,
     setScopeFocusPath,
     setScopeSelectedPath,
     subscribeResourceExplorerScopePruning,
@@ -149,6 +153,9 @@ export interface ResourceExplorerController {
 export function useResourceExplorerController(): ResourceExplorerController | undefined {
     const client = useResourceExplorerClient();
     const { viewId } = useControlledView();
+    const isContainerActive = useIsViewContainerActive();
+    const activeResource = useActivePaneTab()?.resource;
+    const activeFilePath = activeResource?.kind === 'file' ? activeResource.path : undefined;
     const createFileCommand = useControlledViewActionCommand('resource.createFile');
     const createFolderCommand = useControlledViewActionCommand('resource.createFolder');
     const searchCommand = useControlledViewActionCommand('resource.search');
@@ -156,6 +163,7 @@ export function useResourceExplorerController(): ResourceExplorerController | un
     const session = useSelectedSession();
     const project = useSelectedWorkbenchProject();
     const sessionId = session?.id;
+    const sessionRootPath = session?.rootPath;
     const scopeId = session ? `${session.id}:${session.workbenchProjectId}` : undefined;
     const clipboard = useFileClipboardStore((state) => state.entry);
     const selectedProjectId = project?.id ?? session?.workbenchProjectId;
@@ -178,6 +186,26 @@ export function useResourceExplorerController(): ResourceExplorerController | un
         (state) => Boolean(sessionId) && state.activeSessionId === sessionId,
     );
     const searchFocusRevision = useFileSearchStore((state) => state.focusRevision);
+    useEffect(() => {
+        if (
+            !isContainerActive ||
+            isSearchVisible ||
+            !scopeId ||
+            !sessionRootPath ||
+            !activeFilePath
+        ) {
+            if (scopeId) clearScopeRevealPath(scopeId);
+            return;
+        }
+        if (!didRevealPathInScope(scopeId, sessionRootPath, activeFilePath))
+            clearScopeRevealPath(scopeId);
+    }, [activeFilePath, isContainerActive, isSearchVisible, scopeId, sessionRootPath]);
+    useEffect(
+        () => () => {
+            if (scopeId) clearScopeRevealPath(scopeId);
+        },
+        [scopeId],
+    );
     useEffect(
         () =>
             !session || !scopeId

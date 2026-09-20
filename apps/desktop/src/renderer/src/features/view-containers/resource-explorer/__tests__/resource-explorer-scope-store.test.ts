@@ -4,8 +4,10 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { useWorkbenchStore } from '../../../../stores/workbench';
 import { controlledViewQueryKey } from '../../view-operation-client';
 import {
+    clearScopeRevealPath,
     clearStaleScopeFocusPath,
     collapseScope,
+    didRevealPathInScope,
     pruneResourceExplorerScopes,
     setScopeFocusPath,
     setScopePathExpanded,
@@ -32,6 +34,7 @@ describe('Resource Explorer scope store', () => {
         useResourceExplorerScopeStore.setState({
             expandedByScope: {},
             focusByScope: {},
+            revealByScope: {},
             selectionByScope: {},
         });
     });
@@ -46,6 +49,50 @@ describe('Resource Explorer scope store', () => {
 
         setScopePathExpanded(scopeA, '/project/src', (current) => !current);
         expect(isExpanded(scopeA, '/project/src')).toBe(false);
+    });
+
+    it('reveals a file by expanding its ancestors without collapsing unrelated folders', () => {
+        setScopePathExpanded(scopeA, '/project/docs', true);
+
+        expect(didRevealPathInScope(scopeA, '/project', '/project/src/components/button.tsx')).toBe(
+            true,
+        );
+
+        expect(useResourceExplorerScopeStore.getState()).toMatchObject({
+            expandedByScope: {
+                [scopeA]: ['/project/docs', '/project/src', '/project/src/components'],
+            },
+            selectionByScope: {
+                [scopeA]: '/project/src/components/button.tsx',
+            },
+            revealByScope: {
+                [scopeA]: {
+                    path: '/project/src/components/button.tsx',
+                    revision: 1,
+                },
+            },
+        });
+        expect(isExpanded(scopeB, '/project/src')).toBe(false);
+    });
+
+    it('does not reveal a path outside the Project root', () => {
+        const before = useResourceExplorerScopeStore.getState();
+
+        expect(didRevealPathInScope(scopeA, '/project', '/project-other/file.ts')).toBe(false);
+        expect(useResourceExplorerScopeStore.getState()).toBe(before);
+    });
+
+    it('clears only the reveal token a row actually consumed', () => {
+        didRevealPathInScope(scopeA, '/project', '/project/src/index.ts');
+
+        clearScopeRevealPath(scopeA, { path: '/project/src/index.ts', revision: 2 });
+        expect(useResourceExplorerScopeStore.getState().revealByScope[scopeA]).toEqual({
+            path: '/project/src/index.ts',
+            revision: 1,
+        });
+
+        clearScopeRevealPath(scopeA, { path: '/project/src/index.ts', revision: 1 });
+        expect(useResourceExplorerScopeStore.getState().revealByScope[scopeA]).toBeUndefined();
     });
 
     it('leaves unrelated scope entries referentially stable when one scope changes', () => {
