@@ -1,5 +1,5 @@
 import type { SessionRecord } from '@caxri/protocol';
-import { CaxriError } from '@caxri/protocol';
+import { CaxriError, normalizeTerminalTitle } from '@caxri/protocol';
 
 import type { CaxriDatabaseConnection } from './database-connection';
 
@@ -27,8 +27,18 @@ export function renameSessionWithPrimaryAgentTab(
         if (!database.sessions.rename(sessionId, normalizedTitle))
             throw new CaxriError('NOT_FOUND', 'Session not found');
         const renamed = database.sessions.get(sessionId)!;
-        if (renamed.primaryAgentTerminalId)
-            database.terminals.setTitle(renamed.primaryAgentTerminalId, normalizedTitle);
+        if (renamed.primaryAgentTerminalId) {
+            /**
+             * A Session title is not automatically a legal Terminal title: it may be up to 200 characters and this
+             * function is also reached from the automatic path, where the title is whatever an Agent CLI wrote into its
+             * own state store. `normalizeTerminalTitle` is the single bound every other `terminals.setTitle` caller
+             * honors — 120 characters, one line, no invisible formatting — and a title that survives none of it leaves
+             * the tab on the name it already had.
+             */
+            const terminalTitle = normalizeTerminalTitle(normalizedTitle);
+            if (terminalTitle)
+                database.terminals.setTitle(renamed.primaryAgentTerminalId, terminalTitle);
+        }
         return renamed;
     });
 }
