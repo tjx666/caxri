@@ -144,11 +144,11 @@ export const scopedProjectSchema = projectRecordSchema.pick({ id: true, displayT
 export const sessionRecordSchema = z.object({
     id: identifierSchema,
     /**
-     * Durable owner used for PrimarySidebar grouping, Terminal cwd, and Agent authorization.
+     * Durable owner used for PrimarySidebar grouping and Agent authorization.
      */
     projectId: identifierSchema,
     /**
-     * Independently authorized Project currently used by Files, Editor, and Git.
+     * Independently authorized Project currently used by Files, Editor, Git, and new Terminal cwd defaults.
      */
     workbenchProjectId: identifierSchema,
     /**

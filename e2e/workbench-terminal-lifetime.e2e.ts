@@ -2,12 +2,18 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { BootstrapState } from '@caxri/protocol';
+import type { BootstrapState, TerminalRecord } from '@caxri/protocol';
 import { createPaneLayout } from '@caxri/protocol';
 import { execFileAsync } from '@caxri/system';
 
 import { expect, test } from './support/fixtures.ts';
-import { createShellSession, launchCaxri, pageRequest } from './support/helpers.ts';
+import {
+    createShellSession,
+    launchCaxri,
+    pageRequest,
+    pressNewTerminal,
+    waitForNewTerminalId,
+} from './support/helpers.ts';
 
 test('Workbench Root switches preserve the visible Terminal view and input', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-terminal-root-lifetime-'));
@@ -21,6 +27,8 @@ test('Workbench Root switches preserve the visible Terminal view and input', asy
     await execFileAsync('git', ['add', '.'], { cwd: root });
     await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: root });
     await execFileAsync('git', ['worktree', 'add', '-b', 'feature/other', worktree], { cwd: root });
+    const worktreeFolder = join(worktree, 'packages');
+    await mkdir(worktreeFolder);
 
     const running = await launchCaxri({
         userDataDir: join(directory, 'profile'),
@@ -123,6 +131,30 @@ test('Workbench Root switches preserve the visible Terminal view and input', asy
         await expect(running.page.locator('.workbench-pane')).toHaveCount(2);
         await expect(running.page.getByRole('tab', { name: /fixture.txt/ })).toBeVisible();
         expect(await original.evaluate((element) => element.isConnected)).toBe(true);
+
+        await pressNewTerminal(running.page);
+        const newTerminalId = await waitForNewTerminalId(running.page, [terminal.id]);
+        const withWorktreeTerminal = await pageRequest<BootstrapState>(
+            running.page,
+            'app.bootstrap',
+        );
+        expect(withWorktreeTerminal.terminals.find(({ id }) => id === newTerminalId)?.cwd).toBe(
+            worktree,
+        );
+        expect(withWorktreeTerminal.terminals.find(({ id }) => id === terminal.id)).toMatchObject({
+            cwd: root,
+            processId: terminal.processId,
+        });
+        const explicitWorktreeTerminal = await pageRequest<TerminalRecord>(
+            running.page,
+            'terminal.create',
+            {
+                sessionId: state.sessionId,
+                kind: 'shell',
+                cwd: worktreeFolder,
+            },
+        );
+        expect(explicitWorktreeTerminal.cwd).toBe(worktreeFolder);
     } finally {
         await running.app.close();
         await rm(directory, { recursive: true, force: true });

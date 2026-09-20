@@ -52,7 +52,11 @@ export interface AgentDispatchServiceOptions {
     terminals: TerminalManager;
     launchSettings(provider: AgentProvider): AgentLaunchSettings;
     terminalDirectoryIdentity(path: string): Promise<TerminalWorkingDirectoryIdentity>;
-    terminalWorkingDirectory(projectRoot: string): Promise<string>;
+    terminalWorkingDirectory(options: {
+        authorizedRoots: readonly string[];
+        defaultRoot: string;
+        requestedCwd?: string;
+    }): Promise<string>;
     emit(event: ServerEvent): void;
     now?: () => number;
 }
@@ -205,9 +209,10 @@ export class AgentDispatchService {
             'fresh',
             (options?.assignedAgentSessionId ? 2 : 0) + (options?.initialPrompt ? 2 : 0),
         );
-        const cwd = await this.options.terminalWorkingDirectory(
-            options?.cwd ?? ownerProject.rootPath,
-        );
+        const cwd = await this.options.terminalWorkingDirectory({
+            authorizedRoots: [ownerProject.rootPath, session.rootPath],
+            defaultRoot: options?.cwd ?? session.rootPath,
+        });
         const identity = await this.options.terminalDirectoryIdentity(cwd);
         options?.beforeCreate?.();
         const previousLayout = this.options.database.getSessionState(input.sessionId).paneLayout;

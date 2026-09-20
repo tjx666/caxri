@@ -1,7 +1,3 @@
-import { constants } from 'node:fs';
-import { access, realpath, stat } from 'node:fs/promises';
-import { homedir } from 'node:os';
-import { isAbsolute, join, relative } from 'node:path';
 import process from 'node:process';
 
 import type {
@@ -26,7 +22,6 @@ import { DiagnosticsService } from './diagnostics';
 import type { DomainDependencies, DomainHandlers, DomainServices } from './domain-services';
 import { createIntrospectionServices } from './introspection';
 import { createOrderingHandlers } from './ordering-handlers';
-import { assertInsideRoot } from './path-security';
 import { ProjectStatusService } from './project-status';
 import { createRootServices } from './root-services';
 import { createServiceHandlers, mainOwned } from './service-handlers';
@@ -42,6 +37,7 @@ import { createTerminalAgentExactInputHandler, createTerminalInputHandler } from
 import { createTerminalMoveHandler } from './terminal-move';
 import { createTerminalRestartHandler } from './terminal-restart';
 import { createInterruptedTerminalRestorer } from './terminal-restore';
+import { resolveTerminalWorkingDirectory } from './terminal-working-directory';
 import * as provenance from './workbench-provenance';
 import { validateWorkbenchRequestContext } from './workbench-request-context';
 import { createWorkbenchRootHandlers } from './workbench-root-handlers';
@@ -284,63 +280,16 @@ export async function createDomainServices(
             }),
         };
     }
-    async function terminalWorkingDirectory(
-        projectRoot: string,
-        requestedCwd?: string,
-    ): Promise<string> {
-        if (requestedCwd) {
-            if (!isAbsolute(requestedCwd))
-                throw new CaxriError('VALIDATION', 'Terminal working directory must be absolute');
-            let canonicalRoot: string;
-            let canonical: string;
-            try {
-                [canonicalRoot, canonical] = await Promise.all([
-                    realpath(projectRoot),
-                    realpath(requestedCwd),
-                ]);
-                if (!(await stat(canonical)).isDirectory())
-                    throw new CaxriError(
-                        'VALIDATION',
-                        'Terminal working directory must be a folder',
-                    );
-                await access(canonical, constants.X_OK);
-            } catch (error) {
-                if (error instanceof CaxriError) throw error;
-                throw new CaxriError('IO', 'Terminal working directory is unavailable');
-            }
-            const nested = relative(canonicalRoot, canonical);
-            assertInsideRoot(
-                nested,
-                'Terminal working directory must stay inside the Project root',
-            );
-            return canonical;
-        }
-        const configured = configuration.getSettings().value['terminal.defaultWorkingDirectory'];
-        if (!configured) return projectRoot;
-        const expanded =
-            configured === '~'
-                ? homedir()
-                : configured.startsWith('~/')
-                  ? join(homedir(), configured.slice(2))
-                  : configured;
-        if (!isAbsolute(expanded))
-            throw new CaxriError(
-                'VALIDATION',
-                'Terminal default working directory must be absolute or start with ~',
-            );
-        try {
-            const canonical = await realpath(expanded);
-            if (!(await stat(canonical)).isDirectory())
-                throw new Error('Configured path is not a directory');
-            await access(canonical, constants.X_OK);
-            return canonical;
-        } catch (error) {
-            throw new CaxriError(
-                'IO',
-                `Terminal default working directory is unavailable: ${String(error)}`,
-            );
-        }
-    }
+    const terminalWorkingDirectory = (options: {
+        authorizedRoots: readonly string[];
+        defaultRoot: string;
+        requestedCwd?: string;
+    }) =>
+        resolveTerminalWorkingDirectory({
+            ...options,
+            configured:
+                configuration.getSettings().value['terminal.defaultWorkingDirectory'] ?? undefined,
+        });
     async function createAndStartTerminal(
         sessionId: string,
         kind: TerminalKind,
@@ -350,7 +299,11 @@ export async function createDomainServices(
         if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
         const ownerProject = database.getProject(session.projectId);
         if (!ownerProject) throw new CaxriError('NOT_FOUND', 'Project not found');
-        const cwd = await terminalWorkingDirectory(ownerProject.rootPath, requestedCwd);
+        const cwd = await terminalWorkingDirectory({
+            authorizedRoots: [ownerProject.rootPath, session.rootPath],
+            defaultRoot: session.rootPath,
+            requestedCwd,
+        });
         const expectedWorkingDirectory = await terminalDirectoryIdentity(cwd);
         const terminal = database.createTerminal(sessionId, kind, cwd);
         coordinator.prepareTerminalStart(terminal.id);
@@ -594,7 +547,12 @@ export async function createDomainServices(
         'session.create': async ({ projectId, defaultAgent }) => {
             const project = database.getProject(projectId);
             if (!project) throw new CaxriError('NOT_FOUND', 'Project not found');
-            const cwd = defaultAgent ? await terminalWorkingDirectory(project.rootPath) : undefined;
+            const cwd = defaultAgent
+                ? await terminalWorkingDirectory({
+                      authorizedRoots: [project.rootPath],
+                      defaultRoot: project.rootPath,
+                  })
+                : undefined;
             const created = database.createSession(projectId, defaultAgent, cwd);
             if (created.terminal) {
                 const expectedWorkingDirectory = await terminalDirectoryIdentity(cwd!);

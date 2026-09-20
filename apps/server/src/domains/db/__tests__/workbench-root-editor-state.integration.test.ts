@@ -178,7 +178,7 @@ describe('CaxriDatabase Workbench Root editor state', () => {
         reopened.close();
     });
 
-    it('keeps owner identity and Terminal cwd global while restoring editor state per Workbench Root', async () => {
+    it('keeps owner identity and Terminal placement global while restoring editor state per Workbench Root', async () => {
         const directory = await temporaryDirectory('caxri-db-workbench-root-');
         const ownerRoot = join(directory, 'owner');
         const worktreeRoot = join(directory, 'worktree');
@@ -225,6 +225,7 @@ describe('CaxriDatabase Workbench Root editor state', () => {
             }),
         });
         const laterTerminal = database.createTerminal(created.session.id, 'shell');
+        // The repository fallback remains the owning Project; Server Core supplies the active Workbench Root.
         expect(laterTerminal.cwd).toBe(ownerRoot);
 
         database.selectWorkbenchProject(created.session.id, owner.id);
