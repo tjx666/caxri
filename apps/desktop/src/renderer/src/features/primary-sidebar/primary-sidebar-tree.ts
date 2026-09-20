@@ -25,9 +25,9 @@ export interface PrimarySidebarTreeRow {
      */
     projectId: string;
     /**
-     * The Session this row acts on, for `kind: 'session'` only. Distinct from `id` because a pinned Session is listed
-     * twice and its Pinned-group row therefore carries a namespaced row id; every action still has to reach the one
-     * Session behind both rows.
+     * The Session this row acts on, for `kind: 'session'` only. Distinct from `id` because a row inside the Pinned
+     * group carries a namespaced row id rather than the Session id; every action still has to reach the Session
+     * itself.
      */
     sessionId?: string;
 }
@@ -42,9 +42,9 @@ const PINNED_SESSION_ROW_PREFIX = 'pinned-session:';
 
 /**
  * Row id of a Session's row inside the Pinned group. Namespaced for the same reason the reveal and "New Session" rows
- * are: the tree addresses rows by id, and a pinned Session is on screen twice — once here and once under its own
- * Project. Two rows answering to one id would give roving focus and `focusRow`'s `[data-row-id]` lookup two elements to
- * choose between, and the first one in the document would always win.
+ * are: the tree addresses rows by id, and the Pinned group is a second place a Session row can live. Pinning moves the
+ * Session rather than copying it, so the two ids cannot collide today — but keeping the namespace means a row id still
+ * says which group it belongs to, which is what `focusRow`'s `[data-row-id]` lookup and the roving Tab stop address.
  */
 export function primarySidebarPinnedRowId(sessionId: string): string {
     return `${PINNED_SESSION_ROW_PREFIX}${sessionId}`;
