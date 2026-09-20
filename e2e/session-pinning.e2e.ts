@@ -68,16 +68,19 @@ test('pinning lifts Sessions from several Projects into one group that survives 
 
         await togglePin(projectRow(alphaProject.id, alpha.id), 'Alpha');
         await expect.poll(() => pinnedOrder(page())).toEqual([alpha.id]);
-        // The Session stays listed under its own Project: the group is a second view, not a folder it moved into.
-        await expect(projectRow(alphaProject.id, alpha.id)).toBeVisible();
+        // Pinning moves the Session: it leaves its own Project group and is listed once, under Pinned. The emptied
+        // Project keeps its heading and falls back to the same "New Session" row an untouched empty Project shows.
+        await expect(projectRow(alphaProject.id, alpha.id)).toHaveCount(0);
+        await expect(
+            page().locator(`.project-group[data-project-id="${alphaProject.id}"] .empty-project`),
+        ).toBeVisible();
         // Pinned rows name their owning Project, which is the only thing telling two Projects' Sessions apart here.
         await expect(page().locator('.pinned-session-group .session-project').first()).toHaveText(
             alphaProject.displayTitle,
         );
         /**
-         * The pin has no visible mark on either row, so the accessible description is what carries it — and the two
-         * copies of the Session say different things: the Project row reports that it is pinned, the Pinned row reports
-         * which group the user is standing in.
+         * The pin has no visible mark on the row, so the accessible description is the only thing that says the row is
+         * pinned at all.
          */
         const describedBy = (selector: string) =>
             page().evaluate((cardSelector) => {
@@ -88,13 +91,6 @@ test('pinning lifts Sessions from several Projects into one group that survives 
         await expect
             .poll(() => describedBy('.pinned-session-group .session-card'))
             .toMatch(/^In Pinned group\./);
-        await expect
-            .poll(() =>
-                describedBy(
-                    `.project-group[data-project-id="${alphaProject.id}"] [data-session-id="${alpha.id}"]`,
-                ),
-            )
-            .toMatch(/^Pinned\./);
 
         await togglePin(projectRow(betaProject.id, beta.id), 'Beta');
         await expect.poll(() => pinnedOrder(page())).toEqual([alpha.id, beta.id]);
@@ -107,9 +103,11 @@ test('pinning lifts Sessions from several Projects into one group that survives 
             .locator('.project-list')
             .screenshot({ path: test.info().outputPath('session-pinned.png') });
 
-        // Collapsing the group keeps the heading and its count while hiding the rows.
+        // Collapsing the group keeps the heading while hiding the rows. The heading shows no count digit; the
+        // membership reaches assistive technology through its accessible name instead.
         const heading = page().locator('[data-row-id="pinned-sessions"]');
         await expect(heading).toHaveAttribute('aria-label', 'Pinned, 2 Sessions');
+        await expect(heading).toHaveText('Pinned');
         await heading.click();
         await expect.poll(() => pinnedOrder(page())).toEqual([]);
         await expect(heading).toBeVisible();
@@ -136,7 +134,7 @@ test('pinning lifts Sessions from several Projects into one group that survives 
         await expect.poll(() => pinnedOrder(page())).toEqual([beta.id]);
         await togglePin(pinnedRow(beta.id), 'Beta');
         await expect(page().locator('.pinned-session-group')).toHaveCount(0);
-        // Archiving is what removes a Session everywhere else; unpinning leaves both Projects intact.
+        // Unpinning is the other half of the move: each Session returns to the Project group it came from.
         await expect(projectRow(alphaProject.id, alpha.id)).toBeVisible();
         await expect(projectRow(betaProject.id, beta.id)).toBeVisible();
     } finally {
