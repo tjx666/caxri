@@ -986,10 +986,10 @@ popup itself hold focus until then.
   chrome tab bar's selected tab, a tree's roving row — and every command that focuses that surface
   uses that same one.
 - `Command+0` moves focus into the PrimarySidebar tree, revealing the side bar first when it is
-  hidden, and `F2` renames the selected Session. Both exist because the keyboard otherwise had no way
-  in: showing the side bar has never moved focus into it, and the row's own `Enter`-to-rename works
-  only while that row already holds focus, so neither the context menu nor the command palette could
-  advertise a chord that worked from anywhere.
+  hidden. Double-clicking a Session row opens its inline rename editor; `Enter` does the same while
+  that row holds focus, and `F2` renames the selected Session from anywhere. The shortcuts exist
+  because showing the side bar has never moved focus into it, so neither the context menu nor the
+  command palette could otherwise advertise a chord that worked from anywhere.
 
 ## Known gaps
 
