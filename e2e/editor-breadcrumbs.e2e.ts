@@ -127,7 +127,9 @@ test('Editor breadcrumbs browse siblings with one keyboard focus model', async (
         await expect(panes).toHaveCount(2);
         const sourcePane = panes.first();
         await sourcePane.locator('.work-tab[data-terminal-id]').getByRole('tab').click();
-        await fileList.getByRole('treeitem', { name: 'helpers', exact: true }).click();
+        await expect(
+            fileList.getByRole('treeitem', { name: 'helpers', exact: true }),
+        ).toHaveAttribute('aria-expanded', 'true');
         await fileList.getByRole('treeitem', { name: 'utility.ts', exact: true }).click();
         await expect(panes.locator('.monaco-editor')).toHaveCount(2);
         const sourceBreadcrumb = sourcePane.getByRole('button', {
