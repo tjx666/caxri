@@ -54,7 +54,7 @@ type ViewOperation =
  * rather than bare strings so an operation that no controlled view produces cannot sit in a matcher forever without
  * matching anything (issue #799).
  */
-export type ControlledViewQueryOperation = ViewOperation | 'files.list' | 'files.search';
+export type ControlledViewQueryOperation = ViewOperation | 'files.list';
 
 export function controlledViewQueryKey(
     viewId: string,

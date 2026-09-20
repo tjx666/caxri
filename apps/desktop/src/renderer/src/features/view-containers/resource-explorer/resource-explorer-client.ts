@@ -11,7 +11,6 @@ import { CaxriError } from '@caxri/protocol';
 
 import { caxri } from '../../../lib/caxri';
 
-type FileSearchResult = MethodResult<'files.search'>;
 type FileDirectoryListing = MethodResult<'files.list'>;
 
 export interface ResourceExplorerClient {
@@ -45,18 +44,6 @@ export interface ResourceExplorerClient {
         options: { operationId: string; path: string; name: string },
         signal?: AbortSignal,
     ): Promise<MovedFileEntry>;
-    search(
-        options: {
-            mode: 'name' | 'content';
-            query: string;
-            caseSensitive?: boolean;
-            wholeWord?: boolean;
-            regex?: boolean;
-            include?: string;
-            exclude?: string;
-        },
-        signal?: AbortSignal,
-    ): Promise<FileSearchResult>;
     trash(
         path: string,
         options?: { hasUnsavedChanges?: boolean },
@@ -85,7 +72,6 @@ type ResourceExplorerMethod = Extract<
     | 'files.list'
     | 'files.move'
     | 'files.rename'
-    | 'files.search'
     | 'files.trash'
     | 'session.workbenchRoot.forgetEditorPath'
 >;
@@ -163,8 +149,6 @@ export function createResourceExplorerClient(
             request('files.move', { sessionId: requireSessionId(sessionId), ...options }, signal),
         rename: (options, signal) =>
             request('files.rename', { sessionId: requireSessionId(sessionId), ...options }, signal),
-        search: (options, signal) =>
-            request('files.search', { sessionId: requireSessionId(sessionId), ...options }, signal),
         forgetEditorPath: (workbenchProjectId, path, signal) =>
             request(
                 'session.workbenchRoot.forgetEditorPath',

@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('../lib/caxri', () => ({ caxri: mocks }));
 
+import { projectSearchQueryKey } from '../features/project-search/project-search-query';
 import { useWorkbenchStore } from '../stores/workbench';
 import { caxriQueryKey } from './client';
 import { removeSessionQueries, subscribeRuntimeQueryInvalidation } from './invalidation';
@@ -450,16 +451,10 @@ describe('subscribeRuntimeQueryInvalidation', () => {
             ],
             [],
         );
+        // The Project search overlay is not a controlled view: it caches under its own flat key, and a file change has
+        // to reach it there or an open search keeps listing hits at paths that no longer contain them.
         queryClient.setQueryData(
-            [
-                'viewContainers.viewOperation',
-                {
-                    viewId: filesView,
-                    operation: 'files.search',
-                    arguments: { mode: 'name', query: 'x' },
-                    contextKey: 'session-a:project-p',
-                },
-            ],
+            projectSearchQueryKey('session-a:project-p', { mode: 'name', query: 'x' }),
             {},
         );
         queryClient.setQueryData(
@@ -552,15 +547,9 @@ describe('subscribeRuntimeQueryInvalidation', () => {
         ).toBe(false);
 
         expect(
-            queryClient.getQueryState([
-                'viewContainers.viewOperation',
-                {
-                    viewId: filesView,
-                    operation: 'files.search',
-                    arguments: { mode: 'name', query: 'x' },
-                    contextKey: 'session-a:project-p',
-                },
-            ])?.isInvalidated,
+            queryClient.getQueryState(
+                projectSearchQueryKey('session-a:project-p', { mode: 'name', query: 'x' }),
+            )?.isInvalidated,
         ).toBe(true);
         unsubscribe();
     });
