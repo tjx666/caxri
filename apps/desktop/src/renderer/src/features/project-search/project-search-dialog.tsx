@@ -1,5 +1,5 @@
 import type { KeyboardEvent } from 'react';
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
 import type { FileSearchMatch, FileSearchMode } from '@caxri/protocol';
 import { editorModelPath } from '@desktop-shared/editor-state';
@@ -111,6 +111,8 @@ function ProjectSearchDialogBody() {
     const session = useSelectedSession();
     const rowIdPrefix = useId();
     const resultsId = useId();
+    const isOpen = useDialogStore((state) => state.projectSearchOpen);
+    const inputElement = useRef<HTMLInputElement>(null);
     const [query, setQuery] = useState('');
     const [mode, setMode] = useState<FileSearchMode>('name');
     const [caseSensitive, setCaseSensitive] = useState(false);
@@ -206,6 +208,20 @@ function ProjectSearchDialogBody() {
             ?.scrollIntoView({ block: 'nearest' });
     }, [rowIdPrefix, selectedKey]);
 
+    /**
+     * The popup stays mounted while the overlay is closed, so the last query, mode, and filters survive a reopen the
+     * way VS Code's Search view keeps them. Selecting the text on every open is what makes that a convenience instead
+     * of a trap: the next keystroke replaces the old query, while Escape-and-reopen still shows what was searched for.
+     * `autoFocus` only fires on the first mount, so the focus call belongs here too.
+     */
+    useEffect(() => {
+        if (!isOpen) return;
+        const input = inputElement.current;
+        if (!input) return;
+        input.focus();
+        input.select();
+    }, [isOpen]);
+
     const open = (match: FileSearchMatch, shouldOpenToSide: boolean): void => {
         if (!sessionId) return;
         setProjectSearchOpen(false);
@@ -238,6 +254,7 @@ function ProjectSearchDialogBody() {
                             />
                             <Input
                                 autoFocus
+                                ref={inputElement}
                                 appearance="embedded"
                                 className="flex-1 text-foreground"
                                 role="combobox"

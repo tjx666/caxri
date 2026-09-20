@@ -126,25 +126,27 @@ test('Project search opens name results and reveals grouped content matches', as
         await nameSearch.fill('target-name');
         // Scoped to `.search-results`: the Files tree is still on screen behind the overlay, so the locator is pinned
         // to the overlay rather than to whatever the sidebar happens to be showing.
-        const nameResult = running.page
-            .locator('.search-results .search-result')
-            .filter({ hasText: 'target-name.ts' });
+        const nameRows = running.page.locator('.search-results .search-result');
+        const nameResult = nameRows.filter({ hasText: 'target-name.ts' });
         await expect(nameResult).toBeVisible();
         await expect(nameResult.locator('[data-file-icon="file_type_typescript"]')).toBeVisible();
         /*
          * The first result is selected without a keystroke and the input — not the row — keeps focus, which is what
-         * `aria-activedescendant` exists to report. The preview pane opposite it is filled from that same selection.
+         * `aria-activedescendant` exists to report. Asserted against the first row rather than a named file:
+         * `target-name.test.ts` sorts ahead of `target-name.ts`, and the claim here is about the selection arriving on
+         * its own, not about which filename won the sort.
          */
         await expect(nameSearch).toBeFocused();
-        await expect(nameResult).toHaveAttribute('aria-selected', 'true');
+        await expect(nameRows.first()).toHaveAttribute('aria-selected', 'true');
         const activeDescendant = await nameSearch.getAttribute('aria-activedescendant');
-        expect(activeDescendant).toBe(await nameResult.getAttribute('id'));
+        expect(activeDescendant).toBe(await nameRows.first().getAttribute('id'));
+
+        // A single click only moves the selection — it fills the preview opposite it and opens nothing.
+        await nameResult.click();
+        await expect(nameResult).toHaveAttribute('aria-selected', 'true');
         await expect(
             running.page.locator('.search-preview [data-search-preview-line="1"]'),
         ).toContainText('const line1 = 1;');
-
-        // Double click opens; a single click only moves the selection, so the tab must not exist before it.
-        await nameResult.click();
         await expect(running.page.locator('.work-tab', { hasText: 'target-name.ts' })).toHaveCount(
             0,
         );
@@ -223,12 +225,24 @@ test('Project search opens name results and reveals grouped content matches', as
         ).toBeVisible();
 
         await running.page.keyboard.press('Meta+Shift+F');
-        const reopened = running.page.getByRole('combobox', { name: 'Find Project files' });
-        await expect(reopened).toBeFocused();
-        // A fresh open starts empty: the overlay mounts inside the Dialog's portal, which unmounts on close.
-        await expect(reopened).toHaveValue('');
-        await running.page.getByRole('button', { name: 'Content', exact: true }).click();
+        /*
+         * Reopening returns to the last search rather than to an empty one, with the query selected so the next
+         * keystroke replaces it — the same bargain VS Code's Search view makes. The selection is the load-bearing half:
+         * without it a preserved query is a trap rather than a shortcut.
+         */
         const timedOut = running.page.getByRole('combobox', { name: 'Search Project contents' });
+        await expect(timedOut).toBeFocused();
+        await expect(timedOut).toHaveValue('MagicNeedle');
+        await expect
+            .poll(() =>
+                running.page.evaluate(() => {
+                    const input = document.activeElement;
+                    return input instanceof HTMLInputElement
+                        ? input.value.slice(input.selectionStart ?? 0, input.selectionEnd ?? 0)
+                        : '';
+                }),
+            )
+            .toBe('MagicNeedle');
         await running.page
             .getByRole('textbox', { name: 'Files to include' })
             .fill('000-pathological.txt');
