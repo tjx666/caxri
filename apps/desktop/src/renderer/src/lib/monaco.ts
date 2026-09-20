@@ -100,6 +100,9 @@ function registerMonacoLanguages(): void {
             ],
         },
     });
+    monaco.languages.setLanguageConfiguration(DOTENV_LANGUAGE_ID, {
+        comments: { lineComment: '#' },
+    });
 
     if (monaco.languages.getLanguages().every((language) => language.id !== IGNORE_LANGUAGE_ID)) {
         monaco.languages.register({
@@ -121,6 +124,9 @@ function registerMonacoLanguages(): void {
                     [/[^\\*?[\]/]+/, 'string'],
                 ],
             },
+        });
+        monaco.languages.setLanguageConfiguration(IGNORE_LANGUAGE_ID, {
+            comments: { lineComment: '#' },
         });
     }
 
@@ -146,6 +152,9 @@ function registerMonacoLanguages(): void {
                     [/[^\s#;=:{}[\],]+/, 'string'],
                 ],
             },
+        });
+        monaco.languages.setLanguageConfiguration(RC_LANGUAGE_ID, {
+            comments: { lineComment: '#' },
         });
     }
 

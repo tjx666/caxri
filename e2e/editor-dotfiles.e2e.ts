@@ -70,12 +70,13 @@ test('workspace file and directory links open and save without replacing links',
     }
 });
 
-test('ignore and rc dotfiles open with syntax highlighting', async () => {
+test('custom dotfile languages support syntax highlighting and line comments', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-dotfile-syntax-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
     await mkdir(root);
     await Promise.all([
+        writeFile(join(root, '.env'), 'CAXRI_READY=true\n', 'utf8'),
         writeFile(
             join(root, '.gitignore'),
             '# Generated files\nnode_modules/\n!important.generated\nsrc/**/cache?.json\n',
@@ -95,10 +96,24 @@ test('ignore and rc dotfiles open with syntax highlighting', async () => {
         const editor = running.page.locator('.monaco-editor').last();
         await expect(editor.locator('.view-lines')).toContainText('important.generated');
         await expectSyntaxColors(editor);
+        await editor.locator('.view-line').nth(1).click();
+        await running.page.keyboard.press('Meta+/');
+        await expect(editor.locator('.view-line').nth(1)).toContainText('# node_modules/');
 
         await running.page.getByRole('treeitem', { name: '.npmrc', exact: true }).click();
         await expect(editor.locator('.view-lines')).toContainText('strict-ssl=true');
         await expectSyntaxColors(editor);
+        await editor.locator('.view-line').nth(1).click();
+        await running.page.keyboard.press('Meta+/');
+        await expect(editor.locator('.view-line').nth(1)).toContainText(
+            '# registry=https://registry.npmjs.org',
+        );
+
+        await running.page.getByRole('treeitem', { name: '.env', exact: true }).click();
+        await expect(editor.locator('.view-lines')).toContainText('CAXRI_READY=true');
+        await editor.locator('.view-line').first().click();
+        await running.page.keyboard.press('Meta+/');
+        await expect(editor.locator('.view-line').first()).toContainText('# CAXRI_READY=true');
     } finally {
         try {
             await running.app.close();
