@@ -95,7 +95,9 @@ export class AcceptanceStore {
         if (cached) {
             const ttl =
                 lookup.maxAgeMs ??
-                (cached.error ? FAILURE_TTL_MS : (this.options.reportTtlMs ?? REPORT_TTL_MS));
+                (cached.error
+                    ? (this.options.failureTtlMs ?? FAILURE_TTL_MS)
+                    : (this.options.reportTtlMs ?? REPORT_TTL_MS));
             if (this.now() - cached.fetchedAt < ttl) {
                 rememberBounded(this.bundles, id, cached, MAX_REPORT_RECORDS);
                 if (cached.error) throw cached.error;

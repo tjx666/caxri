@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { ExternalStatusCliError } from '../external-status';
-import { AcceptanceStore } from '../external-status/acceptance';
+import { AcceptanceStore, ExternalStatusCliError } from '../external-status';
 import {
     collectAcceptanceCandidates,
     loadOverviewAcceptances,

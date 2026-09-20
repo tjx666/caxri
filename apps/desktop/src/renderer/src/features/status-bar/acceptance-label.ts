@@ -18,6 +18,11 @@ const SOURCE_LABELS: Record<AcceptanceSource, string> = {
 /**
  * Lifecycle wording, spelled out rather than title-cased from the enum. `delivered` and `accepted` differ by who acted
  * — the Agent finished, a person agreed — and that distinction is the whole reason a reviewer looks at this chip.
+ *
+ * Kept byte-identical to `acceptanceStatusLabels` in `extensions/status/src/status-labels.ts`, together with
+ * {@link VERDICT_LABELS} and its counterpart there. The two cannot share a module — the architecture boundary forbids
+ * Desktop importing `extension-api`, and `extension-api` imports nothing — so the copies are the contract: change one
+ * and the Status panel row and this chip name the same report two different things, with nothing failing.
  */
 const STATUS_LABELS: Record<AcceptanceStatus, string> = {
     pending: 'Not started',
