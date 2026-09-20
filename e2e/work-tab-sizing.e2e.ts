@@ -195,6 +195,27 @@ test('Terminal tabs anchor at the leading edge, Document tabs size to content an
         expect(
             await scrollRail.evaluate((element) => element.scrollWidth - element.clientWidth),
         ).toBeGreaterThan(1);
+
+        /**
+         * The document just opened is the active one, and it must already be readable without the user scrolling the
+         * rail. Measured against the rail rather than the viewport because the rail is what clips it. Polled because a
+         * tab enters from `maxWidth: 0` and the reveal keeps re-running while that animation widens it
+         * (`useActiveTabReveal` in `apps/desktop/src/renderer/src/features/workbench/pane-tab-reveal.ts`) — a one-shot
+         * reveal measured at creation time computes a near-zero delta and leaves the tab off the end of the bar.
+         */
+        await expect
+            .poll(async () =>
+                running.page.evaluate(() => {
+                    const rail = document.querySelector<HTMLElement>('.work-tab-scroll');
+                    const tab = rail?.querySelector<HTMLElement>('[data-tab-active="true"]');
+                    if (!rail || !tab) return;
+                    const railRect = rail.getBoundingClientRect();
+                    const tabRect = tab.getBoundingClientRect();
+                    return tabRect.left >= railRect.left - 1 && tabRect.right <= railRect.right + 1;
+                }),
+            )
+            .toBe(true);
+
         const anchoredLeftBeforeScroll = await terminalTabs
             .first()
             .evaluate((element) => element.getBoundingClientRect().left);
