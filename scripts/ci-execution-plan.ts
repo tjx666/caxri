@@ -14,7 +14,7 @@ export interface CIExecutionPlanInput {
     changedFiles: string[];
     dispatchE2EProfile?: 'control' | 'optimized' | 'skip';
     eventName: string;
-    isReleaseCommit?: boolean;
+    isVerifiedReleaseCommit?: boolean;
     pullRequestDraft?: boolean;
     retryKind?: 'metadata-only' | 'spec-only';
     reusableGreenRun?: CIReusableGreenRun;
@@ -161,12 +161,12 @@ export function evaluateCIExecutionPlan(input: CIExecutionPlanInput): CIExecutio
     }
 
     if (input.eventName === 'push') {
-        if (input.isReleaseCommit) {
+        if (input.isVerifiedReleaseCommit) {
             return {
-                checksScope: 'full',
+                checksScope: 'skipped',
                 e2eProfile: 'control',
-                reason: 'exact release commit',
-                runE2E: true,
+                reason: 'exact release commit reuses merged PR CI',
+                runE2E: false,
             };
         }
         /**

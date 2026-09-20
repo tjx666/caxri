@@ -27,6 +27,11 @@ const selfHostedRunner = await readFile(
     new URL('../self-hosted-runner.ts', import.meta.url),
     'utf8',
 );
+const retryPolicy = await readFile(new URL('../ci-retry-policy.ts', import.meta.url), 'utf8');
+const releaseSources = await readFile(
+    new URL('../../.agents/skills/release/scripts/release-sources.ts', import.meta.url),
+    'utf8',
+);
 const bunVersion = (await readFile(new URL('../../.bun-version', import.meta.url), 'utf8')).trim();
 const packageManifest = JSON.parse(
     await readFile(new URL('../../package.json', import.meta.url), 'utf8'),
@@ -78,17 +83,23 @@ describe('CI workflow contract', () => {
     });
 
     it('keeps the pre-install runner boundary free of runtime package imports', () => {
-        const packageImports = selfHostedRunner
-            .split(';')
-            .flatMap((statement) => {
-                const source = statement.trim();
-                if (!source.startsWith('import ') || source.startsWith('import type ')) return [];
-                const match = /['"]([^'"]+)['"]$/u.exec(source);
-                return match ? [match[1]] : [];
-            })
-            .filter((specifier) => !specifier.startsWith('node:') && !specifier.startsWith('.'));
+        const packageImports = (source: string): string[] =>
+            source
+                .split(';')
+                .flatMap((statement) => {
+                    const candidate = statement.trim();
+                    if (!candidate.startsWith('import ') || candidate.startsWith('import type '))
+                        return [];
+                    const match = /['"]([^'"]+)['"]$/u.exec(candidate);
+                    return match ? [match[1]] : [];
+                })
+                .filter(
+                    (specifier) => !specifier.startsWith('node:') && !specifier.startsWith('.'),
+                );
 
-        expect(packageImports).toEqual([]);
+        expect(packageImports(selfHostedRunner)).toEqual([]);
+        expect(packageImports(retryPolicy)).toEqual([]);
+        expect(packageImports(releaseSources)).toEqual([]);
     });
 
     it('evaluates retry trailers on the pushed PR head instead of the synthetic merge commit', () => {

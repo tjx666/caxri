@@ -124,7 +124,7 @@ this path does not invoke Vitest for an E2E-only repair.
 | Ready PR with any remaining source change                                           | `full`       | `full`                      | `optimized`                         | yes            |
 | Non-release `push` containing only documentation or repository skills               | `full`       | `full`                      | `optimized`                         | no             |
 | Non-release `push` with product, test, workflow, or unknown delta                   | `full`       | `full`                      | `optimized`                         | yes            |
-| Exact release commit                                                                | `full`       | `full`                      | `control`                           | yes            |
+| Exact `release:prepare` output; PR CI passed                                        | `full`       | `skipped`                   | `control`                           | no             |
 | Unknown or missing event                                                            | `full`       | `full`                      | `control`                           | yes            |
 
 The pure retry, execution-plan, and green-reuse evaluators each have focused tests. The ordered
