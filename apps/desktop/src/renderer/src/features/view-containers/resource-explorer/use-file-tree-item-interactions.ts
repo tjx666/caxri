@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import type { FileEntry } from '@caxri/protocol';
 
 import { dragPath } from '../../../lib/file-drag';
-import { isDirectoryEntry, resolveEntryKind } from '../../../lib/file-entry';
+import { resolveEntryKind } from '../../../lib/file-entry';
 import { parentDirectoryPath } from '../../../lib/file-path';
 import { tryCommand } from '../../../stores/toasts';
 import { openFileForSession } from '../../editor/document-commands';
@@ -21,12 +21,14 @@ import {
     focusTreeItemEdge,
 } from './file-tree-navigation';
 import {
+    clearScopeRevealPath,
     setScopeFocusPath,
     setScopePathExpanded,
     setScopeSelectedPath,
     setScopeSubtreeExpanded,
     useResourceExplorerScopeStore,
 } from './resource-explorer-scope-store';
+import { isFileTreeDirectory } from './resource-explorer-state';
 
 export interface UseFileTreeItemInteractionsOptions {
     depth: number;
@@ -41,6 +43,7 @@ export interface UseFileTreeItemInteractionsOptions {
     isFocusRequested: boolean;
     isSelected: boolean;
     projectId: string;
+    revealRevision?: number;
     scopeId: string;
     sessionId: string;
     setEditing: (editing?: EditRequest) => void;
@@ -99,6 +102,7 @@ export function useFileTreeItemInteractions({
     isFocusRequested,
     isSelected,
     projectId,
+    revealRevision,
     scopeId,
     sessionId,
     setEditing,
@@ -118,10 +122,7 @@ export function useFileTreeItemInteractions({
     const isRenaming = editing?.kind === 'rename' && editing.entry.path === entry.path;
     const isEditable = entry.kind !== 'symlink';
     const [resolvedKind, setResolvedKind] = useState<'file' | 'directory'>();
-    const isDirectory =
-        resolvedKind && entry.kind === 'symlink'
-            ? resolvedKind === 'directory'
-            : isDirectoryEntry(entry);
+    const isDirectory = isFileTreeDirectory(entry, resolvedKind, expanded);
     const parentDirectory = parentDirectoryPath(entry.path);
     const pasteDirectory = entry.kind === 'directory' ? entry.path : parentDirectory;
     const isClipboardEmpty = !clipboard || clipboard.projectId !== projectId;
@@ -305,6 +306,14 @@ export function useFileTreeItemInteractions({
         rowReference.current?.focus();
         setScopeFocusPath(scopeId, undefined);
     }, [isFocusRequested, isRenaming, scopeId]);
+
+    useEffect(() => {
+        if (isRenaming || revealRevision === undefined) return;
+        const row = rowReference.current;
+        if (!row) return;
+        row.scrollIntoView({ block: 'nearest' });
+        clearScopeRevealPath(scopeId, { path: entry.path, revision: revealRevision });
+    }, [entry.path, isRenaming, revealRevision, scopeId]);
 
     return {
         activateEntry,
