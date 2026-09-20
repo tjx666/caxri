@@ -7,6 +7,7 @@ import {
     CircleCheck,
     CircleDot,
     CircleSlash,
+    CircleSmall,
     CircleX,
     Cloud,
     EyeOff,
@@ -44,6 +45,11 @@ const themeIcons = {
     'circle-dot': CircleDot,
     'circle-outline': Circle,
     'circle-slash': CircleSlash,
+    /**
+     * A check that has been accepted and has not started. Filled rather than hollow so it reads as a state of its own
+     * beside `circle-outline`, which is the neutral conclusion GitHub draws with an empty ring.
+     */
+    'circle-small-filled': CircleSmall,
     'deployment-preview': DeploymentPreviewIcon,
     'circle-x': CircleX,
     'cloud': Cloud,
@@ -93,6 +99,7 @@ const themeIconClassNames: Partial<Record<ThemeIconId, string>> = {
     'circle-dot': 'text-muted',
     'circle-outline': 'text-muted',
     'circle-slash': 'text-muted',
+    'circle-small-filled': 'fill-current text-warning',
     'circle-x': 'text-danger',
     'error': 'text-danger',
     'git-merge': 'text-merged',

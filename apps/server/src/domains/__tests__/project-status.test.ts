@@ -571,6 +571,12 @@ describe('ProjectStatusService', () => {
 
     it.each([
         { check: { name: 'unit', status: 'IN_PROGRESS' }, delayMs: 20_000, label: 'a running job' },
+        /*
+         * A queued run is the snapshot most likely to be stale a second later, and the move to "running" is the one
+         * transition the split between the two states exists to show. Pacing it like a settled pull request would
+         * report "not started" for two minutes after it started.
+         */
+        { check: { name: 'unit', status: 'QUEUED' }, delayMs: 20_000, label: 'a queued job' },
         {
             check: { name: 'unit', conclusion: 'SUCCESS' },
             delayMs: 120_000,

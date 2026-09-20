@@ -64,8 +64,8 @@ const acceptanceVerdictSchema = z.enum(['passed', 'failed', 'uncertain']);
 const projectStatusAcceptanceSchema = z.object({
     id: z.string(),
     /**
-     * The report reduced to the same six-state vocabulary a check or a deployment reports, computed by the Server so
-     * the status bar and the Status panel cannot reach different conclusions about one report. See
+     * The report reduced to the same state vocabulary a check or a deployment reports, computed by the Server so the
+     * status bar and the Status panel cannot reach different conclusions about one report. See
      * {@link acceptanceProjectStatusState} for the rule.
      */
     state: projectStatusStateSchema,
@@ -248,8 +248,8 @@ export const projectStatusOverviewSchema = z.object({
 export type ProjectStatusState = z.infer<typeof projectStatusStateSchema>;
 
 /**
- * Reduces an acceptance report to the same six-state vocabulary a check or a deployment reports. The Server calls it
- * once and ships the answer as `state`, so the status bar and the Status panel render the same verdict instead of each
+ * Reduces an acceptance report to the same state vocabulary a check or a deployment reports. The Server calls it once
+ * and ships the answer as `state`, so the status bar and the Status panel render the same verdict instead of each
  * quantizing the lifecycle and the round result for itself.
  *
  * The verdict wins over the lifecycle when both are present, because it is the newer fact: a report sitting in

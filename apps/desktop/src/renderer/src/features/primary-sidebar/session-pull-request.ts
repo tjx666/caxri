@@ -114,6 +114,22 @@ export function sessionPullRequestPresentation(
                     checksLabel: 'Checks running',
                     checksTone: 'warning',
                 };
+            /*
+             * A row this narrow has space for one word about CI, and "waiting for a runner" and "running" are the same
+             * answer to the only question it is asked: is CI still deciding? The Status panel is where the two are
+             * drawn apart. Without this branch the fallback below drops the CI state entirely, which is how a
+             * repository reporting through commit statuses — always `queued` until it concludes — lost its badge for
+             * the whole run.
+             */
+            if (pullRequest.checks === 'queued')
+                return {
+                    ariaLabel: `${base}, checks queued.`,
+                    icon: 'open',
+                    label,
+                    tone: 'success',
+                    checksLabel: 'Checks queued',
+                    checksTone: 'warning',
+                };
             if (pullRequest.checks === 'success')
                 return {
                     ariaLabel: `${base}, checks passing.`,

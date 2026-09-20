@@ -69,6 +69,20 @@ describe('Session pull request presentation', () => {
         ).toMatchObject({ icon: 'merged', tone: 'merged' });
     });
 
+    /**
+     * A repository whose CI reports through commit statuses rather than check runs stays `queued` for the whole run, so
+     * a badge that only knows `pending` showed such a PR no CI state at all until it concluded.
+     */
+    it('keeps a badge on a run that has not started yet', () => {
+        expect(sessionPullRequestPresentation(pullRequest({ checks: 'queued' }))).toMatchObject({
+            ariaLabel: 'Pull request #42 open, checks queued.',
+            icon: 'open',
+            tone: 'success',
+            checksLabel: 'Checks queued',
+            checksTone: 'warning',
+        });
+    });
+
     it.each(['merged', 'closed', 'draft'] as const)(
         'omits stale check badges for %s PRs',
         (state) => {

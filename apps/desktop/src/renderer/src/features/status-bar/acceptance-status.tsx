@@ -4,6 +4,7 @@ import {
     CircleDashed,
     CircleDot,
     CircleSlash,
+    CircleSmall,
     CircleX,
     LoaderCircle,
 } from 'lucide-react';
@@ -26,6 +27,8 @@ const STATE_PRESENTATION: Record<ProjectStatusState, { Icon: typeof CircleCheck;
     success: { Icon: CircleCheck, tone: 'text-success' },
     failure: { Icon: CircleX, tone: 'text-danger' },
     pending: { Icon: LoaderCircle, tone: 'text-warning' },
+    // A filled dot rather than a spinner: nothing is running yet, and animating a queue makes it look like it is.
+    queued: { Icon: CircleSmall, tone: 'fill-current text-warning' },
     cancelled: { Icon: CircleSlash, tone: 'text-muted' },
     neutral: { Icon: CircleDashed, tone: 'text-muted' },
     unknown: { Icon: CircleDot, tone: 'text-muted' },

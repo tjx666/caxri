@@ -12,6 +12,12 @@ type ProjectStatusPublication = NonNullable<ProjectStatusRepository['publication
 /**
  * Lifecycle wording, spelled out rather than title-cased from the enum. `delivered` and `accepted` differ by who acted
  * — the Agent finished, a person agreed — and that distinction is the whole reason a reviewer opens this row.
+ *
+ * Kept byte-identical to `STATUS_LABELS` in `apps/desktop/src/renderer/src/features/status-bar/acceptance-label.ts`,
+ * together with {@link acceptanceVerdictLabels} and its counterpart there. The two cannot share a module — the
+ * architecture boundary forbids Desktop importing `extension-api`, and `extension-api` imports nothing — so the copies
+ * are the contract: change one and this row and the status bar chip name the same report two different things, with
+ * nothing failing.
  */
 const acceptanceStatusLabels: Record<AcceptanceStatus, string> = {
     pending: 'Not started',
@@ -84,7 +90,9 @@ const stateLabels: Record<ProjectStatusState, string> = {
     success: 'passed',
     failure: 'failed',
     cancelled: 'canceled',
-    pending: 'pending',
+    // "running", not "pending": the point of splitting these two states is that one of them has actually started.
+    pending: 'running',
+    queued: 'queued',
     neutral: 'neutral',
     unknown: 'unknown',
 };
@@ -148,4 +156,17 @@ export function publicationDescription(state: ProjectStatusPublication['state'])
         'checking': 'Checking the same-named branch on origin.',
     };
     return descriptions[state];
+}
+
+export function durationLabel(durationMs: number | undefined): string | undefined {
+    if (durationMs === undefined) return undefined;
+    const seconds = Math.round(durationMs / 1_000);
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    const remainder = seconds % 60;
+    return remainder === 0 ? `${minutes}m` : `${minutes}m ${remainder}s`;
+}
+
+export function ignoredChecksLabel(count: number): string {
+    return `${count} ignored check${count === 1 ? '' : 's'}`;
 }
