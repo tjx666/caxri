@@ -44,8 +44,8 @@ export interface ProjectRootResolverOptions {
 }
 
 /**
- * Resolves a Session to its active Workbench Project root and validates Session-relative paths against it. Terminal and
- * Agent launch code deliberately resolves the owning Project separately.
+ * Resolves a Session to its active Workbench Project root and validates Session-relative paths against it. New
+ * Terminals and Agent launches also use this root as their default cwd while retaining independent durable records.
  *
  * This is the single place that turns a Session ID plus an optional relative or absolute path into a filesystem
  * location, so `FileService` and `GitService` share one TOCTOU-safe resolution instead of Git depending on the whole

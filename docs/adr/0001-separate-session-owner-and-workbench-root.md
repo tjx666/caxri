@@ -4,10 +4,11 @@
 - Date: 2026-08-14
 - Amended by: ADR 0005 (target, pending)
 
-A Session keeps one immutable owning Project for identity, PrimarySidebar grouping, Terminals, Agent launch,
-and Agent Endpoint authority, while an independently persisted Workbench Root selects the authorized
-Project used by Files, Editor, Search, and Git. This separation lets an Agent-created linked worktree
-become the visible work surface without moving or restarting the Agent process that created it.
+A Session keeps one immutable owning Project for identity, PrimarySidebar grouping, durable Terminal ownership,
+Agent authorization, and Agent Endpoint authority, while an independently persisted Workbench Root selects the
+authorized Project used by Files, Editor, Search, Git, and the default cwd of newly created Terminals. This
+separation lets an Agent-created linked worktree become the visible work surface without moving or restarting the
+Agent process that created it; only later Terminal launches follow the newly selected root.
 
 Sidebar Project path actions retain the owning Project identity: Copy Path and dragging into a
 Terminal use its absolute root, while Reveal in Finder and Open Project in Editor work even without
@@ -42,7 +43,7 @@ Hook diagnostics distinguish ordinary commands from worktree-create intent even 
 phase; command text and reported directories never enter the log.
 
 A missing or replaced active root falls back to the owning Project. This deliberately rejects the
-simpler choices of mutating Session ownership, moving Terminal cwd, trusting a path reported by an
+simpler choices of mutating Session ownership, moving an existing Terminal cwd, trusting a path reported by an
 Agent or CLI, or sharing same-path editor state across worktrees.
 
 "Replaced" is decided by the stored inode, not by the stored device number. A device number is a
