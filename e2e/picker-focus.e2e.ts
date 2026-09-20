@@ -79,3 +79,40 @@ test('Picker cancellation restores focus without reopening Session details', asy
         await rm(directory, { recursive: true, force: true });
     }
 });
+
+test('revealing the Primary Side Bar preserves workbench focus without opening Session details', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-sidebar-focus-e2e-'));
+    const root = join(directory, 'project');
+    await mkdir(root);
+    const running = await launchCaxri({
+        userDataDir: join(directory, 'user-data'),
+        testRootPath: root,
+    });
+    try {
+        const { page } = running;
+        await createProjectSession(page);
+        const terminalInput = page.locator('.xterm-helper-textarea');
+        const details = page.locator('.session-activity-card');
+
+        await terminalInput.focus();
+        await page.keyboard.press('Meta+[');
+        await expect(page.locator('.session-primary-sidebar')).toHaveCount(0);
+        await expect(terminalInput).toBeFocused();
+
+        await page.keyboard.press('Meta+[');
+        await expect(page.locator('.session-primary-sidebar')).toBeVisible();
+        await expect(terminalInput).toBeFocused();
+        await expect(details).toHaveCount(0);
+
+        await page.keyboard.press('Meta+0');
+        await expect(
+            page.locator('[role="treeitem"][data-session-id][aria-selected="true"]'),
+        ).toBeFocused();
+        await page.keyboard.press('Meta+[');
+        await expect(page.locator('.session-primary-sidebar')).toHaveCount(0);
+        await expect(terminalInput).toBeFocused();
+    } finally {
+        await running.app.close();
+        await rm(directory, { recursive: true, force: true });
+    }
+});
