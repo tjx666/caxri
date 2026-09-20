@@ -46,7 +46,7 @@ describe('Editor navigation', () => {
             endLineNumber: 21,
             endColumn: 11,
         });
-        expect(mounted.revealLineInCenter).toHaveBeenCalledWith(20);
+        expect(mounted.revealLineInCenter).toHaveBeenCalledWith(20, 1);
         expect(mounted.focus).toHaveBeenCalledOnce();
     });
 
@@ -123,7 +123,7 @@ describe('Editor navigation', () => {
             endLineNumber: 32,
             endColumn: 1,
         });
-        expect(queued.revealLineInCenter).toHaveBeenCalledWith(32);
+        expect(queued.revealLineInCenter).toHaveBeenCalledWith(32, 1);
         expect(queued.focus).toHaveBeenCalledOnce();
     });
 

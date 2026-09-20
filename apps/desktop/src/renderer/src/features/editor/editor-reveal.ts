@@ -80,6 +80,16 @@ function registeredEditor(path: string, instanceId?: string): MonacoEditor | und
     return latest;
 }
 
+/**
+ * `monaco.editor.ScrollType.Immediate`, inlined so this module does not pull Monaco's lazily imported bundle in for one
+ * enum. Monaco's reveal methods default to a smooth scroll, and a smooth scroll is abandoned when the editor lays out
+ * while it is still animating — which is exactly when these reveals run, on the commit that mounts the model. Once
+ * `editor.smoothScrolling` defaulted on, clicking a Terminal `path:line` link for an already-open document left the
+ * caret on the right line with the viewport still at the top. Every reveal here is a jump the user asked for by name,
+ * so it should land at once regardless of how ordinary scrolling is animated.
+ */
+const IMMEDIATE_SCROLL = 1;
+
 function applyReveal(editor: MonacoEditor, target: EditorRevealTarget): void {
     const endColumn =
         target.column + (target.select === false ? 0 : Math.max(1, target.matchLength));
@@ -89,7 +99,7 @@ function applyReveal(editor: MonacoEditor, target: EditorRevealTarget): void {
         endLineNumber: target.line,
         endColumn,
     });
-    editor.revealLineInCenter(target.line);
+    editor.revealLineInCenter(target.line, IMMEDIATE_SCROLL);
     editor.focus();
 }
 
@@ -101,7 +111,7 @@ function applyNavigation(editor: MonacoEditor, target: EditorNavigationTarget): 
             endLineNumber: target.line,
             endColumn: target.column,
         });
-        editor.revealLineInCenter(target.line);
+        editor.revealLineInCenter(target.line, IMMEDIATE_SCROLL);
         editor.focus();
         return;
     }
@@ -115,7 +125,7 @@ function applyNavigation(editor: MonacoEditor, target: EditorNavigationTarget): 
         endLineNumber: endLine,
         endColumn: model?.getLineMaxColumn(endLine) ?? 1,
     });
-    editor.revealLineInCenter(startLine);
+    editor.revealLineInCenter(startLine, IMMEDIATE_SCROLL);
     editor.focus();
 }
 
