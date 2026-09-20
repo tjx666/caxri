@@ -24,16 +24,78 @@ export type FullSuiteRunner = 'unit' | 'e2e';
  * Positional arguments are spec paths or file filters for both runners.
  */
 const FOCUS_FLAGS = new Map<FullSuiteRunner, readonly string[]>([
-    ['unit', ['--changed', '--related', '--shard', '--testNamePattern', '-t']],
-    ['e2e', ['--grep', '--grep-invert', '--last-failed', '--only-changed', '--shard', '-g']],
+    ['unit', ['--changed', '--project', '--related', '--shard', '--testNamePattern', '-t']],
+    [
+        'e2e',
+        [
+            '--grep',
+            '--grep-invert',
+            '--last-failed',
+            '--only-changed',
+            '--project',
+            '--shard',
+            '--ui',
+            '-g',
+        ],
+    ],
+]);
+
+/**
+ * Flags whose value is a separate argument when it is not written with `=`.
+ *
+ * Without this the guard reads `vitest run --reporter json` as "there is a positional filter, so the run is narrowed"
+ * and waves the full suite through — the exact bypass it exists to prevent. Only flags this repository or its runners
+ * realistically pass are listed; an unrecognized flag is assumed boolean, which at worst costs one extra refusal that
+ * the `=` form resolves.
+ */
+const VALUE_FLAGS = new Map<FullSuiteRunner, readonly string[]>([
+    [
+        'unit',
+        [
+            '--bail',
+            '--config',
+            '--coverage.reporter',
+            '--dir',
+            '--environment',
+            '--maxConcurrency',
+            '--maxWorkers',
+            '--minWorkers',
+            '--mode',
+            '--outputFile',
+            '--pool',
+            '--reporter',
+            '--retry',
+            '--root',
+            '-c',
+        ],
+    ],
+    [
+        'e2e',
+        [
+            '--config',
+            '--max-failures',
+            '--output',
+            '--repeat-each',
+            '--reporter',
+            '--retries',
+            '--timeout',
+            '--trace',
+            '--workers',
+            '-c',
+            '-j',
+            '-x',
+        ],
+    ],
 ]);
 
 const GUIDANCE = new Map<FullSuiteRunner, string>([
     [
         'unit',
-        'Run the focused checker instead: `bun run check <changed files>` picks the owning suites, or name the test ' +
-            'files directly with `rtk vitest run <file>`. The full suite is a repository-wide gate; see the ' +
-            '"Repository-wide gates" section of the `quality-check` skill.',
+        'Run the focused checker instead: `bun run check <changed files>` picks the owning suites, name the test ' +
+            'files directly with `rtk vitest run <file>`, or narrow to one workspace with `vitest run --project ' +
+            '<name>`. Watching the whole repository is the same gate, so `bun run test:watch` also takes a file or ' +
+            'a `--project`. The full suite is a repository-wide gate; see the "Repository-wide gates" section of ' +
+            'the `quality-check` skill.',
     ],
     [
         'e2e',
@@ -55,11 +117,14 @@ export function isFullSuiteAuthorized(environment: NodeJS.ProcessEnv = process.e
  */
 export function isFullSuiteInvocation(runner: FullSuiteRunner, argv: readonly string[]): boolean {
     const focusFlags = FOCUS_FLAGS.get(runner) ?? [];
-    for (const argument of argv) {
+    const valueFlags = VALUE_FLAGS.get(runner) ?? [];
+    for (let index = 0; index < argv.length; index += 1) {
+        const argument = argv[index];
         if (argument === '--') continue;
         if (argument.startsWith('-')) {
             const name = argument.split('=', 1)[0];
             if (focusFlags.includes(name)) return false;
+            if (valueFlags.includes(name) && !argument.includes('=')) index += 1;
             continue;
         }
         /**
