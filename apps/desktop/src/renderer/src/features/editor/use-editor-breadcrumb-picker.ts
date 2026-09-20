@@ -49,6 +49,7 @@ export function useEditorBreadcrumbPicker({
     const optionIdPrefix = useId();
     const listboxReference = useRef<HTMLDivElement>(null);
     const activation = useRef(0);
+    const shouldScrollActiveOption = useRef(true);
     const typeaheadReference = useRef<{
         prefix: string;
         timer?: ReturnType<typeof setTimeout>;
@@ -68,6 +69,11 @@ export function useEditorBreadcrumbPicker({
     const activeIndex = entries.findIndex((entry) => entry.path === activePath);
     const activeOptionId = activeIndex === -1 ? undefined : `${optionIdPrefix}-${activeIndex}`;
 
+    const requestActivePath = (path: string | undefined, shouldScrollIntoView = true): void => {
+        shouldScrollActiveOption.current = shouldScrollIntoView;
+        setRequestedActivePath(path);
+    };
+
     const activateEntry = (entry: FileEntry): void => {
         const intent = ++activation.current;
         // eslint-disable-next-line no-void -- tryCommand owns error presentation
@@ -76,13 +82,13 @@ export function useEditorBreadcrumbPicker({
             if (intent !== activation.current) return;
             if (kind === 'directory') {
                 setCurrentDirectory(entry.path);
-                setRequestedActivePath(undefined);
+                requestActivePath(undefined);
             } else onOpenFile(entry.path);
         });
     };
 
     useEffect(() => {
-        if (!activeOptionId) return;
+        if (!activeOptionId || !shouldScrollActiveOption.current) return;
         const option = listboxReference.current?.querySelector<HTMLElement>(
             `#${CSS.escape(activeOptionId)}`,
         );
@@ -123,7 +129,7 @@ export function useEditorBreadcrumbPicker({
                 event.preventDefault();
                 setCurrentDirectory(parent);
                 activation.current += 1;
-                setRequestedActivePath(currentDirectory);
+                requestActivePath(currentDirectory);
                 return;
             }
             case 'ArrowRight':
@@ -155,7 +161,7 @@ export function useEditorBreadcrumbPicker({
         }
         if (!nextPath) return;
         event.preventDefault();
-        setRequestedActivePath(nextPath);
+        requestActivePath(nextPath);
     };
 
     return {
@@ -170,7 +176,7 @@ export function useEditorBreadcrumbPicker({
         listboxReference,
         onEntryClick: activateEntry,
         onEntryPointerMove: (entry) => {
-            setRequestedActivePath(entry.path);
+            requestActivePath(entry.path, false);
         },
         onKeyDown,
         optionId: (index) => `${optionIdPrefix}-${index}`,

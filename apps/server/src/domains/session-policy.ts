@@ -163,6 +163,31 @@ export function choosePrimaryAgentSuccessor(
 }
 
 /**
+ * Promotes a live secondary Agent after the current primary Agent process exits while its Shell Terminal stays open.
+ * Keeping the current primary when no live successor exists preserves that Terminal's durable resume identity.
+ */
+export function chooseLivePrimaryAgentSuccessor(
+    terminals: TerminalRecord[],
+    session: Pick<SessionRecord, 'displayTitle' | 'primaryAgentTerminalId'>,
+    exitedTerminalId: string,
+): PrimaryAgentSuccession | undefined {
+    if (session.primaryAgentTerminalId !== exitedTerminalId) return undefined;
+    const nextAgent = terminals.find(
+        (candidate) =>
+            candidate.id !== exitedTerminalId &&
+            candidate.provider !== undefined &&
+            (candidate.lastAgentProcessState === 'starting' ||
+                candidate.lastAgentProcessState === 'running'),
+    );
+    if (!nextAgent) return undefined;
+    return {
+        primaryAgentTerminalId: nextAgent.id,
+        displayTitle: session.displayTitle,
+        lastActivityState: 'unknown',
+    };
+}
+
+/**
  * Removes attachment-only prefixes that Codex includes in a thread title but users cannot act on.
  */
 function agentDisplayTitle(title: string | undefined, fallback: string): string {
