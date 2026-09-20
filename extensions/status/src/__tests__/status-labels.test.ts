@@ -14,6 +14,7 @@ const STATES = [
     'failure',
     'cancelled',
     'pending',
+    'queued',
     'neutral',
     'unknown',
 ] as const satisfies readonly ProjectStatusState[];
@@ -48,8 +49,11 @@ describe('Project Status labels', () => {
         expect(projectStatusStateLabel('success')).toBe('passed');
         expect(projectStatusStateLabel('failure')).toBe('failed');
         expect(projectStatusStateLabel('cancelled')).toBe('canceled');
+        // `pending` is the state of a check that is executing, so it says so — the word "pending" would read as the
+        // queue it is specifically not in.
+        expect(projectStatusStateLabel('pending')).toBe('running');
+        expect(projectStatusStateLabel('queued')).toBe('queued');
         // The rest already read as plain English, so they pass through rather than being renamed for its own sake.
-        expect(projectStatusStateLabel('pending')).toBe('pending');
         expect(projectStatusStateLabel('neutral')).toBe('neutral');
         expect(projectStatusStateLabel('unknown')).toBe('unknown');
     });
@@ -74,7 +78,8 @@ describe('Project Status labels', () => {
     it('keeps a deployment on the shared words for every other state', () => {
         expect(deploymentStateLabel(deployment('success'))).toBe('passed');
         expect(deploymentStateLabel(deployment('failure'))).toBe('failed');
-        expect(deploymentStateLabel(deployment('pending'))).toBe('pending');
+        expect(deploymentStateLabel(deployment('pending'))).toBe('running');
+        expect(deploymentStateLabel(deployment('queued'))).toBe('queued');
     });
 
     it('gives a failed check and an unsupported remote different answers', () => {

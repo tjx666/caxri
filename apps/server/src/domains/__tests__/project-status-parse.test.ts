@@ -194,6 +194,75 @@ describe('parseGitHubPullRequest', () => {
         expect(result?.checks.find((check) => check.name === 'cancelled')?.state).toBe('cancelled');
     });
 
+    /**
+     * A queue of twenty checks and a run with twenty checks going are not the same news, and the panel draws them with
+     * different glyphs. The rollup keeps them apart too: `pending` only once something has actually started.
+     */
+    it('separates a check waiting for a runner from one that is executing', () => {
+        const result = parseGitHubPullRequest(
+            JSON.stringify({
+                number: 7,
+                title: 'PR',
+                url: 'https://github.com/a/b/pull/7',
+                statusCheckRollup: [
+                    { name: 'waiting', status: 'QUEUED', conclusion: null },
+                    { name: 'expected', state: 'EXPECTED' },
+                    { name: 'done', status: 'COMPLETED', conclusion: 'SUCCESS' },
+                ],
+            }),
+        ).pullRequest;
+
+        expect(result?.checks.find((check) => check.name === 'waiting')?.state).toBe('queued');
+        expect(result?.checks.find((check) => check.name === 'expected')?.state).toBe('queued');
+        expect(result?.state).toBe('queued');
+
+        const started = parseGitHubPullRequest(
+            JSON.stringify({
+                number: 7,
+                title: 'PR',
+                url: 'https://github.com/a/b/pull/7',
+                statusCheckRollup: [
+                    { name: 'waiting', status: 'QUEUED', conclusion: null },
+                    { name: 'running', status: 'IN_PROGRESS', conclusion: null },
+                ],
+            }),
+        ).pullRequest;
+
+        expect(started?.checks.find((check) => check.name === 'running')?.state).toBe('pending');
+        expect(started?.state).toBe('pending');
+    });
+
+    /**
+     * The reading order is what went wrong, then what is still moving, then what is settled. A state the order forgot
+     * sorts to `-1` and lands above the failures, so the panel's first row would be the one nothing has happened to.
+     */
+    it('lists every check state after the failures rather than above them', () => {
+        const result = parseGitHubPullRequest(
+            JSON.stringify({
+                number: 9,
+                title: 'PR',
+                url: 'https://github.com/a/b/pull/9',
+                statusCheckRollup: [
+                    { name: 'unrecognized', status: 'SOMETHING_NEW' },
+                    { name: 'passed', status: 'COMPLETED', conclusion: 'SUCCESS' },
+                    { name: 'cancelled', status: 'COMPLETED', conclusion: 'CANCELLED' },
+                    { name: 'queued', status: 'QUEUED' },
+                    { name: 'running', status: 'IN_PROGRESS' },
+                    { name: 'broken', status: 'COMPLETED', conclusion: 'FAILURE' },
+                ],
+            }),
+        ).pullRequest;
+
+        expect(result?.checks.map((check) => [check.name, check.state])).toEqual([
+            ['broken', 'failure'],
+            ['running', 'pending'],
+            ['queued', 'queued'],
+            ['cancelled', 'cancelled'],
+            ['passed', 'success'],
+            ['unrecognized', 'neutral'],
+        ]);
+    });
+
     it.each([
         ['MERGED', false, 'merged'],
         ['CLOSED', true, 'closed'],

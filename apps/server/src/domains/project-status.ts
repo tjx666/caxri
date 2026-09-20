@@ -4,6 +4,7 @@ import type {
     ProjectStatusError,
     ProjectStatusOverview,
     ProjectStatusRepository as ProjectStatusRepo,
+    ProjectStatusState,
     ProjectStatusSummary,
     ServerEvent,
 } from '@caxri/protocol';
@@ -53,6 +54,10 @@ const SUMMARY_CACHE_LIMIT = 128;
  */
 const SUMMARY_PENDING_CACHE_TTL_MS = 20_000;
 const SUMMARY_SETTLED_CACHE_TTL_MS = 120_000;
+/**
+ * The states that make a snapshot worth re-asking for on the short window.
+ */
+const IN_FLIGHT_STATES = new Set<ProjectStatusState>(['pending', 'queued']);
 /**
  * A failed refresh must back off _further_ than a successful one, never less. The previous 30s retried a rate-limited
  * `gh` twice as often as a healthy one, which is how a transient limit turned into a sustained one.
@@ -472,11 +477,17 @@ export class ProjectStatusService {
     private summaryCacheTtlMs(summary: ProjectStatusSummary, hasFailures: boolean): number {
         if (hasFailures) return this.options.failureCacheTtlMs ?? SUMMARY_FAILURE_CACHE_TTL_MS;
         if (this.options.cacheTtlMs !== undefined) return this.options.cacheTtlMs;
+        /*
+         * `queued` counts as in flight. A queued run is the state most likely to be stale a second later — it is
+         * waiting for a runner, and the transition to `pending` is the one thing the split between the two states
+         * exists to show. Holding it for the settled window would report "not started" for up to two minutes after it
+         * started, and for a repository reporting through commit statuses rather than check runs, for the whole run.
+         */
         const isPending = summary.repositories.some(
             (repo) =>
-                repo.pullRequest?.state === 'pending' ||
-                repo.deployments?.production?.state === 'pending' ||
-                repo.deployments?.preview?.state === 'pending',
+                IN_FLIGHT_STATES.has(repo.pullRequest?.state ?? 'unknown') ||
+                IN_FLIGHT_STATES.has(repo.deployments?.production?.state ?? 'unknown') ||
+                IN_FLIGHT_STATES.has(repo.deployments?.preview?.state ?? 'unknown'),
         );
         return isPending ? SUMMARY_PENDING_CACHE_TTL_MS : SUMMARY_SETTLED_CACHE_TTL_MS;
     }

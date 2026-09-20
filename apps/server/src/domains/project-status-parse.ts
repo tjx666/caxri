@@ -237,7 +237,15 @@ const FAILURE_RESULTS = new Set([
     'STARTUP_FAILURE',
     'ERROR',
 ]);
-const PENDING_RESULTS = new Set(['IN_PROGRESS', 'QUEUED', 'PENDING', 'EXPECTED']);
+/**
+ * Actually executing. GitHub reports this as a `status`, never as a `conclusion`.
+ */
+const RUNNING_RESULTS = new Set(['IN_PROGRESS']);
+/**
+ * Accepted but not started. `PENDING` and `EXPECTED` are the commit-status API's equivalents of a queued check run: a
+ * context that has been registered and has reported no result yet.
+ */
+const QUEUED_RESULTS = new Set(['QUEUED', 'WAITING', 'REQUESTED', 'PENDING', 'EXPECTED']);
 
 export function parseExternalJson<T>(value: string, schema: z.ZodType<T>, label: string): T {
     let parsed: unknown;
@@ -254,7 +262,8 @@ export function parseExternalJson<T>(value: string, schema: z.ZodType<T>, label:
 function checkState(check: GitHubCheck): ProjectStatusState {
     const status = (check.status ?? '').toUpperCase();
     const result = (check.conclusion ?? check.state ?? '').toUpperCase();
-    if (PENDING_RESULTS.has(status) || PENDING_RESULTS.has(result)) return 'pending';
+    if (RUNNING_RESULTS.has(status) || RUNNING_RESULTS.has(result)) return 'pending';
+    if (QUEUED_RESULTS.has(status) || QUEUED_RESULTS.has(result)) return 'queued';
     if (FAILURE_RESULTS.has(result)) return 'failure';
     if (result === 'CANCELLED') return 'cancelled';
     if (SUCCESS_RESULTS.has(result)) return 'success';
@@ -264,6 +273,9 @@ function checkState(check: GitHubCheck): ProjectStatusState {
 function aggregateChecks(checks: ProjectStatusCheck[]): ProjectStatusState {
     if (checks.some((check) => check.state === 'failure')) return 'failure';
     if (checks.length === 0 || checks.some((check) => check.state === 'pending')) return 'pending';
+    // Nothing is running yet, but the run is not over either. Rolled up as `queued` rather than `pending` so the
+    // summary can say a run has not started, which is the difference between waiting on a runner and waiting on CI.
+    if (checks.some((check) => check.state === 'queued')) return 'queued';
     /**
      * Cancellation is visible but non-blocking once another terminal check supplies the rollup outcome. Preserve it as
      * the parent state only when cancellation is the sole outcome, because that set did not prove any work passed.
@@ -289,7 +301,21 @@ function projectCheck(check: GitHubCheck): ProjectStatusCheck {
     };
 }
 
-const CHECK_ORDER: ProjectStatusState[] = ['failure', 'pending', 'cancelled', 'success', 'neutral'];
+/**
+ * Reading order for one pull request's checks: what went wrong first, then what is still moving, then what is settled.
+ * A state missing from this list sorts to `-1` and jumps ahead of the failures, so every member of
+ * `projectStatusStateSchema` has to appear here — including `unknown`, which is what an unrecognized provider result
+ * becomes.
+ */
+const CHECK_ORDER: ProjectStatusState[] = [
+    'failure',
+    'pending',
+    'queued',
+    'cancelled',
+    'success',
+    'neutral',
+    'unknown',
+];
 
 /**
  * Both PR surfaces use the same lifecycle projection; a closed draft is closed, not draft.

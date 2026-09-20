@@ -252,7 +252,19 @@ export interface ExtensionContext {
 }
 
 export type ProjectStatusState =
-    'success' | 'failure' | 'cancelled' | 'pending' | 'neutral' | 'unknown';
+    | 'success'
+    | 'failure'
+    | 'cancelled'
+    /**
+     * Executing right now.
+     */
+    | 'pending'
+    /**
+     * Accepted but not started — waiting for a runner.
+     */
+    | 'queued'
+    | 'neutral'
+    | 'unknown';
 
 export interface ProjectStatusCheck {
     name: string;
