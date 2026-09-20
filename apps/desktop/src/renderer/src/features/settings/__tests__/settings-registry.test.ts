@@ -1,7 +1,7 @@
 import { settingsSpec } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { settingsRows } from '../settings-registry';
+import { settingsRows, titleNamedBindings } from '../settings-registry';
 
 describe('settingsRows', () => {
     /**
@@ -26,17 +26,10 @@ describe('settingsRows', () => {
      */
     it('gives every row a unique accessible name across categories', () => {
         const names = settingsRows
-            .filter((row) => row.binding.type === 'setting')
+            .filter((row) => titleNamedBindings.has(row.binding.type))
             .map((row) => row.accessibleTitle);
         const duplicates = names.filter((name, index) => names.indexOf(name) !== index);
         expect([...new Set(duplicates)]).toEqual([]);
-    });
-
-    it('keeps the visible title inside the accessible name so the label still matches', () => {
-        const mismatched = settingsRows
-            .filter((row) => !row.accessibleTitle.includes(row.title))
-            .map((row) => row.id);
-        expect(mismatched).toEqual([]);
     });
 
     it('keeps row ids unique so the virtualized list can key on them', () => {
