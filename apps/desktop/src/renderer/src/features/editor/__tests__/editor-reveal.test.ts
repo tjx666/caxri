@@ -106,6 +106,27 @@ describe('Editor navigation', () => {
         expect(queued.focus).toHaveBeenCalledOnce();
     });
 
+    /**
+     * `openFileForSession` queues the location and then focuses the same model in the same tick, so both intents land
+     * under one key before Monaco's lazy import resolves. A Terminal `path:line` link that opened the file with the
+     * caret still on line 1 is what the losing order looks like.
+     */
+    it('keeps a queued location when focus is requested for the same unmounted model', () => {
+        queueEditorNavigation('/project/located.ts', { mode: 'caret', line: 32, column: 1 });
+        focusEditor('/project/located.ts');
+
+        const queued = editor();
+        mount('/project/located.ts', queued);
+        expect(queued.setSelection).toHaveBeenCalledWith({
+            startLineNumber: 32,
+            startColumn: 1,
+            endLineNumber: 32,
+            endColumn: 1,
+        });
+        expect(queued.revealLineInCenter).toHaveBeenCalledWith(32);
+        expect(queued.focus).toHaveBeenCalledOnce();
+    });
+
     it('focuses the exact pane when one model is mounted in multiple Editors', () => {
         const left = editor();
         const right = editor();
