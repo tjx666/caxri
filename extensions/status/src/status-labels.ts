@@ -13,8 +13,8 @@ type ProjectStatusPublication = NonNullable<ProjectStatusRepository['publication
  * Lifecycle wording, spelled out rather than title-cased from the enum. `delivered` and `accepted` differ by who acted
  * — the Agent finished, a person agreed — and that distinction is the whole reason a reviewer opens this row.
  *
- * Kept byte-identical to `STATUS_LABELS` in `apps/desktop/src/renderer/src/features/status-bar/acceptance-label.ts`,
- * together with {@link acceptanceVerdictLabels} and its counterpart there. The two cannot share a module — the
+ * Kept byte-identical to `STATUS_LABELS` in the Desktop status bar's `acceptance-label` module, together with
+ * {@link acceptanceVerdictLabels} and its counterpart there. The two cannot share a module — the
  * architecture boundary forbids Desktop importing `extension-api`, and `extension-api` imports nothing — so the copies
  * are the contract: change one and this row and the status bar chip name the same report two different things, with
  * nothing failing.
