@@ -23,6 +23,10 @@ export interface TerminalStateStore {
      * Persists a real PTY exit and returns the primary Agent Session whose activity advanced.
      */
     updateTerminalExitState(id: string, state: 'dead' | 'stopped'): string | undefined;
+    /**
+     * Persists a real Agent child-process exit and returns the Session whose live primary Agent changed.
+     */
+    updateAgentProcessExitState(id: string, state: 'dead' | 'stopped'): string | undefined;
     updateAgentProcessState(id: string, state: ProcessState): void;
     updateTerminalState(
         id: string,
