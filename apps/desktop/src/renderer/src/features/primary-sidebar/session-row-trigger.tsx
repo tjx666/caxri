@@ -75,15 +75,12 @@ export function SessionRowTrigger({
             tabIndex={renaming ? undefined : roving ? 0 : -1}
             onFocus={(event) => onFocusChange(event.currentTarget.matches(':focus-visible'))}
             onBlur={() => onFocusChange(false)}
-            // A Session row deliberately carries no double-click gesture. Selecting a Session _is_ opening it — there
-            // is no second surface to raise — so the first click has already done everything a second one could, and
-            // `openSession` returns early for a Session that is already selected. Rename, the one meaning the gesture
-            // has nowhere else in this product, moved to `Enter`, `F2`, and the row's context menu (issue #982).
             onClick={() => {
                 // Fire-and-forget: didSelectSession reports its own failures through a toast.
                 // eslint-disable-next-line no-void -- intentional floating-promise discard
                 if (!renaming && !selected) void didSelectSession(session.id);
             }}
+            onDoubleClick={onBeginRename}
             onKeyDown={(event) => {
                 if (!renaming) sessionOrder.keyDown(event, session, visibleSessions);
                 if (event.defaultPrevented) return;

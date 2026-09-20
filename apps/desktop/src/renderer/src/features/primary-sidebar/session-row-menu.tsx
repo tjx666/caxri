@@ -40,8 +40,7 @@ import {
  * to the Agent when that provider can accept one; greying the entry out here made the menu disagree with the row's own
  * Enter key, which always opened the input.
  *
- * This menu and that Enter key are rename's two entry points: the row's double-click now opens the Session instead,
- * because double-click means open everywhere else in this app and in the file managers it borrows from.
+ * This menu, the row's double-click, and Enter all open the same inline rename editor.
  */
 export function SessionRowMenu({
     children,

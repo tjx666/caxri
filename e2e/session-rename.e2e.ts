@@ -38,12 +38,7 @@ test('Session inline rename validates input and survives Renderer reload', async
         await createProjectSession(running.page);
         const sessionId = await selectedSessionId(running.page);
         const card = sessionCard(running.page, sessionId);
-        // Double-click opens a Session now (issue #993), the way Finder, VS Code, and this app's own tab strip do.
-        // Asserting it here is what keeps rename from quietly reclaiming the gesture a third time.
         await card.dblclick();
-        await expect(card.getByRole('textbox')).toHaveCount(0);
-        await card.focus();
-        await card.press('Enter');
         const input = card.getByRole('textbox', { name: 'Rename Untitled' });
         await expect(input).toBeFocused();
         expect(
