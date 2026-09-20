@@ -58,6 +58,9 @@ describe('openTerminalFileLink', () => {
             sessionId: 'session-1',
             launchIfNeeded: false,
             location: { mode: 'line', startLine: 12, endLine: 14 },
+            // Clicking a path in Terminal output is a request to go read that file, so the keyboard lands in the
+            // editor rather than on the tab button.
+            focusEditor: true,
         });
         expect(electronMock.dialog.showMessageBox).not.toHaveBeenCalled();
     });
