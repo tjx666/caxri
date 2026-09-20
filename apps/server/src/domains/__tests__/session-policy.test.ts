@@ -553,8 +553,12 @@ describe('decideAgentMetadataUpdate', () => {
         });
     });
 
-    // A manual title is a name the user gave the *Session*; the Terminal's own tab still follows its Agent conversation.
-    it('updates activity and Agent identity without overwriting a manual title', () => {
+    /**
+     * The primary Agent's tab is the Session's own face, so a name the user typed wins there too. Letting the tab
+     * follow the Agent's conversation name instead left the sidebar row and the tab showing two different names for one
+     * Session.
+     */
+    it('keeps the primary Agent tab on a manual Session title', () => {
         const decision = decideAgentMetadataUpdate(
             terminal({ id: 'codex-1', provider: 'codex', title: 'Codex' }),
             session({
@@ -575,9 +579,32 @@ describe('decideAgentMetadataUpdate', () => {
 
         expect(decision).toEqual({
             agentSessionId: 'agent-session-2',
-            terminalTitle: 'Agent replacement title',
+            terminalTitle: 'Manual name',
             sessionPatch: { displayTitle: 'Manual name', lastActivityState: 'waiting' },
         });
+    });
+
+    // A secondary Agent's tab is the only thing naming that conversation, so the Session's manual title is not its own.
+    it('leaves a secondary Agent tab on its own conversation name under a manual Session title', () => {
+        const decision = decideAgentMetadataUpdate(
+            terminal({ id: 'codex-2', provider: 'codex', title: 'Codex' }),
+            session({
+                displayTitle: 'Manual name',
+                lastActivityState: 'running',
+                primaryAgentTerminalId: 'codex-1',
+                titleMode: 'manual',
+            }),
+            {
+                provider: 'codex',
+                available: true,
+                observedAt: 0,
+                status: 'waiting',
+                sessionId: 'agent-session-3',
+                title: 'Agent replacement title',
+            },
+        );
+
+        expect(decision?.terminalTitle).toBe('Agent replacement title');
     });
 
     it('is a no-op when the snapshot changes nothing observable', () => {
