@@ -71,10 +71,11 @@ that activates it supplies that authorization. Honor a task-specific restriction
 user explicitly limits the current run.
 
 Queued or running CI, a busy shared runner, and ordinary check latency are waiting states, not
-reasons to end the turn or mark the issue `Blocked`. Keep the primary agent active with the CI
-watcher until it can inspect the result, repair failures, and complete the authorized merge. A
-background watcher or notification alone does not complete that responsibility. Status questions
-do not pause delivery or require the user to request continuation. Stop only for an explicit user
+reasons to end the turn or mark the issue `Blocked`. Keep the primary agent responsible for delivery
+while following the `pull-request` skill's harness-specific CI watcher protocol, including
+[Codex Watch Await](../../references/codex-watch-await.md). Delegating the wait does not delegate
+inspecting the result, repairing failures, or completing the authorized merge. Status questions do
+not pause delivery or require the user to request continuation. Stop only for an explicit user
 pause or a concrete decision, missing authority, or failed infrastructure that cannot be recovered
 within scope; ordinary queue length and elapsed time do not satisfy that exception.
 
