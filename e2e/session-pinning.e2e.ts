@@ -143,6 +143,50 @@ test('pinning lifts Sessions from several Projects into one group that survives 
     }
 });
 
+test('the rename command finds a pinned Session in the group that actually holds it', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-pinned-rename-e2e-'));
+    const root = join(directory, 'project');
+    await mkdir(root);
+    const running = await launchCaxri({
+        userDataDir: join(directory, 'profile'),
+        testRootPath: root,
+    });
+    try {
+        const { page } = running;
+        await createProjectSession(page);
+        const bootstrap = await pageRequest<{ sessions: Array<{ id: string }> }>(
+            page,
+            'app.bootstrap',
+        );
+        const sessionId = bootstrap.sessions[0].id;
+        await pageRequest(page, 'session.setPinned', { sessionId, pinned: true });
+        await pageRequest(page, 'session.select', { sessionId });
+
+        // Collapsed, so the row the rename editor replaces is not mounted when the command runs.
+        const heading = page.locator('[data-row-id="pinned-sessions"]');
+        await heading.click();
+        await expect.poll(() => pinnedOrder(page)).toEqual([]);
+
+        await page.keyboard.press('F2');
+
+        /*
+         * Pinning moves the Session out of its Project group, so the row the command has to reveal lives under Pinned
+         * and nowhere else. Expanding the Project instead left the editor attached to a row that does not exist: the
+         * command appeared to do nothing, and the phantom rename surfaced later as an unexplained editor.
+         */
+        const pinnedRow = page.locator(`[data-row-id="pinned-session:${sessionId}"]`);
+        await expect(pinnedRow).toBeVisible();
+        const input = pinnedRow.getByRole('textbox', { name: 'Rename Untitled' });
+        await expect(input).toBeFocused();
+        await input.fill('Pinned rename');
+        await input.press('Enter');
+        await expect(pinnedRow.locator('strong')).toHaveText('Pinned rename');
+    } finally {
+        await running.app.close();
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
 test('an over-full Pinned group closes with a reveal row instead of burying every Project', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-session-pinning-window-e2e-'));
     const root = join(directory, 'project');

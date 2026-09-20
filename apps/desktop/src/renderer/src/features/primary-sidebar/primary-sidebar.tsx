@@ -1,7 +1,7 @@
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
-import type { ProjectRecord } from '@caxri/protocol';
-import { defaultAppSettings } from '@caxri/protocol';
+import type { ProjectRecord, SessionRecord } from '@caxri/protocol';
+import { defaultAppSettings, isPinnedSession } from '@caxri/protocol';
 import { Plus } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
@@ -69,7 +69,6 @@ export function PrimarySidebar() {
         sessions,
     });
     const [animatedProjectIds, setAnimatedProjectIds] = useState<Set<string>>(() => new Set());
-    const sessionRename = useSessionRename(sessions, projectCollapse.expandProject);
     // Owns the cadence only; each Session row subscribes to its own slice of the snapshot this keeps fresh.
     useSessionPullRequestPoll();
     const orderedSessions = useMemo(
@@ -97,6 +96,24 @@ export function PrimarySidebar() {
         selectedSessionId,
         sessions,
     });
+
+    /**
+     * Where `session.rename` has to put its editor. A pinned Session is withheld from its Project group, so the Project
+     * row this used to target does not exist for one — expanding that Project would reveal nothing and the rename would
+     * silently no-op.
+     */
+    const revealSessionRow = useCallback(
+        (session: SessionRecord): string => {
+            if (isPinnedSession(session)) {
+                pinnedCollapse.expand();
+                return primarySidebarPinnedRowId(session.id);
+            }
+            projectCollapse.expandProject(session.projectId);
+            return session.id;
+        },
+        [pinnedCollapse, projectCollapse],
+    );
+    const sessionRename = useSessionRename(sessions, revealSessionRow);
 
     const isProjectExpanded = projectCollapse.isProjectExpanded;
 
