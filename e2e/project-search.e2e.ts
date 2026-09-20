@@ -224,6 +224,18 @@ test('Project search opens name results and reveals grouped content matches', as
             running.page.locator('.view-line').filter({ hasText: 'MagicNeedle' }),
         ).toBeVisible();
 
+        /*
+         * Opening the match moves the keyboard into the editor, and that focus lands a tick after the editor paints.
+         * Pressing the shortcut before it settles sends the keystroke into the gap, where nothing claims it — on a
+         * loaded pool that is the difference between a green run and an overlay that never opens.
+         */
+        await expect
+            .poll(() =>
+                running.page
+                    .locator('.monaco-editor')
+                    .evaluate((editor) => editor.contains(document.activeElement)),
+            )
+            .toBe(true);
         await running.page.keyboard.press('Meta+Shift+F');
         /*
          * Reopening returns to the last search rather than to an empty one, with the query selected so the next
