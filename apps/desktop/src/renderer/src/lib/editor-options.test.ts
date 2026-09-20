@@ -16,6 +16,14 @@ describe('resolveEditorOptions', () => {
         });
     });
 
+    /**
+     * Monaco's own default is `auto`, which only pairs the delete for a bracket the editor auto-inserted during this
+     * session. Every Monaco surface takes the same departure, so the assertion belongs to the shared base options.
+     */
+    it('deletes both halves of an empty pair whoever wrote it', () => {
+        expect(resolveEditorOptions(undefined)).toMatchObject({ autoClosingDelete: 'always' });
+    });
+
     it('omits fontFamily when the setting is unset so Monaco keeps its own default', () => {
         const options = resolveEditorOptions({
             ...defaultAppSettings,

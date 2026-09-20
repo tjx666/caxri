@@ -23,6 +23,16 @@ export function resolveEditorOptions(
     const fontFamily = cssFontFamilyEntry(settings['editor.fontFamily']);
     return {
         automaticLayout: true,
+        /**
+         * Deleting one half of an empty bracket or quote pair takes the other half with it, whoever wrote it.
+         *
+         * Monaco and VS Code both default to `auto`, which only does this for a pair the editor auto-inserted during
+         * this session (`cursorDeleteOperations.ts`: the pair must appear in `autoClosedCharacters`). That makes the
+         * behavior depend on invisible history — the same `()` deletes as a pair or as one character depending on
+         * whether the editor happened to type it — and the pair that is already in the file is exactly the one a user
+         * is editing. `always` still only fires on an adjacent empty pair, so `(foo)` is never touched.
+         */
+        autoClosingDelete: 'always',
         fontSize: 13,
         minimap: { enabled: false },
         scrollBeyondLastLine: false,
