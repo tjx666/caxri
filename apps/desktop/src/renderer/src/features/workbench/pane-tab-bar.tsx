@@ -686,6 +686,7 @@ export function PaneTabBar({
     isRootBar,
     pane,
     paneLabel,
+    spansWindowWidth,
 }: {
     /**
      * Whether the Workbench holds more than one tab. Every affordance a tab bar adds on top of the tabs themselves —
@@ -699,6 +700,11 @@ export function PaneTabBar({
     isRootBar: boolean;
     pane: PaneNode;
     paneLabel: string;
+    /**
+     * Whether this bar reaches the window's right edge. False for the leading pane of a side-by-side split, where the
+     * drag corner below would otherwise sit in the middle of the window rather than in it.
+     */
+    spansWindowWidth: boolean;
 }) {
     const isPrimarySidebarVisible = useChromeLayoutStore((state) => state.primarySidebarVisible);
     const isFullScreen = useIsFullScreen();
@@ -768,8 +774,11 @@ export function PaneTabBar({
                 whole titlebar and nothing in it would be draggable. The corner inherits the bar's drag region and
                 stays just wide enough to grab. It exists only for that state: `primary-sidebar-title` is a drag
                 region of its own, so while the sidebar is open the window already moves from there and reserving a
-                second strip would only wedge dead space beside "+" — iTerm2 ends its bar at the button too. */}
-            {isRootBar && !isPrimarySidebarVisible && (
+                second strip would only wedge dead space beside "+" — iTerm2 ends its bar at the button too. The same
+                goes for a bar that stops in the middle of the window: the leading pane of a side-by-side split has a
+                neighbour on its right, not the window corner, so reserving the strip there is the dead space this
+                exists to avoid rather than the grab handle it exists to provide. */}
+            {isRootBar && spansWindowWidth && !isPrimarySidebarVisible && (
                 <div aria-hidden="true" className="work-tabs-drag-handle h-11 w-8 flex-none" />
             )}
         </div>
