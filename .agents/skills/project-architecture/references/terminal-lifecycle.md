@@ -21,8 +21,9 @@ hook generation, socket path, and token before spawn. A managed Agent child over
 independently revocable hook generation. Its exit restores Shell observation for manual CLI relaunches while
 retiring its Agent Endpoint authority. Shell restart, exit, suspension, and close revoke the Shell context before
 retiring the child, so an old fallback cannot be reactivated. A new Terminal resolves the global default cwd
-(`~` supported) or falls back to its Project root before its durable record is inserted; restarts always
-reuse that record, and Files/Git authorization remains anchored to the Project root. Switching Sessions
+(`~` supported) or falls back to the Session's current Workbench Root before its durable record is inserted;
+restarts always reuse that record, and explicit file actions may request a cwd inside either the owning Project
+or the current Workbench Root. Switching roots never moves or restarts an existing Terminal. Switching Sessions
 detaches views but does not stop PTYs. Renderer output delivery is coalesced; per-Terminal queues have a
 byte ceiling and report a discontinuity when the Renderer cannot keep up. The Renderer discards that
 incomplete batch and requests a fresh authoritative screen attachment, coalescing further gaps during

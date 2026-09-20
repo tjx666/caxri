@@ -98,7 +98,7 @@ function createService(
         endpoints,
         launchSettings: () => ({ executable: '/fixture/codex', args: [] }),
         terminalDirectoryIdentity,
-        terminalWorkingDirectory: (projectRoot) => Promise.resolve(projectRoot),
+        terminalWorkingDirectory: ({ defaultRoot }) => Promise.resolve(defaultRoot),
         emit: vi.fn(),
     });
     services.push(service);
