@@ -390,19 +390,27 @@ const rows: SettingRowSource[] = [
 ];
 
 /**
+ * Bindings whose control takes its accessible name from the row title, and therefore need a category prefix when two
+ * rows share that title. Every other binding renders a dedicated editor that already names itself after the thing it
+ * edits (`Claude Code lifecycle hooks`), so prefixing it would rename a row that was never ambiguous. Keep this in step
+ * with the `row.accessibleTitle` uses in `setting-row.tsx`.
+ */
+export const titleNamedBindings = new Set<SettingRowBinding['type']>([
+    'delegation-depth',
+    'hardware-acceleration',
+    'remote-debugging',
+    'setting',
+]);
+
+/**
  * Display-order authority for the Settings page: rows grouped by category, flattened top to bottom. The table of
  * contents, the virtualized list, and search all derive from this array. Category and subcategory titles join each
  * row's haystack so "terminal" or "claude" matches the whole group.
  */
 export const settingsRows: SettingRowDescriptor[] = (() => {
-    /**
-     * Only generic scalar rows take their control's name from the row title; every other binding renders a dedicated
-     * editor that already names itself after the thing it edits (`Claude Code lifecycle hooks`), so counting those here
-     * would prefix a row that was never ambiguous.
-     */
     const titleCounts = new Map<string, number>();
     for (const row of rows)
-        if (row.binding.type === 'setting')
+        if (titleNamedBindings.has(row.binding.type))
             titleCounts.set(row.title, (titleCounts.get(row.title) ?? 0) + 1);
     return rows.map((row) => ({
         ...row,
