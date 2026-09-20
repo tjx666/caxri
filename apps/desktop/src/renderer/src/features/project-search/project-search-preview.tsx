@@ -1,10 +1,30 @@
+import { useMemo } from 'react';
+
 import type { FileSearchMatch } from '@caxri/protocol';
+
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 
 import { Spinner } from '../../components/ui/spinner';
 import { FileTypeIcon } from '../../icons/files/file-type-icon';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
+import type { SearchSnippetLine } from './project-search-snippet';
 import { searchSnippetLines } from './project-search-snippet';
+
+/**
+ * Matches the query field's debounce. Holding an arrow key sweeps the selection across results faster than a person can
+ * read one, and each distinct file costs a whole-file `files.read`; this makes a sweep pay for where it stops.
+ */
+const PREVIEW_SETTLE_MS = 150;
+
+/**
+ * A previewed file is read in full and only nine of its lines are ever shown, so the body is worth far less in the
+ * cache than it costs to hold. Short enough that stepping back over a handful of results still hits, short enough that
+ * walking a 500-result list does not pin 500 file bodies for the client default of five minutes.
+ */
+const PREVIEW_CACHE_MS = 30_000;
+
+const NO_LINES: SearchSnippetLine[] = [];
 
 function PreviewMessage({ children }: { children: React.ReactNode }) {
     return <div className="grid min-h-0 flex-1 place-items-center p-4 text-muted">{children}</div>;
@@ -25,29 +45,39 @@ export function ProjectSearchPreview({
     match: FileSearchMatch | undefined;
     sessionId: string;
 }) {
+    // Everything below renders from `previewed`, so a sweep keeps showing the last settled file instead of flashing a
+    // spinner per row it passes over.
+    const previewed = useDebouncedValue(match, PREVIEW_SETTLE_MS);
     const document = useCaxriQuery(
         'files.read',
-        { sessionId, path: match?.path ?? '' },
-        { enabled: match !== undefined },
+        { sessionId, path: previewed?.path ?? '' },
+        { enabled: previewed !== undefined, gcTime: PREVIEW_CACHE_MS },
+    );
+    // Splitting a file that may be `files.maxFileBytes` large is not a render-body cost: the dialog re-renders on every
+    // keystroke, and only nine of those lines survive the call.
+    const lines = useMemo(
+        () =>
+            document.data ? searchSnippetLines(document.data.content, previewed?.line) : NO_LINES,
+        [document.data, previewed?.line],
     );
     if (!match) return <PreviewMessage>Select a result to preview it.</PreviewMessage>;
-    if (document.isPending)
+    if (!previewed || document.isPending)
         return (
             <PreviewMessage>
                 <Spinner size={16} />
             </PreviewMessage>
         );
     if (document.isError) return <PreviewMessage>Unable to read this file.</PreviewMessage>;
-    const name = match.relativePath.split('/').at(-1) ?? match.relativePath;
+    const name = previewed.relativePath.split('/').at(-1) ?? previewed.relativePath;
     return (
         <div className="search-preview flex min-h-0 flex-1 flex-col">
             <div className="flex h-8 flex-none items-center gap-1.5 border-b border-border px-3 text-[11px]">
                 <FileTypeIcon entry={{ kind: 'file', name }} />
                 <span className="truncate text-foreground">{name}</span>
-                <span className="min-w-0 flex-1 truncate text-muted">{match.relativePath}</span>
+                <span className="min-w-0 flex-1 truncate text-muted">{previewed.relativePath}</span>
             </div>
             <div className="min-h-0 flex-1 overflow-auto py-2 font-mono text-[11px] leading-5">
-                {searchSnippetLines(document.data.content, match.line).map((line) => (
+                {lines.map((line) => (
                     <div
                         key={line.number}
                         className={cn(
