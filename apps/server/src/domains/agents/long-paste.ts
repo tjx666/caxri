@@ -142,7 +142,7 @@ export class LongPasteService {
             terminal.lastProcessState !== 'running' ||
             terminal.lastAgentProcessState !== 'running'
         )
-            throw new CaxriError('CONFLICT', 'Long paste summaries require a running Agent');
+            throw new CaxriError('CONFLICT', 'Saving a long paste requires a running Agent');
         const settings = this.settings();
         if (parameters.content.length <= settings['terminal.longPasteThreshold'])
             throw new CaxriError('CONFLICT', 'Pasted text is below the configured threshold');
