@@ -1,5 +1,5 @@
 import type { ReactNode, RefObject } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 
 import type { PaneNode, PaneTab, TerminalRecord } from '@caxri/protocol';
 import {
@@ -51,6 +51,7 @@ import {
 import { selectPaneTab } from './pane-actions';
 import { EDITOR_PATH_DRAG_TYPE, PANE_TAB_DRAG_TYPE } from './pane-drop-zone';
 import { PaneTabMenu } from './pane-tab-menu';
+import { useActiveTabReveal } from './pane-tab-reveal';
 import { useScrollEdges } from './tab-scroll-edges';
 import { usePaneTabDrag } from './use-pane-tab-drag';
 
@@ -533,6 +534,12 @@ function PaneTabScrollRail({
         <div role="none" className={cn('relative flex', className)}>
             <div
                 ref={scrollReference}
+                /**
+                 * Marks the element that actually scrolls, so `useActiveTabReveal` can measure the active tab against
+                 * its own rail: the tab's offset parent is the inner flex list, and either segment can be the one
+                 * holding it.
+                 */
+                data-tab-scroll-rail=""
                 className={cn('relative flex min-w-0 flex-1 overflow-x-auto', scrollClassName)}
             >
                 <div
@@ -717,16 +724,7 @@ export function PaneTabBar({
     const activeTab = pane.tabs.find((tab) => tab.id === pane.activeTabId) ?? pane.tabs.at(0);
     const activeTabId = activeTab?.id;
     const editorPath = activeEditorPath(activeTab);
-    /**
-     * `overflow-x-auto` has no built-in cue for "the active tab is off to the side," so selecting or creating a tab
-     * that lands outside the visible bar must scroll it into view itself. Queried from the whole tablist because either
-     * segment can overflow, and `inline: 'nearest'` scrolls whichever one actually holds the tab.
-     */
-    useEffect(() => {
-        listReference.current
-            ?.querySelector<HTMLElement>('[data-tab-active="true"]')
-            ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-    }, [activeTabId]);
+    useActiveTabReveal(listReference, activeTabId, isDropTarget);
     return (
         <div
             className={cn(
