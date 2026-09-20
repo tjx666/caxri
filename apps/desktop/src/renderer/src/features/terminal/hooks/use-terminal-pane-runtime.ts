@@ -378,6 +378,18 @@ export function useTerminalPaneRuntime({
         });
         const longPaste = longPasteRuntime.controller;
         xterm.attachCustomKeyEventHandler((event) => {
+            /**
+             * A modal owns the keyboard for as long as it is open — the same rule `workbench-root-prompt-keyboard.ts`
+             * and `sidebar-detail-card-dismissal.ts` already follow. Focus can still be sitting in this Terminal when
+             * one opens: Sonner's toaster restores focus to whatever held it before the toast was focused, so clicking
+             * a toast action that opens a confirmation hands focus straight back here. xterm's own `_keyDown` calls
+             * `stopPropagation()` for keys it claims, including `Escape`, and the dialog's dismissal listener sits on
+             * `document` in the bubble phase — so a swallowed `Escape` never reaches the dialog and it cannot be closed
+             * by keyboard at all. Returning `false` bails out before xterm touches the event, which keeps both halves
+             * out of the Terminal: nothing reaches the PTY, and nothing is stopped on its way to the modal. It also
+             * suppresses the `focus()` xterm performs on `keyup`, which would otherwise pull focus back again.
+             */
+            if (useDialogStore.getState().isModalOpen()) return false;
             const input = terminalKeyboardInput(
                 event,
                 latestReference.current.canAcceptAgentInput && !longPaste.isPending(),
