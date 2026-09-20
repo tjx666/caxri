@@ -587,9 +587,14 @@ export interface WorkbenchEventHandlers {
      */
     onCommand(command: CommandId, wasViaAccelerator: boolean): void;
     /**
-     * Applies an authenticated Server open request after Main redeemed its one-use target.
+     * Applies an authenticated Server open request after Main redeemed its one-use target. `options.focusEditor` is the
+     * opening caller's intent, forwarded unchanged from `desktop.openFile`.
      */
-    onDesktopOpen(sessionId: string, path?: string, location?: EditorNavigationTarget): void;
+    onDesktopOpen(
+        sessionId: string,
+        path?: string,
+        options?: { focusEditor?: boolean; location?: EditorNavigationTarget },
+    ): void;
 }
 
 /**
@@ -669,11 +674,10 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
                 handlers.onCommand(event.payload.command, event.payload.viaAccelerator === true);
                 return;
             case 'desktop.openRequested':
-                handlers.onDesktopOpen(
-                    event.payload.sessionId,
-                    event.payload.path,
-                    event.payload.location,
-                );
+                handlers.onDesktopOpen(event.payload.sessionId, event.payload.path, {
+                    ...(event.payload.location && { location: event.payload.location }),
+                    ...(event.payload.focusEditor && { focusEditor: true }),
+                });
                 return;
             case 'workbench.candidate':
                 showWorkbenchRootCandidate(event.payload);

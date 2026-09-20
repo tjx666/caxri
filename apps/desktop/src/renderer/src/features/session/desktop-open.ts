@@ -1,13 +1,22 @@
 import type { EditorNavigationTarget } from '@caxri/protocol';
 
 export interface DesktopOpenRequest {
+    /**
+     * The opening caller's intent, forwarded unchanged from `desktop.openFile`: a file picker or a Terminal path link
+     * wants the keyboard in the editor, a shell-issued `caxri open` does not.
+     */
+    focusEditor?: boolean;
     location?: EditorNavigationTarget;
     path?: string;
     sessionId: string;
 }
 
 export interface DesktopOpenQueueActions {
-    openFile(sessionId: string, path: string, location?: EditorNavigationTarget): Promise<unknown>;
+    openFile(
+        sessionId: string,
+        path: string,
+        options?: { focusEditor?: boolean; location?: EditorNavigationTarget },
+    ): Promise<unknown>;
     selectSession(sessionId: string): Promise<boolean>;
 }
 
@@ -24,7 +33,10 @@ export function createDesktopOpenQueue(actions: DesktopOpenQueueActions) {
             const operation = (async () => {
                 await tail;
                 if (!(await actions.selectSession(request.sessionId)) || !request.path) return;
-                await actions.openFile(request.sessionId, request.path, request.location);
+                await actions.openFile(request.sessionId, request.path, {
+                    ...(request.location && { location: request.location }),
+                    ...(request.focusEditor && { focusEditor: true }),
+                });
             })();
             /**
              * A rejected one-shot request must not prevent later Server targets from being handled.

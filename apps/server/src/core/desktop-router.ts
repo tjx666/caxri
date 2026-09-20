@@ -31,6 +31,7 @@ interface StoredTarget {
     sessionId?: string;
     projectRootId?: string;
     location?: EditorNavigationTarget;
+    focusEditor?: boolean;
 }
 
 interface DesktopRouterBridge {
@@ -135,6 +136,7 @@ export class ServerDesktopRouter {
             projectRootId?: string;
         },
         location?: EditorNavigationTarget,
+        shouldFocusEditor?: boolean,
     ): StoredTarget {
         this.pruneTargets();
         if (this.targets.size >= this.maximumTargets)
@@ -146,6 +148,7 @@ export class ServerDesktopRouter {
             id: randomUUID(),
             operation,
             ...(location && { location }),
+            ...(shouldFocusEditor && { focusEditor: shouldFocusEditor }),
         };
         this.targets.set(target.id, target);
         return target;
@@ -411,6 +414,7 @@ export class ServerDesktopRouter {
             sessionId?: string;
             expectedIdentity?: ExpectedIdentity;
             location?: EditorNavigationTarget;
+            focusEditor?: boolean;
         },
         signal?: AbortSignal,
         context?: WorkbenchRequestContext,
@@ -450,7 +454,13 @@ export class ServerDesktopRouter {
          * Reject a raw target in Server Core before a CLI open is allowed to launch Desktop.
          */
         const lease = await this.requireLease(parameters.launchIfNeeded);
-        const target = this.issueTarget(operation, lease.generation, resolved, parameters.location);
+        const target = this.issueTarget(
+            operation,
+            lease.generation,
+            resolved,
+            parameters.location,
+            parameters.focusEditor,
+        );
         const invoked: DesktopOperation =
             operation === 'openInEditor'
                 ? {
@@ -556,6 +566,7 @@ export class ServerDesktopRouter {
             sessionId: target.sessionId,
             path: current.path,
             ...(target.location && { location: target.location }),
+            ...(target.focusEditor && { focusEditor: target.focusEditor }),
         };
     }
 }
