@@ -18,7 +18,7 @@ import {
     updateStateSchema,
 } from '../domain/domain.js';
 import { editorNavigationTargetSchema } from '../domain/editor.js';
-import { lowCostSandboxFailureReasonSchema } from '../domain/terminal-long-paste.js';
+import { lowCostSandboxFailureReasonSchema } from '../domain/low-cost-generation.js';
 import {
     extensionIdSchema,
     extensionViewChangeSchema,

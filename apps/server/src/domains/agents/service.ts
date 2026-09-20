@@ -13,7 +13,7 @@ import { logEventCatalog } from '@caxri/system';
 import { SingleFlight } from '../single-flight';
 import type {
     AgentEnvironment,
-    AgentPasteSummaryGenerationContext,
+    AgentLowCostGenerationContext,
     AgentProbeCacheCounters,
     AgentProbeSnapshot,
     AgentSessionRenameContext,
@@ -37,7 +37,7 @@ function reliableAttentionKind(
  * version probing on top of a descriptor, so it is the unit that `AgentService` actually snapshots.
  */
 export interface AgentAdapter {
-    generateTitle?(context: AgentPasteSummaryGenerationContext): Promise<string>;
+    generateTitle?(context: AgentLowCostGenerationContext): Promise<string>;
     /**
      * Diagnostics only, kept off `snapshot()`'s result so cache accounting never travels with a probe answer to the
      * Renderer. `snapshot()` reads it after the probe resolves.
@@ -46,7 +46,6 @@ export interface AgentAdapter {
     provider: AgentProvider;
     renameSession(context: AgentSessionRenameContext): Promise<AgentSessionRenameResult>;
     snapshot(context: AgentSnapshotContext): Promise<AgentProbeSnapshot>;
-    summarizePaste?(context: AgentPasteSummaryGenerationContext): Promise<string>;
 }
 
 /**
@@ -86,41 +85,18 @@ function createCliAdapter(
     launchSettings: () => AgentLaunchSettings,
 ): AgentAdapter {
     const providerDescriptor = agentProviders[provider];
-    const pasteSummary = providerDescriptor.pasteSummary;
     return {
         provider,
         ...(providerDescriptor.probeCacheCounters && {
             probeCacheCounters: providerDescriptor.probeCacheCounters,
         }),
         ...(providerDescriptor.generateTitle && {
-            async generateTitle(context: AgentPasteSummaryGenerationContext): Promise<string> {
+            async generateTitle(context: AgentLowCostGenerationContext): Promise<string> {
                 const executable = await discoverExecutable(provider, launchSettings().executable);
                 const version = executable ? await readVersion(provider, executable) : undefined;
                 if (!executable || !version)
                     throw new CaxriError('UNAVAILABLE', 'Title generation is unavailable');
                 return providerDescriptor.generateTitle!({
-                    ...context,
-                    environment,
-                    executable,
-                    version,
-                });
-            },
-        }),
-        ...(pasteSummary && {
-            async summarizePaste(context: AgentPasteSummaryGenerationContext): Promise<string> {
-                const executable = await discoverExecutable(provider, launchSettings().executable);
-                if (!executable)
-                    throw new CaxriError(
-                        'UNAVAILABLE',
-                        `${agentProviderCatalog[provider].displayName} is not available`,
-                    );
-                const version = await readVersion(provider, executable);
-                if (!version)
-                    throw new CaxriError(
-                        'UNAVAILABLE',
-                        `${agentProviderCatalog[provider].displayName} version could not be verified`,
-                    );
-                return pasteSummary.summarize({
                     ...context,
                     environment,
                     executable,
@@ -227,7 +203,7 @@ export class AgentService {
 
     generateTitle(
         provider: AgentProvider,
-        context: AgentPasteSummaryGenerationContext,
+        context: AgentLowCostGenerationContext,
     ): Promise<string> {
         const adapter = this.adapters[provider];
         return adapter.generateTitle
@@ -279,19 +255,5 @@ export class AgentService {
         context: AgentSessionRenameContext,
     ): Promise<AgentSessionRenameResult> {
         return this.adapters[provider].renameSession(context);
-    }
-
-    summarizePaste(
-        provider: AgentProvider,
-        context: AgentPasteSummaryGenerationContext,
-    ): Promise<string> {
-        return this.adapters[provider].summarizePaste
-            ? this.adapters[provider].summarizePaste(context)
-            : Promise.reject(
-                  new CaxriError(
-                      'UNAVAILABLE',
-                      `${agentProviderCatalog[provider].displayName} paste summaries are unavailable`,
-                  ),
-              );
     }
 }

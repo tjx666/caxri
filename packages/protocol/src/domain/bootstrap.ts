@@ -13,7 +13,7 @@ import {
     terminalRecordSchema,
     themeTokensSchema,
 } from './domain.js';
-import { lowCostSandboxFailureReasonSchema } from './terminal-long-paste.js';
+import { lowCostSandboxFailureReasonSchema } from './low-cost-generation.js';
 
 /**
  * One automatic-naming suppression that is still in force.

@@ -287,22 +287,22 @@ describe('local Host transport regressions', () => {
         await expect(write).resolves.toMatchObject({ content: 'saved' });
     });
 
-    it('keeps unrelated Terminal control responsive while a long paste summary is pending', async () => {
+    it('keeps unrelated Terminal control responsive while a long paste is being saved', async () => {
         const lease = await profile();
-        const summaryRelease = Promise.withResolvers<void>();
-        const summaryStarted = Promise.withResolvers<void>();
+        const saveRelease = Promise.withResolvers<void>();
+        const saveStarted = Promise.withResolvers<void>();
         const healthStarted = Promise.withResolvers<void>();
         const host: CommandAdapter = {
             invoke: async (request) => {
                 if (request.method === 'terminal.prepareLongPaste') {
-                    summaryStarted.resolve();
-                    await summaryRelease.promise;
+                    saveStarted.resolve();
+                    await saveRelease.promise;
                     return {
                         agentLaunchId: 'launch-1',
                         characterCount: 1_025,
                         filePath: '/tmp/paste.txt',
                         lineCount: 1,
-                        status: 'unavailable',
+                        status: 'saved',
                     };
                 }
                 if (request.method === 'app.health') {
@@ -330,21 +330,21 @@ describe('local Host transport regressions', () => {
             return Promise.resolve();
         });
 
-        const summary = client.request('terminal.prepareLongPaste', {
+        const saving = client.request('terminal.prepareLongPaste', {
             terminalId: 'terminal-1',
             content: 'x'.repeat(1_025),
         });
-        await summaryStarted.promise;
+        await saveStarted.promise;
         const health = client.request('app.health', {});
         await healthStarted.promise;
         await expect(health).resolves.toMatchObject({ ready: true });
-        summaryRelease.resolve();
-        await expect(summary).resolves.toEqual({
+        saveRelease.resolve();
+        await expect(saving).resolves.toEqual({
             agentLaunchId: 'launch-1',
             characterCount: 1_025,
             filePath: '/tmp/paste.txt',
             lineCount: 1,
-            status: 'unavailable',
+            status: 'saved',
         });
     });
 

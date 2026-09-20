@@ -247,11 +247,16 @@ export const settingsSpec = [
         key: 'terminal.longPasteThreshold',
         title: 'Long paste threshold',
         description:
-            'Longer text pasted into a running Agent is saved locally and replaced with a low-cost summary and file path',
+            'Longer text pasted into a running Agent is saved to a local file and replaced with its path, so the Agent reads it instead of receiving it through the Terminal. Raise this to the maximum to always paste normally.',
         category: 'terminal',
-        keywords: ['clipboard', 'paste', 'summary', 'context', 'tokens'],
+        keywords: ['clipboard', 'paste', 'context', 'tokens'],
         min: 1,
-        max: 65_000,
+        /**
+         * The maximum is `MAX_LONG_PASTE_CHARACTERS`, the protocol's own paste ceiling, so raising the slider all the
+         * way is a real off switch: no paste can exceed it, and every paste reaches the Agent natively again. The value
+         * is inlined because importing it here would close an import cycle; `settings-spec.test.ts` keeps them equal.
+         */
+        max: 1_048_576,
         default: 2_048,
         display: { unit: 'characters', step: 256 },
     },

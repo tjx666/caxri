@@ -10,25 +10,29 @@ import type {
     TerminalLongPasteResult,
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
-import { AsyncSemaphore, waitForSharedOperation } from '@caxri/system';
+import { AsyncSemaphore } from '@caxri/system';
 
 import type { CaxriDatabase } from '../db';
-import { lowCostSandboxFailureReason } from './low-cost-sandbox';
-import {
-    agentPasteSummaryCharacterLimit,
-    countAgentPasteLines,
-    normalizeAgentPasteSummary,
-} from './paste-summary-generation';
-import type { AgentService } from './service';
 
 const LONG_PASTE_DIRECTORY_NAME = 'pastes';
 const LONG_PASTE_RETENTION_MS = 30 * 24 * 60 * 60 * 1_000;
 const LONG_PASTE_CLEANUP_INTERVAL_MS = 60 * 60 * 1_000;
 const MAX_LONG_PASTE_DIRECTORY_BYTES = 128 * 1024 * 1024;
 const MAX_LONG_PASTE_CONTENT_BYTES = 4 * 1024 * 1024;
-const LONG_PASTE_SUMMARY_TIMEOUT_MS = 12_000;
-const MAX_CONCURRENT_LONG_PASTE_SUMMARIES = 2;
 const PASTE_FILE_NAME = /^paste-\d{8}T\d{6}-[\da-f-]{36}\.txt$/u;
+
+/**
+ * Counts lines the way a text editor does, so the reference tells the Agent the same size the file will report.
+ */
+export function countAgentPasteLines(value: string): number {
+    if (value.length === 0) return 0;
+    let count = 1;
+    for (let index = 0; index < value.length; index += 1) {
+        if (value[index] === '\r' && value[index + 1] === '\n') index += 1;
+        if (value[index] === '\r' || value[index] === '\n') count += 1;
+    }
+    return count;
+}
 
 interface LongPasteFile {
     modifiedAt: number;
@@ -85,25 +89,22 @@ function pasteFileName(now: number, identifier: string): string {
 }
 
 /**
- * Owns the privacy boundary for long Terminal pastes: the original is persisted before any provider call, never enters
- * logs or SQLite, and survives provider failure as a local path the active Agent can read explicitly.
+ * Owns the privacy boundary for long Terminal pastes: the original is persisted locally, never enters logs or SQLite,
+ * and reaches the Agent as a path it can read explicitly instead of as text pushed through the PTY.
  */
 export class LongPasteService {
     private cleanupTimer?: NodeJS.Timeout;
     private isClosed = false;
     private readonly directory: string;
     private readonly mutations = new AsyncSemaphore(1);
-    private readonly summaries = new AsyncSemaphore(MAX_CONCURRENT_LONG_PASTE_SUMMARIES);
 
     constructor(
         userDataPath: string,
         private readonly database: CaxriDatabase,
-        private readonly agents: Pick<AgentService, 'summarizePaste'>,
         private readonly settings: () => AppSettings,
         private readonly agentLaunchId: (terminalId: string) => string | undefined,
         private readonly now: () => number = Date.now,
         private readonly identifier: () => string = randomUUID,
-        private readonly summaryTimeoutMs: number = LONG_PASTE_SUMMARY_TIMEOUT_MS,
         private readonly cleanupIntervalMs: number = LONG_PASTE_CLEANUP_INTERVAL_MS,
     ) {
         this.directory = join(userDataPath, LONG_PASTE_DIRECTORY_NAME);
@@ -111,7 +112,7 @@ export class LongPasteService {
 
     /**
      * Enforces retention even when no later paste arrives. Cleanup shares the file-mutation semaphore with writes so a
-     * long model call may settle concurrently without racing directory capacity accounting or deleting a new file.
+     * concurrent paste cannot race directory capacity accounting or have its new file deleted.
      */
     async initialize(): Promise<void> {
         await this.mutations.run(() => pruneLongPastes(this.directory, this.now(), 0));
@@ -142,10 +143,7 @@ export class LongPasteService {
             terminal.lastAgentProcessState !== 'running'
         )
             throw new CaxriError('CONFLICT', 'Long paste summaries require a running Agent');
-        const provider = terminal.provider ?? terminal.kind;
         const settings = this.settings();
-        if (!settings['agents.providers'][provider].pasteSummary.enabled)
-            throw new CaxriError('CONFLICT', 'Long paste summaries are disabled for this Agent');
         if (parameters.content.length <= settings['terminal.longPasteThreshold'])
             throw new CaxriError('CONFLICT', 'Pasted text is below the configured threshold');
         const contentBytes = Buffer.byteLength(parameters.content, 'utf8');
@@ -182,63 +180,6 @@ export class LongPasteService {
             throw new CaxriError('CANCELLED', 'Long paste preparation was cancelled');
         if (this.agentLaunchId(parameters.terminalId) !== initialAgentLaunchId)
             throw new CaxriError('CONFLICT', 'Managed Agent changed while saving the long paste');
-
-        const summaryAbort = new AbortController();
-        const relayAbort = (): void => summaryAbort.abort();
-        signal?.addEventListener('abort', relayAbort, { once: true });
-        if (signal?.aborted) summaryAbort.abort();
-        const summaryTimeout = setTimeout(() => summaryAbort.abort(), this.summaryTimeoutMs);
-        summaryTimeout.unref();
-        let result: TerminalLongPasteResult;
-        try {
-            const generation = this.summaries.run(() => {
-                if (summaryAbort.signal.aborted)
-                    throw new CaxriError('CANCELLED', 'Long paste summary was cancelled');
-                return this.agents.summarizePaste(provider, {
-                    cwd: terminal.cwd,
-                    prompt: parameters.content,
-                    signal: summaryAbort.signal,
-                });
-            });
-            const summary = normalizeAgentPasteSummary(
-                await waitForSharedOperation(
-                    generation,
-                    summaryAbort.signal,
-                    () => new CaxriError('CANCELLED', 'Long paste summary was cancelled'),
-                ),
-                agentPasteSummaryCharacterLimit(parameters.content),
-            );
-            result = summary
-                ? {
-                      agentLaunchId: initialAgentLaunchId,
-                      filePath,
-                      ...originalSize,
-                      status: 'summarized',
-                      summary,
-                  }
-                : {
-                      agentLaunchId: initialAgentLaunchId,
-                      filePath,
-                      ...originalSize,
-                      status: 'unavailable',
-                  };
-        } catch (error) {
-            result = {
-                agentLaunchId: initialAgentLaunchId,
-                filePath,
-                ...originalSize,
-                status: 'unavailable',
-                reason: lowCostSandboxFailureReason(error),
-            };
-        } finally {
-            clearTimeout(summaryTimeout);
-            signal?.removeEventListener('abort', relayAbort);
-        }
-        if (this.agentLaunchId(parameters.terminalId) !== initialAgentLaunchId)
-            throw new CaxriError(
-                'CONFLICT',
-                'Managed Agent changed while summarizing the long paste',
-            );
-        return result;
+        return { agentLaunchId: initialAgentLaunchId, filePath, ...originalSize, status: 'saved' };
     }
 }

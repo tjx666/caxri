@@ -123,7 +123,6 @@ interface TerminalPaneRuntimeOptions {
     gpuAcceleration: TerminalGpuAcceleration;
     githubRepositories: TerminalReferenceContext['githubRepositories'];
     imagePasteInput?: string;
-    longPasteEnabled: boolean;
     longPasteThreshold: number;
     osc52ClipboardWrite: boolean;
     processState: ProcessState;
@@ -154,7 +153,6 @@ export function useTerminalPaneRuntime({
     gpuAcceleration,
     githubRepositories,
     imagePasteInput,
-    longPasteEnabled,
     longPasteThreshold,
     osc52ClipboardWrite,
     processState,
@@ -192,7 +190,6 @@ export function useTerminalPaneRuntime({
         githubRepositories,
         imagePasteInput,
         isAgent: canAcceptAgentInput,
-        longPasteEnabled,
         longPastePending,
         longPasteThreshold,
         osc52ClipboardWrite,

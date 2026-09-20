@@ -5,22 +5,20 @@ import { commandPolicy } from '../transport/method-spec.js';
 import { identifierSchema, MAX_TERMINAL_INPUT_LENGTH, pathSchema } from './domain.js';
 
 export const MAX_LONG_PASTE_CHARACTERS = 1_048_576;
-export const MAX_LONG_PASTE_SUMMARY_CHARACTERS = 4_096;
-
-/**
- * Why an Agent launch cannot name its own Session. Both values describe the Project sandbox boundary the provider was
- * given, never the provider's error text, so they are safe to persist and replay.
- */
-export const lowCostSandboxFailureReasonSchema = z.enum([
-    'sandboxBoundaryConflict',
-    'sandboxPathUnavailable',
-]);
 
 export const terminalLongPasteParametersSchema = z.object({
     terminalId: identifierSchema,
     content: z.string().min(1).max(MAX_LONG_PASTE_CHARACTERS),
 });
 
+/**
+ * Long pastes are saved, never summarized.
+ *
+ * Caxri used to spend a low-cost model call on every long paste before the text reached the Agent, which held Terminal
+ * input for as long as that call took and produced nothing when it timed out. The Agent is better placed to decide
+ * whether a summary is worth paying for — it can read the file, grep it, or delegate to a small-model subagent — so the
+ * Server's job ends at putting the original somewhere readable and saying where it is.
+ */
 export const terminalLongPasteResultSchema = z.discriminatedUnion('status', [
     /**
      * Shell-promoted Agents retain native paste without acquiring managed process control.
@@ -35,20 +33,7 @@ export const terminalLongPasteResultSchema = z.discriminatedUnion('status', [
             .int()
             .min(1)
             .max(MAX_LONG_PASTE_CHARACTERS + 1),
-        status: z.literal('summarized'),
-        summary: z.string().min(1).max(MAX_LONG_PASTE_SUMMARY_CHARACTERS),
-    }),
-    z.object({
-        agentLaunchId: identifierSchema,
-        characterCount: z.number().int().min(1).max(MAX_LONG_PASTE_CHARACTERS),
-        filePath: pathSchema,
-        lineCount: z
-            .number()
-            .int()
-            .min(1)
-            .max(MAX_LONG_PASTE_CHARACTERS + 1),
-        status: z.literal('unavailable'),
-        reason: lowCostSandboxFailureReasonSchema.optional(),
+        status: z.literal('saved'),
     }),
 ]);
 
