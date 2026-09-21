@@ -1,10 +1,20 @@
 import type { ExtensionBuiltinIconId, ViewIcon } from '@caxri/protocol';
 import type { LucideIcon } from 'lucide-react';
-import { Activity, Files, FlaskConical, GitBranch, Info, Package, ScrollText } from 'lucide-react';
+import {
+    Activity,
+    Files,
+    FlaskConical,
+    GitBranch,
+    Inbox,
+    Info,
+    Package,
+    ScrollText,
+} from 'lucide-react';
 
 const builtinIcons = {
     'files': Files,
     'git-branch': GitBranch,
+    'inbox': Inbox,
     'info': Info,
     'scroll-text': ScrollText,
 } as const;

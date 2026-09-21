@@ -2,6 +2,8 @@ import { sortedCopy } from '@caxri/utils';
 
 import type { DefaultKeybindingChange } from '../configuration/config-files.js';
 import {
+    activityCoreCommandDefinitions,
+    activityCoreKeybindings,
     filesCoreCommandDefinitions,
     filesCoreKeybindings,
 } from '../registry/core-contributions.js';
@@ -164,6 +166,13 @@ export const commandDefinitions: CommandDefinition[] = [
         title: 'Switch to Recently Used Session',
         category: 'Session',
         description: 'Switch between active Sessions in recently used order',
+    },
+    {
+        id: 'session.focusNextAttention',
+        title: 'Go to Next Session Needing Attention',
+        category: 'Session',
+        description: 'Select the next Session with an event you have not opened yet',
+        keywords: ['attention', 'unread', 'waiting', 'inbox'],
     },
     {
         id: 'session.navigateBack',
@@ -395,6 +404,7 @@ export const commandDefinitions: CommandDefinition[] = [
         keywords: ['root', 'worktree'],
     },
     ...filesCoreCommandDefinitions,
+    ...activityCoreCommandDefinitions,
     /*
      * Declared here rather than in the Files contribution, and deliberately without `execution: 'viewCatalog'`: Search
      * Files opens a centered overlay that belongs to no view container. Leaving it catalog-owned would route it through
@@ -672,6 +682,7 @@ export const defaultKeybindings: Keybinding[] = [
     ...filesCoreKeybindings,
     { key: 'cmd+2', command: 'secondarySidebar.showGit' },
     { key: 'cmd+3', command: 'secondarySidebar.showStatus' },
+    ...activityCoreKeybindings,
     { key: 'cmd+shift+1', command: 'panel.showLogs' },
     { key: 'cmd+shift+2', command: 'panel.showInfo' },
     { key: 'cmd+[', command: 'primarySidebar.toggle' },
@@ -782,4 +793,5 @@ export const defaultKeybindingChanges = [
         type: 'add',
         binding: { key: 'cmd+0', command: 'primarySidebar.focus' },
     },
+    ...activityCoreKeybindings.map((binding) => ({ type: 'add' as const, binding })),
 ] satisfies readonly DefaultKeybindingChange[];

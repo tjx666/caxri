@@ -79,12 +79,50 @@ const filesCoreCommands = [
     })),
 ] satisfies readonly ContributedCommandDescriptor[];
 
+export const activityCoreCommandDefinitions = [
+    {
+        id: 'secondarySidebar.showActivity',
+        title: 'Show Activity',
+        category: 'Secondary Side Bar',
+        description: 'Show every Project’s Agent Sessions grouped by what needs attention',
+        allowInEditable: true,
+        execution: 'viewCatalog',
+    },
+] as const satisfies readonly WorkbenchCoreCommandDefinition[];
+
+/**
+ * `cmd+4` continues the Secondary Side Bar's `cmd+<number>` run after Files, Git, and Status.
+ *
+ * `cmd+shift+n` ("next Session needing attention") stays in this set even though its command belongs to no view
+ * container — the same arrangement the Files contribution uses for `cmd+shift+f`. The obvious choice, the shifted form
+ * of `session.switchMru`'s Command+Backquote, is unusable: on a US macOS layout Shift turns Backquote's printable value
+ * into a tilde, so the chord never matches the stored one, and `resolveKeydownBinding`'s unshifted fallback then hands
+ * that exact stroke to `session.switchMru` for reverse cycling.
+ */
+export const activityCoreKeybindings = [
+    { key: 'cmd+4', command: 'secondarySidebar.showActivity' },
+    { key: 'cmd+shift+n', command: 'session.focusNextAttention' },
+] as const satisfies readonly Keybinding[];
+
+const activityCoreCommands = activityCoreCommandDefinitions.map(({ id, title }) => ({
+    id,
+    title,
+    source: { kind: 'core' as const },
+    lifecycle: 'core' as const,
+    allowInEditable: true,
+})) satisfies readonly ContributedCommandDescriptor[];
+
 /**
  * Workbench Core contributions use the same catalog descriptors as extensions while remaining outside discovery,
  * activation, generation, and crash lifecycle. Consumers route by descriptor source and action role, never by the Files
  * product id.
+ *
+ * Annotated rather than `as const satisfies` because consumers flatten it: with a literal tuple of two structurally
+ * different entries, `flatMap(({ views }) => views)` infers a union of tuples that TypeScript will not widen back into
+ * one array, so `apps/server/src/core/extensions/catalog.ts` fails to compile. Nothing needs the literal precision here
+ * — every consumer reads these as plain descriptor arrays.
  */
-export const workbenchCoreContributions = [
+export const workbenchCoreContributions: readonly WorkbenchCoreContribution[] = [
     {
         id: 'workbench.files',
         order: 100,
@@ -110,4 +148,39 @@ export const workbenchCoreContributions = [
         commands: filesCoreCommands,
         keybindings: filesCoreKeybindings,
     },
-] as const satisfies readonly WorkbenchCoreContribution[];
+    {
+        /**
+         * Past every bundled extension's container (Git 200, Fixture 300, Status 400) so Activity is the last tab in
+         * the Secondary Side Bar and `cmd+4` opens the fourth one. A Workbench Core container wins an `order` tie
+         * against an extension, so sharing Git's 200 would have put Activity second while its shortcut still said
+         * fourth.
+         */
+        id: 'workbench.activity',
+        order: 500,
+        container: {
+            id: 'caxri.activity',
+            location: 'secondarySidebar',
+            source: { kind: 'core' },
+            title: 'Activity',
+            icon: { kind: 'builtin', id: 'inbox' },
+            commandId: 'secondarySidebar.showActivity',
+            lifecycle: 'core',
+        },
+        views: [
+            {
+                id: 'caxri.activity.threads',
+                containerId: 'caxri.activity',
+                source: { kind: 'core' },
+                title: 'Activity',
+                /**
+                 * A Renderer component rather than a controlled view: every Session, Project, and Terminal record this
+                 * view groups is already in the Renderer's bootstrap store, so a Server-side provider would only
+                 * re-serialize state the client holds.
+                 */
+                viewKind: { kind: 'builtin-react', component: 'activity' },
+            },
+        ],
+        commands: activityCoreCommands,
+        keybindings: activityCoreKeybindings,
+    },
+];

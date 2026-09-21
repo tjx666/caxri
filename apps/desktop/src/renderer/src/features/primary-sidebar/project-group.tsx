@@ -11,6 +11,7 @@ import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
 import { CreateSessionMenu, EmptyProjectSessionMenu } from '../session/create-session-menu';
+import { sessionAgentTerminal } from '../session/session-agent-terminal';
 import { ActiveSessionRow } from './active-session-row';
 import type { SessionOrderController } from './hooks/use-session-order';
 import {
@@ -24,17 +25,6 @@ import type { ProjectDropTarget } from './project-order';
 import { hasProjectDragType } from './project-order';
 import { ProjectRowMenu } from './project-row-menu';
 import { hasWorktreeSession } from './project-worktree-slot';
-
-function sessionTerminal(
-    session: SessionRecord,
-    terminals: TerminalRecord[],
-): TerminalRecord | undefined {
-    const sessionTerminals = terminals.filter((item) => item.sessionId === session.id);
-    return (
-        sessionTerminals.find((item) => item.id === session.primaryAgentTerminalId) ??
-        sessionTerminals[0]
-    );
-}
 
 interface ProjectGroupProperties {
     sessionOrder: SessionOrderController;
@@ -295,7 +285,7 @@ export function ProjectGroup({
                                 roving={session.id === rovingRowId}
                                 selected={session.id === selectedSessionId}
                                 session={session}
-                                terminal={sessionTerminal(session, terminals)}
+                                terminal={sessionAgentTerminal(session, terminals)}
                                 terminals={terminals}
                                 worktreeProject={worktreeProjects?.[session.id]}
                             />

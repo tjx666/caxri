@@ -14,6 +14,7 @@ import { cn } from '../../lib/utilities';
 import { useProjects, useSessions, useTerminals } from '../../stores/selectors';
 import { ProjectIcon } from '../primary-sidebar/project-icon';
 import { SessionStatusIndicator } from '../primary-sidebar/session-status-indicator';
+import { sessionAgentTerminal } from './session-agent-terminal';
 import { commitMruSession } from './session-commands';
 import { resolveSessionMruView, useSessionMruSwitcherStore } from './session-mru-switcher-state';
 
@@ -241,11 +242,7 @@ function SessionMruSwitcherPanel() {
                             project={projects.find((item) => item.id === session.projectId)}
                             selected={index === selectedIndex}
                             session={session}
-                            terminal={
-                                terminals.find(
-                                    (item) => item.id === session.primaryAgentTerminalId,
-                                ) ?? terminals.find((item) => item.sessionId === session.id)
-                            }
+                            terminal={sessionAgentTerminal(session, terminals)}
                         />
                     ))}
                 </div>
