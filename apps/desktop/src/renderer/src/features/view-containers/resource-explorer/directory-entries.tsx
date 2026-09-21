@@ -28,6 +28,7 @@ import { FileTreeItemMenu } from './file-tree-item-menu';
 import type { EditRequest, FocusTarget } from './file-tree-item-types';
 import { fileTreeLeafIndent, fileTreeRowStyle } from './file-tree-row-style';
 import {
+    activeResourceExplorerScope,
     clearStaleScopeFocusPath,
     setScopeSelectedPath,
     useHasScopeSelection,
@@ -45,6 +46,9 @@ export { type EditRequest, type FocusTarget };
  * Expansion, selection, focus requests, and file-operation blocking are not props: every row subscribes to its own
  * boolean in `resource-explorer-scope-store` / `useFileOperationStore`, so toggling one folder or selecting one file
  * re-renders only the rows whose state actually changed.
+ *
+ * The Session identity behind those booleans is not a prop either, for the same reason one level up — it lives in the
+ * scope store, so switching Session re-renders only the rows whose own state differs in the new scope.
  */
 export interface TreeProperties {
     depth?: number;
@@ -52,11 +56,6 @@ export interface TreeProperties {
     editing?: EditRequest;
     projectId: string;
     projectRoot: string;
-    /**
-     * `sessionId:workbenchProjectId`; keys the per-Session tree state.
-     */
-    scopeId: string;
-    sessionId: string;
     requestFocus: (target: FocusTarget) => void;
     setEditing: (editing?: EditRequest) => void;
 }
@@ -158,13 +157,11 @@ function InlineFileName({
 }
 
 export function DirectoryEntries({
-    sessionId,
     directory,
     depth = 0,
     editing,
     projectId,
     projectRoot,
-    scopeId,
     requestFocus,
     setEditing,
 }: TreeProperties) {
@@ -203,9 +200,11 @@ export function DirectoryEntries({
                         requestFocus(editing.returnFocus);
                     }}
                     onSubmit={async (name) => {
+                        const scope = activeResourceExplorerScope();
+                        if (!scope) return;
                         const created = await createItem(
                             client,
-                            sessionId,
+                            scope.sessionId,
                             directory,
                             name,
                             editing.itemKind,
@@ -215,7 +214,7 @@ export function DirectoryEntries({
                             requestFocus(editing.returnFocus);
                             return;
                         }
-                        setScopeSelectedPath(scopeId, created.path);
+                        setScopeSelectedPath(scope.scopeId, created.path);
                         setEditing(undefined);
                         requestFocus({ kind: 'path', path: created.path });
                     }}
@@ -230,8 +229,6 @@ export function DirectoryEntries({
                     index={index}
                     projectId={projectId}
                     projectRoot={projectRoot}
-                    scopeId={scopeId}
-                    sessionId={sessionId}
                     requestFocus={requestFocus}
                     setEditing={setEditing}
                 />
@@ -310,23 +307,21 @@ function FileTreeRowContent({
 function FileTreeItem({
     entry,
     index,
-    sessionId,
     depth = 0,
     editing,
     projectId,
     projectRoot,
-    scopeId,
     requestFocus,
     setEditing,
 }: Omit<TreeProperties, 'directory'> & { entry: FileEntry; index: number }) {
     const client = useResourceExplorerClient();
     const decoration = useGitDecoration(entry.path);
     const childRepo = useGitChildRepo(entry.path);
-    const expanded = useIsPathExpanded(scopeId, entry.path);
-    const selected = useIsPathSelected(scopeId, entry.path);
-    const hasSelection = useHasScopeSelection(scopeId);
-    const isFocusRequested = useIsPathFocusRequested(scopeId, entry.path);
-    const revealRevision = usePathRevealRevision(scopeId, entry.path);
+    const expanded = useIsPathExpanded(entry.path);
+    const selected = useIsPathSelected(entry.path);
+    const hasSelection = useHasScopeSelection();
+    const isFocusRequested = useIsPathFocusRequested(entry.path);
+    const revealRevision = usePathRevealRevision(entry.path);
     const {
         activateEntry,
         clipboard,
@@ -363,8 +358,6 @@ function FileTreeItem({
         isSelected: selected,
         projectId,
         revealRevision,
-        scopeId,
-        sessionId,
         setEditing,
     });
 
@@ -379,13 +372,15 @@ function FileTreeItem({
                     requestFocus({ kind: 'path', path: entry.path });
                 }}
                 onSubmit={async (name) => {
-                    const moved = await renameFile(client, sessionId, entry.path, name);
+                    const scope = activeResourceExplorerScope();
+                    if (!scope) return;
+                    const moved = await renameFile(client, scope.sessionId, entry.path, name);
                     if (!moved) {
                         setEditing(undefined);
                         requestFocus({ kind: 'path', path: entry.path });
                         return;
                     }
-                    setScopeSelectedPath(scopeId, moved.path);
+                    setScopeSelectedPath(scope.scopeId, moved.path);
                     setEditing(undefined);
                     requestFocus({ kind: 'path', path: moved.path });
                 }}
@@ -431,8 +426,14 @@ function FileTreeItem({
                 )
             }
             onDoubleClick={() => discard(activateEntry())}
-            onFocus={() => clearStaleScopeFocusPath(scopeId, entry.path)}
-            onContextMenu={() => setScopeSelectedPath(scopeId, entry.path)}
+            onFocus={() => {
+                const scope = activeResourceExplorerScope();
+                if (scope) clearStaleScopeFocusPath(scope.scopeId, entry.path);
+            }}
+            onContextMenu={() => {
+                const scope = activeResourceExplorerScope();
+                if (scope) setScopeSelectedPath(scope.scopeId, entry.path);
+            }}
             onCopy={(event) => {
                 event.preventDefault();
                 rememberFile(projectId, entry.path, 'copy');
@@ -515,8 +516,6 @@ function FileTreeItem({
                     editing={editing}
                     projectId={projectId}
                     projectRoot={projectRoot}
-                    scopeId={scopeId}
-                    sessionId={sessionId}
                     requestFocus={requestFocus}
                     setEditing={setEditing}
                 />
