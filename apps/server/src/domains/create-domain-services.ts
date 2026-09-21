@@ -23,6 +23,7 @@ import type { DomainDependencies, DomainHandlers, DomainServices } from './domai
 import { createIntrospectionServices } from './introspection';
 import { createOrderingHandlers } from './ordering-handlers';
 import { ProjectStatusService } from './project-status';
+import { VercelDeploymentStore } from './project-status-vercel-store';
 import { createRootServices } from './root-services';
 import { createServiceHandlers, mainOwned } from './service-handlers';
 import { SessionSelectionQueue } from './session-selection';
@@ -205,11 +206,13 @@ export async function createDomainServices(
         watchHub,
     });
     suspensionState.service = terminalSuspension;
+    const vercel = new VercelDeploymentStore(externalStatus.run);
     const projectStatus = new ProjectStatusService(git, logger, externalStatus.run, {
         emit: send,
         github: externalStatus.github,
         sessionContext: (sessionId) => sessionContext.readSession(sessionId),
         settings: () => configuration.getSettings().value,
+        vercel,
     });
     workbenchRoots.setRootChangedHandler((sessionId) => {
         /**
@@ -731,6 +734,7 @@ export async function createDomainServices(
             projectStatus,
             transcripts,
             userDataPath,
+            vercel,
         }),
     };
     observeSelectedSession(selectedSessionId());

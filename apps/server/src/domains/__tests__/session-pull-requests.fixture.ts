@@ -108,6 +108,11 @@ export async function harness(options: {
     settings?: () => AppSettings;
     summary?: (sessionId: string) => Promise<GitSummary>;
     onSessionRead?: (sessionId: string) => void;
+    /**
+     * Answers the `vc` calls behind the delivery badge. Omitted, every one of them fails, which is what a machine with
+     * no Vercel CLI looks like and what every test that is not about deployments wants.
+     */
+    vc?: (arguments_: readonly string[]) => Promise<string>;
 }): Promise<Harness> {
     const home = await temporaryDirectory('caxri-session-pr-home-');
     const cwd = '/project';
@@ -127,6 +132,7 @@ export async function harness(options: {
     const runner = vi.fn<ExternalStatusRunner>((command, arguments_) => {
         if (command === 'git') return Promise.resolve('git@github.com:example/example.git\n');
         if (command === 'gh' && options.gh) return options.gh(arguments_);
+        if (command === 'vc' && options.vc) return options.vc(arguments_);
         return Promise.reject(new ExternalStatusCliError('gh', 'other', 'no pull requests found'));
     });
     const structuredLogger = await testLogger();

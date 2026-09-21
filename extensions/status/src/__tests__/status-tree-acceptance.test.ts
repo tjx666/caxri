@@ -46,7 +46,7 @@ describe('Status extension acceptance rows', () => {
         expect(report.item.label).toBe('Recover a stalled diff');
         // Neither the tally nor the round is carried by the glyph, so the row is the only place they can be stated.
         expect(report.item.description).toBe('4/12 · round 1');
-        expect(iconId(report)).toBe('circle-x');
+        expect(iconId(report)).toBe('shield-x');
         const tooltip = report.item.tooltip as TreeItemRichTooltip;
         expect(tooltip.badge).toEqual({ label: 'Repairing', tone: 'danger' });
         expect(tooltip.rows?.slice(0, 3)).toEqual([
@@ -63,7 +63,7 @@ describe('Status extension acceptance rows', () => {
 
         expect(report.item.label).toBe('Acceptance report');
         expect(report.item.description).toBeUndefined();
-        expect(iconId(report)).toBe('circle-dot');
+        expect(iconId(report)).toBe('shield');
         expect(report.item.command?.arguments?.[0]).toBe(URL);
     });
 
@@ -79,6 +79,25 @@ describe('Status extension acceptance rows', () => {
         });
 
         expect(report.item.description).toBe('12/12 · latest of 3');
-        expect(iconId(report)).toBe('circle-check');
+        expect(iconId(report)).toBe('shield-check');
+    });
+
+    /**
+     * A verification round can stay in flight for an hour, so the row states it with a static glyph. The spinner the
+     * shared state vocabulary gives `pending` is reserved for a CI check that is actually executing, and spending it
+     * here both animated an hour-long wait and left the row indistinguishable from the checks above it.
+     */
+    it('draws a verification still in flight as a static acceptance glyph, never the spinner', () => {
+        const report = acceptanceRow({
+            id: ID,
+            state: 'pending',
+            status: 'verifying',
+            passedChecks: 1,
+            totalChecks: 1,
+            round: 2,
+        });
+
+        expect(iconId(report)).toBe('shield-ellipsis');
+        expect(report.item.description).toBe('1/1 · round 2');
     });
 });
