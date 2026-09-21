@@ -1,5 +1,11 @@
 import type { CommandDefinition, Keybinding } from '@caxri/protocol';
-import { commandDefinitions, defaultKeybindings, formatShortcut } from '@caxri/protocol';
+import {
+    commandDefinitions,
+    defaultKeybindings,
+    formatShortcut,
+    MAX_SHORTCUT_CHORDS,
+    splitShortcutChords,
+} from '@caxri/protocol';
 
 import { applyFormEdit } from './config-edit';
 
@@ -20,15 +26,6 @@ const catalogById = new Map<string, CommandDefinition>(
 const defaultByCommand = new Map<string, string>(
     defaultKeybindings.map((binding) => [binding.command, binding.key]),
 );
-
-const modifierKeyNames = new Set(['Alt', 'Control', 'Meta', 'Shift']);
-
-/**
- * A lone modifier key press only arms further recording; it never forms a shortcut by itself.
- */
-export function isModifierKey(key: string): boolean {
-    return modifierKeyNames.has(key);
-}
 
 /**
  * `Tab`/`Shift+Tab` must keep moving focus even while the shortcut recorder is active, so the recorder never captures
@@ -114,8 +111,8 @@ export function appendKeybindingSource(
 }
 
 /**
- * In-progress shortcut capture for one row: armed but not yet holding a captured chord, or holding the last-captured
- * (but not yet committed) chord.
+ * In-progress shortcut capture for one row: armed but not yet holding a captured keybinding, or holding the
+ * last-captured (but not yet committed) one.
  */
 export interface RecordingState {
     pending?: string;
@@ -123,8 +120,8 @@ export interface RecordingState {
 }
 
 /**
- * Outcome of a recording state transition: the next state to render, and the chord to persist when the transition is a
- * commit.
+ * Outcome of a recording state transition: the next state to render, and the keybinding to persist when the transition
+ * is a commit.
  */
 export interface RecordingResolution {
     next: RecordingState | undefined;
@@ -132,18 +129,29 @@ export interface RecordingResolution {
 }
 
 /**
- * Arms recording for a row with no chord captured yet.
+ * Arms recording for a row with nothing captured yet.
  */
 export function startRecording(rowId: string): RecordingState {
     return { rowId };
 }
 
 /**
- * Records the latest captured chord; a further key press overwrites it, matching how a user expects to be able to retry
- * a shortcut before committing it.
+ * Appends the captured chord, VS Code style: a second chord extends the capture into a sequence (`⌘K ⌘S`) instead of
+ * replacing the first. Because appending means a mistyped first chord can no longer be fixed by simply pressing the
+ * right one, {@link clearRecordingKey} is the explicit way to start over.
  */
-export function captureRecordingKey(state: RecordingState, key: string): RecordingState {
-    return { ...state, pending: key };
+export function captureRecordingKey(state: RecordingState, chord: string): RecordingState {
+    const captured = state.pending ? splitShortcutChords(state.pending) : [];
+    const next = captured.length >= MAX_SHORTCUT_CHORDS ? [chord] : [...captured, chord];
+    return { ...state, pending: next.join(' ') };
+}
+
+/**
+ * Discards what has been captured so far while staying armed, so a mistyped chord can be retyped without leaving and
+ * re-entering recording.
+ */
+export function clearRecordingKey(state: RecordingState): RecordingState {
+    return { rowId: state.rowId };
 }
 
 /**

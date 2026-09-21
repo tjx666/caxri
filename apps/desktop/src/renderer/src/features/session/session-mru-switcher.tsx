@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 
 import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
-import { formatShortcutParts } from '@caxri/protocol';
+import { formatShortcutChords } from '@caxri/protocol';
 
 import { useRelativeTime } from '@/hooks/use-relative-time';
 
@@ -20,7 +20,7 @@ import { resolveSessionMruView, useSessionMruSwitcherStore } from './session-mru
 
 /**
  * Chord names for the modifiers the user is physically holding, so the release hint renders through the shared
- * `formatShortcutParts` symbol table instead of a second private mapping.
+ * `formatShortcutChords` symbol table instead of a second private mapping.
  */
 const HELD_MODIFIER_CHORD_NAMES: Record<'Alt' | 'Control' | 'Meta' | 'Shift', string> = {
     Alt: 'alt',
@@ -137,7 +137,7 @@ function SessionMruHint({
     heldModifiers: SessionMruShortcutInvocation['heldModifiers'];
 }) {
     const shortcut = useCommandShortcut('session.switchMru');
-    const releaseParts = formatShortcutParts(
+    const [releaseParts = []] = formatShortcutChords(
         heldModifiers.map((modifier) => HELD_MODIFIER_CHORD_NAMES[modifier]).join('+'),
     );
     return (

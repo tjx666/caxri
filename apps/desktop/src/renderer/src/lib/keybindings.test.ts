@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
     buildShortcutMap,
     isKeybindingRecordingEventTarget,
+    isModifierKey,
     keyboardEventShortcut,
     resolveShortcutBinding,
 } from './keybindings';
@@ -124,6 +125,17 @@ describe('buildShortcutMap', () => {
         expect(map.size).toBe(1);
     });
 
+    it('keys a two-chord binding by its whole normalized sequence', () => {
+        const map = buildShortcutMap([
+            { key: 'Cmd+K  Cmd+S', command: 'settings.openKeybindings' },
+        ]);
+
+        expect(resolveShortcutBinding(map, 'cmd+k cmd+s', { terminalFocus: false })?.command).toBe(
+            'settings.openKeybindings',
+        );
+        expect(resolveShortcutBinding(map, 'cmd+k', { terminalFocus: false })).toBeUndefined();
+    });
+
     it('matches a chord recorded from an Option keystroke', () => {
         const map = buildShortcutMap([{ key: 'alt+p', command: 'pathBrowser.open' }]);
         const chord = keyboardEventShortcut(keyEvent({ key: 'π', code: 'KeyP', altKey: true }));
@@ -150,6 +162,16 @@ describe('buildShortcutMap', () => {
                 terminalFocus: false,
             }),
         ).toBeUndefined();
+    });
+});
+
+describe('isModifierKey', () => {
+    it('identifies lone modifier presses, which never open or complete a chord', () => {
+        for (const key of ['Alt', 'Control', 'Meta', 'Shift']) {
+            expect(isModifierKey(key)).toBe(true);
+        }
+        expect(isModifierKey('Tab')).toBe(false);
+        expect(isModifierKey('a')).toBe(false);
     });
 });
 

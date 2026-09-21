@@ -9,8 +9,10 @@ import {
 } from './screencast';
 
 const keybindings: Keybinding[] = [
-    { key: 'cmd+k', command: 'terminal.clear' },
+    { key: 'cmd+shift+k', command: 'terminal.clear' },
     { key: 'cmd+n', command: 'project.create' },
+    { key: 'cmd+s', command: 'editor.save' },
+    { key: 'cmd+k cmd+s', command: 'settings.openKeybindings' },
 ];
 
 function keyboardInput(
@@ -31,12 +33,31 @@ function keyboardInput(
 describe('describeScreencastKey', () => {
     it('labels an executable Caxri shortcut with its normalized chord and command title', () => {
         expect(
-            describeScreencastKey(keyboardInput('k', { metaKey: true }), keybindings, {
+            describeScreencastKey(
+                keyboardInput('k', { metaKey: true, shiftKey: true }),
+                keybindings,
+                {
+                    commandAllowsEditable: () => true,
+                    editable: false,
+                    terminalFocus: false,
+                },
+            ),
+        ).toEqual({ commandTitle: 'Clear Terminal', shortcut: 'cmd+shift+k' });
+    });
+
+    /**
+     * Screencast looks bindings up a second time, so without the chord dispatch armed it captions the continuation of
+     * `Cmd+K Cmd+S` with the unrelated single-chord `Cmd+S` command — announcing "Save" while the app opened Settings.
+     */
+    it('captions a chord continuation with the sequence that actually ran', () => {
+        expect(
+            describeScreencastKey(keyboardInput('s', { metaKey: true }), keybindings, {
                 commandAllowsEditable: () => true,
                 editable: false,
+                leadingChord: 'cmd+k',
                 terminalFocus: false,
             }),
-        ).toEqual({ commandTitle: 'Clear Terminal', shortcut: 'cmd+k' });
+        ).toEqual({ commandTitle: 'Open Keyboard Shortcuts', shortcut: 'cmd+k cmd+s' });
     });
 
     it('never exposes printable input or IME composition', () => {

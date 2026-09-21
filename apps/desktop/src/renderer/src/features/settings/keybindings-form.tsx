@@ -2,23 +2,28 @@ import type { KeyboardEvent } from 'react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import type { Keybinding } from '@caxri/protocol';
-import { commandDefinitions, findKeybindingConflicts, normalizeShortcut } from '@caxri/protocol';
+import {
+    commandDefinitions,
+    findKeybindingConflicts,
+    formatShortcut,
+    normalizeShortcut,
+} from '@caxri/protocol';
 import { AlertTriangle, Pencil, RotateCcw, Search, Trash2, X } from 'lucide-react';
 
 import { ShortcutBadge } from '../../components/shortcut-badge';
 import { Button } from '../../components/ui/button';
 import { Input, InputGroup } from '../../components/ui/input';
 import { Tooltip } from '../../components/ui/tooltip';
-import { keyboardEventShortcut } from '../../lib/keybindings';
+import { isModifierKey, keyboardEventShortcut } from '../../lib/keybindings';
 import type { KeybindingRow, RecordingState } from './keybinding-editor';
 import {
     buildKeybindingRows,
     captureRecordingKey,
+    clearRecordingKey,
     commitOnBlur,
     commitOnEnter,
     filterKeybindingRows,
     isFocusNavigationKey,
-    isModifierKey,
     startRecording,
 } from './keybinding-editor';
 
@@ -112,10 +117,24 @@ export function KeybindingsForm({
         }
         if (event.key === 'Enter') {
             const resolution = commitOnEnter(recording);
-            if (!resolution) return; // no chord captured yet: stay in recording mode
+            if (!resolution) return; // nothing captured yet: stay in recording mode
             if (resolution.commit) commitPending(row, resolution.commit);
             setRecording(resolution.next);
             restoreFocus(row.command);
+            return;
+        }
+        /**
+         * Capture appends chords, so an unmodified Backspace is the way to discard a mistyped one and retype it. A
+         * modified Backspace stays recordable, which is what `Cmd+Backspace`-style bindings need.
+         */
+        if (
+            event.key === 'Backspace' &&
+            !event.altKey &&
+            !event.ctrlKey &&
+            !event.metaKey &&
+            !event.shiftKey
+        ) {
+            setRecording(clearRecordingKey(recording));
             return;
         }
         if (isModifierKey(event.key)) return;
@@ -214,14 +233,29 @@ export function KeybindingsForm({
                                         className="mt-1 flex items-center gap-1 text-[10px] text-danger"
                                     >
                                         <AlertTriangle aria-hidden="true" size={11} />
-                                        Conflicts with{' '}
-                                        {conflict.commands
-                                            .flatMap((command) =>
-                                                command === row.command
-                                                    ? []
-                                                    : [titleByCommand.get(command) ?? command],
-                                            )
-                                            .join(', ')}
+                                        {conflict.reason === 'chordPrefix' ? (
+                                            // Not "conflicts with": nothing else has to be bound for this
+                                            // to be dead. The chord opens a sequence, so dispatch waits for a
+                                            // second key instead of ever running this command.
+                                            <>
+                                                Never fires: {formatShortcut(conflict.key)} starts a
+                                                chord sequence
+                                            </>
+                                        ) : (
+                                            <>
+                                                Conflicts with{' '}
+                                                {conflict.commands
+                                                    .flatMap((command) =>
+                                                        command === row.command
+                                                            ? []
+                                                            : [
+                                                                  titleByCommand.get(command) ??
+                                                                      command,
+                                                              ],
+                                                    )
+                                                    .join(', ')}
+                                            </>
+                                        )}
                                     </p>
                                 )}
                             </div>
@@ -247,8 +281,11 @@ export function KeybindingsForm({
                                                 shortcut={recording.pending}
                                                 keyClassName="border-accent-foreground/40 bg-transparent text-accent-foreground"
                                             />
+                                            {/* Capture appends a second chord into a sequence, so clearing needs
+                                                its own key and its own hint — otherwise a mistyped first chord looks
+                                                unrecoverable without leaving recording. */}
                                             <span className="text-[10px] text-accent-foreground/80">
-                                                Enter to save · Esc to cancel
+                                                Enter save · ⌫ clear · Esc cancel
                                             </span>
                                         </span>
                                     ) : (
