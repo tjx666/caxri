@@ -154,7 +154,9 @@ describe('ConfigurationService', () => {
                 { key: 'CMD+T', command: 'terminal.new' },
                 { key: 'cmd+t', command: 'session.create' },
             ]),
-        ).toEqual([{ key: 'cmd+t', commands: ['terminal.new', 'session.create'] }]);
+        ).toEqual([
+            { key: 'cmd+t', commands: ['terminal.new', 'session.create'], reason: 'duplicate' },
+        ]);
     });
 
     it('preserves contextual Terminal sequence arguments and rejects an invalid sequence binding', async () => {

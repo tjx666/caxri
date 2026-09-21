@@ -7,7 +7,7 @@ import { execFileAsync } from '@caxri/system';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri } from './support/helpers.ts';
 
-test('editor folding chords and Find controls remain available', async () => {
+test('editor folding chords, app chords, and Find controls remain available', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-editor-find-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -41,6 +41,24 @@ test('editor folding chords and Find controls remain available', async () => {
         await editor.click({ position: { x: 120, y: 24 } });
         await running.page.keyboard.press('Meta+j');
         await expect(panel).not.toBeVisible();
+
+        /**
+         * Caxri and Monaco run independent keybinding resolvers, so ownership of a `Cmd+K` sequence is decided once, at
+         * its leading chord: typed into the editor the whole sequence is Monaco's and the app command must stay inert,
+         * while the same sequence typed anywhere else runs. Both halves are asserted here because only the pair proves
+         * the split — either one alone passes with the app simply never binding the sequence.
+         */
+        const settingsDialog = running.page.getByRole('dialog');
+        await running.page.keyboard.press('Meta+k');
+        await running.page.keyboard.press('Meta+s');
+        await expect(settingsDialog).toHaveCount(0);
+        await running.page.getByRole('treeitem', { name: 'searchable.ts', exact: true }).click();
+        await running.page.keyboard.press('Meta+k');
+        await running.page.keyboard.press('Meta+s');
+        await expect(settingsDialog.getByLabel('Search keyboard shortcuts')).toBeVisible();
+        await running.page.keyboard.press('Escape');
+        await expect(settingsDialog).toHaveCount(0);
+        await editor.click({ position: { x: 120, y: 24 } });
 
         /**
          * CDP key dispatch alone does not prove native macOS menu accelerators released these keys.

@@ -77,6 +77,45 @@ describe('application menu', () => {
         expect(item?.accelerator).toBeUndefined();
     });
 
+    /**
+     * A native accelerator fires from the keystroke itself, so registering one on a chord that opens a sequence would
+     * consume `Cmd+K` before the Renderer's chord state machine could arm — the whole `Cmd+K …` family would stop
+     * working the moment any command claimed the bare opener.
+     */
+    it('leaves a chord that opens a sequence to the Renderer instead of registering an accelerator', () => {
+        const template = buildAppMenuTemplate({
+            keybindings: [
+                { command: 'terminal.new', key: 'cmd+k' },
+                { command: 'settings.openKeybindings', key: 'cmd+k cmd+s' },
+            ],
+            dispatchCommand: vi.fn(),
+            openProcessExplorer: vi.fn(),
+        });
+        const item = submenu(template, 'Terminal').find(
+            (candidate) => candidate.id === 'command.terminal.new',
+        );
+
+        expect(item?.accelerator).toBeUndefined();
+    });
+
+    /**
+     * Electron accelerators are one key combination, so a sequence has no accelerator form. The menu still has to tell
+     * the user which keys run the command, which is what the label hint is for.
+     */
+    it('advertises a sequence as a label hint because it has no accelerator form', () => {
+        const template = buildAppMenuTemplate({
+            keybindings: [{ command: 'terminal.new', key: 'cmd+k t' }],
+            dispatchCommand: vi.fn(),
+            openProcessExplorer: vi.fn(),
+        });
+        const item = submenu(template, 'Terminal').find(
+            (candidate) => candidate.id === 'command.terminal.new',
+        );
+
+        expect(item?.label).toBe('New Terminal [⌘K T]');
+        expect(item?.accelerator).toBeUndefined();
+    });
+
     it.each(['terminal.clear', 'terminal.find'] as const)(
         'leaves %s shortcuts to the focused Renderer surface',
         (command) => {

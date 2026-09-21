@@ -41,19 +41,34 @@ export function keyboardEventShortcut(
 }
 
 /**
- * Normalized chord -> bindings in source order, built once per keybinding change instead of scanning the whole table on
- * every keystroke. Keeping every declaration lets a contextual binding fall through to the next declaration when its
- * `when` clause is inactive while preserving the existing first-match-wins rule.
+ * Normalized keybinding -> bindings in source order, built once per keybinding change instead of scanning the whole
+ * table on every keystroke. Keeping every declaration lets a contextual binding fall through to the next declaration
+ * when its `when` clause is inactive while preserving the existing first-match-wins rule.
+ *
+ * A two-chord binding is stored under its whole normalized key (`cmd+k cmd+s`), which no single keystroke can produce.
+ * Dispatch reaches it by joining the pending chord to the current one; `buildChordLeadingChords` supplies the set that
+ * tells dispatch a keystroke opens a sequence.
  */
 export function buildShortcutMap(keybindings: readonly Keybinding[]): Map<string, Keybinding[]> {
     const map = new Map<string, Keybinding[]>();
     for (const binding of keybindings) {
-        const chord = normalizeShortcut(binding.key);
-        const entries = map.get(chord);
+        const shortcut = normalizeShortcut(binding.key);
+        const entries = map.get(shortcut);
         if (entries) entries.push(binding);
-        else map.set(chord, [binding]);
+        else map.set(shortcut, [binding]);
     }
     return map;
+}
+
+const MODIFIER_KEY_NAMES = new Set(['Alt', 'Control', 'Meta', 'Shift']);
+
+/**
+ * A lone modifier press is never a shortcut: it only arms the recorder, and — more load-bearing — it must not count as
+ * the second chord of a pending sequence. Typing `Cmd+K Cmd+S` by releasing and re-pressing Command emits a bare `Meta`
+ * keydown in between, which would otherwise cancel the chord before the real second chord arrives.
+ */
+export function isModifierKey(key: string): boolean {
+    return MODIFIER_KEY_NAMES.has(key);
 }
 
 export interface KeybindingContext {

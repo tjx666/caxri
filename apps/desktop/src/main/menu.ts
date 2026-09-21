@@ -1,5 +1,11 @@
 import type { CommandDefinition, CommandId, Keybinding, NativeMenuId } from '@caxri/protocol';
-import { formatShortcut, getNativeMenuCommandGroups, normalizeShortcut } from '@caxri/protocol';
+import {
+    buildChordLeadingChords,
+    formatShortcut,
+    getNativeMenuCommandGroups,
+    normalizeShortcut,
+    shortcutLeadingChord,
+} from '@caxri/protocol';
 import type { BaseWindow, KeyboardEvent, MenuItem, MenuItemConstructorOptions } from 'electron';
 
 export interface AppMenuOptions {
@@ -57,7 +63,18 @@ function commandAccelerator(
     );
     if (candidateIndex === -1) return;
     const candidate = keybindings[candidateIndex];
+    /**
+     * Electron accelerators are one key combination; a two-chord keybinding has no accelerator form. Leave it to the
+     * Renderer, which owns the chord state machine, and let {@link commandLabel} advertise it as a label hint.
+     */
+    if (shortcutLeadingChord(candidate.key)) return;
     const candidateChord = normalizeShortcut(candidate.key);
+    /**
+     * A native accelerator on a chord that opens a sequence would fire this command from the keystroke that was meant
+     * to start `Cmd+K …`, and Electron consumes it before the Renderer's chord state machine ever sees it. Leave the
+     * chord to the Renderer; `findKeybindingConflicts` surfaces the shadowed binding in Settings.
+     */
+    if (buildChordLeadingChords(keybindings).has(candidateChord)) return;
     const earlierContextualBindingOwnsChord = keybindings.some(
         (binding, index) =>
             index < candidateIndex &&
@@ -77,9 +94,10 @@ function commandAccelerator(
  * @see https://github.com/electron/electron/pull/18985
  */
 function commandLabel(definition: CommandDefinition, keybindings: readonly Keybinding[]): string {
-    if (!isRendererOwnedShortcut(definition.id)) return definition.title;
     const binding = keybindings.find((candidate) => candidate.command === definition.id);
     if (!binding) return definition.title;
+    if (!isRendererOwnedShortcut(definition.id) && !shortcutLeadingChord(binding.key))
+        return definition.title;
     const shortcut = formatShortcut(binding.key);
     return shortcut ? `${definition.title} [${shortcut}]` : definition.title;
 }
@@ -107,9 +125,9 @@ export function buildAppMenuTemplate({
         /**
          * Native Edit > Copy owns `Cmd+C` so Monaco and inputs keep standard copy semantics. Giving the contextual
          * Terminal command the same native accelerator makes Electron dispatch it before the focused Renderer surface
-         * can decline it; xterm handles the standard copy event instead. Clear and Find likewise leave `Cmd+K` chord
-         * prefixes and `Cmd+F` to Monaco outside a Terminal. Other command-backed menu items retain the shared
-         * contextual-chord precedence enforced by `commandAccelerator`.
+         * can decline it; xterm handles the standard copy event instead. Clear and Find likewise leave `Cmd+Shift+K`
+         * and `Cmd+F` to the focused surface. Other command-backed menu items retain the shared contextual-chord
+         * precedence enforced by `commandAccelerator`.
          */
         accelerator: isRendererOwnedShortcut(definition.id)
             ? undefined

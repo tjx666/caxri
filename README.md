@@ -104,6 +104,7 @@ architecture contracts live in the owning `.agents/skills/` entries. Bundle budg
 | [docs/grok-build.md](docs/grok-build.md)                                               | Grok Build launch, identity, lifecycle, and capability limits |
 | [docs/activity-view.md](docs/activity-view.md)                                         | Cross-Project queue of Sessions waiting on you                |
 | [docs/notifications.md](docs/notifications.md)                                         | Notification history and reminder preferences                 |
+| [docs/keybindings.md](docs/keybindings.md)                                             | Binding format, `Cmd+K` chord sequences, Monaco ownership     |
 | [docs/file-preview.md](docs/file-preview.md)                                           | Markdown and SVG preview tabs, and adding a format            |
 | [docs/bundle-size.md](docs/bundle-size.md)                                             | Bundle baseline and the CI budget gate                        |
 | [RELEASING.md](RELEASING.md)                                                           | Release workflow for the unsigned DMG                         |
