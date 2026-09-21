@@ -2,7 +2,7 @@
 
 import { spawn } from 'node:child_process';
 import { appendFile, mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises';
-import { isAbsolute, relative, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import process from 'node:process';
 
 import {
@@ -153,9 +153,12 @@ export function mergeCensusReceipts(
     return merged;
 }
 
-function projectRelativeSpec(spec: string): string {
-    const file = spec.replace(/(?::\d+)+$/u, '');
-    return isAbsolute(file) ? relative(projectRoot, file) : file;
+/**
+ * Reduces a dispatched spec or a receipt spec path to the identity the two are compared on. The reporter already writes
+ * repository-relative paths, so the only difference left is the `:line` suffix a dispatched census spec carries.
+ */
+function specIdentity(spec: string): string {
+    return spec.replace(/(?::\d+)+$/u, '');
 }
 
 /**
@@ -177,10 +180,10 @@ export function resolvePoolOutcome(
     const abortedInvocations: E2EAbortedInvocation[] = invocations.flatMap((invocation, index) =>
         exitCodes[index] === 0 ? [] : [{ exitCode: exitCodes[index], specs: invocation.specs }],
     );
-    const covered = new Set(receipt.specs.map(({ path }) => projectRelativeSpec(path)));
+    const covered = new Set(receipt.specs.map(({ path }) => specIdentity(path)));
     const missingSpecs = invocations
         .flatMap(({ specs }) => specs)
-        .map((spec) => projectRelativeSpec(spec))
+        .map((spec) => specIdentity(spec))
         .filter((spec) => !covered.has(spec));
     if (abortedInvocations.length === 0 && missingSpecs.length === 0) {
         return { receipt, result: receipt.status === 'passed' ? 0 : 1 };
@@ -238,10 +241,8 @@ async function runPool(
     const unknownTests = receipt.tests.filter(({ verdict }) => verdict === 'unknown').entries();
     for (const [index, test] of unknownTests) {
         const censusPath = `test-results/receipts/${pool}-census-${index}.json`;
-        const file = test.location.replace(/:\d+:\d+$/u, '');
-        const location = isAbsolute(file) ? relative(projectRoot, file) : file;
         const line = /:(\d+):\d+$/u.exec(test.location)?.[1];
-        const censusInvocation = { specs: [`${location}:${line ?? '1'}`] };
+        const censusInvocation = { specs: [`${specIdentity(test.location)}:${line ?? '1'}`] };
         // eslint-disable-next-line no-await-in-loop -- sequential Electron desktop invocations only
         const censusCode = await runInvocation(
             censusInvocation,
@@ -317,8 +318,36 @@ async function appendSummary(
             '| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |',
             `| \`${pool}\` | ${specs} | ${receipt.planned} | ${receipt.started} | ${receipt.finished} | ${receipt.passed} | ${receipt.skipped} | ${receipt.failed} | ${receipt.timedOut} | ${receipt.unknown} | ${workers} | ${result === 0 ? 'passed' : 'failed'} |`,
             '',
+            ...slowestSpecSummary(receipt, workers),
         ].join('\n'),
     );
+}
+
+/**
+ * The ten costliest specs, so the next balancing decision reads a receipt instead of reconstructing durations from
+ * job-log timestamps. `share` is the spec's cost against the pool's own serial total, which is the number that matters
+ * when deciding what to move between pools; on a multi-worker pool the serial total deliberately exceeds wall time.
+ */
+function slowestSpecSummary(receipt: E2EPoolReceipt, workers: number): string[] {
+    const ranked = [...receipt.specs].toSorted((left, right) => right.durationMs - left.durationMs);
+    if (ranked.length === 0) return [];
+    const serialTotal = ranked.reduce((total, { durationMs }) => total + durationMs, 0);
+    const seconds = (value: number): string => `${(value / 1000).toFixed(1)}s`;
+    return [
+        `<details><summary>Slowest specs (${seconds(serialTotal)} across ${ranked.length} specs, ${workers} worker${workers === 1 ? '' : 's'})</summary>`,
+        '',
+        '| Spec | Duration | Share |',
+        '| --- | ---: | ---: |',
+        ...ranked
+            .slice(0, 10)
+            .map(
+                (spec) =>
+                    `| \`${spec.path.replace(/^.*\/e2e\//u, 'e2e/')}\` | ${seconds(spec.durationMs)} | ${serialTotal === 0 ? '0.0' : ((spec.durationMs / serialTotal) * 100).toFixed(1)}% |`,
+            ),
+        '',
+        '</details>',
+        '',
+    ];
 }
 
 async function main(): Promise<void> {

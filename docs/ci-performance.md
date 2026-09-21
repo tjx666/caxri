@@ -40,20 +40,63 @@ that window into two branches:
   274s, `desktop-exclusive` 582s.
 - Synthetic-merge platform gates, 664s: ESLint 276s, oxlint 17s, Vitest 336s, bundle budget 29s.
 
-E2E is therefore the critical path, and the platform gates finish 2m41s earlier. Their one-worker
-Vitest and serial ESLint are deliberate: making them faster cannot shorten the run while E2E is
-longer, and would take CPU away from the three Electron workers. Reduce the one-worker
-`desktop-exclusive` pool before revisiting either.
+E2E is therefore the critical path, and the platform gates finish 2m41s earlier. Shortening them
+cannot shorten the run while E2E is longer, so the `desktop-exclusive` pool is what to reduce
+first. What their duration does decide is where their CPU demand lands, which is a separate
+question with its own answer below.
 
-### Per-test attribution from a job log
+### Keep the checks branch out of the three-worker window
 
-Pool receipts record per-pool wall time, not per-test duration, so finding which tests dominate a
-pool means reading the job log. The `line` reporter prints `[N/M] spec:line › title` when a test
-**begins**, so a test's duration is the gap to the _next_ line, not the gap from the previous one.
-Reading it the other way shifts every duration by one test and blames the wrong spec — it attributed
-125s to `logs-panel.e2e.ts` when the cost belonged to `hook-turn-recovery.e2e.ts`. The derivation is
-only valid for the one-worker pool; with three workers the lines interleave and no per-test duration
-can be recovered from begin timestamps alone.
+The two pools absorb CPU contention very differently. The one-worker `desktop-exclusive` pool leaves
+most of the machine idle and barely competes with the checks branch. The three-worker `parallel-safe`
+pool is already using the runner, so every core the checks take is one its Electron workers wanted,
+and a stalled Renderer there does not merely run slower — an interaction that races an asynchronous
+re-render starts losing it, which is a flaky test rather than a slow one.
+
+[Run 35553657625](https://github.com/tjx666/caxri/actions/runs/35553657625) is the first run where
+that window got large. `desktop-exclusive` ended at 02:26:49 and the checks branch ran until
+02:32:47, so 358s of the 452s three-worker pool — 79% of it — ran under full contention. Three
+specs failed that no change in that run had touched: `git-diff-tabs` (Monaco diff never mounted
+after the click), `terminal-commands` (a split remount that never reset its command tracker), and
+`toasts` (a toast dismiss button that never appeared). All three pass two deterministic local
+repetitions at one worker. They are tracked as load-sensitive cases in
+[issue #877](https://github.com/tjx666/caxri/issues/877).
+
+This is a plausible cause rather than a proven one: the same run also added `agent-delegation` to
+the pool, which raises in-pool CPU load by itself, and an earlier green run overlapped its
+three-worker pool with the checks branch completely. What both explanations share is CPU saturation
+during `parallel-safe`, so that is what the concurrent path reduces: Vitest runs with two workers
+there, matching the standalone checks job. Total CPU work is unchanged — a one-worker Vitest spreads
+the same work across a longer window, and the window is what reaches into the fragile pool. The
+extra worker lands during `desktop-exclusive`, which has the headroom for it.
+
+Treat this as a standing constraint whenever a pool gets faster: **the checks branch should finish
+before `parallel-safe` starts.** Shorten the checks branch to restore it; never slow E2E back down.
+
+### Per-spec attribution
+
+Every pool receipt carries `durationMs` on each test and each spec, and the pool's step summary
+prints the ten costliest specs with their share of the pool's serial total. Read that before
+proposing any pool change; it is the intended input for deciding what to move, split, or shorten.
+
+The share is against the pool's **serial** total, not its wall time. On a multi-worker pool those
+differ on purpose: the serial total is the work, the wall time is what the workers achieved with it.
+Moving a spec between pools changes the serial total, so that is the number to reason with. The two
+together also measure the pool itself: serial ÷ wall is how many workers were actually busy, which
+is the only honest input for changing the worker count.
+
+Receipt paths are repository-relative, and `assertE2EPoolReceipt` rejects an absolute one. A receipt
+is an uploaded artifact whose spec paths reach the public step summary, so an absolute path there
+would publish the runner's home directory and the account name inside it.
+
+Before the receipt recorded durations, attribution meant reading the job log, and that method is
+worth knowing because it is the only way to re-derive a historical run. The `line` reporter prints
+`[N/M] spec:line › title` when a test **begins**, so a test's duration is the gap to the _next_
+line, not the gap from the previous one. Reading it the other way shifts every duration by one test
+and blames the wrong spec — it attributed 125s to `logs-panel.e2e.ts` when the cost belonged to
+`hook-turn-recovery.e2e.ts`. It also only works on a one-worker pool: with three workers the lines
+interleave and no per-test duration can be recovered from begin timestamps alone. That limitation is
+exactly why the duration belongs on the receipt instead.
 
 ### Long fixed waits are the first thing to look for
 
@@ -90,11 +133,33 @@ time, and moved the split from 71/65 to 88/48. The rejections are the useful par
 - `menu-keybinding-recovery.e2e.ts` reads the installed native application menu.
 - `agent-delegation.e2e.ts` — the single largest spec at 95s — drives the CLI through a `spawnSync`
   with a 25-second timeout, which is exactly the "subprocess whose timeout has little headroom" the
-  admission conditions exclude.
+  admission conditions exclude. **Later admitted**: see the round-two note below.
 - `codex-compaction.e2e.ts`, `updates.e2e.ts`, and `workbench-root.e2e.ts` pass the mechanical
   screen but are named in `scripts/__tests__/e2e-pools.test.ts`'s guard list. That list is a
   recorded prior audit; reaching the opposite conclusion about one of its entries is a product
   decision, not a reclassification, so they stayed exclusive.
+
+### A screen is not an audit
+
+The mechanical screen above matched keywords in spec sources, and keyword matches produce false
+positives: it flagged `session-create-menu.e2e.ts` for "menu" when that spec touches no native menu,
+and flagged several specs for "clipboard" that only mention the word. Re-screening against the
+declared capability instead of the source text recovered roughly 100s of specs that were never
+actually disqualified — worth remembering the next time a screen is mistaken for a verdict.
+
+That re-screen also surfaced a real defect. `clipboardCapabilitySpecs` is the list that keeps a
+clipboard-requesting spec out of the parallel pool, and it had fallen three entries behind the specs
+themselves (`editor-git-actions`, `file-preview`, `project-path-actions` all pass `clipboard: true`
+while unlisted). A stale entry there fails nothing on its own; it just silently stops protecting the
+spec it forgot. `scripts/__tests__/e2e-pools.test.ts` now derives the set from the spec sources and
+fails when the list disagrees.
+
+`agent-delegation.e2e.ts` was readmitted on the same principle. The condition excludes a subprocess
+timeout with little headroom, and its synthetic CLI allowed `spawnSync` only 5 seconds beyond the
+20-second wait it was invoking. That missing margin was a defect in the spec, not a property of what
+it tests, so the fix is to give the subprocess enough (45s) rather than to keep the largest spec in
+the pool on one worker forever. Under three workers it passes alongside `work-tab-sizing` and
+`terminal-recovery`: 24 tests in 1.3m.
 
 ## Adopted optimization evidence
 
@@ -203,9 +268,34 @@ changing workflow wiring.
   worker followed by `parallel-safe` with three namespaced workers on the same `m2-24`; a failed
   first pool does not suppress the second pool. That order is a scheduling decision, not a
   dependency: the platform-checks branch is the CPU-heavy half and finishes before E2E does, so the
-  one-worker pool is the one that should share the runner with it and the three-worker pool runs
+  one-worker pool is the one that should share the runner with it and the multi-worker pool runs
   after the checks have released their cores. The `workflow_dispatch` worker input stays bounded
   to 2–4 for frozen same-head comparisons.
+
+### Four parallel workers, measured and rejected
+
+The obvious next step after the pool stopped competing with the checks branch was a fourth worker,
+and the receipt says it does not pay. Two same-branch runs, identical except for the worker count:
+
+| Workers                                                                     | Serial spec time | Wall   | Workers busy | Cost per test | `parallel-safe` failures |
+| --------------------------------------------------------------------------- | ---------------- | ------ | ------------ | ------------- | ------------------------ |
+| 3 ([35555168511](https://github.com/tjx666/caxri/actions/runs/35555168511)) | 1218.5s          | 416.4s | 2.93 / 3     | —             | 1                        |
+| 4 ([35557167068](https://github.com/tjx666/caxri/actions/runs/35557167068)) | 1444.5s          | 371.2s | 3.89 / 4     | **+18.5%**    | 2                        |
+
+Both counts keep their workers busy, so the fourth worker is not idling — **the same tests simply
+take 18.5% longer to run**. That is the runner saturating, and it converts a theoretical 103s saving
+into 45s.
+
+Those are also the 18.5% that decide the load-sensitive cases. The four-worker run failed
+`toasts.e2e.ts:65` again and added `error-toast-recovery.e2e.ts:8`, both of which pass two
+deterministic local repetitions at one worker. A single flaky failure costs a full rerun of a
+~17-minute job, so 45s of wall time does not buy it back. `parallel-safe` stays at three workers.
+
+The general rule the measurement gives: read serial ÷ wall before changing a worker count. When it
+is already near the worker count, the pool is scheduling well and more workers buy contention, not
+time. Growth in the **serial** total between two runs is the signal that the runner is saturated —
+wall time alone hides it.
+
 - Every successful product-affecting E2E-running path finishes with the fixed Renderer performance
   scenario. A spec-only `e2e-repair` reuses the failed head's unchanged product tree and skips it.
   The benchmark step rebuilds a profiling React Renderer after the production-build
@@ -235,9 +325,9 @@ changing workflow wiring.
   worker count; a missing, stale, malformed, or non-zero component fails closed.
 - Focused checks, one-worker controls, retry-only runs, and non-full profiles keep their standalone
   paths. Only a full optimized run can replace the standalone checks job with the concurrent path.
-- Vitest defaults to the audited `optimized` partition. Automatic standalone checks use two
-  workers; the concurrent full path uses one so the complete Vitest suite leaves CPU headroom for
-  three Electron workers on the same runner. The `legacy` partition and worker caps 1-4 remain
+- Vitest defaults to the audited `optimized` partition and two workers on both the standalone and
+  the concurrent full path, so the checks branch clears the runner before `parallel-safe` starts
+  rather than spreading the same work into it. The `legacy` partition and worker caps 1-4 remain
   workflow-dispatch controls for same-head measurement; real watcher, process-global, bridge, and
   Git suites stay in `serial-native`.
 

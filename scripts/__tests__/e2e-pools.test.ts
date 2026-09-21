@@ -1,4 +1,4 @@
-import { readdir } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 
 import { describe, expect, it } from 'vitest';
 
@@ -32,9 +32,11 @@ function testReceipt(
     id: string,
     verdict: E2ETestReceipt['verdict'] = 'pass',
     errorIdentity: string | null = null,
+    durationMs = verdict === 'skipped' || verdict === 'unknown' ? 0 : 1_000,
 ): E2ETestReceipt {
     return {
         artifacts: verdict === 'fail' ? [`test-results/${id}/trace.zip`] : [],
+        durationMs,
         errorIdentity,
         id,
         location: `e2e/${id}.e2e.ts:1:1`,
@@ -129,6 +131,26 @@ describe('E2E pools', () => {
         for (const path of clipboardCapabilitySpecs) {
             expect(parallelSafeSpecs, path).not.toContain(path);
         }
+    });
+
+    /**
+     * The allowlist above only protects a spec it actually names, so a spec that requests the capability without being
+     * listed is unguarded — exactly how `editor-git-actions`, `file-preview`, and `project-path-actions` went three
+     * entries stale. Derive the truth from the specs and require the list to match it.
+     */
+    it('lists every spec that requests the clipboard capability', async () => {
+        const directory = new URL('../../e2e/', import.meta.url);
+        const names = (await readdir(directory)).filter((name) => name.endsWith('.e2e.ts'));
+        const requesting: string[] = [];
+        for (const name of names) {
+            // eslint-disable-next-line no-await-in-loop -- bounded read of one spec directory
+            const source = await readFile(new URL(name, directory), 'utf8');
+            if (/clipboard:\s*true/u.test(source)) requesting.push(`e2e/${name}`);
+        }
+
+        expect(requesting.toSorted((left, right) => left.localeCompare(right))).toStrictEqual(
+            [...clipboardCapabilitySpecs].toSorted((left, right) => left.localeCompare(right)),
+        );
     });
 
     it('partitions the current repository manifest without duplicates or omissions', async () => {
