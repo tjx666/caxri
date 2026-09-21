@@ -1,5 +1,5 @@
 import type { CSSProperties, DragEvent } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 
 import type { PaneLayout, PaneLayoutNode, PaneNode, PaneSplitNode } from '@caxri/protocol';
 import {
@@ -26,7 +26,6 @@ import { workPanelId, workTabId } from '../tabs/work-tab-accessibility';
 import { NewTerminalButton } from '../terminal/new-terminal-button';
 import { didPasteIntoTerminal } from '../terminal/terminal-commands';
 import { TerminalPane } from '../terminal/terminal-pane';
-import { retainTerminalProgress } from '../terminal/terminal-progress';
 import { focusPane, movePaneTab, resizePaneSplit, splitPaneTab } from './pane-actions';
 import type { PaneDropZone } from './pane-drop-zone';
 import {
@@ -38,6 +37,7 @@ import {
 import { PaneMountPortal } from './pane-mount-portal';
 import { reconcilePaneMounts } from './pane-mounts';
 import { PaneTabBar } from './pane-tab-bar';
+import { PaneViewSessionProvider } from './pane-view-session';
 import { useTabFocusRecovery } from './use-tab-focus-recovery';
 
 const fullBleedClassName = 'h-full w-full min-h-0 min-w-0';
@@ -104,7 +104,15 @@ function EmptyPane() {
  * The active tab's content. A Terminal and a document reach the same slot through the same path; the tab's kind decides
  * only which component renders here, never how the pane behaves.
  */
-function PaneContent({ isActivePane, pane }: { isActivePane: boolean; pane: PaneNode }) {
+function PaneContent({
+    isActivePane,
+    isVisible,
+    pane,
+}: {
+    isActivePane: boolean;
+    isVisible: boolean;
+    pane: PaneNode;
+}) {
     const tab = pane.tabs.find((candidate) => candidate.id === pane.activeTabId) ?? pane.tabs.at(0);
     const terminalId = tab?.resource.kind === 'terminal' ? tab.resource.terminalId : undefined;
     const terminal = useTerminal(terminalId ?? '');
@@ -114,6 +122,7 @@ function PaneContent({ isActivePane, pane }: { isActivePane: boolean; pane: Pane
             <TerminalPane
                 active={isActivePane}
                 ariaLabel={terminal.title}
+                isPaneVisible={isVisible}
                 terminalId={terminal.id}
             />
         ) : null;
@@ -122,11 +131,13 @@ function PaneContent({ isActivePane, pane }: { isActivePane: boolean; pane: Pane
 
 function PaneBox({
     isLeading,
+    isVisible,
     layout,
     pane,
     spansWindowWidth,
 }: {
     isLeading: boolean;
+    isVisible: boolean;
     layout: PaneLayout;
     pane: PaneNode;
     spansWindowWidth: boolean;
@@ -284,7 +295,7 @@ function PaneBox({
                 onDragOver={(event) => canPreviewDrop(event)}
                 onDrop={applyDrop}
             >
-                <PaneContent isActivePane={isActivePane} pane={pane} />
+                <PaneContent isActivePane={isActivePane} isVisible={isVisible} pane={pane} />
                 {activeDropZone && (
                     <div
                         className={cn(
@@ -406,11 +417,16 @@ function PaneNodeView({
 }
 
 /**
- * The Workbench's single split tree. Terminals and documents live in the same panes and obey the same layout rules;
- * nothing above this component branches on what a tab holds.
+ * One Session's split tree. Terminals and documents live in the same panes and obey the same layout rules; nothing
+ * above this component branches on what a tab holds.
+ *
+ * Several of these are mounted at once — one per Session the Workbench keeps alive — so it takes its Session by id
+ * rather than reading the selection. `isVisible` marks the one on screen; the others stay mounted with their xterm
+ * buffers, Editor models, and scroll positions intact, which is what makes switching back a redraw instead of a rebuild
+ * (issue #657).
  */
-export function PaneView() {
-    const layout = useSessionState()?.paneLayout;
+export function PaneView({ isVisible, sessionId }: { isVisible: boolean; sessionId: string }) {
+    const layout = useSessionState(sessionId)?.paneLayout;
     const [mounted, setMounted] = useState(() => ({
         layout,
         panes: reconcilePaneMounts([], layout ? listPanes(layout) : []),
@@ -420,34 +436,28 @@ export function PaneView() {
         panes = reconcilePaneMounts(panes, layout ? listPanes(layout) : []);
         setMounted({ layout, panes });
     }
-    /**
-     * Retained once for the whole layout, not per pane: `retainTerminalProgress` drops every Terminal outside the set
-     * it is given, so calling it from each `PaneTabBar` with only that pane's Terminals would have panes clearing each
-     * other's progress badges every time any of them re-ran the effect.
-     */
-    const terminalKey = layout ? listPaneTerminalIds(layout).join('\u{0}') : '';
-    useEffect(() => {
-        retainTerminalProgress(new Set(terminalKey ? terminalKey.split('\u{0}') : []));
-    }, [terminalKey]);
-    useTabFocusRecovery(layout);
+    useTabFocusRecovery(layout, isVisible);
     if (!layout) return null;
     return (
-        <div className={fullBleedClassName}>
-            <PaneNodeView
-                leadingPane={leadingPaneId(layout.root)}
-                layout={layout}
-                node={layout.root}
-            />
-            {panes.map(({ key, pane }) => (
-                <PaneMountPortal key={key} paneId={pane.id}>
-                    <PaneBox
-                        isLeading={pane.id === leadingPaneId(layout.root)}
-                        layout={layout}
-                        pane={pane}
-                        spansWindowWidth={isLeadingBarWindowWide(layout.root)}
-                    />
-                </PaneMountPortal>
-            ))}
-        </div>
+        <PaneViewSessionProvider value={sessionId}>
+            <div className={fullBleedClassName}>
+                <PaneNodeView
+                    leadingPane={leadingPaneId(layout.root)}
+                    layout={layout}
+                    node={layout.root}
+                />
+                {panes.map(({ key, pane }) => (
+                    <PaneMountPortal key={key} paneId={pane.id}>
+                        <PaneBox
+                            isLeading={pane.id === leadingPaneId(layout.root)}
+                            isVisible={isVisible}
+                            layout={layout}
+                            pane={pane}
+                            spansWindowWidth={isLeadingBarWindowWide(layout.root)}
+                        />
+                    </PaneMountPortal>
+                ))}
+            </div>
+        </PaneViewSessionProvider>
     );
 }

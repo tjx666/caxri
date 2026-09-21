@@ -693,3 +693,90 @@ describe('TerminalRendererController', () => {
         });
     });
 });
+
+describe('keep-alive suspend and resume', () => {
+    it('releases the GPU context without repainting and reacquires a fresh one on the way back', () => {
+        const harness = createHarness();
+        harness.controller.setPreference('auto');
+        expect(harness.statuses.at(-1)).toMatchObject({ mode: 'webgl', reason: 'active' });
+        harness.redraw.mockClear();
+
+        harness.controller.suspend();
+
+        expect(harness.addons).toHaveLength(1);
+        expect(harness.addons[0].dispose).toHaveBeenCalledTimes(1);
+        // Repainting a pane nobody can see is exactly the work the keep-alive exists to avoid.
+        expect(harness.redraw).not.toHaveBeenCalled();
+        expect(harness.statuses.at(-1)).toMatchObject({
+            mode: 'dom',
+            reason: 'suspended',
+            trigger: 'keep-alive-suspend',
+        });
+
+        harness.controller.resume();
+
+        expect(harness.addons).toHaveLength(2);
+        expect(harness.statuses.at(-1)).toMatchObject({ mode: 'webgl', reason: 'active' });
+        harness.controller.dispose();
+    });
+
+    it('never charges a suspended pane for a context it does not hold', () => {
+        const recordContextLoss = vi.fn();
+        const harness = createHarness({ policy: createPolicy({ recordContextLoss }) });
+        harness.controller.setPreference('on');
+        harness.controller.suspend();
+        recordContextLoss.mockClear();
+
+        expect(harness.controller.recoverFromGpuProcessLoss()).toBe('already-dom');
+        expect(harness.controller.retryFromUser()).toBe(false);
+        harness.controller.restoreVisible();
+
+        expect(recordContextLoss).not.toHaveBeenCalled();
+        // A window-restore or GPU-process event must not put a hidden pane back on the GPU behind the keep-alive's back.
+        expect(harness.addons).toHaveLength(1);
+        harness.controller.dispose();
+    });
+
+    it('records a preference changed while hidden and applies it only on resume', () => {
+        const harness = createHarness();
+        harness.controller.setPreference('auto');
+        harness.controller.suspend();
+
+        harness.controller.setPreference('off');
+
+        expect(harness.statuses.at(-1)).toMatchObject({
+            reason: 'suspended',
+            trigger: 'keep-alive-suspend',
+        });
+        expect(harness.addons).toHaveLength(1);
+
+        harness.controller.resume();
+
+        expect(harness.addons).toHaveLength(1);
+        expect(harness.redraw).toHaveBeenCalledWith('grid-sync');
+        expect(harness.statuses.at(-1)).toMatchObject({
+            mode: 'dom',
+            reason: 'disabled',
+            trigger: 'keep-alive-resume',
+        });
+        harness.controller.dispose();
+    });
+
+    it('resumes a pane pinned by the session budget onto DOM instead of reacquiring a context', () => {
+        const harness = createHarness({ policy: createPolicy({ isPinnedToDom: () => true }) });
+        harness.controller.setPreference('on');
+        harness.controller.suspend();
+        harness.redraw.mockClear();
+
+        harness.controller.resume();
+
+        expect(harness.addons).toHaveLength(0);
+        expect(harness.redraw).toHaveBeenCalledWith('grid-sync');
+        expect(harness.statuses.at(-1)).toMatchObject({
+            mode: 'dom',
+            reason: 'context-loss-limit',
+            trigger: 'keep-alive-resume',
+        });
+        harness.controller.dispose();
+    });
+});

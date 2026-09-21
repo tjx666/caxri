@@ -13,6 +13,8 @@ import type {
     RendererPerformanceSamples,
     RendererPerformanceSurface,
     RequestPerformanceSample,
+    TerminalPerformanceStage,
+    TerminalStagePerformanceSample,
 } from './aggregation';
 import { summarizeRendererPerformance } from './aggregation';
 
@@ -22,6 +24,7 @@ const maximumLongAnimationFrameSamples = 2_000;
 const maximumInteractionSamples = 2_000;
 const maximumFrameTimestamps = 20_001;
 const maximumRequestSamples = 100;
+const maximumTerminalStageSamples = 1_000;
 const supportedActions: ReadonlySet<string> = new Set(rendererPerformanceActions);
 
 interface LongAnimationFrameEntry extends PerformanceEntry {
@@ -51,6 +54,9 @@ interface ActiveScenario extends RendererPerformanceSamples {
     reactProfiles: ReactProfileSample[];
     requests: RequestPerformanceSample[];
     pendingRequestCount: number;
+    terminalAttachedCount: number;
+    terminalReusedCount: number;
+    terminalStages: TerminalStagePerformanceSample[];
     timeoutId: number;
 }
 
@@ -107,6 +113,9 @@ function createScenario(action: RendererPerformanceAction): ActiveScenario {
         reactProfiles: [],
         requests: [],
         pendingRequestCount: 0,
+        terminalAttachedCount: 0,
+        terminalReusedCount: 0,
+        terminalStages: [],
         longAnimationFrames: [],
         interactions: [],
         interactionById: new Map(),
@@ -295,6 +304,38 @@ class RendererPerformanceController implements RendererPerformanceMonitor {
         );
     }
 
+    /**
+     * Brackets one Terminal mount stage. Unlike a request it may run dozens of times per scenario — once per Terminal
+     * per stage — so it is not counted as pending work: a scenario must be allowed to settle while a kept-alive pane is
+     * still finishing a stage nobody is waiting on.
+     */
+    beginTerminalStage(stage: TerminalPerformanceStage): () => void {
+        const scenario = this.activeScenario;
+        if (!scenario) return () => {};
+        const scenarioId = scenario.scenarioId;
+        const startedAt = performance.now();
+        let isSettled = false;
+        return () => {
+            if (isSettled) return;
+            isSettled = true;
+            const activeScenario = this.activeScenario;
+            if (!activeScenario || activeScenario.scenarioId !== scenarioId) return;
+            pushBounded(
+                activeScenario.terminalStages,
+                { stage, durationMs: performance.now() - startedAt },
+                maximumTerminalStageSamples,
+                activeScenario,
+            );
+        };
+    }
+
+    recordTerminalAttachment(isReused: boolean): void {
+        const scenario = this.activeScenario;
+        if (!scenario) return;
+        scenario.terminalAttachedCount += 1;
+        if (isReused) scenario.terminalReusedCount += 1;
+    }
+
     beginRequest(request: RendererPerformanceRequest): () => void {
         const scenario = this.activeScenario;
         if (!scenario) return () => {};
@@ -351,6 +392,21 @@ export function recordReactProfile(
  */
 export function beginRendererPerformanceRequest(request: RendererPerformanceRequest): () => void {
     return controller.beginRequest(request);
+}
+
+/**
+ * Brackets one Terminal mount stage so a Session switch can be read as "what did it rebuild", not just "how long did it
+ * take". Returns a no-op when no scenario is running, so the call sites stay unconditional.
+ */
+export function beginRendererPerformanceTerminalStage(stage: TerminalPerformanceStage): () => void {
+    return controller.beginTerminalStage(stage);
+}
+
+/**
+ * Records that one Terminal became visible, and whether it was served from a kept-alive pane instead of being rebuilt.
+ */
+export function recordRendererPerformanceTerminalAttachment(isReused: boolean): void {
+    controller.recordTerminalAttachment(isReused);
 }
 
 /**

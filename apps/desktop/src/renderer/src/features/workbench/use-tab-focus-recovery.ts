@@ -20,8 +20,12 @@ import { planTabFocusRecovery } from './tab-focus-recovery';
  * is active, so the two edits that move focus across panes are invisible to the bar that lost the tab: by the time it
  * hears the blur, `activePaneId` already points somewhere else, and in the collapse case the bar is gone before it can
  * hear anything. Resolving the target from the fresh layout instead covers all three from one place.
+ *
+ * `isEnabled` is false for a Session kept alive off screen (issue #657). Several Workbenches are mounted at once there,
+ * and the listeners below are document-wide: without the gate, a hidden Session would answer a focus loss in the
+ * visible one and pull focus into a tab the user cannot see.
  */
-export function useTabFocusRecovery(layout: PaneLayout | undefined): void {
+export function useTabFocusRecovery(layout: PaneLayout | undefined, isEnabled: boolean): void {
     const focusOrigin = useRef<PaneFocusOrigin>('none');
     const layoutReference = useRef(layout);
     const recover = useCallback((): void => {
@@ -58,6 +62,7 @@ export function useTabFocusRecovery(layout: PaneLayout | undefined): void {
         });
     }, []);
     useEffect(() => {
+        if (!isEnabled) return;
         /**
          * `focusin` fires only when something _gains_ focus, so focus falling back to `document.body` leaves this flag
          * standing — which is precisely the state worth repairing. Focus somewhere outside the panes entirely (the
@@ -102,13 +107,14 @@ export function useTabFocusRecovery(layout: PaneLayout | undefined): void {
             removeEventListener('focusin', onFocusIn);
             removeEventListener('focusout', onFocusOut);
         };
-    }, [recover]);
+    }, [isEnabled, recover]);
     useEffect(() => {
         layoutReference.current = layout;
+        if (!isEnabled) return;
         /**
          * The second trigger, for the edits that never produce a blur at all: a pane collapsing takes its whole bar out
          * of the tree, and an element removed from the document loses focus to `body` without notifying anyone.
          */
         recover();
-    }, [layout, recover]);
+    }, [isEnabled, layout, recover]);
 }
