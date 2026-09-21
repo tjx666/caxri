@@ -1,5 +1,7 @@
 import type { Terminal } from '@xterm/xterm';
 
+import type { TerminalReferencePreviewCard } from './terminal-reference-preview';
+
 export const TERMINAL_LINK_HINT_DELAY_MS = 500;
 const TERMINAL_LINK_HINT_GAP = 12;
 const TERMINAL_LINK_HINT_VIEWPORT_PADDING = 8;
@@ -73,6 +75,19 @@ function terminalLinkHintAnchor(terminal: Terminal, event: MouseEvent): Terminal
     return { bottom: event.clientY, clientX: event.clientX, top: event.clientY };
 }
 
+/**
+ * Turns a hover into a preview card. The basic card is drawn immediately from what the Renderer already knows, and
+ * `load` — when the reference has metadata only the Server can see — replaces it once the read comes back.
+ */
+export interface TerminalLinkHintPreview {
+    card: TerminalReferencePreviewCard;
+    /**
+     * Resolves the richer card, or `undefined` to leave the basic one standing. Must never reject: the popup has no way
+     * to report a failure the user did not ask for.
+     */
+    load?(signal: AbortSignal): Promise<TerminalReferencePreviewCard | undefined>;
+}
+
 export interface TerminalLinkHintController {
     dispose(): void;
     hide(): void;
@@ -82,8 +97,17 @@ export interface TerminalLinkHintController {
         text: string,
         onModifierChange?: (isModifierDown: boolean) => void,
         linkKey?: string,
+        preview?: TerminalLinkHintPreview,
     ): void;
 }
+
+const HINT_LINE_CLASS = 'text-[11px] leading-[1.45] text-muted';
+/**
+ * Applied only while a card is on screen. The affordance hint is one short sentence and has always been allowed to size
+ * itself; a commit body is not, and without a cap the popup stretched to the Terminal's full width and still clipped
+ * its last line mid-sentence.
+ */
+const HINT_CARD_WIDTH_CLASS = 'max-w-[26rem]';
 
 /**
  * Owns one delayed hover popup and one modifier-listener set per Terminal. xterm replaces a link's decoration object
@@ -95,12 +119,25 @@ export interface TerminalLinkHintController {
 export function createTerminalLinkHintController(terminal: Terminal): TerminalLinkHintController {
     let activeLinkKey: string | undefined;
     let anchorEvent: MouseEvent | undefined;
+    /**
+     * The link whose card `Esc` dismissed, held until the pointer moves. xterm reprovides a link on every redraw — a
+     * blinking cursor is enough — so without this the popup would reopen half a second later under a pointer the user
+     * never moved, and `Esc` would look broken.
+     */
+    let dismissedLinkKey: string | undefined;
     let element: HTMLDivElement | undefined;
     let generation = 0;
     let isLinkHovered = false;
     let isModifierDown = false;
     let modifierChange: ((isModifierDown: boolean) => void) | undefined;
     let modifierObservedAt: number | undefined;
+    let previewRequest: AbortController | undefined;
+    /**
+     * The affordance line currently on screen. Tracked here rather than read back off the element because a preview
+     * card renders that line as one child among several, and a mouse move over the same link must recognize the popup
+     * it already opened instead of tearing it down and re-requesting.
+     */
+    let renderedHintText: string | undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const host = terminal.element;
     const ownerDocument = host?.ownerDocument;
@@ -155,6 +192,37 @@ export function createTerminalLinkHintController(terminal: Terminal): TerminalLi
         hintElement.style.top = `${top}px`;
     };
 
+    /**
+     * Draws one popup. Without a card this stays the single-line affordance hint it has always been, so the plain file
+     * and URL links keep their exact previous shape. Every string goes through `textContent`: a commit subject and an
+     * issue title are text a stranger wrote, arriving through the one surface in Caxri built to display untrusted
+     * output.
+     */
+    const render = (
+        hintElement: HTMLDivElement,
+        text: string,
+        card: TerminalReferencePreviewCard | undefined,
+    ) => {
+        hintElement.classList.toggle(HINT_CARD_WIDTH_CLASS, Boolean(card));
+        if (!card || !ownerDocument) {
+            hintElement.textContent = text;
+            return;
+        }
+        const line = (className: string, value: string) => {
+            const node = ownerDocument.createElement('div');
+            node.className = className;
+            node.textContent = value;
+            return node;
+        };
+        const lines = [line('line-clamp-2 font-medium text-foreground', card.title)];
+        if (card.detail) lines.push(line(`${HINT_LINE_CLASS} truncate`, card.detail));
+        if (card.facts.length > 0)
+            lines.push(line(`${HINT_LINE_CLASS} truncate`, card.facts.join(' \u{00B7} ')));
+        if (card.body) lines.push(line(`${HINT_LINE_CLASS} line-clamp-2`, card.body));
+        lines.push(line(`${HINT_LINE_CLASS} mt-1.5 border-t border-border pt-1.5`, text));
+        hintElement.replaceChildren(...lines);
+    };
+
     const hide = () => {
         generation += 1;
         if (timer !== undefined) clearTimeout(timer);
@@ -164,15 +232,39 @@ export function createTerminalLinkHintController(terminal: Terminal): TerminalLi
         modifierChange = undefined;
         activeLinkKey = undefined;
         anchorEvent = undefined;
+        previewRequest?.abort();
+        previewRequest = undefined;
+        renderedHintText = undefined;
         element?.remove();
         element = undefined;
     };
 
+    /**
+     * `Esc` dismisses the popup the way it dismisses every other transient surface, without consuming the key: the
+     * Terminal still receives it, because a card the user never asked for must not swallow a keystroke meant for vim.
+     *
+     * Registered in the capture phase because xterm's own `_keyDown` calls `stopPropagation()` for the keys it claims,
+     * `Escape` among them (`use-terminal-pane-runtime.ts` documents the same obstacle for modal dismissal). A
+     * bubble-phase listener on `document` would never run while the Terminal holds focus — which is exactly when a
+     * Terminal hover card is on screen.
+     */
+    const onEscape = (event: KeyboardEvent) => {
+        if (event.key !== 'Escape') return;
+        dismissedLinkKey = activeLinkKey;
+        hide();
+    };
+    ownerDocument?.addEventListener('keydown', onEscape, true);
+    /**
+     * Scrolled-away output takes its popup with it. The card is anchored to a screen row, not to the buffer line it
+     * describes, so leaving it up after a scroll would park a commit's details over an unrelated line.
+     */
+    const scrollDisposable = terminal.onScroll(() => hide());
+
     return {
-        show(event, text, onModifierChange, linkKey = text) {
+        show(event, text, onModifierChange, linkKey = text, preview) {
             if (!host || !ownerDocument || !ownerWindow) return;
             const isSameLink =
-                activeLinkKey === linkKey && (timer !== undefined || element?.textContent === text);
+                activeLinkKey === linkKey && (timer !== undefined || renderedHintText === text);
             if (!isSameLink) hide();
             activeLinkKey = linkKey;
             anchorEvent = event;
@@ -193,6 +285,8 @@ export function createTerminalLinkHintController(terminal: Terminal): TerminalLi
                 if (element) position(element, event);
                 return;
             }
+            if (dismissedLinkKey === linkKey) return;
+            dismissedLinkKey = undefined;
 
             timer = setTimeout(() => {
                 timer = undefined;
@@ -202,11 +296,32 @@ export function createTerminalLinkHintController(terminal: Terminal): TerminalLi
                     'xterm-hover terminal-link-hint pointer-events-none fixed z-[90] rounded-md bg-elevated px-2.5 py-1.5 text-[12px] text-foreground shadow-[0_0_0_1px_var(--border),0_8px_24px_var(--shadow)]';
                 nextElement.setAttribute('role', 'tooltip');
                 nextElement.style.visibility = 'hidden';
-                nextElement.textContent = text;
+                render(nextElement, text, preview?.card);
                 host.append(nextElement);
                 position(nextElement, anchorEvent ?? event);
                 nextElement.style.visibility = 'visible';
                 element = nextElement;
+                renderedHintText = text;
+                if (!preview?.load) return;
+                /**
+                 * The request starts only once the popup is actually on screen, so a pointer crossing a screen of
+                 * references never spends one read per row it passed over. Its signal is what `hide` aborts.
+                 */
+                const controller = new AbortController();
+                previewRequest = controller;
+                const applyPreview = async () => {
+                    try {
+                        const card = await preview.load?.(controller.signal);
+                        if (generation !== currentGeneration || !card) return;
+                        render(nextElement, text, card);
+                        position(nextElement, anchorEvent ?? event);
+                    } catch {
+                        // `load` owns its own degradation, so a rejection here can only be a defect in the loader. The
+                        // basic card stays up rather than turning a hover into a notification.
+                    }
+                };
+                // eslint-disable-next-line no-void -- the popup is fire-and-forget; `applyPreview` absorbs every failure
+                void applyPreview();
             }, TERMINAL_LINK_HINT_DELAY_MS);
         },
         hide,
@@ -215,14 +330,20 @@ export function createTerminalLinkHintController(terminal: Terminal): TerminalLi
             applyModifier();
             const leavingLinkKey = activeLinkKey;
             queueMicrotask(() => {
-                if (!isLinkHovered && activeLinkKey === leavingLinkKey) hide();
+                if (isLinkHovered || activeLinkKey !== leavingLinkKey) return;
+                // Leaving the link for real is what ends an `Esc` dismissal; a redraw's leave/reprovide pair does not
+                // reach here, because the reprovided `show` has already marked the link hovered again.
+                dismissedLinkKey = undefined;
+                hide();
             });
         },
         dispose() {
             hide();
             ownerDocument?.removeEventListener('keydown', onKeyboardModifier);
             ownerDocument?.removeEventListener('keyup', onKeyboardModifier);
+            ownerDocument?.removeEventListener('keydown', onEscape, true);
             ownerWindow?.removeEventListener('blur', onWindowBlur);
+            scrollDisposable.dispose();
             host?.classList.remove('terminal-link-modifier-active');
         },
     };

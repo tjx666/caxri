@@ -31,6 +31,7 @@ import agentDelegationsMigrationSql from './0025_conscious_living_tribunal.sql?r
 import delegationTerminalOwnershipMigrationSql from './0026_delegation_terminal_ownership.sql?raw';
 import terminalFailureDetailMigrationSql from './0027_dashing_ego.sql?raw';
 import sessionPinningMigrationSql from './0028_session-pinning.sql?raw';
+import sessionStateRevisionMigrationSql from './0029_session-state-revision.sql?raw';
 import migrationJournal from './meta/_journal.json';
 
 interface MigrationJournal {
@@ -99,6 +100,7 @@ export const migrationManifest = [
     { tag: '0026_delegation_terminal_ownership', sql: delegationTerminalOwnershipMigrationSql },
     { tag: '0027_dashing_ego', sql: terminalFailureDetailMigrationSql },
     { tag: '0028_session-pinning', sql: sessionPinningMigrationSql },
+    { tag: '0029_session-state-revision', sql: sessionStateRevisionMigrationSql },
 ] as const;
 
 // Intentional: this check must run at module initialization (see the docstring above) so an

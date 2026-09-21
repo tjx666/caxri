@@ -15,6 +15,7 @@ import {
     invalidateControlledViewSnapshot,
 } from '../view-containers/view-container-commands';
 import {
+    loadTerminalReferencePreview,
     openTerminalFileLink,
     registerTerminalInputGate,
     registerTerminalPasteHandler,
@@ -31,6 +32,12 @@ import type { TerminalLinkContext } from './terminal-links';
 import { registerTerminalLinks } from './terminal-links';
 import type { Osc52BlockReason } from './terminal-osc52-clipboard';
 import type { TerminalLinkReferenceContext } from './terminal-reference-links';
+import {
+    basicReferencePreviewCard,
+    terminalReferencePreviewCard,
+    terminalReferencePreviewRequest,
+    TerminalReferencePreviewStore,
+} from './terminal-reference-preview';
 import type { TerminalSearchResults } from './terminal-search';
 
 /**
@@ -244,9 +251,23 @@ export function registerTerminalPaneLinks(
             onError(errorMessage(error, 'Git commit link failed'));
         }
     };
+    const previews = new TerminalReferencePreviewStore(loadTerminalReferencePreview);
     const context: TerminalLinkContext = {
         get referenceContext() {
             return latest().referenceContext;
+        },
+        previewReference(match) {
+            const card = basicReferencePreviewCard(match);
+            const request = terminalReferencePreviewRequest(match);
+            if (!request) return { card };
+            const { terminalId } = latest();
+            return {
+                card,
+                load: async (signal) => {
+                    const preview = await previews.load(terminalId, request, signal);
+                    return preview && terminalReferencePreviewCard(match, preview);
+                },
+            };
         },
         get wordSeparators() {
             return latest().wordSeparators;
@@ -267,6 +288,7 @@ export function registerTerminalPaneLinks(
     );
     return {
         dispose() {
+            previews.clear();
             unregisterProvider();
             registration.dispose();
         },

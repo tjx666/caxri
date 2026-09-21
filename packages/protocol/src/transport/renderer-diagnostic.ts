@@ -20,6 +20,12 @@ export const terminalRendererDiagnosticSchema = z.strictObject({
         'disabled',
         'disposed',
         'load-failed',
+        /**
+         * The pane belongs to a Session kept alive off screen, so its WebGL context was released on purpose. It is not
+         * a failure and must never be counted as one: distinguishing it from `context-loss` is what keeps the GPU
+         * incident budget meaningful once several Sessions hold live Terminals.
+         */
+        'suspended',
         'unsupported',
     ]),
     trigger: z.enum([
@@ -27,6 +33,8 @@ export const terminalRendererDiagnosticSchema = z.strictObject({
         'dispose',
         'gpu-incident-limit',
         'gpu-process-recovery',
+        'keep-alive-resume',
+        'keep-alive-suspend',
         'preference-change',
         'manual-retry',
         'visibility-restore',
@@ -296,6 +304,17 @@ const requestPerformanceSummarySchema = z.strictObject({
     maxDurationMs: performanceDurationSchema,
 });
 
+/**
+ * One Terminal mount stage aggregated over a scenario. The stages are measured separately because they have different
+ * owners and different fixes: building xterm and its addons is Renderer cost, attaching WebGL is GPU cost, and
+ * replaying the Server snapshot is a round trip. A single "Terminal took N ms" number cannot tell those apart.
+ */
+const terminalStagePerformanceSummarySchema = z.strictObject({
+    count: z.number().int().nonnegative().max(1_000),
+    totalDurationMs: performanceDurationSchema,
+    maxDurationMs: performanceDurationSchema,
+});
+
 export const rendererPerformanceActions = ['session.switch'] as const;
 
 /**
@@ -323,6 +342,26 @@ export const rendererPerformanceScenarioDiagnosticSchema = z.strictObject({
     requests: z.strictObject({
         sessionSelect: requestPerformanceSummarySchema,
         appBootstrap: requestPerformanceSummarySchema,
+    }),
+    /**
+     * What the Session switch actually cost in Terminal work. `reusedCount` is the whole point of the keep-alive: a
+     * switch back to a retained Session should rebuild nothing, so a non-zero `stages.xtermCreate.count` beside a
+     * non-zero `reusedCount` is the signature of a partially defeated cache rather than a healthy cold start.
+     */
+    terminals: z.strictObject({
+        /**
+         * Terminals visible in the destination Session when the scenario ended.
+         */
+        attachedCount: performanceCountSchema,
+        /**
+         * Of those, the ones served from a kept-alive pane instead of being rebuilt.
+         */
+        reusedCount: performanceCountSchema,
+        stages: z.strictObject({
+            snapshotReplay: terminalStagePerformanceSummarySchema,
+            webglAttach: terminalStagePerformanceSummarySchema,
+            xtermCreate: terminalStagePerformanceSummarySchema,
+        }),
     }),
     longAnimationFrames: longAnimationFrameSummarySchema,
     interactions: interactionPerformanceSummarySchema,

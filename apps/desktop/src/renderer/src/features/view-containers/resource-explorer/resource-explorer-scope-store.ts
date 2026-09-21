@@ -11,12 +11,35 @@ import {
 } from './resource-explorer-state';
 
 /**
+ * Identifies the Session whose tree the mounted Files view currently draws.
+ */
+export interface ResourceExplorerActiveScope {
+    projectId: string;
+    /**
+     * `sessionId:workbenchProjectId`; keys every per-Session record below.
+     */
+    scopeId: string;
+    sessionId: string;
+}
+
+/**
  * Per-Session tree state (`scopeId` is `sessionId:workbenchProjectId`) for the Files view. It lives in a store rather
  * than in the controller's `useState` so each row can subscribe to its own boolean (expanded / selected / focus
  * requested) instead of receiving the whole tree's `Set` and selection as props: with 229 visible rows a single toggle
  * used to re-render every row, and a session switch rebuilt the entire tree.
+ *
+ * `activeScope` lives here for the same reason, one level up. While a row received its `scopeId` and `sessionId` as
+ * props, a Session switch changed both on all 49 visible rows and re-rendered every one of them plus its context-menu
+ * wrappers — roughly 550 of the 699 component updates one switch cost — even though the booleans a row actually draws
+ * from were usually identical in the new scope. Reading the scope from the store instead lets the same subscriptions
+ * decide: a row re-renders on a Session switch only when its own expanded/selected/focus state really differs. Rows
+ * never render the scope itself; they need it only inside event handlers and effects, which read it on demand.
+ *
+ * One Files view exists at a time (the secondary sidebar's), so a single active scope is sufficient. A second
+ * concurrent tree would need this widened to a per-view record.
  */
-interface ResourceExplorerScopeState {
+export interface ResourceExplorerScopeState {
+    activeScope: ResourceExplorerActiveScope | undefined;
     expandedByScope: Record<string, string[]>;
     focusByScope: Record<string, string | undefined>;
     revealByScope: Record<string, { path: string; revision: number } | undefined>;
@@ -26,6 +49,7 @@ interface ResourceExplorerScopeState {
 export const useResourceExplorerScopeStore = createStore<ResourceExplorerScopeState>(
     'resource-explorer-scope',
     () => ({
+        activeScope: undefined,
         expandedByScope: {},
         focusByScope: {},
         revealByScope: {},
@@ -33,29 +57,84 @@ export const useResourceExplorerScopeStore = createStore<ResourceExplorerScopeSt
     }),
 );
 
-export function useIsPathExpanded(scopeId: string, path: string): boolean {
-    return useResourceExplorerScopeStore(
-        (state) => scopedValue(state.expandedByScope, scopeId)?.includes(path) ?? false,
-    );
+/**
+ * Publishes the scope the tree draws. Called by the controller; rows and their handlers read it back through
+ * {@link activeResourceExplorerScope} and the subscription hooks below.
+ */
+export function setResourceExplorerActiveScope(
+    scope: ResourceExplorerActiveScope | undefined,
+): void {
+    useResourceExplorerScopeStore.setState((state) => {
+        const current = state.activeScope;
+        return current?.scopeId === scope?.scopeId &&
+            current?.sessionId === scope?.sessionId &&
+            current?.projectId === scope?.projectId
+            ? state
+            : { activeScope: scope };
+    });
 }
 
-export function useIsPathSelected(scopeId: string, path: string): boolean {
-    return useResourceExplorerScopeStore((state) => state.selectionByScope[scopeId] === path);
+/**
+ * Reads the current scope outside render — from an event handler or an effect. Deliberately not a hook: subscribing a
+ * row to the scope identity would reintroduce exactly the Session-switch re-render this store exists to avoid.
+ */
+export function activeResourceExplorerScope(): ResourceExplorerActiveScope | undefined {
+    return useResourceExplorerScopeStore.getState().activeScope;
 }
 
-export function useHasScopeSelection(scopeId: string): boolean {
-    return useResourceExplorerScopeStore((state) => state.selectionByScope[scopeId] !== undefined);
-}
-
-export function useIsPathFocusRequested(scopeId: string, path: string): boolean {
-    return useResourceExplorerScopeStore((state) => state.focusByScope[scopeId] === path);
-}
-
-export function usePathRevealRevision(scopeId: string, path: string): number | undefined {
-    return useResourceExplorerScopeStore((state) => {
+/**
+ * Everything one file-tree row draws from this store, as pure reads over a state snapshot.
+ *
+ * Exported so a test can assert what a Session switch does to an entire visible tree through the same code the rows
+ * subscribe by. A test that re-implemented these selectors would keep passing after the real ones drifted, and the
+ * property being protected here — that switching Session leaves an unchanged row's inputs untouched — is exactly the
+ * kind that dies silently.
+ */
+export const rowSelectors = {
+    isPathExpanded(state: ResourceExplorerScopeState, path: string): boolean {
+        const { scopeId } = state.activeScope ?? {};
+        return scopeId === undefined
+            ? false
+            : (scopedValue(state.expandedByScope, scopeId)?.includes(path) ?? false);
+    },
+    isPathFocusRequested(state: ResourceExplorerScopeState, path: string): boolean {
+        const { scopeId } = state.activeScope ?? {};
+        return scopeId !== undefined && state.focusByScope[scopeId] === path;
+    },
+    isPathSelected(state: ResourceExplorerScopeState, path: string): boolean {
+        const { scopeId } = state.activeScope ?? {};
+        return scopeId !== undefined && state.selectionByScope[scopeId] === path;
+    },
+    hasScopeSelection(state: ResourceExplorerScopeState): boolean {
+        const { scopeId } = state.activeScope ?? {};
+        return scopeId !== undefined && state.selectionByScope[scopeId] !== undefined;
+    },
+    pathRevealRevision(state: ResourceExplorerScopeState, path: string): number | undefined {
+        const { scopeId } = state.activeScope ?? {};
+        if (scopeId === undefined) return;
         const reveal = state.revealByScope[scopeId];
         return reveal?.path === path ? reveal.revision : undefined;
-    });
+    },
+};
+
+export function useIsPathExpanded(path: string): boolean {
+    return useResourceExplorerScopeStore((state) => rowSelectors.isPathExpanded(state, path));
+}
+
+export function useIsPathSelected(path: string): boolean {
+    return useResourceExplorerScopeStore((state) => rowSelectors.isPathSelected(state, path));
+}
+
+export function useHasScopeSelection(): boolean {
+    return useResourceExplorerScopeStore((state) => rowSelectors.hasScopeSelection(state));
+}
+
+export function useIsPathFocusRequested(path: string): boolean {
+    return useResourceExplorerScopeStore((state) => rowSelectors.isPathFocusRequested(state, path));
+}
+
+export function usePathRevealRevision(path: string): number | undefined {
+    return useResourceExplorerScopeStore((state) => rowSelectors.pathRevealRevision(state, path));
 }
 
 export function setScopeSelectedPath(scopeId: string, path: string | undefined): void {
@@ -220,12 +299,19 @@ export function pruneResourceExplorerScopes(liveSessionIds: ReadonlySet<string>)
         const focusByScope = withoutScopes(state.focusByScope, isStale);
         const revealByScope = withoutScopes(state.revealByScope, isStale);
         const selectionByScope = withoutScopes(state.selectionByScope, isStale);
-        return expandedByScope === state.expandedByScope &&
+        // A Session deleted while its tree was on screen leaves the controller no render in which to republish, so the
+        // stale scope is dropped here too rather than left pointing at records this very call just removed.
+        const activeScope =
+            state.activeScope && !liveSessionIds.has(state.activeScope.sessionId)
+                ? undefined
+                : state.activeScope;
+        return activeScope === state.activeScope &&
+            expandedByScope === state.expandedByScope &&
             focusByScope === state.focusByScope &&
             revealByScope === state.revealByScope &&
             selectionByScope === state.selectionByScope
             ? state
-            : { expandedByScope, focusByScope, revealByScope, selectionByScope };
+            : { activeScope, expandedByScope, focusByScope, revealByScope, selectionByScope };
     });
 }
 

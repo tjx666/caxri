@@ -16,6 +16,7 @@ import {
     sessionCard,
     splitTerminalToRight,
     typeTerminal,
+    VISIBLE_SESSION,
     waitForNewTerminalId,
 } from './support/helpers.ts';
 
@@ -110,7 +111,7 @@ test('inline images render real pixels, enforce budgets, and restore as content-
 
         await createShellSession(running.page);
         const firstSessionId = await selectedSessionId(running.page);
-        const pane = running.page.locator('.terminal-pane');
+        const pane = running.page.locator(`${VISIBLE_SESSION} .terminal-pane`);
         const terminalId = await pane.getAttribute('data-terminal-id');
         if (!terminalId) throw new Error('Terminal identity was not rendered');
         const surface = running.page.locator(
@@ -155,17 +156,21 @@ test('inline images render real pixels, enforce budgets, and restore as content-
          * Caxri's own size policy now reports its own honest placeholder instead of folding the drop into the generic
          * PTY output-backpressure counter, which is reserved for genuine queue-capacity refusals.
          */
-        await expect(running.page.locator('.xterm-rows')).toContainText(
+        await expect(running.page.locator(`${VISIBLE_SESSION} .xterm-rows`)).toContainText(
             'Caxri dropped an inline image: it exceeds the size limit',
         );
-        await expect(running.page.locator('.xterm-rows')).not.toContainText(
+        await expect(running.page.locator(`${VISIBLE_SESSION} .xterm-rows`)).not.toContainText(
             'dropped by output backpressure',
         );
-        await expect(running.page.locator('.xterm-rows')).toContainText('AFTER_IMAGE_LIMIT');
+        await expect(running.page.locator(`${VISIBLE_SESSION} .xterm-rows`)).toContainText(
+            'AFTER_IMAGE_LIMIT',
+        );
         await expect(surface).toHaveAttribute('data-terminal-images-added', '3');
 
         await typeTerminal(running.page, `cat '${overPixelLimitPath}'`);
-        await expect(running.page.locator('.xterm-rows')).toContainText('AFTER_PIXEL_LIMIT');
+        await expect(running.page.locator(`${VISIBLE_SESSION} .xterm-rows`)).toContainText(
+            'AFTER_PIXEL_LIMIT',
+        );
         await expect(surface).toHaveAttribute('data-terminal-images-added', '3');
 
         /**
@@ -188,7 +193,7 @@ test('inline images render real pixels, enforce budgets, and restore as content-
         await pressNewTerminal(running.page);
         const secondTerminalId = await waitForNewTerminalId(running.page, [terminalId]);
         await splitTerminalToRight(running.page, secondTerminalId);
-        await expect(running.page.locator('.workbench-pane')).toHaveCount(2);
+        await expect(running.page.locator(`${VISIBLE_SESSION} .workbench-pane`)).toHaveCount(2);
         const secondSurface = running.page.locator(
             `.terminal-pane[data-terminal-id="${secondTerminalId}"] .terminal-surface`,
         );
@@ -221,19 +226,23 @@ test('inline images render real pixels, enforce budgets, and restore as content-
                 Number(await surface.getAttribute('data-terminal-image-global-storage-mb')),
             )
             .toBeLessThan(globalStorageBeforeClose);
-        await expect(running.page.locator('.workbench-pane')).toHaveCount(1);
+        await expect(running.page.locator(`${VISIBLE_SESSION} .workbench-pane`)).toHaveCount(1);
 
         await createAdditionalShellSession(running.page);
         await sessionCard(running.page, firstSessionId).click();
         await expect(sessionCard(running.page, firstSessionId)).toHaveClass(/active/);
-        await expect(running.page.locator('.xterm-rows')).toContainText(RECOVERY_PLACEHOLDER);
+        await expect(running.page.locator(`${VISIBLE_SESSION} .xterm-rows`)).toContainText(
+            RECOVERY_PLACEHOLDER,
+        );
 
         await running.page.reload();
-        await expect(running.page.locator('.terminal-pane')).toHaveAttribute(
+        await expect(running.page.locator(`${VISIBLE_SESSION} .terminal-pane`)).toHaveAttribute(
             'data-terminal-id',
             terminalId,
         );
-        await expect(running.page.locator('.xterm-rows')).toContainText(RECOVERY_PLACEHOLDER);
+        await expect(running.page.locator(`${VISIBLE_SESSION} .xterm-rows`)).toContainText(
+            RECOVERY_PLACEHOLDER,
+        );
 
         // The lone remaining tab renders no close button — there is nothing to switch to — so close it the way the
         // tab bar leaves available, with the `workbench.closeActiveTab` chord.

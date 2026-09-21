@@ -9,6 +9,7 @@ import type { QueryClient } from '@tanstack/react-query';
 
 import { caxri } from '../../lib/caxri';
 import { CONTROLLED_VIEW_QUERY_METHOD } from '../../queries/client';
+import { getSelectedSession } from '../../stores/selectors';
 
 export interface SourceControlClient {
     readonly viewId: string;
@@ -154,19 +155,38 @@ export async function viewOperation<Result>(
     }
 }
 
-export function createSourceControlClient(
-    viewId: string,
-    context: ExtensionViewEventContext,
-): SourceControlClient {
+/**
+ * Resolved per call rather than captured when the client is built, for the same reason as the Resource Explorer's
+ * client: a captured Session would give the controlled-view context value a new identity on every switch and re-render
+ * every consumer under it.
+ */
+function currentViewEventContext(): ExtensionViewEventContext {
+    const session = getSelectedSession();
+    return session?.id && session.workbenchProjectId
+        ? {
+              kind: 'session',
+              sessionId: session.id,
+              workbenchProjectId: session.workbenchProjectId,
+          }
+        : { kind: 'no-session' };
+}
+
+export function createSourceControlClient(viewId: string): SourceControlClient {
     return {
         viewId,
         action: (request, signal) =>
-            viewOperation(viewId, context, 'source.action', request, signal),
+            viewOperation(viewId, currentViewEventContext(), 'source.action', request, signal),
         historyDetails: (request, signal) =>
-            viewOperation(viewId, context, 'source.historyDetails', request, signal),
+            viewOperation(
+                viewId,
+                currentViewEventContext(),
+                'source.historyDetails',
+                request,
+                signal,
+            ),
         historyPage: (request, signal) =>
-            viewOperation(viewId, context, 'source.historyPage', request, signal),
+            viewOperation(viewId, currentViewEventContext(), 'source.historyPage', request, signal),
         snapshot: (request, signal) =>
-            viewOperation(viewId, context, 'source.snapshot', request, signal),
+            viewOperation(viewId, currentViewEventContext(), 'source.snapshot', request, signal),
     };
 }

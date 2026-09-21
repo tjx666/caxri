@@ -50,6 +50,7 @@ type ServiceHandlerMethods =
     | 'files.search'
     | 'terminal.agentTranscript'
     | 'terminal.commitLink.resolve'
+    | 'terminal.reference.preview'
     | 'terminal.fileLink.resolve'
     | 'terminal.prepareLongPaste'
     | 'terminal.referenceContext'
@@ -237,6 +238,11 @@ export function createServiceHandlers(services: {
             const terminal = database.getTerminal(terminalId);
             if (!terminal) throw new CaxriError('NOT_FOUND', 'Terminal not found');
             return git.resolveCommitReference(terminal.sessionId, reference, terminal.cwd);
+        },
+        'terminal.reference.preview': ({ terminalId, reference }) => {
+            const terminal = database.getTerminal(terminalId);
+            if (!terminal) throw new CaxriError('NOT_FOUND', 'Terminal not found');
+            return git.referencePreview(terminal.sessionId, terminal.cwd, reference);
         },
         'project.create': async ({ expectedRootIdentity, rootPath }) => {
             const project = database.createProject(

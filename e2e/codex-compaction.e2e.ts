@@ -15,6 +15,7 @@ import {
     launchCaxri,
     pageRequest,
     selectedSessionId,
+    VISIBLE_SESSION,
 } from './support/helpers.ts';
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires the first test argument to use object destructuring
@@ -96,12 +97,16 @@ process.stdout.write('Compaction Agent ready\r\n');
             source: JSON.stringify(settings, null, 2),
         });
         const sessionId = await createProjectSession(running.page, 'codex');
-        await expect(running.page.locator('.xterm-rows')).toContainText('Compaction Agent ready');
+        await expect(running.page.locator(`${VISIBLE_SESSION} .xterm-rows`)).toContainText(
+            'Compaction Agent ready',
+        );
         await running.page.emulateMedia({ reducedMotion: 'no-preference' });
 
-        const terminalInput = running.page.locator('.xterm-helper-textarea');
+        const terminalInput = running.page.locator(`${VISIBLE_SESSION} .xterm-helper-textarea`);
         await terminalInput.press('c');
-        const activeTab = running.page.locator('.work-tab.active[data-terminal-id]');
+        const activeTab = running.page.locator(
+            `${VISIBLE_SESSION} .work-tab.active[data-terminal-id]`,
+        );
         const tabOperation = activeTab.locator('.terminal-agent-operation');
         const statusOperation = running.page.locator('.statusbar-agent-operation');
         const sessionRow = running.page.locator(`[data-session-id="${sessionId}"]`);
@@ -183,10 +188,12 @@ process.stdout.write('Compaction Agent ready\r\n');
 
         await activeTab.getByRole('tab').click();
         await expect(activityCard).toHaveCount(0);
-        await running.page.locator('.xterm-screen').click();
+        await running.page.locator(`${VISIBLE_SESSION} .xterm-screen`).click();
         await expect(terminalInput).toBeFocused();
         await terminalInput.press('Escape');
-        await expect(running.page.locator('.xterm-rows')).toContainText('Escape received');
+        await expect(running.page.locator(`${VISIBLE_SESSION} .xterm-rows`)).toContainText(
+            'Escape received',
+        );
         await expect(tabOperation).toHaveCount(0);
         await expect(statusOperation).toHaveCount(0);
         await expect(activeTab.getByLabel('Terminal progress: 42 percent')).toBeVisible();
@@ -244,7 +251,9 @@ process.stdout.write('Compaction Agent ready\r\n');
             ],
             { timeout: 10_000 },
         );
-        await expect(running.page.locator('.xterm-rows')).toContainText('SIGINT received');
+        await expect(running.page.locator(`${VISIBLE_SESSION} .xterm-rows`)).toContainText(
+            'SIGINT received',
+        );
         await expect(tabOperation).not.toBeVisible();
         const interrupted = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
         const interruptedTerminal = interrupted.terminals.find(

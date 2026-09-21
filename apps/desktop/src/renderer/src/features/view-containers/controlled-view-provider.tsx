@@ -3,7 +3,6 @@ import { useMemo } from 'react';
 
 import type { ControlledViewPresentation, ViewActionDescriptor } from '@caxri/protocol';
 
-import { useSelectedSession } from '../../stores/selectors';
 import type { ControlledViewContextValue } from './controlled-view-context';
 import { ControlledViewContext } from './controlled-view-context';
 import { createResourceExplorerClient } from './resource-explorer/resource-explorer-client';
@@ -29,33 +28,24 @@ export function ControlledViewProvider({
     presentation?: ControlledViewPresentation;
     viewId: string;
 }) {
-    const session = useSelectedSession();
-    const sessionId = session?.id;
-    const workbenchProjectId = session?.workbenchProjectId;
-    const value = useMemo<ControlledViewContextValue>(() => {
-        const context =
-            sessionId && workbenchProjectId
-                ? { kind: 'session' as const, sessionId, workbenchProjectId }
-                : { kind: 'no-session' as const };
-        return {
+    /**
+     * Deliberately independent of the selected Session. A context value that changed identity on every switch
+     * re-rendered every consumer beneath it — which for the Files view is all 49 visible rows and their context-menu
+     * wrappers, roughly 550 of the 699 component updates one Session switch used to cost. Both clients resolve the
+     * current Session when a request is actually made instead, so nothing here has to move.
+     */
+    const value = useMemo<ControlledViewContextValue>(
+        () => ({
             actions,
             configurationDependencies: configDependencies,
             providerGeneration,
             presentation,
             viewId,
             ...(kind === 'resource-explorer'
-                ? { resourceExplorer: createResourceExplorerClient(viewId, sessionId) }
-                : { sourceControl: createSourceControlClient(viewId, context) }),
-        };
-    }, [
-        actions,
-        configDependencies,
-        kind,
-        presentation,
-        providerGeneration,
-        sessionId,
-        viewId,
-        workbenchProjectId,
-    ]);
+                ? { resourceExplorer: createResourceExplorerClient(viewId) }
+                : { sourceControl: createSourceControlClient(viewId) }),
+        }),
+        [actions, configDependencies, kind, presentation, providerGeneration, viewId],
+    );
     return <ControlledViewContext value={value}>{children}</ControlledViewContext>;
 }

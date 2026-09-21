@@ -26,8 +26,6 @@ export function ResourceExplorerContent({
                 editing={controller.editing}
                 projectId={controller.projectId}
                 projectRoot={controller.session.rootPath}
-                scopeId={controller.scopeId}
-                sessionId={controller.session.id}
                 requestFocus={controller.requestFocus}
                 setEditing={controller.setEditing}
             />

@@ -21,6 +21,7 @@ import {
     selectedSessionId,
     sessionCard,
     typeTerminal,
+    VISIBLE_SESSION,
     waitForRuntimeReady,
 } from './support/helpers.ts';
 import { stableWidth } from './support/motion-settle.ts';
@@ -159,7 +160,7 @@ test('Terminal tabs reveal an accessible close action on hover and focus', async
     try {
         await createShellSession(running.page);
         await pressNewTerminal(running.page);
-        const terminalTabs = running.page.locator('.work-tab[data-terminal-id]');
+        const terminalTabs = running.page.locator(`${VISIBLE_SESSION} .work-tab[data-terminal-id]`);
         await expect(terminalTabs).toHaveCount(2);
 
         const firstTab = terminalTabs.first();
@@ -439,14 +440,16 @@ test('Git secondarySidebar shows child repositories, submodule state, and change
         await expect(nestedRepo.getByRole('treeitem', { name: 'nested.txt' })).toHaveCount(0);
         await nestedRepo.getByRole('treeitem', { name: 'packages', exact: true }).click();
         await nestedRepo.getByRole('treeitem', { name: 'nested.txt' }).click();
-        await expect(running.page.locator('.work-tab', { hasText: 'nested.txt' })).toBeVisible();
+        await expect(
+            running.page.locator(`${VISIBLE_SESSION} .work-tab`, { hasText: 'nested.txt' }),
+        ).toBeVisible();
         await expect(running.page.locator('.monaco-diff-editor')).toBeVisible();
         await expect(running.page.locator('.monaco-diff-editor')).toContainText('before');
         await expect(running.page.locator('.monaco-diff-editor')).toContainText('after');
 
         await clickGitGroupAction(nestedRepo, 'Open Changes');
         await expect(
-            running.page.locator('.work-tab', { hasText: 'Changes: nested' }),
+            running.page.locator(`${VISIBLE_SESSION} .work-tab`, { hasText: 'Changes: nested' }),
         ).toBeVisible();
         await expect(running.page.locator('.git-multi-diff')).toBeVisible();
         await expect(running.page.locator('.git-multi-diff-item')).toHaveCount(
@@ -492,7 +495,7 @@ test('canceling Session deletion preserves the dirty editor buffer', async () =>
     try {
         await createShellSession(running.page);
         await running.page.getByRole('treeitem', { name: 'note.txt', exact: true }).click();
-        const editor = running.page.locator('.monaco-editor').first();
+        const editor = running.page.locator(`${VISIBLE_SESSION} .monaco-editor`).first();
         await editor.click({ position: { x: 120, y: 24 } });
         await running.page.keyboard.press('Meta+A');
         await running.page.keyboard.insertText('unsaved deletion cancel');
@@ -523,7 +526,9 @@ test('canceling Session deletion preserves the dirty editor buffer', async () =>
             .toBe(1);
 
         await expect(running.page.locator('.session-card')).toHaveCount(1);
-        await expect(running.page.locator('.view-lines')).toContainText('unsaved deletion cancel');
+        await expect(running.page.locator(`${VISIBLE_SESSION} .view-lines`)).toContainText(
+            'unsaved deletion cancel',
+        );
     } finally {
         try {
             await running.app.close();
@@ -631,10 +636,12 @@ test('Keep Running detaches the closed window and reattaches the live Terminal',
         const reopened = await reopenedPromise;
         await waitForRuntimeReady(reopened);
         await expect(
-            reopened.locator('.terminal-surface[data-terminal-attached="true"]'),
+            reopened.locator(`${VISIBLE_SESSION} .terminal-surface[data-terminal-attached="true"]`),
         ).toBeVisible();
         await typeTerminal(reopened, String.raw`printf 'KEEP_RUNNING_OK\n'`);
-        await expect(reopened.locator('.xterm-rows')).toContainText('KEEP_RUNNING_OK');
+        await expect(reopened.locator(`${VISIBLE_SESSION} .xterm-rows`)).toContainText(
+            'KEEP_RUNNING_OK',
+        );
     } finally {
         try {
             await running.app.close();
@@ -725,7 +732,7 @@ test('editor buffers stay isolated between Sessions that share one root', async 
     try {
         await createShellSession(running.page);
         await running.page.getByRole('treeitem', { name: 'shared.txt' }).click();
-        const editor = running.page.locator('.monaco-editor').first();
+        const editor = running.page.locator(`${VISIBLE_SESSION} .monaco-editor`).first();
         await editor.click({ position: { x: 120, y: 24 } });
         await running.page.keyboard.press('Meta+A');
         await running.page.keyboard.insertText('first Session dirty buffer');
@@ -734,11 +741,15 @@ test('editor buffers stay isolated between Sessions that share one root', async 
         await createAdditionalShellSession(running.page);
         const secondSessionId = await selectedSessionId(running.page);
         await running.page.getByRole('treeitem', { name: 'shared.txt' }).click();
-        await expect(running.page.locator('.view-lines')).toContainText('disk state');
-        await expect(running.page.locator('.view-lines')).not.toContainText('first Session');
+        await expect(running.page.locator(`${VISIBLE_SESSION} .view-lines`)).toContainText(
+            'disk state',
+        );
+        await expect(running.page.locator(`${VISIBLE_SESSION} .view-lines`)).not.toContainText(
+            'first Session',
+        );
 
         await sessionCard(running.page, firstSessionId).click();
-        await expect(running.page.locator('.view-lines')).toContainText(
+        await expect(running.page.locator(`${VISIBLE_SESSION} .view-lines`)).toContainText(
             'first Session dirty buffer',
         );
 
@@ -748,14 +759,14 @@ test('editor buffers stay isolated between Sessions that share one root', async 
             'external while first Session inactive\n',
             'utf8',
         );
-        await expect(running.page.locator('.view-lines')).toContainText(
+        await expect(running.page.locator(`${VISIBLE_SESSION} .view-lines`)).toContainText(
             'external while first Session inactive',
         );
         await sessionCard(running.page, firstSessionId).click();
-        await expect(running.page.locator('.view-lines')).toContainText(
+        await expect(running.page.locator(`${VISIBLE_SESSION} .view-lines`)).toContainText(
             'external while first Session inactive',
         );
-        await expect(running.page.locator('.view-lines')).not.toContainText(
+        await expect(running.page.locator(`${VISIBLE_SESSION} .view-lines`)).not.toContainText(
             'first Session dirty buffer',
         );
     } finally {

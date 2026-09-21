@@ -132,6 +132,15 @@ mounts  updates  firstMs  lastMs  hidden  instance
   that keeps _re-rendering_ on unrelated updates is still a finding.
 - `RendererPerformanceProfiler`, `FloatingTree`, `MenuPortal`, `TooltipPortal` and friends are
   wrapper instances from the primitives; they scale with the number of rows, not with a defect.
+- **`FloatingTree` and `MenuRoot` each take exactly one update right after mounting.** Base UI
+  registers a freshly mounted menu into its floating tree, which sets state one level up. The
+  signature is a 1:1 instance-to-update ratio at a `lastMs` just past the mount phase — at one
+  measured boot, 57 `FloatingTree` plus 56 `MenuRoot` accounted for 113 of 217 post-mount updates.
+  It is per menu instance, not per defect, so the way to lower it is to create fewer menus
+  (issue #1107), never to chase the update itself.
+- A first paint renders **twice**: once against the loading shell and again when `app.bootstrap`
+  resolves. Tooltips, Session rows, the Status bar and the Files view each taking ~2 updates inside
+  the boot window is that second pass, not redundant work.
 
 ## 5. Traps
 
@@ -179,6 +188,34 @@ How to read that set:
   re-rendered alongside the new children.
 - The first show of the Git view is 236 mounts by design (§4), so it is an observation, not a
   finding.
+
+### What that investigation found (issues #784, #785)
+
+Both file-tree findings above had one cause: the Session scope reached each row as a prop, so every
+switch replaced all 49 rows' props even when the booleans a row draws from were identical in the new
+scope. Three things carried that identity down — the `scopeId`/`sessionId` props themselves, the
+`requestFocus`/`setEditing` callbacks that captured `scopeId`, and the controlled-view context value,
+which was rebuilt whenever the selected Session changed because both view clients captured the
+Session id. Moving the scope into `resource-explorer-scope-store` and resolving the Session per
+request fixed all three at once:
+
+| Scenario           | instances | commits | mounts | updates |
+| ------------------ | --------- | ------- | ------ | ------- |
+| `session-switch`   | 726 → 229 | 750→253 | 51→51  | 699→202 |
+| `file-tree-expand` | 112 → 84  | 129→112 | 53→53  | 76→59   |
+
+`FileTreeItem`, `FileTreeItemMenu`, `DirectoryEntries` and `ControlledViewProvider` left the
+Session-switch sample entirely. What remains is tracked rather than unexplained:
+
+- The 51 mounts are the whole `PaneView` subtree, which `workbench.tsx` rebuilds per Session by
+  design — issue #657 owns keeping it alive, and no memoization can lower it before then.
+- The ~200 remaining updates are the 5 Session cards and their menu wrappers, and their cause is
+  **not yet named** — issue #1108 owns finding it. Recorded here because the first answer was wrong
+  in an instructive way: "`app.bootstrap` is replaced wholesale, so every derived array is a new
+  reference" is false. `stores/structural-sharing.ts:63` already merges every snapshot against the
+  previous state and keeps the identity of each deep-equal branch. A cause that sounds mechanical
+  is still a guess until the reference is actually compared across the switch, and §7 is what that
+  rule exists for.
 
 ## 7. Naming the cause
 

@@ -9,11 +9,11 @@ import {
     projectRecordSchema,
     runtimeStatusSchema,
     sessionRecordSchema,
-    sessionStateSchema,
     terminalRecordSchema,
     themeTokensSchema,
 } from './domain.js';
 import { lowCostSandboxFailureReasonSchema } from './low-cost-generation.js';
+import { sessionStateSchema } from './session.js';
 
 /**
  * One automatic-naming suppression that is still in force.

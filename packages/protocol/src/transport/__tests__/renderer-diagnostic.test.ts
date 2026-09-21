@@ -147,6 +147,15 @@ const validPerformanceScenarioDiagnostic = {
         sessionSelect: { count: 1, totalDurationMs: 18, maxDurationMs: 18 },
         appBootstrap: { count: 2, totalDurationMs: 24, maxDurationMs: 14 },
     },
+    terminals: {
+        attachedCount: 3,
+        reusedCount: 1,
+        stages: {
+            snapshotReplay: { count: 1, totalDurationMs: 30, maxDurationMs: 30 },
+            webglAttach: { count: 1, totalDurationMs: 4, maxDurationMs: 4 },
+            xtermCreate: { count: 2, totalDurationMs: 20, maxDurationMs: 12 },
+        },
+    },
     longAnimationFrames: {
         count: 2,
         totalDurationMs: 112,

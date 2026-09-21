@@ -404,17 +404,23 @@ test('zsh command boundaries survive scrollback, split resize, Session switches,
         await createAdditionalShellSession(running.page);
         await sessionCard(running.page, firstSessionId).click();
         await expect(sessionCard(running.page, firstSessionId)).toHaveClass(/active/u);
+        /**
+         * Unlike a split or a reload, leaving and re-entering a recently used Session does not remount the Terminal:
+         * keep-alive holds its pane, so the tracker never stopped reading the live OSC stream and has nothing to
+         * rebuild. Resetting here would mean the user lost boundaries they had watched arrive.
+         */
         await expectCommandState(terminalSurface(running.page, firstTerminalId), {
-            commandCount: 0,
-            completedCount: 0,
+            commandCount: 1,
+            completedCount: 1,
+            lastExitStatus: 0,
         });
         await running.page
             .locator(`.work-tab[data-terminal-id="${firstTerminalId}"] [role="tab"]`)
             .click();
         await typeInTerminal(running.page, firstTerminalId, 'true # AFTER_SESSION_SWITCH');
         await expectCommandState(terminalSurface(running.page, firstTerminalId), {
-            commandCount: 1,
-            completedCount: 1,
+            commandCount: 2,
+            completedCount: 2,
             lastExitStatus: 0,
         });
 

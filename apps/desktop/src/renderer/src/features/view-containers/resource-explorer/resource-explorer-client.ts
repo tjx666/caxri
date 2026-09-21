@@ -10,6 +10,7 @@ import type {
 import { CaxriError } from '@caxri/protocol';
 
 import { caxri } from '../../../lib/caxri';
+import { getSelectedSession } from '../../../stores/selectors';
 
 type FileDirectoryListing = MethodResult<'files.list'>;
 
@@ -56,7 +57,14 @@ export interface ResourceExplorerClient {
     forgetEditorPath(workbenchProjectId: string, path: string, signal?: AbortSignal): Promise<null>;
 }
 
-function requireSessionId(sessionId: string | undefined): string {
+/**
+ * Resolved per call rather than captured when the client is built. A captured id would make the client — and with it
+ * the controlled-view context value carrying it — a new object on every Session switch, which re-renders every context
+ * consumer including all 49 visible file-tree rows. The id is only a scope selector for Server, so reading the current
+ * selection at request time is equivalent.
+ */
+function requireSessionId(): string {
+    const sessionId = getSelectedSession()?.id;
     if (!sessionId) throw new CaxriError('UNAVAILABLE', 'No Session is selected');
     return sessionId;
 }
@@ -91,44 +99,33 @@ function request<M extends ResourceExplorerMethod>(
  * Files Core uses the public typed IPC table directly. The submitted Session id is only a scope selector: Server
  * resolves and validates that Session's authorized Workbench Project root before touching the filesystem.
  */
-export function createResourceExplorerClient(
-    viewId: string,
-    sessionId?: string,
-): ResourceExplorerClient {
+export function createResourceExplorerClient(viewId: string): ResourceExplorerClient {
     return {
         viewId,
         acknowledgeOperation: (operationId, signal) =>
             request(
                 'files.operation.acknowledge',
-                { operationId, sessionId: requireSessionId(sessionId) },
+                { operationId, sessionId: requireSessionId() },
                 signal,
             ),
         cancelOperation: (operationId, signal) =>
             request(
                 'files.operation.cancel',
-                { operationId, sessionId: requireSessionId(sessionId) },
+                { operationId, sessionId: requireSessionId() },
                 signal,
             ),
         copy: (path, directory, signal) =>
-            request(
-                'files.copy',
-                { sessionId: requireSessionId(sessionId), path, directory },
-                signal,
-            ),
+            request('files.copy', { sessionId: requireSessionId(), path, directory }, signal),
         create: (options, signal) =>
-            request('files.create', { sessionId: requireSessionId(sessionId), ...options }, signal),
+            request('files.create', { sessionId: requireSessionId(), ...options }, signal),
         getOperation: (operationId, signal) =>
-            request(
-                'files.operation.get',
-                { operationId, sessionId: requireSessionId(sessionId) },
-                signal,
-            ),
+            request('files.operation.get', { operationId, sessionId: requireSessionId() }, signal),
         list: async (directory, signal) =>
             (
                 await request(
                     'files.list',
                     {
-                        sessionId: requireSessionId(sessionId),
+                        sessionId: requireSessionId(),
                         ...(directory !== undefined && { directory }),
                     },
                     signal,
@@ -138,28 +135,24 @@ export function createResourceExplorerClient(
             request(
                 'files.list',
                 {
-                    sessionId: requireSessionId(sessionId),
+                    sessionId: requireSessionId(),
                     ...(directory !== undefined && { directory }),
                 },
                 signal,
             ),
         listOperations: (signal) =>
-            request('files.operation.list', { sessionId: requireSessionId(sessionId) }, signal),
+            request('files.operation.list', { sessionId: requireSessionId() }, signal),
         move: (options, signal) =>
-            request('files.move', { sessionId: requireSessionId(sessionId), ...options }, signal),
+            request('files.move', { sessionId: requireSessionId(), ...options }, signal),
         rename: (options, signal) =>
-            request('files.rename', { sessionId: requireSessionId(sessionId), ...options }, signal),
+            request('files.rename', { sessionId: requireSessionId(), ...options }, signal),
         forgetEditorPath: (workbenchProjectId, path, signal) =>
             request(
                 'session.workbenchRoot.forgetEditorPath',
-                { sessionId: requireSessionId(sessionId), workbenchProjectId, path },
+                { sessionId: requireSessionId(), workbenchProjectId, path },
                 signal,
             ),
         trash: (path, options, signal) =>
-            request(
-                'files.trash',
-                { sessionId: requireSessionId(sessionId), path, ...options },
-                signal,
-            ),
+            request('files.trash', { sessionId: requireSessionId(), path, ...options }, signal),
     };
 }

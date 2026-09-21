@@ -30,6 +30,18 @@ import { mergeStructurally } from './structural-sharing';
 import { describeFailure, isCancelledRequest, pushToast } from './toasts';
 import { reportWorkbenchRootChange } from './workbench-root-notice';
 import {
+    applyPendingSessionPatches,
+    isStaleSessionStateWrite,
+    pendingSessionPatches,
+    persistedSessionPatches,
+    rebasedSessionState,
+    sessionPatchAttempt,
+    sessionPatchKey,
+    sessionStateWriteChains,
+    sessionStateWrites,
+    settledSessionState,
+} from './workbench-session-patches';
+import {
     acceptTerminalReads,
     applyFullTerminalSnapshot,
     beginTerminalRead,
@@ -104,31 +116,6 @@ const sessionCommandConvergence = {
 const pendingSessionRecordIds = new Set<string>();
 const pendingTerminalRecordIds = new Set<string>();
 const configErrors = { reported: false };
-const sessionPatchRevision = { current: 0 };
-/**
- * Monotonic count of `session.updateState` requests issued so far. Stamped on a write when it is _sent_, not when it
- * resolves: over a single serialized Server connection, any read issued after that point is guaranteed to observe the
- * write once it lands, regardless of which of the two responses comes back first. Comparing against resolution time
- * instead (as this used to) made a read whose response simply arrived first look "older" than a write it actually
- * postdated, so a `state.changed`-triggered refresh for an unrelated later mutation (e.g. closing a Terminal) could be
- * discarded in favor of a stale pre-mutation snapshot that never actually raced it.
- */
-const sessionStateWrites = { sent: 0 };
-const pendingSessionPatches = new Map<
-    string,
-    { revision: number; retained?: boolean; sendStamp: number; state: SessionState }
->();
-/**
- * The latest Session state whose `session.updateState` completed, kept until a bootstrap read issued after the write
- * proves the Server snapshot includes it. `pendingSessionPatches` only shields the in-flight window; without this map a
- * snapshot read issued before the write but resolved after it would silently roll the UI back (observed as a Terminal
- * split collapsing right after the drop persisted).
- */
-const persistedSessionPatches = new Map<string, { sendStamp: number; state: SessionState }>();
-
-function sessionPatchKey(state: Pick<SessionState, 'sessionId' | 'workbenchProjectId'>): string {
-    return `${state.sessionId}\0${state.workbenchProjectId}`;
-}
 
 export const useWorkbenchStore = createStore<WorkbenchState>('workbench', (set, get) => ({
     bootstrap: undefined,
@@ -181,39 +168,78 @@ export const useWorkbenchStore = createStore<WorkbenchState>('workbench', (set, 
             if (persisted) persisted.state = next;
             return true;
         }
-        sessionPatchRevision.current += 1;
-        const revision = sessionPatchRevision.current;
+        sessionPatchAttempt.current += 1;
+        const attempt = sessionPatchAttempt.current;
         /**
-         * Stamped now, at send time, so a bootstrap read issued after this line — even one that resolves before this
-         * request does — is correctly recognized as observing (or postdating) this write once it lands.
+         * Registered before this write waits its turn, with a stamp no read can postdate, so a bootstrap refresh that
+         * lands while the write is still queued behind its predecessor cannot roll the optimistic layout back. The real
+         * stamp replaces it the moment the request is actually sent.
          */
-        sessionStateWrites.sent += 1;
-        const sendStamp = sessionStateWrites.sent;
-        pendingSessionPatches.set(patchKey, { revision, sendStamp, state: next });
+        const pendingEntry = { attempt, sendStamp: Infinity, state: next };
+        pendingSessionPatches.set(patchKey, pendingEntry);
         const finish = (): void => {
-            if (pendingSessionPatches.get(patchKey)?.revision === revision)
+            if (pendingSessionPatches.get(patchKey)?.attempt === attempt)
                 pendingSessionPatches.delete(patchKey);
         };
+        const { promise: chained, resolve: settleChain } = Promise.withResolvers<
+            number | undefined
+        >();
+        const previousWrite = sessionStateWriteChains.get(patchKey);
+        sessionStateWriteChains.set(patchKey, chained);
+        let sendStamp = Infinity;
         try {
+            /**
+             * Awaited only when this Session actually has a write in flight, so the ordinary uncontended patch still
+             * reaches the Server in the same microtask it always did.
+             */
+            const durableSend = previousWrite
+                ? rebasedSessionState(durableNext, await previousWrite)
+                : durableNext;
+            /**
+             * Stamped now, at send time, so a bootstrap read issued after this line — even one that resolves before
+             * this request does — is correctly recognized as observing (or postdating) this write once it lands.
+             */
+            sessionStateWrites.sent += 1;
+            sendStamp = sessionStateWrites.sent;
+            pendingEntry.sendStamp = sendStamp;
             const settled = settledSessionState(
                 next,
-                await caxri.request('session.updateState', durableNext),
+                await caxri.request('session.updateState', durableSend),
             );
-            if (pendingSessionPatches.get(patchKey)?.revision === revision) {
+            settleChain(settled.revision);
+            if (pendingSessionPatches.get(patchKey)?.attempt === attempt) {
                 persistedSessionPatches.set(patchKey, { sendStamp, state: settled });
                 if (settled !== next) applySettledSessionState(settled);
             }
             finish();
             return true;
         } catch (error: unknown) {
-            // Only the latest pending revision may roll back or report a failure: an older
+            // A write that stored nothing has no revision to hand the next one, which then keeps the token it read.
+            settleChain(undefined);
+            // Only the latest pending attempt may roll back or report a failure: an older
             // request must not clobber or fault a newer optimistic write and its own outcome.
-            const isLatestRevision = pendingSessionPatches.get(patchKey)?.revision === revision;
+            const isLatestAttempt = pendingSessionPatches.get(patchKey)?.attempt === attempt;
+            /**
+             * A rejected stale write is the one failure whose `previous` is worthless: the Server row moved after this
+             * writer read it, so restoring the state this write started from would put a layout on screen that the
+             * Server never held, and `failureMode: 'retain'` would pin an equally stale optimistic copy over every
+             * later snapshot. Drop both overlays for this Session and re-read instead, which is also the only outcome
+             * that lets the losing change be re-derived against what actually won.
+             */
+            if (isStaleSessionStateWrite(error)) {
+                finish();
+                if (persistedSessionPatches.get(patchKey)?.sendStamp === sendStamp)
+                    persistedSessionPatches.delete(patchKey);
+                // This writer reports its own outcome now; the refreshed snapshot is what every later render reads.
+                // eslint-disable-next-line no-void -- intentional floating-promise discard
+                if (isLatestAttempt) void refreshWorkbench();
+                return false;
+            }
             /**
              * A durable file move cannot safely restore its old path. Retaining the latest optimistic patch also
-             * shields it from stale bootstrap reads until retry replaces this revision and eventually persists it.
+             * shields it from stale bootstrap reads until retry replaces this attempt and eventually persists it.
              */
-            const isRetainLatest = isLatestRevision && failureMode === 'retain';
+            const isRetainLatest = isLatestAttempt && failureMode === 'retain';
             if (isRetainLatest) {
                 const pending = pendingSessionPatches.get(patchKey);
                 if (pending) pending.retained = true;
@@ -225,7 +251,7 @@ export const useWorkbenchStore = createStore<WorkbenchState>('workbench', (set, 
             );
             const isRootIsStillVisible =
                 visibleState?.workbenchProjectId === next.workbenchProjectId;
-            if (!isRetainLatest && isLatestRevision && isRootIsStillVisible) {
+            if (!isRetainLatest && isLatestAttempt && isRootIsStillVisible) {
                 recordExternalEditorState(previous);
                 set((current) => {
                     if (!current.bootstrap) return current;
@@ -242,37 +268,19 @@ export const useWorkbenchStore = createStore<WorkbenchState>('workbench', (set, 
                     };
                 });
             }
-            if (isLatestRevision && isRootIsStillVisible) onLatestFailure?.();
+            if (isLatestAttempt && isRootIsStillVisible) onLatestFailure?.();
             // A cancelled write has nothing for the user to act on and usually arrives with no window left to show it
             // on; `tryCommand` applies the same rule to every other Renderer-initiated write.
-            if (shouldReportFailure && isLatestRevision && !isCancelledRequest(error))
+            if (shouldReportFailure && isLatestAttempt && !isCancelledRequest(error))
                 pushToast('error', describeFailure(error, failureLabel));
             return false;
+        } finally {
+            // Only the newest link owns the entry; an older one deleting it would let the next write skip the queue.
+            if (sessionStateWriteChains.get(patchKey) === chained)
+                sessionStateWriteChains.delete(patchKey);
         }
     },
 }));
-
-/**
- * What the Workbench must show once `session.updateState` resolves.
- *
- * The Server answers with the state it actually stored, which can differ from what was sent: a layout that still
- * carried a Terminal closed while this write was being assembled comes back pruned. Showing the answer rather than the
- * optimistic copy is what stops that tab from lingering as a blank pane, because {@link persistedSessionPatches} would
- * otherwise re-apply the stale layout over every later snapshot.
- *
- * The answer is treated as untrusted input for the same reason snapshots are: a write that the Server confirmed must
- * never be rolled back, or reported as failed, merely because its response body could not be read.
- */
-function settledSessionState(sent: SessionState, answer: unknown): SessionState {
-    const stored = answer as SessionState | undefined;
-    if (
-        stored?.sessionId !== sent.sessionId ||
-        stored.workbenchProjectId !== sent.workbenchProjectId
-    )
-        return sent;
-    const visible = mergeExternalEditorTabs(stored);
-    return isEqual(visible.paneLayout, sent.paneLayout) ? sent : visible;
-}
 
 /**
  * Replaces one Session's visible state with the Server's canonical answer to a layout write.
@@ -293,30 +301,6 @@ function applySettledSessionState(settled: SessionState): void {
         };
     });
 }
-
-/**
- * A bootstrap read started before `session.updateState` can resolve after the optimistic Renderer write. Preserve the
- * latest unacknowledged Session state so that stale Server snapshots cannot make a just-selected tab or layout visibly
- * jump backwards.
- */
-function applyPendingSessionPatches(state: BootstrapState, readStamp: number): BootstrapState {
-    // A read issued after a write was sent observes it once it lands (Server serializes requests in
-    // arrival order), so the snapshot is authoritative for that Session again and the persisted overlay
-    // can retire.
-    for (const [key, entry] of persistedSessionPatches)
-        if (entry.sendStamp <= readStamp) persistedSessionPatches.delete(key);
-    if (pendingSessionPatches.size === 0 && persistedSessionPatches.size === 0) return state;
-    const sessionStates = state.sessionStates.map((sessionState) => {
-        const key = sessionPatchKey(sessionState);
-        const pending = pendingSessionPatches.get(key);
-        if (pending && (pending.retained || pending.sendStamp > readStamp)) return pending.state;
-        const persisted = persistedSessionPatches.get(key);
-        if (persisted && persisted.sendStamp > readStamp) return persisted.state;
-        return sessionState;
-    });
-    return { ...state, sessionStates };
-}
-
 /**
  * Dirtiness is no longer mirrored into the persisted Session state: an unsaved buffer lives only in the Renderer's
  * document cache, so a Server snapshot can be applied as is.

@@ -16,6 +16,7 @@ import {
     selectedSessionId,
     sessionCard,
     typeTerminal,
+    VISIBLE_SESSION,
     waitForRuntimeReady,
 } from './support/helpers.ts';
 
@@ -37,7 +38,9 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         await createShellSession(running.page);
         const firstSessionId = await selectedSessionId(running.page);
         await typeTerminal(running.page, String.raw`printf 'CAXRI_E2E_OK\n'`);
-        await expect(running.page.locator('.xterm-rows')).toContainText('CAXRI_E2E_OK');
+        await expect(running.page.locator(`${VISIBLE_SESSION} .xterm-rows`)).toContainText(
+            'CAXRI_E2E_OK',
+        );
 
         await createAdditionalShellSession(running.page);
         const secondSessionId = await selectedSessionId(running.page);
@@ -53,11 +56,13 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         await running.page.waitForTimeout(1_400);
         await firstSession.click();
         await expect(firstSession).toHaveClass(/active/);
-        await expect(running.page.locator('.xterm-rows')).toContainText('BACKGROUND_CONTINUED');
+        await expect(running.page.locator(`${VISIBLE_SESSION} .xterm-rows`)).toContainText(
+            'BACKGROUND_CONTINUED',
+        );
 
         await running.page.getByRole('treeitem', { name: 'note.txt' }).click();
-        await expect(running.page.locator('.monaco-editor')).toBeVisible();
-        const editorSurface = running.page.locator('.monaco-editor').first();
+        await expect(running.page.locator(`${VISIBLE_SESSION} .monaco-editor`)).toBeVisible();
+        const editorSurface = running.page.locator(`${VISIBLE_SESSION} .monaco-editor`).first();
         await editorSurface.click({ position: { x: 120, y: 24 } });
         await running.page.keyboard.press('Meta+A');
         await running.page.keyboard.insertText('saved by Caxri');
@@ -78,7 +83,9 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
             /reloaded from disk; external changes take precedence/,
         );
         await writeFile(join(sessionRoot, 'note.txt'), 'clean external change\n', 'utf8');
-        await expect(running.page.locator('.view-lines')).toContainText('clean external change');
+        await expect(running.page.locator(`${VISIBLE_SESSION} .view-lines`)).toContainText(
+            'clean external change',
+        );
         await expect(externalReloadNotice).not.toBeVisible();
 
         await editorSurface.click({ position: { x: 120, y: 24 } });
@@ -87,7 +94,9 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         await expect(editorTabDescription).toContainText('Unsaved changes.');
         await writeFile(join(sessionRoot, 'note.txt'), 'external wins\n', 'utf8');
         await expect(externalReloadNotice).toBeVisible();
-        await expect(running.page.locator('.view-lines')).toContainText('external wins');
+        await expect(running.page.locator(`${VISIBLE_SESSION} .view-lines`)).toContainText(
+            'external wins',
+        );
         await expect(editorTabDescription).not.toContainText('Unsaved changes.');
 
         await running.page.getByRole('tab', { name: 'Git', exact: true }).click();
@@ -113,10 +122,12 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         await expect(
             running.page.locator('[data-config-source="theme"] .view-lines'),
         ).toContainText('#282a36');
-        const terminalTabCount = await running.page.locator('.work-tab').count();
+        const terminalTabCount = await running.page.locator(`${VISIBLE_SESSION} .work-tab`).count();
         await running.page.keyboard.press('Meta+W');
         await expect(running.page.getByRole('dialog')).toBeVisible();
-        await expect(running.page.locator('.work-tab')).toHaveCount(terminalTabCount);
+        await expect(running.page.locator(`${VISIBLE_SESSION} .work-tab`)).toHaveCount(
+            terminalTabCount,
+        );
         await running.page.getByRole('button', { name: 'Close' }).click();
 
         await running.app.evaluate(({ dialog }, path) => {
@@ -131,21 +142,25 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         expect(archiveText).not.toContain('CAXRI_E2E_OK');
 
         await running.page
-            .locator('.work-tab [role="tab"]')
+            .locator(`${VISIBLE_SESSION} .work-tab [role="tab"]`)
             .filter({ hasText: 'Shell' })
             .first()
             .click();
         const activeTerminalId = await running.page
-            .locator('.work-tab.active[data-terminal-id]')
+            .locator(`${VISIBLE_SESSION} .work-tab.active[data-terminal-id]`)
             .getAttribute('data-terminal-id');
         if (!activeTerminalId) throw new Error('Active Shell Terminal ID was not rendered');
         await typeTerminal(running.page, String.raw`sleep 1; printf 'AFTER_RENDERER_RELOAD\n'`);
         await running.page.reload();
         await waitForRuntimeReady(running.page);
-        await expect(running.page.locator('.xterm-rows')).toContainText('AFTER_RENDERER_RELOAD');
+        await expect(running.page.locator(`${VISIBLE_SESSION} .xterm-rows`)).toContainText(
+            'AFTER_RENDERER_RELOAD',
+        );
 
         await typeTerminal(running.page, String.raw`printf 'STALE_RENDERER_ONLY\n'`);
-        await expect(running.page.locator('.xterm-rows')).toContainText('STALE_RENDERER_ONLY');
+        await expect(running.page.locator(`${VISIBLE_SESSION} .xterm-rows`)).toContainText(
+            'STALE_RENDERER_ONLY',
+        );
         const serverStatus = await pageRequest<{ pid: number }>(running.page, 'host.status');
         process.kill(serverStatus.pid, 'SIGKILL');
         await expect(runtimeStatus(running.page)).toHaveAttribute(
@@ -206,7 +221,9 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         // An orderly app quit also leaves running Terminals interrupted; the relaunched Runtime
         // restores the selected Session's Terminals on startup without user action.
         await expect(
-            running.page.locator('.terminal-surface[data-terminal-attached="true"]'),
+            running.page.locator(
+                `${VISIBLE_SESSION} .terminal-surface[data-terminal-attached="true"]`,
+            ),
         ).toBeVisible();
 
         await running.app.evaluate(({ dialog }) => {

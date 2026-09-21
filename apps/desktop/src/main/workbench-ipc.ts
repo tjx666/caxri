@@ -2,6 +2,7 @@ import type { CaxriReply, TerminalRendererDiagnostic } from '@caxri/protocol';
 import {
     CAXRI_PROTOCOL_VERSION,
     CaxriError,
+    isCallerHandledFailure,
     isRendererErrorKind,
     methodFromEnvelope,
     RENDERER_DIAGNOSTIC_CHANNEL,
@@ -32,7 +33,7 @@ const CALLER_SIDE_WARN_CODES = new Set<string>(['NOT_FOUND', 'VALIDATION']);
  * keeps `error`.
  */
 function requestFailureLevel(code: string, isRecovering: boolean): 'error' | 'warn' {
-    if (CALLER_SIDE_WARN_CODES.has(code)) return 'warn';
+    if (CALLER_SIDE_WARN_CODES.has(code) || isCallerHandledFailure(code)) return 'warn';
     return code === 'UNAVAILABLE' && isRecovering ? 'warn' : 'error';
 }
 
@@ -201,8 +202,15 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
                 });
             return;
         }
-        const { react, requests, longAnimationFrames, interactions, frames, capabilities } =
-            diagnostic;
+        const {
+            react,
+            requests,
+            longAnimationFrames,
+            interactions,
+            frames,
+            capabilities,
+            terminals,
+        } = diagnostic;
         options.logger()?.write('info', logEventCatalog.renderer.performanceScenario, {
             correlationId: diagnostic.scenarioId,
             durationMs: diagnostic.durationMs,
@@ -264,6 +272,22 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
                 appBootstrapRequestCount: requests.appBootstrap.count,
                 appBootstrapRequestTotalDurationMs: requests.appBootstrap.totalDurationMs,
                 appBootstrapRequestMaxDurationMs: requests.appBootstrap.maxDurationMs,
+                /**
+                 * The keep-alive's own receipt: `terminalReusedCount` beside a non-zero `terminalXtermCreateCount` is a
+                 * switch that rebuilt Terminals it was supposed to keep, which no aggregate duration can reveal.
+                 */
+                terminalAttachedCount: terminals.attachedCount,
+                terminalReusedCount: terminals.reusedCount,
+                terminalSnapshotReplayCount: terminals.stages.snapshotReplay.count,
+                terminalSnapshotReplayTotalDurationMs:
+                    terminals.stages.snapshotReplay.totalDurationMs,
+                terminalSnapshotReplayMaxDurationMs: terminals.stages.snapshotReplay.maxDurationMs,
+                terminalWebglAttachCount: terminals.stages.webglAttach.count,
+                terminalWebglAttachTotalDurationMs: terminals.stages.webglAttach.totalDurationMs,
+                terminalWebglAttachMaxDurationMs: terminals.stages.webglAttach.maxDurationMs,
+                terminalXtermCreateCount: terminals.stages.xtermCreate.count,
+                terminalXtermCreateTotalDurationMs: terminals.stages.xtermCreate.totalDurationMs,
+                terminalXtermCreateMaxDurationMs: terminals.stages.xtermCreate.maxDurationMs,
                 longAnimationFrameCount: longAnimationFrames.count,
                 longAnimationFrameTotalDurationMs: longAnimationFrames.totalDurationMs,
                 longAnimationFrameMaxDurationMs: longAnimationFrames.maxDurationMs,

@@ -9,6 +9,7 @@ import {
     launchCaxri,
     selectedSessionId,
     sessionCard,
+    VISIBLE_SESSION,
 } from './support/helpers.ts';
 
 test('Picker cancellation restores focus without reopening Session details', async () => {
@@ -26,7 +27,7 @@ test('Picker cancellation restores focus without reopening Session details', asy
         await createAdditionalShellSession(page);
         const secondId = await selectedSessionId(page);
         const palette = page.getByRole('dialog', { name: 'Command Palette' });
-        const input = page.locator('.xterm-helper-textarea');
+        const input = page.locator(`${VISIBLE_SESSION} .xterm-helper-textarea`);
         const details = page.locator('.session-activity-card');
 
         await page.locator('.project-select').focus();
@@ -91,7 +92,7 @@ test('revealing the Primary Side Bar preserves workbench focus without opening S
     try {
         const { page } = running;
         await createProjectSession(page);
-        const terminalInput = page.locator('.xterm-helper-textarea');
+        const terminalInput = page.locator(`${VISIBLE_SESSION} .xterm-helper-textarea`);
         const details = page.locator('.session-activity-card');
 
         await terminalInput.focus();

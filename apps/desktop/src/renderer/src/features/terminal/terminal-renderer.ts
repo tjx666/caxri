@@ -12,6 +12,12 @@ export type TerminalRendererReason =
     | 'disabled'
     | 'disposed'
     | 'load-failed'
+    /**
+     * The pane belongs to a Session kept alive off screen, so its WebGL context was released deliberately. Never
+     * conflate it with `context-loss`: the GPU incident budget only stays meaningful if a released context and a lost
+     * one are different events.
+     */
+    | 'suspended'
     | 'unsupported';
 export type TerminalRendererRetryState =
     | 'cancelled'
@@ -27,6 +33,8 @@ export type TerminalRendererTrigger =
     | 'dispose'
     | 'gpu-incident-limit'
     | 'gpu-process-recovery'
+    | 'keep-alive-resume'
+    | 'keep-alive-suspend'
     | 'manual-retry'
     | 'preference-change'
     | 'visibility-restore'
@@ -97,6 +105,11 @@ export interface TerminalWebglSessionPolicy {
 }
 
 export interface TerminalRendererControllerOptions {
+    /**
+     * Brackets one WebGL activation. Injected rather than imported so this controller stays a pure unit, and so the
+     * Session-switch receipt can tell GPU attach cost apart from the Renderer cost of building xterm.
+     */
+    beginActivationMeasurement?: () => () => void;
     canRetryWebgl?: () => boolean;
     createRetrySequenceId?: () => string;
     createWebglAddon?: WebglAddonFactory;
@@ -169,8 +182,10 @@ export class TerminalRendererController {
     private retryState: TerminalRendererRetryState = 'idle';
     private retryTimer: ReturnType<typeof setTimeout> | undefined;
     private status: TerminalRendererStatus | undefined;
+    private suspended = false;
     private webgl: WebglRendererAddon | undefined;
 
+    private readonly beginActivationMeasurement: () => () => void;
     private readonly canRetryWebgl: () => boolean;
     private readonly createRetrySequenceId: () => string;
     private readonly createWebglAddon: WebglAddonFactory;
@@ -184,6 +199,7 @@ export class TerminalRendererController {
         private readonly onStatus: (status: TerminalRendererStatus) => void,
         options: TerminalRendererControllerOptions,
     ) {
+        this.beginActivationMeasurement = options.beginActivationMeasurement ?? (() => () => {});
         this.canRetryWebgl =
             options.canRetryWebgl ?? (() => document.visibilityState === 'visible');
         this.createRetrySequenceId = options.createRetrySequenceId ?? (() => crypto.randomUUID());
@@ -232,11 +248,13 @@ export class TerminalRendererController {
         >,
     ): boolean {
         let addon: WebglRendererAddon | undefined;
+        const settleMeasurement = this.beginActivationMeasurement();
         try {
             addon = this.createWebglAddon();
             this.webgl = addon;
             this.lossDisposable = addon.onContextLoss(() => this.handleContextLoss());
             this.host.loadAddon(addon);
+            settleMeasurement();
             this.redrawTerminal('grid-sync');
             if (successTrigger === 'webgl-retry-succeeded') this.retryState = 'succeeded';
             this.retryDelayMs = null;
@@ -248,6 +266,7 @@ export class TerminalRendererController {
             }
             return true;
         } catch {
+            settleMeasurement();
             this.lossDisposable?.dispose();
             this.lossDisposable = undefined;
             if (this.webgl === addon) this.webgl = undefined;
@@ -270,7 +289,7 @@ export class TerminalRendererController {
     private beginRetry(
         reason: Extract<TerminalRendererReason, 'context-loss' | 'load-failed'>,
     ): void {
-        if (this.preference === 'off' || this.disposed) return;
+        if (this.preference === 'off' || this.disposed || this.suspended) return;
         this.retryReason = reason;
         this.retrySequenceId ??= this.createRetrySequenceId();
         if (this.publishIncidentLimit()) return;
@@ -324,7 +343,8 @@ export class TerminalRendererController {
     private retryWebgl(): void {
         this.retryTimer = undefined;
         this.retryDelayMs = null;
-        if (this.disposed || this.preference === 'off' || !this.retrySequenceId) return;
+        if (this.disposed || this.suspended || this.preference === 'off' || !this.retrySequenceId)
+            return;
         if (this.publishIncidentLimit()) return;
         if (!this.canRetryWebgl()) {
             this.retryState = 'deferred';
@@ -437,12 +457,65 @@ export class TerminalRendererController {
         return this.policy.isPinnedToDom() ? 'context-loss-limit' : current;
     }
 
+    /**
+     * Releases the GPU context of a pane that is staying mounted but leaving the screen, which is what lets a Session
+     * keep its Terminals alive in the background (issue #657). Everything that carries user state — xterm, its buffer
+     * and scroll position, the PTY subscription, the Agent lifecycle — is untouched; only the context goes, because
+     * Chromium caps a page at roughly 16 live WebGL contexts and force-loses the oldest past that, which
+     * `gpu-incident-budget.ts` would then bank as a real incident and eventually pin every Terminal to DOM.
+     *
+     * Deliberately does not redraw: repainting a pane nobody can see is exactly the work the keep-alive exists to
+     * avoid. `resume()` owns the redraw.
+     */
+    suspend(): void {
+        if (this.disposed || this.suspended) return;
+        this.suspended = true;
+        this.cancelRetry();
+        this.disposeWebgl();
+        this.publish('suspended', 'keep-alive-suspend');
+    }
+
+    /**
+     * Puts a suspended pane back on screen: reacquire WebGL when the preference and the session budget still allow it,
+     * then sync the grid once so the DOM the user left behind matches the buffer that kept filling while hidden.
+     */
+    resume(): void {
+        if (this.disposed || !this.suspended) return;
+        this.suspended = false;
+        if (this.preference === undefined) return;
+        const isPinned = this.preference !== 'off' && this.policy.isPinnedToDom();
+        const target = resolveTerminalRendererTarget(
+            this.preference,
+            this.preference !== 'off' && !isPinned && this.policy.isWebgl2Available(),
+        );
+        if (target === 'dom') {
+            this.redrawTerminal('grid-sync');
+            this.publish(
+                this.preference === 'off'
+                    ? 'disabled'
+                    : isPinned
+                      ? 'context-loss-limit'
+                      : 'unsupported',
+                'keep-alive-resume',
+            );
+            return;
+        }
+        if (!this.activateWebgl('preference-change', 'webgl-load-failed'))
+            this.redrawTerminal('grid-sync');
+    }
+
     setPreference(preference: TerminalGpuAcceleration): void {
         if (this.preference === preference) return;
         if (this.preference !== undefined) this.cancelRetry();
         this.retryAttemptTimestamps.length = 0;
         this.preference = preference;
         this.policy.applyPreference(preference);
+        // A hidden pane records the preference but must not allocate a context for it; `resume()` applies it on the way
+        // back to the screen.
+        if (this.suspended) {
+            this.publish('suspended', 'keep-alive-suspend');
+            return;
+        }
         const isPinned = preference !== 'off' && this.policy.isPinnedToDom();
         const target = resolveTerminalRendererTarget(
             preference,
@@ -470,7 +543,12 @@ export class TerminalRendererController {
      * stays on DOM until another user action, while later context losses retain the normal retry limits.
      */
     retryFromUser(): boolean {
-        if (this.disposed || this.preference === undefined || this.preference === 'off')
+        if (
+            this.disposed ||
+            this.suspended ||
+            this.preference === undefined ||
+            this.preference === 'off'
+        )
             return false;
         if (this.webgl) return true;
         this.cancelRetry();
@@ -494,7 +572,9 @@ export class TerminalRendererController {
      * Clears stale atlas pixels after window restore, Space changes, or document visibility restore.
      */
     restoreVisible(): void {
-        if (this.disposed || this.preference === 'off' || !this.status) return;
+        // A suspended pane is off screen by the keep-alive's decision, not by the window's: a window-restore event
+        // must not hand it back a context it is not allowed to hold.
+        if (this.disposed || this.suspended || this.preference === 'off' || !this.status) return;
         if (this.status.reason === 'context-loss-limit') {
             // The pin suppresses every WebGL rebuild, not the measurement: Main counts these restores to see how
             // often the user keeps switching back after the session settled on DOM.
@@ -529,6 +609,9 @@ export class TerminalRendererController {
         TerminalRendererStatus['recoveryResult'],
         'not-requested'
     > {
+        // A suspended pane holds no context, so a GPU process exit costs it nothing and must not be charged to the
+        // incident budget as if it had lost one.
+        if (this.suspended) return 'already-dom';
         const isHadWebgl = Boolean(this.webgl);
         if (isHadWebgl) this.recordContextLoss();
         this.disposeWebgl();

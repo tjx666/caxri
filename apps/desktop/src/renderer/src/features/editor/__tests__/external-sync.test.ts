@@ -39,6 +39,7 @@ function sessionState(
 ): SessionState {
     return {
         sessionId,
+        revision: 0,
         workbenchProjectId,
         desiredSecondarySidebarViewContainerId: 'caxri.files',
         paneLayout: {

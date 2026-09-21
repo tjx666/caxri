@@ -12,7 +12,7 @@ import { AgentDispatchReceiptsModel } from './models/agent-dispatch-receipts';
 import { AppStateModel } from './models/app-state';
 import { ProjectsModel } from './models/projects';
 import { ProtocolStateModel } from './models/protocol-state';
-import type { SessionStateRepair, SessionStateUnchangedWrite } from './models/sessions';
+import type { SessionStateRepair, SessionStateUnchangedWrite } from './models/session-state-row';
 import { SessionsModel } from './models/sessions';
 import { SnapshotsModel } from './models/snapshots';
 import { TerminalsModel } from './models/terminals';

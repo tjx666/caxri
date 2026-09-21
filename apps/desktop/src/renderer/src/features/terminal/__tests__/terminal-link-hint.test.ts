@@ -6,23 +6,39 @@ import {
     terminalLinkHintPosition,
 } from '../terminal-link-hint';
 import { terminalLinkHintKey } from '../terminal-links';
+import type { TerminalReferencePreviewCard } from '../terminal-reference-preview';
 
 function createHintDom() {
     const documentListeners = new Map<string, Set<EventListener>>();
     const windowListeners = new Map<string, Set<EventListener>>();
-    const style: Partial<CSSStyleDeclaration> = {};
+    const scrollListeners = new Set<() => void>();
     const classRemove = vi.fn();
     const classToggle = vi.fn();
     const elementRemove = vi.fn();
     const setAttribute = vi.fn();
-    const hintElement = {
-        className: '',
-        getBoundingClientRect: () => ({ height: 32, width: 180 }),
-        remove: elementRemove,
-        setAttribute,
-        style,
-        textContent: '',
-    } as unknown as HTMLDivElement;
+    const elements: HTMLDivElement[] = [];
+    /**
+     * A fresh node per call, because a preview card renders its lines as children of the popup: one shared stub would
+     * make every line overwrite the one before it.
+     */
+    const createElement = vi.fn(() => {
+        const element = {
+            children: [] as HTMLDivElement[],
+            className: '',
+            classList: { toggle: vi.fn() },
+            getBoundingClientRect: () => ({ height: 32, width: 180 }),
+            remove: elementRemove,
+            replaceChildren: (...children: HTMLDivElement[]) => {
+                element.children = children;
+                element.textContent = children.map((child) => child.textContent).join('\n');
+            },
+            setAttribute,
+            style: {} as Partial<CSSStyleDeclaration>,
+            textContent: '',
+        };
+        elements.push(element as unknown as HTMLDivElement);
+        return element;
+    });
     const addListener = (
         listeners: Map<string, Set<EventListener>>,
         type: string,
@@ -51,7 +67,7 @@ function createHintDom() {
     const ownerDocument = {
         addEventListener: (type: string, listener: EventListenerOrEventListenerObject) =>
             addListener(documentListeners, type, listener),
-        createElement: vi.fn(() => hintElement),
+        createElement,
         defaultView: ownerWindow,
         removeEventListener: (type: string, listener: EventListenerOrEventListenerObject) =>
             removeListener(documentListeners, type, listener),
@@ -74,11 +90,22 @@ function createHintDom() {
         classRemove,
         classToggle,
         dispatchDocument: (type: string, event: Event) => dispatch(documentListeners, type, event),
+        dispatchScroll: () => {
+            for (const listener of scrollListeners) listener();
+        },
         dispatchWindow: (type: string, event: Event) => dispatch(windowListeners, type, event),
         elementRemove,
-        hintElement,
+        elements,
         host,
-        terminal: { element: host, rows: 10, screenElement } as never,
+        terminal: {
+            element: host,
+            onScroll: (listener: () => void) => {
+                scrollListeners.add(listener);
+                return { dispose: () => scrollListeners.delete(listener) };
+            },
+            rows: 10,
+            screenElement,
+        } as never,
         setAttribute,
     };
 }
@@ -123,15 +150,15 @@ describe('createTerminalLinkHintController', () => {
     });
 
     it('shows the measured hint after the delay without covering the pointer row', () => {
-        const { append, hintElement, setAttribute, terminal } = createHintDom();
+        const { append, elements, setAttribute, terminal } = createHintDom();
         const controller = createTerminalLinkHintController(terminal);
 
         controller.show({ clientX: 100, clientY: 200 } as MouseEvent, '⌘ click to open in browser');
         vi.advanceTimersByTime(TERMINAL_LINK_HINT_DELAY_MS);
 
-        expect(append).toHaveBeenCalledWith(hintElement);
-        expect(hintElement.textContent).toBe('⌘ click to open in browser');
-        expect(hintElement.style).toMatchObject({
+        expect(append).toHaveBeenCalledWith(elements[0]);
+        expect(elements[0].textContent).toBe('⌘ click to open in browser');
+        expect(elements[0].style).toMatchObject({
             left: '112px',
             top: '140px',
             visibility: 'visible',
@@ -155,7 +182,7 @@ describe('createTerminalLinkHintController', () => {
     });
 
     it('replaces a pending hint when a Terminal line redraws a different link in place', async () => {
-        const { append, hintElement, terminal } = createHintDom();
+        const { append, elements, terminal } = createHintDom();
         const controller = createTerminalLinkHintController(terminal);
         const event = { clientX: 100, clientY: 200 } as MouseEvent;
         const scope = 'plain:1:0:8';
@@ -170,7 +197,7 @@ describe('createTerminalLinkHintController', () => {
         await Promise.resolve();
 
         expect(append).toHaveBeenCalledOnce();
-        expect(hintElement.textContent).toBe('⌘ click to open in editor');
+        expect(elements[0].textContent).toBe('⌘ click to open in editor');
     });
 
     it('hides after a genuine leave and replaces a different link with the same hint text', async () => {
@@ -273,6 +300,97 @@ describe('createTerminalLinkHintController', () => {
         await Promise.resolve();
 
         expect(classToggle).toHaveBeenLastCalledWith('terminal-link-modifier-active', true);
+    });
+
+    it('renders the basic card first and swaps in the loaded one, keeping the affordance last', async () => {
+        const { elements, terminal } = createHintDom();
+        const controller = createTerminalLinkHintController(terminal);
+        const loaded = Promise.withResolvers<TerminalReferencePreviewCard>();
+
+        controller.show(
+            { clientX: 100, clientY: 200 } as MouseEvent,
+            '⌘ click to show commit in Git',
+            undefined,
+            'commit:f36a02ac',
+            {
+                card: { detail: 'Git commit', facts: [], title: 'f36a02ac' },
+                load: () => loaded.promise,
+            },
+        );
+        vi.advanceTimersByTime(TERMINAL_LINK_HINT_DELAY_MS);
+
+        expect(elements[0].textContent).toBe('f36a02ac\nGit commit\n⌘ click to show commit in Git');
+
+        loaded.resolve({
+            detail: 'caxri · f36a02ac',
+            facts: ['Ada', '2 days ago'],
+            title: 'Serialize Session-state writes',
+        });
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(elements[0].textContent).toBe(
+            'Serialize Session-state writes\ncaxri · f36a02ac\nAda · 2 days ago\n⌘ click to show commit in Git',
+        );
+    });
+
+    it('dismisses the card and cancels its read on Escape and on a Terminal scroll', async () => {
+        const { append, dispatchDocument, dispatchScroll, elementRemove, terminal } =
+            createHintDom();
+        const controller = createTerminalLinkHintController(terminal);
+        const aborted: boolean[] = [];
+        const preview = {
+            card: { facts: [], title: 'lobehub/lobe-chat#1' },
+            load: (signal: AbortSignal) =>
+                new Promise<TerminalReferencePreviewCard | undefined>((resolve) => {
+                    signal.addEventListener('abort', () => {
+                        aborted.push(true);
+                        resolve(undefined);
+                    });
+                }),
+        };
+
+        controller.show(
+            { clientX: 100, clientY: 200 } as MouseEvent,
+            '⌘ click to open on GitHub',
+            undefined,
+            'github:1',
+            preview,
+        );
+        vi.advanceTimersByTime(TERMINAL_LINK_HINT_DELAY_MS);
+        expect(append).toHaveBeenCalledOnce();
+        dispatchDocument('keydown', { key: 'Escape' } as KeyboardEvent);
+        await Promise.resolve();
+        expect(elementRemove).toHaveBeenCalledOnce();
+        expect(aborted).toEqual([true]);
+
+        // xterm reprovides the link on every redraw. A stationary pointer must not undo the dismissal.
+        controller.show(
+            { clientX: 100, clientY: 200 } as MouseEvent,
+            '⌘ click to open on GitHub',
+            undefined,
+            'github:1',
+            preview,
+        );
+        vi.advanceTimersByTime(TERMINAL_LINK_HINT_DELAY_MS);
+        expect(append).toHaveBeenCalledOnce();
+
+        controller.leave();
+        await Promise.resolve();
+        controller.show(
+            { clientX: 100, clientY: 200 } as MouseEvent,
+            '⌘ click to open on GitHub',
+            undefined,
+            'github:1',
+            preview,
+        );
+        vi.advanceTimersByTime(TERMINAL_LINK_HINT_DELAY_MS);
+        expect(append).toHaveBeenCalledTimes(2);
+
+        dispatchScroll();
+        await Promise.resolve();
+        expect(elementRemove).toHaveBeenCalledTimes(2);
+        expect(aborted).toEqual([true, true]);
     });
 
     it('tracks Cmd cursor state for an OSC link without a mutable decoration', async () => {

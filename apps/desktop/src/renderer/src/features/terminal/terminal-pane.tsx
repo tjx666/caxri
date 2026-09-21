@@ -27,7 +27,7 @@ import { useCommandShortcut } from '../../lib/keybindings';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
 import { openSettings } from '../../stores/dialogs';
-import { useSelectedSession, useSettings, useTerminal, useTheme } from '../../stores/selectors';
+import { useSessionById, useSettings, useTerminal, useTheme } from '../../stores/selectors';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { useTerminalLinkPicker } from './hooks/use-terminal-link-picker';
 import { useTerminalPaneRuntime } from './hooks/use-terminal-pane-runtime';
@@ -57,6 +57,11 @@ import { TerminalSearchBar } from './terminal-search-bar';
 interface TerminalPaneProperties {
     active: boolean;
     ariaLabel: string;
+    /**
+     * Whether the Workbench holding this pane is the one on screen. False for a Session kept alive in the background,
+     * whose Terminals stay mounted but give up their GPU context.
+     */
+    isPaneVisible: boolean;
     terminalId: string;
 }
 
@@ -205,9 +210,16 @@ function TerminalRecoveryBar({
  * Presents one Terminal while the runtime hook owns its imperative xterm lifecycle. Inputs are selected from stores
  * here so a snapshot refresh does not rerender every pane in a split layout.
  */
-export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProperties) {
+export function TerminalPane({
+    active,
+    ariaLabel,
+    isPaneVisible,
+    terminalId,
+}: TerminalPaneProperties) {
     const terminal = useTerminal(terminalId);
-    const session = useSelectedSession();
+    // The Terminal's own Session, not the selected one: a kept-alive Workbench renders Terminals that belong to a
+    // Session the user has switched away from, and they must keep resolving paths against their own Project root.
+    const session = useSessionById(terminal?.sessionId);
     const theme = useTheme();
     const settings = useSettings() ?? defaultAppSettings;
     const attachEpoch = useWorkbenchStore((state) => state.attachEpoch);
@@ -258,6 +270,7 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
         gpuAcceleration,
         githubRepositories: referenceContext?.githubRepositories ?? [],
         imagePasteInput,
+        isPaneVisible,
         longPasteThreshold,
         osc52ClipboardWrite: isOsc52ClipboardWrite,
         processState,

@@ -60,6 +60,20 @@ export function isCaxriError(value: unknown): value is CaxriError {
 }
 
 /**
+ * Whether a rejection is a designed outcome the caller is expected to absorb rather than a Caxri defect.
+ *
+ * `CONFLICT` is the answer to a question the caller asked on purpose. `session.updateState` asks it as an
+ * optimistic-concurrency check and re-derives its change against whichever write won; `file.move` asks it by trying
+ * `conflict: 'reject'` first, precisely so a refusal can open the Finder-style Replace/Keep Both/Cancel dialog. Either
+ * way the caller has a next move and the user sees the product working. Recording that at `error` would make ordinary
+ * contention indistinguishable from a real fault, page as a production error beacon, and fail the E2E error gate. Every
+ * boundary still logs it, one level lower, so its real volume stays visible.
+ */
+export function isCallerHandledFailure(code: string): boolean {
+    return code === 'CONFLICT';
+}
+
+/**
  * Extracts a human-readable message from a caught value, falling back to a caller-supplied default for non-`Error`
  * throws (e.g. rejected primitives or `null`). Centralizes the `error instanceof Error ? error.message : fallback`
  * idiom repeated across every process.

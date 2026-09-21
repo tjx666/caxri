@@ -15,8 +15,10 @@ export function PaneMountPortal({ children, paneId }: { children: ReactNode; pan
     });
     useLayoutEffect(() => {
         /**
-         * One PaneView owns all slots in this document. Its parent ref is not attached until after child layout effects
-         * on first mount, but the unique slot is already in the committed DOM.
+         * Document-wide on purpose: the parent ref is not attached until after child layout effects on first mount, but
+         * the slot is already in the committed DOM. Safe even though the Workbench now mounts one `PaneView` per
+         * kept-alive Session (issue #657), because pane ids are UUIDs (`pane-layout-reducer.ts:21`) and therefore
+         * unique across Sessions, not just within one.
          */
         const slot = document.querySelector(`[data-pane-slot="${CSS.escape(paneId)}"]`);
         if (slot && container.parentElement !== slot) slot.append(container);

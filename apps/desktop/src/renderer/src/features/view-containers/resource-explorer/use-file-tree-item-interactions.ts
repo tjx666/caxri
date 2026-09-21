@@ -21,6 +21,7 @@ import {
     focusTreeItemEdge,
 } from './file-tree-navigation';
 import {
+    activeResourceExplorerScope,
     clearScopeRevealPath,
     setScopeFocusPath,
     setScopePathExpanded,
@@ -44,8 +45,6 @@ export interface UseFileTreeItemInteractionsOptions {
     isSelected: boolean;
     projectId: string;
     revealRevision?: number;
-    scopeId: string;
-    sessionId: string;
     setEditing: (editing?: EditRequest) => void;
 }
 
@@ -91,6 +90,10 @@ export interface UseFileTreeItemInteractionsResult {
  * points, roving-tabindex bookkeeping, and the keyboard shortcut map. Split out of `FileTreeItem` purely to keep that
  * component's JSX readable — every return here is consumed directly by the row's DOM attributes/handlers, so this hook
  * does not change any rendered output or handler semantics.
+ *
+ * The active scope (`scopeId`, `sessionId`) is read from the store at call time rather than taken as an option: it is
+ * needed only by the handlers and effects below, never by rendered output, and passing it in would re-render every row
+ * on a Session switch. See `resource-explorer-scope-store`.
  */
 export function useFileTreeItemInteractions({
     depth,
@@ -103,8 +106,6 @@ export function useFileTreeItemInteractions({
     isSelected,
     projectId,
     revealRevision,
-    scopeId,
-    sessionId,
     setEditing,
 }: UseFileTreeItemInteractionsOptions): UseFileTreeItemInteractionsResult {
     const client = useResourceExplorerClient();
@@ -144,8 +145,14 @@ export function useFileTreeItemInteractions({
 
     const setExpanded = (
         isNextExpanded: boolean | ((isCurrentExpanded: boolean) => boolean),
-    ): void => setScopePathExpanded(scopeId, entry.path, isNextExpanded);
-    const setSelectedPath = (path?: string): void => setScopeSelectedPath(scopeId, path);
+    ): void => {
+        const scope = activeResourceExplorerScope();
+        if (scope) setScopePathExpanded(scope.scopeId, entry.path, isNextExpanded);
+    };
+    const setSelectedPath = (path?: string): void => {
+        const scope = activeResourceExplorerScope();
+        if (scope) setScopeSelectedPath(scope.scopeId, path);
+    };
     const startRename = (): void => {
         if (isEditable) setEditing({ kind: 'rename', entry });
     };
@@ -162,13 +169,18 @@ export function useFileTreeItemInteractions({
     const activateEntry: UseFileTreeItemInteractionsResult['activateEntry'] = async (
         options = {},
     ) => {
+        const scope = activeResourceExplorerScope();
+        if (!scope) return;
+        const { scopeId, sessionId } = scope;
         setSelectedPath(entry.path);
         const intent = ++activation.current;
         await tryCommand('Unable to open path', async () => {
             const kind = await resolveEntryKind(sessionId, entry);
-            // A slow link probe must not replace a newer row selection or activation.
+            // A slow link probe must not replace a newer row selection or activation, nor act on a Session the user
+            // has since switched away from.
             if (
                 intent !== activation.current ||
+                activeResourceExplorerScope()?.scopeId !== scopeId ||
                 useResourceExplorerScopeStore.getState().selectionByScope[scopeId] !== entry.path
             )
                 return;
@@ -193,11 +205,12 @@ export function useFileTreeItemInteractions({
         void activateEntry();
     };
     const pasteIntoEntry = async (): Promise<void> => {
+        const scope = activeResourceExplorerScope();
         const currentClipboard = useFileClipboardStore.getState().entry;
-        if (!currentClipboard) return;
+        if (!scope || !currentClipboard) return;
         const pasted = await pasteFile(
             client,
-            sessionId,
+            scope.sessionId,
             projectId,
             pasteDirectory,
             currentClipboard,
@@ -205,11 +218,14 @@ export function useFileTreeItemInteractions({
         if (pasted) setSelectedPath(pasted.path);
     };
     const duplicateEntry = async (): Promise<void> => {
-        const copied = await duplicateFile(client, sessionId, entry.path);
+        const scope = activeResourceExplorerScope();
+        if (!scope) return;
+        const copied = await duplicateFile(client, scope.sessionId, entry.path);
         if (copied) setSelectedPath(copied.path);
     };
     const confirmTrash = async (): Promise<void> => {
-        if (!(await didTrashFile(client, sessionId, entry.path))) {
+        const scope = activeResourceExplorerScope();
+        if (!scope || !(await didTrashFile(client, scope.sessionId, entry.path))) {
             return;
         }
 
@@ -221,9 +237,10 @@ export function useFileTreeItemInteractions({
         event.stopPropagation();
         setIsDropTarget(false);
         if (isPasteBlocked) return;
+        const scope = activeResourceExplorerScope();
         const source = dragPath(event);
-        if (!source || entry.kind !== 'directory') return;
-        const moved = await moveFile(client, sessionId, source, entry.path);
+        if (!scope || !source || entry.kind !== 'directory') return;
+        const moved = await moveFile(client, scope.sessionId, source, entry.path);
         if (moved) setSelectedPath(moved.path);
     };
     const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>): void => {
@@ -301,19 +318,25 @@ export function useFileTreeItemInteractions({
         }
     };
 
+    // Both effects below run off a store-derived boolean that is already scope-aware, so the scope is read rather than
+    // listed as a dependency: adding it would re-fire every row's effects on a Session switch that changed nothing
+    // about that row.
     useEffect(() => {
         if (isRenaming || !isFocusRequested) return;
+        const scope = activeResourceExplorerScope();
+        if (!scope) return;
         rowReference.current?.focus();
-        setScopeFocusPath(scopeId, undefined);
-    }, [isFocusRequested, isRenaming, scopeId]);
+        setScopeFocusPath(scope.scopeId, undefined);
+    }, [isFocusRequested, isRenaming]);
 
     useEffect(() => {
         if (isRenaming || revealRevision === undefined) return;
+        const scope = activeResourceExplorerScope();
         const row = rowReference.current;
-        if (!row) return;
+        if (!scope || !row) return;
         row.scrollIntoView({ block: 'nearest' });
-        clearScopeRevealPath(scopeId, { path: entry.path, revision: revealRevision });
-    }, [entry.path, isRenaming, revealRevision, scopeId]);
+        clearScopeRevealPath(scope.scopeId, { path: entry.path, revision: revealRevision });
+    }, [entry.path, isRenaming, revealRevision]);
 
     return {
         activateEntry,
