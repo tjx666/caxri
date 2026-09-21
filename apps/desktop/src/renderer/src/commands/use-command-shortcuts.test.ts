@@ -69,6 +69,21 @@ describe('resolveKeydownBinding', () => {
 
         expect(binding?.command).toBe('session.switchMru');
     });
+
+    /**
+     * `Cmd+Shift+K` is Monaco's Delete Line. Terminal Clear opts into `allowInEditable`, so an ungated default would be
+     * dispatched straight out of a focused editor and the line would never be deleted — the gate is the only thing
+     * keeping the two commands on one chord.
+     */
+    it('leaves Cmd+Shift+K to the editor unless a Terminal owns focus', () => {
+        const shortcutMap = buildShortcutMap(defaultKeybindings);
+        const event = keyEvent('k', { metaKey: true, shiftKey: true });
+
+        expect(resolveKeydownBinding(shortcutMap, event, { terminalFocus: false })).toBeUndefined();
+        expect(resolveKeydownBinding(shortcutMap, event, { terminalFocus: true })?.command).toBe(
+            'terminal.clear',
+        );
+    });
 });
 
 describe('resolveKeystroke', () => {

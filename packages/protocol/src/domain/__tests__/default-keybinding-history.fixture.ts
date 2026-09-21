@@ -440,7 +440,7 @@ export const releasedDefaultKeybindingGenerations = [
                 when: 'terminalFocus',
                 args: { text: '\t\n' },
             },
-            { key: 'cmd+shift+k', command: 'terminal.clear' },
+            { key: 'cmd+shift+k', command: 'terminal.clear', when: 'terminalFocus' },
             { key: 'cmd+c', command: 'terminal.copy' },
             { key: 'cmd+f', command: 'terminal.find' },
             {
