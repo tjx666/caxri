@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { ChromeLayout } from './chrome-layout';
 import {
@@ -15,6 +15,7 @@ import {
     PRIMARY_SIDEBAR_MIN_WIDTH,
     SECONDARY_SIDEBAR_DEFAULT_WIDTH,
     SECONDARY_SIDEBAR_MIN_WIDTH,
+    useChromeLayoutStore,
 } from './chrome-layout';
 
 describe('clampWidth', () => {
@@ -45,6 +46,7 @@ describe('clampLayoutToViewport', () => {
         secondarySidebarVisible: true,
         panelVisible: false,
         desiredPanelViewContainerId: 'caxri.logs',
+        primarySidebarActivityMode: false,
     };
 
     it('leaves widths untouched when the viewport has plenty of room', () => {
@@ -159,5 +161,55 @@ describe('clampPanelHeight', () => {
 
     it('falls back to the bounded height when the viewport height is not a finite number', () => {
         expect(clampPanelHeight(300, NaN)).toBe(300);
+    });
+});
+
+describe('Primary Side Bar Activity mode', () => {
+    beforeEach(() => {
+        useChromeLayoutStore.setState({
+            primarySidebarActivityMode: false,
+            primarySidebarVisible: true,
+        });
+    });
+
+    it('swaps the side bar body back and forth', () => {
+        useChromeLayoutStore.getState().togglePrimarySidebarActivityMode();
+        expect(useChromeLayoutStore.getState().primarySidebarActivityMode).toBe(true);
+
+        useChromeLayoutStore.getState().togglePrimarySidebarActivityMode();
+        expect(useChromeLayoutStore.getState().primarySidebarActivityMode).toBe(false);
+    });
+
+    /**
+     * Toggling the mode must not also toggle the side bar: `Cmd+[` owns visibility, and a mode switch that revealed a
+     * side bar the user had deliberately collapsed would make the bell a second, surprising show command.
+     */
+    it('leaves visibility alone', () => {
+        useChromeLayoutStore.setState({ primarySidebarVisible: false });
+
+        useChromeLayoutStore.getState().togglePrimarySidebarActivityMode();
+
+        expect(useChromeLayoutStore.getState().primarySidebarVisible).toBe(false);
+        expect(useChromeLayoutStore.getState().primarySidebarActivityMode).toBe(true);
+    });
+
+    /**
+     * `session.focusNextAttention` is the exception: it has a queue position to put the user in, so it reveals the bar
+     * rather than selecting a Session behind a surface nobody can see.
+     */
+    it('reveals a collapsed side bar when a command shows the queue', () => {
+        useChromeLayoutStore.setState({ primarySidebarVisible: false });
+
+        useChromeLayoutStore.getState().showPrimarySidebarActivity();
+
+        expect(useChromeLayoutStore.getState().primarySidebarVisible).toBe(true);
+        expect(useChromeLayoutStore.getState().primarySidebarActivityMode).toBe(true);
+    });
+
+    it('stays in Activity mode when asked again', () => {
+        useChromeLayoutStore.getState().showPrimarySidebarActivity();
+        useChromeLayoutStore.getState().showPrimarySidebarActivity();
+
+        expect(useChromeLayoutStore.getState().primarySidebarActivityMode).toBe(true);
     });
 });

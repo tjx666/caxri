@@ -93,21 +93,15 @@ test('SecondarySidebar and Settings share accessible moving chrome tabs', async 
             name: 'Extension Fixture',
             exact: true,
         });
-        const activityTab = secondarySidebarTabs.getByRole('tab', {
-            name: 'Activity',
-            exact: true,
-        });
         // Info and Logs are Panel views, not SecondarySidebar tabs; the SecondarySidebar rail is the
-        // narrow tree/list surface only. Activity is contributed last so the rail's order matches its
-        // `cmd+<number>` run.
-        await expect(secondarySidebarTabs.getByRole('tab')).toHaveCount(5);
+        // narrow tree/list surface only.
+        await expect(secondarySidebarTabs.getByRole('tab')).toHaveCount(4);
         await expect(filesTab).toHaveAttribute('aria-selected', 'true');
         await expect(filesTab).toHaveAttribute('tabindex', '0');
         await expectPanelAssociation(running.page, filesTab, true);
         await expectPanelAssociation(running.page, gitTab, false);
         await expectPanelAssociation(running.page, statusTab, false);
         await expectPanelAssociation(running.page, fixtureTab, false);
-        await expectPanelAssociation(running.page, activityTab, false);
         await expectIndicatorAligned(secondarySidebarTabs, filesTab);
 
         await secondarySidebarTabs
@@ -146,11 +140,11 @@ test('SecondarySidebar and Settings share accessible moving chrome tabs', async 
         await statusTab.press('Home');
         await expect(filesTab).toBeFocused();
         await filesTab.press('End');
-        await expect(activityTab).toBeFocused();
-        await activityTab.press('ArrowRight');
+        await expect(statusTab).toBeFocused();
+        await statusTab.press('ArrowRight');
         await expect(filesTab).toBeFocused();
         await filesTab.press('ArrowLeft');
-        await expect(activityTab).toBeFocused();
+        await expect(statusTab).toBeFocused();
 
         await running.page.keyboard.press('Meta+2');
         await expect(gitTab).toHaveAttribute('aria-selected', 'true');

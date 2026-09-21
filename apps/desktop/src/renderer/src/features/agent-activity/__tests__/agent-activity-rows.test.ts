@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { AGENT_ACTIVITY_FINISHED_RETENTION_MS } from '../agent-activity-retention';
 import {
     agentActivityGroups,
+    agentAttentionCount,
     isAgentActivityActionable,
     nextAgentAttentionSessionId,
 } from '../agent-activity-rows';
@@ -194,5 +195,39 @@ describe('nextAgentAttentionSessionId', () => {
     it('returns nothing when no Session needs the user', () => {
         const groups = groupsOf([session('quiet')]);
         expect(nextAgentAttentionSessionId(groups, undefined)).toBeUndefined();
+    });
+});
+
+describe('agentAttentionCount', () => {
+    const projects = [project('alpha'), project('beta')];
+
+    it('counts exactly the Sessions the attention group would hold', () => {
+        const sessions = [
+            session('waiting-on-me', { hasUnread: true }),
+            session('also-waiting', { hasUnread: true, projectId: 'beta' }),
+            session('quiet'),
+        ];
+        const groups = agentActivityGroups({ now: NOW, projects, sessions, terminals: [] });
+
+        expect(agentAttentionCount(projects, sessions)).toBe(2);
+        expect(groups.find((group) => group.id === 'attention')?.rows).toHaveLength(2);
+    });
+
+    /**
+     * The badge is drawn while the queue is unmounted, so it has to apply the same two exclusions the queue applies on
+     * render — otherwise it advertises rows the user cannot reach by acting on it.
+     */
+    it('excludes archived Sessions and Sessions outside the listed Projects', () => {
+        const sessions = [
+            session('archived', { archivedAt: NOW, hasUnread: true }),
+            session('hidden-worktree', { hasUnread: true, projectId: 'worktree' }),
+            session('counted', { hasUnread: true }),
+        ];
+
+        expect(agentAttentionCount(projects, sessions)).toBe(1);
+    });
+
+    it('is zero with nothing unread', () => {
+        expect(agentAttentionCount(projects, [session('quiet')])).toBe(0);
     });
 });

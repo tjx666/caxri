@@ -296,6 +296,8 @@ const commandContext: CommandContext = {
     primarySidebar: {
         focus: focusPrimarySidebar,
         toggle: () => useChromeLayoutStore.getState().togglePrimarySidebar(),
+        toggleActivityMode: () =>
+            useChromeLayoutStore.getState().togglePrimarySidebarActivityMode(),
     },
     git: { canSwitchBranch, switchBranch: switchBranchFromCommand },
     dialogs: {

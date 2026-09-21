@@ -1,5 +1,5 @@
 import type { DefaultKeybindingChange } from '../configuration/config-files.js';
-import { activityCoreKeybindings, filesCoreKeybindings } from '../registry/core-contributions.js';
+import { filesCoreKeybindings } from '../registry/core-contributions.js';
 import type { Keybinding } from './domain.js';
 
 /**
@@ -105,7 +105,13 @@ export const defaultKeybindings: Keybinding[] = [
     ...filesCoreKeybindings,
     { key: 'cmd+2', command: 'secondarySidebar.showGit' },
     { key: 'cmd+3', command: 'secondarySidebar.showStatus' },
-    ...activityCoreKeybindings,
+    /**
+     * `cmd+shift+n` ("next Session needing attention") belongs to no view container. The obvious choice, the shifted
+     * form of `session.switchMru`'s Command+Backquote, is unusable: on a US macOS layout Shift turns Backquote's
+     * printable value into a tilde, so the chord never matches the stored one, and `resolveKeydownBinding`'s unshifted
+     * fallback then hands that exact stroke to `session.switchMru` for reverse cycling.
+     */
+    { key: 'cmd+shift+n', command: 'session.focusNextAttention' },
     { key: 'cmd+shift+1', command: 'panel.showLogs' },
     { key: 'cmd+shift+2', command: 'panel.showInfo' },
     { key: 'cmd+[', command: 'primarySidebar.toggle' },
@@ -115,6 +121,12 @@ export const defaultKeybindings: Keybinding[] = [
      * focused Terminal swallows Tab.
      */
     { key: 'cmd+0', command: 'primarySidebar.focus' },
+    /**
+     * `Cmd+Alt+U` matches the chord the Codex desktop app spends on the same idea — swapping its left side bar between
+     * the project tree and the queue of work waiting on you. The `cmd+<number>` run is spoken for by the Secondary Side
+     * Bar's containers, and Activity is no longer one of them.
+     */
+    { key: 'cmd+alt+u', command: 'primarySidebar.toggleActivity' },
     { key: 'cmd+]', command: 'secondarySidebar.toggle' },
     /**
      * `Cmd+J` matches VS Code's Toggle Panel chord, which this region is modeled on.
@@ -217,7 +229,14 @@ export const defaultKeybindingChanges = [
         type: 'add',
         binding: { key: 'cmd+0', command: 'primarySidebar.focus' },
     },
-    ...activityCoreKeybindings.map((binding) => ({ type: 'add' as const, binding })),
+    {
+        type: 'add',
+        binding: { key: 'cmd+shift+n', command: 'session.focusNextAttention' },
+    },
+    {
+        type: 'add',
+        binding: { key: 'cmd+alt+u', command: 'primarySidebar.toggleActivity' },
+    },
     /**
      * Terminal Clear has to vacate `Cmd+K` before the two chord bindings below can be added:
      * `reconcileDefaultKeybindings` treats a single-chord binding and a sequence opening on the same chord as one
