@@ -69,6 +69,36 @@ interface ProjectRootFileActionDependencies {
     selectPath: (path: string) => void;
 }
 
+/**
+ * What the Files title bar's Refresh does: re-read the disk, then put the tree back around the open file.
+ *
+ * The reveal is half the action rather than a side effect of it. Re-reading answers "what is there now?", and the
+ * answer somebody is looking for is nearly always positioned relative to the file they are already in — so the tree
+ * that comes back expands to it and selects it instead of making them walk the folders down again. VS Code's explorer
+ * behaves the same way.
+ *
+ * Written as a function taking its inputs because the reveal cannot live in the controller's reveal effect: none of
+ * that effect's inputs move when the button is pressed, so nothing there would re-fire.
+ */
+export function refreshResourceExplorer(
+    target: {
+        /**
+         * The file the active editor tab is showing, when it is a file at all.
+         */
+        activeFilePath?: string;
+        scopeId?: string;
+        sessionRootPath?: string;
+    },
+    dependencies: {
+        revealPath: (scopeId: string, projectRoot: string, path: string) => void;
+        runRefresh: () => void;
+    },
+): void {
+    dependencies.runRefresh();
+    if (target.scopeId && target.sessionRootPath && target.activeFilePath)
+        dependencies.revealPath(target.scopeId, target.sessionRootPath, target.activeFilePath);
+}
+
 export async function pasteIntoProjectRoot(
     context: ProjectRootFileActionContext,
     dependencies: ProjectRootFileActionDependencies,
@@ -330,9 +360,16 @@ export function useResourceExplorerController(): ResourceExplorerController | un
         project,
         projectId,
         projectOperations,
-        refreshFiles: () => {
-            if (refreshCommand) executeCommand(refreshCommand);
-        },
+        refreshFiles: () =>
+            refreshResourceExplorer(
+                { activeFilePath, scopeId, sessionRootPath },
+                {
+                    revealPath: didRevealPathInScope,
+                    runRefresh: () => {
+                        if (refreshCommand) executeCommand(refreshCommand);
+                    },
+                },
+            ),
         requestFocus,
         rootPathCaption: fileTreeRootCaption(session.rootPath),
         scopeId,
