@@ -9,6 +9,7 @@ import { useWorkbenchStore } from '../../stores/workbench';
 import { chooseProjectFolder } from '../session/session-commands';
 import { retainTerminalProgress } from '../terminal/terminal-progress';
 import { PaneView } from './pane-view';
+import { useSessionFocusHandoff } from './session-focus-handoff';
 import {
     pruneKeepAliveSessions,
     retainKeepAliveSession,
@@ -70,6 +71,7 @@ export function Workbench() {
     useEffect(() => {
         retainKeepAliveSession(selectedSessionId);
     }, [selectedSessionId]);
+    useSessionFocusHandoff(selectedSessionId);
     const liveSessionKey = useWorkbenchStore(
         (state) => state.bootstrap?.sessions.map(({ id }) => id).join('\u{0}') ?? '',
     );
@@ -97,7 +99,12 @@ export function Workbench() {
                     <div
                         key={sessionId}
                         className="workbench-session h-full min-h-0 w-full min-w-0"
-                        data-session-id={sessionId}
+                        /**
+                         * Deliberately not `data-session-id`: that attribute already identifies a PrimarySidebar
+                         * Session row, and reusing it here made one id match two unrelated elements — a row to click
+                         * and a whole Workbench subtree — so any lookup by Session id became ambiguous.
+                         */
+                        data-workbench-session-id={sessionId}
                         // `hidden` rather than a class, matching `ChromeTabPanel`: it takes the subtree out of the
                         // accessibility tree and out of `Tab` order while leaving the DOM — and therefore xterm's
                         // buffer and the Editor's models — intact.

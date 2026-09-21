@@ -2,6 +2,7 @@ import type { WorkbenchRequestContext } from '@caxri/protocol';
 import {
     CaxriError,
     fromWireError,
+    isCallerHandledFailure,
     parseServerOperationRequest,
     toWireError,
     workbenchRequestContextSchema,
@@ -101,22 +102,26 @@ export function createOperationDispatcher(
                     fields: { method: envelope.method, code: wire.code },
                 });
             } else {
-                logger.write('error', logEventCatalog.ipc.requestFailed, {
-                    correlationId: envelope.id,
-                    durationMs: performance.now() - started,
-                    fields: {
-                        method: envelope.method,
-                        code: wire.code,
-                        error: wire.message,
-                        /**
-                         * Only unclassified faults justify a stack trace in the Server log.
-                         */
-                        stack:
-                            wire.code === 'INTERNAL' && normalizedError instanceof Error
-                                ? (normalizedError.stack ?? null)
-                                : null,
+                logger.write(
+                    isCallerHandledFailure(wire.code) ? 'warn' : 'error',
+                    logEventCatalog.ipc.requestFailed,
+                    {
+                        correlationId: envelope.id,
+                        durationMs: performance.now() - started,
+                        fields: {
+                            method: envelope.method,
+                            code: wire.code,
+                            error: wire.message,
+                            /**
+                             * Only unclassified faults justify a stack trace in the Server log.
+                             */
+                            stack:
+                                wire.code === 'INTERNAL' && normalizedError instanceof Error
+                                    ? (normalizedError.stack ?? null)
+                                    : null,
+                        },
                     },
-                });
+                );
             }
             throw fromWireError(wire);
         } finally {

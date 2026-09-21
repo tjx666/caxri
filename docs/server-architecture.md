@@ -264,6 +264,17 @@ is precisely the one that turned out to be stale. `patchSessionState` drops the 
 overlay, re-reads the snapshot, and shows no toast, because a lost race is not something the user can
 act on and the UI has already converged on what won.
 
+A Renderer never races itself. Two layout changes for one Session both read `revision` from the same
+optimistic overlay, because the first write has not answered yet; sent side by side, the second would
+be rejected for a conflict this Renderer had with nobody but itself, and the user's newer change would
+be dropped. `patchSessionState` therefore queues writes per Session and hands each one the revision its
+predecessor stored, so `CONFLICT` keeps its real meaning: another writer moved the row.
+
+Because it is a designed, caller-absorbed outcome rather than a defect, `CONFLICT` is logged at `warn`
+at every boundary (`isCallerHandledFailure` in `@caxri/protocol`) instead of `error`. It stays logged
+so its real volume remains measurable — ordinary contention must be countable without being mistaken
+for a fault.
+
 Do not confuse `revision` with the `state_version` column, which is a storage-schema version used to
 decide whether a row can be parsed or must be repaired and is identical for every row under one schema.
 

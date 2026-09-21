@@ -35,6 +35,45 @@ export const persistedSessionPatches = new Map<
     string,
     { sendStamp: number; state: SessionState }
 >();
+/**
+ * The write currently in flight for a Session, resolving with the revision the Server stored for it — or `undefined`
+ * when it failed and stored nothing.
+ *
+ * Two layout changes in the same frame (a Terminal attaching while the pane it lives in is still being arranged) both
+ * read {@link SessionState.revision} from the same optimistic overlay, because the first write has not answered yet.
+ * Sent as-is, the second one declares a revision the first has already advanced and the Server rejects it as stale — a
+ * lost race this Renderer had with nobody but itself, which would drop the user's newer change for no reason. Chaining
+ * through this map makes the second write wait for the first and adopt the revision it stored, so `CONFLICT` keeps its
+ * real meaning: some _other_ writer moved the row.
+ */
+export const sessionStateWriteChains = new Map<string, Promise<number | undefined>>();
+
+/**
+ * Rebases one write onto the revision the write before it stored, leaving everything else the caller assembled intact.
+ *
+ * Only the token is stale: both writes came from this Renderer, so the later layout was already built on top of the
+ * earlier one through the optimistic overlay.
+ */
+export function rebasedSessionState(state: SessionState, stored: number | undefined): SessionState {
+    return stored === undefined || stored === state.revision
+        ? state
+        : { ...state, revision: stored };
+}
+
+/**
+ * Clears every overlay and write chain between tests.
+ *
+ * These are module singletons for the same reason the store is: one Renderer, one Server connection. A spec that leaves
+ * a write deliberately unresolved would otherwise hand its chain to the next spec's write for the same Session, which
+ * then waits forever for a request nobody is going to answer.
+ */
+export function resetSessionPatchesForTests(): void {
+    pendingSessionPatches.clear();
+    persistedSessionPatches.clear();
+    sessionStateWriteChains.clear();
+    sessionPatchAttempt.current = 0;
+    sessionStateWrites.sent = 0;
+}
 
 export function sessionPatchKey(
     state: Pick<SessionState, 'sessionId' | 'workbenchProjectId'>,

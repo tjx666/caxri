@@ -30,6 +30,7 @@ import {
     refreshWorkbench,
     useWorkbenchStore,
 } from './workbench';
+import { resetSessionPatchesForTests } from './workbench-session-patches';
 
 /**
  * A minimal one-pane layout; these tests only care that Session state round-trips, not about its tree shape.
@@ -53,6 +54,7 @@ afterEach(() => {
     useWorkbenchStore.setState({ bootstrap: undefined, attachEpoch: 0, isFullScreen: false });
     useSessionViewStore.setState({ documents: {}, recentDocuments: {} });
     resetExternalEditorStateForTests();
+    resetSessionPatchesForTests();
     dismissToast();
 });
 
@@ -506,7 +508,13 @@ describe('workbench Session state', () => {
         await updateRequest.promise;
     });
 
-    it('does not let a stale, failed patch clobber a newer confirmed patch', async () => {
+    /**
+     * Two layout changes for one Session go out one after the other, never side by side: sent together they would both
+     * declare the revision they read, and the Server would reject the second as stale even though this Renderer is the
+     * only writer. The older write failing afterwards must still not roll the Session back over the newer state that
+     * has already superseded it.
+     */
+    it('queues a second patch for one Session behind the first', async () => {
         const filesState: SessionState = {
             sessionId: 'session-1',
             revision: 0,
@@ -540,20 +548,71 @@ describe('workbench Session state', () => {
             desiredSecondarySidebarViewContainerId: 'caxri.git' as const,
         };
         const newerPatch = useWorkbenchStore.getState().patchSessionState(agentsState);
-        expect(updateRequests).toHaveLength(2);
+        expect(updateRequests).toHaveLength(1);
 
-        // The newer patch (revision for `agentsState`) confirms first.
-        updateRequests[1].resolve(agentsState);
-        await newerPatch;
-        expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([agentsState]);
-
-        // The older, now-superseded patch (`statusState`) fails afterwards; it must not roll
-        // the Session back over the confirmed newer state.
+        // The older patch fails; it is no longer the latest attempt, so it must not roll back or report.
         updateRequests[0].reject(new Error('stale failure'));
         await olderPatch;
+        expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([agentsState]);
+
+        // Only now does the queued patch reach the Server.
+        await vi.waitFor(() => expect(updateRequests).toHaveLength(2));
+        updateRequests[1].resolve(agentsState);
+        await newerPatch;
 
         expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([agentsState]);
         expect(getToasts()).toEqual([]);
+    });
+
+    it('sends the second patch with the revision the first one stored', async () => {
+        const filesState: SessionState = {
+            sessionId: 'session-1',
+            revision: 4,
+            workbenchProjectId: 'project-1',
+            desiredSecondarySidebarViewContainerId: 'caxri.files',
+            paneLayout: paneLayout(),
+        };
+        useWorkbenchStore.setState({
+            bootstrap: {
+                configurationErrors: [],
+                sessionStates: [filesState],
+            } as unknown as BootstrapState,
+        });
+        const updateRequests: Array<{
+            deferred: ReturnType<typeof Promise.withResolvers<SessionState>>;
+            sent: SessionState;
+        }> = [];
+        mocks.request.mockImplementation((method: unknown, parameters: unknown) => {
+            if (method !== 'session.updateState')
+                return Promise.reject(new Error(`Unexpected method: ${String(method)}`));
+            const deferred = Promise.withResolvers<SessionState>();
+            updateRequests.push({ deferred, sent: parameters as SessionState });
+            return deferred.promise;
+        });
+
+        const statusState = {
+            ...filesState,
+            desiredSecondarySidebarViewContainerId: 'caxri.project-status' as const,
+        };
+        const olderPatch = useWorkbenchStore.getState().patchSessionState(statusState);
+        // Assembled from the same overlay, so it still carries the revision the first write read.
+        const gitState = {
+            ...filesState,
+            desiredSecondarySidebarViewContainerId: 'caxri.git' as const,
+        };
+        const newerPatch = useWorkbenchStore.getState().patchSessionState(gitState);
+        expect(updateRequests[0].sent.revision).toBe(4);
+
+        updateRequests[0].deferred.resolve({ ...statusState, revision: 5 });
+        await olderPatch;
+        await vi.waitFor(() => expect(updateRequests).toHaveLength(2));
+
+        expect(updateRequests[1].sent.revision).toBe(5);
+        updateRequests[1].deferred.resolve({ ...gitState, revision: 6 });
+        await newerPatch;
+        expect(useWorkbenchStore.getState().bootstrap?.sessionStates).toEqual([
+            { ...gitState, revision: 6 },
+        ]);
     });
 
     /**
