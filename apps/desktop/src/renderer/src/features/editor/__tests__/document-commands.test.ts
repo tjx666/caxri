@@ -97,6 +97,7 @@ async function closeAllEditors(path: string): Promise<void> {
 
 const sessionState = (sessionId: string, path: string): SessionState => ({
     sessionId,
+    revision: 0,
     workbenchProjectId: 'project-1',
     desiredSecondarySidebarViewContainerId: 'caxri.files',
     paneLayout: paneLayout([path]),
@@ -160,6 +161,7 @@ function installEmptySession(): void {
             sessionStates: [
                 {
                     sessionId: 'session-1',
+                    revision: 0,
                     workbenchProjectId: 'project-1',
                     desiredSecondarySidebarViewContainerId: 'caxri.files',
                     paneLayout: paneLayout([]),
@@ -257,6 +259,7 @@ describe('session-scoped file mutation completion', () => {
         openEditorTab('/owner/second.ts', { preview: true });
         const worktreeState: SessionState = {
             sessionId: 'session-1',
+            revision: 0,
             workbenchProjectId: 'project-2',
             desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout: paneLayout(['/worktree/keep.ts']),
@@ -483,6 +486,7 @@ describe('session-scoped file mutation completion', () => {
         const saving = saveActiveEditor();
         const worktreeState: SessionState = {
             sessionId: 'session-1',
+            revision: 0,
             workbenchProjectId: 'project-2',
             desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout: paneLayout(['/worktree/keep.ts']),
