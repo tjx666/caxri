@@ -16,6 +16,7 @@ import {
     createProjectSession,
     createShellSession,
     launchCaxri,
+    pageReply,
     pageRequest,
     pressNewTerminal,
     splitTerminalToRight,
@@ -305,8 +306,12 @@ test('a Terminal closed while its layout write was in flight leaves no tab behin
         await expect(tabs).toHaveCount(1);
 
         // The write the slower Renderer would still be sending. A client layout is a view preference, never authority
-        // over which Terminals exist, so this must not bring the closed Terminal's tab back.
-        await pageRequest(running.page, 'session.updateState', staleState);
+        // over which Terminals exist, so this must not bring the closed Terminal's tab back. Closing the Terminal
+        // advanced the stored revision, so the Runtime now refuses the whole write instead of reconciling it, and the
+        // caller re-derives from the current state.
+        const reply = await pageReply(running.page, 'session.updateState', staleState);
+        expect(reply.ok).toBe(false);
+        expect(reply.ok ? undefined : reply.error.code).toBe('CONFLICT');
         await expect(tabs).toHaveCount(1);
         await expectNoOrphanTabs(running.page);
         // The Renderer declines to render a tab whose Terminal is gone, so the layout the Runtime actually stored is
