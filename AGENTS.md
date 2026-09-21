@@ -67,11 +67,13 @@ directories.
   same time as yours.
 - Before modifying code, reuse the existing worktree and branch for the current delivery. Treat
   follow-up reports and corrections in the same conversation as one delivery batch by default;
-  keep their commits, pull request, and CI on that existing branch. Do not create another worktree
-  unless the user explicitly asks for one or confirms it after the agent explains why another
-  checkout is necessary. If no related worktree exists, use the question tool before creating one.
-  Do not modify code directly on `main` or an unrelated task's branch unless the user explicitly
-  requests it.
+  keep their commits, pull request, and CI on that existing branch. A new delivery that starts from
+  the primary checkout creates its own worktree through `switch-worktree` directly; that is the
+  expected first step, not a decision to confirm. Only a session that already owns a task worktree
+  needs authority for a second checkout: the user asks for it explicitly, or confirms through the
+  question tool after the agent explains why the current worktree cannot own the change. Do not
+  modify code directly on `main` or an unrelated task's branch unless the user explicitly requests
+  it.
 - Before the public release, the maintainer iterates through coding agents and wants proactive
   delivery: an implementation or bug-fix request that lands in a task worktree delegates the whole
   loop — commit, push, PR, CI repair, merge, issue closeout, primary-checkout sync — as defined in
