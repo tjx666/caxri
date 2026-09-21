@@ -334,6 +334,7 @@ function FileTreeItem({
         handleKeyDown,
         isDropTarget,
         isDirectory,
+        isContextMenuRendered,
         isRenaming,
         isRovingTabStop,
         openEntry,
@@ -342,6 +343,7 @@ function FileTreeItem({
         pasteDisabled,
         pasteDisabledReason,
         pasteIntoEntry,
+        requestContextMenu,
         rowRef,
         setIsDropTarget,
         startCreate,
@@ -430,9 +432,10 @@ function FileTreeItem({
                 const scope = activeResourceExplorerScope();
                 if (scope) clearStaleScopeFocusPath(scope.scopeId, entry.path);
             }}
-            onContextMenu={() => {
+            onContextMenu={(event) => {
                 const scope = activeResourceExplorerScope();
                 if (scope) setScopeSelectedPath(scope.scopeId, entry.path);
+                requestContextMenu(event);
             }}
             onCopy={(event) => {
                 event.preventDefault();
@@ -483,7 +486,7 @@ function FileTreeItem({
         </button>
     );
 
-    const item = editable ? (
+    const item = isContextMenuRendered ? (
         <ContextMenu>
             <ContextMenuTrigger render={row} />
             <FileTreeItemMenu

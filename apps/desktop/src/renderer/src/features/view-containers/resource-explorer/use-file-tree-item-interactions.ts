@@ -1,5 +1,12 @@
-import type { Dispatch, DragEvent, KeyboardEvent, RefObject, SetStateAction } from 'react';
-import { useEffect, useId, useRef, useState } from 'react';
+import type {
+    Dispatch,
+    DragEvent,
+    KeyboardEvent,
+    MouseEvent,
+    RefObject,
+    SetStateAction,
+} from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 
 import type { FileEntry } from '@caxri/protocol';
 
@@ -13,6 +20,12 @@ import { didTrashFile, duplicateFile, moveFile, pasteFile, rememberFile } from '
 import type { FileClipboardEntry } from './file-clipboard';
 import { useFileClipboardStore } from './file-clipboard';
 import { useIsPathBlockedByFileOperations } from './file-operation-state';
+import type { RowContextMenuGesture } from './file-tree-context-menu-mount';
+import {
+    claimRowContextMenuGesture,
+    replayRowContextMenu,
+    shouldRenderRowContextMenu,
+} from './file-tree-context-menu-mount';
 import type { EditRequest } from './file-tree-item-types';
 import { BUSY_DISABLED_REASON } from './file-tree-item-types';
 import {
@@ -66,6 +79,10 @@ export interface UseFileTreeItemInteractionsResult {
     handleKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => void;
     isDropTarget: boolean;
     isDirectory: boolean;
+    /**
+     * Whether this row currently carries its Base UI context-menu subtree. False until the row is first right-clicked.
+     */
+    isContextMenuRendered: boolean;
     isRenaming: boolean;
     isRovingTabStop: boolean;
     openEntry: () => void;
@@ -74,6 +91,11 @@ export interface UseFileTreeItemInteractionsResult {
     pasteDisabled: boolean;
     pasteDisabledReason: string | undefined;
     pasteIntoEntry: () => Promise<void>;
+    /**
+     * Row-level `contextmenu` handler. It only does something on the first right click of a row, which mounts that
+     * row's menu; Base UI's own trigger owns every later gesture.
+     */
+    requestContextMenu: (event: MouseEvent<HTMLElement>) => void;
     /**
      * Target of the row's `aria-describedby`, carrying whatever the row's own name cannot say: a symlink's reason for
      * being followable, and the Git state the decoration color and status letter show only visually.
@@ -87,9 +109,9 @@ export interface UseFileTreeItemInteractionsResult {
 
 /**
  * Owns every non-render concern for a single file-tree row: clipboard/drag-and-drop handlers, rename/create entry
- * points, roving-tabindex bookkeeping, and the keyboard shortcut map. Split out of `FileTreeItem` purely to keep that
- * component's JSX readable — every return here is consumed directly by the row's DOM attributes/handlers, so this hook
- * does not change any rendered output or handler semantics.
+ * points, roving-tabindex bookkeeping, the keyboard shortcut map, and whether the row has earned its context menu yet.
+ * Split out of `FileTreeItem` purely to keep that component's JSX readable — apart from `isContextMenuRendered`, every
+ * return here is consumed directly by the row's DOM attributes/handlers.
  *
  * The active scope (`scopeId`, `sessionId`) is read from the store at call time rather than taken as an option: it is
  * needed only by the handlers and effects below, never by rendered output, and passing it in would re-render every row
@@ -119,6 +141,12 @@ export function useFileTreeItemInteractions({
         [],
     );
     const rowDescriptionId = useId();
+    const [isContextMenuRequested, setIsContextMenuRequested] = useState(false);
+    /**
+     * One-shot mailbox rather than state: the gesture is consumed by the very commit that mounts the menu, and routing
+     * it through `useState` would add a render to the interaction this laziness exists to make cheaper.
+     */
+    const pendingContextMenuGesture = useRef<RowContextMenuGesture | undefined>(undefined);
     const clipboard = useFileClipboardStore((state) => state.entry);
     const isRenaming = editing?.kind === 'rename' && editing.entry.path === entry.path;
     const isEditable = entry.kind !== 'symlink';
@@ -318,6 +346,24 @@ export function useFileTreeItemInteractions({
         }
     };
 
+    const requestContextMenu = (event: MouseEvent<HTMLElement>): void => {
+        if (!isEditable || isContextMenuRequested) return;
+        pendingContextMenuGesture.current = claimRowContextMenuGesture(
+            event,
+            document.activeElement,
+        );
+        setIsContextMenuRequested(true);
+    };
+
+    // Deliberately dependency-free: the replay has to run on whichever commit mounted the row's trigger.
+    useLayoutEffect(() => {
+        const gesture = pendingContextMenuGesture.current;
+        if (!gesture) return;
+        pendingContextMenuGesture.current = undefined;
+        const row = rowReference.current;
+        if (row) replayRowContextMenu(row, gesture);
+    });
+
     // Both effects below run off a store-derived boolean that is already scope-aware, so the scope is read rather than
     // listed as a dependency: adding it would re-fire every row's effects on a Session switch that changed nothing
     // about that row.
@@ -351,6 +397,7 @@ export function useFileTreeItemInteractions({
         handleKeyDown,
         isDropTarget,
         isDirectory,
+        isContextMenuRendered: shouldRenderRowContextMenu(isEditable, isContextMenuRequested),
         isRenaming,
         isRovingTabStop,
         openEntry,
@@ -359,6 +406,7 @@ export function useFileTreeItemInteractions({
         pasteDisabled: isPasteDisabled,
         pasteDisabledReason,
         pasteIntoEntry,
+        requestContextMenu,
         rowDescriptionId,
         rowRef: rowReference,
         setIsDropTarget,

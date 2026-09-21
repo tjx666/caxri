@@ -85,9 +85,10 @@ explicitly requests or confirms that split.
 
 ## Create or resolve a checkout
 
-Resolve and reuse an existing checkout whenever the current delivery already owns one. The
-`create` command is not a default implementation step: run it only after the user explicitly asks
-for a new worktree or confirms the split after the agent explains why it is necessary.
+Resolve and reuse an existing checkout whenever the current delivery already owns one. Starting a
+new delivery from the primary checkout runs `create` directly. A session that already owns a task
+worktree needs the user's explicit request, or their confirmation after the agent explains why the
+current worktree cannot own the change, before creating a second one.
 
 Create a semantic branch from the latest `origin/main`, install independent dependencies with `ni`,
 prepare native `node-pty` artifacts, and initialize an isolated Caxri profile:
