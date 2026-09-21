@@ -549,9 +549,37 @@ export async function openAddProjectDialog(page: Page): Promise<void> {
     await page.keyboard.press('Meta+o');
 }
 
+/**
+ * Closes the Electron app during teardown without letting an already-closed app fail the test — a spec that asserts
+ * quit, or one whose app died on the way to the assertion, would otherwise report the teardown instead of the cause.
+ */
+export async function closeAppQuietly(app: E2EApp): Promise<void> {
+    try {
+        await app.close();
+    } catch {
+        // Ignore close failures during cleanup.
+    }
+}
+
+/**
+ * The Workbench subtree of the Session the user can actually see.
+ *
+ * Session keep-alive leaves recently used Sessions' Workbench subtrees mounted behind a `hidden` wrapper so their xterm
+ * buffers and Editor models survive a switch. Every pane, tab, and Terminal inside a retained Session therefore keeps
+ * matching a bare `.workbench-pane` / `.work-tab` / `.xterm-helper-textarea`, which turns into a strict-mode violation
+ * once a spec has visited more than one Session — or worse, into `.last()` quietly resolving to a Terminal nobody is
+ * looking at, because a hidden element can never take focus. Prefix any Workbench selector with this when the spec does
+ * not already pin a Terminal id.
+ */
+export const VISIBLE_SESSION = '.workbench-session:not([hidden])';
+/**
+ * The Terminal input inside the Session the user can actually see. See {@link VISIBLE_SESSION}.
+ */
+export const VISIBLE_TERMINAL_INPUT = `${VISIBLE_SESSION} .xterm-helper-textarea`;
+
 export async function createShellSession(page: Page): Promise<void> {
     await createProjectSession(page, 'shell');
-    const terminalInput = page.locator('.xterm-helper-textarea');
+    const terminalInput = page.locator(VISIBLE_TERMINAL_INPUT);
     await expect(terminalInput).toBeVisible();
     /**
      * The initial Terminal focus effect is part of creation completing, not caller setup.
@@ -590,7 +618,7 @@ export async function createAdditionalShellSession(page: Page): Promise<void> {
 }
 
 export async function typeTerminal(page: Page, command: string): Promise<void> {
-    const input = page.locator('.xterm-helper-textarea').last();
+    const input = page.locator(VISIBLE_TERMINAL_INPUT).last();
     await input.focus();
     await input.pressSequentially(command);
     await input.press('Enter');

@@ -22,6 +22,7 @@ import { closeDocumentTabs, remapOpenEditors, saveActiveEditor } from '../docume
 function installDirtyDocument(path: string): void {
     const sessionState: SessionState = {
         sessionId: 'session-1',
+        revision: 0,
         workbenchProjectId: 'project-1',
         desiredSecondarySidebarViewContainerId: 'caxri.files',
         paneLayout: {

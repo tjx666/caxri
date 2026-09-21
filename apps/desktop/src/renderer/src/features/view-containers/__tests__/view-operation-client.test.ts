@@ -1,11 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ request: vi.fn() }));
-const scope = {
-    kind: 'session' as const,
-    sessionId: 'session-1',
-    workbenchProjectId: 'project-1',
-};
 
 vi.mock('../../../lib/caxri', () => ({ caxri: { request: mocks.request } }));
 
@@ -24,7 +19,7 @@ describe('controlled view operation cancellation', () => {
             method === 'viewContainers.viewOperation' ? pending.promise : Promise.resolve(null),
         );
         const controller = new AbortController();
-        const request = createSourceControlClient('publisher.provider.sourceControl', scope).action(
+        const request = createSourceControlClient('publisher.provider.sourceControl').action(
             { actionId: 'action-1', revision: '7' },
             controller.signal,
         );
@@ -45,10 +40,7 @@ describe('controlled view operation cancellation', () => {
             method === 'viewContainers.viewOperation' ? pending.promise : Promise.resolve(null),
         );
         const controller = new AbortController();
-        const request = createSourceControlClient(
-            'publisher.provider.sourceControl',
-            scope,
-        ).historyPage(
+        const request = createSourceControlClient('publisher.provider.sourceControl').historyPage(
             { historyId: 'history-1', offset: 0, pageSize: 5, revision: '7' },
             controller.signal,
         );

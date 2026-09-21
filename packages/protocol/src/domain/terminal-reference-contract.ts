@@ -6,6 +6,8 @@ import { identifierSchema } from './domain.js';
 import {
     terminalCommitLinkResolutionSchema,
     terminalReferenceContextSchema,
+    terminalReferencePreviewRequestSchema,
+    terminalReferencePreviewSchema,
 } from './terminal-reference.js';
 
 const serverRead = commandPolicy('server', 'read');
@@ -23,5 +25,17 @@ export const terminalReferenceMethods = {
             reference: z.string().regex(/^[0-9a-f]{7,40}$/i),
         }),
         result: terminalCommitLinkResolutionSchema,
+    },
+    /**
+     * Metadata for the hover card over a Terminal reference. Read-only by construction: it can answer what a commit or
+     * an issue says and nothing else, so a hover can never mutate anything the user did not ask to change.
+     */
+    'terminal.reference.preview': {
+        ...serverRead,
+        params: z.object({
+            terminalId: identifierSchema,
+            reference: terminalReferencePreviewRequestSchema,
+        }),
+        result: terminalReferencePreviewSchema,
     },
 } as const satisfies Record<string, MethodSpec>;

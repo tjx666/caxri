@@ -52,6 +52,7 @@ describe('Agent delegation persistence', () => {
         // top of a column the fresh install already created.
         database.database.exec('ALTER TABLE sessions DROP COLUMN pinned_at');
         database.database.exec('ALTER TABLE sessions DROP COLUMN pinned_order');
+        database.database.exec('ALTER TABLE session_state DROP COLUMN revision');
         database.database.pragma(
             `user_version = ${schemaVersionForMigration('0025_conscious_living_tribunal')}`,
         );
@@ -100,6 +101,7 @@ describe('Agent delegation persistence', () => {
         // top of a column the fresh install already created.
         database.database.exec('ALTER TABLE sessions DROP COLUMN pinned_at');
         database.database.exec('ALTER TABLE sessions DROP COLUMN pinned_order');
+        database.database.exec('ALTER TABLE session_state DROP COLUMN revision');
         database.database.pragma(
             `user_version = ${schemaVersionForMigration('0024_session-naming-sync')}`,
         );

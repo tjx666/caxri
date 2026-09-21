@@ -81,6 +81,7 @@ export const coreForwardedMethods = [
     'terminal.attach',
     'terminal.close',
     'terminal.commitLink.resolve',
+    'terminal.reference.preview',
     'terminal.create',
     'terminal.detach',
     'terminal.input',

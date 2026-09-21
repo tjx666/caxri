@@ -8,11 +8,14 @@ import {
     identifierSchema,
     sessionRecordSchema,
     sessionReorderParametersSchema,
-    sessionStateSchema,
     terminalKindSchema,
     terminalRecordSchema,
 } from './domain.js';
-import { sessionRenameTitleSchema, sessionRestorePlacementSchema } from './session.js';
+import {
+    sessionRenameTitleSchema,
+    sessionRestorePlacementSchema,
+    sessionStateSchema,
+} from './session.js';
 
 const serverWrite = commandPolicy('server', 'write');
 const desktopWrite = commandPolicy('desktop', 'write');

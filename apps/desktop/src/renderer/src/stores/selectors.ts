@@ -42,9 +42,13 @@ export function selectSelectedWorkbenchProject(
     return bootstrap.projects.find((project) => project.id === workbenchProjectId);
 }
 
-function selectSessionState(bootstrap?: BootstrapState): SessionState | undefined {
-    const sessionId = selectSelectedSession(bootstrap)?.id;
-    return bootstrap?.sessionStates.find((state) => state.sessionId === sessionId);
+function selectSessionState(
+    bootstrap?: BootstrapState,
+    sessionId?: string,
+): SessionState | undefined {
+    const targetId = sessionId ?? selectSelectedSession(bootstrap)?.id;
+    if (!targetId) return undefined;
+    return bootstrap?.sessionStates.find((state) => state.sessionId === targetId);
 }
 
 function selectSessionTerminals(bootstrap?: BootstrapState): TerminalRecord[] {
@@ -111,6 +115,19 @@ export function useSelectedSession(): SessionRecord | undefined {
     return useWorkbenchStore((state) => selectSelectedSession(state.bootstrap));
 }
 
+/**
+ * A Session by id rather than by selection. Required wherever a view may belong to a Session that is mounted but not on
+ * screen — a Terminal in a kept-alive Workbench still resolves paths against its own Project root, not the selected
+ * Session's (issue #657).
+ */
+export function useSessionById(sessionId: string | undefined): SessionRecord | undefined {
+    return useWorkbenchStore((state) =>
+        sessionId
+            ? state.bootstrap?.sessions.find((session) => session.id === sessionId)
+            : undefined,
+    );
+}
+
 export function useSelectedProject(): ProjectRecord | undefined {
     return useWorkbenchStore((state) => selectSelectedProject(state.bootstrap));
 }
@@ -119,8 +136,13 @@ export function useSelectedWorkbenchProject(): ProjectRecord | undefined {
     return useWorkbenchStore((state) => selectSelectedWorkbenchProject(state.bootstrap));
 }
 
-export function useSessionState(): SessionState | undefined {
-    return useWorkbenchStore((state) => selectSessionState(state.bootstrap));
+/**
+ * The selected Session's state, or a named Session's when the caller owns more than one at a time. The Workbench keeps
+ * recently used Sessions mounted off screen (issue #657), and each of those panes must keep reading its own layout
+ * rather than following the selection it no longer holds.
+ */
+export function useSessionState(sessionId?: string): SessionState | undefined {
+    return useWorkbenchStore((state) => selectSessionState(state.bootstrap, sessionId));
 }
 
 /**

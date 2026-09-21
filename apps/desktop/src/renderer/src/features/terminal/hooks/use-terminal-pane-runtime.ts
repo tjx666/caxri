@@ -8,11 +8,7 @@ import type {
     ThemeTokens,
 } from '@caxri/protocol';
 import { errorMessage } from '@caxri/protocol';
-import { ClipboardAddon } from '@xterm/addon-clipboard';
-import { FitAddon } from '@xterm/addon-fit';
-import { ProgressAddon } from '@xterm/addon-progress';
-import { Unicode11Addon } from '@xterm/addon-unicode11';
-import { Terminal } from '@xterm/xterm';
+import type { Terminal } from '@xterm/xterm';
 
 import { useLatestReference } from '@/hooks/use-latest-reference';
 
@@ -20,6 +16,10 @@ import { caxri } from '../../../lib/caxri';
 import { useDialogStore } from '../../../stores/dialogs';
 import { pushToast } from '../../../stores/toasts';
 import { gpuIncidentBudget } from '../../gpu/gpu-incident-budget';
+import {
+    beginRendererPerformanceTerminalStage,
+    recordRendererPerformanceTerminalAttachment,
+} from '../../renderer-performance/controller';
 import {
     formatTerminalCommandCompletionStatus,
     registerTerminalCommandNavigation,
@@ -41,16 +41,14 @@ import { loadTerminalFonts } from '../terminal-fonts';
 import { createTerminalImageAddon, registerTerminalImageAddon } from '../terminal-images';
 import { registerTerminalClipboardHandlers, terminalKeyboardInput } from '../terminal-keyboard';
 import { createTerminalLongPasteRuntime } from '../terminal-long-paste';
-import { ControlledOsc52Clipboard } from '../terminal-osc52-clipboard';
-import { createTerminalOsc52ClipboardWriteFailureDiagnostic } from '../terminal-osc52-clipboard-diagnostics';
 import {
     onError,
-    OSC52_BLOCK_MESSAGES,
     registerTerminalInputHandlers,
     registerTerminalPaneLinks,
     reportTerminalOperationError,
     xtermThemeWithoutOverviewRulerBorder,
 } from '../terminal-pane-support';
+import { createTerminalPaneXterm } from '../terminal-pane-xterm';
 import { reconcileTerminalProcessFocus, shouldAutoFocusTerminal } from '../terminal-process-focus';
 import { clearTerminalProgress, updateTerminalProgress } from '../terminal-progress';
 import { shouldReconcileTerminalRecovery } from '../terminal-recovery';
@@ -67,48 +65,6 @@ import {
 import { useTerminalPaneSearch } from './use-terminal-pane-search';
 import { useTerminalVisibilityRestore } from './use-terminal-visibility-restore';
 
-/**
- * Captures only closed, content-free browser state. Diagnostics are best effort: their asynchronous permission probe or
- * IPC report must never turn a clipboard rejection into a second Terminal failure.
- */
-function reportTerminalOsc52ClipboardWriteFailure(
-    writeFailure: unknown,
-    container: HTMLElement,
-    terminalId: string,
-): void {
-    const userActivation = navigator.userActivation;
-    const queryPermission = async () =>
-        (
-            await navigator.permissions.query({
-                name: 'clipboard-write' as PermissionName,
-            })
-        ).state;
-    // eslint-disable-next-line no-void -- intentionally detached best-effort diagnostic
-    void (async () => {
-        try {
-            const diagnostic = await createTerminalOsc52ClipboardWriteFailureDiagnostic(
-                {
-                    diagnosticId: crypto.randomUUID(),
-                    error: writeFailure,
-                    terminalId,
-                },
-                {
-                    documentFocused: document.hasFocus(),
-                    documentVisible: document.visibilityState === 'visible',
-                    queryPermission,
-                    secureContext: isSecureContext,
-                    terminalFocused: container.contains(document.activeElement),
-                    userActivationActive: userActivation.isActive,
-                    userActivationHasBeenActive: userActivation.hasBeenActive,
-                },
-            );
-            globalThis.caxri.reportDiagnostic(diagnostic);
-        } catch {
-            // Best-effort diagnostic reporting must swallow its own failures.
-        }
-    })();
-}
-
 interface TerminalPaneRuntimeOptions {
     canAcceptAgentInput: boolean;
     active: boolean;
@@ -123,6 +79,11 @@ interface TerminalPaneRuntimeOptions {
     gpuAcceleration: TerminalGpuAcceleration;
     githubRepositories: TerminalReferenceContext['githubRepositories'];
     imagePasteInput?: string;
+    /**
+     * Whether this pane's Workbench is the one on screen. A kept-alive Session stays mounted but hidden; its Terminals
+     * keep every byte of state and give up only their GPU context.
+     */
+    isPaneVisible: boolean;
     longPasteThreshold: number;
     osc52ClipboardWrite: boolean;
     processState: ProcessState;
@@ -153,6 +114,7 @@ export function useTerminalPaneRuntime({
     gpuAcceleration,
     githubRepositories,
     imagePasteInput,
+    isPaneVisible,
     longPasteThreshold,
     osc52ClipboardWrite,
     processState,
@@ -174,6 +136,11 @@ export function useTerminalPaneRuntime({
     const pasteReference = useRef<(() => Promise<void>) | undefined>(undefined);
     const replayReference = useRef<TerminalReplayCoordinator | undefined>(undefined);
     const rendererReference = useRef<TerminalRendererController | undefined>(undefined);
+    /**
+     * Whether this pane has been off screen since it was built, so a return can be counted as a reuse rather than as
+     * the mount's own attachment.
+     */
+    const wasSuspendedReference = useRef(false);
     const [fontsReady, setFontsReady] = useState(false);
     const [longPasteState, setLongPasteState] = useState({ id: terminalId, pending: false });
     const longPastePending = longPasteState.id === terminalId && longPasteState.pending;
@@ -240,53 +207,17 @@ export function useTerminalPaneRuntime({
         if (!fontsReady || !container) return;
         delete container.dataset.terminalAttached;
         const latest = latestReference.current;
-        const xterm = new Terminal({
-            allowProposedApi: true,
-            convertEol: false,
-            cursorBlink: true,
-            disableStdin: latest.processState !== 'running' || latest.longPastePending,
-            fontFamily: latest.fontFamily,
-            fontSize: latest.fontSize,
-            /**
-             * FitAddon reads this option when calculating columns. Keeping it aligned with the styled scrollbar width
-             * prevents the grid from reserving xterm's 14px default while the visible scrollbar occupies only 8px.
-             */
-            scrollbar: { width: 8 },
-            scrollback: latest.scrollback,
-            theme: xtermThemeWithoutOverviewRulerBorder(latest.terminalTheme),
-            wordSeparator: latest.wordSeparators,
-        });
-        const fit = new FitAddon();
         /**
          * One bounded sentinel match distinguishes exactly-at-limit from overflow without parsing Terminal text outside
          * xterm's Unicode- and wrap-aware search engine.
          */
         const search = createSearchAddon();
-        const unicode11 = new Unicode11Addon();
-        const osc52Clipboard = new ControlledOsc52Clipboard({
-            enabled: () => latestReference.current.osc52ClipboardWrite,
-            onBlocked: (reason) => pushToast('info', OSC52_BLOCK_MESSAGES[reason]),
-            onWriteFailure: (error) => {
-                onError(
-                    'A Terminal program could not write to the clipboard. Check diagnostics for details.',
-                );
-                reportTerminalOsc52ClipboardWriteFailure(
-                    error,
-                    container,
-                    latestReference.current.terminalId,
-                );
-            },
-            writeClipboard: (text) => navigator.clipboard.writeText(text),
+        const { fit, progress, xterm } = createTerminalPaneXterm({
+            container,
+            initial: latest,
+            latest: () => latestReference.current,
+            search,
         });
-        const clipboard = new ClipboardAddon(osc52Clipboard, osc52Clipboard);
-        const progress = new ProgressAddon();
-        xterm.loadAddon(fit);
-        xterm.loadAddon(search);
-        xterm.loadAddon(clipboard);
-        xterm.loadAddon(progress);
-        xterm.loadAddon(unicode11);
-        xterm.unicode.activeVersion = '11';
-        xterm.open(container);
         const commandStatusElement = document.createElement('div');
         commandStatusElement.className = 'terminal-command-status sr-only';
         commandStatusElement.setAttribute('aria-atomic', 'true');
@@ -415,7 +346,15 @@ export function useTerminalPaneRuntime({
             current: () => ({ cols: xterm.cols, rows: xterm.rows }),
             fitted: ({ cols, rows }) => (container.dataset.terminalGrid = `${cols}x${rows}`),
             isRunning: () => latestReference.current.processState === 'running',
-            propose: () => fit.proposeDimensions(),
+            /**
+             * A pane belonging to a Session kept alive off screen is `display: none`, where the fit addon reads its
+             * parent's computed height as `auto` and proposes `NaN` columns. Sending that to the PTY would reflow a
+             * background Session's whole buffer, so an unlaid-out pane proposes nothing and re-fits when it is shown.
+             */
+            propose: () =>
+                container.offsetWidth > 0 && container.offsetHeight > 0
+                    ? fit.proposeDimensions()
+                    : undefined,
             request: (size) => resizeTerminal(terminalId, size),
             terminalId,
         });
@@ -439,7 +378,11 @@ export function useTerminalPaneRuntime({
                 xterm.refresh(0, xterm.rows - 1);
             },
             (status) => rendererObserver.publish(status),
-            { policy: gpuIncidentBudget },
+            {
+                beginActivationMeasurement: () =>
+                    beginRendererPerformanceTerminalStage('webgl-attach'),
+                policy: gpuIncidentBudget,
+            },
         );
         rendererReference.current = renderer;
         renderer.setPreference(latest.gpuAcceleration);
@@ -581,6 +524,9 @@ export function useTerminalPaneRuntime({
             resizeController.pause();
             let attachment: TerminalSnapshot | null = null;
             let isAttached = false;
+            // The Server round trip plus the buffer rewrite: the cost a kept-alive Session is meant to avoid entirely,
+            // and the one the user sees as the Terminal "flashing" on a switch.
+            const settleSnapshotReplay = beginRendererPerformanceTerminalStage('snapshot-replay');
             try {
                 attachment = await attachTerminal(terminalId, initialSize);
                 isAttached = true;
@@ -589,8 +535,12 @@ export function useTerminalPaneRuntime({
             } catch (error) {
                 if (!isDisposed) reportTerminalOperationError(error, 'Terminal attachment failed');
             }
-            if (isDisposed) return;
+            if (isDisposed) {
+                settleSnapshotReplay();
+                return;
+            }
             await replay.restoreInitial(attachment);
+            settleSnapshotReplay();
             // TS narrows `isDisposed` to `false` here because it cannot see the `dispose()` closure reassigning it
             // during the `await` above; the pane can genuinely be torn down while `restoreInitial` is in flight.
             // oxlint-disable-next-line typescript/no-unnecessary-condition -- see comment above
@@ -598,6 +548,8 @@ export function useTerminalPaneRuntime({
             container.dataset.terminalAttached = 'true';
             // A failed attach leaves Server without an attachment id, so command input must keep waiting.
             if (isAttached) markTerminalAttached(terminalId, true);
+            // Built from nothing: the expensive half of a Session switch, and the half the keep-alive removes.
+            recordRendererPerformanceTerminalAttachment(false);
             requestAnimationFrame(() => {
                 document.removeEventListener('focusin', trackNewerFocus);
                 document.removeEventListener('keydown', trackExplicitInteraction, true);
@@ -673,6 +625,28 @@ export function useTerminalPaneRuntime({
     useEffect(() => {
         rendererReference.current?.setPreference(gpuAcceleration);
     }, [gpuAcceleration]);
+    /**
+     * Follows the pane off and back onto the screen while it stays mounted, which is what a Session kept alive in the
+     * background does (issue #657). Suspending releases only the GPU context; the xterm buffer, scroll position, PTY
+     * subscription, and Agent lifecycle are untouched, so coming back is a redraw rather than a rebuild. The re-fit is
+     * required because a `display: none` pane proposed no size while hidden, so its grid may not match the window it
+     * returns to.
+     */
+    useEffect(() => {
+        const renderer = rendererReference.current;
+        if (!renderer) return;
+        if (!isPaneVisible) {
+            wasSuspendedReference.current = true;
+            renderer.suspend();
+            return;
+        }
+        renderer.resume();
+        fitAndResizeReference.current?.();
+        // Only a pane that actually left the screen was reused; a first mount already counted itself as an attachment.
+        if (!wasSuspendedReference.current) return;
+        wasSuspendedReference.current = false;
+        recordRendererPerformanceTerminalAttachment(true);
+    }, [fontsReady, isPaneVisible, terminalId]);
     useTerminalVisibilityRestore(terminalId, rendererReference);
     useEffect(() => {
         if (processState !== 'running') clearTerminalProgress(terminalId);

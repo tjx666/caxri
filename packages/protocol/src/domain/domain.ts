@@ -6,13 +6,7 @@ import { MAX_CONFIGURABLE_FILE_BYTES } from '../configuration/settings-spec.js';
 import { MAX_SHORTCUT_CHORDS, splitShortcutChords } from '../configuration/shortcuts.js';
 import type { CommandId } from './commands.js';
 import { gitCommitSchema } from './git.js';
-import { paneLayoutSchema } from './pane-layout.js';
 import { projectIconSchema } from './project-customization.js';
-import {
-    extensionTreeViewStatesSchema,
-    sourceControlViewStatesSchema,
-    viewContainerIdSchema,
-} from './views.js';
 
 export * from './git.js';
 export * from './theme.js';
@@ -310,37 +304,6 @@ export const agentTranscriptSchema = z.object({
     exists: z.boolean(),
     content: z.string().optional(),
     truncated: z.boolean(),
-});
-
-export const sessionStateSchema = z.object({
-    sessionId: identifierSchema,
-    /**
-     * Scopes every ordinary Editor path in this snapshot to one authorized Workbench Root.
-     */
-    workbenchProjectId: identifierSchema,
-    /**
-     * Last durable file mutation whose editor remap was applied to this atomic Session snapshot.
-     */
-    editorRemapOperationId: identifierSchema.optional(),
-    /**
-     * The user's durable intent. Availability is resolved against the Host catalog in the Renderer; unknown extension
-     * IDs remain valid so a temporarily missing extension can reclaim the selection when it returns.
-     */
-    desiredSecondarySidebarViewContainerId: viewContainerIdSchema,
-    /**
-     * Bounded stable-id state for extension trees, scoped by Session, Workbench Root, and View.
-     */
-    extensionTreeViewStates: extensionTreeViewStatesSchema.optional(),
-    /**
-     * Bounded disclosure and mode state for Source Control views, scoped by Session and Workbench Root.
-     */
-    sourceControlViewStates: sourceControlViewStatesSchema.optional(),
-    /**
-     * The Workbench split tree: the single source of truth for which Terminals and documents are open, how they are
-     * arranged, and which one each pane shows. Terminal processes stay Session-global; only their placement is
-     * root-local, so this tree is stored per Workbench Root. See `docs/adr/0002-unified-pane-layout.md`.
-     */
-    paneLayout: paneLayoutSchema,
 });
 
 const agentHookHealthKindSchema = z.enum([
@@ -776,7 +739,6 @@ export type TerminalRecord = z.infer<typeof terminalRecordSchema>;
 export type TerminalSnapshot = z.infer<typeof terminalSnapshotSchema>;
 export type TerminalOscLinkSnapshot = z.infer<typeof terminalOscLinkSnapshotSchema>;
 export type AgentTranscript = z.infer<typeof agentTranscriptSchema>;
-export type SessionState = z.infer<typeof sessionStateSchema>;
 export type NewWorktreeBehavior = z.infer<typeof newWorktreeBehaviorSchema>;
 export type WorkbenchRootOption = z.infer<typeof workbenchRootOptionSchema>;
 export type AgentHookHealth = z.infer<typeof agentHookHealthSchema>;

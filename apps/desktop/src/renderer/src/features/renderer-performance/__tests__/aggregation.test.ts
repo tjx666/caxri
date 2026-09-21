@@ -68,6 +68,14 @@ describe('Renderer performance aggregation', () => {
                 },
             ],
             frameTimestamps: [0, 16, 32, 80],
+            terminalAttachedCount: 3,
+            terminalReusedCount: 1,
+            terminalStages: [
+                { durationMs: 12, stage: 'xterm-create' },
+                { durationMs: 8, stage: 'xterm-create' },
+                { durationMs: 4, stage: 'webgl-attach' },
+                { durationMs: 30, stage: 'snapshot-replay' },
+            ],
             truncated: false,
         });
 
@@ -138,6 +146,19 @@ describe('Renderer performance aggregation', () => {
                 maxIntervalMs: 48,
                 missedFrameCount: 2,
             },
+            /**
+             * The stage breakdown is what makes the keep-alive claim checkable: a Session switch that reuses a
+             * kept-alive pane reports reused attachments and no `xterm-create` at all (issue #657).
+             */
+            terminals: {
+                attachedCount: 3,
+                reusedCount: 1,
+                stages: {
+                    snapshotReplay: { count: 1, totalDurationMs: 30, maxDurationMs: 30 },
+                    webglAttach: { count: 1, totalDurationMs: 4, maxDurationMs: 4 },
+                    xtermCreate: { count: 2, totalDurationMs: 20, maxDurationMs: 12 },
+                },
+            },
             truncated: false,
         });
         expect(summary).not.toHaveProperty('reactScan');
@@ -165,6 +186,9 @@ describe('Renderer performance aggregation', () => {
             longAnimationFrames: [],
             interactions: [],
             frameTimestamps: [],
+            terminalAttachedCount: 0,
+            terminalReusedCount: 0,
+            terminalStages: [],
             truncated: false,
         });
 

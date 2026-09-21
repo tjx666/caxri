@@ -14,7 +14,12 @@ import process from 'node:process';
 
 import type { Locator, Page } from './support/fixtures.ts';
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
-import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
+import {
+    createProjectSession,
+    launchCaxri,
+    pageRequest,
+    VISIBLE_TERMINAL_INPUT,
+} from './support/helpers.ts';
 import { readFileForPoll } from './support/result-file-polling.ts';
 
 /**
@@ -46,19 +51,14 @@ async function injectTransientFileAbsence(path: string): Promise<{ restored: Pro
 }
 
 test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash workflows', async () => {
-    // Every conflicting move — rename, or paste/drag onto an existing name — now opens the Finder-
-    // style conflict dialog instead of failing flat, but `moveFile` (`file-actions.ts`) still always
-    // tries `conflict: 'reject'` first so the dialog can offer Replace/Keep Both/Cancel. That first
-    // attempt is what surfaces the `CONFLICT` pair below: 1 rename-onto-existing-name case plus 3
-    // dialog scenarios exercised further down (Cancel, Replace, Keep Both), each preceded by exactly
-    // one failed `reject` attempt = 1 + 3 = 4 pairs, one on `main` and one on `runtime` per attempt.
-    allowE2EErrors([
-        { source: 'desktop', event: 'ipc.request_failed', code: 'CONFLICT', count: 4 },
-        { source: 'server-core', event: 'ipc.request_failed', code: 'CONFLICT', count: 4 },
-        // Only the rename-onto-existing-name case notifies the user; the other three conflicts open
-        // the dialog instead, which replaces the notification with Replace/Keep Both/Cancel.
-        { source: 'renderer', event: 'toast', code: 'ERROR_TOAST', count: 1 },
-    ]);
+    // Every conflicting move — rename, or paste/drag onto an existing name — opens the Finder-style
+    // conflict dialog instead of failing flat, but `moveFile` (`file-actions.ts`) still always tries
+    // `conflict: 'reject'` first so the dialog can offer Replace/Keep Both/Cancel. Those deliberate
+    // probes are no longer declared here: `CONFLICT` is a caller-absorbed outcome and every boundary
+    // logs it at `warn` (`isCallerHandledFailure` in `@caxri/protocol`), so the error gate never sees
+    // it. Only the rename-onto-existing-name case notifies the user; the other three open the dialog,
+    // which replaces the notification with Replace/Keep Both/Cancel.
+    allowE2EErrors([{ source: 'renderer', event: 'toast', code: 'ERROR_TOAST', count: 1 }]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-file-operations-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const rootInput = join(testDirectory, 'project');
@@ -196,7 +196,7 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
                 };
             })
             .toEqual({ count: terminalCount + 1, cwd: root });
-        await expect(running.page.locator('.xterm-helper-textarea').last()).toBeFocused();
+        await expect(running.page.locator(VISIBLE_TERMINAL_INPUT).last()).toBeFocused();
 
         await draftRow.focus();
         await expect(draftRow).toBeFocused();

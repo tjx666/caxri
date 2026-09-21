@@ -87,6 +87,32 @@ identity (`number,state,isDraft`) and only five candidates. The selected pull re
 come from the shared record. The previous `--limit 10` with `statusCheckRollup` multiplied one
 query's cost by every candidate returned.
 
+### One projection per reference
+
+`GitHubReferenceStore` (`github-reference.ts`) answers a different question from the store above:
+"what is `owner/repo#123`", not "what pull request does this branch have". It backs the Terminal
+hover card described in [Terminal reference hover previews](./terminal-reference-preview.md), and it
+deliberately shares no records with the pull-request store — a preview needs a title, not a check
+rollup, and paying for a rollup on hover is the cost this store exists to avoid.
+
+- One REST read (`gh api repos/<owner>/<repo>/issues/<number>`) answers both halves of the
+  reference. Nothing in `owner/repo#123` says whether it is an issue or a pull request, and
+  `gh pr view` and `gh issue view` each refuse the other's numbers — a CLI-shaped read would have to
+  guess, fail, and retry, spending two processes on every issue. GitHub's REST issues endpoint
+  covers pull requests too and marks them with a `pull_request` key.
+- REST also draws on a **different budget** from the GraphQL points `gh pr view` and the sidebar
+  sweep share, so a hover never competes with delivery status.
+- A hit is cached for 10 minutes — far longer than the pull-request store's 90s, because an issue
+  title changes rarely and a hover is an involuntary gesture. A miss is cached for 30 minutes: a
+  reference that does not resolve is almost always a number that never existed, so re-asking buys
+  nothing. Neither is cached forever, so a genuinely new issue becomes visible without a restart.
+- Only a recognizable "no such issue" failure is cached as absence. A transport, auth, or quota
+  failure stays uncached, or a temporary outage would be remembered as "this issue does not exist"
+  for the whole TTL.
+- The Server reads a reference only for a repository the hovering Session already has. That gate
+  lives in `reference-preview.ts`, not here, and is the reason untrusted Terminal output cannot
+  steer an outbound request.
+
 ### One circuit per source
 
 `ExternalStatusLimiter` (`limiter.ts`) wraps every `gh`, `lh`, `linear`, and `vc` spawn. `git` is local and

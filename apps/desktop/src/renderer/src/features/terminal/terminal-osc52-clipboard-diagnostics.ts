@@ -65,3 +65,46 @@ export async function createTerminalOsc52ClipboardWriteFailureDiagnostic(
         userActivationHasBeenActive: context.userActivationHasBeenActive,
     };
 }
+
+/**
+ * Collects the browser state around a clipboard rejection and ships the receipt. Captures only closed, content-free
+ * state. Diagnostics are best effort: their asynchronous permission probe or IPC report must never turn a clipboard
+ * rejection into a second Terminal failure.
+ */
+export function reportTerminalOsc52ClipboardWriteFailure(
+    writeFailure: unknown,
+    container: HTMLElement,
+    terminalId: string,
+): void {
+    const userActivation = navigator.userActivation;
+    const queryPermission = async () =>
+        (
+            await navigator.permissions.query({
+                name: 'clipboard-write' as PermissionName,
+            })
+        ).state;
+    // eslint-disable-next-line no-void -- intentionally detached best-effort diagnostic
+    void (async () => {
+        try {
+            const diagnostic = await createTerminalOsc52ClipboardWriteFailureDiagnostic(
+                {
+                    diagnosticId: crypto.randomUUID(),
+                    error: writeFailure,
+                    terminalId,
+                },
+                {
+                    documentFocused: document.hasFocus(),
+                    documentVisible: document.visibilityState === 'visible',
+                    queryPermission,
+                    secureContext: isSecureContext,
+                    terminalFocused: container.contains(document.activeElement),
+                    userActivationActive: userActivation.isActive,
+                    userActivationHasBeenActive: userActivation.hasBeenActive,
+                },
+            );
+            globalThis.caxri.reportDiagnostic(diagnostic);
+        } catch {
+            // Best-effort diagnostic reporting must swallow its own failures.
+        }
+    })();
+}

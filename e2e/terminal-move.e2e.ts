@@ -13,13 +13,21 @@ import {
     pageRequest,
     pressNewTerminal,
     sessionCard,
+    VISIBLE_SESSION,
     waitForNewTerminalId,
 } from './support/helpers.ts';
 
 const ONLY_TAB_REASON = 'This is the only tab open in this session';
 
+/**
+ * `:not([inert])` because Move to New Session leaves the source Session's tab behind as an exit-animation ghost with
+ * the same Terminal id, and Session keep-alive now holds that Session mounted instead of unmounting it on the switch —
+ * so for the length of the animation one Terminal really does have two tabs in the DOM. Only one of them is real.
+ */
 function terminalTab(page: Page, terminalId: string) {
-    return page.locator(`.work-tab[data-terminal-id="${terminalId}"]`);
+    return page.locator(
+        `${VISIBLE_SESSION} .work-tab:not([inert])[data-terminal-id="${terminalId}"]`,
+    );
 }
 
 async function openMoveMenu(page: Page, terminalId: string) {

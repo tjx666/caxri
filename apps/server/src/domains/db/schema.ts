@@ -186,6 +186,13 @@ export const sessionState = sqliteTable('session_state', {
         .references(() => sessions.id, { onDelete: 'cascade' }),
     stateVersion: integer('state_version').notNull().default(CURRENT_SESSION_STATE_VERSION),
     /**
+     * Optimistic-concurrency token, incremented on every write that actually changes this row. Unrelated to
+     * `state_version`, which is the storage-schema version and is identical for every row under one schema. A write
+     * whose declared revision no longer matches this column was assembled from a state that has since moved and is
+     * rejected rather than applied; see `SessionsModel.updateState`.
+     */
+    revision: integer('revision').notNull().default(0),
+    /**
      * Root-local Workbench snapshots keyed by authorized Project ID. One unified pane tree per Root holds Terminals and
      * documents alike; Terminal processes themselves stay Session-global.
      */

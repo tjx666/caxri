@@ -12,6 +12,7 @@ import {
     selectedSessionId,
     sessionCard,
     typeTerminal,
+    VISIBLE_SESSION,
     waitForNewTerminalId,
 } from './support/helpers.ts';
 
@@ -29,7 +30,9 @@ test('OSC 9;4 progress is coalesced, isolated, ephemeral, and independent from p
     try {
         await createShellSession(running.page);
         const firstSessionId = await selectedSessionId(running.page);
-        const firstTab = running.page.locator('.work-tab.active[data-terminal-id]');
+        const firstTab = running.page.locator(
+            `${VISIBLE_SESSION} .work-tab.active[data-terminal-id]`,
+        );
         const firstTerminalId = await firstTab.getAttribute('data-terminal-id');
         if (!firstTerminalId) throw new Error('First Terminal ID was not rendered');
 
@@ -59,10 +62,17 @@ test('OSC 9;4 progress is coalesced, isolated, ephemeral, and independent from p
         await expect(running.page.locator('.statusbar-terminal-progress')).toHaveCount(0);
         await sessionCard(running.page, firstSessionId).click();
         await expect(sessionCard(running.page, firstSessionId)).toHaveClass(/active/);
-        await expect(firstTab.locator('.terminal-progress-tab')).toHaveCount(0);
+        /**
+         * Ephemeral means "not persisted", not "discarded whenever the user looks away". Session keep-alive holds the
+         * pane across a switch, so the Terminal never stopped reading the live OSC 9;4 stream and the badge it was last
+         * told to show is still the truth. The reload below is what proves nothing was written down.
+         */
+        await expect(firstTab.getByLabel('Terminal progress: 100 percent')).toBeVisible();
 
         await running.page.reload();
-        await expect(running.page.locator('.terminal-surface .xterm')).toBeVisible();
+        await expect(
+            running.page.locator(`${VISIBLE_SESSION} .terminal-surface .xterm`),
+        ).toBeVisible();
         await expect(running.page.locator('.terminal-progress-tab')).toHaveCount(0);
         await expect(running.page.locator('.statusbar-terminal-progress')).toHaveCount(0);
 

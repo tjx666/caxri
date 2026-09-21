@@ -3,6 +3,7 @@ export type { CliFailureKind, ExternalStatusRunner, ExternalStatusSource } from 
 export { ExternalStatusCliError, isNoPullRequest, runExternalStatusCommand } from './command';
 export { observeExternalStatusCommand } from './diagnostics';
 export { GitHubPullRequestStore } from './github';
+export { GitHubReferenceStore } from './github-reference';
 export { ExternalStatusHub } from './hub';
 export { LinearIssueStore } from './linear';
 export { pullRequestUnavailable } from './pull-request-unavailable';

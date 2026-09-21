@@ -13,6 +13,8 @@ import {
     selectedSessionId,
     sessionCard,
     typeTerminal,
+    VISIBLE_SESSION,
+    VISIBLE_TERMINAL_INPUT,
 } from './support/helpers.ts';
 import { removeE2ETemporaryDirectory } from './support/worker-isolation.ts';
 
@@ -59,7 +61,7 @@ test('Session switches preserve a cursor-addressed Terminal screen and its live 
         await createShellSession(running.page);
         const firstSessionId = await selectedSessionId(running.page);
         await typeTerminal(running.page, 'zsh terminal-screen-fixture.zsh');
-        const screen = running.page.locator('.xterm-rows');
+        const screen = running.page.locator(`${VISIBLE_SESSION} .xterm-rows`);
         await expect(screen).toContainText('SESSION_SWITCH_TOP_界_é_');
         await expect(screen).toContainText('SESSION_SWITCH_RULE_界');
         await expect(screen).toContainText('SESSION_SWITCH_MIDDLE_界');
@@ -110,7 +112,7 @@ test('Session switches preserve a cursor-addressed Terminal screen and its live 
             await expect.poll(() => screen.textContent()).toBe(expectedScreen);
         }
 
-        const input = running.page.locator('.xterm-helper-textarea').last();
+        const input = running.page.locator(VISIBLE_TERMINAL_INPUT).last();
         await input.focus();
         await input.press('Control+C');
         await input.pressSequentially(String.raw`printf 'SESSION_SWITCH_INTERACTIVE\n'`);

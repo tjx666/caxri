@@ -236,6 +236,48 @@ Terminal bytes, source contents, prompts, and transcripts never enter the change
 recovers from bounded screen snapshots. Agent Run and Attention lifecycle metadata may be durable when
 it contains no user content.
 
+### `session.updateState` revisions
+
+One `session_state` row per Session is written by more than one writer today: every Renderer that has
+the Session open, plus the Server itself when a Terminal appears in or leaves every Root, or when a
+deauthorized Project is pruned out of the stored arrangements. A write carries the whole arrangement,
+so without a precondition the last write to arrive silently erased whatever landed between the writer's
+read and its write.
+
+Every `SessionState` therefore carries a `revision`: a non-negative integer the Server increments on
+each write that actually changes the row. `0` means no stored row exists yet.
+
+- **On a snapshot,** `revision` is the revision now stored.
+- **On a `session.updateState` request,** it is the revision the writer read. The Server compares it
+  against the stored one and rejects a mismatch with `CONFLICT`, carrying
+  `{ currentRevision, writtenRevision }` in `CaxriError.details` so the writer can re-derive its change
+  without another read.
+- **On the answer to an accepted write,** it is the revision now stored. A client must adopt it before
+  writing again, even when the rest of the answer matches what it sent.
+
+The check is whole-write, not per field. The pane layout is a tree: merging two arrangements field by
+field would produce a third one neither writer asked for, so the losing writer re-derives its change
+against the state that won instead.
+
+A rejected write is the one failure the Renderer must not roll back — the state it would roll back to
+is precisely the one that turned out to be stale. `patchSessionState` drops the Session's optimistic
+overlay, re-reads the snapshot, and shows no toast, because a lost race is not something the user can
+act on and the UI has already converged on what won.
+
+A Renderer never races itself. Two layout changes for one Session both read `revision` from the same
+optimistic overlay, because the first write has not answered yet; sent side by side, the second would
+be rejected for a conflict this Renderer had with nobody but itself, and the user's newer change would
+be dropped. `patchSessionState` therefore queues writes per Session and hands each one the revision its
+predecessor stored, so `CONFLICT` keeps its real meaning: another writer moved the row.
+
+Because it is a designed, caller-absorbed outcome rather than a defect, `CONFLICT` is logged at `warn`
+at every boundary (`isCallerHandledFailure` in `@caxri/protocol`) instead of `error`. It stays logged
+so its real volume remains measurable — ordinary contention must be countable without being mistaken
+for a fault.
+
+Do not confuse `revision` with the `state_version` column, which is a storage-schema version used to
+decide whether a row can be parsed or must be repaired and is identical for every row under one schema.
+
 ## Transport
 
 WebSocket is the current common bidirectional transport. The protocol specifies logical lanes while allowing

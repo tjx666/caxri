@@ -8,7 +8,12 @@ import { execFileAsync } from '@caxri/system';
 
 import type { E2EApp as ElectronApp } from './support/electron-app.ts';
 import { expect, test } from './support/fixtures.ts';
-import { launchCaxriApp, openAddProjectDialog, waitForRuntimeReady } from './support/helpers.ts';
+import {
+    launchCaxriApp,
+    openAddProjectDialog,
+    VISIBLE_TERMINAL_INPUT,
+    waitForRuntimeReady,
+} from './support/helpers.ts';
 
 const executablePath = process.env.CAXRI_BENCHMARK_EXECUTABLE;
 const thresholdMs = 3_000;
@@ -144,7 +149,7 @@ test('large Project opens Runtime, Terminal, files, and Git within three seconds
             return performance.now() - sessionStartedAt;
         })();
         const [terminalReadyMs, filesReadyMs] = await Promise.all([terminalReady, filesReady]);
-        const terminalInput = page.locator('.xterm-helper-textarea').last();
+        const terminalInput = page.locator(VISIBLE_TERMINAL_INPUT).last();
         await terminalInput.focus();
         const terminalOutputMarker = 'CAXRI_BENCHMARK_OUTPUT';
         await terminalInput.pressSequentially(
