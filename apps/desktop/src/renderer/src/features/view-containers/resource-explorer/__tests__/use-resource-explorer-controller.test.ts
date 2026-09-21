@@ -3,7 +3,11 @@ import type { DragEvent } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { FileClipboardEntry } from '../file-clipboard';
-import { dropIntoProjectRoot, pasteIntoProjectRoot } from '../use-resource-explorer-controller';
+import {
+    dropIntoProjectRoot,
+    pasteIntoProjectRoot,
+    refreshResourceExplorer,
+} from '../use-resource-explorer-controller';
 
 const context = {
     isBlocked: false,
@@ -79,5 +83,35 @@ describe('Resource Explorer controller workflows', () => {
 
         expect(move).toHaveBeenCalledWith('session-1', '/elsewhere/source.ts', '/project');
         expect(selectPath).toHaveBeenCalledWith('/project/source.ts');
+    });
+
+    it('re-reveals the open file when refreshing, and refreshes regardless', () => {
+        const revealPath = vi.fn();
+        const runRefresh = vi.fn();
+        const target = {
+            activeFilePath: '/project/src/deep/source.ts',
+            scopeId: 'session-1:project-1',
+            sessionRootPath: '/project',
+        };
+
+        refreshResourceExplorer(target, { revealPath, runRefresh });
+
+        expect(runRefresh).toHaveBeenCalledOnce();
+        expect(revealPath).toHaveBeenCalledWith(
+            'session-1:project-1',
+            '/project',
+            '/project/src/deep/source.ts',
+        );
+
+        // Nothing open, or no Session yet: the listing still has to be re-read, there is just nowhere to scroll to.
+        for (const withoutTarget of [
+            { ...target, activeFilePath: undefined },
+            { ...target, scopeId: undefined },
+            { ...target, sessionRootPath: undefined },
+        ])
+            refreshResourceExplorer(withoutTarget, { revealPath, runRefresh });
+
+        expect(runRefresh).toHaveBeenCalledTimes(4);
+        expect(revealPath).toHaveBeenCalledOnce();
     });
 });
