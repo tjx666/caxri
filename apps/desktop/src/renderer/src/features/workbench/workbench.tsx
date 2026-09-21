@@ -83,9 +83,10 @@ export function Workbench() {
      * outside the set it is given, so one call per Workbench would have the visible Session clearing the progress
      * badges of the Sessions kept alive behind it.
      */
+    const retainedIds = useMemo(() => new Set(retained), [retained]);
     const terminalKey = useWorkbenchStore((state) =>
         (state.bootstrap?.sessionStates ?? [])
-            .filter(({ sessionId }) => retained.includes(sessionId))
+            .filter(({ sessionId }) => retainedIds.has(sessionId))
             .flatMap(({ paneLayout }) => listPaneTerminalIds(paneLayout))
             .join('\u{0}'),
     );
