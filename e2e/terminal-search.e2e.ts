@@ -10,6 +10,7 @@ import {
     selectedSessionId,
     sessionCard,
     typeTerminal,
+    VISIBLE_SESSION,
 } from './support/helpers.ts';
 
 test('Terminal search highlights and navigates matches without intercepting Editor Find', async () => {
@@ -33,8 +34,8 @@ test('Terminal search highlights and navigates matches without intercepting Edit
         await createShellSession(running.page);
         const firstSessionId = await selectedSessionId(running.page);
         await typeTerminal(running.page, 'zsh search-fixture.zsh');
-        const terminalRows = running.page.locator('.xterm-rows');
-        const terminalInput = running.page.locator('.xterm-helper-textarea');
+        const terminalRows = running.page.locator(`${VISIBLE_SESSION} .xterm-rows`);
+        const terminalInput = running.page.locator(`${VISIBLE_SESSION} .xterm-helper-textarea`);
         await expect(terminalRows).toContainText('needle NEEDLE needled');
         await running.clipboard.writeText('CLIPBOARD_SENTINEL');
 
@@ -102,7 +103,14 @@ test('Terminal search highlights and navigates matches without intercepting Edit
         const firstSession = sessionCard(running.page, firstSessionId);
         await firstSession.click();
         await expect(firstSession).toHaveClass(/active/);
-        await expect(running.page.locator('.terminal-search')).toHaveCount(0);
+        /**
+         * Session keep-alive holds the pane across a switch, so coming back finds the search bar exactly as it was left
+         * — open, still in regex mode, still complaining about the same query — rather than reset by a remount the user
+         * never asked for. Matching VS Code, where the Terminal find widget belongs to the Terminal.
+         */
+        await expect(search).toBeVisible();
+        await expect(searchInput).toHaveValue('(');
+        await expect(search).toContainText('Invalid regular expression');
 
         await terminalInput.press('Meta+f');
         await expect(searchInput).toBeFocused();
@@ -113,12 +121,12 @@ test('Terminal search highlights and navigates matches without intercepting Edit
         expect(await running.clipboard.textEquals('CLIPBOARD_SENTINEL')).toBe(true);
 
         await running.page.getByRole('treeitem', { name: 'searchable.ts', exact: true }).click();
-        const editor = running.page.locator('.monaco-editor').first();
+        const editor = running.page.locator(`${VISIBLE_SESSION} .monaco-editor`).first();
         await expect(editor).toBeVisible();
         await editor.click({ position: { x: 120, y: 24 } });
         await running.page.keyboard.press('Meta+f');
         await expect(editor.locator('.find-widget')).toBeVisible();
-        await expect(running.page.locator('.terminal-search')).toHaveCount(0);
+        await expect(running.page.locator(`${VISIBLE_SESSION} .terminal-search`)).toHaveCount(0);
     } finally {
         try {
             await running.app.close();

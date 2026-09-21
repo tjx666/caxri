@@ -12,6 +12,8 @@ import {
     pageRequest,
     selectedSessionId,
     sessionCard,
+    VISIBLE_SESSION,
+    VISIBLE_TERMINAL_INPUT,
 } from './support/helpers.ts';
 
 async function quickSwitch(page: Parameters<typeof selectedSessionId>[0]): Promise<void> {
@@ -35,7 +37,9 @@ test('Session MRU switching cycles, respects editable focus, and persists across
         await createAdditionalShellSession(running.page);
         const sessionC = await selectedSessionId(running.page);
 
-        const activeWorkTab = running.page.locator('.workbench-pane.active .work-tab.active');
+        const activeWorkTab = running.page.locator(
+            `${VISIBLE_SESSION} .workbench-pane.active .work-tab.active`,
+        );
         const firstTerminalId = await activeWorkTab.getAttribute('data-terminal-id');
         expect(firstTerminalId).toBeTruthy();
         await running.page.keyboard.press('Meta+T');
@@ -63,7 +67,7 @@ test('Session MRU switching cycles, respects editable focus, and persists across
         await expect(activeWorkTab).toHaveAttribute('data-terminal-id', secondTerminalId!);
         expect(await selectedSessionId(running.page)).toBe(sessionC);
 
-        const terminalInput = running.page.locator('.xterm-helper-textarea').last();
+        const terminalInput = running.page.locator(VISIBLE_TERMINAL_INPUT).last();
         await terminalInput.focus();
         await expect(terminalInput).toBeFocused();
         await running.page.keyboard.down('Meta');
@@ -305,7 +309,7 @@ test('Session MRU custom binding ignores ordinary and composing input and commit
         await expect(dialog.locator('[data-shortcut="ctrl+alt+m"]')).toBeVisible();
         await running.page.keyboard.press('Escape');
 
-        const terminalInput = running.page.locator('.xterm-helper-textarea').last();
+        const terminalInput = running.page.locator(VISIBLE_TERMINAL_INPUT).last();
         await terminalInput.focus();
         await terminalInput.pressSequentially('mru_ordinary_probe');
         await expect(

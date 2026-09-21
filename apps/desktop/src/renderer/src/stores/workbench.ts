@@ -34,8 +34,10 @@ import {
     isStaleSessionStateWrite,
     pendingSessionPatches,
     persistedSessionPatches,
+    rebasedSessionState,
     sessionPatchAttempt,
     sessionPatchKey,
+    sessionStateWriteChains,
     sessionStateWrites,
     settledSessionState,
 } from './workbench-session-patches';
@@ -169,21 +171,42 @@ export const useWorkbenchStore = createStore<WorkbenchState>('workbench', (set, 
         sessionPatchAttempt.current += 1;
         const attempt = sessionPatchAttempt.current;
         /**
-         * Stamped now, at send time, so a bootstrap read issued after this line — even one that resolves before this
-         * request does — is correctly recognized as observing (or postdating) this write once it lands.
+         * Registered before this write waits its turn, with a stamp no read can postdate, so a bootstrap refresh that
+         * lands while the write is still queued behind its predecessor cannot roll the optimistic layout back. The real
+         * stamp replaces it the moment the request is actually sent.
          */
-        sessionStateWrites.sent += 1;
-        const sendStamp = sessionStateWrites.sent;
-        pendingSessionPatches.set(patchKey, { attempt, sendStamp, state: next });
+        const pendingEntry = { attempt, sendStamp: Infinity, state: next };
+        pendingSessionPatches.set(patchKey, pendingEntry);
         const finish = (): void => {
             if (pendingSessionPatches.get(patchKey)?.attempt === attempt)
                 pendingSessionPatches.delete(patchKey);
         };
+        const { promise: chained, resolve: settleChain } = Promise.withResolvers<
+            number | undefined
+        >();
+        const previousWrite = sessionStateWriteChains.get(patchKey);
+        sessionStateWriteChains.set(patchKey, chained);
+        let sendStamp = Infinity;
         try {
+            /**
+             * Awaited only when this Session actually has a write in flight, so the ordinary uncontended patch still
+             * reaches the Server in the same microtask it always did.
+             */
+            const durableSend = previousWrite
+                ? rebasedSessionState(durableNext, await previousWrite)
+                : durableNext;
+            /**
+             * Stamped now, at send time, so a bootstrap read issued after this line — even one that resolves before
+             * this request does — is correctly recognized as observing (or postdating) this write once it lands.
+             */
+            sessionStateWrites.sent += 1;
+            sendStamp = sessionStateWrites.sent;
+            pendingEntry.sendStamp = sendStamp;
             const settled = settledSessionState(
                 next,
-                await caxri.request('session.updateState', durableNext),
+                await caxri.request('session.updateState', durableSend),
             );
+            settleChain(settled.revision);
             if (pendingSessionPatches.get(patchKey)?.attempt === attempt) {
                 persistedSessionPatches.set(patchKey, { sendStamp, state: settled });
                 if (settled !== next) applySettledSessionState(settled);
@@ -191,6 +214,8 @@ export const useWorkbenchStore = createStore<WorkbenchState>('workbench', (set, 
             finish();
             return true;
         } catch (error: unknown) {
+            // A write that stored nothing has no revision to hand the next one, which then keeps the token it read.
+            settleChain(undefined);
             // Only the latest pending attempt may roll back or report a failure: an older
             // request must not clobber or fault a newer optimistic write and its own outcome.
             const isLatestAttempt = pendingSessionPatches.get(patchKey)?.attempt === attempt;
@@ -249,6 +274,10 @@ export const useWorkbenchStore = createStore<WorkbenchState>('workbench', (set, 
             if (shouldReportFailure && isLatestAttempt && !isCancelledRequest(error))
                 pushToast('error', describeFailure(error, failureLabel));
             return false;
+        } finally {
+            // Only the newest link owns the entry; an older one deleting it would let the next write skip the queue.
+            if (sessionStateWriteChains.get(patchKey) === chained)
+                sessionStateWriteChains.delete(patchKey);
         }
     },
 }));

@@ -13,6 +13,7 @@ import {
     selectedSessionId,
     sessionCard,
     typeTerminal,
+    VISIBLE_SESSION,
 } from './support/helpers.ts';
 
 function osc52(payload: string, selection = 'c'): string {
@@ -68,7 +69,7 @@ test('OSC 52 clipboard writes honor opt-out and remain bounded, write-only, and 
         await createShellSession(running.page);
         const firstSessionId = await selectedSessionId(running.page);
         const firstTerminalId = await running.page
-            .locator('.work-tab.active[data-terminal-id]')
+            .locator(`${VISIBLE_SESSION} .work-tab.active[data-terminal-id]`)
             .getAttribute('data-terminal-id');
         if (!firstTerminalId) throw new Error('First Terminal identity was not rendered');
         await running.clipboard.writeText('OSC52_SENTINEL');
@@ -171,7 +172,9 @@ test('OSC 52 clipboard writes honor opt-out and remain bounded, write-only, and 
         expect(await running.clipboard.textEquals('FIRST_WRITE')).toBe(true);
 
         await createAdditionalShellSession(running.page);
-        const secondTerminalTab = running.page.locator('.work-tab.active[data-terminal-id]');
+        const secondTerminalTab = running.page.locator(
+            `${VISIBLE_SESSION} .work-tab.active[data-terminal-id]`,
+        );
         const secondTerminalId = await secondTerminalTab.getAttribute('data-terminal-id');
         expect(secondTerminalId).toBeTruthy();
         await typeTerminal(running.page, osc52(encoded('SECOND_SESSION_WRITE')));
@@ -217,7 +220,7 @@ test('OSC 52 clipboard writes honor opt-out and remain bounded, write-only, and 
         await createAdditionalShellSession(running.page);
         const liveSessionId = await selectedSessionId(running.page);
         const liveTerminalId = await running.page
-            .locator('.work-tab.active[data-terminal-id]')
+            .locator(`${VISIBLE_SESSION} .work-tab.active[data-terminal-id]`)
             .getAttribute('data-terminal-id');
         if (!liveTerminalId) throw new Error('Live Terminal identity was not rendered');
         const persisted = await pageRequest<{
@@ -229,12 +232,16 @@ test('OSC 52 clipboard writes honor opt-out and remain bounded, write-only, and 
         expect(persisted?.payload).not.toContain(historicalClipboardPayload);
 
         await firstSession.click();
-        await expect(running.page.locator('.xterm-rows')).toContainText('SNAPSHOT_REPLAY_VISIBLE');
+        await expect(running.page.locator(`${VISIBLE_SESSION} .xterm-rows`)).toContainText(
+            'SNAPSHOT_REPLAY_VISIBLE',
+        );
         await running.page.waitForTimeout(250);
         expect(await running.clipboard.textEquals('RESTORE_SENTINEL')).toBe(true);
 
         await sessionCard(running.page, liveSessionId).click();
-        await expect(running.page.locator('.xterm-helper-textarea')).toBeFocused();
+        await expect(
+            running.page.locator(`${VISIBLE_SESSION} .xterm-helper-textarea`),
+        ).toBeFocused();
         await running.page.waitForTimeout(1_050);
         await running.page.evaluate(() => {
             Object.defineProperty(navigator.clipboard, 'writeText', {

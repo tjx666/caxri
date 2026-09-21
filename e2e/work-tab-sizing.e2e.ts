@@ -5,27 +5,16 @@ import { join } from 'node:path';
 import { execFileAsync } from '@caxri/system';
 import type { Page } from 'playwright';
 
-import type { E2EApp } from './support/electron-app.ts';
 import { expect, test } from './support/fixtures.ts';
 import { publishFullScreenState } from './support/full-screen-state.ts';
 import {
+    closeAppQuietly,
     createProjectSession,
     launchCaxri,
     pressNewTerminal,
     splitTerminalToRight,
     waitForNewTerminalId,
 } from './support/helpers.ts';
-
-/**
- * Closes the Electron app during teardown without letting an already-closed app fail the test.
- */
-async function closeAppQuietly(app: E2EApp): Promise<void> {
-    try {
-        await app.close();
-    } catch {
-        // Ignore close failures during cleanup.
-    }
-}
 
 /**
  * A quit Terminal writes its shell-integration files asynchronously, so the teardown `rm` below can race a session that

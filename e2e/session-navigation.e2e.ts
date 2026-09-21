@@ -12,6 +12,7 @@ import {
     pageRequest,
     selectedSessionId,
     sessionCard,
+    VISIBLE_TERMINAL_INPUT,
 } from './support/helpers.ts';
 
 test('Session history navigates back and forward from the PrimarySidebar header and the shortcut', async () => {
@@ -37,7 +38,7 @@ test('Session history navigates back and forward from the PrimarySidebar header 
          * The shortcut has to fire with a Terminal focused: switching Sessions is precisely what the user wants while
          * an Agent holds the keyboard, so this is the binding's real usage, not an edge case.
          */
-        const terminalInput = running.page.locator('.xterm-helper-textarea').last();
+        const terminalInput = running.page.locator(VISIBLE_TERMINAL_INPUT).last();
         await terminalInput.focus();
         await expect(terminalInput).toBeFocused();
         await running.page.keyboard.press('Control+Alt+ArrowLeft');

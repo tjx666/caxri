@@ -4,7 +4,12 @@ import { join } from 'node:path';
 
 import type { Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
-import { createShellSession, launchCaxri, pageRequest } from './support/helpers.ts';
+import {
+    createShellSession,
+    launchCaxri,
+    pageRequest,
+    VISIBLE_TERMINAL_INPUT,
+} from './support/helpers.ts';
 
 function sidebarTab(page: Page, name: string) {
     return page
@@ -26,7 +31,7 @@ test('Project Status shortcut works from editable focus and keeps its live bindi
 
     try {
         await createShellSession(running.page);
-        const terminalInput = running.page.locator('.xterm-helper-textarea').last();
+        const terminalInput = running.page.locator(VISIBLE_TERMINAL_INPUT).last();
         await terminalInput.focus();
         await expect(terminalInput).toBeFocused();
 

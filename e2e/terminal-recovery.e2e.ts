@@ -15,6 +15,7 @@ import {
     pageRequest,
     selectedSessionId,
     sessionCard,
+    VISIBLE_TERMINAL_INPUT,
 } from './support/helpers.ts';
 
 interface PersistedTerminalGridSnapshot {
@@ -90,7 +91,7 @@ async function waitForResizeBurstPair(
 }
 
 async function typeTerminal(page: Page, command: string): Promise<void> {
-    const input = page.locator('.xterm-helper-textarea').last();
+    const input = page.locator(VISIBLE_TERMINAL_INPUT).last();
     await input.focus();
     await input.pressSequentially(command);
     await input.press('Enter');

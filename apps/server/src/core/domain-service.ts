@@ -14,6 +14,7 @@ import type {
 import {
     CaxriError,
     durableServerEventSchema,
+    isCallerHandledFailure,
     isNonExpiringServerOperation,
     logEventCatalog,
     parseServerOperationRequest,
@@ -216,20 +217,24 @@ export class ServerDomainService extends EventTarget {
             return result;
         } catch (error) {
             const wire = toWireError(error);
-            this.dependencies.logger.write('error', logEventCatalog.ipc.requestFailed, {
-                correlationId: requestId,
-                durationMs: performance.now() - startedAt,
-                fields: {
-                    method,
-                    code: wire.code,
-                    error: wire.message,
-                    stack:
-                        wire.code === 'INTERNAL' && error instanceof Error
-                            ? (error.stack ?? null)
-                            : null,
-                    transaction: 'durable-finalizer',
+            this.dependencies.logger.write(
+                isCallerHandledFailure(wire.code) ? 'warn' : 'error',
+                logEventCatalog.ipc.requestFailed,
+                {
+                    correlationId: requestId,
+                    durationMs: performance.now() - startedAt,
+                    fields: {
+                        method,
+                        code: wire.code,
+                        error: wire.message,
+                        stack:
+                            wire.code === 'INTERNAL' && error instanceof Error
+                                ? (error.stack ?? null)
+                                : null,
+                        transaction: 'durable-finalizer',
+                    },
                 },
-            });
+            );
             throw error;
         } finally {
             this.atomicEvents = undefined;

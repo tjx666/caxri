@@ -4,17 +4,13 @@ import { join } from 'node:path';
 
 import type { Page } from 'playwright';
 
-import type { E2EApp } from './support/electron-app.ts';
 import { expect, test } from './support/fixtures.ts';
-import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
-
-async function closeAppQuietly(app: E2EApp): Promise<void> {
-    try {
-        await app.close();
-    } catch {
-        // Ignore close failures during cleanup.
-    }
-}
+import {
+    closeAppQuietly,
+    createProjectSession,
+    launchCaxri,
+    pageRequest,
+} from './support/helpers.ts';
 
 function projectHeading(page: Page, projectId: string) {
     return page.locator(`.project-heading[data-project-id="${projectId}"]`);
