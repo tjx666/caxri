@@ -12,16 +12,23 @@ export interface E2EPoolPlan {
 /**
  * Specs that request the protected clipboard capability. They remain desktop-exclusive, while the launch helper also
  * rejects the capability at runtime if a parallel-safe worker ever reaches one through a future classification edit.
+ *
+ * `scripts/__tests__/e2e-pools.test.ts` derives the same set from the specs themselves and fails when the two disagree.
+ * That guard exists because this list silently fell three specs behind the source — a stale entry here does not fail
+ * anything on its own, it just stops protecting the spec it forgot.
  */
 export const clipboardCapabilitySpecs = [
     'e2e/bug-report.e2e.ts',
     'e2e/clipboard-restoration.e2e.ts',
+    'e2e/editor-git-actions.e2e.ts',
     'e2e/file-operations.e2e.ts',
+    'e2e/file-preview.e2e.ts',
     'e2e/path-browser.e2e.ts',
     'e2e/process-explorer-recovery.e2e.ts',
+    'e2e/project-path-actions.e2e.ts',
     'e2e/settings.e2e.ts',
-    'e2e/terminal-osc52-clipboard.e2e.ts',
     'e2e/terminal-long-paste.e2e.ts',
+    'e2e/terminal-osc52-clipboard.e2e.ts',
     'e2e/terminal-search.e2e.ts',
     'e2e/terminal-selection.e2e.ts',
     'e2e/terminal-shortcuts.e2e.ts',
@@ -44,16 +51,21 @@ export const clipboardCapabilitySpecs = [
  *   through `page.clock` does not count as one.
  * - No machine-level process enumeration, native application menu, or system capture surface.
  *
- * Three specs pass a mechanical screen of those conditions and are still deliberately excluded, recorded here so the
- * audit is not repeated: `logs-panel.e2e.ts` asserts the panel's own query cadence in real milliseconds,
- * `menu-keybinding-recovery.e2e.ts` reads the installed native application menu, and `agent-delegation.e2e.ts` drives
- * the CLI through a `spawnSync` whose 25-second timeout has no margin left once three Electron workers share the
- * runner. `scripts/__tests__/e2e-pools.test.ts` holds a second, independent list of specs that must never be admitted;
- * an audit that reaches the opposite conclusion about one of them is a product decision, not a reclassification.
+ * Two specs pass a mechanical screen of those conditions and are still deliberately excluded, recorded here so the
+ * audit is not repeated: `logs-panel.e2e.ts` asserts the panel's own query cadence in real milliseconds, and
+ * `menu-keybinding-recovery.e2e.ts` reads the installed native application menu. `scripts/__tests__/e2e-pools.test.ts`
+ * holds a second, independent list of specs that must never be admitted; an audit that reaches the opposite conclusion
+ * about one of them is a product decision, not a reclassification.
+ *
+ * `agent-delegation.e2e.ts` was previously rejected for the third condition and is now admitted, because the margin it
+ * lacked was a defect rather than a property: its synthetic CLI allowed a `spawnSync` only 5 seconds beyond the
+ * 20-second wait it was invoking. The rule excludes a timeout with little headroom — the right response is to give the
+ * subprocess enough, not to keep the spec on one worker forever.
  */
 export const parallelSafeSpecs = [
     'e2e/agent-actions.e2e.ts',
     'e2e/agent-commands.e2e.ts',
+    'e2e/agent-delegation.e2e.ts',
     'e2e/agent-endpoint.e2e.ts',
     'e2e/agent-icons.e2e.ts',
     'e2e/agent-inbox.e2e.ts',
@@ -81,10 +93,10 @@ export const parallelSafeSpecs = [
     'e2e/file-tree-git-ignore.e2e.ts',
     'e2e/file-tree-sticky.e2e.ts',
     'e2e/git-commits.e2e.ts',
+    'e2e/git-decoration-names.e2e.ts',
     'e2e/git-diff-excludes.e2e.ts',
     'e2e/git-diff-tabs.e2e.ts',
     'e2e/git-pr.e2e.ts',
-    'e2e/git-decoration-names.e2e.ts',
     'e2e/git-submodule-refresh.e2e.ts',
     'e2e/grok-agent.e2e.ts',
     'e2e/hook-installation-authority.e2e.ts',
@@ -101,6 +113,7 @@ export const parallelSafeSpecs = [
     'e2e/project-search.e2e.ts',
     'e2e/project-worktree-slot.e2e.ts',
     'e2e/session-auto-naming.e2e.ts',
+    'e2e/session-create-menu.e2e.ts',
     'e2e/session-external-editor.e2e.ts',
     'e2e/session-list-window.e2e.ts',
     'e2e/session-mru-switcher.e2e.ts',

@@ -45,15 +45,24 @@ Vitest and serial ESLint are deliberate: making them faster cannot shorten the r
 longer, and would take CPU away from the three Electron workers. Reduce the one-worker
 `desktop-exclusive` pool before revisiting either.
 
-### Per-test attribution from a job log
+### Per-spec attribution
 
-Pool receipts record per-pool wall time, not per-test duration, so finding which tests dominate a
-pool means reading the job log. The `line` reporter prints `[N/M] spec:line › title` when a test
-**begins**, so a test's duration is the gap to the _next_ line, not the gap from the previous one.
-Reading it the other way shifts every duration by one test and blames the wrong spec — it attributed
-125s to `logs-panel.e2e.ts` when the cost belonged to `hook-turn-recovery.e2e.ts`. The derivation is
-only valid for the one-worker pool; with three workers the lines interleave and no per-test duration
-can be recovered from begin timestamps alone.
+Every pool receipt carries `durationMs` on each test and each spec, and the pool's step summary
+prints the ten costliest specs with their share of the pool's serial total. Read that before
+proposing any pool change; it is the intended input for deciding what to move, split, or shorten.
+
+The share is against the pool's **serial** total, not its wall time. On a three-worker pool those
+differ on purpose: the serial total is the work, the wall time is what the workers achieved with it.
+Moving a spec between pools changes the serial total, so that is the number to reason with.
+
+Before the receipt recorded durations, attribution meant reading the job log, and that method is
+worth knowing because it is the only way to re-derive a historical run. The `line` reporter prints
+`[N/M] spec:line › title` when a test **begins**, so a test's duration is the gap to the _next_
+line, not the gap from the previous one. Reading it the other way shifts every duration by one test
+and blames the wrong spec — it attributed 125s to `logs-panel.e2e.ts` when the cost belonged to
+`hook-turn-recovery.e2e.ts`. It also only works on a one-worker pool: with three workers the lines
+interleave and no per-test duration can be recovered from begin timestamps alone. That limitation is
+exactly why the duration belongs on the receipt instead.
 
 ### Long fixed waits are the first thing to look for
 
@@ -90,11 +99,33 @@ time, and moved the split from 71/65 to 88/48. The rejections are the useful par
 - `menu-keybinding-recovery.e2e.ts` reads the installed native application menu.
 - `agent-delegation.e2e.ts` — the single largest spec at 95s — drives the CLI through a `spawnSync`
   with a 25-second timeout, which is exactly the "subprocess whose timeout has little headroom" the
-  admission conditions exclude.
+  admission conditions exclude. **Later admitted**: see the round-two note below.
 - `codex-compaction.e2e.ts`, `updates.e2e.ts`, and `workbench-root.e2e.ts` pass the mechanical
   screen but are named in `scripts/__tests__/e2e-pools.test.ts`'s guard list. That list is a
   recorded prior audit; reaching the opposite conclusion about one of its entries is a product
   decision, not a reclassification, so they stayed exclusive.
+
+### A screen is not an audit
+
+The mechanical screen above matched keywords in spec sources, and keyword matches produce false
+positives: it flagged `session-create-menu.e2e.ts` for "menu" when that spec touches no native menu,
+and flagged several specs for "clipboard" that only mention the word. Re-screening against the
+declared capability instead of the source text recovered roughly 100s of specs that were never
+actually disqualified — worth remembering the next time a screen is mistaken for a verdict.
+
+That re-screen also surfaced a real defect. `clipboardCapabilitySpecs` is the list that keeps a
+clipboard-requesting spec out of the parallel pool, and it had fallen three entries behind the specs
+themselves (`editor-git-actions`, `file-preview`, `project-path-actions` all pass `clipboard: true`
+while unlisted). A stale entry there fails nothing on its own; it just silently stops protecting the
+spec it forgot. `scripts/__tests__/e2e-pools.test.ts` now derives the set from the spec sources and
+fails when the list disagrees.
+
+`agent-delegation.e2e.ts` was readmitted on the same principle. The condition excludes a subprocess
+timeout with little headroom, and its synthetic CLI allowed `spawnSync` only 5 seconds beyond the
+20-second wait it was invoking. That missing margin was a defect in the spec, not a property of what
+it tests, so the fix is to give the subprocess enough (45s) rather than to keep the largest spec in
+the pool on one worker forever. Under three workers it passes alongside `work-tab-sizing` and
+`terminal-recovery`: 24 tests in 1.3m.
 
 ## Adopted optimization evidence
 

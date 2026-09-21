@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
 import type { E2ETestReceipt } from '../reporters/e2e-receipt-reporter';
-import { summarizeE2ETests } from '../reporters/e2e-receipt-reporter';
+import {
+    assertE2EPoolReceipt,
+    createE2EPoolReceipt,
+    summarizeE2ETests,
+} from '../reporters/e2e-receipt-reporter';
 
 function receipt(overrides: Partial<E2ETestReceipt> = {}): E2ETestReceipt {
     return {
         artifacts: [],
+        durationMs: 0,
         errorIdentity: null,
         id: 'suite > case',
         location: 'e2e/example.e2e.ts:1:1',
@@ -78,5 +83,61 @@ describe('summarizeE2ETests', () => {
     it('produces a stable hash for an empty test list', () => {
         expect(summarizeE2ETests([])).toBe(summarizeE2ETests([]));
         expect(summarizeE2ETests([])).toMatch(/^[a-f0-9]{64}$/);
+    });
+
+    it('ignores durationMs, so recording durations cannot move an existing manifest hash', () => {
+        expect(summarizeE2ETests([receipt({ durationMs: 0 })])).toBe(
+            summarizeE2ETests([receipt({ durationMs: 91_234 })]),
+        );
+    });
+});
+
+/**
+ * Spec durations are what pool-balancing decisions read, so the aggregation and its bounds are pinned here rather than
+ * left to the Playwright integration that produces them.
+ */
+describe('receipt durations', () => {
+    const pooled = (tests: E2ETestReceipt[]) =>
+        createE2EPoolReceipt({
+            finishedAt: '2026-01-01T00:00:01.000Z',
+            pool: 'desktop-exclusive',
+            startedAt: '2026-01-01T00:00:00.000Z',
+            tests,
+        });
+
+    it('sums every test of a spec into that spec"s duration', () => {
+        const built = pooled([
+            receipt({ durationMs: 1_500, id: 'a', location: 'e2e/one.e2e.ts:1:1' }),
+            receipt({ durationMs: 2_500, id: 'b', location: 'e2e/one.e2e.ts:9:1' }),
+            receipt({ durationMs: 400, id: 'c', location: 'e2e/two.e2e.ts:1:1' }),
+        ]);
+
+        expect(built.specs.map(({ durationMs, path }) => [path, durationMs])).toStrictEqual([
+            ['e2e/one.e2e.ts', 4_000],
+            ['e2e/two.e2e.ts', 400],
+        ]);
+    });
+
+    it('charges a never-run test zero rather than omitting the field', () => {
+        const built = pooled([
+            receipt({ id: 'a', location: 'e2e/one.e2e.ts:1:1', verdict: 'skipped' }),
+            receipt({ durationMs: 700, id: 'b', location: 'e2e/one.e2e.ts:9:1' }),
+        ]);
+
+        expect(built.specs).toStrictEqual([
+            expect.objectContaining({ durationMs: 700, path: 'e2e/one.e2e.ts' }),
+        ]);
+        expect(built.tests.every(({ durationMs }) => Number.isSafeInteger(durationMs))).toBe(true);
+    });
+
+    it('refuses a negative or fractional duration', () => {
+        for (const durationMs of [-1, 1.5, NaN]) {
+            expect(() =>
+                assertE2EPoolReceipt({
+                    ...pooled([receipt({ durationMs: 0 })]),
+                    tests: [receipt({ durationMs })],
+                }),
+            ).toThrow('durations must be non-negative integers');
+        }
     });
 });

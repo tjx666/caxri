@@ -39,7 +39,9 @@ for (const [callerProvider, targetProvider] of [
 const fs = require('node:fs');
 const { spawnSync } = require('node:child_process');
 if(process.argv.includes('--version')) { console.log(${JSON.stringify(callerProvider === 'codex' ? 'codex-cli 0.153.4' : callerProvider === 'grok' ? 'grok 1.0.24' : '2.1.266 (Claude Code)')}); process.exit(0); }
-const cli = args => spawnSync(process.execPath, [${JSON.stringify(cliPath)}, ...args, '--json'], {encoding:'utf8',env:process.env,timeout:25000});
+// 该超时必须覆盖最长的 CLI 内部等待（delegate wait --timeout 20000）外加进程启动与 IPC 往返。
+// 原值 25000 只留 5 秒余量，在三个 Electron worker 共用 runner 时不够，这正是此前把本规格挡在并行池外的原因。
+const cli = args => spawnSync(process.execPath, [${JSON.stringify(cliPath)}, ...args, '--json'], {encoding:'utf8',env:process.env,timeout:45000});
 const contextCall = cli(['agent-context']);
 if(contextCall.status !== 0) process.exit(1);
 const context = JSON.parse(contextCall.stdout);

@@ -12,6 +12,7 @@ function receipt(pool: string, id: string, status: 'failed' | 'passed' = 'passed
         tests: [
             {
                 artifacts: [],
+                durationMs: 1_000,
                 errorIdentity: status === 'failed' ? `failure-${id}` : null,
                 id,
                 location: `e2e/${id}.e2e.ts:1:1`,
