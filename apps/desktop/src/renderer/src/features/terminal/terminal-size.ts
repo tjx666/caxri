@@ -253,15 +253,9 @@ export class TerminalPaneResizeController {
         });
     }
 
-    /**
-     * The proposed grid is used as-is. FitAddon already subtracts the styled 8px scrollbar width and `.xterm`'s own
-     * padding before flooring to whole cells, so nothing else needs reserving; the pane previously dropped one further
-     * text column, which cost a full character cell of width and left a visible dead strip between the last glyph and
-     * the thumb. The slider's 2px transparent border keeps the glyph and the painted thumb apart.
-     */
     private fit(): TerminalFitResult | undefined {
         try {
-            const size = this.options.propose();
+            const size = terminalSizeWithScrollbarGutter(this.options.propose());
             if (!size) return undefined;
             const isLocalApplied = didTerminalSizeChange(this.options.current(), size);
             if (isLocalApplied) this.options.apply(size);
@@ -375,6 +369,18 @@ export class TerminalResizeSettler {
     dispose(): void {
         this.pause();
     }
+}
+
+/**
+ * Keeps the final text cell clear of xterm's overlaid vertical scrollbar. The fit addon reserves only the scrollbar's
+ * exact width, so fractional cell rounding can otherwise leave a zero-pixel gutter and make the last glyph look clipped
+ * while the thumb is visible.
+ */
+export function terminalSizeWithScrollbarGutter(
+    proposed: TerminalSize | undefined,
+): TerminalSize | undefined {
+    if (!proposed) return undefined;
+    return { cols: Math.max(2, proposed.cols - 1), rows: proposed.rows };
 }
 
 /**

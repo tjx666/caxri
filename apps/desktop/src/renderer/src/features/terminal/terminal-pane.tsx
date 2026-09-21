@@ -63,8 +63,9 @@ interface TerminalPaneProperties {
 /**
  * No horizontal padding on purpose. `.xterm` already reserves a 20px left gutter for shell-integration command
  * decorations (see `styles.css`), and a pane padding stacked on top of it pushed the first glyph 28px from the pane
- * edge while the right side gives up only the 8px scrollbar plus sub-cell slack — a visible asymmetry at every window
- * width. The gutter is the terminal's left inset; the pane adds none of its own.
+ * edge — visibly further in than the right side, at every window width. The gutter is the terminal's left inset; the
+ * pane adds none of its own. The right inset stays where it is: `terminalSizeWithScrollbarGutter` reserves the final
+ * text column so the last glyph keeps clear of the overlaid scrollbar, which `e2e/terminal-layout.e2e.ts` asserts.
  */
 const terminalPaneClassName =
     'terminal-pane relative flex h-full w-full min-h-0 min-w-0 flex-col pt-2 bg-background';
