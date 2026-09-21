@@ -1,0 +1,175 @@
+import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
+
+import type { SessionActivityPresentation } from '../primary-sidebar/session-activity';
+import { sessionActivityPresentation } from '../primary-sidebar/session-activity';
+import type { SessionStatus } from '../primary-sidebar/session-status';
+import { sessionStatus } from '../primary-sidebar/session-status';
+import { sessionAgentTerminal } from '../session/session-agent-terminal';
+import { isWithinFinishedRetention } from './agent-activity-retention';
+
+export type AgentActivityGroupId =
+    'attention' | 'working' | 'waiting' | 'failed' | 'finished' | 'idle';
+
+export interface AgentActivityRow {
+    groupId: AgentActivityGroupId;
+    /**
+     * Owning Project's display name, shown on the row's second line because the list is flat: without it a row cannot
+     * say which repository it belongs to.
+     */
+    projectName: string;
+    session: SessionRecord;
+    /**
+     * The same projection the row's glyph uses, resolved here because the group a row lands in has to be decided by it
+     * too. `SessionStatusIndicator` resolves it again from the same Session and Terminal, so the two always agree; this
+     * copy exists so the grouping and the row's state phrase never drift from the glyph beside them.
+     */
+    status: SessionStatus;
+    statusPresentation: SessionActivityPresentation;
+    terminal: TerminalRecord | undefined;
+}
+
+export interface AgentActivityGroup {
+    id: AgentActivityGroupId;
+    label: string;
+    rows: AgentActivityRow[];
+}
+
+/**
+ * Attention first, then live work, then everything that is merely history.
+ *
+ * `attention` deliberately outranks `working`: Caxri's unread flag means "something happened that you have not looked
+ * at", which is a property of the user's queue rather than of the Agent, so it belongs above any turn still in progress
+ * — including the Session's own, since a Session can be both unread and running. herdr and Kero rank their rollups the
+ * same way; Orca and T3 Code put running work first because their lists describe live work rather than a to-do queue.
+ */
+const GROUP_ORDER: readonly AgentActivityGroupId[] = [
+    'attention',
+    'working',
+    'waiting',
+    'failed',
+    'finished',
+    'idle',
+];
+
+const GROUP_LABELS: Record<AgentActivityGroupId, string> = {
+    attention: 'Needs attention',
+    failed: 'Failed',
+    finished: 'Recently finished',
+    idle: 'Idle',
+    waiting: 'Waiting',
+    working: 'Working',
+};
+
+/**
+ * The two groups whose rows ask the user to do something. They are the only ones that earn a tinted callout; every
+ * other state stays quiet chrome, so visual weight in this list always means "this one wants you" and never has to be
+ * decoded against a color legend.
+ */
+export function isAgentActivityActionable(groupId: AgentActivityGroupId): boolean {
+    return groupId === 'attention' || groupId === 'failed';
+}
+
+function groupForSession(
+    session: SessionRecord,
+    status: SessionStatus,
+    now: number,
+): AgentActivityGroupId | undefined {
+    if (status.kind === 'attention') return 'attention';
+    /**
+     * Failure survives the hand-over. Detaching stops the Terminal so another client can resume it; it does not resolve
+     * anything, and nothing else will ever clear a failed Session, so a detached failure stays in `failed` rather than
+     * quietly joining `idle` below.
+     */
+    if (session.lastActivityState === 'failed') return 'failed';
+    // `running` covers compaction too: `sessionStatus` already folds that subphase in.
+    if (status.kind === 'running') return 'working';
+    /**
+     * Everything below reads `lastActivityState`, which a detached Agent keeps frozen at whatever the last probe
+     * recorded — `suspendTerminal` only rewrites the Terminal's process state. Without this guard a Session detached
+     * mid-turn would keep sitting under "Waiting" (or age out of "Recently finished" and vanish) while its own row
+     * reads "Detached". It is not waiting on anybody: it was handed to another client on purpose.
+     */
+    if (status.kind === 'detached') return 'idle';
+    if (session.lastActivityState === 'waiting') return 'waiting';
+    if (session.lastActivityState === 'completed')
+        return isWithinFinishedRetention(session, now) ? 'finished' : undefined;
+    // `idle` and `unknown` land here: neither is asking the user for anything.
+    return 'idle';
+}
+
+/**
+ * Projects every Project's active Sessions into one flat, attention-first list.
+ *
+ * Archived Sessions are excluded, and a Session whose Project is not in `projects` is dropped: the PrimarySidebar hides
+ * auto-registered worktree Projects, and a row naming a Project the user never added would be unreachable from here.
+ * Rows inside a group keep Session activity recency, so the most recent event in a group is always its first row.
+ */
+export function agentActivityGroups({
+    now,
+    projects,
+    sessions,
+    terminals,
+}: {
+    now: number;
+    projects: readonly ProjectRecord[];
+    sessions: readonly SessionRecord[];
+    terminals: readonly TerminalRecord[];
+}): AgentActivityGroup[] {
+    const projectNames = new Map(projects.map((project) => [project.id, project.displayTitle]));
+    const rowsByGroup = new Map<AgentActivityGroupId, AgentActivityRow[]>();
+    for (const session of sessions) {
+        if (session.archivedAt !== undefined) continue;
+        const projectName = projectNames.get(session.projectId);
+        if (projectName === undefined) continue;
+        const terminal = sessionAgentTerminal(session, terminals);
+        const status = sessionStatus(session, terminal);
+        const groupId = groupForSession(session, status, now);
+        if (!groupId) continue;
+        const row: AgentActivityRow = {
+            groupId,
+            projectName,
+            session,
+            status,
+            statusPresentation: sessionActivityPresentation(
+                session.lastActivityState,
+                terminal?.agentOperation,
+            ),
+            terminal,
+        };
+        const existing = rowsByGroup.get(groupId);
+        if (existing) existing.push(row);
+        else rowsByGroup.set(groupId, [row]);
+    }
+    return GROUP_ORDER.flatMap((id) => {
+        const rows = rowsByGroup.get(id);
+        if (!rows || rows.length === 0) return [];
+        return [
+            {
+                id,
+                label: GROUP_LABELS[id],
+                rows: rows.toSorted(
+                    (left, right) =>
+                        right.session.lastSessionActivityAt - left.session.lastSessionActivityAt ||
+                        (left.session.id < right.session.id ? -1 : 1),
+                ),
+            },
+        ];
+    });
+}
+
+/**
+ * The Session `session.focusNextAttention` should move to: the next one that needs the user, walking the same order the
+ * Activity view renders, and wrapping past the current selection so repeated presses cycle the queue instead of
+ * sticking on its first row.
+ */
+export function nextAgentAttentionSessionId(
+    groups: readonly AgentActivityGroup[],
+    selectedSessionId: string | undefined,
+): string | undefined {
+    const candidates = groups
+        .filter((group) => isAgentActivityActionable(group.id))
+        .flatMap((group) => group.rows.map((row) => row.session.id));
+    if (candidates.length === 0) return undefined;
+    const selectedIndex = candidates.indexOf(selectedSessionId ?? '');
+    return candidates[(selectedIndex + 1) % candidates.length];
+}

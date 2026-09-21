@@ -24,6 +24,7 @@ export interface CommandContext {
         create(): void;
         deleteSelected(): void;
         detachSelected(): void;
+        focusNextAttention(): void;
         navigateHistory(direction: SessionNavigationDirection): void;
         openArchived(): void;
         openPullRequestSelected(): void;
