@@ -166,12 +166,21 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
         // The Project cell specifically, not the row: the Session title contains the Project name too, so asserting on
         // the whole row would pass even if the flat list never printed which repository a row belongs to.
         await expect(betaRow.locator('.agent-activity-project')).toHaveText('beta');
-        await expect(betaRow).toContainText('Waiting');
+        /*
+         * The state is a glyph, not a phrase, so the words only survive as its accessible name. Assert both halves:
+         * the shape that identifies the state visually, and the label a screen reader is left with once the phrase is
+         * gone from the row.
+         */
+        const betaGlyph = betaRow.locator('.agent-activity-glyph');
+        await expect(betaGlyph).toHaveAttribute('data-activity-glyph', 'question');
+        await expect(betaGlyph).toHaveAttribute('aria-label', 'Waiting for you');
+        // And nowhere else: a row that still printed its state would make its own heading redundant.
+        await expect(betaRow).not.toContainText('Waiting for you');
         /*
          * Rendered, not merely present in the DOM. `toHaveText` above reads the DOM, so it passes on a cell CSS has
-         * truncated to zero width — which is exactly what the Primary Side Bar's 230px default did to this row before
-         * the time moved up to the title line: every unread row printed "· Waiting for you · " with no Project at all.
-         * A flat cross-Project queue that cannot name the Project is the one thing this list must never do.
+         * truncated to zero width — which is exactly what the Primary Side Bar's 230px default did to this row while
+         * the state was still a phrase: every unread row printed "· Waiting for you · " with no Project at all. A flat
+         * cross-Project queue that cannot name the Project is the one thing this list must never do.
          */
         await expect
             .poll(() =>

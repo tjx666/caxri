@@ -67,27 +67,42 @@ showing it, so switching back to the tree stops the clock by unmounting its only
 
 ## Visual grammar
 
-Only **Needs attention** and **Failed** rows get a tinted state chip. Every other state prints the
-same phrase in muted text. That two-tier rule is the whole grammar of the list: visual weight always
-means "this one wants you", and never has to be decoded against a color legend.
+A row is a state glyph, the Session title on its own line, and `project · time` beneath it. There is
+no state phrase on the row at all:
 
-An unread row's tint comes from _why_ it needs the user (`sessionUnreadTone`), not from what its
-Agent is doing right now. The Agent's current activity is the wrong input twice over: a completed
-turn is a neutral state, which would print the commonest unread row of all in the same grey as an
-Idle one, and an unread Session still running is a success state, which would put a green chip under
-"Needs attention".
+```text
+⊘  Rate limiter for /v1/search
+   api-server · 18m ago
+```
 
-Each row carries the Session title and a right-aligned relative time on the first line, then its
-Project and current state on the second. The Project name is not decoration — the list is flat, so
-without it a row cannot say which repository it belongs to, which is why it is the one value on the
-second line that never shrinks.
+**The state is a shape because every group heading already names it.** A row under **Working** that
+also printed "Working" repeated its own heading, and three of the six groups did exactly that, word
+for word. The words are not gone — `agent-activity-glyph.ts` keeps them as the glyph's `aria-label`
+and its hover title — they are just no longer spent on a line that has 230px to work with. Orca and
+T3 Code reached the same place from a different direction: neither groups by state, and both still
+chose a glyph over a colored word because a shape is what a scanning eye resolves first.
 
-The split is what makes the row survive this column. All four values on one line cost more width
-than the side bar has at its 230px default, and an unread row spends more still on its mark-read
-button, so a long state phrase such as "Waiting for you" used to squeeze the Project name out
-entirely. Two other things buy back the same width: the time is the narrow `8m ago` form rather than
-the prose `8 minutes ago` the Session cards use, and the mark-read button is positioned rather than
-laid out, taking the time's slot on hover instead of holding a column of its own on every unread row.
+Six states, six shapes: a check for a finished turn, a question mark for one waiting on you, a cross
+for a failure, a spinner while the Agent runs, a hollow circle for idle, a dashed one when no
+activity was ever reported. A detached Agent shows the unplugged glyph instead of its frozen state.
+
+Color is the one thing the shape does not carry, and it still follows the two-tier rule: only
+**Needs attention** and **Failed** rows are tinted, so visual weight always means "this one wants
+you" and never has to be decoded against a legend. An unread row's tint comes from _why_ it needs
+the user (`sessionUnreadTone`), not from what its Agent is doing right now — a completed turn is a
+neutral state, which would print the commonest unread row of all in the same grey as an Idle one,
+and an unread Session still running is a success state, which would put green under "Needs
+attention".
+
+The layout follows from which value is actually long. The title routinely is; a Project name is
+usually one short word and the narrow `18m ago` form is four characters wider than that. So the
+title takes a line to itself and the other two share the one below, where the Project truncates
+first — a name long enough to reach that point is still recognizable from its first twenty
+characters, while a truncated time is not a time. That ordering matters because the list is flat:
+the Project name is the only thing telling the user which repository a row belongs to.
+
+An unread row reserves its mark-read button's width in the title's right padding rather than
+surrendering it on hover, so the title never reflows under the pointer.
 
 ## Interaction
 
@@ -149,6 +164,7 @@ into the same trap.
 | `.../primary-sidebar/primary-sidebar-project-tree.tsx`       | The other body, split out so mode switching unmounts it      |
 | `apps/desktop/src/renderer/src/stores/chrome-layout.ts`      | `primarySidebarActivityMode` and its persistence             |
 | `.../features/agent-activity/agent-activity-rows.ts`         | Grouping, ordering, the next-attention walk, the badge tally |
+| `.../agent-activity-glyph.ts`                                | Which shape, which words, and the tint a row's state earns   |
 | `.../agent-activity-retention.ts`                            | The finished-row window                                      |
 | `.../agent-activity-tree.ts`                                 | Flattening and keyboard row math                             |
 | `.../use-agent-activity-clock.ts`                            | The subscription to the shared window clock                  |
