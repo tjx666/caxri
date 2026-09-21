@@ -19,16 +19,16 @@ catalog:
   '@yutengjing/prettier-config': ^2.0.0
   eslint-plugin-import-x: ^4.17.1
   markdownlint: ^0.41.1
-  markdownlint-cli2: ^0.23.2
-  oxlint: ^1.82.0
-  oxlint-tsgolint: ^7.0.2001
+  markdownlint-cli2: ^0.23.3
+  oxlint: ^1.83.0
+  oxlint-tsgolint: ^7.0.2002
   prettier-plugin-tailwindcss: ^0.8.1
   react-qr-code: ^2.2.0
   react-scan: ^0.5.7
   semver: ^7.8.5
   sonda: ^0.14.0
   ws: ^8.21.3
-  zod: ^4.5.4
+  zod: ^4.6.5
 
 minimumReleaseAgeExclude:
   - '@yutengjing/eslint-config-basic@4.0.0'
@@ -57,9 +57,12 @@ overrides:
   # GHSA-vxr8-fq34-vvx9, GHSA-cmwh-pvxp-8882, GHSA-c2j3-45gr-mqc4, and GHSA-55q2-fjhq-7xh7.
   # https://github.com/advisories/GHSA-55q2-fjhq-7xh7
   dompurify: 3.4.15
-  # Vitest 5.0.0 pins a tinybench release whose declarations require DOM types in Node projects.
+  # Vitest still pins a tinybench release whose declarations require DOM types in Node projects, so
+  # `packages/agent-skills` fails to typecheck on `DOMHighResTimeStamp`.
+  # Deliberately keyed on `vitest` with no version: the previous `vitest@5.0.0>tinybench` key stopped
+  # matching the moment Vitest went to 5.0.1, silently letting the broken declarations back in.
   # https://github.com/tinylibs/tinybench/releases/tag/v6.1.6
-  'vitest@5.0.0>tinybench': 6.1.6
+  'vitest>tinybench': 6.2.0
 
 patchedDependencies:
   app-builder-lib: patches/app-builder-lib.patch
