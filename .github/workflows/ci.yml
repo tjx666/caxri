@@ -275,7 +275,7 @@ jobs:
         env:
           E2E_PROFILE: ${{ needs.retry-policy.outputs.e2e_profile }}
           RUNNER_LABELS: self-hosted,macOS,ARM64,caxri-e2e
-          VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '1' }}
+          VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '2' }}
           VITEST_PARTITION: ${{ inputs.vitest_partition || 'optimized' }}
           E2E_PARALLEL_WORKERS: ${{ inputs.e2e_parallel_workers || '3' }}
         run: |
@@ -306,7 +306,7 @@ jobs:
           CAXRI_CHECKS_HEAD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
           CAXRI_CHECKS_REQUIRE_MERGE: ${{ github.event_name == 'pull_request' }}
           CAXRI_GITHUB_TOKEN: ${{ github.token }}
-          CAXRI_VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '1' }}
+          CAXRI_VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '2' }}
           CAXRI_VITEST_PARTITION: ${{ inputs.vitest_partition || 'optimized' }}
           ESLINT_CONCURRENCY: ${{ inputs.eslint_concurrency || 'off' }}
         run: |

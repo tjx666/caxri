@@ -424,9 +424,9 @@ describe('CI workflow contract', () => {
         expect(e2eJob).toContain('CAXRI_GITHUB_TOKEN: ${{ github.token }}');
         expect(e2eJob).toContain('timeout-minutes: 30');
         expect(e2eJob).toContain(
-            "CAXRI_VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '1' }}",
+            "CAXRI_VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '2' }}",
         );
-        expect(e2eJob).toContain("VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '1' }}");
+        expect(e2eJob).toContain("VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '2' }}");
         expect(e2eJob).not.toContain('run: bun run scripts/ci-checks-worktree.ts create');
         expect(e2eJob).toContain('run: bun run scripts/ci-checks-worktree.ts remove');
         expect(e2eJob).toContain('bun run scripts/ci-concurrent-validation.ts run');
