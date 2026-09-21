@@ -5,10 +5,25 @@ import {
     TerminalPaneResizeController,
     TerminalResizeBurstTracker,
     TerminalResizeSettler,
+    terminalSizeWithScrollbarGutter,
 } from '../terminal-size';
 
 afterEach(() => {
     vi.useRealTimers();
+});
+
+describe('Terminal scrollbar gutter', () => {
+    it('reserves one text column without dropping below xterm minimum dimensions', () => {
+        expect(terminalSizeWithScrollbarGutter(undefined)).toBeUndefined();
+        expect(terminalSizeWithScrollbarGutter({ cols: 100, rows: 30 })).toEqual({
+            cols: 99,
+            rows: 30,
+        });
+        expect(terminalSizeWithScrollbarGutter({ cols: 2, rows: 1 })).toEqual({
+            cols: 2,
+            rows: 1,
+        });
+    });
 });
 
 describe('Terminal resize deduplication', () => {
@@ -33,9 +48,9 @@ describe('Terminal resize deduplication', () => {
         controller.fitAndResize();
 
         expect(apply).toHaveBeenCalledOnce();
-        expect(apply).toHaveBeenCalledWith({ cols: 131, rows: 59 });
+        expect(apply).toHaveBeenCalledWith({ cols: 130, rows: 59 });
         expect(request).toHaveBeenCalledOnce();
-        expect(request).toHaveBeenCalledWith({ cols: 131, rows: 59 });
+        expect(request).toHaveBeenCalledWith({ cols: 130, rows: 59 });
     });
 
     it('suppresses an unchanged grid while preserving either dimension change', () => {
