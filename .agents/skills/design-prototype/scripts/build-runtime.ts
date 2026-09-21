@@ -19,6 +19,7 @@ import process from 'node:process';
 import { execFileAsync } from '@caxri/system';
 
 import { inlineThemeCss } from './inline-theme-css';
+import { readImportedCss } from './renderer-stylesheets';
 
 const skillDirectory = path.resolve(import.meta.dirname, '..');
 const repoRoot = path.resolve(skillDirectory, '../../..');
@@ -80,19 +81,15 @@ async function buildRuntime(): Promise<void> {
 
 async function buildThemeScript(): Promise<void> {
     const stylesDirectory = path.join(repoRoot, 'apps/desktop/src/renderer/src/styles');
+    const stylesCss = await readFile(path.join(stylesDirectory, 'styles.css'), 'utf8');
     const css = inlineThemeCss({
         themeCss: await readFile(path.join(stylesDirectory, 'theme.css'), 'utf8'),
         twAnimateCss: await readFile(
             path.join(repoRoot, 'node_modules/tw-animate-css/dist/tw-animate.css'),
             'utf8',
         ),
-        stylesCss: await readFile(path.join(stylesDirectory, 'styles.css'), 'utf8'),
-        importedCss: {
-            './markdown-preview.css': await readFile(
-                path.join(stylesDirectory, 'markdown-preview.css'),
-                'utf8',
-            ),
-        },
+        stylesCss,
+        importedCss: await readImportedCss(stylesDirectory, stylesCss),
     });
     await writeFile(
         path.join(outDirectory, 'caxri-prototype-theme.js'),

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { inlineThemeCss } from './inline-theme-css';
+import { readImportedCss } from './renderer-stylesheets';
 
 const skillDirectory = path.resolve(import.meta.dirname, '..');
 const repoRoot = path.resolve(skillDirectory, '../../..');
@@ -36,19 +37,16 @@ describe('design-prototype runtime manifest', () => {
 describe('inlineThemeCss', () => {
     it('inlines the real Renderer stylesheets with no leftover @import', async () => {
         const stylesDirectory = path.join(repoRoot, 'apps/desktop/src/renderer/src/styles');
+        const stylesCss = await readFile(path.join(stylesDirectory, 'styles.css'), 'utf8');
         const css = inlineThemeCss({
             themeCss: await readFile(path.join(stylesDirectory, 'theme.css'), 'utf8'),
             twAnimateCss: await readFile(
                 path.join(repoRoot, 'node_modules/tw-animate-css/dist/tw-animate.css'),
                 'utf8',
             ),
-            stylesCss: await readFile(path.join(stylesDirectory, 'styles.css'), 'utf8'),
-            importedCss: {
-                './markdown-preview.css': await readFile(
-                    path.join(stylesDirectory, 'markdown-preview.css'),
-                    'utf8',
-                ),
-            },
+            stylesCss,
+            // The same discovery the build script uses, so a new Renderer stylesheet cannot pass here and fail there.
+            importedCss: await readImportedCss(stylesDirectory, stylesCss),
         });
         // Semantic token bridge and the virtual tailwind import must survive inlining.
         expect(css).toContain('--color-background');
