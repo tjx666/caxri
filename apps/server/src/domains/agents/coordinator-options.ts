@@ -13,6 +13,11 @@ export interface AgentCoordinatorOptions {
      */
     compactionTimeoutMs?: number;
     runningWatchdogIntervalMs?: number;
+    /**
+     * Window of missing evidence a hook turn survives before recovery releases it. Production uses two minutes; focused
+     * Electron coverage shortens it through `agents/e2e-options.ts`.
+     */
+    unknownRecoveryMs?: number;
     detectForegroundAgent?: (shellPid: number) => Promise<AgentProvider | undefined>;
     /**
      * Delay between bounded foreground-process retries. Production uses one second; tests may shorten it.

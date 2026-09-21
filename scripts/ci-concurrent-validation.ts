@@ -413,6 +413,24 @@ async function runE2E(
             label: 'Bounded E2E failure census',
         },
     );
+    /**
+     * The exclusive pool runs first on purpose. Both pools always run — {@link runReceiptedE2E} never aborts a sibling —
+     * so their order only decides which one shares the runner with the platform-checks branch. That branch (ESLint plus
+     * Vitest) is the CPU-heavy half and finishes well before E2E does, and the single-worker pool is the half that
+     * barely competes for cores. Running it while the checks are still going, and the three-worker pool afterwards on a
+     * machine the checks have already left, spends the contended window on the pool that does not need the cores.
+     */
+    const desktopExclusive = await runReceiptedE2E(
+        processes,
+        'bun',
+        measured('Playwright desktop-exclusive workers=1', 'bun', [
+            'run',
+            'scripts/run-e2e-pools.ts',
+            '--pool',
+            'desktop-exclusive',
+        ]),
+        { environment, label: 'Desktop-exclusive E2E pool' },
+    );
     const parallelWorkers = process.env.CAXRI_E2E_PARALLEL_WORKERS ?? '3';
     const parallelSafe = await runReceiptedE2E(
         processes,
@@ -424,17 +442,6 @@ async function runE2E(
             'parallel-safe',
         ]),
         { environment, label: 'Parallel-safe E2E pool' },
-    );
-    const desktopExclusive = await runReceiptedE2E(
-        processes,
-        'bun',
-        measured('Playwright desktop-exclusive workers=1', 'bun', [
-            'run',
-            'scripts/run-e2e-pools.ts',
-            '--pool',
-            'desktop-exclusive',
-        ]),
-        { environment, label: 'Desktop-exclusive E2E pool' },
     );
     const ciParity =
         process.env.GITHUB_EVENT_NAME === 'workflow_dispatch'

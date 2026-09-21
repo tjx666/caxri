@@ -45,6 +45,57 @@ Vitest and serial ESLint are deliberate: making them faster cannot shorten the r
 longer, and would take CPU away from the three Electron workers. Reduce the one-worker
 `desktop-exclusive` pool before revisiting either.
 
+### Per-test attribution from a job log
+
+Pool receipts record per-pool wall time, not per-test duration, so finding which tests dominate a
+pool means reading the job log. The `line` reporter prints `[N/M] spec:line › title` when a test
+**begins**, so a test's duration is the gap to the _next_ line, not the gap from the previous one.
+Reading it the other way shifts every duration by one test and blames the wrong spec — it attributed
+125s to `logs-panel.e2e.ts` when the cost belonged to `hook-turn-recovery.e2e.ts`. The derivation is
+only valid for the one-worker pool; with three workers the lines interleave and no per-test duration
+can be recovered from begin timestamps alone.
+
+### Long fixed waits are the first thing to look for
+
+[Run 35542871828](https://github.com/tjx666/caxri/actions/runs/35542871828) measured a 22m20s `e2e`
+job whose `desktop-exclusive` pool took 892s of the 1235s critical path. Two tests held 203s of it,
+both waiting out a production timer rather than doing work:
+
+- `hook-turn-recovery.e2e.ts` spent 125s letting the two-minute quiet-hook-turn recovery window
+  elapse in real time.
+- `pr-unknown.e2e.ts` spent 63s of its 78s letting the status bar's one-minute pull-request poll
+  come around again.
+
+Both were replaced with the repository's established fix for this shape: a bounded, `CAXRI_E2E=1`
+gated environment seam that only ever shortens the production value, with the production constant
+pinned by a fast unit test so the seam cannot quietly become the contract.
+`CAXRI_E2E_AGENT_UNKNOWN_RECOVERY_MS` (1s–30s, resolved in
+`apps/server/src/domains/agents/e2e-options.ts`) and `CAXRI_E2E_MAX_POLL_INTERVAL_MS` (1s–30s,
+resolved in `apps/desktop/src/renderer/src/lib/poll-scheduler.ts`, which caps every registered
+Renderer poll) cut the two specs to 11.5s and 16.2s locally with no change to their assertions.
+Both resolvers fail closed on a value outside their bound, and the poll cap only lowers a cadence,
+so a spec asserting a fast tick is unaffected whether or not its launch opts in.
+
+After that repair the exclusive pool has no outlier left — it is a flat tail of 3–30s specs — so the
+remaining lever is moving work out of it rather than making individual tests faster.
+
+### Auditing the exclusive pool for admission
+
+Screening the same run's 65 exclusive specs against the `parallelSafeSpecs` conditions left 26 with
+no mechanical disqualifier; reading those individually admitted 17, worth about 146s of one-worker
+time, and moved the split from 71/65 to 88/48. The rejections are the useful part of the record:
+
+- `logs-panel.e2e.ts` asserts its own query cadence in real milliseconds, which is a wall-clock
+  assertion however fast the machine is.
+- `menu-keybinding-recovery.e2e.ts` reads the installed native application menu.
+- `agent-delegation.e2e.ts` — the single largest spec at 95s — drives the CLI through a `spawnSync`
+  with a 25-second timeout, which is exactly the "subprocess whose timeout has little headroom" the
+  admission conditions exclude.
+- `codex-compaction.e2e.ts`, `updates.e2e.ts`, and `workbench-root.e2e.ts` pass the mechanical
+  screen but are named in `scripts/__tests__/e2e-pools.test.ts`'s guard list. That list is a
+  recorded prior audit; reaching the opposite conclusion about one of its entries is a product
+  decision, not a reclassification, so they stayed exclusive.
+
 ## Adopted optimization evidence
 
 The historical optimized workflow rebuilt only `better-sqlite3` and `node-pty`;
@@ -148,9 +199,12 @@ changing workflow wiring.
   `CAXRI_CHECKS_BASE_DRIFT {json}` line. A merge ref whose head parent is not the run's PR head is
   stale and fails closed with all SHAs; rerunning the job reuses the same frozen payload, so the
   only remedy is to rebase and force-push.
-- Exact-head E2E verifies native modules and builds once. It then runs `parallel-safe` with three
-  namespaced workers followed by `desktop-exclusive` with one worker on the same `m2-24`; a failed
-  first pool does not suppress the second pool. The `workflow_dispatch` worker input stays bounded
+- Exact-head E2E verifies native modules and builds once. It then runs `desktop-exclusive` with one
+  worker followed by `parallel-safe` with three namespaced workers on the same `m2-24`; a failed
+  first pool does not suppress the second pool. That order is a scheduling decision, not a
+  dependency: the platform-checks branch is the CPU-heavy half and finishes before E2E does, so the
+  one-worker pool is the one that should share the runner with it and the three-worker pool runs
+  after the checks have released their cores. The `workflow_dispatch` worker input stays bounded
   to 2–4 for frozen same-head comparisons.
 - Every successful product-affecting E2E-running path finishes with the fixed Renderer performance
   scenario. A spec-only `e2e-repair` reuses the failed head's unchanged product tree and skips it.

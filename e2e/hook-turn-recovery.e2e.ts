@@ -13,10 +13,18 @@ import { createProjectSession, launchCaxri, pageRequest } from './support/helper
 
 const execute = promisify(execFile);
 
+/**
+ * Production releases a quiet hook turn after two real minutes of missing evidence. That window, and the three probes
+ * it schedules inside, are pinned with a fake clock by
+ * `apps/server/src/domains/agents/__tests__/hook-launch-tracker.test.ts`, so this workflow only has to prove that the
+ * Server, the hook bridge, and the Renderer are wired to the same recovery. It therefore injects the bounded E2E window
+ * below instead of spending two real minutes on the single-worker CI pool.
+ */
+const UNKNOWN_RECOVERY_MS = 4_000;
+
 // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
 test('hook turns recover after CLI interrupt, Escape, and sustained unknown evidence', async ({}, testInfo) => {
-    // The production recovery contract requires two real minutes; no shortened watchdog is injected.
-    test.setTimeout(180_000);
+    test.setTimeout(90_000);
     const directory = await mkdtemp(join(tmpdir(), 'caxri-hook-recovery-'));
     const userData = join(directory, 'user-data');
     const root = join(directory, 'project');
@@ -58,7 +66,10 @@ process.stdout.write('Hook recovery fixture ready\r\n');
         agentMode,
         userDataDir: userData,
         testRootPath: root,
-        env: { CAXRI_E2E_AGENT_HOOKS: '1' },
+        env: {
+            CAXRI_E2E_AGENT_HOOKS: '1',
+            CAXRI_E2E_AGENT_UNKNOWN_RECOVERY_MS: String(UNKNOWN_RECOVERY_MS),
+        },
     });
     try {
         const sessionId = await createProjectSession(running.page, 'claude');
@@ -106,9 +117,10 @@ process.stdout.write('Hook recovery fixture ready\r\n');
         await writeFile(join(config, 'start-turn'), '');
         await expect(status).toHaveAttribute('data-session-status', 'running');
         await running.page.screenshot({ path: testInfo.outputPath('quiet-turn-running.png') });
-        // The fixture emits no Stop hook or metadata and keeps its process alive throughout recovery.
+        // The fixture emits no Stop hook or metadata and keeps its process alive throughout recovery. The margin over
+        // the injected window absorbs a loaded CI runner, not a second recovery attempt.
         await expect(status).toHaveAttribute('data-session-status', 'default', {
-            timeout: 135_000,
+            timeout: UNKNOWN_RECOVERY_MS + 30_000,
         });
         const state = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
         expect(state.sessions.find((session) => session.id === sessionId)).toMatchObject({
