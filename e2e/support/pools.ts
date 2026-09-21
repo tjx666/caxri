@@ -147,6 +147,7 @@ export const parallelSafeSpecs = [
     'e2e/terminal-move.e2e.ts',
     'e2e/terminal-progress.e2e.ts',
     'e2e/terminal-recovery.e2e.ts',
+    'e2e/terminal-reference-preview.e2e.ts',
     'e2e/terminal-session-switch.e2e.ts',
     'e2e/terminal-title.e2e.ts',
     'e2e/theme-presets.e2e.ts',

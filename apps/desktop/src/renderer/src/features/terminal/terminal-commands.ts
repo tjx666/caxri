@@ -3,6 +3,7 @@ import type {
     MethodResult,
     PaneSplitSide,
     TerminalKind,
+    TerminalReferencePreviewRequest,
 } from '@caxri/protocol';
 import {
     findResourceTabs,
@@ -515,4 +516,16 @@ export async function resolveTerminalCommitLink(
     reference: string,
 ): Promise<MethodResult<'terminal.commitLink.resolve'>> {
     return caxri.request('terminal.commitLink.resolve', { terminalId, reference });
+}
+
+/**
+ * Reads the metadata behind one hovered reference. Carries a signal because the caller is a hover card: the pointer
+ * moving on is the common case, and the read it started must stop with it rather than finish into nothing.
+ */
+export function loadTerminalReferencePreview(
+    terminalId: string,
+    reference: TerminalReferencePreviewRequest,
+    signal: AbortSignal,
+): Promise<MethodResult<'terminal.reference.preview'>> {
+    return caxri.requestWithSignal('terminal.reference.preview', signal, { terminalId, reference });
 }

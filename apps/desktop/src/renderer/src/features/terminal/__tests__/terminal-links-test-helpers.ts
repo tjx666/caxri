@@ -113,6 +113,7 @@ export function createTerminal(
         get cols() {
             return terminalColumns;
         },
+        onScroll: () => ({ dispose: vi.fn() }),
         options: { linkHandler: null },
         parser: {
             registerOscHandler: (identifier: number, handler: typeof osc8Handler) => {

@@ -15,6 +15,8 @@ import type {
     ServerOperationParameters,
     TerminalCommitLinkResolution,
     TerminalReferenceContext,
+    TerminalReferencePreview,
+    TerminalReferencePreviewRequest,
 } from '@caxri/protocol';
 import {
     CaxriError,
@@ -37,7 +39,7 @@ import type { ProjectRootResolver } from '../project-roots';
 import { SingleFlight } from '../single-flight';
 import { GitBlameService } from './blame';
 import { GitChangeTracker } from './change-tracker';
-import { parseCommitFiles, sumCommitNumstat } from './commit-details';
+import { parseCommitFiles, readCommitDetails } from './commit-details';
 import { COMMIT_FORMAT, parseCommitLog } from './commit-log';
 import { toGitError } from './errors';
 import { readGitHubPullRequestView } from './github';
@@ -45,6 +47,7 @@ import type { GitMetadataWatcherOptions } from './metadata-watcher';
 import { GitMetadataWatcher } from './metadata-watcher';
 import { GitPullRequestService } from './pull-request';
 import { loadTerminalReferenceContext, resolveTerminalCommitLink } from './reference-links';
+import { loadTerminalReferencePreview } from './reference-preview';
 import { parseGitRemoteHost } from './remote-host';
 import { computeRepoId, GitRepoService } from './repo';
 import { gitSignalOptions, sharedGitRequest } from './request-signal';
@@ -54,7 +57,6 @@ import { GitWorkingTreeService } from './working-tree';
 
 const MAX_CONCURRENT_GIT_COMMANDS = 8;
 const MAX_GIT_METADATA_BYTES = 4 * 1024 * 1024;
-const MAX_COMMIT_FILES = 500;
 const MAX_LOCAL_BRANCHES = 1_000;
 
 interface GitCommandOptions {
@@ -428,6 +430,29 @@ export class GitService {
     }
 
     /**
+     * Metadata for the hover card over a Terminal reference. Composed from the same commit resolution `⌘ click` uses
+     * and the same `git.commitDetails` the history view reads, so a card can never claim something the Git panel would
+     * disagree with.
+     */
+    referencePreview(
+        sessionId: string,
+        terminalCwd: string,
+        request: TerminalReferencePreviewRequest,
+    ): Promise<TerminalReferencePreview> {
+        return loadTerminalReferencePreview(request, {
+            commitDetails: (repoId, sha) =>
+                this.commitDetails({ sessionId, repositoryId: repoId, sha }),
+            githubReferences: this.externalStatus.githubReferences,
+            logger: this.logger,
+            referenceContext: () => this.referenceContext(sessionId),
+            resolveCommit: (reference) =>
+                this.resolveCommitReference(sessionId, reference, terminalCwd),
+            schedule: (work) => this.commands.run(work),
+            terminalCwd,
+        });
+    }
+
+    /**
      * Count/branch projection sharing the exact snapshot generation of `git.summary` without the `files[]` payload; it
      * joins the same producer instead of running a second `git status`.
      */
@@ -631,49 +656,10 @@ export class GitService {
         parameters: ServerOperationParameters<'git.commitDetails'>,
     ): Promise<GitCommitDetails> {
         const repo = await this.resolveRepository(parameters.sessionId, parameters.repositoryId);
-        const [path, commitOutput] = await Promise.all([
-            this.resolveHistoryPath(repo, parameters.path),
-            this.git(repo.rootPath, [
-                'show',
-                '-s',
-                '-z',
-                '--decorate=short',
-                `--format=${COMMIT_FORMAT}`,
-                parameters.sha,
-            ]),
-        ]);
-        // `.at(0)` (not `[0]`) keeps the result typed as possibly missing: `git show` can return no
-        // parseable commit line for a stale or unknown sha.
-        const commit = parseCommitLog(commitOutput).at(0);
-        if (!commit) throw new CaxriError('NOT_FOUND', 'Git commit no longer exists');
-        const fileArguments = [
-            'diff-tree',
-            '--root',
-            '--first-parent',
-            '-m',
-            '--no-commit-id',
-            '--name-status',
-            '-r',
-            '-z',
-            '-M',
-            parameters.sha,
-        ];
-        if (path) fileArguments.push('--', path);
-        const numstatArguments = fileArguments.map((argument) =>
-            argument === '--name-status' ? '--numstat' : argument,
-        );
-        const [filesOutput, numstatOutput] = await Promise.all([
-            this.git(repo.rootPath, fileArguments),
-            this.git(repo.rootPath, numstatArguments),
-        ]);
-        const files = parseCommitFiles(filesOutput);
-        const lineStats = sumCommitNumstat(numstatOutput);
-        return {
-            commit,
-            files: files.slice(0, MAX_COMMIT_FILES),
-            filesTruncated: files.length > MAX_COMMIT_FILES,
-            ...lineStats,
-        };
+        return readCommitDetails(parameters.sha, {
+            git: (arguments_) => this.git(repo.rootPath, arguments_),
+            path: () => this.resolveHistoryPath(repo, parameters.path),
+        });
     }
 
     blame(parameters: ServerOperationParameters<'git.blame'>) {

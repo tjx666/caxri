@@ -19,6 +19,11 @@ export interface TerminalReferenceMatch {
     detail: string;
     endIndex: number;
     hint: string;
+    /**
+     * Marks the declarative references — commits, GitHub issues, configured rules — that carry a hover preview card. A
+     * plain URL or file path is a link, not a reference: there is nothing to look up and nothing to show.
+     */
+    isReference: true;
     kind: 'commit' | 'url';
     overridesFile: boolean;
     startIndex: number;
@@ -49,6 +54,7 @@ function githubMatch(
         detail: `${owner}/${repo} on GitHub`,
         endIndex,
         hint: referenceHint(`open ${reference} on GitHub`),
+        isReference: true,
         kind: 'url',
         overridesFile: true,
         startIndex,
@@ -103,6 +109,7 @@ function configuredReferenceMatches(
                     detail: title,
                     endIndex,
                     hint: referenceHint(`open ${title} ${reference}`),
+                    isReference: true,
                     kind: 'url',
                     overridesFile: false,
                     startIndex,
@@ -188,6 +195,7 @@ function commitReferenceMatches(text: string): TerminalReferenceMatch[] {
             detail: 'Git commit',
             endIndex,
             hint: referenceHint(`show commit ${reference} in Git`),
+            isReference: true,
             kind: 'commit',
             overridesFile: false,
             startIndex,
