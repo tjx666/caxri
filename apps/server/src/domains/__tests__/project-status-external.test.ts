@@ -15,11 +15,14 @@ const NON_LOG_FAILURE_KINDS: Array<Exclude<CliFailureKind, 'other'>> = [
 
 describe('projectStatusCliError', () => {
     it.each(NON_LOG_FAILURE_KINDS)('keeps %s errors non-actionable', (kind) => {
-        expect(projectStatusCliError('linear', kind)).not.toHaveProperty('detailsView');
+        expect(projectStatusCliError('linear', kind)).not.toHaveProperty('logs');
     });
 
-    it('routes generic CLI failure details to Logs', () => {
-        expect(projectStatusCliError('linear', 'other')).toHaveProperty('detailsView', 'logs');
+    it('routes generic CLI failure details to Logs already filtered to the failing event', () => {
+        expect(projectStatusCliError('linear', 'other')).toHaveProperty('logs', {
+            filter: 'project_status.cli',
+            levels: ['warn', 'error'],
+        });
     });
 
     it('gives missing Vercel prerequisites complete guidance', () => {
@@ -76,6 +79,6 @@ describe('projectStatusCliError', () => {
         expect(error.hint).toBe(
             'Something went wrong while loading linked issues. Open Logs for details.',
         );
-        expect(error.detailsView).toBe('logs');
+        expect(error.logs?.filter).toBe('project_status.cli');
     });
 });

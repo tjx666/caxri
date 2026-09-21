@@ -44,12 +44,17 @@ const VERDICT_LABELS: Record<AcceptanceVerdict, string> = {
 
 /**
  * The densest true statement the chip can make, in order of preference: the check tally, then the lifecycle word, then
- * the bare noun for a link that was recognized but never read.
+ * the reason there is neither.
+ *
+ * `Unknown` comes first because it is the only case where the chip has to admit something. `state: 'unknown'` means the
+ * report's lookup failed, so no number and no lifecycle word exist — and the old fallback, the bare noun `Acceptance`,
+ * said nothing the shield beside it had not already said while looking like a report that was simply quiet.
  *
  * The id is deliberately never shown. It is an opaque UUID that tells a reader nothing, and it names a private
  * acceptance record — the identifier that earns the Linear chip its place has no counterpart here.
  */
 export function acceptanceChipLabel(acceptance: ProjectStatusAcceptance): string {
+    if (acceptance.state === 'unknown') return 'Unknown';
     if (acceptance.totalChecks !== undefined && acceptance.passedChecks !== undefined)
         return `${acceptance.passedChecks}/${acceptance.totalChecks}`;
     if (acceptance.status) return STATUS_LABELS[acceptance.status];

@@ -58,12 +58,13 @@ describe('Status extension acceptance rows', () => {
         expect(tooltip.rows?.at(-1)).toMatchObject({ label: 'link' });
     });
 
-    it('renders a report Caxri recognized but never read as an inert row that still opens the link', () => {
+    it('renders a report whose lookup failed as an alarming row that still opens the link', () => {
         const report = acceptanceRow({ id: ID, state: 'unknown', url: URL });
 
         expect(report.item.label).toBe('Acceptance report');
-        expect(report.item.description).toBeUndefined();
-        expect(iconId(report)).toBe('shield');
+        // Says so in words as well as in the glyph: the row has no tally because nobody could read the report.
+        expect(report.item.description).toBe('unknown');
+        expect(iconId(report)).toBe('shield-alert');
         expect(report.item.command?.arguments?.[0]).toBe(URL);
     });
 

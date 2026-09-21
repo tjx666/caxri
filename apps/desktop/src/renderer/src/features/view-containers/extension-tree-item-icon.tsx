@@ -23,6 +23,7 @@ import {
     Package,
     Rocket,
     Shield,
+    ShieldAlert,
     ShieldCheck,
     ShieldEllipsis,
     ShieldMinus,
@@ -91,6 +92,7 @@ const themeIcons = {
      * a machine verdict, and only the interior symbol changes with the state.
      */
     'shield': Shield,
+    'shield-alert': ShieldAlert,
     'shield-check': ShieldCheck,
     'shield-ellipsis': ShieldEllipsis,
     'shield-minus': ShieldMinus,
@@ -131,6 +133,7 @@ const themeIconClassNames: Partial<Record<ThemeIconId, string>> = {
     'question': 'text-muted',
     'rocket-success': 'text-success',
     'shield': 'text-muted',
+    'shield-alert': 'text-danger',
     'shield-check': 'text-success',
     'shield-ellipsis': 'text-warning',
     'shield-minus': 'text-muted',

@@ -374,7 +374,21 @@ export interface ProjectStatusError {
      * against the current time: a cached status snapshot outlives its own pause.
      */
     retryAt?: number;
-    detailsView?: 'logs';
+    /**
+     * Where in the log viewer this failure left its record, for an error whose real explanation is only in the logs. A
+     * view offering "Open Logs" passes this along so the panel opens already filtered to the failing event instead of
+     * on every process's records at every level.
+     */
+    logs?: {
+        /**
+         * The viewer's text filter, in the grammar the user types: OR on commas, `!` excludes.
+         */
+        filter: string;
+        /**
+         * The levels left on — the levels the named event is written at, and no others.
+         */
+        levels: Array<'debug' | 'info' | 'warn' | 'error'>;
+    };
 }
 
 // eslint-disable-next-line unicorn/name-replacements -- This name is part of the public project-status API contract.
