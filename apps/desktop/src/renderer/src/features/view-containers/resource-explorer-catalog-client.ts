@@ -1,7 +1,6 @@
 import type { ViewCatalogSnapshot } from '@caxri/protocol';
 
 import { caxri } from '../../lib/caxri';
-import { getSelectedSession } from '../../stores/selectors';
 import type { ResourceExplorerClient } from './resource-explorer/resource-explorer-client';
 import { createResourceExplorerClient } from './resource-explorer/resource-explorer-client';
 
@@ -16,8 +15,7 @@ export function availableResourceExplorerViewId(
 async function resourceExplorerClient(): Promise<ResourceExplorerClient | undefined> {
     const catalog = await caxri.request('viewContainers.catalog', {});
     const viewId = availableResourceExplorerViewId(catalog);
-    const session = getSelectedSession();
-    return viewId ? createResourceExplorerClient(viewId, session?.id) : undefined;
+    return viewId ? createResourceExplorerClient(viewId) : undefined;
 }
 
 /**

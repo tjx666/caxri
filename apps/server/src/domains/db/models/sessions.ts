@@ -13,7 +13,6 @@ import {
     createPaneLayout,
     openResource,
     removePaneTerminal,
-    sessionStateSchema,
 } from '@caxri/protocol';
 import { and, asc, eq, lt, sql } from 'drizzle-orm';
 
@@ -34,13 +33,15 @@ import {
     sessionSelection,
     workbenchProjects,
 } from './session-record';
+import type {
+    SessionStateRepair,
+    SessionStateRow,
+    SessionStateUnchangedWrite,
+} from './session-state-row';
+import { parseSessionState } from './session-state-row';
 import { reconcileOwnedTerminalTabs, resolveSessionPaneLayout } from './session-terminal-layout';
 import type { WorkbenchEditorStates } from './workbench-editor-state';
-import {
-    parseWorkbenchEditorStates,
-    pruneWorkbenchEditorState,
-    workbenchEditorStatesSchema,
-} from './workbench-editor-state';
+import { parseWorkbenchEditorStates, pruneWorkbenchEditorState } from './workbench-editor-state';
 
 export interface NewSessionInput {
     projectId: string;
@@ -52,77 +53,6 @@ export interface SessionWorkbenchBinding {
     workbenchProjectId: string;
     rootDevice?: string;
     rootInode?: string;
-}
-
-interface SessionStateRow {
-    sessionId: string;
-    projectId: string;
-    workbenchProjectId: string | null;
-    stateVersion: number;
-    workbenchStateJson: string;
-    desiredSecondarySidebarViewContainerId: string;
-}
-
-export interface SessionStateRepair {
-    reason: 'invalid_json' | 'invalid_shape' | 'unsupported_version';
-    sessionId: string;
-    stateVersion: number;
-}
-
-/**
- * One `session.updateState` that stored exactly the row it found, reported with this lifetime's running totals.
- *
- * A write nobody can see is the hardest kind of defect to find: it costs a round trip and a SQLite write per
- * occurrence, and it turns an ordinary interaction into a failure surface, because the Session behind it may have been
- * deleted or the application may be quitting by the time the write lands. That is exactly how "Unable to activate
- * Terminal" reached unrelated E2E specs (#877) — a Terminal regaining focus rebuilt an identical pane layout and wrote
- * it back, and nothing anywhere recorded that the write changed nothing. Each report carries both the occurrence and
- * the totals so the real volume stays readable without one client having to sample it.
- */
-export interface SessionStateUnchangedWrite {
-    sessionId: string;
-    workbenchProjectId: string;
-    unchangedWrites: number;
-    totalWrites: number;
-}
-
-/**
- * `fallbackPaneLayout` covers a Workbench Root the Session has never arranged: the row itself is healthy, so this is an
- * ordinary first visit rather than a repair.
- */
-function parseSessionState(
-    row: SessionStateRow,
-    fallbackPaneLayout: () => SessionState['paneLayout'],
-): { state: SessionState; isNewRoot: boolean } | { reason: SessionStateRepair['reason'] } {
-    if (row.stateVersion !== CURRENT_SESSION_STATE_VERSION)
-        return { reason: 'unsupported_version' };
-    let workbenchStatesSource: unknown;
-    try {
-        workbenchStatesSource = JSON.parse(row.workbenchStateJson) as unknown;
-    } catch {
-        return { reason: 'invalid_json' };
-    }
-    const workbenchStates = workbenchEditorStatesSchema.safeParse(workbenchStatesSource);
-    if (!workbenchStates.success) return { reason: 'invalid_shape' };
-    const workbenchProjectId = row.workbenchProjectId ?? row.projectId;
-    // `z.record`'s inferred value type promises every key is present; cast through the `Partial`
-    // alias so the lookup below is correctly typed as possibly missing.
-    const states: WorkbenchEditorStates = workbenchStates.data;
-    const rootState = states[workbenchProjectId];
-    const candidate: unknown = {
-        sessionId: row.sessionId,
-        workbenchProjectId,
-        editorRemapOperationId: rootState?.editorRemapOperationId,
-        // Availability is presentation state. Keep the desired ID even while its extension is absent or crashed.
-        desiredSecondarySidebarViewContainerId: row.desiredSecondarySidebarViewContainerId,
-        extensionTreeViewStates: rootState?.extensionTreeViewStates,
-        sourceControlViewStates: rootState?.sourceControlViewStates,
-        paneLayout: rootState?.paneLayout ?? fallbackPaneLayout(),
-    };
-    const parsed = sessionStateSchema.safeParse(candidate);
-    return parsed.success
-        ? { state: parsed.data, isNewRoot: !rootState }
-        : { reason: 'invalid_shape' };
 }
 
 /**
@@ -191,6 +121,8 @@ export class SessionsModel {
             .get();
         return {
             sessionId,
+            // No stored row to be stale against, so the first write must declare `0`.
+            revision: 0,
             workbenchProjectId: session?.workbenchProjectId ?? session?.projectId ?? '',
             desiredSecondarySidebarViewContainerId: 'caxri.files',
             paneLayout: this.defaultPaneLayout(terminalIds),
@@ -208,17 +140,25 @@ export class SessionsModel {
             // Persist a first visit before another bootstrap can generate different pane/tab IDs.
             if (paneLayout === parsed.state.paneLayout && !parsed.isNewRoot) return parsed.state;
             const repaired = { ...parsed.state, paneLayout };
-            this.updateState(repaired, ownedTerminalIds);
-            return repaired;
+            // The reader must be handed the revision the repair just stored, not the one it read: returning the older
+            // token would make the client's first ordinary write look stale and be rejected for the Server's own edit.
+            return { ...repaired, revision: this.updateState(repaired, ownedTerminalIds) };
         }
-        const repaired = this.defaultState(row.sessionId, ownedTerminalIds);
-        this.updateState(repaired, ownedTerminalIds);
+        /**
+         * Repairing a row the Server itself could not parse is not a stale client write: it is based on the row that is
+         * there right now, so it declares that row's revision rather than the fresh-Session `0`.
+         */
+        const repaired = {
+            ...this.defaultState(row.sessionId, ownedTerminalIds),
+            revision: row.revision,
+        };
+        const revision = this.updateState(repaired, ownedTerminalIds);
         this.onStateRepair?.({
             sessionId: row.sessionId,
             stateVersion: row.stateVersion,
             reason: parsed.reason,
         });
-        return repaired;
+        return { ...repaired, revision };
     }
 
     /**
@@ -250,9 +190,21 @@ export class SessionsModel {
                 paneLayout === rootState.paneLayout ? rootState : { ...rootState, paneLayout };
         }
         if (!isChanged) return;
+        this.writeWorkbenchStates(sessionId, JSON.stringify(nextStates));
+    }
+
+    /**
+     * The one way to rewrite a Session's stored Root arrangements outside {@link updateState}.
+     *
+     * Server-owned edits — a Terminal appearing in every Root, a deleted Project pruned out of them — change what a
+     * client last read just as much as a client write does. Leaving `revision` untouched would let a Renderer holding
+     * the pre-edit token write successfully and erase the edit, which is the exact race the token exists to stop. The
+     * increment is a SQL expression so it is computed from the row being written, not from a value read earlier.
+     */
+    private writeWorkbenchStates(sessionId: string, workbenchStateJson: string): void {
         this.database
             .update(sessionStateTable)
-            .set({ workbenchStateJson: JSON.stringify(nextStates) })
+            .set({ revision: sql`${sessionStateTable.revision} + 1`, workbenchStateJson })
             .where(eq(sessionStateTable.sessionId, sessionId))
             .run();
     }
@@ -364,12 +316,7 @@ export class SessionsModel {
             .all();
         for (const row of stateRows) {
             const pruned = pruneWorkbenchEditorState(row.workbenchStateJson, projectId);
-            if (pruned !== undefined)
-                this.database
-                    .update(sessionStateTable)
-                    .set({ workbenchStateJson: pruned })
-                    .where(eq(sessionStateTable.sessionId, row.sessionId))
-                    .run();
+            if (pruned !== undefined) this.writeWorkbenchStates(row.sessionId, pruned);
         }
         const sessionIds = this.database
             .select({ id: sessions.id })
@@ -636,6 +583,7 @@ export class SessionsModel {
                 sessionId: sessionStateTable.sessionId,
                 projectId: sessions.projectId,
                 workbenchProjectId: sessions.workbenchProjectId,
+                revision: sessionStateTable.revision,
                 stateVersion: sessionStateTable.stateVersion,
                 workbenchStateJson: sessionStateTable.workbenchStateJson,
                 desiredSecondarySidebarViewContainerId:
@@ -658,6 +606,7 @@ export class SessionsModel {
                 sessionId: sessionStateTable.sessionId,
                 projectId: sessions.projectId,
                 workbenchProjectId: sessions.workbenchProjectId,
+                revision: sessionStateTable.revision,
                 stateVersion: sessionStateTable.stateVersion,
                 workbenchStateJson: sessionStateTable.workbenchStateJson,
                 desiredSecondarySidebarViewContainerId:
@@ -690,13 +639,23 @@ export class SessionsModel {
             .run();
     }
 
-    updateState(state: SessionState, terminalIds?: readonly string[]): void {
+    /**
+     * Replaces one Session's stored state, rejecting a write assembled from a state that has since moved.
+     *
+     * The check is whole-write, not per field: the pane layout is a tree, so merging two arrangements field by field
+     * would produce a third one neither writer asked for. A caller whose revision no longer matches is told the current
+     * revision in `details` and re-derives its change against the fresh state instead.
+     *
+     * @returns The revision now stored, which the caller must adopt before writing again.
+     */
+    updateState(state: SessionState, terminalIds?: readonly string[]): number {
         const binding = this.getWorkbenchBinding(state.sessionId);
         if (!binding) throw new CaxriError('NOT_FOUND', 'Session not found');
         if (binding.workbenchProjectId !== state.workbenchProjectId)
             throw new CaxriError('CONFLICT', 'Session state belongs to a stale Workbench Root');
         const existing = this.database
             .select({
+                revision: sessionStateTable.revision,
                 stateVersion: sessionStateTable.stateVersion,
                 workbenchStateJson: sessionStateTable.workbenchStateJson,
                 desiredSecondarySidebarViewContainerId:
@@ -705,6 +664,15 @@ export class SessionsModel {
             .from(sessionStateTable)
             .where(eq(sessionStateTable.sessionId, state.sessionId))
             .get();
+        // No row yet means nothing can be stale against it, so a first write declares `0`.
+        const storedRevision = existing?.revision ?? 0;
+        if (state.revision !== storedRevision)
+            throw new CaxriError(
+                'CONFLICT',
+                'Session state was written from a stale revision',
+                // The current revision travels with the rejection so the writer can rebase without another read.
+                { currentRevision: storedRevision, writtenRevision: state.revision },
+            );
         const storedStates = existing
             ? parseWorkbenchEditorStates(existing.workbenchStateJson)
             : undefined;
@@ -729,20 +697,24 @@ export class SessionsModel {
                 }),
             },
         };
+        const isUnchanged =
+            existing?.stateVersion === CURRENT_SESSION_STATE_VERSION &&
+            existing.workbenchStateJson === JSON.stringify(workbenchStates) &&
+            existing.desiredSecondarySidebarViewContainerId ===
+                state.desiredSecondarySidebarViewContainerId;
         const values = {
             sessionId: state.sessionId,
+            /**
+             * Only a write that actually changes the row advances the revision. Bumping on a no-op would invalidate a
+             * concurrent writer's perfectly current revision for no observable reason.
+             */
+            revision: isUnchanged ? storedRevision : storedRevision + 1,
             stateVersion: CURRENT_SESSION_STATE_VERSION,
             workbenchStateJson: JSON.stringify(workbenchStates),
             desiredSecondarySidebarViewContainerId: state.desiredSecondarySidebarViewContainerId,
         };
         this.stateWrites.total += 1;
-        if (
-            existing !== undefined &&
-            existing.stateVersion === values.stateVersion &&
-            existing.workbenchStateJson === values.workbenchStateJson &&
-            existing.desiredSecondarySidebarViewContainerId ===
-                values.desiredSecondarySidebarViewContainerId
-        ) {
+        if (isUnchanged) {
             this.stateWrites.unchanged += 1;
             this.onStateUnchanged?.({
                 sessionId: state.sessionId,
@@ -757,6 +729,7 @@ export class SessionsModel {
             .onConflictDoUpdate({
                 target: sessionStateTable.sessionId,
                 set: {
+                    revision: values.revision,
                     stateVersion: values.stateVersion,
                     workbenchStateJson: values.workbenchStateJson,
                     desiredSecondarySidebarViewContainerId:
@@ -764,6 +737,7 @@ export class SessionsModel {
                 },
             })
             .run();
+        return values.revision;
     }
 
     /**
