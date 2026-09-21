@@ -291,7 +291,7 @@ test('Files actions stay visible while Project actions reveal on hover or focus'
         await createProjectSession(running.page);
         const caption = running.page.locator('.panel-caption');
         const captionTitle = caption.locator('.panel-caption-title');
-        const fileActionNames = ['New File', 'New Folder', 'Collapse Folders'];
+        const fileActionNames = ['New File', 'New Folder', 'Refresh Files', 'Collapse Folders'];
         await expect(captionTitle).toHaveText('project');
         await expect(captionTitle).toHaveAttribute('title', await realpath(root));
         await Promise.all(

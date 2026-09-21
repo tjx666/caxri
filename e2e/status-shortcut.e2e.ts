@@ -42,7 +42,10 @@ test('Project Status shortcut works from editable focus and keeps its live bindi
         await running.page.keyboard.press('Meta+1');
         await expectSelected(running.page, 'Files');
         await running.page.keyboard.press('Meta+Shift+F');
-        const searchInput = running.page.getByRole('combobox', { name: 'Find Project files' });
+        // Content is the default mode, so the shortcut lands on the content input.
+        const searchInput = running.page.getByRole('combobox', {
+            name: 'Search Project contents',
+        });
         await expect(searchInput).toBeFocused();
         const composingEventWasNotCanceled = await searchInput.evaluate((target) =>
             target.dispatchEvent(
