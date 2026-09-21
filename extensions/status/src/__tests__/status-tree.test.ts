@@ -351,7 +351,7 @@ describe('Status extension tree', () => {
                     kind: 'failure',
                     message: 'linear: error',
                     hint: 'Something went wrong while loading linked issues. Open Logs for details.',
-                    detailsView: 'logs',
+                    logs: { filter: 'project_status.cli', levels: ['warn', 'error'] },
                 },
             ],
         };
@@ -458,7 +458,11 @@ describe('Status extension tree', () => {
             id: 'status:repo:repo-1:error:linear',
             description: 'Something went wrong while loading linked issues. Open Logs for details.',
         });
-        expect(children[10].item.command).toMatchObject({ command: 'caxri.showLogs' });
+        // The query rides along, or the panel this opens holds every process's records and the user is back to guessing.
+        expect(children[10].item.command).toMatchObject({
+            command: 'caxri.showLogs',
+            arguments: [{ filter: 'project_status.cli', levels: ['warn', 'error'] }],
+        });
     });
 
     it('uses static Linear workflow glyphs without changing Vercel loading feedback', () => {

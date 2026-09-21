@@ -1,4 +1,6 @@
 @import './theme.css';
+/** The one definition of a Renderer scrollbar; the Workbench window loads the same file. */
+@import './scrollbars.css';
 
 /*
  * `900ms linear infinite` is a non-standard duration Tailwind's `animate-spin` (1s) can't

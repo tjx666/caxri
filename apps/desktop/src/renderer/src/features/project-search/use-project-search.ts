@@ -44,6 +44,11 @@ export interface ProjectSearchModel {
     isSettled: boolean;
     isRegex: boolean;
     isTruncated: boolean;
+    /**
+     * Whether `.gitignore` and friends narrow the scan. Exposed as an explicit control because a search that silently
+     * skipped a file is indistinguishable from one that found nothing.
+     */
+    isUsingIgnoreFiles: boolean;
     isWholeWord: boolean;
     mode: FileSearchMode;
     nameTree: readonly NameSearchNode[];
@@ -63,6 +68,7 @@ export interface ProjectSearchModel {
     setQuery: Dispatch<SetStateAction<string>>;
     setRegex: Dispatch<SetStateAction<boolean>>;
     setSelectedIndex: (index: number) => void;
+    setUseIgnoreFiles: Dispatch<SetStateAction<boolean>>;
     setWholeWord: Dispatch<SetStateAction<boolean>>;
     terminationMessage: string | undefined;
 }
@@ -70,12 +76,19 @@ export interface ProjectSearchModel {
 export function useProjectSearch(): ProjectSearchModel {
     const session = useSelectedSession();
     const [query, setQuery] = useState('');
-    const [mode, setMode] = useState<FileSearchMode>('name');
+    /**
+     * Content, not name. `cmd+shift+f` means "search in files" in every editor this dialog is modelled on, and the
+     * Project-wide name lookup it used to open is the one thing `cmd+p`'s path browser already does — including the
+     * same bounded `files.search` in `name` mode. Opening on the mode the other shortcut owns spent the dialog's whole
+     * first impression on a duplicate.
+     */
+    const [mode, setMode] = useState<FileSearchMode>('content');
     const [caseSensitive, setCaseSensitive] = useState(false);
     const [wholeWord, setWholeWord] = useState(false);
     const [regex, setRegex] = useState(false);
     const [include, setInclude] = useState('');
     const [exclude, setExclude] = useState('');
+    const [useIgnoreFiles, setUseIgnoreFiles] = useState(true);
     /**
      * The selection is stored beside the result list it indexes into, so a new list resets to its first row during
      * render instead of through an effect that would paint a stale selection for one frame. The user is typing: the row
@@ -100,8 +113,9 @@ export function useProjectSearch(): ProjectSearchModel {
             regex: mode === 'content' && regex,
             include,
             exclude,
+            useIgnoreFiles,
         }),
-        [caseSensitive, debouncedQuery, exclude, include, mode, regex, wholeWord],
+        [caseSensitive, debouncedQuery, exclude, include, mode, regex, useIgnoreFiles, wholeWord],
     );
     /**
      * `useQuery` rather than `useCaxriQuery`, because only the raw hook hands `queryFn` the AbortSignal React Query
@@ -152,6 +166,7 @@ export function useProjectSearch(): ProjectSearchModel {
         isRegex: regex,
         isSettled,
         isTruncated: result.data?.truncated === true,
+        isUsingIgnoreFiles: useIgnoreFiles,
         isWholeWord: wholeWord,
         mode,
         nameTree,
@@ -168,6 +183,7 @@ export function useProjectSearch(): ProjectSearchModel {
         setQuery,
         setRegex,
         setSelectedIndex: (index: number) => setSelection({ index, matches }),
+        setUseIgnoreFiles,
         setWholeWord,
         terminationMessage: result.data
             ? projectSearchTerminationMessage(

@@ -52,6 +52,28 @@ export function parsePathBrowserInput(value: string): ParsedPathBrowserInput {
 }
 
 /**
+ * The Project anchor a typed or pasted input implies, and the input left once that anchor is applied.
+ *
+ * An absolute or `~` path cannot mean anything inside a Project: in Project mode it was rejected as an escape and fell
+ * through to the subpath guess, so the only way to reach it was the Backspace gesture almost nobody finds. Typing one
+ * now detaches by itself, which is what the user was already saying by typing it.
+ *
+ * `./` is the way back. It is consumed rather than sent, so the bare prefix restores the Project chrome with an empty
+ * field and `./src` lands on `src` under the root. Nothing is lost by claiming it in free mode: a free-mode `./x` and a
+ * bare `x` already resolved to the same entry of the current directory.
+ */
+export function pathBrowserInputTransition(
+    current: PathBrowserInputState,
+    input: string,
+): PathBrowserInputState {
+    const isAbsoluteOrHome = input.startsWith('/') || input === '~' || input.startsWith('~/');
+    if (isAbsoluteOrHome && current.mode === 'project') return { input, mode: 'free' };
+    if (current.mode === 'free' && input.startsWith('./'))
+        return { input: input.slice(2), mode: 'project' };
+    return { input, mode: current.mode };
+}
+
+/**
  * Filters the already-lazy current-directory result; it never starts a Project-wide traversal.
  */
 export function filterPathEntries<T extends { name: string }>(

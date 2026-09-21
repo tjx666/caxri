@@ -135,7 +135,14 @@ function classifyCliFailure(
     if (error.killed || /timed out/i.test(stderr)) return 'timeout';
     if (/rate limit|abuse detection/i.test(stderr)) return 'rate-limited';
     if (
-        /auth(?:entication)? required|auth login|not logged in|login required|no api key/i.test(
+        /*
+         * `<name> login` rather than the literal `auth login`, because that is the one phrase every one of these CLIs
+         * agrees on: it is how each tells the user to sign in, whether the verb is `gh auth login`, `lh login`, or
+         * `vc login`. Matching only `auth login` sent a plainly signed-out LobeHub CLI — "No authentication found.
+         * Run 'lh login' ... or set LOBEHUB_CLI_API_KEY." — down the `other` branch, where the panel could say nothing
+         * more useful than "Something went wrong", instead of naming the one command that fixes it.
+         */
+        /auth(?:entication)? required|no authentication|\b[\w-]+ login\b|not logged in|login required|no api key/i.test(
             stderr,
         )
     )

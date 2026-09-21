@@ -1,5 +1,12 @@
 import type { ProjectStatusOverviewAcceptance, ProjectStatusState } from '@caxri/protocol';
-import { Shield, ShieldCheck, ShieldEllipsis, ShieldMinus, ShieldX } from 'lucide-react';
+import {
+    Shield,
+    ShieldAlert,
+    ShieldCheck,
+    ShieldEllipsis,
+    ShieldMinus,
+    ShieldX,
+} from 'lucide-react';
 
 import {
     acceptanceAriaLabel,
@@ -24,7 +31,7 @@ const STATE_PRESENTATION: Record<ProjectStatusState, { Icon: typeof Shield; tone
     queued: { Icon: Shield, tone: 'text-warning' },
     cancelled: { Icon: ShieldMinus, tone: 'text-muted' },
     neutral: { Icon: ShieldMinus, tone: 'text-muted' },
-    unknown: { Icon: Shield, tone: 'text-muted' },
+    unknown: { Icon: ShieldAlert, tone: 'text-danger' },
 };
 
 /**

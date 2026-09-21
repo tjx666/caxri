@@ -626,6 +626,13 @@ export const methods = {
             regex: z.boolean().default(false),
             include: z.string().max(512).default(''),
             exclude: z.string().max(512).default(''),
+            /**
+             * Whether the repository's own ignore files (`.gitignore`, `.ignore`) narrow the scan, as VS Code's
+             * `search.useIgnoreFiles` does and with the same default. Caxri's fixed traversal exclusions — VCS
+             * metadata, dependency and build output — apply either way; this only decides whether the Project gets to
+             * add to them. Off is the wider search, not the unbounded one.
+             */
+            useIgnoreFiles: z.boolean().default(true),
         }),
         result: fileSearchResultSchema,
     },

@@ -439,10 +439,16 @@ function buildRepoChildren(
                 badge: { label: error.source, tone: isFailure ? 'danger' : 'neutral' },
                 description: error.hint,
             },
-            command:
-                error.detailsView === 'logs'
-                    ? { command: 'caxri.showLogs', title: 'Open Logs' }
-                    : { command: 'caxri.project-status.refresh', title: REFRESH_ACTION_LABEL },
+            command: error.logs
+                ? {
+                      command: 'caxri.showLogs',
+                      title: 'Open Logs',
+                      // The query travels with the action so the panel opens on the failing event rather than on
+                      // every process's records, which is the only form in which "the details are in the logs" is
+                      // an answer instead of another search.
+                      arguments: [error.logs],
+                  }
+                : { command: 'caxri.project-status.refresh', title: REFRESH_ACTION_LABEL },
         });
         nodes.push(
             error.source === 'vercel'

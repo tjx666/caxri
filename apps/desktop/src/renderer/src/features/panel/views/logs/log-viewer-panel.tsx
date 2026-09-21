@@ -17,6 +17,7 @@ import { ToggleGroup, ToggleGroupItem } from '../../../../components/ui/toggle-g
 import { Tooltip } from '../../../../components/ui/tooltip';
 import { cn } from '../../../../lib/utilities';
 import { filterLogRecords, parseLogFilter } from './log-filter';
+import { useLogPrefillStore } from './log-prefill';
 import { useLogStream } from './use-log-stream';
 
 const FILTER_GRAMMAR_HINT =
@@ -105,6 +106,20 @@ export function LogViewerPanel() {
 
     const process = processValue === ALL_PROCESSES ? undefined : (processValue as LogProcess);
     const stream = useLogStream(process);
+
+    /*
+     * Applied on mount as well as while open, because "Open Logs" usually reaches a panel that is not showing yet: the
+     * same click activates the view container that mounts this component. Taking the request clears it, so a later
+     * manual visit opens on whatever the user left rather than on a query from an error they already dealt with.
+     */
+    const pendingPrefill = useLogPrefillStore((state) => state.pending);
+    const consumeLogPrefill = useLogPrefillStore((state) => state.consumeLogPrefill);
+    useEffect(() => {
+        if (!pendingPrefill) return;
+        setFilterText(pendingPrefill.filter);
+        setActiveLevels([...pendingPrefill.levels]);
+        consumeLogPrefill();
+    }, [consumeLogPrefill, pendingPrefill]);
 
     const filter = useMemo(() => parseLogFilter(filterText), [filterText]);
     const visible = useMemo(

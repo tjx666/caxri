@@ -253,9 +253,18 @@ export class TerminalPaneResizeController {
         });
     }
 
+    /**
+     * The proposal is used exactly as the fit addon computed it. The addon already subtracts `scrollbar.width`, which
+     * `use-terminal-pane-runtime` sets to the 8px the stylesheet actually paints, so the grid ends where the slider
+     * begins. Reserving anything beyond that — Caxri previously dropped one whole text column here — widens the right
+     * inset to two gutters and, because the reservation has to stay constant while the PTY runs, buys nothing: the
+     * column count cannot follow the slider appearing or disappearing without re-wrapping every line mid-session. VS
+     * Code reserves the same single scrollbar width (`TerminalScrollbarWidth` in `xtermTerminal.ts`), and a reservation
+     * that disagrees with the painted width is what makes mouse selection drift on the right edge.
+     */
     private fit(): TerminalFitResult | undefined {
         try {
-            const size = terminalSizeWithScrollbarGutter(this.options.propose());
+            const size = this.options.propose();
             if (!size) return undefined;
             const isLocalApplied = didTerminalSizeChange(this.options.current(), size);
             if (isLocalApplied) this.options.apply(size);
@@ -369,18 +378,6 @@ export class TerminalResizeSettler {
     dispose(): void {
         this.pause();
     }
-}
-
-/**
- * Keeps the final text cell clear of xterm's overlaid vertical scrollbar. The fit addon reserves only the scrollbar's
- * exact width, so fractional cell rounding can otherwise leave a zero-pixel gutter and make the last glyph look clipped
- * while the thumb is visible.
- */
-export function terminalSizeWithScrollbarGutter(
-    proposed: TerminalSize | undefined,
-): TerminalSize | undefined {
-    if (!proposed) return undefined;
-    return { cols: Math.max(2, proposed.cols - 1), rows: proposed.rows };
 }
 
 /**

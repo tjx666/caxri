@@ -1,8 +1,9 @@
-import { FilePlus, FolderPlus, SquareMinus } from 'lucide-react';
+import { FilePlus, FolderPlus, RefreshCw, SquareMinus } from 'lucide-react';
 
 import { PanelHeader } from '../../../components/panel-header';
 import { Button } from '../../../components/ui/button';
 import { Tooltip } from '../../../components/ui/tooltip';
+import { cn } from '../../../lib/utilities';
 import type { ResourceExplorerController } from './use-resource-explorer-controller';
 
 const captionActionClassName = 'shrink-0';
@@ -13,7 +14,9 @@ export function ResourceExplorerHeader({ controller }: { controller: ResourceExp
         createRootFile,
         createRootFolder,
         fileCaptionRef,
+        isRefreshing,
         project,
+        refreshFiles,
         rootPathCaption,
         session,
     } = controller;
@@ -46,6 +49,27 @@ export function ResourceExplorerHeader({ controller }: { controller: ResourceExp
                             onClick={createRootFolder}
                         >
                             <FolderPlus size={13} />
+                        </Button>
+                    </Tooltip>
+                    {/*
+                     * Between creation and collapse, the order VS Code's explorer uses. A tree can go stale without
+                     * any gesture in Caxri — an Agent writing files in a Terminal, a branch switch, a script — so this
+                     * is the action that says "read the disk again" without also throwing away where the user is.
+                     */}
+                    <Tooltip content="Refresh Files">
+                        <Button
+                            aria-busy={isRefreshing || undefined}
+                            className={captionActionClassName}
+                            size="icon"
+                            variant="ghost"
+                            aria-label="Refresh Files"
+                            onClick={refreshFiles}
+                        >
+                            <RefreshCw
+                                aria-hidden="true"
+                                className={cn(isRefreshing && 'motion-safe:animate-spin')}
+                                size={13}
+                            />
                         </Button>
                     </Tooltip>
                     <Tooltip content="Collapse Folders">

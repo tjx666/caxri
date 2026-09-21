@@ -29,8 +29,8 @@ describe('acceptance chip label', () => {
         expect(acceptanceChipLabel(acceptance({ status: 'delivered' }))).toBe('Awaiting review');
     });
 
-    it('names the noun for a link that was recognized but never read', () => {
-        expect(acceptanceChipLabel(acceptance({ state: 'unknown' }))).toBe('Acceptance');
+    it('says the report could not be read rather than naming the bare noun', () => {
+        expect(acceptanceChipLabel(acceptance({ state: 'unknown' }))).toBe('Unknown');
     });
 
     it('never prints the report id, which names a private record and tells a reader nothing', () => {
