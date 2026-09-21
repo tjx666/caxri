@@ -591,6 +591,7 @@ describe('Terminal creation contract', () => {
 describe('Pane layout contract', () => {
     const state = {
         sessionId: 'session-1',
+        revision: 0,
         workbenchProjectId: 'project-1',
         desiredSecondarySidebarViewContainerId: 'caxri.files' as const,
     };

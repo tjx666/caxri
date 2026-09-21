@@ -501,7 +501,9 @@ describe('CaxriDatabase', () => {
 
         // The Renderer closes the Terminal while it is still assembling the layout write above.
         database.closeTerminal(second.id);
-        database.updateSessionState(staleState);
+        // Closing advanced the stored revision, so the write is rejected outright rather than
+        // reconciled: the caller re-derives from the current state and keeps its own newer intent.
+        expect(() => database.updateSessionState(staleState)).toThrow(/stale revision/i);
 
         expect(
             listPaneTerminalIds(database.getSessionState(created.session.id).paneLayout),
@@ -516,7 +518,7 @@ describe('CaxriDatabase', () => {
         const staleState = database.getSessionState(created.session.id);
 
         const second = database.createTerminal(created.session.id, 'shell');
-        database.updateSessionState(staleState);
+        expect(() => database.updateSessionState(staleState)).toThrow(/stale revision/i);
 
         expect(
             listPaneTerminalIds(database.getSessionState(created.session.id).paneLayout),
