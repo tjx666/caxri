@@ -215,7 +215,7 @@ jobs:
     env:
       CAXRI_DESKTOP_LEASE_OWNER: caxri-${{ github.run_id }}-${{ github.run_attempt }}-e2e
       CAXRI_E2E_AGENT_MODE: blocked
-      CAXRI_E2E_PARALLEL_WORKERS: ${{ inputs.e2e_parallel_workers || '4' }}
+      CAXRI_E2E_PARALLEL_WORKERS: ${{ inputs.e2e_parallel_workers || '3' }}
       CAXRI_E2E_PROFILE: ${{ needs.retry-policy.outputs.e2e_profile }}
       CAXRI_E2E_RUNNER_KIND: self-hosted
       CAXRI_E2E_RUNNER_REASON: >-
@@ -277,7 +277,7 @@ jobs:
           RUNNER_LABELS: self-hosted,macOS,ARM64,caxri-e2e
           VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '2' }}
           VITEST_PARTITION: ${{ inputs.vitest_partition || 'optimized' }}
-          E2E_PARALLEL_WORKERS: ${{ inputs.e2e_parallel_workers || '4' }}
+          E2E_PARALLEL_WORKERS: ${{ inputs.e2e_parallel_workers || '3' }}
         run: |
           NODE_VERSION="$(node --version)" \
             PNPM_VERSION="$(pnpm --version)" \

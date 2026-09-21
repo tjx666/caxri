@@ -165,7 +165,7 @@ describe('CI workflow contract', () => {
             "CAXRI_VITEST_MAX_WORKERS: ${{ inputs.vitest_max_workers || '2' }}",
         );
         expect(workflow).toContain(
-            "CAXRI_E2E_PARALLEL_WORKERS: ${{ inputs.e2e_parallel_workers || '4' }}",
+            "CAXRI_E2E_PARALLEL_WORKERS: ${{ inputs.e2e_parallel_workers || '3' }}",
         );
         expect(
             PLATFORM_NEUTRAL_CI_COMMANDS.some((command) =>
