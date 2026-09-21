@@ -15,7 +15,7 @@ import {
     parseTerminalFileLocation,
     TERMINAL_FILE_LOCATION_SUFFIX_PATTERN,
 } from './terminal-file-location';
-import type { TerminalLinkHintController } from './terminal-link-hint';
+import type { TerminalLinkHintController, TerminalLinkHintPreview } from './terminal-link-hint';
 import { createTerminalLinkHintController } from './terminal-link-hint';
 import type { TerminalLinkClosingBracket } from './terminal-link-token';
 import {
@@ -32,7 +32,10 @@ import {
     registerTerminalOscLinkTracker,
 } from './terminal-osc-link-tracker';
 import { findQuotedPathLinks } from './terminal-quoted-path-links';
-import type { TerminalLinkReferenceContext } from './terminal-reference-links';
+import type {
+    TerminalLinkReferenceContext,
+    TerminalReferenceMatch,
+} from './terminal-reference-links';
 import { findTerminalReferenceLinks } from './terminal-reference-links';
 
 const EXPLICIT_TERMINAL_URL_PATTERN = /https?:\/\/[^\s<>"'`]+/giu;
@@ -82,6 +85,11 @@ export interface TerminalLinkMatch {
     detail?: string;
     endIndex: number;
     hint?: string;
+    /**
+     * Set by `findTerminalReferenceLinks` on the declarative references that carry a hover preview card. See
+     * {@link TerminalReferenceMatch}.
+     */
+    isReference?: boolean;
     kind: 'commit' | 'file' | 'url';
     startIndex: number;
     target: string;
@@ -104,6 +112,11 @@ export interface TerminalLinkContext {
     openCommit(reference: string): void;
     openFile(target: string, location?: EditorNavigationTarget): void;
     openUrl(url: string): void;
+    /**
+     * Builds the hover card for one reference. Optional so the link scanner and the unit tests can drive detection
+     * without standing up a preview store; a context without it keeps the plain affordance hint.
+     */
+    previewReference?(match: TerminalLinkMatch): TerminalLinkHintPreview | undefined;
 }
 
 export interface TerminalDetectedLink {
@@ -593,6 +606,7 @@ function linksForLogicalLine(
                         `plain:${logicalLine.firstBufferLine}:${match.startIndex}:${match.endIndex}`,
                         match,
                     ),
+                    match.isReference ? context.previewReference?.(match) : undefined,
                 ),
             leave: () => hint.leave(),
             range: { start, end },

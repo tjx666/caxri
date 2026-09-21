@@ -27,6 +27,18 @@ creates a Project, grants Files, Search, Git, Terminal cwd, or save authority, o
 Home expansion and suffix search never create a permanent single-file exception or a Renderer filesystem
 capability.
 
+Hovering a detected commit sha or GitHub reference opens the existing affordance popup with that
+reference's own metadata above the `⌘ click …` line. Only those two kinds are read: a configured
+reference rule already carries everything its card shows, and a file path would cost a Project-wide
+suffix search on an involuntary gesture. The Renderer coalesces concurrent hovers onto one read,
+cancels it through `requests.cancel` when the last waiter leaves, and caches bounded results; remote
+strings render as text, never markup. Server Core resolves the Project from the Terminal, so
+Renderer cannot submit a repository or cwd, and reads a GitHub reference only for a repository the
+Session already has — untrusted program output must not be able to steer an outbound request at a
+repository of its choosing, while `⌘ click` still opens anywhere. Nothing rejects: every miss returns
+an `unavailable` card with a closed, separately actionable reason, logged as that enum rather than
+the CLI's message. See `docs/terminal-reference-preview.md`.
+
 Terminal groups form a persisted binary split tree with horizontal or vertical direction and a bounded
 ratio. Dragging a tab moves its durable Terminal ID between groups or creates a new split; shared
 reducers collapse empty groups and validate that one Terminal cannot appear twice. Moving a view may

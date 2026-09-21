@@ -5,6 +5,7 @@ import type { StructuredLogger } from '@caxri/system';
 import type { ExternalStatusRunner } from './command';
 import { GITHUB_RATE_LIMIT_QUERY, runExternalStatusCommand } from './command';
 import { GitHubPullRequestStore } from './github';
+import { GitHubReferenceStore } from './github-reference';
 import type { ExternalStatusLimiterOptions, GitHubQuota } from './limiter';
 import { ExternalStatusLimiter, parseGitHubRateLimit } from './limiter';
 
@@ -28,6 +29,10 @@ export interface ExternalStatusHubOptions {
 export class ExternalStatusHub {
     private readonly base: ExternalStatusRunner;
     readonly github: GitHubPullRequestStore;
+    /**
+     * Hover-preview reads for `owner/repo#123`; see {@link GitHubReferenceStore} for why it is not the store above.
+     */
+    readonly githubReferences: GitHubReferenceStore;
     readonly limiter: ExternalStatusLimiter;
     /**
      * Quota-governed CLI runner. `git` is local and free, so it bypasses the circuit entirely. Declared as a field
@@ -48,6 +53,7 @@ export class ExternalStatusHub {
             probeQuota: () => this.probeGitHubQuota(),
         });
         this.github = new GitHubPullRequestStore(this.run, { now: options.now });
+        this.githubReferences = new GitHubReferenceStore(this.run, { now: options.now });
     }
 
     /**
@@ -71,5 +77,6 @@ export class ExternalStatusHub {
 
     clear(): void {
         this.github.clear();
+        this.githubReferences.clear();
     }
 }
