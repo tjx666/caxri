@@ -2,7 +2,7 @@
 
 import { spawn } from 'node:child_process';
 import { appendFile, mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises';
-import { isAbsolute, relative, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import process from 'node:process';
 
 import {
@@ -153,9 +153,12 @@ export function mergeCensusReceipts(
     return merged;
 }
 
-function projectRelativeSpec(spec: string): string {
-    const file = spec.replace(/(?::\d+)+$/u, '');
-    return isAbsolute(file) ? relative(projectRoot, file) : file;
+/**
+ * Reduces a dispatched spec or a receipt spec path to the identity the two are compared on. The reporter already writes
+ * repository-relative paths, so the only difference left is the `:line` suffix a dispatched census spec carries.
+ */
+function specIdentity(spec: string): string {
+    return spec.replace(/(?::\d+)+$/u, '');
 }
 
 /**
@@ -177,10 +180,10 @@ export function resolvePoolOutcome(
     const abortedInvocations: E2EAbortedInvocation[] = invocations.flatMap((invocation, index) =>
         exitCodes[index] === 0 ? [] : [{ exitCode: exitCodes[index], specs: invocation.specs }],
     );
-    const covered = new Set(receipt.specs.map(({ path }) => projectRelativeSpec(path)));
+    const covered = new Set(receipt.specs.map(({ path }) => specIdentity(path)));
     const missingSpecs = invocations
         .flatMap(({ specs }) => specs)
-        .map((spec) => projectRelativeSpec(spec))
+        .map((spec) => specIdentity(spec))
         .filter((spec) => !covered.has(spec));
     if (abortedInvocations.length === 0 && missingSpecs.length === 0) {
         return { receipt, result: receipt.status === 'passed' ? 0 : 1 };
@@ -238,10 +241,8 @@ async function runPool(
     const unknownTests = receipt.tests.filter(({ verdict }) => verdict === 'unknown').entries();
     for (const [index, test] of unknownTests) {
         const censusPath = `test-results/receipts/${pool}-census-${index}.json`;
-        const file = test.location.replace(/:\d+:\d+$/u, '');
-        const location = isAbsolute(file) ? relative(projectRoot, file) : file;
         const line = /:(\d+):\d+$/u.exec(test.location)?.[1];
-        const censusInvocation = { specs: [`${location}:${line ?? '1'}`] };
+        const censusInvocation = { specs: [`${specIdentity(test.location)}:${line ?? '1'}`] };
         // eslint-disable-next-line no-await-in-loop -- sequential Electron desktop invocations only
         const censusCode = await runInvocation(
             censusInvocation,

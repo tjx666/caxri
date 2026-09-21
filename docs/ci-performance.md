@@ -79,9 +79,15 @@ Every pool receipt carries `durationMs` on each test and each spec, and the pool
 prints the ten costliest specs with their share of the pool's serial total. Read that before
 proposing any pool change; it is the intended input for deciding what to move, split, or shorten.
 
-The share is against the pool's **serial** total, not its wall time. On a three-worker pool those
+The share is against the pool's **serial** total, not its wall time. On a multi-worker pool those
 differ on purpose: the serial total is the work, the wall time is what the workers achieved with it.
-Moving a spec between pools changes the serial total, so that is the number to reason with.
+Moving a spec between pools changes the serial total, so that is the number to reason with. The two
+together also measure the pool itself: serial ÷ wall is how many workers were actually busy, which
+is the only honest input for changing the worker count.
+
+Receipt paths are repository-relative, and `assertE2EPoolReceipt` rejects an absolute one. A receipt
+is an uploaded artifact whose spec paths reach the public step summary, so an absolute path there
+would publish the runner's home directory and the account name inside it.
 
 Before the receipt recorded durations, attribution meant reading the job log, and that method is
 worth knowing because it is the only way to re-derive a historical run. The `line` reporter prints
@@ -259,12 +265,19 @@ changing workflow wiring.
   stale and fails closed with all SHAs; rerunning the job reuses the same frozen payload, so the
   only remedy is to rebase and force-push.
 - Exact-head E2E verifies native modules and builds once. It then runs `desktop-exclusive` with one
-  worker followed by `parallel-safe` with three namespaced workers on the same `m2-24`; a failed
+  worker followed by `parallel-safe` with four namespaced workers on the same `m2-24`; a failed
   first pool does not suppress the second pool. That order is a scheduling decision, not a
   dependency: the platform-checks branch is the CPU-heavy half and finishes before E2E does, so the
-  one-worker pool is the one that should share the runner with it and the three-worker pool runs
+  one-worker pool is the one that should share the runner with it and the multi-worker pool runs
   after the checks have released their cores. The `workflow_dispatch` worker input stays bounded
   to 2–4 for frozen same-head comparisons.
+- The worker count is four because the pool scales almost perfectly.
+  [Run 35555168511](https://github.com/tjx666/caxri/actions/runs/35555168511) spent 1218.5s of
+  serial spec time in 416.4s of wall time on three workers — 2.93 workers busy out of 3, so the
+  cost of the fourth is one more Electron process on a machine the checks branch has already left.
+  Read the receipt's serial total before changing this: a pool whose largest spec approaches
+  `serial ÷ workers` has stopped scaling, and adding workers then buys memory pressure instead of
+  time.
 - Every successful product-affecting E2E-running path finishes with the fixed Renderer performance
   scenario. A spec-only `e2e-repair` reuses the failed head's unchanged product tree and skips it.
   The benchmark step rebuilds a profiling React Renderer after the production-build

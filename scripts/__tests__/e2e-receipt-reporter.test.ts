@@ -141,3 +141,59 @@ describe('receipt durations', () => {
         }
     });
 });
+
+/**
+ * Receipts are uploaded as CI artifacts and their spec paths reach the public job step summary, so an absolute path
+ * would publish the runner's home directory and the account name inside it.
+ */
+describe('receipt paths', () => {
+    const pooled = (tests: E2ETestReceipt[]) =>
+        createE2EPoolReceipt({
+            finishedAt: '2026-01-01T00:00:01.000Z',
+            pool: 'parallel-safe',
+            startedAt: '2026-01-01T00:00:00.000Z',
+            tests,
+        });
+
+    it('refuses an absolute test location, artifact, or spec path', () => {
+        const absoluteLocation = pooled([receipt()]);
+        expect(() =>
+            assertE2EPoolReceipt({
+                ...absoluteLocation,
+                tests: [receipt({ location: '/runner/work/caxri/e2e/example.e2e.ts:1:1' })],
+            }),
+        ).toThrow('paths must be repository-relative');
+        expect(() =>
+            assertE2EPoolReceipt({
+                ...absoluteLocation,
+                tests: [receipt({ artifacts: ['/runner/work/caxri/test-results/trace.zip'] })],
+            }),
+        ).toThrow('paths must be repository-relative');
+        expect(() =>
+            assertE2EPoolReceipt({
+                ...absoluteLocation,
+                specs: [
+                    {
+                        durationMs: 0,
+                        path: '/runner/work/caxri/e2e/example.e2e.ts',
+                        testIds: ['suite > case'],
+                        verdict: 'pass',
+                    },
+                ],
+            }),
+        ).toThrow('paths must be repository-relative');
+    });
+
+    it('accepts the repository-relative paths the reporter writes', () => {
+        expect(() =>
+            assertE2EPoolReceipt(
+                pooled([
+                    receipt({
+                        artifacts: ['test-results/parallel-safe/example/trace.zip'],
+                        location: 'e2e/example.e2e.ts:1:1',
+                    }),
+                ]),
+            ),
+        ).not.toThrow();
+    });
+});

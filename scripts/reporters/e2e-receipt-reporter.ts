@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { mkdir, rename, writeFile } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
+import { dirname, isAbsolute, relative, resolve } from 'node:path';
 import process from 'node:process';
 
 import type { FullConfig, Reporter, Suite, TestCase, TestResult } from '@playwright/test/reporter';
@@ -72,6 +72,19 @@ export interface E2EPoolReceipt {
     tests: E2ETestReceipt[];
     timedOut: number;
     unknown: number;
+}
+
+const projectRoot = resolve(import.meta.dirname, '../..');
+
+/**
+ * Rewrites a path Playwright reports in absolute form to a repository-relative one.
+ *
+ * Receipts are uploaded as CI artifacts and their spec paths are printed into the job's step summary, so an absolute
+ * path would publish the runner's home directory and the account name inside it. Relative paths also make a receipt
+ * comparable between the runner and a local checkout, which is what the pool and manifest comparisons assume.
+ */
+function repoRelative(path: string): string {
+    return isAbsolute(path) ? relative(projectRoot, path) : path;
 }
 
 function specPath(location: string): string {
@@ -217,6 +230,18 @@ export function assertE2EPoolReceipt(receipt: E2EPoolReceipt): void {
     ) {
         throw new Error(`E2E ${receipt.pool} receipt durations must be non-negative integers`);
     }
+    /**
+     * A receipt is uploaded as a CI artifact and its spec paths are printed into the job's step summary, so an absolute
+     * path would publish the runner's home directory and the account name inside it.
+     */
+    if (
+        [
+            ...receipt.tests.flatMap(({ artifacts, location }) => [location, ...artifacts]),
+            ...receipt.specs.map(({ path }) => path),
+        ].some((path) => isAbsolute(path))
+    ) {
+        throw new Error(`E2E ${receipt.pool} receipt paths must be repository-relative`);
+    }
     if (
         receipt.status === 'passed' &&
         (receipt.unknown !== 0 ||
@@ -253,7 +278,7 @@ class E2EReceiptReporter implements Reporter {
                     durationMs: 0,
                     errorIdentity: null,
                     id: test.id,
-                    location: `${test.location.file}:${test.location.line}:${test.location.column}`,
+                    location: `${repoRelative(test.location.file)}:${test.location.line}:${test.location.column}`,
                     title: test.titlePath().slice(1).join(' › '),
                     verdict: test.expectedStatus === 'skipped' ? 'skipped' : 'unknown',
                 },
@@ -269,7 +294,8 @@ class E2EReceiptReporter implements Reporter {
         planned.durationMs += Math.max(0, Math.round(result.duration));
         planned.artifacts = result.attachments
             .map(({ path }) => path)
-            .filter((path): path is string => Boolean(path));
+            .filter((path): path is string => Boolean(path))
+            .map((path) => repoRelative(path));
         planned.errorIdentity = error ? stableErrorIdentity(error) : null;
         planned.verdict =
             result.status === 'passed'
