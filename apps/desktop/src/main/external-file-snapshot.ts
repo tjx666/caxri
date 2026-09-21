@@ -55,8 +55,24 @@ export async function readBoundedExternalContent(file: BoundedFileReader): Promi
 export async function readExternalFileSnapshot(path: string): Promise<ExternalEditorDocument> {
     if (!isAbsolute(path))
         throw new CaxriError('VALIDATION', 'External file path must be absolute');
-    const parent = await directoryIdentity(dirname(path));
-    return readExternalFile(parent, resolve(path), basename(path));
+    /**
+     * The containing directory is canonicalized before it is identified, because a perfectly ordinary external path can
+     * reach it through a symlinked ancestor: on macOS `/tmp` is a link to `/private/tmp`, so every `/tmp/...` Terminal
+     * link used to be refused as "not a directory" even though the file was there. Only the ancestors are resolved —
+     * the final segment stays lexical, so `authorizeCandidate` still sees a symlinked _file_ as one and refuses it.
+     */
+    const parentPath = await realpathExisting(dirname(path));
+    const name = basename(path);
+    const parent = await directoryIdentity(parentPath);
+    return readExternalFile(parent, resolve(parentPath, name), name);
+}
+
+async function realpathExisting(path: string): Promise<string> {
+    try {
+        return await realpath(path);
+    } catch (error) {
+        return pathFailure(error, 'Unable to inspect external file location');
+    }
 }
 
 export async function readExternalFile(

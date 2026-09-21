@@ -9,6 +9,7 @@ import type { GitService } from '../git';
 import { currentGitRequestSignal } from '../git/request-signal';
 import type { createIntrospectionServices } from '../introspection';
 import type { ProjectStatusService } from '../project-status';
+import { VercelDeploymentStore } from '../project-status-vercel-store';
 import { createServiceHandlers } from '../service-handlers';
 
 describe('Runtime service handler cancellation', () => {
@@ -37,6 +38,7 @@ describe('Runtime service handler cancellation', () => {
             projectStatus: {} as ProjectStatusService,
             transcripts: {} as never,
             userDataPath: '/tmp/caxri-runtime-handler-test',
+            vercel: new VercelDeploymentStore(new ExternalStatusHub().run),
         });
 
         await handlers['git.sync'](
@@ -72,6 +74,7 @@ describe('Theme import handler', () => {
             projectStatus: {} as ProjectStatusService,
             transcripts: {} as never,
             userDataPath: '/tmp/caxri-theme-import-handler-test',
+            vercel: new VercelDeploymentStore(new ExternalStatusHub().run),
         });
 
         await expect(handlers['theme.importPath']({ path: '/tmp/empty-theme.json' })).rejects.toBe(

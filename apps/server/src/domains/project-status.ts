@@ -30,7 +30,6 @@ import { loadOverviewAcceptances, loadPullRequestAcceptances } from './project-s
 import { ProjectStatusAlertTracker } from './project-status-alerts';
 import type { BranchPublicationContext } from './project-status-branch';
 import { prepareStatusRepo, readBranchPublication } from './project-status-branch';
-import type { VercelLink } from './project-status-external';
 import { projectStatusCliError } from './project-status-external';
 import { loadOverviewLinearIssues, loadPullRequestLinearIssues } from './project-status-linear';
 import {
@@ -39,6 +38,7 @@ import {
     parseGitHubPullRequest,
 } from './project-status-parse';
 import { loadVercelDeployments } from './project-status-vercel';
+import { VercelDeploymentStore } from './project-status-vercel-store';
 import type { SessionTranscriptContext } from './session-context';
 import { SingleFlight } from './single-flight';
 
@@ -102,6 +102,11 @@ export interface ProjectStatusServiceOptions {
     github?: GitHubPullRequestStore;
     now?: () => number;
     /**
+     * Server-wide Vercel projection shared with the PrimarySidebar's delivery badge, for the same reason `github` is
+     * shared: one production query per repository instead of one per reader.
+     */
+    vercel?: VercelDeploymentStore;
+    /**
      * Reads the clues this Session's own Agent conversation produced, so the status bar can name the issue a branch is
      * about even when the pull request body never said it. A Server assembled without it simply drops that source.
      */
@@ -126,10 +131,10 @@ export class ProjectStatusService {
     private readonly sessionGenerations = new Map<string, number>();
     private nextSessionGeneration = 0;
     /**
-     * `owner/repo` → its Vercel project, held here so the lookup survives one refresh; `loadVercelDeployments` owns the
-     * bound it is kept under.
+     * Shared Vercel reader. It owns the `owner/repo` → Vercel project map this panel's deployment tree needs, so the
+     * expensive discovery is paid once per process even though the sidebar's delivery badge reads it too.
      */
-    private readonly vercelLinks = new Map<string, VercelLink>();
+    private readonly vercel: VercelDeploymentStore;
     private readonly acceptance: AcceptanceStore;
     private readonly github: GitHubPullRequestStore;
     private readonly linear: LinearIssueStore;
@@ -146,6 +151,8 @@ export class ProjectStatusService {
     ) {
         this.github =
             options.github ?? new GitHubPullRequestStore(this.runner, { now: () => this.now() });
+        this.vercel =
+            options.vercel ?? new VercelDeploymentStore(this.runner, { now: () => this.now() });
         /**
          * One store for both Linear readers in this Service — the Status panel's issue rows and the status bar's
          * leading issue — so a Session's Linear state costs one CLI spawn per issue rather than two.
@@ -370,7 +377,7 @@ export class ProjectStatusService {
             this.loadGitHub(prepared.repository.rootPath, prepared.context, isForced),
             loadVercelDeployments(
                 {
-                    links: this.vercelLinks,
+                    links: this.vercel.links,
                     onParseFailure: (error) => this.logExternalParseFailure('vc', error),
                     run: (arguments_, cwd) => this.runCommand('vc', arguments_, cwd),
                 },

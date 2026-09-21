@@ -60,8 +60,14 @@ interface TerminalPaneProperties {
     terminalId: string;
 }
 
+/**
+ * No horizontal padding on purpose. `.xterm` already reserves a 20px left gutter for shell-integration command
+ * decorations (see `styles.css`), and a pane padding stacked on top of it pushed the first glyph 28px from the pane
+ * edge while the right side gives up only the 8px scrollbar plus sub-cell slack — a visible asymmetry at every window
+ * width. The gutter is the terminal's left inset; the pane adds none of its own.
+ */
 const terminalPaneClassName =
-    'terminal-pane relative flex h-full w-full min-h-0 min-w-0 flex-col pt-2 pl-2 bg-background';
+    'terminal-pane relative flex h-full w-full min-h-0 min-w-0 flex-col pt-2 bg-background';
 
 const terminalRecoveryToneClassName = {
     danger: 'text-danger',
@@ -169,7 +175,7 @@ function TerminalRecoveryBar({
             aria-live="polite"
             className={cn(
                 `terminal-recovery terminal-recovery-${exitPresentation.tone}`,
-                '-ml-2 flex min-w-0 flex-none basis-7 items-center justify-between gap-3 border-t border-border pt-0 pr-1 pb-0 pl-2 text-[11px]',
+                'flex min-w-0 flex-none basis-7 items-center justify-between gap-3 border-t border-border pt-0 pr-1 pb-0 pl-2 text-[11px]',
                 'bg-[color-mix(in_srgb,var(--surface)_65%,var(--background))]',
                 terminalRecoveryToneClassName[exitPresentation.tone],
             )}
@@ -408,7 +414,7 @@ export function TerminalPane({ active, ariaLabel, terminalId }: TerminalPaneProp
             {longPastePending && (
                 <div
                     aria-live="polite"
-                    className="-ml-2 flex min-h-7 flex-none items-center gap-2 border-t border-border bg-surface px-2 text-[11px] text-muted"
+                    className="flex min-h-7 flex-none items-center gap-2 border-t border-border bg-surface px-2 text-[11px] text-muted"
                     role="status"
                 >
                     <Spinner size={14} /> Saving pasted text…

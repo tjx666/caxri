@@ -5,6 +5,7 @@ import {
     GitPullRequestArrow,
     GitPullRequestClosed,
     GitPullRequestDraft,
+    Rocket,
 } from 'lucide-react';
 
 import { cn } from '../../lib/utilities';
@@ -16,6 +17,8 @@ import {
 
 const ICONS: Record<SessionPullRequestIcon, LucideIcon> = {
     closed: GitPullRequestClosed,
+    // The same rocket the Status panel gives a production deployment, so one delivery reads the same in both surfaces.
+    deployed: Rocket,
     draft: GitPullRequestDraft,
     merged: GitMerge,
     open: GitPullRequestArrow,
@@ -46,6 +49,7 @@ export function SessionPullRequestIndicator({
             )}
             data-pull-request-state={pullRequest.state}
             data-pull-request-checks={pullRequest.checks}
+            data-pull-request-deployment={pullRequest.deployment?.state}
         >
             <Icon aria-hidden="true" size={13} />
         </span>

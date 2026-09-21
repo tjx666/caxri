@@ -22,6 +22,11 @@ import {
     Monitor,
     Package,
     Rocket,
+    Shield,
+    ShieldCheck,
+    ShieldEllipsis,
+    ShieldMinus,
+    ShieldX,
 } from 'lucide-react';
 
 import { Spinner } from '../../components/ui/spinner';
@@ -75,6 +80,21 @@ const themeIcons = {
     'question': Circle,
     'repo': RepoIcon,
     'rocket': Rocket,
+    /**
+     * A production deployment that succeeded, which is the one row on this panel that means the work is live. It keeps
+     * the rocket's shape and adds the success tone `themeIconClassNames` gives it, because the plain rocket is also the
+     * Deployments group's glyph — where it counts deployments and asserts nothing about how they went.
+     */
+    'rocket-success': Rocket,
+    /**
+     * The acceptance report family. A shield is not a state glyph here: it says the row is a human sign-off rather than
+     * a machine verdict, and only the interior symbol changes with the state.
+     */
+    'shield': Shield,
+    'shield-check': ShieldCheck,
+    'shield-ellipsis': ShieldEllipsis,
+    'shield-minus': ShieldMinus,
+    'shield-x': ShieldX,
     'symbol-string': File,
     'warning': AlertTriangle,
     'worktree': WorktreeIcon,
@@ -109,6 +129,12 @@ const themeIconClassNames: Partial<Record<ThemeIconId, string>> = {
     'hourglass': 'text-muted',
     'pass': 'text-success',
     'question': 'text-muted',
+    'rocket-success': 'text-success',
+    'shield': 'text-muted',
+    'shield-check': 'text-success',
+    'shield-ellipsis': 'text-warning',
+    'shield-minus': 'text-muted',
+    'shield-x': 'text-danger',
     'warning': 'text-warning',
 };
 

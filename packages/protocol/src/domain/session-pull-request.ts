@@ -25,6 +25,17 @@ export const pullRequestUnavailableSchema = z.object({
  * was discovered: `agent` when the Session's primary Agent created or discussed it in its transcript, `branch` when it
  * was looked up from the Workbench root's checked-out branch.
  */
+/**
+ * The production deployment built from this pull request's merge commit.
+ *
+ * Present only when the hosting provider's current production deployment was built from exactly this pull request's
+ * merge commit, which is what makes it this Session's delivery rather than the project's general deployment state. A
+ * later merge moves production to another commit, and the field disappears from the row it used to describe.
+ */
+export const sessionDeploymentSchema = z.object({
+    state: projectStatusStateSchema,
+});
+
 export const sessionPullRequestSchema = z.object({
     number: z.number().int().positive(),
     title: z.string(),
@@ -34,6 +45,7 @@ export const sessionPullRequestSchema = z.object({
      * Aggregated CI check rollup; absent when GitHub reported no checks.
      */
     checks: projectStatusStateSchema.optional(),
+    deployment: sessionDeploymentSchema.optional(),
     source: z.enum(['agent', 'branch']),
 });
 
@@ -49,6 +61,7 @@ export const sessionPullRequestsSchema = z.object({
     refreshedAt: z.number(),
 });
 
+export type SessionDeployment = z.infer<typeof sessionDeploymentSchema>;
 export type SessionPullRequest = z.infer<typeof sessionPullRequestSchema>;
 export type SessionPullRequestState = z.infer<typeof sessionPullRequestStateSchema>;
 export type PullRequestUnavailable = z.infer<typeof pullRequestUnavailableSchema>;

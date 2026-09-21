@@ -6,7 +6,7 @@ import type {
 
 import type { SessionActivityPresentation } from './session-activity';
 
-export type SessionPullRequestIcon = 'closed' | 'draft' | 'merged' | 'open';
+export type SessionPullRequestIcon = 'closed' | 'deployed' | 'draft' | 'merged' | 'open';
 
 /**
  * Extends the shared activity tones with `merged`, which the lifecycle glyphs have no use for. A merged PR cannot
@@ -71,6 +71,56 @@ const STATE_LABELS: Record<SessionPullRequest['state'], string> = {
 };
 
 /**
+ * What a merged pull request became once the hosting provider rebuilt production from it.
+ *
+ * "Merged" is the last thing GitHub can say, but it is not the thing a maintainer is waiting for: the delivery is only
+ * done when production is serving it. The Server attaches this field solely when the live production deployment was
+ * built from this pull request's own merge commit, so a row showing the rocket is showing its own delivery. A build
+ * that is still running, or that failed, keeps the same glyph and changes only the color — the shape answers "did this
+ * ship?" and the color answers "how did it go?".
+ *
+ * A deployment with nothing to report (canceled, or a state Vercel does not name) falls back to the merged glyph.
+ */
+function deployedPresentation(
+    deployment: SessionPullRequest['deployment'],
+    number: number,
+): SessionPullRequestPresentation | undefined {
+    const base = `Pull request #${number} merged`;
+    switch (deployment?.state) {
+        case 'success':
+            return {
+                ariaLabel: `${base} and deployed to production.`,
+                icon: 'deployed',
+                label: 'Deployed',
+                tone: 'success',
+                checksLabel: 'Deployed to production',
+                checksTone: 'success',
+            };
+        case 'failure':
+            return {
+                ariaLabel: `${base}, production deployment failed.`,
+                icon: 'deployed',
+                label: 'Deploy failed',
+                tone: 'danger',
+                checksLabel: 'Production deployment failed',
+                checksTone: 'danger',
+            };
+        case 'pending':
+        case 'queued':
+            return {
+                ariaLabel: `${base}, deploying to production.`,
+                icon: 'deployed',
+                label: 'Deploying',
+                tone: 'warning',
+                checksLabel: 'Deploying to production',
+                checksTone: 'warning',
+            };
+        default:
+            return undefined;
+    }
+}
+
+/**
  * Keeps lifecycle color independent of CI: a red open glyph was mistaken for a closed PR at sidebar size. Checks use a
  * hover-card text; terminal lifecycle states suppress stale checks. Project-level failures belong to the Status tab.
  */
@@ -81,7 +131,14 @@ export function sessionPullRequestPresentation(
     const base = `Pull request #${pullRequest.number} ${label.toLowerCase()}`;
     switch (pullRequest.state) {
         case 'merged':
-            return { ariaLabel: `${base}.`, icon: 'merged', label, tone: 'merged' };
+            return (
+                deployedPresentation(pullRequest.deployment, pullRequest.number) ?? {
+                    ariaLabel: `${base}.`,
+                    icon: 'merged',
+                    label,
+                    tone: 'merged',
+                }
+            );
         case 'closed':
             return { ariaLabel: `${base}.`, icon: 'closed', label, tone: 'danger' };
         case 'draft':
