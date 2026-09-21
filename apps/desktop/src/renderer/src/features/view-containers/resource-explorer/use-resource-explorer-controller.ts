@@ -1,5 +1,5 @@
 import type { DragEvent, RefCallback } from 'react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import type { ProjectRecord, SessionRecord } from '@caxri/protocol';
 import { useIsFetching } from '@tanstack/react-query';
@@ -28,9 +28,11 @@ import {
     useFileOperationStore,
 } from './file-operation-state';
 import {
+    activeResourceExplorerScope,
     clearScopeRevealPath,
     collapseScope,
     didRevealPathInScope,
+    setResourceExplorerActiveScope,
     setScopeFocusPath,
     setScopeSelectedPath,
     subscribeResourceExplorerScopePruning,
@@ -227,6 +229,24 @@ export function useResourceExplorerController(): ResourceExplorerController | un
         request: EditRequest;
         scopeId: string;
     }>();
+    /**
+     * Publishes the scope the mounted tree draws, before paint so the rows read the new Session's expansion and
+     * selection in the same frame the switch lands. Rows subscribe to their own booleans rather than to this value, so
+     * republishing re-renders only the rows whose state actually differs between the two Sessions — the tree itself
+     * skips the controller's own re-render entirely, because it no longer takes the scope as a prop.
+     */
+    useLayoutEffect(() => {
+        setResourceExplorerActiveScope(
+            session && scopeId
+                ? {
+                      projectId: selectedProjectId ?? session.workbenchProjectId,
+                      scopeId,
+                      sessionId: session.id,
+                  }
+                : undefined,
+        );
+    }, [scopeId, selectedProjectId, session]);
+    useEffect(() => () => setResourceExplorerActiveScope(undefined), []);
     useEffect(() => {
         if (!isContainerActive || !scopeId || !sessionRootPath || !activeFilePath) {
             if (scopeId) clearScopeRevealPath(scopeId);
@@ -289,15 +309,24 @@ export function useResourceExplorerController(): ResourceExplorerController | un
 
     const projectId = selectedProjectId ?? session.workbenchProjectId;
     const editing = editingState?.scopeId === scopeId ? editingState.request : undefined;
-    const setEditing = (request?: EditRequest): void =>
-        setEditingState(request ? { request, scopeId } : undefined);
+    /**
+     * These two reach the tree as props, so they read the scope from the store instead of capturing it. Capturing
+     * `scopeId` gave them a new identity on every Session switch, which re-rendered all 49 visible rows even after the
+     * rows themselves stopped taking the scope as a prop.
+     */
+    const setEditing = (request?: EditRequest): void => {
+        const scope = activeResourceExplorerScope();
+        setEditingState(request && scope ? { request, scopeId: scope.scopeId } : undefined);
+    };
     const setSelectedPath = (path?: string): void => setScopeSelectedPath(scopeId, path);
     const requestFocus = (target: FocusTarget): void => {
+        const scope = activeResourceExplorerScope();
+        if (!scope) return;
         if (target.kind === 'path') {
-            setScopeFocusPath(scopeId, target.path);
+            setScopeFocusPath(scope.scopeId, target.path);
             return;
         }
-        setScopeFocusPath(scopeId, undefined);
+        setScopeFocusPath(scope.scopeId, undefined);
         const label = target.itemKind === 'file' ? 'New File' : 'New Folder';
         fileCaptionReference.current
             ?.querySelector<HTMLButtonElement>(`button[aria-label="${CSS.escape(label)}"]`)

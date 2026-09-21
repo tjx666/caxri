@@ -4,11 +4,14 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { useWorkbenchStore } from '../../../../stores/workbench';
 import { controlledViewQueryKey } from '../../view-operation-client';
 import {
+    activeResourceExplorerScope,
     clearScopeRevealPath,
     clearStaleScopeFocusPath,
     collapseScope,
     didRevealPathInScope,
     pruneResourceExplorerScopes,
+    rowSelectors,
+    setResourceExplorerActiveScope,
     setScopeFocusPath,
     setScopePathExpanded,
     setScopeSelectedPath,
@@ -16,22 +19,49 @@ import {
     subscribeResourceExplorerScopePruning,
     useResourceExplorerScopeStore,
 } from '../resource-explorer-scope-store';
-import { scopedValue } from '../resource-explorer-state';
 
 const scopeA = 'session-a:project-a';
 const scopeB = 'session-b:project-a';
 
 /**
- * Mirrors the per-row selectors used by `FileTreeItem`; a row only re-renders when its own boolean flips.
+ * The real per-row selector `FileTreeItem` subscribes through, read against whichever scope is active; a row only
+ * re-renders when its own boolean flips.
  */
 function isExpanded(scopeId: string, path: string): boolean {
+    setResourceExplorerActiveScope({
+        projectId: 'project-a',
+        scopeId,
+        sessionId: scopeId.split(':', 1)[0],
+    });
+    return rowSelectors.isPathExpanded(useResourceExplorerScopeStore.getState(), path);
+}
+
+/**
+ * Every input one row subscribes to, as one comparable tuple.
+ */
+function rowInputs(path: string): unknown[] {
     const state = useResourceExplorerScopeStore.getState();
-    return scopedValue(state.expandedByScope, scopeId)?.includes(path) ?? false;
+    return [
+        rowSelectors.isPathExpanded(state, path),
+        rowSelectors.isPathSelected(state, path),
+        rowSelectors.isPathFocusRequested(state, path),
+        rowSelectors.pathRevealRevision(state, path),
+        rowSelectors.hasScopeSelection(state),
+    ];
+}
+
+function selectScope(scopeId: string): void {
+    setResourceExplorerActiveScope({
+        projectId: 'project-a',
+        scopeId,
+        sessionId: scopeId.slice(0, scopeId.indexOf(':')),
+    });
 }
 
 describe('Resource Explorer scope store', () => {
     beforeEach(() => {
         useResourceExplorerScopeStore.setState({
+            activeScope: undefined,
             expandedByScope: {},
             focusByScope: {},
             revealByScope: {},
@@ -156,6 +186,52 @@ describe('Resource Explorer scope store', () => {
         expect(state.expandedByScope).toBe(liveExpanded);
         expect(state.selectionByScope).toEqual({});
         expect(state.focusByScope).toEqual({});
+    });
+
+    /**
+     * The regression behind issue #784: switching Session used to re-render all 49 visible file-tree rows, because the
+     * scope reached them as a prop. Rows now read it from here, so a switch may only disturb the rows whose own state
+     * actually differs between the two Sessions.
+     */
+    it('leaves every row untouched when switching to a Session with the same tree state', () => {
+        const paths = Array.from({ length: 49 }, (_, index) => `/project/file-${index}.ts`);
+        for (const scopeId of [scopeA, scopeB]) {
+            setScopePathExpanded(scopeId, '/project/src', true);
+            setScopeSelectedPath(scopeId, '/project/file-7.ts');
+        }
+
+        selectScope(scopeA);
+        const before = paths.map((path) => rowInputs(path));
+        selectScope(scopeB);
+        const after = paths.map((path) => rowInputs(path));
+
+        expect(after).toEqual(before);
+        expect(activeResourceExplorerScope()?.scopeId).toBe(scopeB);
+    });
+
+    it('disturbs only the rows whose state differs in the Session switched to', () => {
+        const paths = ['/project/a.ts', '/project/b.ts', '/project/src'];
+        setScopePathExpanded(scopeA, '/project/src', true);
+        setScopeSelectedPath(scopeA, '/project/a.ts');
+        // Scope B has the same selection but leaves `/project/src` collapsed.
+        setScopeSelectedPath(scopeB, '/project/a.ts');
+
+        selectScope(scopeA);
+        const before = paths.map((path) => rowInputs(path));
+        selectScope(scopeB);
+        const after = paths.map((path) => rowInputs(path));
+
+        const changed = paths.filter((_, index) => {
+            return JSON.stringify(before[index]) !== JSON.stringify(after[index]);
+        });
+        expect(changed).toEqual(['/project/src']);
+    });
+
+    it('drops the active scope when its Session is pruned', () => {
+        selectScope(scopeB);
+        pruneResourceExplorerScopes(new Set(['session-a']));
+
+        expect(activeResourceExplorerScope()).toBeUndefined();
     });
 
     it('prunes when the bootstrap Session list changes', () => {
