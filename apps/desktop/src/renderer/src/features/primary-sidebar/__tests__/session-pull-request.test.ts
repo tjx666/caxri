@@ -42,6 +42,41 @@ describe('Session pull request presentation', () => {
         });
     });
 
+    /**
+     * "Merged" is where GitHub stops and where the maintainer's question starts, so a merge production is already
+     * serving trades the merge glyph for the rocket. A build still running or failed keeps the shape and moves only the
+     * color; a canceled one has nothing to report and stays merged.
+     */
+    it('promotes a merged PR to the deployment glyph once production serves it', () => {
+        expect(
+            sessionPullRequestPresentation(
+                pullRequest({ state: 'merged', deployment: { state: 'success' } }),
+            ),
+        ).toEqual({
+            ariaLabel: 'Pull request #42 merged and deployed to production.',
+            icon: 'deployed',
+            label: 'Deployed',
+            tone: 'success',
+            checksLabel: 'Deployed to production',
+            checksTone: 'success',
+        });
+        expect(
+            sessionPullRequestPresentation(
+                pullRequest({ state: 'merged', deployment: { state: 'pending' } }),
+            ),
+        ).toMatchObject({ icon: 'deployed', label: 'Deploying', tone: 'warning' });
+        expect(
+            sessionPullRequestPresentation(
+                pullRequest({ state: 'merged', deployment: { state: 'failure' } }),
+            ),
+        ).toMatchObject({ icon: 'deployed', label: 'Deploy failed', tone: 'danger' });
+        expect(
+            sessionPullRequestPresentation(
+                pullRequest({ state: 'merged', deployment: { state: 'neutral' } }),
+            ),
+        ).toMatchObject({ icon: 'merged', tone: 'merged' });
+    });
+
     it('keeps open PRs green and reports checks separately from lifecycle state', () => {
         expect(sessionPullRequestPresentation(pullRequest({ checks: 'failure' }))).toMatchObject({
             ariaLabel: 'Pull request #42 open, checks failing.',

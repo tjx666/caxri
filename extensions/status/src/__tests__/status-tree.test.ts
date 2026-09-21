@@ -433,8 +433,8 @@ describe('Status extension tree', () => {
          * The one row on this panel that means the work is live gets its own glyph. A green check shared with every
          * passing CI check answered "did a check pass?", never "did it ship?".
          */
-        expect(iconId(children[7])).toBe('rocket');
-        expect(iconId(children[6].children![0])).toBe('rocket');
+        expect(iconId(children[7])).toBe('rocket-success');
+        expect(iconId(children[6].children![0])).toBe('rocket-success');
         // Preview keeps the shared state glyph, and so does a production deployment that did not succeed.
         expect(iconId(children[8])).toBe('circle-x');
         expect(iconId(children[6].children![1])).toBe('loading');

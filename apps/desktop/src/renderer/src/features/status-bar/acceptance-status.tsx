@@ -1,13 +1,5 @@
 import type { ProjectStatusOverviewAcceptance, ProjectStatusState } from '@caxri/protocol';
-import {
-    CircleCheck,
-    CircleDashed,
-    CircleDot,
-    CircleSlash,
-    CircleSmall,
-    CircleX,
-    LoaderCircle,
-} from 'lucide-react';
+import { Shield, ShieldCheck, ShieldEllipsis, ShieldMinus, ShieldX } from 'lucide-react';
 
 import {
     acceptanceAriaLabel,
@@ -18,20 +10,21 @@ import { StatusInfo } from './status-info';
 import { StatusItem } from './status-item';
 
 /**
- * Shape says where the report stands, color says whether that is good news. The Server already reduced the lifecycle
- * and the round result to `state`, so this is presentation only — the Status panel draws the same state with its own
- * codicons and reaches the same conclusion by construction. `unknown` is the link Caxri recognized but never read, and
+ * The shield says this chip is an acceptance report rather than one more circle among the CI, Linear, and deployment
+ * chips beside it; the interior symbol says where the report stands, and colour says whether that is good news. The
+ * Status panel's acceptance rows use the same family for the same reason (`acceptanceIcon` in the Status extension), so
+ * the chip and the row name one report the same way. `unknown` is the link Caxri recognized but never read, and
  * deliberately looks inert rather than alarming.
  */
-const STATE_PRESENTATION: Record<ProjectStatusState, { Icon: typeof CircleCheck; tone: string }> = {
-    success: { Icon: CircleCheck, tone: 'text-success' },
-    failure: { Icon: CircleX, tone: 'text-danger' },
-    pending: { Icon: LoaderCircle, tone: 'text-warning' },
-    // A filled dot rather than a spinner: nothing is running yet, and animating a queue makes it look like it is.
-    queued: { Icon: CircleSmall, tone: 'fill-current text-warning' },
-    cancelled: { Icon: CircleSlash, tone: 'text-muted' },
-    neutral: { Icon: CircleDashed, tone: 'text-muted' },
-    unknown: { Icon: CircleDot, tone: 'text-muted' },
+const STATE_PRESENTATION: Record<ProjectStatusState, { Icon: typeof Shield; tone: string }> = {
+    success: { Icon: ShieldCheck, tone: 'text-success' },
+    failure: { Icon: ShieldX, tone: 'text-danger' },
+    pending: { Icon: ShieldEllipsis, tone: 'text-warning' },
+    // Accepted for verification and not started: the shield is there, it just has nothing to report yet.
+    queued: { Icon: Shield, tone: 'text-warning' },
+    cancelled: { Icon: ShieldMinus, tone: 'text-muted' },
+    neutral: { Icon: ShieldMinus, tone: 'text-muted' },
+    unknown: { Icon: Shield, tone: 'text-muted' },
 };
 
 /**
