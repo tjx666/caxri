@@ -21,6 +21,7 @@ import {
     completePathQuery,
     parsePathBrowserInput,
     pathBrowserCreateCandidate,
+    pathBrowserInputTransition,
     pathBrowserKeyIntent,
     projectDirectoryPath,
 } from './path-browser';
@@ -345,7 +346,7 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
         completedInputWithoutBrowse.current = null;
         inputRevision.current += 1;
         setError(undefined);
-        setInputState((current) => ({ ...current, input }));
+        setInputState((current) => pathBrowserInputTransition(current, input));
         setSelectedIndex(0);
     };
 

@@ -111,6 +111,11 @@ function displayProjectDirectory(root: string, directory: string): string {
     return value ? `${value}/` : '';
 }
 
+/**
+ * The free-mode breadcrumb. It is the snapshot's `directoryLabel`, never its `input`: a navigation that typed the whole
+ * absolute path back into the field made the user delete it again before they could type anything of their own, which
+ * is exactly what the detach gesture exists to avoid.
+ */
 function trailingSlash(path: string): string {
     return path === '/' ? '/' : `${path}/`;
 }
@@ -645,7 +650,7 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
         }
         if (context.mode === 'free') {
             context.freeOriginDirectory = directory.path;
-            return browseFree(context, directory, '', trailingSlash(directory.path));
+            return browseFree(context, directory, '', '');
         }
         return browseProject(context, directory, '', '');
     }
@@ -697,7 +702,7 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
                     context.mode = 'free';
                     context.currentDirectory = directory.path;
                     context.freeOriginDirectory = directory.path;
-                    return browseFree(context, directory, '', trailingSlash(directory.path));
+                    return browseFree(context, directory, '', '');
                 }
                 if (target.kind === 'parent') {
                     const parentPath = dirname(context.listedDirectory.path);
@@ -713,7 +718,7 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
                     context.listedDirectory = directory;
                     if (context.mode === 'free') {
                         context.freeOriginDirectory = directory.path;
-                        return browseFree(context, directory, '', trailingSlash(directory.path));
+                        return browseFree(context, directory, '', '');
                     }
                     return browseProject(context, directory, '', '');
                 }

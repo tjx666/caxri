@@ -67,7 +67,12 @@ const acceptanceIcons: Record<ProjectStatusState, string> = {
     queued: 'shield',
     cancelled: 'shield-minus',
     neutral: 'shield-minus',
-    unknown: 'shield',
+    /**
+     * The report's own lookup failed, so the panel knows nothing about this branch's acceptance. Deliberately not the
+     * plain shield the `queued` row wears: that one has nothing to report _yet_, and this one cannot say whether there
+     * is something to report at all. Matches `STATE_PRESENTATION` in the Desktop status bar's `acceptance-status`.
+     */
+    unknown: 'shield-alert',
 };
 
 export function acceptanceIcon(acceptance: Pick<ProjectStatusAcceptance, 'state'>): string {

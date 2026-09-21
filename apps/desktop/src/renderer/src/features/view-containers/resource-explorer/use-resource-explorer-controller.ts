@@ -2,10 +2,11 @@ import type { DragEvent, RefCallback } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { ProjectRecord, SessionRecord } from '@caxri/protocol';
+import { useIsFetching } from '@tanstack/react-query';
 
 import { executeCommand } from '../../../commands/execute';
 import { dragPath, hasDraggedPath } from '../../../lib/file-drag';
-import { queryClient } from '../../../queries/client';
+import { CONTROLLED_VIEW_QUERY_METHOD, queryClient } from '../../../queries/client';
 import { useSelectedSession, useSelectedWorkbenchProject } from '../../../stores/selectors';
 import { useActivePaneTab } from '../../workbench/pane-actions';
 import {
@@ -126,6 +127,11 @@ export interface ResourceExplorerController {
     editing: EditRequest | undefined;
     fileCaptionRef: RefCallback<HTMLDivElement>;
     isCancelRevealed: boolean;
+    /**
+     * At least one directory listing for this view is in flight. The header spins its Refresh glyph on it, which is the
+     * only feedback a re-read gives when the tree comes back unchanged.
+     */
+    isRefreshing: boolean;
     isRootPasteDisabled: boolean;
     isRootPasteEmpty: boolean;
     isRootPasteBlocked: boolean;
@@ -135,6 +141,12 @@ export interface ResourceExplorerController {
     project: ProjectRecord | undefined;
     projectId: string;
     projectOperations: PendingFileOperation[];
+    /**
+     * Re-reads every listed directory from disk. Deliberately not paired with `collapseRevision`: expansion and
+     * selection live in the scope store rather than in the query cache, so invalidating the listings leaves the tree
+     * open exactly where the user left it — including the path down to the file the editor has open.
+     */
+    refreshFiles: () => void;
     requestFocus: (target: FocusTarget) => void;
     rootPathCaption: string;
     scopeId: string;
@@ -155,6 +167,7 @@ export function useResourceExplorerController(): ResourceExplorerController | un
     const createFileCommand = useControlledViewActionCommand('resource.createFile');
     const createFolderCommand = useControlledViewActionCommand('resource.createFolder');
     const collapseCommand = useControlledViewActionCommand('resource.collapse');
+    const refreshCommand = useControlledViewActionCommand('resource.refresh');
     const session = useSelectedSession();
     const project = useSelectedWorkbenchProject();
     const sessionRootPath = session?.rootPath;
@@ -170,6 +183,14 @@ export function useResourceExplorerController(): ResourceExplorerController | un
     );
     const pendingOperation = projectOperations.at(0);
     const isCancelRevealed = useIsCancelRevealed(pendingOperation);
+    // Matches the same queries `resource.refresh` invalidates below, so the glyph spins for exactly the work the
+    // button started — and equally for a listing React Query refetched on its own.
+    const isRefreshing =
+        useIsFetching({
+            predicate: ({ queryKey }) =>
+                queryKey[0] === CONTROLLED_VIEW_QUERY_METHOD &&
+                (queryKey[1] as { viewId?: string } | undefined)?.viewId === viewId,
+        }) > 0;
     const fileCaptionReference = useRef<HTMLDivElement>(null);
     const [collapseRevision, setCollapseRevision] = useState(0);
     const [editingState, setEditingState] = useState<{
@@ -221,7 +242,7 @@ export function useResourceExplorerController(): ResourceExplorerController | un
                               // eslint-disable-next-line no-void -- React Query owns refetch errors
                               void queryClient.invalidateQueries({
                                   predicate: ({ queryKey }) =>
-                                      queryKey[0] === 'viewContainers.viewOperation' &&
+                                      queryKey[0] === CONTROLLED_VIEW_QUERY_METHOD &&
                                       (queryKey[1] as { viewId?: string } | undefined)?.viewId ===
                                           viewId,
                               });
@@ -294,6 +315,7 @@ export function useResourceExplorerController(): ResourceExplorerController | un
             fileCaptionReference.current = node;
         },
         isCancelRevealed,
+        isRefreshing,
         isRootPasteDisabled: isRootPasteEmpty || isRootPasteBlocked,
         isRootPasteEmpty,
         isRootPasteBlocked,
@@ -308,6 +330,9 @@ export function useResourceExplorerController(): ResourceExplorerController | un
         project,
         projectId,
         projectOperations,
+        refreshFiles: () => {
+            if (refreshCommand) executeCommand(refreshCommand);
+        },
         requestFocus,
         rootPathCaption: fileTreeRootCaption(session.rootPath),
         scopeId,

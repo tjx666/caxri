@@ -106,10 +106,13 @@ describe('path browser authority', () => {
             browserId: initial.browserId,
             target: { kind: 'detachProject' },
         });
+        // The location moves to the breadcrumb, not into the field: detaching exists so the user can type a path of
+        // their own, and handing them the absolute path they are standing on means deleting it first.
         expect(detached).toMatchObject({
             browserId: initial.browserId,
             canCreate: false,
-            input: `${canonicalWorkbenchRoot}/`,
+            directoryLabel: `${canonicalWorkbenchRoot}/`,
+            input: '',
             mode: 'free',
         });
         expect(detached).not.toHaveProperty('rootLabel');

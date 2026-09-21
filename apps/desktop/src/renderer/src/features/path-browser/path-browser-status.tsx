@@ -18,7 +18,8 @@ export function PathBrowserHelp({
             {isCompletable && <span>Tab Complete</span>}
             <span>{isCreateSelected ? 'Enter Create' : '→/Enter Open'}</span>
             <span>← at start Parent</span>
-            {isProject && <span>⌫ at start Browse anywhere</span>}
+            {/* Names the shortcut that leaves the anchor where it is, and the one that brings it back. */}
+            <span>{isProject ? '/ or ~ Any path' : './ Project'}</span>
             <span>Esc Close</span>
         </div>
     );

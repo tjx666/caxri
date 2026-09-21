@@ -228,8 +228,13 @@ test('Cmd+P removes the Project anchor and opens an external file without a pick
         await expect(dialog.getByText('project/', { exact: true })).toBeVisible();
 
         await input.press('Backspace');
-        await expect(input).not.toHaveAttribute('aria-describedby', /.+/u);
-        await expect(input).toHaveValue(projectRoot === '/' ? '/' : `${projectRoot}/`);
+        /*
+         * The location moves to the breadcrumb, not into the field. Detaching the anchor exists so the user can type a
+         * path of their own, and handing them the absolute path they are already standing on means deleting it first.
+         */
+        const freeDirectoryLabel = projectRoot === '/' ? '/' : `${projectRoot}/`;
+        await expect(input).toHaveValue('');
+        await expect(dialog.getByTitle(freeDirectoryLabel, { exact: true })).toBeVisible();
         await expect(dialog.getByText('project/', { exact: true })).toHaveCount(0);
 
         const missingDirectory = `${join(testDirectory, 'missing')}/`;

@@ -181,7 +181,7 @@ it('records a safe parse reason before offering Logs for malformed Vercel output
     expect(repo.errors).toContainEqual(
         expect.objectContaining({
             source: 'vercel',
-            detailsView: 'logs',
+            logs: { filter: 'project_status.cli', levels: ['warn', 'error'] },
         }),
     );
     await logger.flush();

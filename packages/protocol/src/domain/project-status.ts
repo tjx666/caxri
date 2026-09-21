@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { logLevelSchema } from './business-contract.js';
 import { hexColorSchema } from './color.js';
 import { projectStatusStateSchema } from './project-status-state.js';
 import {
@@ -107,6 +108,26 @@ const projectStatusDeploymentSchema = z.object({
     commit: projectStatusDeploymentCommitSchema.optional(),
 });
 
+/**
+ * Where in the log viewer this failure left its record, for an error whose real explanation is only in the logs.
+ *
+ * Carrying the query rather than a bare "the details are in the logs" flag is what makes the offer usable: the panel it
+ * opened held every process's records at every level, so the one line that explained the failure was somewhere in
+ * thousands, and the user had to guess both the search term and which levels to leave on. It is also a forcing function
+ * on the producer — a provider cannot claim its details are in the logs without naming the event it wrote.
+ */
+const projectStatusErrorLogsSchema = z.object({
+    /**
+     * Passed to the viewer's text filter verbatim, so it obeys the same grammar the user types: OR on commas, `!`
+     * excludes.
+     */
+    filter: z.string().min(1),
+    /**
+     * The levels left on. Narrow it to the levels the named event is actually written at; everything else is noise.
+     */
+    levels: z.array(logLevelSchema).min(1),
+});
+
 const projectStatusErrorSchema = z.object({
     source: z.enum(['acceptance', 'github', 'linear', 'vercel']),
     kind: z.enum(['prerequisite', 'failure']),
@@ -124,7 +145,7 @@ const projectStatusErrorSchema = z.object({
      * against the current time, because a cached snapshot outlives its own pause.
      */
     retryAt: z.number().optional(),
-    detailsView: z.literal('logs').optional(),
+    logs: projectStatusErrorLogsSchema.optional(),
 });
 
 const projectStatusRepoSchema = z.object({
@@ -302,6 +323,12 @@ export type ProjectStatusOverviewAcceptance = z.infer<typeof projectStatusOvervi
 export type ProjectStatusDeployment = z.infer<typeof projectStatusDeploymentSchema>;
 export type ProjectStatusDeploymentCommit = z.infer<typeof projectStatusDeploymentCommitSchema>;
 export type ProjectStatusError = z.infer<typeof projectStatusErrorSchema>;
+/**
+ * Exported as a schema, not only a type: the Status extension hands this to a tree item's `command.arguments`, which
+ * the view contract types as `unknown[]`, so the Renderer has to re-validate it rather than assert the shape.
+ */
+export { projectStatusErrorLogsSchema };
+export type ProjectStatusErrorLogs = z.infer<typeof projectStatusErrorLogsSchema>;
 // eslint-disable-next-line unicorn/name-replacements -- exported type is imported widely across apps/desktop and apps/server/src/domains, which is outside this change's authorized file scope; rename requires a coordinated cross-package edit.
 export type ProjectStatusRepository = z.infer<typeof projectStatusRepoSchema>;
 export type ProjectStatusSummary = z.infer<typeof projectStatusSummarySchema>;

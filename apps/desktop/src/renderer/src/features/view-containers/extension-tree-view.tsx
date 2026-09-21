@@ -2,6 +2,7 @@ import type { KeyboardEvent, MouseEvent, RefObject } from 'react';
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import type { ExtensionTreeViewState, TreeItemDto, ViewActionDescriptor } from '@caxri/protocol';
+import { projectStatusErrorLogsSchema } from '@caxri/protocol';
 import { useVirtualizer } from '@tanstack/react-virtual';
 
 import { executeCommand } from '../../commands/execute';
@@ -9,6 +10,7 @@ import { openExternalUrl } from '../../lib/external-link';
 import { cn } from '../../lib/utilities';
 import { useExtensionTreeViewState, useSessionViewScope } from '../../stores/selectors';
 import { pushToast, tryCommand } from '../../stores/toasts';
+import { useLogPrefillStore } from '../panel/views/logs/log-prefill';
 import { cancelTreeChildrenRequest, ROOT_HANDLE } from './extension-tree-client';
 import { ExtensionTreeHeader } from './extension-tree-header';
 import type { ExtensionTreeNavigationKey } from './extension-tree-navigation';
@@ -50,6 +52,10 @@ function runTreeCommand(item: TreeItemDto): void {
     const command = item.command;
     if (!command) return;
     if (command.id === 'caxri.showLogs') {
+        // Parsed rather than asserted: a tree item's arguments are `unknown[]` on the wire, and an extension that
+        // sends a malformed query should open an unfiltered panel instead of one filtered to nothing.
+        const prefill = projectStatusErrorLogsSchema.safeParse(command.arguments?.[0]);
+        if (prefill.success) useLogPrefillStore.getState().requestLogPrefill(prefill.data);
         executeCommand('panel.showLogs');
         return;
     }

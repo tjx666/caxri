@@ -105,7 +105,20 @@ function userExcludeGlobArguments(source: string): string[] {
         });
 }
 
-function enumerationArguments(exclude: string): string[] {
+/**
+ * How the Project's own ignore files enter the enumeration.
+ *
+ * `--no-ignore-parent` and `--no-ignore-global` keep the answer a property of this Project alone: a scan must not
+ * change because of a checkout above the Project root or a `core.excludesFile` in the operator's home directory, and VS
+ * Code withholds both by default for the same reason (`search.useParentIgnoreFiles`, `search.useGlobalIgnoreFiles`).
+ * `--no-require-git` applies `.gitignore` in a directory that is not a repository, which is what a user who wrote one
+ * expects and what a Project created from a plain folder would otherwise silently skip.
+ *
+ * `--hidden` stays on both paths: a dotfile is ordinary Project content, and `.git` is excluded by name below.
+ */
+const IGNORE_FILE_ARGUMENTS = ['--no-ignore-parent', '--no-ignore-global', '--no-require-git'];
+
+function enumerationArguments(exclude: string, isUsingIgnoreFiles: boolean): string[] {
     const directoryGlobArguments = PROJECT_TRAVERSAL_EXCLUDED_SEGMENTS.flatMap((name) => [
         '--glob',
         `!${name}/**`,
@@ -121,7 +134,7 @@ function enumerationArguments(exclude: string): string[] {
     return [
         '--files',
         '--hidden',
-        '--no-ignore',
+        ...(isUsingIgnoreFiles ? IGNORE_FILE_ARGUMENTS : ['--no-ignore']),
         '--no-config',
         '--no-messages',
         '--null',
@@ -154,18 +167,22 @@ async function enumerateProjectFiles(
     signal: AbortSignal,
     deadline: number,
     options: RipgrepSearchOptions,
-    exclude: string,
+    enumeration: Pick<SearchParameters, 'exclude' | 'useIgnoreFiles'>,
 ): Promise<EnumerationResult> {
     if (signal.aborted) return { paths: [], terminationReason: 'canceled' };
     if (performance.now() >= deadline) return { paths: [], terminationReason: 'timeout' };
 
     return new Promise<EnumerationResult>((resolve, reject) => {
-        const child = spawn(options.executablePath, enumerationArguments(exclude), {
-            cwd: root,
-            shell: false,
-            stdio: ['ignore', 'pipe', 'pipe'],
-            windowsHide: true,
-        });
+        const child = spawn(
+            options.executablePath,
+            enumerationArguments(enumeration.exclude, enumeration.useIgnoreFiles),
+            {
+                cwd: root,
+                shell: false,
+                stdio: ['ignore', 'pipe', 'pipe'],
+                windowsHide: true,
+            },
+        );
         const decoder = new TextDecoder('utf-8', { fatal: true });
         const paths: string[] = [];
         let buffered = Buffer.alloc(0);
@@ -380,13 +397,7 @@ export async function runRipgrepSearch(
     } catch {
         throw new CaxriError('VALIDATION', 'Invalid regular expression');
     }
-    const enumeration = await enumerateProjectFiles(
-        root,
-        signal,
-        deadline,
-        options,
-        parameters.exclude,
-    );
+    const enumeration = await enumerateProjectFiles(root, signal, deadline, options, parameters);
     if (enumeration.terminationReason === 'canceled')
         return { matches: [], scannedFiles: 0, terminationReason: 'canceled' };
     if (enumeration.terminationReason === 'timeout')

@@ -7,6 +7,7 @@ import {
     parentDirectoryWithinRoot,
     parsePathBrowserInput,
     pathBrowserCreateCandidate,
+    pathBrowserInputTransition,
     pathBrowserKeyIntent,
     projectDirectoryPath,
 } from './path-browser';
@@ -191,5 +192,43 @@ describe('path browser keyboard intent', () => {
         expect(keyIntent({ key: 'Tab' })).toEqual({ kind: 'complete' });
         expect(keyIntent({ key: 'Enter' })).toEqual({ kind: 'accept' });
         expect(keyIntent({ entryCount: 0, key: 'ArrowDown' })).toBeUndefined();
+    });
+});
+
+describe('path browser anchor transitions', () => {
+    const project = { input: '', mode: 'project' } as const;
+    const free = { input: '/Users/x/', mode: 'free' } as const;
+
+    it.each(['/', '/Users/x/notes.md', '~', '~/Documents'])(
+        'detaches the Project anchor when the input becomes %s',
+        (input) => {
+            expect(pathBrowserInputTransition(project, input)).toEqual({ input, mode: 'free' });
+        },
+    );
+
+    it('leaves an ordinary Project filter alone, including a bare ~ inside a name', () => {
+        expect(pathBrowserInputTransition(project, 'src/')).toEqual({
+            input: 'src/',
+            mode: 'project',
+        });
+        expect(pathBrowserInputTransition(project, 'draft~1')).toEqual({
+            input: 'draft~1',
+            mode: 'project',
+        });
+    });
+
+    it('re-anchors on ./ and consumes the prefix rather than sending it', () => {
+        expect(pathBrowserInputTransition(free, './')).toEqual({ input: '', mode: 'project' });
+        expect(pathBrowserInputTransition(free, './src')).toEqual({
+            input: 'src',
+            mode: 'project',
+        });
+    });
+
+    it('does not re-detach a free-mode absolute path that is already free', () => {
+        expect(pathBrowserInputTransition(free, '/etc/hosts')).toEqual({
+            input: '/etc/hosts',
+            mode: 'free',
+        });
     });
 });

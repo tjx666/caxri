@@ -128,6 +128,7 @@ function searchParameters(
         regex: false,
         include: '',
         exclude: '',
+        useIgnoreFiles: true,
         ...overrides,
     };
 }
@@ -184,6 +185,32 @@ describe('SearchService', () => {
             expect(regex.matches.some((match) => match.relativePath === 'oversized.txt')).toBe(
                 false,
             );
+        } finally {
+            await service.close();
+            database.close();
+        }
+    });
+
+    it("lets the Project's own ignore files narrow the scan, and lets the user turn that off", async () => {
+        const { database, root, service, session } = await fixture();
+        try {
+            await writeFile(join(root, '.gitignore'), 'docs/\n', 'utf8');
+
+            const ignored = await service.search(searchParameters(session.id));
+            expect(ignored.matches.some((match) => match.relativePath === 'docs/guide.md')).toBe(
+                false,
+            );
+
+            // Off is the wider search: the fixed traversal exclusions still hold, so node_modules stays out either way.
+            const everything = await service.search(
+                searchParameters(session.id, { useIgnoreFiles: false }),
+            );
+            expect(everything.matches.some((match) => match.relativePath === 'docs/guide.md')).toBe(
+                true,
+            );
+            expect(
+                everything.matches.some((match) => match.relativePath.includes('node_modules')),
+            ).toBe(false);
         } finally {
             await service.close();
             database.close();

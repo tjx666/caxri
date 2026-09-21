@@ -68,6 +68,8 @@ test('Search and breadcrumbs show the same exact-file Git decoration as Files', 
         await running.page.keyboard.press('Escape');
 
         await running.page.keyboard.press('Meta+Shift+F');
+        // Content is the default mode; this case is about the decoration on a name result.
+        await running.page.getByRole('button', { name: 'Name', exact: true }).click();
         const nameSearch = running.page.getByRole('combobox', { name: 'Find Project files' });
         await nameSearch.fill('.txt');
         const nameResults = running.page.locator('.search-results');

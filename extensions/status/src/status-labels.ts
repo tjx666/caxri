@@ -58,12 +58,17 @@ export function acceptanceRowLabel(acceptance: ProjectStatusAcceptance): string 
  *
  * An unpinned link on a multi-round report says `latest of 3` rather than naming a number, because it is the report
  * that was addressed and the round that answered may change under the same link.
+ *
+ * A report whose lookup failed takes the tally's place with `unknown`. It has no numbers to show, and a row that showed
+ * nothing at all read as a report with nothing to say rather than as one nobody could read.
  */
 export function acceptanceDescription(acceptance: ProjectStatusAcceptance): string | undefined {
     const tally =
-        acceptance.totalChecks === undefined || acceptance.passedChecks === undefined
-            ? undefined
-            : `${acceptance.passedChecks}/${acceptance.totalChecks}`;
+        acceptance.state === 'unknown'
+            ? projectStatusStateLabel('unknown')
+            : acceptance.totalChecks === undefined || acceptance.passedChecks === undefined
+              ? undefined
+              : `${acceptance.passedChecks}/${acceptance.totalChecks}`;
     const round =
         acceptance.round === undefined
             ? acceptance.roundCount !== undefined && acceptance.roundCount > 1
