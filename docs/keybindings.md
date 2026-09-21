@@ -113,3 +113,18 @@ exercised against each of them.
 `Cmd+K` was `terminal.clear` before chords existed. It is now the sequence opener, and Terminal
 Clear ships on `Cmd+Shift+K`, migrated by a `replace` entry that is ordered ahead of the `cmd+k …`
 additions — the chord has to be free before a sequence can claim it.
+
+## Contextual bindings (`when`)
+
+A binding may carry `"when": "terminalFocus"`, the only context the schema accepts today.
+`resolveShortcutBinding` walks a chord's bindings in file order and takes the first whose context is
+active, so a contextual binding and an unconditional one can share a chord.
+
+This is how Caxri shares a chord with Monaco rather than taking it away. Terminal Clear is
+`allowInEditable`, so an ungated `cmd+shift+k` would fire out of a focused editor — which is
+Monaco's Delete Line — whenever the Session merely had a Terminal. The gate is what keeps both
+commands alive on one chord, and it is what VS Code does for the same command.
+
+The gate applies to keystroke dispatch only. The command palette, the native menu, the Terminal
+context menu, and the shortcut hints they display all read the command's own availability, so Clear
+Terminal stays listed and runnable with its `⇧⌘K` hint while focus is elsewhere.

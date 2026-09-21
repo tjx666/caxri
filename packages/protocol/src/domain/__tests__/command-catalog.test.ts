@@ -24,7 +24,7 @@ describe('command registry', () => {
         ).toBe(true);
         expect(defaultKeybindings).toEqual(
             expect.arrayContaining([
-                { key: 'cmd+shift+k', command: 'terminal.clear' },
+                { key: 'cmd+shift+k', command: 'terminal.clear', when: 'terminalFocus' },
                 { key: 'cmd+f', command: 'terminal.find' },
                 { key: 'cmd+k cmd+s', command: 'settings.openKeybindings' },
                 { key: 'cmd+k v', command: 'editor.openPreviewToSide' },

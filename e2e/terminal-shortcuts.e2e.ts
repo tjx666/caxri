@@ -120,6 +120,11 @@ test('Command+Shift+K and Command+T/W affect only the active Terminal and pause 
         await running.page
             .locator(`.work-tab[data-terminal-id="${firstTerminalId}"] [role="tab"]`)
             .click();
+        // Clear Terminal is gated on `terminalFocus` so it cannot shadow Monaco's own Cmd+Shift+K (Delete Line);
+        // clicking the tab leaves focus on the tab button, so the xterm has to take it back first.
+        await running.page
+            .locator(`.terminal-pane[data-terminal-id="${firstTerminalId}"] .xterm-helper-textarea`)
+            .focus();
         await running.page.keyboard.press('Meta+Shift+K');
         await expect(
             running.page.locator(
@@ -164,7 +169,8 @@ test('Command+Shift+K and Command+T/W affect only the active Terminal and pause 
         // traps focus, so app-wide Terminal shortcuts must stand down while it owns the keyboard.
         const createMenu = running.page.getByRole('menu');
         await expect(createMenu).toBeVisible();
-        await running.page.keyboard.press('Meta+Shift+K');
+        // Not Cmd+Shift+K: the menu owns focus, so `terminalFocus` is already false and the press would prove nothing
+        // about the modal. Cmd+T and Cmd+W are ungated and do exercise the stand-down.
         await running.page.keyboard.press('Meta+T');
         await running.page.keyboard.press('Meta+W');
         await expect(createMenu).toBeVisible();
