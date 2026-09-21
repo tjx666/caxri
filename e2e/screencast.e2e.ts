@@ -36,10 +36,12 @@ test('Screencast Mode shows privacy-safe window input and leaves no state after 
         await expect(clickMarker).toHaveCSS('top', `${workbenchBounds!.y + 120}px`);
         await expect(clickMarker).toHaveCount(0, { timeout: 2_000 });
 
-        await running.page.keyboard.press('Meta+Shift+K');
+        // Any binding captioned here has to resolve without a Terminal focused: this test never creates one, and
+        // Terminal Clear is gated on `terminalFocus` so it cannot shadow Monaco's Cmd+Shift+K.
+        await running.page.keyboard.press('Meta+0');
         const keyOverlay = running.page.locator('[data-screencast-key]');
-        await expect(keyOverlay).toContainText('Clear Terminal');
-        await expect(keyOverlay.getByLabel('⇧⌘K')).toBeVisible();
+        await expect(keyOverlay).toContainText('Focus Primary Side Bar');
+        await expect(keyOverlay.getByLabel('⌘0')).toBeVisible();
         await expect(keyOverlay).toHaveCount(0, { timeout: 3_000 });
 
         await running.page.keyboard.press('Meta+Shift+P');

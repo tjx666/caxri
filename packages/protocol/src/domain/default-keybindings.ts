@@ -37,8 +37,13 @@ export const defaultKeybindings: Keybinding[] = [
      * `Cmd+K`. A chord prefix that only applies outside a Terminal would leave `Cmd+K Cmd+S` dead on Caxri's most
      * common focus target, and resolving the ambiguity the way VS Code does needs a full when-expression evaluator this
      * catalog deliberately does not have.
+     *
+     * `terminalFocus` is what keeps that move from shadowing Monaco's own `Cmd+Shift+K` (Delete Line): the command opts
+     * into `allowInEditable`, so without the gate it would fire from the editor whenever the Session merely had a
+     * Terminal. VS Code gates its Clear Terminal the same way. Clear Terminal stays reachable from the command palette,
+     * the Terminal menu, and the Terminal context menu when focus is elsewhere.
      */
-    { key: 'cmd+shift+k', command: 'terminal.clear' },
+    { key: 'cmd+shift+k', command: 'terminal.clear', when: 'terminalFocus' },
     { key: 'cmd+c', command: 'terminal.copy' },
     { key: 'cmd+f', command: 'terminal.find' },
     {
@@ -221,7 +226,7 @@ export const defaultKeybindingChanges = [
     {
         type: 'replace',
         previous: { key: 'cmd+k', command: 'terminal.clear' },
-        current: { key: 'cmd+shift+k', command: 'terminal.clear' },
+        current: { key: 'cmd+shift+k', command: 'terminal.clear', when: 'terminalFocus' },
     },
     {
         type: 'add',
