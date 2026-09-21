@@ -158,13 +158,29 @@ function PathBrowserQueryField({
             >
                 <ChevronLeft aria-hidden="true" size={16} />
             </button>
-            {isProject && (
+            {isProject ? (
                 <>
                     <span className="flex-none text-[12px] text-muted">{rootLabel}/</span>
                     <span className="min-w-0 flex-none truncate text-[12px] text-muted">
                         {directoryLabel}
                     </span>
                 </>
+            ) : (
+                /*
+                 * Free mode used to have no chrome at all, so the absolute path had to live in the field to say where
+                 * the browser was — and then had to be deleted before anything could be typed. It reads as a prefix
+                 * here instead, on the same line and in the same muted tone the Project anchor uses.
+                 *
+                 * An absolute path's meaning is in its tail, so `path-ellipsis-start` drops the head when it overflows
+                 * rather than the directory the user is standing in. It needs the inner element: see its rule in
+                 * `styles.css`.
+                 */
+                <span
+                    className="path-ellipsis-start max-w-[45%] min-w-0 flex-none overflow-hidden text-[12px] whitespace-nowrap text-muted"
+                    title={directoryLabel}
+                >
+                    <span>{directoryLabel}</span>
+                </span>
             )}
             <Input
                 ref={inputReference}
@@ -172,15 +188,15 @@ function PathBrowserQueryField({
                 aria-autocomplete="list"
                 aria-busy={!isResultsReady}
                 aria-controls={isListboxRendered ? listboxId : undefined}
-                aria-describedby={isProject ? 'path-browser-project-anchor-help' : undefined}
+                aria-describedby="path-browser-project-anchor-help"
                 aria-expanded={isListboxRendered}
                 aria-label="File path"
                 appearance="embedded"
                 className="min-w-[80px] flex-1 px-1 text-foreground"
                 placeholder={
                     isProject
-                        ? 'Filter or enter a relative path…'
-                        : 'Enter ~/…, ../…, or /absolute/path…'
+                        ? 'Filter, or type / or ~ for any path…'
+                        : 'Filter, or type ./ to return to the Project…'
                 }
                 role="combobox"
                 size="palette"
@@ -189,8 +205,8 @@ function PathBrowserQueryField({
                 onKeyDown={onKeyDown}
             />
             <span className="sr-only" id="path-browser-project-anchor-help">
-                At the start of an empty field, press Backspace or Delete to remove the Project root
-                and browse any path.
+                Type a path starting with / or ~ to browse outside the Project, or press Backspace
+                at the start of an empty field. Type ./ to return to the Project.
             </span>
             <span aria-live="polite" className="sr-only">
                 {isProject ? '' : 'Project root removed. Enter any path.'}

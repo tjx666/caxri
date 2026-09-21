@@ -1,4 +1,6 @@
 @import './theme.css';
+/** The one definition of a Renderer scrollbar; both Caxri windows load it. */
+@import './scrollbars.css';
 /** File preview typography (`features/preview/`), which renders HTML no Tailwind utility can reach. */
 @import './markdown-preview.css';
 /*
@@ -181,31 +183,9 @@
 }
 
 /*
- * Native macOS overlay scrollbars expand on hover into a wide light track that covers Session titles. Keep a quiet
- * 8px rail (same geometry as the Terminal slider) whose thumb deepens on hover instead of growing. `::-webkit-scrollbar`
- * width is what turns overlay expansion off in Chromium; `scrollbar-width` covers the Firefox-shaped fallback.
- *
  * The inset shadow is painted on the shell, not the overflow box: an inset `box-shadow` on `.project-list` would sit
  * in its padding, above the first visible row, instead of overlaying it the way VS Code's `.shadow.top` does.
  */
-.project-list {
-    scrollbar-color: color-mix(in srgb, var(--muted) 45%, transparent) transparent;
-    scrollbar-width: thin;
-}
-.project-list::-webkit-scrollbar {
-    width: 8px;
-}
-.project-list::-webkit-scrollbar-thumb {
-    border: 2px solid transparent;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--muted) 45%, transparent);
-    background-clip: padding-box;
-}
-.project-list::-webkit-scrollbar-thumb:hover,
-.project-list::-webkit-scrollbar-thumb:active {
-    background: color-mix(in srgb, var(--muted) 80%, var(--foreground));
-    background-clip: padding-box;
-}
 .project-list-shell:has(> .project-list[data-scrolled='true'])::after {
     content: '';
     position: absolute;
@@ -215,6 +195,29 @@
     height: 6px;
     pointer-events: none;
     box-shadow: var(--shadow) 0 6px 6px -6px inset;
+}
+
+/*
+ * Truncates from the head instead of the tail, for a value whose meaning is at its end — a filesystem path, where
+ * `…/features/path-browser/` says far more than `/Users/tj/code/caxri-worktre…`. The path must be wrapped in one child
+ * element; the two halves only work together.
+ *
+ * `direction: rtl` on the box is what moves the overflow, and so the ellipsis, to the start. It also makes the box an
+ * RTL paragraph, which reorders the path's own neutral characters: `~/code/` renders as `/code/~`, because a leading
+ * `~` with nothing strong before it takes the paragraph's direction. The child re-embeds the text as LTR so it reads
+ * in its own order inside an RTL box. `unicode-bidi: plaintext` on the box is the other obvious fix and the wrong one —
+ * it resolves direction from the first strong character, which is LTR for every path, putting the ellipsis back at the
+ * tail. Both were verified against the real Renderer before this was written.
+ */
+.path-ellipsis-start {
+    direction: rtl;
+    text-align: left;
+    text-overflow: ellipsis;
+}
+
+.path-ellipsis-start > * {
+    direction: ltr;
+    unicode-bidi: embed;
 }
 
 /* The 24px breadcrumb rail must remain visually quiet while still allowing horizontal scrolling;

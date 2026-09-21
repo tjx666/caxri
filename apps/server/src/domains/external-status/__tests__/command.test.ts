@@ -64,6 +64,14 @@ describe('runExternalStatusCommand', () => {
     it.each([
         ['fetch failed ECONNRESET', 'network'],
         ['certificate has expired', 'tls'],
+        // Each provider words being signed out differently; all of them name the login command, so that is what is
+        // matched. Getting this wrong costs the user the one sentence that would have fixed it.
+        [
+            "No authentication found. Run 'lh login' first, or set LOBEHUB_CLI_API_KEY.",
+            'not-logged-in',
+        ],
+        ['gh: To get started with GitHub CLI, please run: gh auth login', 'not-logged-in'],
+        ['Error: No existing credentials found. Please run `vc login`', 'not-logged-in'],
     ] as const)('classifies %s for the status UI', async (message, kind) => {
         await expect(
             runExternalStatusCommand('vc', ['ls'], '/repo', {

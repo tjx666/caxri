@@ -279,6 +279,16 @@ test('Terminal split layout drags, resizes, restores, and preserves the live PTY
     }
 });
 
+/**
+ * The grid is fitted to the space left of the slider, so whatever the column count could not fill stays between the
+ * last glyph and the slider: strictly less than one cell, because a full cell's worth would have become another column.
+ * At the default 13px monospace that cell is about 8px, so 12 separates "rounding slack" from "a second reservation" —
+ * which is the defect this bounds. Caxri used to subtract a whole extra column on top of the addon's own scrollbar
+ * reservation, leaving a right inset near twice the 20px shell-integration gutter on the left (issue #1100). A negative
+ * gutter is the opposite failure: text running under the slider.
+ */
+const MAX_TEXT_GUTTER = 12;
+
 test('Terminal scrollbar is flush while the terminal-colored inset keeps text clear', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-layout-e2e-'));
     const userData = join(testDirectory, 'user-data');
@@ -377,7 +387,10 @@ test('Terminal scrollbar is flush while the terminal-colored inset keeps text cl
                     const geometry = await readGeometry();
                     return geometry.every(
                         (pane) =>
-                            pane !== null && Math.abs(pane.edgeGap) <= 1 && pane.textGutter >= 4,
+                            pane !== null &&
+                            Math.abs(pane.edgeGap) <= 1 &&
+                            pane.textGutter >= 0 &&
+                            pane.textGutter <= MAX_TEXT_GUTTER,
                     );
                 })
                 .toBe(true);
@@ -394,7 +407,11 @@ test('Terminal scrollbar is flush while the terminal-colored inset keeps text cl
                 expect(
                     pane?.textGutter ?? NaN,
                     `viewport width ${width}px, pane ${index}`,
-                ).toBeGreaterThanOrEqual(4);
+                ).toBeGreaterThanOrEqual(0);
+                expect(
+                    pane?.textGutter ?? NaN,
+                    `viewport width ${width}px, pane ${index}`,
+                ).toBeLessThanOrEqual(MAX_TEXT_GUTTER);
             }
         }
     } finally {

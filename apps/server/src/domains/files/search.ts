@@ -146,6 +146,9 @@ export class SearchService {
             fields: {
                 sessionId: parameters.sessionId,
                 mode: parameters.mode,
+                // Recorded because it changes which files the scan could have reached: a "no matches" outcome means
+                // something different depending on whether the Project's ignore files narrowed the enumeration.
+                useIgnoreFiles: parameters.useIgnoreFiles,
                 scannedFiles: execution.scannedFiles,
                 matchCount: result.matches.length,
                 truncated: result.truncated,

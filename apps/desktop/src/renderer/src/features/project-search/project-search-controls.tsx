@@ -1,6 +1,6 @@
 import type { KeyboardEvent, RefObject } from 'react';
 
-import { ListFilter, Search, X } from 'lucide-react';
+import { EyeOff, ListFilter, Search, X } from 'lucide-react';
 
 import { Input, InputGroup } from '../../components/ui/input';
 import { Spinner } from '../../components/ui/spinner';
@@ -41,6 +41,7 @@ export function ProjectSearchControls({
         isFetching,
         isRegex,
         isSettled,
+        isUsingIgnoreFiles,
         isWholeWord,
         mode,
         query,
@@ -50,6 +51,7 @@ export function ProjectSearchControls({
         setMode,
         setQuery,
         setRegex,
+        setUseIgnoreFiles,
         setWholeWord,
     } = search;
     const SearchModeIcon = mode === 'name' ? ListFilter : Search;
@@ -137,6 +139,29 @@ export function ProjectSearchControls({
                             </Tooltip>
                         </>
                     )}
+                    {/*
+                     * Shown in both modes, unlike the three above it: whether the Project's ignore files narrow the
+                     * scan decides which files either lookup could have reached. It stays a visible toggle rather than
+                     * a setting because a file skipped by `.gitignore` and a file that genuinely does not match
+                     * produce the same empty list.
+                     */}
+                    <Tooltip
+                        content={
+                            isUsingIgnoreFiles
+                                ? 'Using .gitignore — click to search ignored files too'
+                                : 'Searching ignored files — click to apply .gitignore'
+                        }
+                    >
+                        <button
+                            type="button"
+                            className={searchOptionClassName}
+                            aria-label="Use Ignore Files"
+                            aria-pressed={isUsingIgnoreFiles}
+                            onClick={() => setUseIgnoreFiles((value) => !value)}
+                        >
+                            <EyeOff size={13} />
+                        </button>
+                    </Tooltip>
                 </InputGroup>
                 <div className="search-mode-segments grid w-44 flex-none grid-cols-2 gap-0.5 rounded-md bg-elevated p-0.5">
                     {(['name', 'content'] as const).map((value) => (
@@ -155,32 +180,35 @@ export function ProjectSearchControls({
                     ))}
                 </div>
             </div>
-            {mode === 'content' && (
-                <div className="grid grid-cols-2 gap-1.5">
-                    <label className="flex flex-col gap-1 text-[11px] text-muted">
-                        <span>Files to include</span>
-                        <Input
-                            appearance="workbench"
-                            className="text-foreground"
-                            placeholder="Files to include (e.g. *.ts, src/**)"
-                            size="dense"
-                            value={include}
-                            onChange={(event) => setInclude(event.currentTarget.value)}
-                        />
-                    </label>
-                    <label className="flex flex-col gap-1 text-[11px] text-muted">
-                        <span>Files to exclude</span>
-                        <Input
-                            appearance="workbench"
-                            className="text-foreground"
-                            placeholder="Files to exclude (e.g. *.min.js, dist/**)"
-                            size="dense"
-                            value={exclude}
-                            onChange={(event) => setExclude(event.currentTarget.value)}
-                        />
-                    </label>
-                </div>
-            )}
+            {/*
+             * Not gated on the mode. `include` and `exclude` have always been sent for a name search too — the hook
+             * withholds only the three matcher options above — so hiding the fields left Name mode quietly honouring
+             * globs the user could no longer see or clear.
+             */}
+            <div className="grid grid-cols-2 gap-1.5">
+                <label className="flex flex-col gap-1 text-[11px] text-muted">
+                    <span>Files to include</span>
+                    <Input
+                        appearance="workbench"
+                        className="text-foreground"
+                        placeholder="Files to include (e.g. *.ts, src/**)"
+                        size="dense"
+                        value={include}
+                        onChange={(event) => setInclude(event.currentTarget.value)}
+                    />
+                </label>
+                <label className="flex flex-col gap-1 text-[11px] text-muted">
+                    <span>Files to exclude</span>
+                    <Input
+                        appearance="workbench"
+                        className="text-foreground"
+                        placeholder="Files to exclude (e.g. *.min.js, dist/**)"
+                        size="dense"
+                        value={exclude}
+                        onChange={(event) => setExclude(event.currentTarget.value)}
+                    />
+                </label>
+            </div>
         </div>
     );
 }
