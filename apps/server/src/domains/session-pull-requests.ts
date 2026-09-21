@@ -4,6 +4,7 @@ import type {
     ProjectStatusState,
     PullRequestUnavailable,
     ServerEvent,
+    SessionDeployment,
     SessionPullRequest,
     SessionPullRequests,
     SessionRecord,
@@ -38,6 +39,8 @@ import {
 } from './external-status';
 import type { GitService } from './git';
 import { parseGitHubPullRequest } from './project-status-parse';
+import { VercelDeploymentStore } from './project-status-vercel-store';
+import { resolveSessionDeployment } from './session-pull-request-deployment';
 
 /**
  * Merge state moves on human timescales, so an open PR refreshes once a minute while a merged or closed one only
@@ -128,6 +131,11 @@ export interface SessionPullRequestServiceOptions {
     openTtlMs?: number;
     settledTtlMs?: number;
     missingTtlMs?: number;
+    /**
+     * Server-wide Vercel projection shared with the Status panel, so one production query serves every Session pointing
+     * at the same repository.
+     */
+    vercel?: VercelDeploymentStore;
 }
 
 type SessionPullRequestDatabase = Pick<
@@ -209,6 +217,7 @@ export class SessionPullRequestService {
     private isRefreshRequested = false;
     private readonly transcriptScans = new Map<string, TranscriptPullRequestScan>();
     private readonly github: GitHubPullRequestStore;
+    private readonly vercel: VercelDeploymentStore;
     /**
      * Undefined until the first snapshot. Reading settings from the constructor would make merely assembling the Server
      * depend on configuration being loaded, which it is not obliged to be at that point.
@@ -226,6 +235,8 @@ export class SessionPullRequestService {
         this.now = options.now ?? Date.now;
         this.github =
             options.github ?? new GitHubPullRequestStore(this.runner, { now: () => this.now() });
+        this.vercel =
+            options.vercel ?? new VercelDeploymentStore(this.runner, { now: () => this.now() });
     }
 
     /**
@@ -288,7 +299,8 @@ export class SessionPullRequestService {
                 const context = this.discoveryContext(session);
                 const cached = this.sessions.get(session.id);
                 const previous = cached?.context === context ? cached : undefined;
-                const result = await this.resolveSessionSafely(session, previous);
+                const resolved = await this.resolveSessionSafely(session, previous);
+                const result = { ...resolved, entry: await this.withDeployment(session, resolved) };
                 if (result.lookedUp) lookups += 1;
                 const current = this.database.getSession(session.id);
                 if (!current || current.archivedAt !== undefined) return;
@@ -302,6 +314,7 @@ export class SessionPullRequestService {
                     result.entry.value?.state !== previous?.value?.state ||
                     result.entry.value?.checks !== previous?.value?.checks ||
                     result.entry.value?.url !== previous?.value?.url ||
+                    result.entry.value?.deployment?.state !== previous?.value?.deployment?.state ||
                     result.entry.unavailable?.reason !== previous?.unavailable?.reason
                 )
                     changed.push(session.id);
@@ -323,6 +336,51 @@ export class SessionPullRequestService {
                 payload: { sessionIds: changed },
             });
         return isContextChanged;
+    }
+
+    /**
+     * Adds the production deployment this Session's merged pull request produced, when production is currently serving
+     * exactly that merge commit.
+     *
+     * Run on every sweep rather than only on a lookup, because the deployment lands minutes after the merge that a
+     * settled entry then caches for a quarter of an hour. While a merged pull request has no matching deployment the
+     * entry is also held to the open cadence, so the badge appears when the build finishes instead of whenever the next
+     * unrelated change happens to expire the row.
+     */
+    private async withDeployment(
+        session: SessionRecord,
+        resolved: { entry: SessionEntry },
+    ): Promise<SessionEntry> {
+        const entry = resolved.entry;
+        if (entry.value?.state !== 'merged') return entry;
+        let deployment: SessionDeployment | undefined;
+        try {
+            deployment = await resolveSessionDeployment(
+                { github: this.github, vercel: this.vercel },
+                entry.value,
+                session.rootPath,
+            );
+        } catch (error) {
+            // The badge is additive, so an unreachable provider leaves the row exactly as the pull request lookup left
+            // it rather than failing the Session's whole projection.
+            this.logger.write('debug', logEventCatalog.sessionPullRequests.refreshFailed, {
+                fields: {
+                    message: error instanceof Error ? error.message : String(error),
+                    sessionId: session.id,
+                },
+            });
+        }
+        // Always rewritten, so a badge never outlives the build it described: the next merge moves production onto
+        // another commit, and this row must go back to reporting a plain merge.
+        if (deployment) return { ...entry, value: { ...entry.value, deployment } };
+        return {
+            ...entry,
+            expiresAt: Math.min(
+                entry.expiresAt,
+                this.now() + (this.options.openTtlMs ?? OPEN_TTL_MS),
+            ),
+            value: { ...entry.value, deployment: undefined },
+        };
     }
 
     /**

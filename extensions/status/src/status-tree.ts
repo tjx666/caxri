@@ -29,6 +29,7 @@ import {
 } from './status-labels';
 import type { StatusTooltip } from './status-presentation';
 import {
+    acceptanceIcon,
     deploymentAccessibilityLabel,
     deploymentIcon,
     deploymentRowDescription,
@@ -259,7 +260,7 @@ function buildRepoChildren(
                     .filter(Boolean)
                     .join(', '),
                 description: acceptanceDescription(acceptance),
-                icon: stateIcons[state],
+                icon: acceptanceIcon(acceptance),
                 url: acceptance.url,
                 tooltip: {
                     ...(acceptance.status && {

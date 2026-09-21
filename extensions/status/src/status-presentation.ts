@@ -4,6 +4,7 @@
  * appearance is decided in one place — `status-tree.ts` assembles rows and never re-decides what a state looks like.
  */
 import type {
+    ProjectStatusAcceptance,
     ProjectStatusDeployment,
     ProjectStatusRepository,
     ProjectStatusState,
@@ -44,8 +45,33 @@ const deploymentIcons: Record<ProjectStatusState, string> = {
  */
 export function deploymentIcon(deployment: ProjectStatusDeployment): string {
     return deployment.environment === 'production' && deployment.state === 'success'
-        ? 'rocket'
+        ? 'rocket-success'
         : deploymentIcons[deployment.state];
+}
+
+/**
+ * The glyph family acceptance rows own. Every other row in this tree reports a machine's verdict with a circle — a CI
+ * check, a deployment, a Linear state — so a report a _person_ still has to sign off on was indistinguishable from the
+ * run that produced it. The shield says "this is the sign-off" by shape alone, and the state only picks which shield,
+ * so colour stays the secondary signal it is everywhere else here.
+ *
+ * `pending` deliberately resolves to a static glyph rather than the `loading` spinner the shared state vocabulary gives
+ * it. A verification round can sit in flight for an hour; animating that told the reader something was about to happen
+ * and then spun for the rest of the afternoon.
+ */
+const acceptanceIcons: Record<ProjectStatusState, string> = {
+    success: 'shield-check',
+    failure: 'shield-x',
+    pending: 'shield-ellipsis',
+    // Accepted for verification and not started: the shield is there, it just has nothing to report yet.
+    queued: 'shield',
+    cancelled: 'shield-minus',
+    neutral: 'shield-minus',
+    unknown: 'shield',
+};
+
+export function acceptanceIcon(acceptance: Pick<ProjectStatusAcceptance, 'state'>): string {
+    return acceptanceIcons[acceptance.state];
 }
 
 const linearStateIcons: Partial<

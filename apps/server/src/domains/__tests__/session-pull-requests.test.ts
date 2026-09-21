@@ -40,6 +40,81 @@ describe('SessionPullRequestService', () => {
         });
     });
 
+    /**
+     * The sidebar's answer to "did it ship?". Production must be serving this pull request's own merge commit, so the
+     * badge describes this Session's delivery rather than the project's general deployment state.
+     */
+    it('marks a merged pull request deployed when production serves its merge commit', async () => {
+        const mergeCommit = '4f0c1d9a7b6e5f4d3c2b1a09876543210fedcba9';
+        const { service } = await harness({
+            sessions: [session()],
+            gh: (arguments_) =>
+                arguments_[1] === 'view'
+                    ? Promise.resolve(
+                          pullRequestJson({ mergeCommit: { oid: mergeCommit }, state: 'MERGED' }),
+                      )
+                    : Promise.resolve(JSON.stringify([{ number: 19_024, state: 'MERGED' }])),
+            vc: (arguments_) =>
+                Promise.resolve(
+                    arguments_[1] === 'ls'
+                        ? JSON.stringify({ teams: [{ slug: 'acme' }] })
+                        : JSON.stringify({
+                              deployments: [
+                                  {
+                                      uid: 'dpl_1',
+                                      name: 'example',
+                                      readyState: 'READY',
+                                      url: 'example.vercel.app',
+                                      meta: { githubCommitSha: mergeCommit },
+                                  },
+                              ],
+                          }),
+                ),
+        });
+        await service.refresh();
+
+        expect(service.snapshot().pullRequests['session-1']).toMatchObject({
+            state: 'merged',
+            deployment: { state: 'success' },
+        });
+    });
+
+    it('keeps a merged pull request unmarked while production still serves an older commit', async () => {
+        const { service } = await harness({
+            sessions: [session()],
+            gh: (arguments_) =>
+                arguments_[1] === 'view'
+                    ? Promise.resolve(
+                          pullRequestJson({
+                              mergeCommit: { oid: 'b'.repeat(40) },
+                              state: 'MERGED',
+                          }),
+                      )
+                    : Promise.resolve(JSON.stringify([{ number: 19_024, state: 'MERGED' }])),
+            vc: (arguments_) =>
+                Promise.resolve(
+                    arguments_[1] === 'ls'
+                        ? JSON.stringify({ teams: [{ slug: 'acme' }] })
+                        : JSON.stringify({
+                              deployments: [
+                                  {
+                                      uid: 'dpl_1',
+                                      name: 'example',
+                                      readyState: 'READY',
+                                      url: 'example.vercel.app',
+                                      meta: { githubCommitSha: 'a'.repeat(40) },
+                                  },
+                              ],
+                          }),
+                ),
+        });
+        await service.refresh();
+
+        const projected = service.snapshot().pullRequests['session-1'];
+        expect(projected.state).toBe('merged');
+        expect(projected.deployment).toBeUndefined();
+    });
+
     it('keeps a confirmed missing pull request distinct from CLI failure', async () => {
         const { service } = await harness({
             sessions: [session()],

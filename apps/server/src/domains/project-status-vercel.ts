@@ -110,7 +110,7 @@ function mapDeploymentCommit(
  * listing the account's teams and asking each one for a deployment carrying this repository's metadata — expensive
  * enough that the result is cached for the life of the process.
  */
-async function findVercelLink(
+export async function findVercelLink(
     dependencies: VercelDependencies,
     owner: string,
     repo: string,

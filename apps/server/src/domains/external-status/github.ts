@@ -8,9 +8,11 @@ import { isNoPullRequest } from './command';
 /**
  * One field set serves every consumer. The status bar needs `number,title,url`; the Status panel adds `body` (Linear
  * references are extracted from it) and `statusCheckRollup`; the sidebar badge adds `state,isDraft`; Source Control's
- * pull-request diff adds the base/head refs and OIDs. Fetching the union once and sharing the record replaces the four
- * independent `gh pr view` calls those surfaces used to issue for the same pull request — `statusCheckRollup`, by far
- * the most expensive field in GraphQL points, is now paid for once per pull request per TTL.
+ * pull-request diff adds the base/head refs and OIDs; the sidebar's deployment badge adds `mergeCommit`, which is the
+ * only way to tell whether the project's current production deployment was built from _this_ delivery. Fetching the
+ * union once and sharing the record replaces the four independent `gh pr view` calls those surfaces used to issue for
+ * the same pull request — `statusCheckRollup`, by far the most expensive field in GraphQL points, is now paid for once
+ * per pull request per TTL.
  */
 const PULL_REQUEST_FIELDS = [
     'number',
@@ -24,6 +26,7 @@ const PULL_REQUEST_FIELDS = [
     'headRefName',
     'baseRefOid',
     'headRefOid',
+    'mergeCommit',
 ].join(',');
 
 /**

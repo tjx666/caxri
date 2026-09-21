@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AgentProviderSessionRenameContext } from '../../../contract';
 import { clearExecutableCache } from '../../../discovery';
 import { AgentService, createLocalAgentAdapters } from '../../../service';
-import { codexProvider, codexSessionIdFromOpenFiles, renameCodexSession } from '..';
+import { codexProvider, codexSessionIdsFromOpenFiles, renameCodexSession } from '..';
 import { findCodexStateDatabases, MAX_CODEX_STATE_DATABASES } from '../state-databases';
 
 const temporaryDirectories: string[] = [];
@@ -95,49 +95,58 @@ afterEach(async () => {
 });
 
 describe('Codex provider', () => {
-    it('accepts one writable rollout below the canonical sessions root', () => {
+    it('accepts writable rollouts below the canonical sessions root', () => {
         const sessionsRoot = '/Users/dev/.codex/sessions';
         const sessionId = '01931f2e-7b0a-7abc-8def-0123456789ab';
         const rollout = `rollout-2026-09-07T12-34-56-${sessionId}.jsonl`;
         const rolloutPath = join(sessionsRoot, '2026', '09', '07', rollout);
 
         expect(
-            codexSessionIdFromOpenFiles(
+            codexSessionIdsFromOpenFiles(
                 [{ access: 'u', path: rolloutPath, pid: 42 }],
                 sessionsRoot,
             ),
-        ).toBe(sessionId);
+        ).toEqual([sessionId]);
         expect(
-            codexSessionIdFromOpenFiles(
+            codexSessionIdsFromOpenFiles(
                 [{ access: 'r', path: rolloutPath, pid: 42 }],
                 sessionsRoot,
             ),
-        ).toBeUndefined();
+        ).toEqual([]);
         expect(
-            codexSessionIdFromOpenFiles(
+            codexSessionIdsFromOpenFiles(
                 [{ access: 'u', path: `/private/tmp/${rollout}`, pid: 42 }],
                 sessionsRoot,
             ),
-        ).toBeUndefined();
+        ).toEqual([]);
+    });
+
+    /**
+     * `/new` leaves the retired conversation open for minutes while Codex writes the replacement, so the two rollouts
+     * overlap. The newer thread id has to win, or the Terminal keeps a conversation the user already left.
+     */
+    it('orders concurrently open rollouts by thread creation time, newest first', () => {
+        const sessionsRoot = '/Users/dev/.codex/sessions';
+        const retired = '01931f2e-7b0a-7abc-8def-0123456789ab';
+        const current = '01931f30-0001-7abc-8def-0123456789aa';
+        const openFile = (sessionId: string, stamp: string) => ({
+            access: 'u',
+            path: join(
+                sessionsRoot,
+                '2026',
+                '09',
+                '07',
+                `rollout-2026-09-07T${stamp}-${sessionId}.jsonl`,
+            ),
+            pid: 42,
+        });
+
         expect(
-            codexSessionIdFromOpenFiles(
-                [
-                    { access: 'u', path: rolloutPath, pid: 42 },
-                    {
-                        access: 'u',
-                        path: join(
-                            sessionsRoot,
-                            '2026',
-                            '09',
-                            '07',
-                            'rollout-2026-09-07T12-34-57-01931f2e-7b0a-7abc-8def-0123456789ac.jsonl',
-                        ),
-                        pid: 42,
-                    },
-                ],
+            codexSessionIdsFromOpenFiles(
+                [openFile(retired, '12-34-56'), openFile(current, '12-40-01')],
                 sessionsRoot,
             ),
-        ).toBeUndefined();
+        ).toEqual([current, retired]);
     });
 
     it.each([

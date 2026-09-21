@@ -21,6 +21,7 @@ import { withGitRequestSignal } from './git';
 import type { createIntrospectionServices } from './introspection';
 import { resolveOwnerProjectRoot, resolveProjectRoot } from './project-root-identity';
 import type { ProjectStatusService } from './project-status';
+import type { VercelDeploymentStore } from './project-status-vercel-store';
 import { SessionPullRequestService } from './session-pull-requests';
 import { resolveTerminalFileLink } from './terminal';
 
@@ -127,6 +128,7 @@ export function createServiceHandlers(services: {
     projectStatus: ProjectStatusService;
     transcripts: AgentTranscriptWatcher;
     userDataPath: string;
+    vercel: VercelDeploymentStore;
 }): Pick<DomainHandlers, ServiceHandlerMethods> {
     const {
         acknowledgeFileMutation,
@@ -146,6 +148,7 @@ export function createServiceHandlers(services: {
         projectStatus,
         transcripts,
         userDataPath,
+        vercel,
     } = services;
     const sessionPullRequests = new SessionPullRequestService(
         database,
@@ -157,6 +160,7 @@ export function createServiceHandlers(services: {
             emit,
             github: externalStatus.github,
             settings: () => configuration.getSettings().value,
+            vercel,
         },
     );
     return {
