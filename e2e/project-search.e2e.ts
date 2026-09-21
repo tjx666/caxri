@@ -47,7 +47,7 @@ test('Project search opens name results and reveals grouped content matches', as
     try {
         await createProjectSession(running.page);
         await expect(
-            running.page.getByRole('combobox', { name: 'Find Project files' }),
+            running.page.getByRole('combobox', { name: 'Search Project contents' }),
         ).toHaveCount(0);
         // `treeitem`, not `button`: file tree rows carry an explicit `role="treeitem"` that
         // overrides their implicit button role. This matters most for the `toHaveCount(0)` checks
@@ -91,15 +91,22 @@ test('Project search opens name results and reveals grouped content matches', as
         ).toBeVisible();
 
         await running.page.keyboard.press('Meta+Shift+F');
-        const nameSearch = running.page.getByRole('combobox', { name: 'Find Project files' });
-        await expect(nameSearch).toBeFocused();
+        // Content is the default mode: searching what a file says is the more frequent question, and searching by path
+        // largely repeats Cmd+P.
+        await expect(
+            running.page.getByRole('combobox', { name: 'Search Project contents' }),
+        ).toBeFocused();
         const migratedKeybindings = await readFile(keybindingsPath, 'utf8');
         expect(migratedKeybindings).toContain('"command": "secondarySidebar.searchFiles"');
         expect(migratedKeybindings).not.toContain('"command": "inspector.searchFiles"');
+
+        await running.page.getByRole('button', { name: 'Name', exact: true }).click();
+        const nameSearch = running.page.getByRole('combobox', { name: 'Find Project files' });
         await expect(running.page.locator('[data-search-mode-icon="name"]')).toBeVisible();
-        await expect(running.page.getByRole('textbox', { name: 'Files to include' })).toHaveCount(
-            0,
-        );
+        // The glob fields stay on in Name mode: a name search has always been sent with them, so hiding them left the
+        // user obeying globs they could no longer see or clear. Only the three matcher options above are withheld.
+        await expect(running.page.getByRole('textbox', { name: 'Files to include' })).toBeVisible();
+        await expect(running.page.getByRole('button', { name: 'Match Case' })).toHaveCount(0);
         /*
          * The overlay leaves the Files view container alone: the tree stays mounted and visible behind it, which is the
          * behavior change this suite is here to pin. The inline panel used to replace the tree in the sidebar.
