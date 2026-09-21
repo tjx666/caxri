@@ -131,7 +131,7 @@ const descriptorSourceSchema = z.discriminatedUnion('kind', [
 export const viewKindSchema = z.discriminatedUnion('kind', [
     z.object({
         kind: z.literal('builtin-react'),
-        component: z.enum(['logs', 'info']),
+        component: z.enum(['logs', 'info', 'activity']),
     }),
     z.object({ kind: z.literal('tree') }),
     z.object({ kind: z.literal('resource-explorer') }),

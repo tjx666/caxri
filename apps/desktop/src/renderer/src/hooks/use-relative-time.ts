@@ -6,7 +6,7 @@ import { relativeTime } from '@caxri/utils';
  * How often every relative-time label on screen is re-checked. Half a minute is the coarsest cadence that still turns
  * "59 seconds ago" over on time.
  */
-const TICK_MS = 30_000;
+export const RELATIVE_TIME_TICK_MS = 30_000;
 
 const listeners = new Set<() => void>();
 const clock: { timer?: ReturnType<typeof setInterval> } = {};
@@ -14,12 +14,16 @@ const clock: { timer?: ReturnType<typeof setInterval> } = {};
 /**
  * One interval for the whole window, started with the first label and stopped with the last. Each subscriber used to
  * own a `setInterval`, so five Session cards meant five timers firing at five unrelated phases.
+ *
+ * Exported so anything else on the same half-minute cadence shares this timer instead of starting a second one at its
+ * own phase — `useAgentActivityClock` does, which is what keeps a row's "12 minutes ago" and the retention window it
+ * describes turning over together rather than up to 30 seconds apart.
  */
-function subscribe(listener: () => void): () => void {
+export function subscribeToRelativeTimeClock(listener: () => void): () => void {
     listeners.add(listener);
     clock.timer ??= setInterval(() => {
         for (const notify of listeners) notify();
-    }, TICK_MS);
+    }, RELATIVE_TIME_TICK_MS);
     return () => {
         listeners.delete(listener);
         if (clock.timer !== undefined && listeners.size === 0) {
@@ -67,7 +71,7 @@ export function areLabelsEqual(
  */
 function useTickedValue<T>(compute: () => T, isEqual: (a: T, b: T) => boolean): T {
     const cache = useRef<{ value: T }>(undefined);
-    return useSyncExternalStore(subscribe, () => {
+    return useSyncExternalStore(subscribeToRelativeTimeClock, () => {
         const value = nextTickedValue(cache.current, compute(), isEqual);
         cache.current = { value };
         return value;

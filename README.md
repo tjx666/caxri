@@ -102,6 +102,7 @@ architecture contracts live in the owning `.agents/skills/` entries. Bundle budg
 | [docs/agent-command-authority.md](docs/agent-command-authority.md)                     | Agent capability and audit boundaries                         |
 | [docs/agent-actions.md](docs/agent-actions.md)                                         | Unified Agent skills and slash-command picker                 |
 | [docs/grok-build.md](docs/grok-build.md)                                               | Grok Build launch, identity, lifecycle, and capability limits |
+| [docs/activity-view.md](docs/activity-view.md)                                         | Cross-Project queue of Sessions waiting on you                |
 | [docs/notifications.md](docs/notifications.md)                                         | Notification history and reminder preferences                 |
 | [docs/file-preview.md](docs/file-preview.md)                                           | Markdown and SVG preview tabs, and adding a format            |
 | [docs/bundle-size.md](docs/bundle-size.md)                                             | Bundle baseline and the CI budget gate                        |

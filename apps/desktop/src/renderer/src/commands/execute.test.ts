@@ -98,6 +98,7 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 archiveSelected: record('session.archive'),
                 canNavigateHistory: () => true,
                 create: record('session.create'),
+                focusNextAttention: record('session.focusNextAttention'),
                 deleteSelected: record('session.delete'),
                 detachSelected: record('session.detach'),
                 navigateHistory: record('session.navigateHistory'),

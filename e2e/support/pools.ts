@@ -64,6 +64,7 @@ export const clipboardCapabilitySpecs = [
  */
 export const parallelSafeSpecs = [
     'e2e/agent-actions.e2e.ts',
+    'e2e/agent-activity.e2e.ts',
     'e2e/agent-commands.e2e.ts',
     'e2e/agent-delegation.e2e.ts',
     'e2e/agent-endpoint.e2e.ts',

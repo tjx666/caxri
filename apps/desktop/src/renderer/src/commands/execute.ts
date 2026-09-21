@@ -3,6 +3,7 @@ import './definitions';
 import type { CommandId } from '@caxri/protocol';
 import { errorMessage, listPaneTerminalIds, paneSplitBlockedReason } from '@caxri/protocol';
 
+import { focusNextAttentionSession } from '../features/agent-activity/agent-activity-commands';
 import { closeDocumentTabs, saveActiveEditor } from '../features/editor/document-commands';
 import {
     canOpenImportLinkAtCursor,
@@ -166,6 +167,7 @@ const commandContext: CommandContext = {
         canNavigateHistory: canNavigateSessionHistory,
         deleteSelected: deleteSelectedSession,
         detachSelected: detachSelectedSession,
+        focusNextAttention: focusNextAttentionSession,
         navigateHistory: navigateSessionHistory,
         openArchived: openArchivedSessions,
         openPullRequestSelected: openSelectedSessionPullRequest,
