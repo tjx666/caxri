@@ -95,7 +95,7 @@ async function removeQuitTestDirectory(path: string): Promise<void> {
         .toBe(true);
 }
 
-test('Command+K/T/W affect only the active Terminal and pause behind modals', async () => {
+test('Command+Shift+K and Command+T/W affect only the active Terminal and pause behind modals', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-terminal-shortcuts-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -120,7 +120,7 @@ test('Command+K/T/W affect only the active Terminal and pause behind modals', as
         await running.page
             .locator(`.work-tab[data-terminal-id="${firstTerminalId}"] [role="tab"]`)
             .click();
-        await running.page.keyboard.press('Meta+K');
+        await running.page.keyboard.press('Meta+Shift+K');
         await expect(
             running.page.locator(
                 `.terminal-pane[data-terminal-id="${firstTerminalId}"] .xterm-rows`,
@@ -164,7 +164,7 @@ test('Command+K/T/W affect only the active Terminal and pause behind modals', as
         // traps focus, so app-wide Terminal shortcuts must stand down while it owns the keyboard.
         const createMenu = running.page.getByRole('menu');
         await expect(createMenu).toBeVisible();
-        await running.page.keyboard.press('Meta+K');
+        await running.page.keyboard.press('Meta+Shift+K');
         await running.page.keyboard.press('Meta+T');
         await running.page.keyboard.press('Meta+W');
         await expect(createMenu).toBeVisible();

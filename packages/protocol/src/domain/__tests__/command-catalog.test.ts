@@ -2,14 +2,12 @@ import { commandIds } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import type { DefaultKeybindingChange } from '../../configuration/config-files';
-import { reconcileDefaultKeybindings } from '../../configuration/config-files';
 import {
-    commandDefinitions,
-    defaultKeybindingChanges,
-    defaultKeybindings,
-    getNativeMenuCommandGroups,
-    nativeMenuIds,
-} from '../command-catalog';
+    findKeybindingConflicts,
+    reconcileDefaultKeybindings,
+} from '../../configuration/config-files';
+import { commandDefinitions, getNativeMenuCommandGroups, nativeMenuIds } from '../command-catalog';
+import { defaultKeybindingChanges, defaultKeybindings } from '../default-keybindings';
 import type { Keybinding } from '../domain';
 import { releasedDefaultKeybindingGenerations } from './default-keybinding-history.fixture';
 
@@ -26,8 +24,10 @@ describe('command registry', () => {
         ).toBe(true);
         expect(defaultKeybindings).toEqual(
             expect.arrayContaining([
-                { key: 'cmd+k', command: 'terminal.clear' },
+                { key: 'cmd+shift+k', command: 'terminal.clear' },
                 { key: 'cmd+f', command: 'terminal.find' },
+                { key: 'cmd+k cmd+s', command: 'settings.openKeybindings' },
+                { key: 'cmd+k v', command: 'editor.openPreviewToSide' },
                 {
                     key: 'cmd+shift+o',
                     command: 'terminal.openDetectedLink',
@@ -146,6 +146,50 @@ describe('command registry', () => {
             expect(unknownCommands, `unmigrated commands in ${generation.id}`).toEqual([]);
         }
         expect(releasedDefaultKeybindingGenerations.at(-1)?.bindings).toEqual(defaultKeybindings);
+    });
+
+    /**
+     * `reconcileDefaultKeybindings` fails closed, so a change whose destination chord is still occupied is skipped in
+     * silence. Array order is the only thing keeping the `cmd+k` → `cmd+shift+k` replacement ahead of the `cmd+k …`
+     * additions, and an upgrade that quietly lost both sequences would otherwise fail nothing: skipped means absent,
+     * and absent conflicts with nothing.
+     */
+    it('frees Cmd+K before the sequences that claim it, for every generation that held it', () => {
+        const chordDefaults = defaultKeybindings.filter(({ key }) => key.startsWith('cmd+k '));
+        expect(chordDefaults.length).toBeGreaterThan(0);
+
+        for (const generation of releasedDefaultKeybindingGenerations) {
+            if (generation.bindings.every(({ key }) => key !== 'cmd+k')) continue;
+            const migrated = reconcileDefaultKeybindings(
+                generation.bindings,
+                defaultKeybindingChanges,
+            ).value;
+            expect(
+                migrated,
+                `${generation.id} kept Cmd+K bound to a single command`,
+            ).not.toContainEqual(expect.objectContaining({ key: 'cmd+k' }));
+            for (const binding of chordDefaults)
+                expect(migrated, `${generation.id} did not receive ${binding.key}`).toContainEqual(
+                    binding,
+                );
+        }
+    });
+
+    /**
+     * A shipped default that can never fire is invisible until a user reports it: `Cmd+K` held Terminal Clear right up
+     * until it also had to open `Cmd+K Cmd+S`, and nothing mechanical would have caught the overlap.
+     */
+    it('ships defaults no chord or sequence shadows', () => {
+        expect(findKeybindingConflicts(defaultKeybindings)).toEqual([]);
+        for (const generation of releasedDefaultKeybindingGenerations) {
+            expect(
+                findKeybindingConflicts(
+                    reconcileDefaultKeybindings(generation.bindings, defaultKeybindingChanges)
+                        .value,
+                ),
+                `migrated ${generation.id} keeps a shadowed keybinding`,
+            ).toEqual([]);
+        }
     });
 
     it('keeps every declared replacement executable in isolation', () => {

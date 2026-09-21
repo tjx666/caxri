@@ -5,6 +5,7 @@ export * from './business-contract.js';
 export * from './color.js';
 export * from './command-catalog.js';
 export * from './commands.js';
+export * from './default-keybindings.js';
 export * from './domain.js';
 export * from './editor.js';
 export * from './file-preview.js';

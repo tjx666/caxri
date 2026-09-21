@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { AgentProvider } from '../agent/agents.js';
 import { agentProviderIds } from '../agent/agents.js';
 import { MAX_CONFIGURABLE_FILE_BYTES } from '../configuration/settings-spec.js';
+import { MAX_SHORTCUT_CHORDS, splitShortcutChords } from '../configuration/shortcuts.js';
 import type { CommandId } from './commands.js';
 import { gitCommitSchema } from './git.js';
 import { paneLayoutSchema } from './pane-layout.js';
@@ -420,6 +421,14 @@ export const keybindingSchema = z
         when: keybindingWhenSchema.optional(),
     })
     .superRefine((binding, context) => {
+        // `cmd+k cmd+s` is one keybinding of two chords. Dispatch tracks a single pending chord, so a longer
+        // sequence would silently never fire; reject it at the file boundary instead.
+        if (splitShortcutChords(binding.key).length > MAX_SHORTCUT_CHORDS)
+            context.addIssue({
+                code: 'custom',
+                message: `A keybinding may chain at most ${MAX_SHORTCUT_CHORDS} chords, for example "cmd+k cmd+s"`,
+                path: ['key'],
+            });
         if (binding.command !== TERMINAL_SEND_SEQUENCE_COMMAND_ID) return;
         if (!binding.args || typeof binding.args.text !== 'string') {
             context.addIssue({
@@ -443,6 +452,8 @@ export const keybindingSchema = z
 export const keybindingConflictSchema = z.object({
     key: z.string(),
     commands: z.array(z.string()),
+    // Why the listed commands cannot all work; `findKeybindingConflicts` defines each value.
+    reason: z.enum(['chordPrefix', 'duplicate']),
 });
 
 export const fileEntrySchema = z.object({

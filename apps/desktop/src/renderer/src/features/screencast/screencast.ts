@@ -21,6 +21,11 @@ export interface ScreencastKeyboardInput {
 interface ScreencastKeyOptions {
     commandAllowsEditable(commandId: string): boolean;
     editable: boolean;
+    /**
+     * The chord this keystroke continues, when dispatch had one armed. Without it the second key of `Cmd+K Cmd+S`
+     * resolves as the unrelated single-chord `Cmd+S` and the overlay captions the wrong command.
+     */
+    leadingChord?: string;
     terminalFocus: boolean;
 }
 
@@ -65,7 +70,8 @@ export function describeScreencastKey(
     )
         return undefined;
 
-    const shortcut = keyboardEventShortcut(event as KeyboardEvent);
+    const chord = keyboardEventShortcut(event as KeyboardEvent);
+    const shortcut = options.leadingChord ? `${options.leadingChord} ${chord}` : chord;
     const binding = resolveShortcutBinding(buildShortcutMap(keybindings), shortcut, {
         terminalFocus: options.terminalFocus,
     });

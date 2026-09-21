@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { getRegisteredCommand } from '../../commands/registry';
+import { leadingChordAtLastKeystroke } from '../../commands/use-command-shortcuts';
 import { ShortcutBadge } from '../../components/shortcut-badge';
 import { isEditableEventTarget, isTerminalEventTarget } from '../../lib/keybindings';
 import { useWorkbenchStore } from '../../stores/workbench';
@@ -44,6 +45,9 @@ function ActiveScreencastOverlay() {
                 commandAllowsEditable: (commandId) =>
                     getRegisteredCommand(commandId)?.allowInEditable === true,
                 editable: isEditableEventTarget(event.target),
+                // Dispatch owns the chord state machine and runs first, so a sequence is captioned once, on the
+                // keystroke that completes it, with the command that actually ran.
+                leadingChord: leadingChordAtLastKeystroke(),
                 terminalFocus: isTerminalEventTarget(event.target),
             });
             if (!description) return;
