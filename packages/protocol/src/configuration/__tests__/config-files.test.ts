@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import type { DefaultKeybindingChange } from '../config-files';
-import { reconcileDefaultKeybindings } from '../config-files';
+import {
+    buildChordLeadingChords,
+    findKeybindingConflicts,
+    reconcileDefaultKeybindings,
+} from '../config-files';
 
 const changes = [
     {
@@ -93,5 +97,118 @@ describe('reconcileDefaultKeybindings', () => {
             replacements: [],
             value: [custom],
         });
+    });
+
+    /**
+     * `cmd+k` and `cmd+k cmd+s` are not independent chords: dispatch arms the pending chord, so the single-chord
+     * binding would win and the sequence would never fire. Adding a sequence over an occupied opening chord must fail
+     * closed exactly like adding a duplicate chord does.
+     */
+    it('refuses to add a sequence whose opening chord a single-chord binding already holds', () => {
+        const held = { key: 'cmd+k', command: 'terminal.clear' };
+        const sequence = { key: 'cmd+k cmd+s', command: 'settings.openKeybindings' };
+
+        expect(reconcileDefaultKeybindings([held], [{ type: 'add', binding: sequence }])).toEqual({
+            additions: [],
+            replacements: [],
+            value: [held],
+        });
+    });
+
+    it('adds the sequence once the same batch has moved the opening chord away', () => {
+        const previous = { key: 'cmd+k', command: 'terminal.clear' };
+        const current = { key: 'cmd+shift+k', command: 'terminal.clear' };
+        const sequence = { key: 'cmd+k cmd+s', command: 'settings.openKeybindings' };
+
+        expect(
+            reconcileDefaultKeybindings(
+                [previous],
+                [
+                    { type: 'replace', previous, current },
+                    { type: 'add', binding: sequence },
+                ],
+            ).value,
+        ).toEqual([current, sequence]);
+    });
+});
+
+describe('findKeybindingConflicts', () => {
+    it('reports one normalized keybinding claimed by several commands', () => {
+        expect(
+            findKeybindingConflicts([
+                { key: 'cmd+t', command: 'terminal.new' },
+                { key: 'Cmd+T', command: 'session.create' },
+            ]),
+        ).toEqual([
+            { key: 'cmd+t', commands: ['terminal.new', 'session.create'], reason: 'duplicate' },
+        ]);
+    });
+
+    it('stays silent when one command holds the same keybinding twice', () => {
+        expect(
+            findKeybindingConflicts([
+                { key: 'cmd+t', command: 'terminal.new' },
+                { key: 'cmd+t', command: 'terminal.new' },
+            ]),
+        ).toEqual([]);
+    });
+
+    /**
+     * The collision that pushed Terminal Clear off `Cmd+K`: a binding standing on a sequence's opening chord can never
+     * fire, and nothing in the old same-key check could see it. Only the dead binding is reported — the sequence keeps
+     * working, so a warning on its row would be noise.
+     */
+    it('reports a binding standing on a sequence opening chord, not the sequence', () => {
+        expect(
+            findKeybindingConflicts([
+                { key: 'cmd+k', command: 'terminal.clear' },
+                { key: 'cmd+k cmd+s', command: 'settings.openKeybindings' },
+            ]),
+        ).toEqual([{ key: 'cmd+k', commands: ['terminal.clear'], reason: 'chordPrefix' }]);
+    });
+
+    /**
+     * `cmd+k` stays reserved for Monaco's chords whether or not a binding uses it, so the warning cannot depend on a
+     * sequence being present: removing the shipped `cmd+k …` defaults and rebinding the bare chord is exactly how a
+     * user upgrading from a build where `Cmd+K` was Terminal Clear would reach this state.
+     */
+    it('reports a binding on the reserved chord even with no sequence in the table', () => {
+        expect(findKeybindingConflicts([{ key: 'cmd+k', command: 'terminal.clear' }])).toEqual([
+            { key: 'cmd+k', commands: ['terminal.clear'], reason: 'chordPrefix' },
+        ]);
+    });
+
+    it('leaves two sequences sharing an opening chord alone', () => {
+        expect(
+            findKeybindingConflicts([
+                { key: 'cmd+k cmd+s', command: 'settings.openKeybindings' },
+                { key: 'cmd+k v', command: 'editor.openPreviewToSide' },
+            ]),
+        ).toEqual([]);
+    });
+});
+
+describe('buildChordLeadingChords', () => {
+    it('collects the opening chord of every two-chord binding', () => {
+        const leading = buildChordLeadingChords([
+            { key: 'Cmd+K Cmd+S', command: 'settings.openKeybindings' },
+            { key: 'cmd+j x', command: 'custom.sequence' },
+            { key: 'cmd+t', command: 'terminal.new' },
+        ]);
+
+        expect(leading.has('cmd+k')).toBe(true);
+        expect(leading.has('cmd+j')).toBe(true);
+        expect(leading.has('cmd+t')).toBe(false);
+    });
+
+    /**
+     * Regression for the collision this whole mechanism exists to prevent: with `Cmd+K` derived only from the live
+     * table, removing the last `cmd+k …` binding would let the continuation of `Cmd+K Cmd+1` resolve as a standalone
+     * `Cmd+1` again and switch the Secondary Side Bar instead of folding.
+     */
+    it('reserves the editor chord prefix even when no binding uses it', () => {
+        expect(
+            buildChordLeadingChords([{ key: 'cmd+t', command: 'terminal.new' }]).has('cmd+k'),
+        ).toBe(true);
     });
 });

@@ -1,5 +1,5 @@
 import type { Keybinding } from '@caxri/protocol';
-import { formatShortcut, formatShortcutParts } from '@caxri/protocol';
+import { formatShortcut, formatShortcutChords } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -7,11 +7,11 @@ import {
     buildKeybindingRows,
     cancelRecording,
     captureRecordingKey,
+    clearRecordingKey,
     commitOnBlur,
     commitOnEnter,
     filterKeybindingRows,
     isFocusNavigationKey,
-    isModifierKey,
     removeKeybindingSource,
     startRecording,
     updateKeybindingSource,
@@ -25,7 +25,7 @@ const bindings: Keybinding[] = [
 
 describe('shortcut formatting', () => {
     it('uses one stable macOS modifier order and keycap parts', () => {
-        expect(formatShortcutParts('command+alt+shift+p')).toEqual(['⌥', '⇧', '⌘', 'P']);
+        expect(formatShortcutChords('command+alt+shift+p')).toEqual([['⌥', '⇧', '⌘', 'P']]);
         expect(formatShortcut('command+alt+shift+p')).toBe('⌥⇧⌘P');
     });
 });
@@ -101,14 +101,6 @@ describe('recording key classification', () => {
         expect(isFocusNavigationKey(event('a'))).toBe(false);
         expect(isFocusNavigationKey(event('Enter'))).toBe(false);
     });
-
-    it('identifies lone modifier presses that only arm further recording', () => {
-        for (const key of ['Alt', 'Control', 'Meta', 'Shift']) {
-            expect(isModifierKey(key)).toBe(true);
-        }
-        expect(isModifierKey('Tab')).toBe(false);
-        expect(isModifierKey('a')).toBe(false);
-    });
 });
 
 describe('keybinding JSONC edits', () => {
@@ -152,13 +144,28 @@ describe('shortcut recording transitions', () => {
         expect(startRecording('row-1')).toEqual({ rowId: 'row-1' });
     });
 
-    it('overwrites the captured chord on a further key press instead of appending', () => {
+    it('extends the capture into a two-chord sequence on a further key press', () => {
         const armed = startRecording('row-1');
-        const first = captureRecordingKey(armed, 'cmd+p');
-        const second = captureRecordingKey(first, 'cmd+shift+p');
+        const first = captureRecordingKey(armed, 'cmd+k');
+        const second = captureRecordingKey(first, 'cmd+s');
 
-        expect(first).toEqual({ rowId: 'row-1', pending: 'cmd+p' });
-        expect(second).toEqual({ rowId: 'row-1', pending: 'cmd+shift+p' });
+        expect(first).toEqual({ rowId: 'row-1', pending: 'cmd+k' });
+        expect(second).toEqual({ rowId: 'row-1', pending: 'cmd+k cmd+s' });
+    });
+
+    it('starts a fresh sequence once the two-chord ceiling is reached', () => {
+        const full = captureRecordingKey(
+            captureRecordingKey(startRecording('row-1'), 'cmd+k'),
+            'cmd+s',
+        );
+
+        expect(captureRecordingKey(full, 'cmd+p')).toEqual({ rowId: 'row-1', pending: 'cmd+p' });
+    });
+
+    it('clearing discards the capture while staying armed on the same row', () => {
+        const captured = captureRecordingKey(startRecording('row-1'), 'cmd+k');
+
+        expect(clearRecordingKey(captured)).toEqual({ rowId: 'row-1' });
     });
 
     it('Enter is a no-op while nothing has been captured, keeping recording open', () => {

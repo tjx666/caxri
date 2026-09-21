@@ -3,7 +3,42 @@ import { z } from 'zod';
 import type { Keybinding, KeybindingConflict } from '../domain/domain.js';
 import { keybindingSchema } from '../domain/domain.js';
 import { MAX_KEYBINDINGS } from './configuration-contract.js';
-import { normalizeShortcut } from './shortcuts.js';
+import { normalizeShortcut, shortcutLeadingChord } from './shortcuts.js';
+
+/**
+ * True when two keybindings cannot coexist: the same normalized keybinding, or a single-chord binding standing on the
+ * chord that opens the other's sequence. Dispatch arms the pending chord whenever one exists, so `cmd+k` and `cmd+k
+ * cmd+s` are not two independent bindings — the single-chord one could never fire.
+ */
+function areShortcutsColliding(left: string, right: string): boolean {
+    if (left === right) return true;
+    return shortcutLeadingChord(left) === right || shortcutLeadingChord(right) === left;
+}
+
+/**
+ * Chords reserved as sequence openers whether or not a binding currently uses them. `Cmd+K` opens every Monaco editor
+ * chord, so deriving it from the live binding table alone would resurrect the collision it exists to prevent: remove
+ * the last `cmd+k …` binding and the continuation of `Cmd+K Cmd+1` resolves as a standalone `Cmd+1` again, switching
+ * the Secondary Side Bar instead of folding.
+ */
+const RESERVED_LEADING_CHORDS = ['cmd+k'];
+
+/**
+ * Chords that open a two-chord binding. Shared by Renderer dispatch, which arms its pending chord on this set even when
+ * a single-chord binding claims the same chord, and by the native menu, which must not register such a chord as an
+ * accelerator: Electron would consume it before the Renderer could start the sequence.
+ *
+ * `findKeybindingConflicts` reports the single-chord overlap so the shadowed binding is visible in Settings rather than
+ * silently dead.
+ */
+export function buildChordLeadingChords(keybindings: readonly Keybinding[]): Set<string> {
+    const leading = new Set<string>(RESERVED_LEADING_CHORDS);
+    for (const binding of keybindings) {
+        const chord = shortcutLeadingChord(binding.key);
+        if (chord) leading.add(chord);
+    }
+    return leading;
+}
 
 export const keybindingsFileSchema = z.array(keybindingSchema).max(MAX_KEYBINDINGS);
 
@@ -42,9 +77,15 @@ export function reconcileDefaultKeybindings(
     const additions: DefaultKeybinding[] = [];
     const replacements: Array<{ binding: ArgumentFreeDefaultKeybinding; index: number }> = [];
     const isChordOccupied = (key: string, ignoredIndex?: number): boolean => {
-        const chord = normalizeShortcut(key);
+        const shortcut = normalizeShortcut(key);
+        // A chord that opens a sequence is never free for a single-chord default: dispatch would arm the pending
+        // chord instead of running it.
+        if (!shortcutLeadingChord(shortcut) && buildChordLeadingChords(value).has(shortcut))
+            return true;
         return value.some(
-            (binding, index) => index !== ignoredIndex && normalizeShortcut(binding.key) === chord,
+            (binding, index) =>
+                index !== ignoredIndex &&
+                areShortcutsColliding(normalizeShortcut(binding.key), shortcut),
         );
     };
 
@@ -86,18 +127,29 @@ export function reconcileDefaultKeybindings(
 }
 
 /**
- * Finds normalized chords assigned to more than one distinct command.
+ * Finds keybindings that cannot all work: several commands on one normalized keybinding, and a keybinding standing on a
+ * chord that opens a sequence. Only the keybinding that cannot fire is reported — the sequence itself works, so warning
+ * on its row would be noise.
  */
 export function findKeybindingConflicts(keybindings: readonly Keybinding[]): KeybindingConflict[] {
-    const byKey = new Map<string, Set<string>>();
+    const commandsByKey = new Map<string, string[]>();
     for (const binding of keybindings) {
         const key = normalizeShortcut(binding.key);
-        const commands = byKey.get(key) ?? new Set<string>();
-        commands.add(binding.command);
-        byKey.set(key, commands);
+        const commands = commandsByKey.get(key) ?? [];
+        if (!commands.includes(binding.command)) commands.push(binding.command);
+        commandsByKey.set(key, commands);
     }
+    const leadingChords = buildChordLeadingChords(keybindings);
     const conflicts: KeybindingConflict[] = [];
-    for (const [key, commands] of byKey)
-        if (commands.size > 1) conflicts.push({ key, commands: [...commands] });
+    for (const [key, commands] of commandsByKey) {
+        /**
+         * Checked against {@link buildChordLeadingChords} rather than against the other keys, so the unconditionally
+         * reserved `cmd+k` is caught even when no sequence currently uses it — exactly the state a user reaches by
+         * removing the shipped `cmd+k …` defaults and binding something to the bare chord.
+         */
+        if (!shortcutLeadingChord(key) && leadingChords.has(key))
+            conflicts.push({ key, commands, reason: 'chordPrefix' });
+        else if (commands.length > 1) conflicts.push({ key, commands, reason: 'duplicate' });
+    }
     return conflicts;
 }

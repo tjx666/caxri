@@ -373,7 +373,7 @@ export const releasedDefaultKeybindingGenerations = [
         ],
     },
     {
-        id: 'v0.0.53',
+        id: 'v0.0.53-v0.0.63',
         bindings: [
             { key: 'cmd+p', command: 'pathBrowser.open' },
             { key: 'cmd+shift+p', command: 'commandPalette.open' },
@@ -440,7 +440,7 @@ export const releasedDefaultKeybindingGenerations = [
                 when: 'terminalFocus',
                 args: { text: '\t\n' },
             },
-            { key: 'cmd+k', command: 'terminal.clear' },
+            { key: 'cmd+shift+k', command: 'terminal.clear' },
             { key: 'cmd+c', command: 'terminal.copy' },
             { key: 'cmd+f', command: 'terminal.find' },
             {
@@ -466,6 +466,7 @@ export const releasedDefaultKeybindingGenerations = [
             { key: 'cmd+s', command: 'editor.save' },
             { key: 'cmd+alt+k', command: 'editor.sendReferenceToTerminal' },
             { key: 'cmd+shift+v', command: 'editor.openPreview' },
+            { key: 'cmd+k v', command: 'editor.openPreviewToSide' },
             { key: 'cmd+1', command: 'secondarySidebar.showFiles' },
             { key: 'cmd+shift+f', command: 'secondarySidebar.searchFiles' },
             { key: 'cmd+2', command: 'secondarySidebar.showGit' },
@@ -479,6 +480,7 @@ export const releasedDefaultKeybindingGenerations = [
             { key: 'cmd+]', command: 'secondarySidebar.toggle' },
             { key: 'cmd+j', command: 'panel.toggle' },
             { key: 'cmd+,', command: 'settings.open' },
+            { key: 'cmd+k cmd+s', command: 'settings.openKeybindings' },
             { key: 'cmd+shift+b', command: 'developer.reportBug' },
         ],
     },
