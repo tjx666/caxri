@@ -18,7 +18,7 @@ import {
     VISIBLE_SESSION,
 } from './support/helpers.ts';
 
-test('primarySidebar titlebar is logo-free, holds only the Session history pair, and stays draggable', async () => {
+test('primarySidebar titlebar is logo-free, holds only history and the Activity toggle, and stays draggable', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-titlebar-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -29,18 +29,22 @@ test('primarySidebar titlebar is logo-free, holds only the Session history pair,
         const titlebar = running.page.locator('.primary-sidebar-title');
         await expect(titlebar.locator('[data-caxri-logo]')).toHaveCount(0);
         // The Add Project entry points are the `Cmd+O` shortcut, the Project menu, and the command
-        // palette; the Session history pair is the only control the titlebar carries, and it opts
-        // out of the drag region so the buttons navigate instead of moving the window.
-        await expect(titlebar.getByRole('button')).toHaveCount(2);
+        // palette; the titlebar carries exactly three controls — the Session history pair and the
+        // Activity toggle that swaps the side bar's body — and every one of them opts out of the
+        // drag region so a click acts instead of moving the window.
+        await expect(titlebar.getByRole('button')).toHaveCount(3);
         await expect(titlebar.locator('[data-session-history="back"]')).toHaveCount(1);
         await expect(titlebar.locator('[data-session-history="forward"]')).toHaveCount(1);
+        await expect(titlebar.locator('.primary-sidebar-activity-toggle')).toHaveCount(1);
         expect(
             await titlebar
-                .locator('.session-history-navigation')
-                .evaluate((element) =>
-                    getComputedStyle(element).getPropertyValue('-webkit-app-region'),
+                .locator('.session-history-navigation, .primary-sidebar-activity-toggle')
+                .evaluateAll((elements) =>
+                    elements.map((element) =>
+                        getComputedStyle(element).getPropertyValue('-webkit-app-region'),
+                    ),
                 ),
-        ).toBe('no-drag');
+        ).toEqual(['no-drag', 'no-drag']);
         const titlebarMetrics = await titlebar.evaluate((element) => {
             const titlebarBounds = element.getBoundingClientRect();
             return {

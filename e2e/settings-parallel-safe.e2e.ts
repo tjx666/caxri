@@ -92,11 +92,17 @@ test('Keyboard Shortcuts records, validates, resets, and dispatches a custom bin
         // Keep both rows visible (a narrower "toggle primary primarySidebar" search would hide Toggle
         // SecondarySidebar) so the conflict this creates can be checked on both colliding rows.
         await search.fill('toggle');
-        const primarySidebarRow = dialog
-            .getByRole('listitem')
-            .filter({ hasText: 'primarySidebar.toggle' });
+        /*
+         * Located by its own Edit button rather than by the command id: `hasText` is a substring
+         * match, and `primarySidebar.toggleActivity` contains `primarySidebar.toggle`, so the id
+         * alone resolves to two rows and trips strict mode.
+         */
+        const primarySidebarEditName = 'Edit shortcut for Toggle Primary Side Bar';
+        const primarySidebarRow = dialog.getByRole('listitem').filter({
+            has: running.page.getByRole('button', { name: primarySidebarEditName }),
+        });
         const primarySidebarEdit = primarySidebarRow.getByRole('button', {
-            name: 'Edit shortcut for Toggle Primary Side Bar',
+            name: primarySidebarEditName,
         });
         await primarySidebarEdit.click();
         await primarySidebarEdit.press('Meta+Alt+I');
