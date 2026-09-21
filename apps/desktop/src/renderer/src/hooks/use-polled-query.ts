@@ -6,6 +6,7 @@ import type { UseQueryOptions, UseQueryResult } from '@tanstack/react-query';
 import {
     isDocumentVisible,
     registerPoll,
+    resolvePollIntervalMs,
     subscribeVisibility,
     unregisterPoll,
 } from '../lib/poll-scheduler';
@@ -45,7 +46,8 @@ export function usePolledQuery<M extends CaxriMethod>(
     parameters: MethodParameters<M>,
     options: UsePolledQueryOptions<M>,
 ): UseQueryResult<MethodResult<M>, Error> {
-    const { label, intervalMs, enabled = true, ...rest } = options;
+    const { label, intervalMs: configuredIntervalMs, enabled = true, ...rest } = options;
+    const intervalMs = resolvePollIntervalMs(configuredIntervalMs);
     const [isVisible, setIsVisible] = useState(isDocumentVisible);
 
     useEffect(() => subscribeVisibility(setIsVisible), []);

@@ -57,6 +57,53 @@ export function getActivePolls(): readonly ActivePollSnapshot[] {
 }
 
 /**
+ * Lowest cap the E2E seam accepts. Below a second a workflow would spend its time re-issuing requests rather than
+ * exercising the behaviour under test.
+ */
+const MIN_E2E_MAX_POLL_INTERVAL_MS = 1_000;
+/**
+ * Highest cap the E2E seam accepts. The product cadences it exists to shorten are 60s, so a cap at or above that would
+ * silently be a no-op instead of an override.
+ */
+const MAX_E2E_MAX_POLL_INTERVAL_MS = 30_000;
+
+/**
+ * Parses the `CAXRI_E2E_MAX_POLL_INTERVAL_MS` value the E2E preload bridge forwards verbatim. Fails closed on anything
+ * outside the bound so a typo shortens nothing silently. `undefined` means "no cap", which is every production launch
+ * and every E2E launch that did not opt in.
+ */
+export function parseE2EMaxPollIntervalMs(source: string | undefined): number | undefined {
+    if (source === undefined) return;
+    const bounds = `CAXRI_E2E_MAX_POLL_INTERVAL_MS must be an integer from ${MIN_E2E_MAX_POLL_INTERVAL_MS} to ${MAX_E2E_MAX_POLL_INTERVAL_MS}`;
+    if (!/^[1-9]\d*$/u.test(source)) throw new Error(bounds);
+    const cap = Number(source);
+    if (
+        !Number.isSafeInteger(cap) ||
+        cap < MIN_E2E_MAX_POLL_INTERVAL_MS ||
+        cap > MAX_E2E_MAX_POLL_INTERVAL_MS
+    )
+        throw new Error(bounds);
+    return cap;
+}
+
+/**
+ * Caps a configured cadence for focused Electron coverage that has to observe a poll actually firing.
+ *
+ * Several product cadences are minutes-scale on purpose (`projectStatus.overview` and `session.pullRequests` both poll
+ * once a minute). A workflow proving that an availability indicator recovers once the underlying CLI works again has to
+ * wait out one whole tick, which cost `pr-unknown.e2e.ts` a full minute on the single-worker CI pool. The cap is opt-in
+ * per launch through `CAXRI_E2E_MAX_POLL_INTERVAL_MS` and only ever lowers a cadence, so a spec asserting a fast
+ * cadence — the Logs panel's one-second tick — is unaffected whether or not its launch opts in. Production never
+ * exposes the bridge and therefore never has a cap.
+ */
+export function resolvePollIntervalMs(intervalMs: number): number {
+    const cap = parseE2EMaxPollIntervalMs(
+        (globalThis as { caxriE2E?: { maxPollIntervalMs?: string } }).caxriE2E?.maxPollIntervalMs,
+    );
+    return cap === undefined ? intervalMs : Math.min(intervalMs, cap);
+}
+
+/**
  * `true` when the document is visible (or when running outside a DOM, e.g. a unit test with no `document` stub) so
  * callers default to "visible" rather than silently never polling.
  */
@@ -93,9 +140,10 @@ export interface VisibilityAwarePoll {
  */
 export function createVisibilityAwarePoll(
     label: string,
-    intervalMs: number,
+    configuredIntervalMs: number,
     callback: () => void,
 ): VisibilityAwarePoll {
+    const intervalMs = resolvePollIntervalMs(configuredIntervalMs);
     const id = registerPoll(label, intervalMs);
     let timer: ReturnType<typeof setInterval> | undefined;
 

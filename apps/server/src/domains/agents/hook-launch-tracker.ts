@@ -21,8 +21,12 @@ interface HookAuthority {
  * evidence-based recovery path; neither expiry fabricates a completed turn or interrupts the process.
  */
 export const HOOK_TURN_PRESERVE_MS = 30 * 60_000;
-const UNKNOWN_RECOVERY_MS = 2 * 60_000;
-const UNKNOWN_RECOVERY_PROBES = 3;
+/**
+ * Production window of missing evidence a hook turn survives before recovery releases it. Focused Electron coverage may
+ * shorten it through `e2e-options.ts`; nothing else overrides it.
+ */
+export const UNKNOWN_RECOVERY_MS = 2 * 60_000;
+export const UNKNOWN_RECOVERY_PROBES = 3;
 
 interface HookTurnExpiry {
     reason: 'unknownEvidence' | 'hardTimeout';
@@ -34,6 +38,7 @@ export function createRecoveringHookLaunchTracker(
     isCurrent: (terminalId: string, launchId: string) => boolean,
     probe: (terminalId: string) => void,
     logger: StructuredLogger,
+    unknownRecoveryMs?: number,
 ): HookLaunchTracker {
     return new HookLaunchTracker(
         () => Date.now(),
@@ -53,6 +58,7 @@ export function createRecoveringHookLaunchTracker(
                     fields: { terminalId, reason },
                 });
         },
+        unknownRecoveryMs,
     );
 }
 
@@ -87,6 +93,11 @@ export class HookLaunchTracker {
             launchId: string,
             reason: 'escape' | 'signal',
         ) => void,
+        /**
+         * Production window; focused Electron coverage shortens it so the recovery wiring is provable in seconds. The
+         * production value and its three-probe rule are pinned by `__tests__/hook-launch-tracker.test.ts`.
+         */
+        private readonly unknownRecoveryMs: number = UNKNOWN_RECOVERY_MS,
     ) {}
 
     private clearTurn(terminalId: string): void {
@@ -110,10 +121,10 @@ export class HookLaunchTracker {
         const recoveryDeadline =
             turn.unknownSince === undefined
                 ? Infinity
-                : Math.max(turn.lastEvidenceAt, turn.unknownSince) + UNKNOWN_RECOVERY_MS;
+                : Math.max(turn.lastEvidenceAt, turn.unknownSince) + this.unknownRecoveryMs;
         const nextProbe =
             turn.unknownCount > 0 && turn.unknownCount < UNKNOWN_RECOVERY_PROBES
-                ? this.now() + UNKNOWN_RECOVERY_MS / (UNKNOWN_RECOVERY_PROBES - 1)
+                ? this.now() + this.unknownRecoveryMs / (UNKNOWN_RECOVERY_PROBES - 1)
                 : Infinity;
         const deadline = Math.min(
             hardDeadline,
@@ -161,7 +172,7 @@ export class HookLaunchTracker {
         turn.unknownCount += 1;
         if (
             turn.unknownCount >= UNKNOWN_RECOVERY_PROBES &&
-            this.now() >= Math.max(turn.lastEvidenceAt, turn.unknownSince) + UNKNOWN_RECOVERY_MS
+            this.now() >= Math.max(turn.lastEvidenceAt, turn.unknownSince) + this.unknownRecoveryMs
         )
             this.expire(terminalId, turn, 'unknownEvidence');
         else this.arm(terminalId, turn);

@@ -191,6 +191,10 @@ export class DesktopServerConnection extends EventTarget {
                     CAXRI_E2E_TERMINAL_OUTPUT_FLUSH_DELAY_MS:
                         process.env.CAXRI_E2E_TERMINAL_OUTPUT_FLUSH_DELAY_MS,
                 }),
+                ...(process.env.CAXRI_E2E_AGENT_UNKNOWN_RECOVERY_MS && {
+                    CAXRI_E2E_AGENT_UNKNOWN_RECOVERY_MS:
+                        process.env.CAXRI_E2E_AGENT_UNKNOWN_RECOVERY_MS,
+                }),
                 ...(process.env.CAXRI_TEST_ROOT_PATH && {
                     CAXRI_TEST_ROOT_PATH: process.env.CAXRI_TEST_ROOT_PATH,
                 }),

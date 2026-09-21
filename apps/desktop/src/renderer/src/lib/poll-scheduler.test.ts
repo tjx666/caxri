@@ -5,7 +5,9 @@ import {
     createVisibilityAwarePoll,
     getActivePolls,
     isDocumentVisible,
+    parseE2EMaxPollIntervalMs,
     registerPoll,
+    resolvePollIntervalMs,
     subscribeVisibility,
     unregisterPoll,
 } from './poll-scheduler';
@@ -119,6 +121,45 @@ describe('subscribeVisibility', () => {
 
         expect(changes).toEqual([]);
     });
+});
+
+describe('resolvePollIntervalMs', () => {
+    it('keeps every configured cadence when no E2E bridge exposes a cap', () => {
+        expect(resolvePollIntervalMs(60_000)).toBe(60_000);
+        vi.stubGlobal('caxriE2E', {});
+        expect(resolvePollIntervalMs(60_000)).toBe(60_000);
+    });
+
+    it('only ever lowers a cadence to the exposed cap', () => {
+        vi.stubGlobal('caxriE2E', { maxPollIntervalMs: '2000' });
+
+        expect(resolvePollIntervalMs(60_000)).toBe(2_000);
+        // The Logs panel's one-second tick is already faster than the cap, so opting in cannot slow it down.
+        expect(resolvePollIntervalMs(1_000)).toBe(1_000);
+    });
+
+    it('registers the capped cadence so the poll snapshot matches what actually fires', () => {
+        stubDocument('visible');
+        vi.useFakeTimers();
+        vi.stubGlobal('caxriE2E', { maxPollIntervalMs: '2000' });
+        const poll = createVisibilityAwarePoll('processExplorer.snapshot', 60_000, () => {});
+
+        expect(
+            getActivePolls().find((entry) => entry.label === 'processExplorer.snapshot')
+                ?.intervalMs,
+        ).toBe(2_000);
+
+        poll.dispose();
+    });
+
+    it.each(['0', '-1', '999', '1.5', '30001', '60000', 'invalid'])(
+        'fails closed for an invalid cap: %s',
+        (cap) => {
+            expect(() => parseE2EMaxPollIntervalMs(cap)).toThrow(
+                'must be an integer from 1000 to 30000',
+            );
+        },
+    );
 });
 
 describe('createVisibilityAwarePoll', () => {
