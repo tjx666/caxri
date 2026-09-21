@@ -24,9 +24,9 @@ async function closeAppQuietly(app: E2EApp): Promise<void> {
 }
 
 /**
- * The Activity view's projection is unit-tested; what only a real launch can prove is that the Secondary Side Bar
- * actually contributes the container, that the Renderer reads Sessions belonging to Projects other than the selected
- * one, and that selecting and acknowledging from this list reach the Server over IPC.
+ * The Activity queue's projection is unit-tested; what only a real launch can prove is that the toggle actually swaps
+ * the Primary Side Bar's body, that the Renderer reads Sessions belonging to Projects other than the selected one, and
+ * that selecting and acknowledging from this list reach the Server over IPC.
  */
 test('Activity groups every Project’s Sessions attention-first and clears a reminder in place', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-agent-activity-e2e-'));
@@ -104,12 +104,43 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
 
         running = await launchCaxri(launchOptions);
         const page = running.page;
-        await page.keyboard.press('Meta+4');
-        await expect(
-            page
-                .getByRole('tablist', { name: 'Secondary Side Bar' })
-                .getByRole('tab', { exact: true, name: 'Activity' }),
-        ).toHaveAttribute('aria-selected', 'true');
+        const projectTree = page.getByRole('tree', { name: 'Primary Side Bar' });
+        // Located by class rather than by name: the button's accessible name is the action it offers, so it changes
+        // with the mode this test toggles.
+        const activityToggle = page.locator('.primary-sidebar-activity-toggle');
+        await expect(activityToggle).toHaveAttribute('aria-label', 'Show Activity');
+        // Two unread Sessions are waiting, so the toggle carries their tally before anyone opens the queue.
+        await expect(activityToggle.locator('.primary-sidebar-activity-badge')).toHaveText('2');
+
+        /*
+         * Focus a tree row first, so the toggle below has something to lose. The body that leaves is unmounted, taking
+         * the focused element with it, and the browser then drops focus onto `document.body` — which restarts the next
+         * Tab from the top of the document. `chrome-focus-handoff.ts` exists for exactly this failure; the assertion
+         * after the chord is what proves the new body swap is wired into it.
+         */
+        await projectTree.locator('[role="treeitem"][tabindex="0"]').first().focus();
+        await expect
+            .poll(() => page.evaluate(() => document.activeElement?.getAttribute('role')))
+            .toBe('treeitem');
+
+        await page.keyboard.press('Meta+Alt+u');
+        await expect(activityToggle).toHaveAttribute('aria-label', 'Show Projects');
+        await expect(activityToggle).toHaveAttribute('aria-pressed', 'true');
+        await expect
+            .poll(() =>
+                page.evaluate(() => {
+                    const active = document.activeElement;
+                    if (!active || active === document.body) return 'body';
+                    return document.querySelector('.session-primary-sidebar')?.contains(active) ===
+                        true
+                        ? 'inside-primary-sidebar'
+                        : 'elsewhere';
+                }),
+            )
+            .toBe('inside-primary-sidebar');
+        // The two bodies take turns in one column rather than stacking, so the tree has to be gone, not merely scrolled
+        // past: a queue rendered below a still-mounted tree would satisfy every assertion under it.
+        await expect(projectTree).toHaveCount(0);
 
         const tree = page.getByRole('tree', { name: 'Activity' });
         await expect
@@ -135,7 +166,29 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
         // The Project cell specifically, not the row: the Session title contains the Project name too, so asserting on
         // the whole row would pass even if the flat list never printed which repository a row belongs to.
         await expect(betaRow.locator('.agent-activity-project')).toHaveText('beta');
-        await expect(betaRow).toContainText('Waiting');
+        /*
+         * The state is a glyph, not a phrase, so the words only survive as its accessible name. Assert both halves:
+         * the shape that identifies the state visually, and the label a screen reader is left with once the phrase is
+         * gone from the row.
+         */
+        const betaGlyph = betaRow.locator('.agent-activity-glyph');
+        await expect(betaGlyph).toHaveAttribute('data-activity-glyph', 'question');
+        await expect(betaGlyph).toHaveAttribute('aria-label', 'Waiting for you');
+        // And nowhere else: a row that still printed its state would make its own heading redundant.
+        await expect(betaRow).not.toContainText('Waiting for you');
+        /*
+         * Rendered, not merely present in the DOM. `toHaveText` above reads the DOM, so it passes on a cell CSS has
+         * truncated to zero width — which is exactly what the Primary Side Bar's 230px default did to this row while
+         * the state was still a phrase: every unread row printed "· Waiting for you · " with no Project at all. A flat
+         * cross-Project queue that cannot name the Project is the one thing this list must never do.
+         */
+        await expect
+            .poll(() =>
+                betaRow
+                    .locator('.agent-activity-project')
+                    .evaluate((cell) => cell.scrollWidth <= cell.clientWidth),
+            )
+            .toBe(true);
 
         const alphaRow = tree.locator(
             `.agent-activity-row[data-session-id="${sessions.get('alpha')}"]`,
@@ -151,6 +204,14 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
 
         await alphaRow.click();
         await expect.poll(() => selectedSessionId(page)).toBe(sessions.get('alpha'));
+        // Selecting from the queue keeps the queue: the user is walking it, and a click that threw them back to the
+        // tree would cost them their place after every single row.
+        await expect(tree).toBeVisible();
+
+        await activityToggle.click();
+        await expect(activityToggle).toHaveAttribute('aria-pressed', 'false');
+        await expect(projectTree).toBeVisible();
+        await expect(page.getByRole('tree', { name: 'Activity' })).toHaveCount(0);
     } finally {
         await closeAppQuietly(running.app);
         await rm(testDirectory, { recursive: true, force: true });

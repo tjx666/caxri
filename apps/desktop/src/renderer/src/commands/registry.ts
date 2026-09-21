@@ -105,7 +105,7 @@ export interface CommandContext {
         toggle(): void;
     };
     panel: { activateViewContainer(id: ViewContainerId): void; toggle(): void };
-    primarySidebar: { focus(): void; toggle(): void };
+    primarySidebar: { focus(): void; toggle(): void; toggleActivityMode(): void };
     git: {
         /**
          * True only when the selected Session sits in a repository, which is when the status bar renders the branch

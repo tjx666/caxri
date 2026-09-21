@@ -264,6 +264,11 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('primarySidebar.toggle', (context) => context.primarySidebar.toggle(), {
         allowInEditable: true,
     }),
+    fromCatalog(
+        'primarySidebar.toggleActivity',
+        (context) => context.primarySidebar.toggleActivityMode(),
+        { allowInEditable: true },
+    ),
     /**
      * Reaches through a focused Terminal on purpose: xterm swallows Tab, so a Terminal is exactly the state this
      * command exists to escape.

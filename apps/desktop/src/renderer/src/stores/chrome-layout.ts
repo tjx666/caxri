@@ -6,7 +6,7 @@ import { clamp } from 'es-toolkit';
 
 import { readLocalStorageJson, writeLocalStorageJson } from '../lib/local-storage';
 import { createStore } from '../lib/store';
-import { handOffChromeFocus } from './chrome-focus-handoff';
+import { handOffChromeFocus, refocusChromeSurfaceBody } from './chrome-focus-handoff';
 
 /**
  * Renderer-local chrome layout: PrimarySidebar/SecondarySidebar widths, Panel height, their visibility, and the Panel's
@@ -65,6 +65,12 @@ export interface ChromeLayout {
     secondarySidebarVisible: boolean;
     panelVisible: boolean;
     desiredPanelViewContainerId: ViewContainerId;
+    /**
+     * Swaps the Primary Side Bar's body between the Project tree and the Activity queue. Device-local like the rest of
+     * this store rather than Session state: the queue spans every Project, so tying it to the selected Session would
+     * make the side bar flip contents as the user walks it.
+     */
+    primarySidebarActivityMode: boolean;
 }
 
 const DEFAULT_CHROME_LAYOUT: ChromeLayout = {
@@ -79,6 +85,7 @@ const DEFAULT_CHROME_LAYOUT: ChromeLayout = {
      */
     panelVisible: false,
     desiredPanelViewContainerId: 'caxri.logs',
+    primarySidebarActivityMode: false,
 };
 
 export function clampWidth(width: number, min: number, max: number): number {
@@ -184,6 +191,10 @@ function readPersistedLayout(): ChromeLayout {
         ).success
             ? (parsed.desiredPanelViewContainerId as ViewContainerId)
             : DEFAULT_CHROME_LAYOUT.desiredPanelViewContainerId,
+        primarySidebarActivityMode:
+            typeof parsed.primarySidebarActivityMode === 'boolean'
+                ? parsed.primarySidebarActivityMode
+                : false,
     };
 }
 
@@ -238,6 +249,16 @@ interface ChromeLayoutState extends ChromeLayout {
      */
     activatePanelViewContainer(view: ViewContainerId): void;
     /**
+     * Swaps the Primary Side Bar between the Project tree and the Activity queue. Unlike the visibility toggles this
+     * never moves keyboard focus on its own: both modes own a roving Tab stop of their own, and `primarySidebar.focus`
+     * stays the explicit entry command for either one.
+     */
+    togglePrimarySidebarActivityMode(): void;
+    /**
+     * Reveals the Primary Side Bar in Activity mode, for commands that have somewhere to put the user in the queue.
+     */
+    showPrimarySidebarActivity(): void;
+    /**
      * Re-clamps the persisted layout against a new viewport; see {@link clampLayoutToViewport} and
      * {@link clampPanelHeight}.
      */
@@ -253,6 +274,7 @@ function pickLayout(state: ChromeLayout): ChromeLayout {
         secondarySidebarVisible: state.secondarySidebarVisible,
         panelVisible: state.panelVisible,
         desiredPanelViewContainerId: state.desiredPanelViewContainerId,
+        primarySidebarActivityMode: state.primarySidebarActivityMode,
     };
 }
 
@@ -357,6 +379,24 @@ export const useChromeLayoutStore = createStore<ChromeLayoutState>('chrome-layou
             ...pickLayout(get()),
             panelVisible: isVisible,
         });
+        writePersistedLayout(layout);
+        set(layout);
+    },
+    togglePrimarySidebarActivityMode() {
+        const isActivityMode = !get().primarySidebarActivityMode;
+        const layout = { ...pickLayout(get()), primarySidebarActivityMode: isActivityMode };
+        // Before the commit: the body that owns focus right now is the one about to unmount.
+        refocusChromeSurfaceBody('primarySidebar');
+        writePersistedLayout(layout);
+        set(layout);
+    },
+    showPrimarySidebarActivity() {
+        const layout = fitCurrentViewport({
+            ...pickLayout(get()),
+            primarySidebarVisible: true,
+            primarySidebarActivityMode: true,
+        });
+        refocusChromeSurfaceBody('primarySidebar');
         writePersistedLayout(layout);
         set(layout);
     },

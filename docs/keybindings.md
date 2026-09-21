@@ -114,6 +114,14 @@ exercised against each of them.
 Clear ships on `Cmd+Shift+K`, migrated by a `replace` entry that is ordered ahead of the `cmd+k …`
 additions — the chord has to be free before a sequence can claim it.
 
+The last entry of `releasedDefaultKeybindingGenerations` is the one exception to "never rewrite a
+generation", and only while its version is still untagged. `command-catalog.test.ts` asserts that
+entry equals `defaultKeybindings`, so it is the current default set rather than history. A default
+that ships and is withdrawn inside a single unreleased version is therefore edited there in place,
+rather than earning a `replace` nobody could ever have stored — which is what happened to
+`cmd+4` / `secondarySidebar.showActivity`. Once the version is tagged the entry freezes like every
+one above it.
+
 ## Contextual bindings (`when`)
 
 A binding may carry `"when": "terminalFocus"`, the only context the schema accepts today.

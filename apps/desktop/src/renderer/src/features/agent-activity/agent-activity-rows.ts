@@ -158,6 +158,29 @@ export function agentActivityGroups({
 }
 
 /**
+ * How many Sessions the queue would put under "Needs attention", for the Primary Side Bar toggle's badge.
+ *
+ * Counted straight from `hasUnread` rather than by projecting the whole queue: `sessionStatus` derives `attention` from
+ * exactly that flag, so this agrees with the rendered group by construction while the badge — which is on screen
+ * whether or not the queue is — stays independent of Terminal records and the retention clock.
+ *
+ * "Failed" is deliberately left out even though it is the other actionable group. A failure you have already read stays
+ * failed until you act on it, and a badge that cannot be cleared by looking stops being a signal.
+ */
+export function agentAttentionCount(
+    projects: readonly ProjectRecord[],
+    sessions: readonly SessionRecord[],
+): number {
+    const projectIds = new Set(projects.map((project) => project.id));
+    return sessions.filter(
+        (session) =>
+            session.hasUnread &&
+            session.archivedAt === undefined &&
+            projectIds.has(session.projectId),
+    ).length;
+}
+
+/**
  * The Session `session.focusNextAttention` should move to: the next one that needs the user, walking the same order the
  * Activity view renders, and wrapping past the current selection so repeated presses cycle the queue instead of
  * sticking on its first row.
