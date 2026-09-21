@@ -121,6 +121,13 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('session.openArchived', (context) => context.session.openArchived(), {
         allowInEditable: true,
     }),
+    /**
+     * Reaches through a focused Terminal: the Session you are leaving is almost always an Agent Terminal, which is
+     * exactly the state this chord exists to escape.
+     */
+    fromCatalog('session.focusNextAttention', (context) => context.session.focusNextAttention(), {
+        allowInEditable: true,
+    }),
     fromCatalog('terminal.new', (context) => context.terminal.create(), { allowInEditable: true }),
     fromCatalog('terminal.newInSplit', (context) => context.terminal.createInSplit(), {
         allowInEditable: true,

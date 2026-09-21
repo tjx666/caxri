@@ -1,3 +1,4 @@
+import { defaultKeybindings } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { buildShortcutMap } from '../lib/keybindings';
@@ -38,6 +39,21 @@ describe('resolveKeydownBinding', () => {
                 terminalFocus: false,
             }),
         ).toEqual(sessionMru);
+    });
+
+    /**
+     * Guards the whole shipped default set rather than one binding: a new `cmd+shift+\`` default looks reachable in the
+     * catalog and is dead on arrival, because the fallback above claims that physical stroke for reverse MRU before the
+     * new command can ever see it. `session.focusNextAttention` was written that way first.
+     */
+    it('leaves Cmd+Shift+Backquote to reverse Session MRU across the shipped defaults', () => {
+        const binding = resolveKeydownBinding(
+            buildShortcutMap(defaultKeybindings),
+            shiftedBackquoteEvent(),
+            { terminalFocus: false },
+        );
+
+        expect(binding?.command).toBe('session.switchMru');
     });
 });
 

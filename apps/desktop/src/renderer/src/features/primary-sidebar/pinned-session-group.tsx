@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, Pin } from 'lucide-react';
 
 import { DisclosureMotion } from '../../components/disclosure-motion';
 import { Tooltip } from '../../components/ui/tooltip';
+import { sessionAgentTerminal } from '../session/session-agent-terminal';
 import { ActiveSessionRow } from './active-session-row';
 import type { SessionOrderController } from './hooks/use-session-order';
 import {
@@ -55,17 +56,6 @@ interface PinnedSessionGroupProperties {
      */
     visibleSessions: SessionRecord[];
     worktreeProjects?: Record<string, ProjectRecord>;
-}
-
-function sessionTerminal(
-    session: SessionRecord,
-    terminals: TerminalRecord[],
-): TerminalRecord | undefined {
-    const sessionTerminals = terminals.filter((item) => item.sessionId === session.id);
-    return (
-        sessionTerminals.find((item) => item.id === session.primaryAgentTerminalId) ??
-        sessionTerminals[0]
-    );
 }
 
 /**
@@ -182,7 +172,7 @@ export function PinnedSessionGroup({
                                     session={session}
                                     sessionOrder={sessionOrder}
                                     showProjectName
-                                    terminal={sessionTerminal(session, terminals)}
+                                    terminal={sessionAgentTerminal(session, terminals)}
                                     terminals={terminals}
                                     visibleSessions={visibleSessions}
                                     worktreeProject={worktreeProjects?.[session.id]}
