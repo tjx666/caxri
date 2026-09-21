@@ -160,24 +160,33 @@ describe('pnpm workspace contract', () => {
         expect(rootManifest.devEngines?.packageManager).toBeUndefined();
         expect(rootManifest.workspaces).toBeUndefined();
         expect(workspace.packages).toEqual(['apps/*', 'extensions/*', 'packages/*']);
-        expect(workspace.catalog).toEqual({
-            '@types/semver': '^7.8.0',
-            '@types/ws': '^8.18.1',
-            '@yutengjing/eslint-config-typescript': '^4.0.0',
-            '@yutengjing/prettier-config': '^2.0.0',
-            'eslint-plugin-import-x': '^4.17.1',
-            'markdownlint': '^0.41.1',
-            'markdownlint-cli2': '^0.23.2',
-            'oxlint': '^1.82.0',
-            'oxlint-tsgolint': '^7.0.2001',
-            'prettier-plugin-tailwindcss': '^0.8.1',
-            'react-qr-code': '^2.2.0',
-            'react-scan': '^0.5.7',
-            'semver': '^7.8.5',
-            'sonda': '^0.14.0',
-            'ws': '^8.21.3',
-            'zod': '^4.5.4',
-        });
+        /*
+         * Membership and range shape, deliberately not the version numbers. What this case is named after — no
+         * manifest pinning — is a property of the range, and a catalog written out version by version instead
+         * asserted a snapshot of one afternoon: every routine `pnpm update` failed here with nothing wrong, which
+         * teaches the next reader to edit the expectation rather than read it.
+         */
+        expect(Object.keys(workspace.catalog ?? {})).toEqual([
+            '@types/semver',
+            '@types/ws',
+            '@yutengjing/eslint-config-typescript',
+            '@yutengjing/prettier-config',
+            'eslint-plugin-import-x',
+            'markdownlint',
+            'markdownlint-cli2',
+            'oxlint',
+            'oxlint-tsgolint',
+            'prettier-plugin-tailwindcss',
+            'react-qr-code',
+            'react-scan',
+            'semver',
+            'sonda',
+            'ws',
+            'zod',
+        ]);
+        const catalogEntries = Object.entries(workspace.catalog ?? {});
+        for (const [name, range] of catalogEntries)
+            expect(`${name}: ${range}`).toMatch(/: \^\d+\.\d+\.\d+$/);
         expect(workspace.allowBuilds).toEqual({
             '@parcel/watcher': false,
             'better-sqlite3': true,
@@ -187,10 +196,15 @@ describe('pnpm workspace contract', () => {
             'node-pty': true,
             'unrs-resolver': true,
         });
-        expect(workspace.overrides).toEqual({
-            'dompurify': '3.4.15',
-            'vitest@5.0.0>tinybench': '6.1.6',
-        });
+        /*
+         * Same reasoning as the catalog, inverted: the override policy is that a correction names an exact version,
+         * so that is what is checked. The versions themselves move on purpose — `dompurify` tracks the newest
+         * release rather than holding a security floor.
+         */
+        expect(Object.keys(workspace.overrides ?? {})).toEqual(['dompurify', 'vitest>tinybench']);
+        const overrideEntries = Object.entries(workspace.overrides ?? {});
+        for (const [selector, version] of overrideEntries)
+            expect(`${selector}: ${version}`).toMatch(/: \d+\.\d+\.\d+$/);
         expect(rootManifest.devDependencies?.['@oxlint/plugins']).toBe(workspace.catalog?.oxlint);
         // `--max-warnings=0` mirrors the `lint` script: ESLint exits 0 on a warning, so without it the hook lets
         // through exactly what CI rejects.

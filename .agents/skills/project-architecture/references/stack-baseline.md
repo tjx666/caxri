@@ -23,7 +23,9 @@ Keep these compatibility exceptions:
   update loop when opening the multi-trigger Editor breadcrumb picker (React error 185).
   `e2e/editor-breadcrumbs.e2e.ts` reproduces it locally and in
   [CI run 34299568185](https://github.com/tjx666/caxri/actions/runs/34299568185).
-  Re-evaluate the pin only after that regression passes on a newer release.
+  Re-checked 2026-09-21 against 1.8.0, still the newest release: the spec fails the same way and the
+  whole Renderer falls through to the "Something went wrong" boundary, so the pin stays.
+  Re-evaluate it only after that regression passes on a newer release.
 - `typescript` / `@typescript/native` npm aliases: exact TypeScript 6 API and TypeScript 7 CLI pair.
 - Expo-managed mobile runtime dependencies and React types: SDK-recommended exact or tilde ranges.
   This includes React, React Native, Metro, FlashList, Reanimated, Worklets, and native addons.
