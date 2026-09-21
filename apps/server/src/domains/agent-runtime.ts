@@ -33,6 +33,7 @@ interface CreateAgentRuntimeOptions {
         | 'agentEnvironment'
         | 'agentHooksPath'
         | 'agentRefreshDelayMs'
+        | 'agentUnknownRecoveryMs'
         | 'hookExecutable'
     >;
     logger: StructuredLogger;
@@ -82,6 +83,7 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
             options.onLifecycleApplied?.(signal);
         },
         refreshDelayMs: dependencies.agentRefreshDelayMs,
+        unknownRecoveryMs: dependencies.agentUnknownRecoveryMs,
     });
     const sessionRenames = new SessionRenameService(database, agents, coordinator, send, logger);
     const automaticNaming = new SessionAutoNamingService(

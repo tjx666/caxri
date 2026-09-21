@@ -4,7 +4,7 @@ import type { StructuredLogger } from '@caxri/system';
 
 import type { AgentEndpointControl } from '../domains/agent-endpoints';
 import { AgentEndpointLifecycle } from '../domains/agent-endpoints';
-import { defaultAgentEnvironment } from '../domains/agents';
+import { defaultAgentEnvironment, resolveE2EAgentUnknownRecoveryMs } from '../domains/agents';
 import type { TerminalExecutionPort } from '../domains/terminal';
 import type { CreateDomainServices } from './domain-service';
 import { ServerDomainService } from './domain-service';
@@ -34,6 +34,7 @@ export function createServerDomainService(
             ),
             agentEnvironment: defaultAgentEnvironment(process.env),
             agentHooksPath: options.agentHooksPath,
+            agentUnknownRecoveryMs: resolveE2EAgentUnknownRecoveryMs(process.env),
             logger: options.logger,
             hookExecutable: options.executable ?? process.execPath,
             projectSearch: options.projectSearch,

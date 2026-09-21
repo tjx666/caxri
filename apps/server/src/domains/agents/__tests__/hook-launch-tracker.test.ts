@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { HOOK_TURN_PRESERVE_MS, HookLaunchTracker } from '../hook-launch-tracker';
+import {
+    HOOK_TURN_PRESERVE_MS,
+    HookLaunchTracker,
+    UNKNOWN_RECOVERY_MS,
+    UNKNOWN_RECOVERY_PROBES,
+} from '../hook-launch-tracker';
 
 describe('HookLaunchTracker', () => {
     it('records hard expiry when a probe wins the race against its timer', () => {
@@ -37,6 +42,41 @@ describe('HookLaunchTracker', () => {
                 durationMs: 120_000,
             });
             expect(tracker.isTurnInFlight('terminal', 'launch')).toBe(false);
+        } finally {
+            tracker.clear();
+            vi.useRealTimers();
+        }
+    });
+
+    /**
+     * `e2e/hook-turn-recovery.e2e.ts` used to spend two real minutes proving this window on the single-worker CI pool.
+     * It now injects a shortened window, so the production constant and the probe schedule derived from it are pinned
+     * here — the test above proves the default expiry, and this one proves an override moves both the probes and the
+     * deadline together rather than only the deadline.
+     */
+    it('keeps the production recovery window at two minutes and scales its probes with an override', async () => {
+        expect(UNKNOWN_RECOVERY_MS).toBe(2 * 60_000);
+        expect(UNKNOWN_RECOVERY_PROBES).toBe(3);
+        vi.useFakeTimers();
+        const expired = vi.fn();
+        const tracker = new HookLaunchTracker(
+            () => Date.now(),
+            (terminalId, launchId) => tracker.observeUnknown(terminalId, launchId),
+            expired,
+            undefined,
+            4_000,
+        );
+        try {
+            tracker.markTurnStarted('terminal', 'launch');
+            tracker.observeUnknown('terminal', 'launch');
+            await vi.advanceTimersByTimeAsync(3_999);
+            expect(expired).not.toHaveBeenCalled();
+            await vi.advanceTimersByTimeAsync(2);
+            expect(expired).toHaveBeenCalledExactlyOnceWith('terminal', 'launch', {
+                reason: 'unknownEvidence',
+                unknownCount: 3,
+                durationMs: 4_000,
+            });
         } finally {
             tracker.clear();
             vi.useRealTimers();

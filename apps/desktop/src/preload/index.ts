@@ -178,6 +178,12 @@ if (isE2E) {
         },
         logsQueryCount: () => e2eRequestState.logsQueryCount,
         logsQueryTimestamps: () => [...e2eRequestState.logsQueryTimestamps],
+        /**
+         * Forwarded verbatim; `renderer/src/lib/poll-scheduler.ts` owns parsing and bounding it, so this entry stays
+         * free of the shared module that Electron's sandboxed preload loader cannot require.
+         */
+        // eslint-disable-next-line n/prefer-global/process -- required by Electron's sandboxed preload runtime
+        maxPollIntervalMs: process.env.CAXRI_E2E_MAX_POLL_INTERVAL_MS,
         sessionStateUpdateCount: () => e2eRequestState.sessionStateUpdateCount,
         takeMobilePairingLink: async () => {
             const bridge = e2eRequestState.mobilePairingBridge;

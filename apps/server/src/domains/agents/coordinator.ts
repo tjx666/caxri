@@ -84,6 +84,7 @@ export class AgentCoordinator {
             (terminalId, launchId) => this.launchIdsByTerminal.get(terminalId) === launchId,
             (terminalId) => this.probeTerminal(terminalId),
             logger,
+            options.unknownRecoveryMs,
         );
         this.shellProcessProbe = new ShellProcessProbe({
             detect: options.detectForegroundAgent ?? detectForegroundAgentProvider,

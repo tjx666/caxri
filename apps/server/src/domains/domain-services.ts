@@ -32,6 +32,10 @@ export interface DomainDependencies {
     pid?: number;
     projectSearch?: { executablePath: string; workerPath: string };
     agentRefreshDelayMs?: number;
+    /**
+     * Shortened hook-turn unknown-evidence recovery window; only focused Electron coverage supplies it.
+     */
+    agentUnknownRecoveryMs?: number;
     terminal?: Omit<TerminalManagerOptions, 'execution'>;
     terminalExecution: TerminalExecutionPort;
     terminalRestoreGridWaitMs?: number;

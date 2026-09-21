@@ -46,9 +46,11 @@ const scenarios = [
     { id: 'no-pr' },
 ] as const;
 
+const POLL_INTERVAL_MS = 2_000;
+
 for (const scenario of scenarios) {
     test(`PR status distinguishes ${scenario.id}`, async () => {
-        test.setTimeout(95_000);
+        test.setTimeout(60_000);
         const directory = await mkdtemp(join(tmpdir(), `caxri-pr-unknown-${scenario.id}-`));
         const root = join(directory, 'project');
         const bin = join(directory, 'bin');
@@ -91,7 +93,17 @@ ${response}
         const running = await launchCaxri({
             userDataDir: join(directory, 'user-data'),
             testRootPath: root,
-            env: { PATH: `${bin}:/usr/bin:/bin`, SHELL: '/bin/sh' },
+            env: {
+                /**
+                 * The `not-logged-in` recovery below waits for the status bar's own poll to re-ask a now-working `gh`.
+                 * That cadence is a minute in production, which is a minute of the single-worker CI pool spent on a
+                 * timer; `renderer/src/lib/poll-scheduler.ts` owns this bounded cap and `poll-scheduler.test.ts` pins
+                 * it. What the workflow proves — the indicator clears itself rather than latching — is unchanged.
+                 */
+                CAXRI_E2E_MAX_POLL_INTERVAL_MS: String(POLL_INTERVAL_MS),
+                PATH: `${bin}:/usr/bin:/bin`,
+                SHELL: '/bin/sh',
+            },
         });
         try {
             const sessionId = await createProjectSession(running.page);
@@ -145,7 +157,9 @@ ${response}
                     const before = test.info().outputPath('before-recovery.png');
                     await statusBar.screenshot({ path: before });
                     await writeFile(ready, 'ready');
-                    await expect(unavailable).toHaveCount(0, { timeout: 75_000 });
+                    await expect(unavailable).toHaveCount(0, {
+                        timeout: POLL_INTERVAL_MS + 30_000,
+                    });
                     await expect(
                         statusBar.getByRole('link', { name: 'Open pull request #42' }),
                     ).toBeVisible();
