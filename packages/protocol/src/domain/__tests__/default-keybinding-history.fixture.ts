@@ -3,7 +3,12 @@ import type { Keybinding } from '../domain';
 /**
  * Released default generations are durable compatibility fixtures because first-run defaults become user-owned
  * `keybindings.jsonc` data. Consecutive tags with identical semantic values share one entry. Append a generation when
- * defaults change; never rewrite an existing generation.
+ * defaults change; never rewrite a generation whose version has already been tagged.
+ *
+ * The last entry is the exception, and only while its version is still untagged: `command-catalog.test.ts` asserts it
+ * equals `defaultKeybindings`, so it is the current default set rather than history, and a default that ships and is
+ * withdrawn inside one unreleased version is edited here instead of earning a `replace` nobody could ever have stored.
+ * Once that version is tagged the entry freezes like every one above it.
  */
 export const releasedDefaultKeybindingGenerations = [
     {
@@ -471,12 +476,12 @@ export const releasedDefaultKeybindingGenerations = [
             { key: 'cmd+shift+f', command: 'secondarySidebar.searchFiles' },
             { key: 'cmd+2', command: 'secondarySidebar.showGit' },
             { key: 'cmd+3', command: 'secondarySidebar.showStatus' },
-            { key: 'cmd+4', command: 'secondarySidebar.showActivity' },
             { key: 'cmd+shift+n', command: 'session.focusNextAttention' },
             { key: 'cmd+shift+1', command: 'panel.showLogs' },
             { key: 'cmd+shift+2', command: 'panel.showInfo' },
             { key: 'cmd+[', command: 'primarySidebar.toggle' },
             { key: 'cmd+0', command: 'primarySidebar.focus' },
+            { key: 'cmd+alt+u', command: 'primarySidebar.toggleActivity' },
             { key: 'cmd+]', command: 'secondarySidebar.toggle' },
             { key: 'cmd+j', command: 'panel.toggle' },
             { key: 'cmd+,', command: 'settings.open' },

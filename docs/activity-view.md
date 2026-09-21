@@ -1,14 +1,24 @@
 # Activity view
 
-The Activity view is the Secondary Side Bar container that answers one question across every
-Project: **which Sessions are waiting on me right now.** The Primary Side Bar answers a different
-question — which Sessions exist — in the order the user arranged them, so a Session that needs
-attention is deliberately never promoted there. Keeping the two lists apart is the point: one order
+The Activity view is one of the Primary Side Bar's two bodies. It answers one question across every
+Project: **which Sessions are waiting on me right now.** The other body, the Project tree, answers a
+different question — which Sessions exist — in the order the user arranged them, so a Session that
+needs attention is deliberately never promoted there. Keeping the two orders apart is the point: one
 is the user's filing, the other is a queue.
 
-Open it with `Cmd+4`, the Command Palette entry **Secondary Side Bar: Show Activity**, or the
-inbox tab in the Secondary Side Bar. `Cmd+Shift+N` jumps straight to the next Session that needs
-you without opening anything.
+They take turns in the same column rather than sitting side by side. Both describe the same
+Sessions, so showing them at once renders every row twice and makes the side bar argue with itself
+about what matters. Codex's desktop app and T3 Code both put the queue in the left side bar for the
+same reason; Orca keeps the tree and slides a dashboard over it, which still has the two competing
+for one column.
+
+Switch with the inbox button in the side bar header, `Cmd+Alt+U`, or the Command Palette entry
+**View: Toggle Activity**. It is an inbox rather than a bell because the Status Bar already ends in
+a bell with its own unread count, and that one holds app notifications rather than Sessions. The
+button carries the number of Sessions with Unread Attention, so the tally is legible while the tree
+is showing — which is exactly when the queue is unmounted.
+`Cmd+Shift+N` jumps to the next Session that needs you, revealing the queue on the way so the user
+can see what else is in line.
 
 ## What lands in the list
 
@@ -50,11 +60,10 @@ would grow into a permanent archive of every Session that ever completed, and th
 being readable at a glance. A **Failed** Session is deliberately exempt: nothing else will clear it,
 so ageing it out would silently lose the only place that failure is reported.
 
-Nothing in Server state changes when the window closes, so a hidden Activity container would never
-re-read the clock. `useAgentActivityClock` subscribes to the same 30-second window clock the
-relative-time labels use rather than starting a second timer, so a row's "12 minutes ago" and the
-window that label is about turn over in the same tick; it subscribes only while the container is the
-visible tab, because view containers stay mounted once shown.
+`useAgentActivityClock` subscribes to the same 30-second window clock the relative-time labels use
+rather than starting a second timer, so a row's "12m ago" and the window that label is about
+turn over in the same tick. It needs no visibility gate: the queue exists only while the side bar is
+showing it, so switching back to the tree stops the clock by unmounting its only consumer.
 
 ## Visual grammar
 
@@ -68,9 +77,17 @@ turn is a neutral state, which would print the commonest unread row of all in th
 Idle one, and an unread Session still running is a success state, which would put a green chip under
 "Needs attention".
 
-Each row carries the Session title on the first line and its Project, current state, and relative
-time on the second. The Project name is not decoration — the list is flat, so without it a row
-cannot say which repository it belongs to.
+Each row carries the Session title and a right-aligned relative time on the first line, then its
+Project and current state on the second. The Project name is not decoration — the list is flat, so
+without it a row cannot say which repository it belongs to, which is why it is the one value on the
+second line that never shrinks.
+
+The split is what makes the row survive this column. All four values on one line cost more width
+than the side bar has at its 230px default, and an unread row spends more still on its mark-read
+button, so a long state phrase such as "Waiting for you" used to squeeze the Project name out
+entirely. Two other things buy back the same width: the time is the narrow `8m ago` form rather than
+the prose `8 minutes ago` the Session cards use, and the mark-read button is positioned rather than
+laid out, taking the time's slot on hover instead of holding a column of its own on every unread row.
 
 ## Interaction
 
@@ -86,24 +103,33 @@ over them.
 | `Delete` / `Backspace`  | Mark the row read, clearing its reminder without opening it    |
 | Row's check button      | The pointer equivalent of Delete                               |
 | `Cmd+Shift+N`           | Select the next Session needing attention, wrapping at the end |
+| `Cmd+Alt+U`             | Switch the side bar between the Project tree and this queue    |
 
 `Delete` clears the reminder here rather than archiving the Session, which is what the same key does
 in the Primary Side Bar. The two lists answer different questions, and removing an item from a queue
 is what Delete means in a queue.
 
-### Selecting keeps the queue on screen
+Switching bodies hands the keyboard over. The body that leaves is unmounted, taking any focused row
+with it, and the browser then drops focus onto `document.body` — which silently restarts the next
+Tab from the top of the document. `refocusChromeSurfaceBody` in
+`apps/desktop/src/renderer/src/stores/chrome-focus-handoff.ts` moves focus to the arriving body's
+own entry point instead, but only when focus was inside the side bar to begin with: someone typing
+in a Terminal who presses `Cmd+Shift+N` asked to see what is waiting, not to hand over their
+keyboard.
 
-The Secondary Side Bar's visible container is Session-owned state, so selecting another Session
-normally restores whatever that Session last showed. For a list whose entire purpose is walking
-Sessions, that means the list would disappear on its own first click. `didSelectAgentActivitySession`
-re-asserts the Activity container after the selection lands — but only when Activity was already the
-visible container _and_ the Secondary Side Bar is actually on screen, so the global `Cmd+Shift+N`
-never imposes this view on a user who was looking at Files, and never rewrites a Session's stored
-container while the bar is collapsed and nothing on screen could explain it.
+### Mode is device state, not Session state
 
-Because that container is Session-owned, a Session reached from this queue keeps Activity as its
-Secondary Side Bar the next time it is opened — the same way it would keep any container the user
-left open on it. Switching that Session to Files or Git replaces it, as usual.
+Which body the side bar shows lives in the Renderer's chrome layout
+(`primarySidebarActivityMode`), beside the panel widths and visibility flags, and persists to
+`localStorage`. It is deliberately not Session-owned: this queue spans every Project, so tying the
+mode to the selected Session would flip the side bar's contents underneath a user walking the queue
+— the list would vanish on its own first click.
+
+Switching modes unmounts the body that leaves, rather than hiding it. Keeping both alive would mean
+a hidden Project tree still polling pull requests, or a hidden queue still re-projecting every
+Session on the retention clock, purely to preserve a scroll position behind a surface nobody can
+see. The Project tree's own expansion state survives regardless — it lives in its own store, not in
+the mounted component.
 
 ### `Cmd+Shift+N`, and why not `Cmd+Shift+` backtick
 
@@ -116,20 +142,23 @@ into the same trap.
 
 ## Where the code lives
 
-| Path                                                           | Owns                                                         |
-| -------------------------------------------------------------- | ------------------------------------------------------------ |
-| `packages/protocol/src/registry/core-contributions.ts`         | The `caxri.activity` container, view, command, keybindings   |
-| `apps/desktop/.../features/agent-activity/agent-activity-rows` | Grouping, ordering, and the next-attention walk              |
-| `.../agent-activity-retention.ts`                              | The finished-row window                                      |
-| `.../agent-activity-tree.ts`                                   | Flattening and keyboard row math                             |
-| `.../use-agent-activity-clock.ts`                              | The visible-only subscription to the shared window clock     |
-| `.../agent-activity-view.tsx`, `agent-activity-row-item.tsx`   | Rendering, roving focus, and mark-read                       |
-| `.../agent-activity-commands.ts`                               | `session.focusNextAttention` and container-preserving select |
-| `e2e/agent-activity.e2e.ts`                                    | The cross-Project workflow through a real launch             |
+| Path                                                         | Owns                                                         |
+| ------------------------------------------------------------ | ------------------------------------------------------------ |
+| `apps/desktop/.../primary-sidebar/primary-sidebar.tsx`       | The shell that picks one of the two bodies                   |
+| `.../primary-sidebar/primary-sidebar-header.tsx`             | The toggle, its badge, and the accessible tally              |
+| `.../primary-sidebar/primary-sidebar-project-tree.tsx`       | The other body, split out so mode switching unmounts it      |
+| `apps/desktop/src/renderer/src/stores/chrome-layout.ts`      | `primarySidebarActivityMode` and its persistence             |
+| `.../features/agent-activity/agent-activity-rows.ts`         | Grouping, ordering, the next-attention walk, the badge tally |
+| `.../agent-activity-retention.ts`                            | The finished-row window                                      |
+| `.../agent-activity-tree.ts`                                 | Flattening and keyboard row math                             |
+| `.../use-agent-activity-clock.ts`                            | The subscription to the shared window clock                  |
+| `.../agent-activity-view.tsx`, `agent-activity-row-item.tsx` | Rendering, roving focus, and mark-read                       |
+| `.../agent-activity-commands.ts`                             | `session.focusNextAttention`                                 |
+| `e2e/agent-activity.e2e.ts`                                  | The cross-Project workflow through a real launch             |
 
-The view is a `builtin-react` view rather than a Server-controlled one: every Session, Project, and
-Terminal record it groups is already in the Renderer's bootstrap store, so a Server-side provider
-would only re-serialize state the client already holds.
+Every Session, Project, and Terminal record this list groups is already in the Renderer's bootstrap
+store, so nothing here crosses into the Server: the queue is projected client-side, and only the
+selection and the read acknowledgement travel over IPC.
 
 ## Non-goals
 

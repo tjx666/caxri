@@ -26,10 +26,10 @@ type RenderRow =
 /**
  * Every Project's Agent Sessions in one flat, attention-first list.
  *
- * The PrimarySidebar answers "which Sessions exist", grouped by Project and ordered by the user's own arrangement, so a
- * Session that needs attention is never promoted there. This view answers the other question — "which ones are waiting
- * on me" — which is why it is a separate container rather than a mode switch on that tree: the two orders are genuinely
- * different, and one list cannot hold both without the user losing the arrangement they chose.
+ * The Project tree answers "which Sessions exist", grouped by Project and ordered by the user's own arrangement, so a
+ * Session that needs attention is never promoted there. This list answers the other question — "which ones are waiting
+ * on me". One list cannot hold both orders without the user losing the arrangement they chose, so the two take turns in
+ * the Primary Side Bar's body rather than sharing it; see `primary-sidebar.tsx`.
  */
 export function AgentActivityView() {
     const now = useAgentActivityClock();
@@ -69,8 +69,14 @@ export function AgentActivityView() {
             ]),
         [groups],
     );
+    /**
+     * `narrow` ("8m ago") rather than the prose form the Session cards use. A row here spends its one line on a Project
+     * name, a state phrase, and this, inside a side bar the user can drag down to 180px; "8 minutes ago" costs roughly
+     * twice the width and buys nothing a queue needs.
+     */
     const relativeTimes = useRelativeTimes(
         useMemo(() => sessionRows.map((row) => row.session.lastSessionActivityAt), [sessionRows]),
+        'narrow',
     );
     const relativeTimeBySessionId = useMemo(
         () =>

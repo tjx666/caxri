@@ -1,9 +1,6 @@
 import { sortedCopy } from '@caxri/utils';
 
-import {
-    activityCoreCommandDefinitions,
-    filesCoreCommandDefinitions,
-} from '../registry/core-contributions.js';
+import { filesCoreCommandDefinitions } from '../registry/core-contributions.js';
 import type { CommandId } from './commands.js';
 
 /**
@@ -400,7 +397,6 @@ export const commandDefinitions: CommandDefinition[] = [
         keywords: ['root', 'worktree'],
     },
     ...filesCoreCommandDefinitions,
-    ...activityCoreCommandDefinitions,
     /*
      * Declared here rather than in the Files contribution, and deliberately without `execution: 'viewCatalog'`: Search
      * Files opens a centered overlay that belongs to no view container. Leaving it catalog-owned would route it through
@@ -461,6 +457,14 @@ export const commandDefinitions: CommandDefinition[] = [
         category: 'View',
         description: 'Show or hide the Primary Side Bar',
         nativeMenu: { menu: 'view', group: 0, order: 1 },
+    },
+    {
+        id: 'primarySidebar.toggleActivity',
+        title: 'Toggle Activity',
+        category: 'View',
+        description:
+            'Swap the Primary Side Bar between the Project tree and every Project’s Agent Sessions grouped by what needs attention',
+        keywords: ['activity', 'attention', 'unread', 'waiting', 'inbox'],
     },
     {
         id: 'primarySidebar.focus',

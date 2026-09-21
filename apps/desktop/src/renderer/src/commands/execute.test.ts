@@ -157,6 +157,7 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
             primarySidebar: {
                 focus: record('primarySidebar.focus'),
                 toggle: record('primarySidebar.toggle'),
+                toggleActivityMode: record('primarySidebar.toggleActivityMode'),
             },
             git: {
                 canSwitchBranch: () => true,

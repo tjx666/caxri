@@ -6,7 +6,7 @@ import {
     sessionUnreadTone,
 } from '../primary-sidebar/session-activity';
 import { SessionStatusIndicator } from '../primary-sidebar/session-status-indicator';
-import { didSelectAgentActivitySession } from './agent-activity-commands';
+import { didSelectSession } from '../session/session-commands';
 import type { AgentActivityRow } from './agent-activity-rows';
 import { isAgentActivityActionable } from './agent-activity-rows';
 
@@ -66,14 +66,14 @@ export function AgentActivityRowItem({
             onClick={() => {
                 // Fire-and-forget: the selection reports its own failures through a toast.
                 // eslint-disable-next-line no-void -- intentional floating-promise discard
-                if (!selected) void didSelectAgentActivitySession(session.id);
+                if (!selected) void didSelectSession(session.id);
             }}
             onKeyDown={(event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
                     // Fire-and-forget: the selection reports its own failures through a toast.
                     // eslint-disable-next-line no-void -- intentional floating-promise discard
-                    if (!selected) void didSelectAgentActivitySession(session.id);
+                    if (!selected) void didSelectSession(session.id);
                     return;
                 }
                 /*
@@ -89,35 +89,62 @@ export function AgentActivityRowItem({
             }}
         >
             <SessionStatusIndicator reserveSlot session={session} terminal={row.terminal} />
+            {/*
+             * The time rides the title line, right-aligned, rather than trailing the state below it. All four values
+             * on one line cost more width than this column has: at the Primary Side Bar's 230px default an unread row
+             * also spends space on its mark-read button, and a long state phrase such as "Waiting for you" left the
+             * Project name and the time fighting over what was left — the Project truncated to nothing, then the time
+             * to "1.". Splitting them gives the title line, which only ever held one truncating value, the spare room.
+             */}
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="truncate text-xs text-foreground">{session.displayTitle}</span>
+                <span className="flex min-w-0 items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-xs text-foreground">
+                        {session.displayTitle}
+                    </span>
+                    {relativeTime && (
+                        <span
+                            className={cn(
+                                'flex-none text-[11px] text-muted',
+                                // The mark-read button takes this slot on hover; see the button below.
+                                canMarkRead && 'group-hover/activity-row:invisible',
+                            )}
+                        >
+                            {relativeTime}
+                        </span>
+                    )}
+                </span>
                 <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-muted">
-                    <span className="agent-activity-project truncate">{row.projectName}</span>
+                    {/*
+                     * The Project name still refuses to shrink: the list is flat, so it is the only thing telling the
+                     * user which repository a row belongs to. The cap keeps a long one from taking the whole line.
+                     */}
+                    <span className="agent-activity-project max-w-[55%] shrink-0 truncate">
+                        {row.projectName}
+                    </span>
                     <span aria-hidden="true">·</span>
                     <span
                         className={cn(
-                            'flex-none rounded px-1',
+                            'min-w-0 truncate rounded px-1',
                             actionable ? sessionToneCalloutClassName(chipTone) : 'text-muted',
                         )}
                     >
                         {status.kind === 'detached' ? 'Detached' : statusPresentation.label}
                     </span>
-                    {relativeTime && (
-                        <>
-                            <span aria-hidden="true">·</span>
-                            <span className="flex-none truncate">{relativeTime}</span>
-                        </>
-                    )}
                 </span>
             </span>
             {canMarkRead && (
                 /*
                  * `tabIndex={-1}`: inside `role="tree"` the row itself is the only Tab stop (DESIGN.md), so this is the
                  * pointer affordance for an action the keyboard reaches through Delete on the row.
+                 *
+                 * Positioned rather than laid out, taking the relative time's slot on hover. In flow it cost every
+                 * unread row ~29px that read rows kept — and unread rows are exactly the ones carrying the longest
+                 * state phrases, so they were the first to truncate. Trading a time label the user is already looking
+                 * at for the button that acts on it is the same swap Linear and GitHub make in their own queues.
                  */
                 <button
                     aria-label={`Mark ${session.displayTitle} as read`}
-                    className="agent-activity-mark-read flex-none rounded p-1 text-muted opacity-0 group-hover/activity-row:opacity-100 hover:bg-elevated hover:text-foreground focus-visible:opacity-100"
+                    className="agent-activity-mark-read absolute top-1.5 right-2 rounded p-1 text-muted opacity-0 group-hover/activity-row:opacity-100 hover:bg-elevated hover:text-foreground focus-visible:opacity-100"
                     tabIndex={-1}
                     type="button"
                     onClick={(event) => {

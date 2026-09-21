@@ -123,6 +123,31 @@ export function focusChromeSurface(surfaceId: ChromeSurfaceId): void {
 }
 
 /**
+ * Keeps the keyboard inside a surface whose body is being swapped rather than hidden — the Primary Side Bar trading its
+ * Project tree for the Activity queue, and back.
+ *
+ * Neither function above answers this case. {@link handOffChromeFocus} decides between revealing and hiding one surface,
+ * and the surface here does neither: it stays put while everything inside it unmounts. {@link focusChromeSurface}
+ * returns early when focus is already inside, which is the one situation that needs acting on, because the element
+ * holding focus is the element about to leave. Without this the browser drops focus onto `document.body` and the next
+ * Tab restarts from the top of the document — the same failure the two functions above exist to prevent.
+ *
+ * Focus outside the surface is deliberately left alone: someone typing in a Terminal who reveals the queue with
+ * `Cmd+Shift+N` asked to see what is waiting, not to hand over their keyboard.
+ *
+ * Call it _before_ the store commits the swap, for the reason {@link handOffChromeFocus} documents — the live
+ * `document.activeElement` is what the decision reads, and the move itself waits a frame for React's commit.
+ */
+export function refocusChromeSurfaceBody(surfaceId: ChromeSurfaceId): void {
+    // DOM lib types declare `document` as always present, but this module also loads under Vitest's Node environment.
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- see comment above
+    if (typeof document === 'undefined') return;
+    const surface = document.querySelector(SURFACE_SELECTORS[surfaceId]);
+    if (surface?.contains(document.activeElement) !== true) return;
+    requestAnimationFrame(() => focusSurfaceEntry(surfaceId));
+}
+
+/**
  * Records or restores the focus origin across one reveal/hide toggle (`Cmd+J` for the Panel, `Cmd+]` for the Secondary
  * Side Bar).
  *

@@ -178,15 +178,13 @@ describe('buildViewCatalog', () => {
                 .filter(({ location }) => location === 'secondarySidebar')
                 .map(({ id }) => id),
         ).toEqual([
+            // Workbench Core containers interleave with extension ones by `order` rather than forming a block, and win
+            // a tie: Files is contributed at 100, so it lands ahead of the extension that shares that order.
             'caxri.files',
             'publisher.files',
             'publisher.git',
             'publisher.fixture',
             'publisher.status',
-            // Workbench Core containers interleave with extension ones by `order` rather than forming a block, and win
-            // a tie. Activity is contributed at 500 so it stays behind every bundled extension, which is what keeps the
-            // Secondary Side Bar's `cmd+<number>` run matching the visible tab order.
-            'caxri.activity',
         ]);
     });
 

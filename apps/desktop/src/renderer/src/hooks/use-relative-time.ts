@@ -1,5 +1,6 @@
 import { useRef, useSyncExternalStore } from 'react';
 
+import type { RelativeTimeStyle } from '@caxri/utils';
 import { relativeTime } from '@caxri/utils';
 
 /**
@@ -95,18 +96,25 @@ export function useRelativeTime(timestamp: number | undefined): string | undefin
  * The same thing for a list, index-aligned with the timestamps given. One subscription per list rather than per row,
  * and the caller re-renders when any one of its labels changes — which is the right granularity for a list that is
  * rendered by a single component anyway.
+ *
+ * `style` picks how much width the labels may spend; a dense side-bar row passes `narrow` for "8m ago".
  */
-export function useRelativeTimes(timestamps: readonly number[]): readonly string[];
+export function useRelativeTimes(
+    timestamps: readonly number[],
+    style?: RelativeTimeStyle,
+): readonly string[];
 export function useRelativeTimes(
     timestamps: ReadonlyArray<number | undefined>,
+    style?: RelativeTimeStyle,
 ): ReadonlyArray<string | undefined>;
 export function useRelativeTimes(
     timestamps: ReadonlyArray<number | undefined>,
+    style: RelativeTimeStyle = 'long',
 ): ReadonlyArray<string | undefined> {
     return useTickedValue(
         () =>
             timestamps.map((timestamp) =>
-                timestamp === undefined ? undefined : relativeTime(timestamp),
+                timestamp === undefined ? undefined : relativeTime(timestamp, Date.now(), style),
             ),
         areLabelsEqual,
     );

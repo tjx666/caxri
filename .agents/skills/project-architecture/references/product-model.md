@@ -24,8 +24,8 @@ reconnect. Failures and persistent data-loss notices bypass reminder suppression
 See [Notifications](../../../../docs/notifications.md) for the user flow, retention boundaries,
 producer ownership, and troubleshooting.
 
-Unread Attention is also projected across Projects by the Activity view, a Secondary Side Bar
-container that groups every visible Project's Sessions by whether they need the user. It reads the
-existing bootstrap snapshot only and adds no Server state; see
+Unread Attention is also projected across Projects by the Activity view, the Primary Side Bar body
+that replaces the Project tree and groups every visible Project's Sessions by whether they need the
+user. It reads the existing bootstrap snapshot only and adds no Server state; see
 [Activity view](../../../../docs/activity-view.md) for its grouping order, retention window, and
 keyboard contract.
