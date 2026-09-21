@@ -34,6 +34,17 @@ export interface RequestPerformanceSample {
     request: RendererPerformanceRequest;
 }
 
+/**
+ * The three separable costs of putting a Terminal on screen. Keeping them apart is what makes the Session keep-alive
+ * measurable: a warm switch should report zero samples in every stage.
+ */
+export type TerminalPerformanceStage = 'snapshot-replay' | 'webgl-attach' | 'xterm-create';
+
+export interface TerminalStagePerformanceSample {
+    durationMs: number;
+    stage: TerminalPerformanceStage;
+}
+
 export interface RendererPerformanceSamples {
     action: RendererPerformanceAction;
     buildMode: RendererPerformanceBuildMode;
@@ -50,6 +61,9 @@ export interface RendererPerformanceSamples {
     requests: readonly RequestPerformanceSample[];
     scenarioId: string;
     startedAt: number;
+    terminalAttachedCount: number;
+    terminalReusedCount: number;
+    terminalStages: readonly TerminalStagePerformanceSample[];
     truncated: boolean;
     visibilityInterrupted: boolean;
 }
@@ -155,6 +169,35 @@ function summarizeRequests(
     };
 }
 
+function summarizeTerminals(
+    samples: RendererPerformanceSamples,
+): RendererPerformanceScenarioDiagnostic['terminals'] {
+    const stages: RendererPerformanceScenarioDiagnostic['terminals']['stages'] = {
+        snapshotReplay: { count: 0, totalDurationMs: 0, maxDurationMs: 0 },
+        webglAttach: { count: 0, totalDurationMs: 0, maxDurationMs: 0 },
+        xtermCreate: { count: 0, totalDurationMs: 0, maxDurationMs: 0 },
+    };
+    const byStage: Record<TerminalPerformanceStage, keyof typeof stages> = {
+        'snapshot-replay': 'snapshotReplay',
+        'webgl-attach': 'webglAttach',
+        'xterm-create': 'xtermCreate',
+    };
+
+    for (const sample of samples.terminalStages) {
+        const summary = stages[byStage[sample.stage]];
+        const durationMs = boundedDuration(sample.durationMs);
+        summary.count = boundedCount(summary.count + 1);
+        summary.totalDurationMs = boundedDuration(summary.totalDurationMs + durationMs);
+        summary.maxDurationMs = boundedDuration(Math.max(summary.maxDurationMs, durationMs));
+    }
+
+    return {
+        attachedCount: boundedCount(samples.terminalAttachedCount),
+        reusedCount: boundedCount(samples.terminalReusedCount),
+        stages,
+    };
+}
+
 function summarizeFrames(
     timestamps: readonly number[],
 ): RendererPerformanceScenarioDiagnostic['frames'] {
@@ -213,6 +256,7 @@ export function summarizeRendererPerformance(
         capabilities: samples.capabilities,
         react: summarizeReact(samples.reactProfiles),
         requests: summarizeRequests(samples.requests),
+        terminals: summarizeTerminals(samples),
         longAnimationFrames: {
             count: boundedCount(longAnimationFrames.length),
             totalDurationMs: sum(longAnimationFrames.map((sample) => sample.durationMs)),

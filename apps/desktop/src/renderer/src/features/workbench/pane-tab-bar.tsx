@@ -52,6 +52,7 @@ import { selectPaneTab } from './pane-actions';
 import { EDITOR_PATH_DRAG_TYPE, PANE_TAB_DRAG_TYPE } from './pane-drop-zone';
 import { PaneTabMenu } from './pane-tab-menu';
 import { useActiveTabReveal } from './pane-tab-reveal';
+import { usePaneViewSessionId } from './pane-view-session';
 import { useScrollEdges } from './tab-scroll-edges';
 import { usePaneTabDrag } from './use-pane-tab-drag';
 
@@ -85,7 +86,7 @@ function TerminalPaneTab({
     tab,
     terminal,
 }: PaneTabProperties & { isOnlySessionTerminal: boolean; terminal: TerminalRecord }) {
-    const paneLayout = useSessionState()?.paneLayout;
+    const paneLayout = useSessionState(usePaneViewSessionId())?.paneLayout;
     const progress = useTerminalProgress(terminal.id);
     const isCompacting = terminal.agentOperation === 'compacting';
     const ProgressIcon =
@@ -200,7 +201,7 @@ function DocumentPaneTab({
      * the `contextMenu` JSX tree does not reliably reflect the latest layout once other tabs open or close around it,
      * leaving "Close to the Right" etc. stuck at a stale disabled state.
      */
-    const paneLayout = useSessionState()?.paneLayout;
+    const paneLayout = useSessionState(usePaneViewSessionId())?.paneLayout;
     const transcriptTab = parseAgentTranscriptTab(path);
     const project = useSelectedWorkbenchProject();
     const overviewQuery = useCaxriQuery(
@@ -725,7 +726,7 @@ export function PaneTabBar({
      * tab wears the accent border; an unfocused pane's active tab keeps its selection fill (VS Code's unfocused editor
      * group behavior) but drops the accent, so two panes never both claim the screen's one accent at once.
      */
-    const activePaneId = useSessionState()?.paneLayout.activePaneId;
+    const activePaneId = useSessionState(usePaneViewSessionId())?.paneLayout.activePaneId;
     const showActiveAccent = hasTabsToSwitch && activePaneId === pane.id;
     const activeTab = pane.tabs.find((tab) => tab.id === pane.activeTabId) ?? pane.tabs.at(0);
     const activeTabId = activeTab?.id;
