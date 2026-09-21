@@ -40,10 +40,38 @@ that window into two branches:
   274s, `desktop-exclusive` 582s.
 - Synthetic-merge platform gates, 664s: ESLint 276s, oxlint 17s, Vitest 336s, bundle budget 29s.
 
-E2E is therefore the critical path, and the platform gates finish 2m41s earlier. Their one-worker
-Vitest and serial ESLint are deliberate: making them faster cannot shorten the run while E2E is
-longer, and would take CPU away from the three Electron workers. Reduce the one-worker
-`desktop-exclusive` pool before revisiting either.
+E2E is therefore the critical path, and the platform gates finish 2m41s earlier. Shortening them
+cannot shorten the run while E2E is longer, so the `desktop-exclusive` pool is what to reduce
+first. What their duration does decide is where their CPU demand lands, which is a separate
+question with its own answer below.
+
+### Keep the checks branch out of the three-worker window
+
+The two pools absorb CPU contention very differently. The one-worker `desktop-exclusive` pool leaves
+most of the machine idle and barely competes with the checks branch. The three-worker `parallel-safe`
+pool is already using the runner, so every core the checks take is one its Electron workers wanted,
+and a stalled Renderer there does not merely run slower — an interaction that races an asynchronous
+re-render starts losing it, which is a flaky test rather than a slow one.
+
+[Run 35553657625](https://github.com/tjx666/caxri/actions/runs/35553657625) is the first run where
+that window got large. `desktop-exclusive` ended at 02:26:49 and the checks branch ran until
+02:32:47, so 358s of the 452s three-worker pool — 79% of it — ran under full contention. Three
+specs failed that no change in that run had touched: `git-diff-tabs` (Monaco diff never mounted
+after the click), `terminal-commands` (a split remount that never reset its command tracker), and
+`toasts` (a toast dismiss button that never appeared). All three pass two deterministic local
+repetitions at one worker. They are tracked as load-sensitive cases in
+[issue #877](https://github.com/tjx666/caxri/issues/877).
+
+This is a plausible cause rather than a proven one: the same run also added `agent-delegation` to
+the pool, which raises in-pool CPU load by itself, and an earlier green run overlapped its
+three-worker pool with the checks branch completely. What both explanations share is CPU saturation
+during `parallel-safe`, so that is what the concurrent path reduces: Vitest runs with two workers
+there, matching the standalone checks job. Total CPU work is unchanged — a one-worker Vitest spreads
+the same work across a longer window, and the window is what reaches into the fragile pool. The
+extra worker lands during `desktop-exclusive`, which has the headroom for it.
+
+Treat this as a standing constraint whenever a pool gets faster: **the checks branch should finish
+before `parallel-safe` starts.** Shorten the checks branch to restore it; never slow E2E back down.
 
 ### Per-spec attribution
 
@@ -266,9 +294,9 @@ changing workflow wiring.
   worker count; a missing, stale, malformed, or non-zero component fails closed.
 - Focused checks, one-worker controls, retry-only runs, and non-full profiles keep their standalone
   paths. Only a full optimized run can replace the standalone checks job with the concurrent path.
-- Vitest defaults to the audited `optimized` partition. Automatic standalone checks use two
-  workers; the concurrent full path uses one so the complete Vitest suite leaves CPU headroom for
-  three Electron workers on the same runner. The `legacy` partition and worker caps 1-4 remain
+- Vitest defaults to the audited `optimized` partition and two workers on both the standalone and
+  the concurrent full path, so the checks branch clears the runner before `parallel-safe` starts
+  rather than spreading the same work into it. The `legacy` partition and worker caps 1-4 remain
   workflow-dispatch controls for same-head measurement; real watcher, process-global, bridge, and
   Git suites stay in `serial-native`.
 
