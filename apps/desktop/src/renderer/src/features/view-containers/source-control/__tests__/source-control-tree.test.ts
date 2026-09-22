@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
     buildSourceControlResourceTree,
     sourceControlDirectoryExpansionKeys,
+    sourceControlGroupExpansionKeys,
 } from '../source-control-tree';
 
 function resource(path: string): SourceControlResource {
@@ -42,6 +43,19 @@ describe('controlled Source Control resource tree', () => {
             'pull-request:repo:.agents/acceptance',
             'pull-request:repo:.agents/acceptance/references',
             'pull-request:repo:.agents/skills',
+        ]);
+    });
+
+    it('collects every top-level directory of a group for a recursive gesture on an ancestor row', () => {
+        expect(
+            sourceControlGroupExpansionKeys(
+                [resource('docs/adr/0001.md'), resource('src/a.ts'), resource('README.md')],
+                'pull-request:repo',
+            ),
+        ).toEqual([
+            'pull-request:repo:docs',
+            'pull-request:repo:docs/adr',
+            'pull-request:repo:src',
         ]);
     });
 });
