@@ -20,6 +20,7 @@ import type { BrowserWindow } from 'electron';
 import { app, clipboard, ClipboardItem, dialog, nativeImage, shell } from 'electron';
 
 import { createAcceptanceExternalOpenFixture } from './acceptance-external-open';
+import { createAcceptanceSessionDeleteFixture } from './acceptance-session-delete';
 import { createAcceptanceThemeImportFixture } from './acceptance-theme-import';
 import { readArgvConfig, updateArgvConfig } from './argv-config';
 import {
@@ -42,6 +43,7 @@ import type { createWorkbenchRootAuthority } from './workbench-root-authority';
 
 interface MainMethodHandlerOptions {
     externalOpenFixture?: ReturnType<typeof createAcceptanceExternalOpenFixture>;
+    acceptanceSessionDeleteFixture?: ReturnType<typeof createAcceptanceSessionDeleteFixture>;
     acceptanceThemeImportFixture?: ReturnType<typeof createAcceptanceThemeImportFixture>;
     allowGpuTestInjection?: boolean;
     getProcessExplorer(): ProcessExplorerWindowController;
@@ -131,6 +133,12 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
     const themeImportFixture =
         options.acceptanceThemeImportFixture ??
         createAcceptanceThemeImportFixture({
+            environment: process.env,
+            userDataPath: options.getUserDataPath(),
+        });
+    const sessionDeleteFixture =
+        options.acceptanceSessionDeleteFixture ??
+        createAcceptanceSessionDeleteFixture({
             environment: process.env,
             userDataPath: options.getUserDataPath(),
         });
@@ -307,10 +315,10 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 const sessionTitle =
                     bootstrap.sessions.find((session) => session.id === sessionId)?.displayTitle ??
                     'this Session';
-                const result = await dialog.showMessageBox(
-                    mainWindow!,
-                    deleteSessionPrompt(sessionTitle, count),
-                );
+                const sessionPrompt = deleteSessionPrompt(sessionTitle, count);
+                const result = sessionDeleteFixture
+                    ? await sessionDeleteFixture.confirm(sessionPrompt)
+                    : await dialog.showMessageBox(mainWindow!, sessionPrompt);
                 if (result.response !== 0) return { canceled: true };
                 return supervisor.request('session.delete', { sessionId });
             }
