@@ -3,8 +3,17 @@ import { useEffect } from 'react';
 import { CircleCheck, CircleX, Info, TriangleAlert, X } from 'lucide-react';
 import { Toaster } from 'sonner';
 
+import { useDialogStore } from '../../stores/dialogs';
 import { configureReminderPresentation } from '../../stores/toasts';
 import { NotificationOptions } from './notification-options';
+
+/**
+ * Consult the live registry for both blur and list cleanup. Base UI modals do not expose `aria-modal`, and keeping
+ * Sonner's remembered element would let a later cleanup steal focus after the opening transition.
+ */
+function shouldRestoreToastFocus(): boolean {
+    return !useDialogStore.getState().isModalOpen();
+}
 
 /**
  * Sonner owns notification timing, stacking, keyboard access, and interaction pauses. The shared stylesheet maps its
@@ -19,6 +28,7 @@ export function ToastOutlet() {
     return (
         <Toaster
             className="caxri-toaster"
+            shouldRestoreFocus={shouldRestoreToastFocus}
             position="bottom-right"
             offset={{ bottom: 40, right: 16, left: 16 }}
             mobileOffset={{ bottom: 40, right: 16, left: 16 }}
