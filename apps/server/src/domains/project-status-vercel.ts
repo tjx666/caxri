@@ -142,8 +142,9 @@ export async function findVercelLink(
 }
 
 /**
- * This repository's deployments: the branch's recent builds plus the current production and preview heads. A repository
- * with no GitHub remote has nothing to match on and never spawns `vc`.
+ * This repository's deployments, every one of them scoped to the checked-out branch: its recent builds, the production
+ * deployment it shipped, and the preview of its head commit. A repository with no GitHub remote has nothing to match on
+ * and never spawns `vc`.
  */
 export async function loadVercelDeployments(
     dependencies: VercelDependencies,
@@ -169,7 +170,21 @@ export async function loadVercelDeployments(
                 vcListArguments(link.team, { ...baseMeta, githubCommitRef: context.branch }),
                 homedir(),
             ),
-            dependencies.run(vcListArguments(link.team, baseMeta, 'production'), homedir()),
+            /**
+             * Scoped to the checked-out branch, like every other query here. Asking only for the project's newest
+             * production deployment printed the default branch's live build inside a feature branch's subtree, under a
+             * green rocket that means "this shipped" — so a branch whose pull request was not even merged reported
+             * itself as live, with a commit SHA nobody on that branch recognized. A branch that never triggered a
+             * production build now reports no production deployment at all, and the row disappears.
+             */
+            dependencies.run(
+                vcListArguments(
+                    link.team,
+                    { ...baseMeta, githubCommitRef: context.branch },
+                    'production',
+                ),
+                homedir(),
+            ),
             context.head
                 ? dependencies.run(
                       vcListArguments(link.team, { githubCommitSha: context.head }, 'preview'),
