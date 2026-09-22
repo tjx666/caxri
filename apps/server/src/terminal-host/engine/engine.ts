@@ -30,6 +30,7 @@ import {
     recordPtyThroughputSummary,
     recordPtyThroughputWindow,
 } from './observability';
+import { TerminalOutputFramer } from './output-framer';
 import type { AgentOutputRecovery } from './output-recovery';
 import { ensureLiveOutputRecovery, hasConfiguredOutputRecovery } from './output-recovery-manager';
 import { sampleTerminalResources } from './resources';
@@ -123,11 +124,20 @@ export class TerminalExecutionEngine {
         const dataBytes = Buffer.byteLength(data, 'utf8');
         live.metricOutputBytes += dataBytes;
         const filtered = live.colorQuery ? live.colorQuery.push(data) : data;
-        const recoveryData = live.imageRecovery.push(filtered);
-        live.screen.write(recoveryData);
+        const frames = live.outputFramer.push(filtered);
+        live.screen.write(frames.map((frame) => live.imageRecovery.push(frame.data)).join(''));
         if (this.hasConfiguredOutputRecovery) this.ensureOutputRecovery(live)?.observeOutput();
         if (this.attachments.has(live.record.id)) {
-            const droppedBytes = live.imageOutput.push(filtered, live.outputQueue);
+            let droppedBytes = 0;
+            for (const frame of frames) {
+                const destination = frame.isControl
+                    ? {
+                          appendAtomic: (data: string) => live.outputQueue.appendAtomic(data),
+                          appendBounded: (data: string) => live.outputQueue.appendAtomic(data),
+                      }
+                    : live.outputQueue;
+                droppedBytes += live.imageOutput.push(frame.data, destination);
+            }
             live.droppedBytes += droppedBytes;
             live.metricDroppedBytes += droppedBytes;
             live.outputTimer ??= setTimeout(() => this.flushOutput(live), this.outputFlushMs);
@@ -205,13 +215,26 @@ export class TerminalExecutionEngine {
         if (this.terminals.get(live.record.id) !== live) return;
         this.clearTimers(live);
         live.outputRecovery?.dispose();
-        live.droppedBytes += live.imageOutput.finish(live.outputQueue);
+        const tail = live.outputFramer.finish();
+        if (this.attachments.has(live.record.id)) {
+            /**
+             * Let image teardown emit its bounded placeholder, but discard any raw unfinished control. Recovery below
+             * still consumes the original tail, and an oversized control has already become a safe text notice.
+             */
+            live.droppedBytes += tail.isControl
+                ? live.imageOutput.push(tail.data, {
+                      appendAtomic: (data) => live.outputQueue.appendAtomic(data),
+                      appendBounded: () => 0,
+                  })
+                : live.outputQueue.appendAtomic(tail.data);
+            live.droppedBytes += live.imageOutput.finish(live.outputQueue);
+        } else live.imageOutput.finish();
         this.flushOutput(live);
         this.flushMetrics(live);
         recordPtyThroughputSummary(this.options.logger, live.record.id, live.throughput, reason);
         this.resizeObserver.disposeTerminal(live.record.id);
         if (shouldCapture) {
-            const colorTail = live.colorQuery?.finish() ?? '';
+            const colorTail = `${tail.data}${live.colorQuery?.finish() ?? ''}`;
             const recoveryTail = `${
                 colorTail ? live.imageRecovery.push(colorTail) : ''
             }${live.imageRecovery.finish()}`;
@@ -276,6 +299,7 @@ export class TerminalExecutionEngine {
         const live: LiveTerminal = {
             colorQuery,
             imageRecovery: new TerminalImageRecoveryFilter(),
+            outputFramer: new TerminalOutputFramer(),
             imageOutput: new TerminalImageOutputFilter(),
             process: child,
             record: input.record,

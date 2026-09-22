@@ -1,8 +1,79 @@
+import { Terminal } from '@xterm/headless';
 import { describe, expect, it } from 'vitest';
 
+import { TerminalOutputFramer } from '../output-framer';
 import { TerminalScreenState } from '../screen';
 
 describe('TerminalScreenState', () => {
+    it('preserves the live parser boundary when a snapshot splits a cursor command', async () => {
+        const source = new TerminalScreenState('', 20, 4);
+        const restored = new TerminalScreenState('', 20, 4);
+        try {
+            const framer = new TerminalOutputFramer();
+            for (const frame of framer.push('header\r\nold\u{1B}[2;')) source.write(frame.data);
+            const snapshot = await source.snapshot();
+            restored.write(snapshot.payload);
+            for (const frame of framer.push('1Hupdated')) {
+                source.write(frame.data);
+                restored.write(frame.data);
+            }
+            expect(await restored.textTail(200)).toEqual(await source.textTail(200));
+        } finally {
+            source.dispose();
+            restored.dispose();
+        }
+    });
+
+    it('does not replay hidden alternate-screen columns after shrinking the grid', async () => {
+        const source = new TerminalScreenState('', 10, 4);
+        const restored = new Terminal({ cols: 5, rows: 4, allowProposedApi: true });
+        try {
+            source.write('\u{1B}[?1049hABCDEFGHIJ\u{1B}[2;1Hsecond\u{1B}[3;1Hthird\u{1B}[2;3H');
+            source.resize(5, 4);
+            const snapshot = await source.snapshot();
+            await new Promise<void>((resolve) => restored.write(snapshot.payload, resolve));
+            expect(
+                Array.from({ length: 3 }, (_, row) =>
+                    restored.buffer.active.getLine(row)?.translateToString(true),
+                ),
+            ).toEqual(['ABCDE', 'secon', 'third']);
+            expect([restored.buffer.active.cursorX, restored.buffer.active.cursorY]).toEqual([
+                2, 1,
+            ]);
+        } finally {
+            source.dispose();
+            restored.dispose();
+        }
+    });
+
+    it.each([
+        ['', '\u{1B}[1;10H', ['ABCDEFGHIX', 'Y']],
+        ['\u{1B}[?1049h', '\u{1B}[1;10H', ['ABCDEFGHIX', 'Y']],
+        ['', '', ['ABCDEFGHIJ', 'XY']],
+        ['\u{1B}[?1049h', '', ['ABCDEFGHIJ', 'XY']],
+    ])(
+        'restores full-width cursor placement and pending wrap (%j, %j)',
+        async (mode, cursor, expected) => {
+            const source = new TerminalScreenState('', 10, 2);
+            const restored = new Terminal({ cols: 10, rows: 2, allowProposedApi: true });
+            try {
+                source.write(`${mode}ABCDEFGHIJ${cursor}`);
+                const snapshot = await source.snapshot();
+                await new Promise<void>((resolve) =>
+                    restored.write(`${snapshot.payload}XY`, resolve),
+                );
+                expect(
+                    [0, 1].map((row) =>
+                        restored.buffer.active.getLine(row)?.translateToString(true),
+                    ),
+                ).toEqual(expected);
+            } finally {
+                source.dispose();
+                restored.dispose();
+            }
+        },
+    );
+
     it('uses Unicode 11 widths consistently across CJK, combining, Nerd, and emoji glyphs', async () => {
         const screen = new TerminalScreenState('', 6, 2);
 

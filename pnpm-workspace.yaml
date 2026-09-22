@@ -66,3 +66,9 @@ overrides:
 
 patchedDependencies:
   app-builder-lib: patches/app-builder-lib.patch
+  # Preserve timer pause accounting across an open reminder menu's Infinity duration.
+  # https://github.com/emilkowalski/sonner/pull/533
+  sonner@2.0.8: patches/sonner.patch
+  # Clip stale alternate-buffer cells and preserve the full-row cursor during screen recovery.
+  # https://github.com/xtermjs/xterm.js/issues/6165
+  '@xterm/addon-serialize@0.15.0-beta.301': patches/xterm-addon-serialize.patch
