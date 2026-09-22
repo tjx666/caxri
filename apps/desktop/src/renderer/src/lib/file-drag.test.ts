@@ -6,10 +6,14 @@ import {
     dragPath,
     FILE_TREE_DRAG_TYPE,
     hasDraggedPath,
+    hasTerminalDraggedPath,
     PROJECT_PATH_DRAG_TYPE,
     projectTerminalInput,
     shellRelativePath,
+    startFilePathDrag,
+    terminalDragPath,
     terminalInputPath,
+    terminalReferencePath,
 } from './file-drag';
 
 /**
@@ -118,5 +122,50 @@ describe('terminalInputPath', () => {
         expect(terminalInputPath("/repo/file with 'quote'.txt")).toBe(
             String.raw`'/repo/file with '\''quote'\''.txt'`,
         );
+    });
+});
+
+describe('Terminal file references', () => {
+    it('inserts a linked entry without making it a Files move source', () => {
+        const data: Record<string, string> = {};
+        const transfer = {
+            effectAllowed: 'none',
+            setData: (type: string, value: string) => {
+                data[type] = value;
+            },
+        } as DataTransfer;
+        startFilePathDrag(transfer, '/repo/linked folder', false);
+        const event = fakeDragEvent(data);
+        expect(transfer.effectAllowed).toBe('copy');
+        expect(hasTerminalDraggedPath(event)).toBe(true);
+        expect(terminalDragPath(event)).toBe('/repo/linked folder');
+        expect(hasDraggedPath(event)).toBe(false);
+        expect(dragPath(event)).toBeUndefined();
+    });
+
+    it('retains ordinary Files move and Terminal insertion payloads', () => {
+        const data: Record<string, string> = {};
+        const transfer = {
+            effectAllowed: 'none',
+            setData: (type: string, value: string) => {
+                data[type] = value;
+            },
+        } as DataTransfer;
+        startFilePathDrag(transfer, '/repo/file.txt', true);
+        const event = fakeDragEvent(data);
+        expect(transfer.effectAllowed).toBe('copyMove');
+        expect(hasTerminalDraggedPath(event)).toBe(true);
+        expect(terminalDragPath(event)).toBe('/repo/file.txt');
+        expect(hasDraggedPath(event)).toBe(true);
+    });
+
+    it('resolves references against the verified Agent worktree before launch cwd', () => {
+        const terminal = { cwd: '/repo', agentCwd: '/worktrees/task' };
+        expect(terminalReferencePath('/worktrees/task/src/file.ts', terminal)).toBe('src/file.ts');
+        expect(terminalReferencePath('/worktrees/task/linked folder', terminal)).toBe(
+            "'linked folder'",
+        );
+        expect(terminalReferencePath('/repo/src/file.ts', terminal)).toBe('/repo/src/file.ts');
+        expect(terminalReferencePath('/repo/src/file.ts', { cwd: '/repo' })).toBe('src/file.ts');
     });
 });

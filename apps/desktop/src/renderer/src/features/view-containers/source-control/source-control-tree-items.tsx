@@ -6,7 +6,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { FileTypeIcon } from '../../../icons/files/file-type-icon';
-import { FILE_TREE_DRAG_TYPE } from '../../../lib/file-drag';
+import { startFilePathDrag } from '../../../lib/file-drag';
 import { resolveRepositoryFilePath as resolveRepoFilePath } from '../../../lib/repository-file-path';
 import { cn } from '../../../lib/utilities';
 import { openFile } from '../../editor/document-commands';
@@ -56,8 +56,7 @@ function handleResourceDragStart(
     resourcePath: string | undefined,
 ): void {
     if (!resourcePath) return;
-    event.dataTransfer.effectAllowed = 'copy';
-    event.dataTransfer.setData(FILE_TREE_DRAG_TYPE, resourcePath);
+    startFilePathDrag(event.dataTransfer, resourcePath, false);
 }
 
 /**

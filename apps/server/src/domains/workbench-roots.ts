@@ -23,6 +23,7 @@ import {
     AgentWorktreeAttribution,
     BoundedSerialBatcher,
     isSameWorkbenchBinding,
+    updateObservedAgentCwd,
 } from './workbench-provenance';
 import {
     discoverWorkbenchRoots,
@@ -351,7 +352,7 @@ export class WorkbenchRootService {
          */
         if (canonical === terminal.cwd) {
             if (!this.isCurrentObservation(signal.terminalId, reported)) return;
-            this.options.database.setTerminalAgentCwd(terminal.id, terminal.provider, undefined);
+            updateObservedAgentCwd(this.options, terminal, undefined);
             return;
         }
         const topology = await this.loadTopology(owner.rootPath);
@@ -368,7 +369,7 @@ export class WorkbenchRootService {
             !this.isCurrentObservation(signal.terminalId, reported)
         )
             return;
-        this.options.database.setTerminalAgentCwd(current.id, current.provider, canonical);
+        updateObservedAgentCwd(this.options, current, canonical);
         await this.followWorktree(
             {
                 repositoryKey: topology.repositoryKey,

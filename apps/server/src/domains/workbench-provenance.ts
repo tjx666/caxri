@@ -1,4 +1,4 @@
-import type { AgentProvider, TerminalRecord } from '@caxri/protocol';
+import type { AgentProvider, ServerEvent, TerminalRecord } from '@caxri/protocol';
 import { CaxriError, errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
@@ -654,5 +654,24 @@ export async function primeAgentWorkbenchProvenance(options: {
         provider: terminal.kind,
         sessionId: terminal.sessionId,
         terminalId: terminal.id,
+    });
+}
+
+/**
+ * Persist only verified observations, and refresh reference consumers even when worktree following is disabled or done.
+ */
+export function updateObservedAgentCwd(
+    options: { database: CaxriDatabase; emit(event: ServerEvent): void },
+    terminal: Pick<TerminalRecord, 'id' | 'provider'>,
+    agentCwd: string | undefined,
+): void {
+    if (
+        !terminal.provider ||
+        !options.database.setTerminalAgentCwd(terminal.id, terminal.provider, agentCwd)
+    )
+        return;
+    options.emit({
+        event: 'state.changed',
+        payload: { kind: 'records', terminalIds: [terminal.id], sessionIds: [] },
     });
 }
