@@ -26,7 +26,10 @@ readable as text, so the preview stays an explicit command; VS Code makes the sa
 'preview'` instead and nothing else about the surface changes.
 
 Edits re-render live. The preview follows the source editor's scroll position one way: scrolling
-the editor moves the preview, and scrolling the preview does not move the editor.
+the editor moves the preview, and scrolling the preview does not move the editor. A failed source
+read replaces the loading state with a readable cause and a keyboard-accessible **Retry** button.
+The editor and Markdown preview share the read-attempt lifecycle; switching Session, Workbench
+Root, or file discards the old failure, and late results cannot overwrite the current attempt.
 
 Markdown support is CommonMark plus GitHub task lists, linkified bare URLs, heading anchors,
 `mermaid` diagrams, and the raw inline HTML real READMEs depend on (`<details>`, centered banners).
@@ -99,7 +102,10 @@ Code highlighting reuses `monaco.editor.colorize()` against the live `caxri-acti
 adds no highlighting dependency and makes a code block in the preview exactly the colors it has in
 the editor next to it. Mermaid is loaded on demand with a dynamic `import()` and initialized with
 `securityLevel: 'strict'` and theme variables derived from the active Caxri theme tokens; changing
-the theme re-initializes it and drops the cache.
+the theme re-initializes it and drops the cache. Mermaid layouts share one Renderer-wide permit,
+including theme initialization, and yield an event-loop task between diagrams so input and tab
+changes can run. Leaving the preview skips queued layouts and prevents stale DOM writes. One
+individual Mermaid layout still runs on the main thread.
 
 ### Images never carry a filesystem path
 
@@ -109,6 +115,10 @@ root like every other file read — and assigns a `blob:` object URL after mount
 reference-counted in
 [`preview-asset-client.ts`](../apps/desktop/src/renderer/src/features/preview/preview-asset-client.ts)
 so the same image in two open previews is read once and revoked when the last one closes.
+Across mounted previews, at most four distinct reads run concurrently; the permit includes IPC,
+base64 decoding, and Blob creation. Electron's native `Uint8Array.fromBase64` replaces a JavaScript
+loop per byte while retaining an `ArrayBuffer`-backed view. The focused preview E2E compares both
+decoders in the same Renderer at the 8 MiB ceiling and records timings without asset contents.
 
 `files.readAsset` returns base64 over the ordinary request channel rather than through an Electron
 custom protocol handler, and its media type comes from a Server-side allowlist that never echoes a

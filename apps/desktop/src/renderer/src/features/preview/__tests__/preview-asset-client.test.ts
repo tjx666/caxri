@@ -16,10 +16,12 @@ const PIXEL = 'R0lGODlhAQABAAAAACw=';
 describe('preview asset client', () => {
     let created: string[] = [];
     let revoked: string[] = [];
+    let blobs: Blob[] = [];
 
     beforeEach(() => {
         created = [];
         revoked = [];
+        blobs = [];
         request.mockReset();
         request.mockResolvedValue({
             path: '/p/logo.gif',
@@ -27,7 +29,8 @@ describe('preview asset client', () => {
             base64: PIXEL,
             size: 8,
         });
-        vi.spyOn(URL, 'createObjectURL').mockImplementation(() => {
+        vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) => {
+            blobs.push(blob as Blob);
             const url = `blob:test/${created.length + 1}`;
             created.push(url);
             return url;
@@ -39,6 +42,54 @@ describe('preview asset client', () => {
 
     afterEach(() => {
         vi.restoreAllMocks();
+    });
+
+    it('bounds distinct image reads across concurrent preview consumers', async () => {
+        const releaseReads = Promise.withResolvers<void>();
+        let active = 0;
+        let peak = 0;
+        request.mockImplementation(async () => {
+            active += 1;
+            peak = Math.max(peak, active);
+            await releaseReads.promise;
+            active -= 1;
+            return { path: '/p/image.gif', mediaType: 'image/gif', base64: PIXEL, size: 8 };
+        });
+        const paths = Array.from({ length: 32 }, (_, index) => `/p/image-${index}.gif`);
+        const reads = paths.map((path) => acquireAsset('bounded-session', path));
+        try {
+            await vi.waitFor(() => expect(request).toHaveBeenCalledTimes(4));
+            expect(peak).toBe(4);
+        } finally {
+            releaseReads.resolve();
+            await Promise.all(reads);
+            for (const path of paths) releaseAsset('bounded-session', path);
+        }
+        expect(peak).toBe(4);
+        expect(created).toHaveLength(32);
+        expect(revoked).toHaveLength(32);
+    });
+
+    it('preserves every byte when decoding an asset at the read ceiling', async () => {
+        const expected = new Uint8Array(8 * 1024 * 1024).fill(0xa5);
+        expected[0] = 0;
+        expected[expected.length - 1] = 0xff;
+        request.mockResolvedValue({
+            path: '/p/large.png',
+            mediaType: 'image/png',
+            base64: expected.toBase64(),
+            size: expected.byteLength,
+        });
+        try {
+            await acquireAsset('large-session', '/p/large.png');
+            const blob = blobs.at(-1) as Blob;
+            expect(blob.type).toBe('image/png');
+            const decoded = new Uint8Array(await blob.arrayBuffer());
+            expect(decoded.byteLength).toBe(expected.byteLength);
+            expect(decoded.every((value, index) => value === expected[index])).toBe(true);
+        } finally {
+            releaseAsset('large-session', '/p/large.png');
+        }
     });
 
     it('reads one asset once and hands the same URL to both holders', async () => {

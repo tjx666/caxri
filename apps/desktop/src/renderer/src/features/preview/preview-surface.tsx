@@ -1,10 +1,13 @@
-import { useEffect } from 'react';
+import { useCallback } from 'react';
 
 import type { FilePreviewTab } from '@caxri/protocol';
 
+import { useResourceLoad } from '../../hooks/use-resource-load';
+import { describeDocumentReadFailure } from '../../lib/document-read-failure';
 import { useSelectedSession, useSelectedWorkbenchProject, useTheme } from '../../stores/selectors';
-import { useDocument } from '../../stores/session-view';
+import { sessionViewScope, useDocument } from '../../stores/session-view';
 import { cacheDocument } from '../editor/document-commands';
+import { EditorLoadFailure } from '../editor/editor-load-failure';
 import { ImagePreview } from './image-preview';
 import { MarkdownPreview } from './markdown-preview';
 import { previewerForPath } from './preview-registry';
@@ -31,15 +34,23 @@ function MarkdownPreviewSurface({
 }) {
     const theme = useTheme();
     const document = useDocument(sessionId, path, workbenchProjectId);
-    useEffect(() => {
-        if (document) return;
-        // Fire-and-forget: `cacheDocument` reports its own failure through a toast. The read is needed whenever the
-        // preview is opened without its source tab, or after the document cache evicted the buffer.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-        void cacheDocument(sessionId, path);
-    }, [document, path, sessionId]);
+    const load = useCallback(() => cacheDocument(sessionId, path), [path, sessionId]);
+    const { failure, retry } = useResourceLoad({
+        target: `${sessionViewScope(sessionId, workbenchProjectId)}\u{0}${path}`,
+        enabled: !document,
+        load,
+    });
     if (!theme) return null;
-    if (!document) return <div className={emptyWorkClassName}>Loading file…</div>;
+    if (!document)
+        return failure ? (
+            <EditorLoadFailure
+                actionLabel="Retry"
+                {...describeDocumentReadFailure(failure.error)}
+                onAction={retry}
+            />
+        ) : (
+            <div className={emptyWorkClassName}>Loading file…</div>
+        );
     return (
         <MarkdownPreview
             sessionId={sessionId}
