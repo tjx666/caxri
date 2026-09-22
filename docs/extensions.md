@@ -219,6 +219,13 @@ cannot turn its authoritative completion into a retryable stale-generation error
 propagates to Server Core, but non-expiring mutations keep their API request pending until Server Core distinguishes
 pre-boundary `CANCELLED` from an authoritative post-boundary completion.
 
+View operation policies are exhaustive over the public protocol's operation union. Adding an
+operation must also define its result schema, provider dispatch, read-cancellation behavior, and
+request lifetime. Shared policy metadata does not grant capabilities: Core still authorizes the
+target view and active context, and the Host still validates the provider registration and generation.
+The four snapshot/history reads remain cancellable; `source.action` retains its authoritative
+completion and non-expiring request lifetime.
+
 ## View badges
 
 A contributed view opts in with `"badge": true` in its manifest and registers a

@@ -3,6 +3,7 @@ import { Buffer } from 'node:buffer';
 import type {
     ExtensionViewChange,
     ExtensionViewEventContext,
+    ExtensionViewOperationName,
     ProjectStatusSummary,
 } from '@caxri/protocol';
 import {
@@ -11,6 +12,7 @@ import {
     extensionIdSchema,
     extensionManifestSchema,
     extensionViewEventContextSchema,
+    extensionViewOperationNameSchema,
     MAX_EXTENSION_COMMAND_ARGUMENTS,
     MAX_VIEW_CATALOG_EXTENSIONS,
     viewIdSchema,
@@ -38,14 +40,7 @@ export const extensionWorkspaceOperations = [
 
 export type ExtensionWorkspaceOperation = (typeof extensionWorkspaceOperations)[number];
 
-const extensionViewOperations = [
-    'badge.snapshot',
-    'source.snapshot',
-    'source.historyPage',
-    'source.historyDetails',
-    'source.action',
-] as const;
-export type ExtensionViewOperation = (typeof extensionViewOperations)[number];
+export type ExtensionViewOperation = ExtensionViewOperationName;
 
 const privateIdentifierSchema = z.string().min(1).max(200);
 const privatePathSchema = z.string().min(1).max(16_384);
@@ -55,7 +50,6 @@ const parentHandleSchema = z.string().min(1).max(512);
 const optionalParentHandleSchema = parentHandleSchema.optional();
 const optionalObservationContextSchema = observationContextSchema.optional();
 const optionalExtensionViewEventContextSchema = extensionViewEventContextSchema.optional();
-const extensionViewOperationSchema = z.enum(extensionViewOperations);
 const extensionHostErrorSchema = z
     .object({
         code: z.string().min(1).max(100),
@@ -179,7 +173,7 @@ const extensionHostRequestSchema = z.discriminatedUnion('method', [
                     extensionId: extensionIdSchema,
                     generation: generationSchema,
                     viewId: viewIdSchema,
-                    operation: extensionViewOperationSchema,
+                    operation: extensionViewOperationNameSchema,
                     arguments: viewArgumentsSchema,
                     requestId: privateIdentifierSchema,
                     context: extensionViewEventContextSchema,
