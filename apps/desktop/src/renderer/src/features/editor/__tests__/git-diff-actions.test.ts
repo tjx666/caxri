@@ -1,16 +1,20 @@
 import type { MonacoDiffEditor } from '@monaco-editor/react';
+import type { editor as Monaco } from 'monaco-editor';
 import { describe, expect, it, vi } from 'vitest';
 
+import type { DiffEditorActions } from '../git-diff-actions';
 import {
     didFocusDiffEditor,
     didNavigateDiffEditor,
     getDiffEditorActionState,
+    getDiffEditorFileSelection,
+    monacoDiffEditorActions,
     registerDiffEditorActions,
     subscribeDiffEditorActions,
 } from '../git-diff-actions';
 
 interface FakeDiffEditor {
-    editor: MonacoDiffEditor;
+    editor: DiffEditorActions;
     focus: ReturnType<typeof vi.fn>;
     goToDiff: ReturnType<typeof vi.fn>;
     setChanges: (hasChanges: boolean) => void;
@@ -23,13 +27,14 @@ function fakeDiffEditor(): FakeDiffEditor {
     const goToDiff = vi.fn();
     const editor = {
         focus,
+        getFileSelection: () => {},
         getLineChanges: () => (hasChanges ? [{}] : null),
         goToDiff,
         onDidUpdateDiff: (listener: () => void) => {
             listeners.add(listener);
             return { dispose: () => listeners.delete(listener) };
         },
-    } as unknown as MonacoDiffEditor;
+    } as unknown as DiffEditorActions;
     return {
         editor,
         focus,
@@ -39,6 +44,26 @@ function fakeDiffEditor(): FakeDiffEditor {
             for (const listener of listeners) listener();
         },
     };
+}
+
+function fakeCodeEditor(selection?: {
+    endColumn: number;
+    endLine: number;
+    startColumn: number;
+    startLine: number;
+}): Monaco.ICodeEditor {
+    return {
+        getSelection: () =>
+            selection && {
+                positionLineNumber: selection.endLine,
+                positionColumn: selection.endColumn,
+                getStartPosition: () => ({ lineNumber: selection.startLine }),
+                getEndPosition: () => ({
+                    lineNumber: selection.endLine,
+                    column: selection.endColumn,
+                }),
+            },
+    } as unknown as Monaco.ICodeEditor;
 }
 
 describe('Git diff editor actions', () => {
@@ -82,5 +107,63 @@ describe('Git diff editor actions', () => {
 
         unregisterFirst();
         unregisterSecond();
+    });
+
+    it('reads the caret from the modified side, which numbers lines the way the file does', () => {
+        const modified = fakeCodeEditor({
+            endColumn: 7,
+            endLine: 1251,
+            startColumn: 7,
+            startLine: 1251,
+        });
+        const editor = {
+            focus: vi.fn(),
+            getLineChanges: () => null,
+            getModifiedEditor: () => modified,
+            goToDiff: vi.fn(),
+            onDidUpdateDiff: () => ({ dispose: () => {} }),
+        } as unknown as MonacoDiffEditor;
+        const unregister = registerDiffEditorActions(
+            '/diff',
+            'pane-1',
+            monacoDiffEditorActions(editor),
+        );
+
+        expect(getDiffEditorFileSelection('/diff', 'pane-1')).toEqual({
+            line: 1251,
+            column: 7,
+            selectionStartLine: 1251,
+            selectionEndLine: 1251,
+        });
+
+        unregister();
+        expect(getDiffEditorFileSelection('/diff', 'pane-1')).toBeUndefined();
+    });
+
+    it('excludes a trailing line the selection only touches at its first column', () => {
+        const editor = {
+            focus: vi.fn(),
+            getLineChanges: () => null,
+            getModifiedEditor: () =>
+                fakeCodeEditor({ endColumn: 1, endLine: 9, startColumn: 3, startLine: 3 }),
+            goToDiff: vi.fn(),
+            onDidUpdateDiff: () => ({ dispose: () => {} }),
+        } as unknown as MonacoDiffEditor;
+        const unregister = registerDiffEditorActions(
+            '/diff',
+            'pane-2',
+            monacoDiffEditorActions(editor),
+        );
+
+        expect(getDiffEditorFileSelection('/diff', 'pane-2')).toMatchObject({
+            selectionStartLine: 3,
+            selectionEndLine: 8,
+        });
+
+        unregister();
+    });
+
+    it('reports no position while no diff editor is mounted for the tab occurrence', () => {
+        expect(getDiffEditorFileSelection('/diff', 'pane-absent')).toBeUndefined();
     });
 });

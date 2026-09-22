@@ -14,7 +14,11 @@ import { useSelectedSession } from '../../stores/selectors';
 import { previewSourcePath } from '../preview/preview-commands';
 import { PreviewTabAction } from '../preview/preview-tab-action';
 import { openEditorTab, openFileForSession } from './document-commands';
-import { didNavigateDiffEditor, useDiffEditorActionState } from './git-diff-actions';
+import {
+    didNavigateDiffEditor,
+    getDiffEditorFileSelection,
+    useDiffEditorActionState,
+} from './git-diff-actions';
 import { GitDiffViewOptions } from './git-diff-view-options';
 
 /**
@@ -146,10 +150,22 @@ function GitDiffTabActions({
                     disabled={!canOpen}
                     onClick={() => {
                         if (!session || !openPath) return;
+                        // Carry the reader's place across: opening the file at line 1 loses the hunk they were on, and
+                        // the modified side already numbers lines the way the opened file does.
+                        const selection = paneId
+                            ? getDiffEditorFileSelection(tabPath, paneId)
+                            : undefined;
                         // eslint-disable-next-line no-void -- openFileForSession reports failures through tryCommand
                         void openFileForSession(session.id, openPath, {
                             focus: true,
                             paneId,
+                            ...(selection && {
+                                location: {
+                                    mode: 'caret' as const,
+                                    line: selection.line,
+                                    column: selection.column,
+                                },
+                            }),
                         });
                     }}
                 >
