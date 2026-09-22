@@ -2,9 +2,13 @@ import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { E2EApp } from './support/electron-app.ts';
 import type { Page } from './support/fixtures.ts';
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
+import {
+    readGpuSafeModeRestart,
+    restoreGpuSafeModeRestart,
+    stubGpuSafeModeRestart,
+} from './support/gpu-restart-stub.ts';
 import {
     createShellSession,
     launchCaxri,
@@ -22,14 +26,7 @@ import {
 
 type GpuPreference = 'Auto' | 'On' | 'Off';
 
-const GPU_RESTART_STUB_KEY = '__caxriE2EGpuRestartStub';
-
 const NO_RESTART = { didQuit: false, didRelaunch: false };
-
-interface GpuRestartStubState {
-    didQuit: boolean;
-    didRelaunch: boolean;
-}
 
 interface StructuredLogRecord {
     correlationId?: string;
@@ -94,68 +91,12 @@ async function waitForSynchronizedResizeReceipts(
         .toBe(true);
 }
 
-async function stubGpuSafeModeRestart(app: E2EApp): Promise<void> {
-    await app.evaluate(({ app: electronApp }, key) => {
-        const scope = globalThis as Record<string, unknown>;
-        if (scope[key]) throw new Error('GPU restart lifecycle is already stubbed');
-        const state = {
-            didQuit: false,
-            didRelaunch: false,
-            quitDescriptor: Object.getOwnPropertyDescriptor(electronApp, 'quit'),
-            relaunchDescriptor: Object.getOwnPropertyDescriptor(electronApp, 'relaunch'),
-        };
-        scope[key] = state;
-        Object.defineProperties(electronApp, {
-            quit: {
-                configurable: true,
-                value: () => {
-                    state.didQuit = true;
-                },
-            },
-            relaunch: {
-                configurable: true,
-                value: () => {
-                    state.didRelaunch = true;
-                },
-            },
-        });
-    }, GPU_RESTART_STUB_KEY);
-}
-
-async function readGpuSafeModeRestart(app: E2EApp): Promise<GpuRestartStubState> {
-    return app.evaluate((_, key) => {
-        const state = (globalThis as Record<string, unknown>)[key] as
-            GpuRestartStubState | undefined;
-        if (!state) throw new Error('GPU restart lifecycle is not stubbed');
-        return { didQuit: state.didQuit, didRelaunch: state.didRelaunch };
-    }, GPU_RESTART_STUB_KEY);
-}
-
 async function isHardwareAccelerationPersisted(page: Page): Promise<boolean> {
     const result = await pageRequest<{ value: { hardwareAcceleration: boolean } }>(
         page,
         'argv.get',
     );
     return result.value.hardwareAcceleration;
-}
-
-async function restoreGpuSafeModeRestart(app: E2EApp): Promise<void> {
-    await app.evaluate(({ app: electronApp }, key) => {
-        const scope = globalThis as Record<string, unknown>;
-        const state = scope[key] as
-            | (GpuRestartStubState & {
-                  quitDescriptor?: PropertyDescriptor;
-                  relaunchDescriptor?: PropertyDescriptor;
-              })
-            | undefined;
-        if (!state) throw new Error('GPU restart lifecycle is not stubbed');
-        if (state.quitDescriptor) Object.defineProperty(electronApp, 'quit', state.quitDescriptor);
-        else Reflect.deleteProperty(electronApp, 'quit');
-        if (state.relaunchDescriptor)
-            Object.defineProperty(electronApp, 'relaunch', state.relaunchDescriptor);
-        else Reflect.deleteProperty(electronApp, 'relaunch');
-        Reflect.deleteProperty(scope, key);
-    }, GPU_RESTART_STUB_KEY);
 }
 
 async function applyGpuPreference(page: Page, preference: GpuPreference): Promise<void> {
@@ -570,20 +511,36 @@ test('repeated context losses preserve user choice and a confirmed opt-out persi
 
             // Cancelling must leave the boot configuration exactly as it was: the click on the crash card is not
             // itself the machine-wide change.
+            await running.page.locator('.xterm-helper-textarea').first().focus();
             await turnOff.click();
             const confirmTurnOff = running.page.locator('.confirmation-dialog');
             await expect(confirmTurnOff).toContainText(
                 'Turn off hardware acceleration and restart Caxri?',
             );
+            const confirmButton = confirmTurnOff.getByRole('button', {
+                name: 'Turn Off and Restart',
+                exact: true,
+            });
+            await expect(confirmButton).toBeFocused();
             await running.page.keyboard.press('Escape');
             await expect(confirmTurnOff).toHaveCount(0);
+            await expect(turnOff).toBeFocused();
             expect(await isHardwareAccelerationPersisted(running.page)).toBe(true);
             expect(await readGpuSafeModeRestart(running.app)).toEqual(NO_RESTART);
 
             await turnOff.click();
-            await confirmTurnOff
-                .getByRole('button', { name: 'Turn Off and Restart', exact: true })
-                .click();
+            await expect(confirmButton).toBeFocused();
+            const crashToast = running.page.locator('[data-sonner-toast]').filter({ has: turnOff });
+            /**
+             * Retraction can happen while the modal owns focus. Invoke dismissal without moving focus through an
+             * outside pointer click, so this also exercises the final toast-list cleanup path.
+             */
+            await crashToast
+                .getByRole('button', { name: 'Dismiss notification' })
+                .evaluate((button: HTMLButtonElement) => button.click());
+            await expect(crashToast).toHaveCount(0);
+            await expect(confirmButton).toBeFocused();
+            await confirmButton.click();
             await expect.poll(() => isHardwareAccelerationPersisted(running.page)).toBe(false);
             await expect
                 .poll(() => readGpuSafeModeRestart(running.app))

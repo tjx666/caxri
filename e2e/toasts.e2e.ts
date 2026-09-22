@@ -7,7 +7,7 @@ import type { ServerEvent } from '@caxri/protocol';
 import type { E2EApp } from './support/electron-app.ts';
 import type { Page } from './support/fixtures.ts';
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
-import { launchCaxri, pageRequest } from './support/helpers.ts';
+import { createShellSession, launchCaxri, pageRequest } from './support/helpers.ts';
 
 const ERROR_TITLE = 'File not found';
 const SUCCESS_TITLE = 'Sent Esc and continue to Codex after a matched recovery rule.';
@@ -72,6 +72,9 @@ test('Sonner notifications expire, dedupe, run actions, and stay keyboard-dismis
 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
+        await createShellSession(running.page);
+        const terminalInput = running.page.locator('.xterm-helper-textarea').first();
+        await terminalInput.focus();
         await keepDocumentVisible(running.page);
         await running.page.clock.install();
 
@@ -79,10 +82,12 @@ test('Sonner notifications expire, dedupe, run actions, and stay keyboard-dismis
         await running.page.clock.runFor(1);
         const errorToast = toastWithTitle(running.page, ERROR_TITLE);
         await expect(errorToast).toBeVisible();
+        await errorToast.getByRole('button', { name: 'Dismiss notification' }).focus();
         await running.page.clock.fastForward(3_900);
         await expect(errorToast).toBeVisible();
         await running.page.clock.runFor(400);
         await expect(errorToast).toHaveCount(0);
+        await expect(terminalInput).toBeFocused();
 
         await publishServerEvent(running.app, settingsError(ERROR_TITLE));
         await running.page.clock.runFor(1);
@@ -107,7 +112,9 @@ test('Sonner notifications expire, dedupe, run actions, and stay keyboard-dismis
         await successToast.getByRole('button', { name: 'Open Settings' }).press('Enter');
         const settingsDialog = running.page.getByRole('dialog');
         await expect(settingsDialog).toBeVisible();
+        await expect(settingsDialog.locator(':focus')).toHaveCount(1);
         await running.page.clock.runFor(250);
+        await expect(settingsDialog.locator(':focus')).toHaveCount(1);
         await expect(successToast).toHaveCount(0);
         await running.page.keyboard.press('Escape');
         await expect(settingsDialog).toHaveCount(0);

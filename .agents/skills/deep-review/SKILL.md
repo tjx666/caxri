@@ -110,7 +110,8 @@ contracts, not docs-only changes.
 7. Apply the repair policy to validated findings, then recheck the repaired diff before reporting.
 
 An author reviewing their own implementation must dispatch one clean-context subagent with the
-light-mode instructions and scope, then adjudicate its findings. This is an independence boundary,
+light-mode instructions and scope, then adjudicate its findings. Start that author review only after
+the applicable focused checks have passed; a running check is not a passing receipt. This is an independence boundary,
 not an escalation to deep mode.
 
 ## Quick mode

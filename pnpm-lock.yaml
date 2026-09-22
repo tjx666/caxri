@@ -62,7 +62,7 @@ overrides:
 patchedDependencies:
   '@xterm/addon-serialize@0.15.0-beta.301': 23296bdc952f707d99b5475cfd9a4c1be35781c950bd0b9e2b4bc69787a8c80a
   app-builder-lib: 76490dc48e3257f305d7c866bc6751fd5296cd1dbe902cafbad94afcecf0aa56
-  sonner@2.0.8: 77fc8ca8cc41a3328620e1b442c126423f8d51628c740ceb13c557cfea533b2c
+  sonner@2.0.8: 87c8dc2e0ab4f205514cec597784d1c10088828095f78285394a3eba89322470
 
 importers:
 
@@ -379,7 +379,7 @@ importers:
         version: 2.2.0(react@19.3.0)
       sonner:
         specifier: ^2.0.8
-        version: 2.0.8(patch_hash=77fc8ca8cc41a3328620e1b442c126423f8d51628c740ceb13c557cfea533b2c)(@types/react@19.2.18)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+        version: 2.0.8(patch_hash=87c8dc2e0ab4f205514cec597784d1c10088828095f78285394a3eba89322470)(@types/react@19.2.18)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       tailwind-merge:
         specifier: ^3.7.0
         version: 3.7.0
@@ -16836,7 +16836,7 @@ snapshots:
       '@jridgewell/remapping': 2.3.5
       tiny-open: 1.3.0
 
-  sonner@2.0.8(patch_hash=77fc8ca8cc41a3328620e1b442c126423f8d51628c740ceb13c557cfea533b2c)(@types/react@19.2.18)(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
+  sonner@2.0.8(patch_hash=87c8dc2e0ab4f205514cec597784d1c10088828095f78285394a3eba89322470)(@types/react@19.2.18)(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
     dependencies:
       react: 19.3.0
       react-dom: 19.3.0(react@19.3.0)
