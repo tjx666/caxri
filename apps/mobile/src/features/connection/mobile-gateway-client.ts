@@ -66,13 +66,6 @@ export class MobilePairingError extends Error {
     }
 }
 
-export class MobilePairingCancelledError extends Error {
-    constructor() {
-        super('Pairing was cancelled.');
-        this.name = 'MobilePairingCancelledError';
-    }
-}
-
 export class MobileReconnectError extends Error {
     readonly code = 'unverified' as const;
 
@@ -107,62 +100,6 @@ interface SocketReader {
 }
 
 const eventError = (): Error => new Error('The Caxri connection closed.');
-
-const pairingCancelled = (): MobilePairingCancelledError => new MobilePairingCancelledError();
-
-export const isMobilePairingCancelledError = (
-    error: unknown,
-): error is MobilePairingCancelledError => error instanceof MobilePairingCancelledError;
-
-const throwIfAborted = (signal: AbortSignal | undefined): void => {
-    if (signal?.aborted) throw pairingCancelled();
-};
-
-const awaitWithCancellation = async <Value>(
-    promise: Promise<Value>,
-    signal: AbortSignal | undefined,
-    onCancel: () => void,
-): Promise<Value> => {
-    if (!signal) return promise;
-    if (signal.aborted) {
-        // The caller may have created a pending reader promise before this already-aborted check. Consume its rejection
-        // before cancellation closes the reader so aborting between handshake steps cannot produce an unhandled error.
-        // eslint-disable-next-line no-void -- The cancellation path deliberately consumes the superseded operation.
-        void promise.catch(() => {});
-        onCancel();
-        throw pairingCancelled();
-    }
-    return new Promise<Value>((resolve, reject) => {
-        let isSettled = false;
-        let onAbort: () => void = () => {};
-        const cleanup = (): void => signal.removeEventListener('abort', onAbort);
-        onAbort = (): void => {
-            if (isSettled) return;
-            isSettled = true;
-            cleanup();
-            onCancel();
-            reject(pairingCancelled());
-        };
-        signal.addEventListener('abort', onAbort, { once: true });
-        if (signal.aborted) onAbort();
-        const settle = async (): Promise<void> => {
-            try {
-                const value = await promise;
-                if (isSettled) return;
-                isSettled = true;
-                cleanup();
-                resolve(value);
-            } catch (error) {
-                if (isSettled) return;
-                isSettled = true;
-                cleanup();
-                reject(error instanceof Error ? error : new Error('Pairing operation failed.'));
-            }
-        };
-        // eslint-disable-next-line no-void -- The cancellation wrapper owns the returned promise and settles the outer promise.
-        void settle();
-    });
-};
 
 const createSocketReader = (socket: WebSocket): SocketReader => {
     const queued: Array<{ release(): void; value: unknown }> = [];
@@ -260,41 +197,29 @@ const openSocketAt = async (
     address: string,
     port: number,
     runtime: MobileGatewayRuntime,
-    signal?: AbortSignal,
 ): Promise<WebSocket> => {
-    throwIfAborted(signal);
     const socket = runtime.openWebSocket(`ws://${address}:${port}/mobile`);
-    let cancelOpening = (): void => {};
-    const opened = new Promise<void>((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
         const timeout: { handle?: ReturnType<typeof setTimeout> } = {};
-        let isSettled = false;
-        let onError: () => void = () => {};
-        let onOpen: () => void = () => {};
-        const cleanup = (): void => {
+        const onError = (): void => {
             clearTimeout(timeout.handle);
+            socket.close();
+            reject(new MobilePairingError('unreachable', 'Caxri could not be reached.'));
+        };
+        const onOpen = (): void => {
+            clearTimeout(timeout.handle);
+            socket.removeEventListener('error', onError);
+            resolve();
+        };
+        timeout.handle = setTimeout(() => {
             socket.removeEventListener('open', onOpen);
             socket.removeEventListener('error', onError);
-        };
-        const settle = (error?: Error): void => {
-            if (isSettled) return;
-            isSettled = true;
-            cleanup();
-            if (error) {
-                socket.close();
-                reject(error);
-            } else resolve();
-        };
-        onError = (): void =>
-            settle(new MobilePairingError('unreachable', 'Caxri could not be reached.'));
-        onOpen = (): void => settle();
-        cancelOpening = (): void => settle(pairingCancelled());
-        timeout.handle = setTimeout(() => {
-            settle(new MobilePairingError('unreachable', 'Caxri could not be reached.'));
+            socket.close();
+            reject(new MobilePairingError('unreachable', 'Caxri could not be reached.'));
         }, HANDSHAKE_TIMEOUT_MS);
         socket.addEventListener('open', onOpen, { once: true });
         socket.addEventListener('error', onError, { once: true });
     });
-    await awaitWithCancellation(opened, signal, cancelOpening);
     return socket;
 };
 
@@ -302,15 +227,12 @@ const openSocket = async (
     addresses: string[],
     port: number,
     runtime: MobileGatewayRuntime,
-    signal?: AbortSignal,
 ): Promise<WebSocket> => {
     for (const address of addresses) {
-        throwIfAborted(signal);
         try {
             // eslint-disable-next-line no-await-in-loop -- candidates are tried in advertised reachability order.
-            return await openSocketAt(address, port, runtime, signal);
+            return await openSocketAt(address, port, runtime);
         } catch {
-            throwIfAborted(signal);
             // Continue to the next private interface advertised by the same authenticated Server.
         }
     }
@@ -330,17 +252,8 @@ interface EstablishedSession {
     socket: WebSocket;
 }
 
-const receiveSealed = async (
-    session: EstablishedSession,
-    timeoutMs?: number,
-    signal?: AbortSignal,
-): Promise<unknown> => {
-    const frame = mobileSealedFrameSchema.parse(
-        await awaitWithCancellation(session.reader.next(timeoutMs), signal, () => {
-            session.reader.close();
-            session.socket.close();
-        }),
-    );
+const receiveSealed = async (session: EstablishedSession, timeoutMs?: number): Promise<unknown> => {
+    const frame = mobileSealedFrameSchema.parse(await session.reader.next(timeoutMs));
     if (frame.connectionId !== session.connectionIdHex)
         throw new Error('Connection identity changed.');
     session.inbound.assertAndAdvance(frame.counter);
@@ -390,20 +303,12 @@ const establish = async (input: {
     port: number;
     presharedKey: Uint8Array;
     runtime: MobileGatewayRuntime;
-    signal?: AbortSignal;
 }): Promise<EstablishedSession> => {
-    throwIfAborted(input.signal);
-    const socket = await openSocket(input.addresses, input.port, input.runtime, input.signal);
+    const socket = await openSocket(input.addresses, input.port, input.runtime);
     const reader = createSocketReader(socket);
     try {
-        throwIfAborted(input.signal);
         socket.send(JSON.stringify(input.clientHello));
-        const challenge = mobileServerHelloSchema.parse(
-            await awaitWithCancellation(reader.next(HANDSHAKE_TIMEOUT_MS), input.signal, () => {
-                reader.close();
-                socket.close();
-            }),
-        );
+        const challenge = mobileServerHelloSchema.parse(await reader.next(HANDSHAKE_TIMEOUT_MS));
         const transcript: HandshakeTranscript = {
             mode: input.mode,
             serverId: input.expectedServerId,
@@ -429,7 +334,6 @@ const establish = async (input: {
             confirmation: encodeHex(handshakeConfirmation(keys, 'client')),
         });
         socket.send(JSON.stringify(confirmation));
-        throwIfAborted(input.signal);
         return {
             connectionId: transcript.connectionId,
             connectionIdHex: challenge.connectionId,
@@ -603,17 +507,14 @@ export class MobileGatewayConnection {
 export interface PairedMobileConnection {
     connection: MobileGatewayConnection;
     credential: MobileCredential;
-    rollback(): Promise<void>;
 }
 
 export const pairMobileGateway = async (input: {
     displayName: string;
     pairingLink: string;
     runtime: MobileGatewayRuntime;
-    signal?: AbortSignal;
     store: MobileCredentialStore;
 }): Promise<PairedMobileConnection> => {
-    throwIfAborted(input.signal);
     let link: ReturnType<typeof parseMobilePairingLink>;
     try {
         link = parseMobilePairingLink(input.pairingLink);
@@ -622,7 +523,6 @@ export const pairMobileGateway = async (input: {
     }
     if (link.expiresAt <= Date.now())
         throw new MobilePairingError('expired', 'This pairing code has expired.');
-    throwIfAborted(input.signal);
     const clientSecretKey = input.runtime.randomBytes(X25519_KEY_BYTES);
     const clientNonce = input.runtime.randomBytes(HANDSHAKE_NONCE_BYTES);
     let session: EstablishedSession;
@@ -636,7 +536,6 @@ export const pairMobileGateway = async (input: {
             clientNonce,
             presharedKey: decodeHex(link.secret, PAIRING_SECRET_BYTES),
             runtime: input.runtime,
-            signal: input.signal,
             clientHello: {
                 type: 'hello',
                 version: MOBILE_TRANSPORT_VERSION,
@@ -649,16 +548,12 @@ export const pairMobileGateway = async (input: {
             },
         });
     } catch (error) {
-        if (error instanceof MobilePairingError || isMobilePairingCancelledError(error))
-            throw error;
+        if (error instanceof MobilePairingError) throw error;
         throw new MobilePairingError('rejected', 'Caxri could not verify this pairing.');
     }
-    let savedCredential: MobileCredential | undefined;
-    let previousCredential: MobileCredential | null = null;
-    let didSave = false;
     try {
         const paired = mobilePairingResultSchema.parse(
-            await receiveSealed(session, HANDSHAKE_TIMEOUT_MS, input.signal),
+            await receiveSealed(session, HANDSHAKE_TIMEOUT_MS),
         );
         if (paired.deviceId !== session.deviceId)
             throw new Error('Caxri returned an unexpected device identity.');
@@ -671,32 +566,16 @@ export const pairMobileGateway = async (input: {
             generation: paired.generation,
             credential: paired.credential,
         } as const satisfies MobileCredential;
-        const saveResult = await input.store.saveIfActive(credential, () => !input.signal?.aborted);
-        didSave = saveResult.saved;
-        previousCredential = saveResult.previous;
-        if (didSave) savedCredential = credential;
-        if (!didSave) throw pairingCancelled();
-        throwIfAborted(input.signal);
-        let isRolledBack = false;
-        const connection = new MobileGatewayConnection(session, async () => {
-            await input.store.clearIfCurrent(credential);
-        });
+        await input.store.save(credential);
         return {
-            connection,
+            connection: new MobileGatewayConnection(session, async () => {
+                await input.store.clearIfCurrent(credential);
+            }),
             credential,
-            rollback: async () => {
-                if (isRolledBack) return;
-                isRolledBack = true;
-                connection.close();
-                await input.store.restoreIfCurrent(credential, previousCredential);
-            },
         };
     } catch (error) {
         session.reader.close();
         session.socket.close();
-        if (didSave && savedCredential) {
-            await input.store.restoreIfCurrent(savedCredential, previousCredential);
-        }
         throw error;
     }
 };
