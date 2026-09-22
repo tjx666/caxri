@@ -36,6 +36,52 @@ afterEach(async () => {
 });
 
 describe('Session rename', () => {
+    it('does not create a manual revision for a missing Session and forgets an existing one', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-session-rename-revision-'));
+        temporaryDirectories.push(directory);
+        const projectRoot = join(directory, 'project');
+        await mkdir(projectRoot);
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const project = database.createProject(projectRoot);
+        const created = database.createSession(project.id, 'shell', projectRoot);
+        const agents = new AgentService(undefined, createPendingAgentAdapters({}));
+        const coordinator = new AgentCoordinator(
+            database,
+            agents,
+            () => {},
+            createLogger(join(directory, 'logs')),
+        );
+        const service = new SessionRenameService(
+            database,
+            agents,
+            coordinator,
+            () => {},
+            createLogger(join(directory, 'rename-logs')),
+        );
+
+        try {
+            await expect(service.rename('missing-session', 'Valid title')).rejects.toMatchObject({
+                code: 'NOT_FOUND',
+                message: 'Session not found',
+            });
+            expect(service.revision('missing-session')).toBe(0);
+
+            await expect(
+                service.rename(created.session.id, 'Existing title'),
+            ).resolves.toMatchObject({
+                displayTitle: 'Existing title',
+                titleMode: 'manual',
+            });
+            expect(service.revision(created.session.id)).toBe(1);
+
+            service.forgetSession(created.session.id);
+            expect(service.revision(created.session.id)).toBe(0);
+        } finally {
+            coordinator.close();
+            database.close();
+        }
+    });
+
     it('persists local-only Session names under manual ownership', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-session-rename-'));
         temporaryDirectories.push(directory);

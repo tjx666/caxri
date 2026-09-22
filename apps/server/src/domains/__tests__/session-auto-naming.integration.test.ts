@@ -357,6 +357,81 @@ describe('Automatic Session rename synchronization', () => {
         }
     });
 
+    it('aborts forgotten naming, drops deferred work, and releases a semaphore slot', async () => {
+        const f = await fixture();
+        const second = f.addSession();
+        const third = f.addSession();
+        vi.spyOn(agentFunctions, 'locateAgentTranscript').mockResolvedValue({
+            baseRoot: f.directory,
+            root: f.directory,
+            path: join(f.directory, 'fixture.jsonl'),
+        });
+        vi.spyOn(agentFunctions, 'readAgentTitleMessages').mockResolvedValue({
+            opening: [
+                { role: 'user', text: 'Fix title synchronization' },
+                { role: 'assistant', text: 'The native title precedence was wrong' },
+            ],
+            recent: [],
+        });
+        const generations: Array<{
+            resolve: (title: string) => void;
+            signal: AbortSignal | undefined;
+        }> = [];
+        const generate = vi.spyOn(f.agents, 'generateTitle').mockImplementation(
+            (_provider, options) =>
+                new Promise<string>((resolve) => {
+                    options.signal?.addEventListener(
+                        'abort',
+                        () => resolve('Stale forgotten title'),
+                        { once: true },
+                    );
+                    generations.push({ resolve, signal: options.signal });
+                }),
+        );
+        const service = new SessionAutoNamingService(
+            f.database,
+            f.agents,
+            f.renames,
+            { homeDirectory: f.directory, variables: {} },
+            () => true,
+            createLogger(join(f.directory, 'logs')),
+        );
+        const event = (terminalId: string) => ({
+            provider: 'codex' as const,
+            terminalId,
+            launchId: 'deletion-launch',
+            phase: 'turnFinished' as const,
+            agentSessionId: f.database.getTerminal(terminalId)?.agentSessionId ?? '',
+        });
+
+        try {
+            service.observe(event(f.terminalId));
+            service.observe(event(second.terminalId));
+            service.observe(event(third.terminalId));
+            await vi.waitFor(() => expect(generate).toHaveBeenCalledTimes(2));
+
+            // A later turn is deferred behind the in-flight generation and must disappear with its Session.
+            service.observe(event(f.terminalId));
+            service.forgetSession(f.sessionId);
+            expect(generations[0]?.signal?.aborted).toBe(true);
+            f.database.deleteSession(f.sessionId);
+
+            // The aborted generation releases one of the two slots, so the queued third Session can start.
+            await vi.waitFor(() => expect(generate).toHaveBeenCalledTimes(3));
+            expect(f.database.getSession(f.sessionId)).toBeUndefined();
+            expect(f.renames.revision(f.sessionId)).toBe(0);
+
+            for (const generation of generations)
+                if (!generation.signal?.aborted) generation.resolve('Current task title');
+            await service.close();
+            expect(f.database.getSession(f.sessionId)).toBeUndefined();
+        } finally {
+            for (const generation of generations)
+                if (!generation.signal?.aborted) generation.resolve('Current task title');
+            await service.close();
+        }
+    });
+
     it('continues reading subsequent Codex names without generating or writing again', async () => {
         const f = await fixture();
         await f.automatic();
@@ -628,6 +703,22 @@ describe('Automatic Session naming sandbox suppression', () => {
                     sessionId: f.sessionId,
                 },
             ]);
+        } finally {
+            await dispose();
+        }
+    });
+
+    it('forgets a sandbox suppression before the Session is deleted', async () => {
+        const { f, service, block, dispose, generate, turnFinished } = await suppressionFixture();
+        try {
+            await block(f.terminalId);
+            expect(service.automaticNamingNotices()).toHaveLength(1);
+
+            service.forgetSession(f.sessionId);
+            expect(service.automaticNamingNotices()).toEqual([]);
+
+            service.observe(turnFinished(f.terminalId));
+            await vi.waitFor(() => expect(generate).toHaveBeenCalledTimes(2));
         } finally {
             await dispose();
         }

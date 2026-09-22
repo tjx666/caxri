@@ -20,7 +20,7 @@ const common = {
     context: extensionViewEventContextSchema,
 };
 
-const extensionViewOperationSchema = z.discriminatedUnion('operation', [
+export const extensionViewOperationSchema = z.discriminatedUnion('operation', [
     z.object({
         ...common,
         operation: z.literal('badge.snapshot'),
@@ -68,13 +68,76 @@ const extensionViewOperationSchema = z.discriminatedUnion('operation', [
     }),
 ]);
 
+export type ExtensionViewOperationName = z.infer<typeof extensionViewOperationSchema>['operation'];
+
+export interface ExtensionViewOperationMetadata {
+    /**
+     * Provider registration family used by the Extension Host.
+     */
+    provider: 'badge' | 'source';
+    /**
+     * Whether a host cancellation rejects a late provider result or leaves it authoritative.
+     */
+    cancellation: 'reject' | 'authoritative';
+    /**
+     * Whether the request may use the generic Extension Host timeout.
+     */
+    lifetime: 'expiring' | 'non-expiring';
+}
+
+/**
+ * Every view operation's provider routing and lifetime semantics live here so a new operation cannot silently miss one
+ * of the Host, Core, transport, or Renderer policy consumers.
+ */
+export const extensionViewOperationMetadata = {
+    'badge.snapshot': {
+        provider: 'badge',
+        cancellation: 'reject',
+        lifetime: 'expiring',
+    },
+    'source.snapshot': {
+        provider: 'source',
+        cancellation: 'reject',
+        lifetime: 'expiring',
+    },
+    'source.historyPage': {
+        provider: 'source',
+        cancellation: 'reject',
+        lifetime: 'expiring',
+    },
+    'source.historyDetails': {
+        provider: 'source',
+        cancellation: 'reject',
+        lifetime: 'expiring',
+    },
+    'source.action': {
+        provider: 'source',
+        cancellation: 'authoritative',
+        lifetime: 'non-expiring',
+    },
+} as const satisfies Record<ExtensionViewOperationName, ExtensionViewOperationMetadata>;
+
+export const extensionViewOperationNames = Object.keys(extensionViewOperationMetadata) as [
+    ExtensionViewOperationName,
+    ...ExtensionViewOperationName[],
+];
+export const extensionViewOperationNameSchema = z.enum(extensionViewOperationNames);
+
+export function isExtensionViewOperationName(value: string): value is ExtensionViewOperationName {
+    return extensionViewOperationNames.includes(value as ExtensionViewOperationName);
+}
+
+export function isExtensionViewReadOperation(operation: ExtensionViewOperationName): boolean {
+    return extensionViewOperationMetadata[operation].cancellation === 'reject';
+}
+
 export const extensionViewOperationResultSchemas = {
     'badge.snapshot': viewBadgeSchema.nullable(),
     'source.snapshot': sourceControlViewModelSchema,
     'source.historyPage': sourceControlHistoryPageSchema,
     'source.historyDetails': sourceControlHistoryDetailsSchema,
     'source.action': sourceControlActionResultSchema,
-} as const satisfies Record<z.infer<typeof extensionViewOperationSchema>['operation'], z.ZodType>;
+} as const satisfies Record<ExtensionViewOperationName, z.ZodType>;
 
 const extensionViewOperationResultSchema = z.union([
     extensionViewOperationResultSchemas['badge.snapshot'],

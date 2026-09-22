@@ -507,6 +507,21 @@ describe('direct import test selection', () => {
         expect(selected.every((test) => !test.includes('node_modules'))).toBe(true);
     });
 
+    it('discovers direct-import tests inside bundled extensions across file names', async () => {
+        expect(VITEST_SOURCE_ROOTS).toContain('extensions');
+        const selected = await directImportTestCandidates(process.cwd(), [
+            'extensions/status/src/extension.ts',
+            'extensions/status/src/status-tree.ts',
+        ]);
+
+        expect(selected).toEqual([
+            'extensions/status/src/__tests__/project-status-provider.test.ts',
+            'extensions/status/src/__tests__/status-fallback.test.ts',
+            'extensions/status/src/__tests__/status-tree-acceptance.test.ts',
+            'extensions/status/src/__tests__/status-tree.test.ts',
+        ]);
+    });
+
     it('selects only direct FileService suites with the existing narrow heuristic', async () => {
         const source = 'apps/server/src/domains/files/service.ts';
         const direct = await directImportTestCandidates(process.cwd(), [source]);

@@ -194,6 +194,8 @@ const rule: Rule.RuleModule = {
         docs: { description: 'enforce Caxri application and package ownership boundaries' },
         schema: [],
         messages: {
+            extensionImplementationImport:
+                "Application '{{importer}}' must not import bundled extension implementation; use the public Extension API and Host protocol.",
             applicationImport:
                 "Application '{{importer}}' must not import application '{{target}}' source; depend on a public package contract instead.",
             packageImportsApplication:
@@ -245,6 +247,15 @@ const rule: Rule.RuleModule = {
                 ? ownerForPath(resolvedTarget)
                 : ownerForBareSpecifier(specifier);
             if (!targetOwner) return;
+
+            if (importerOwner?.kind === 'application' && targetOwner.kind === 'extension') {
+                context.report({
+                    node,
+                    messageId: 'extensionImplementationImport',
+                    data: { importer: importerOwner.id },
+                });
+                return;
+            }
 
             if (
                 targetOwner.kind === 'application' &&

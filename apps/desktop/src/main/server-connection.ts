@@ -38,7 +38,12 @@ import {
     SERVER_DESKTOP_LAUNCH_ENVIRONMENT_KEY,
 } from '@caxri/protocol';
 import type { E2EAgentPolicy, StructuredLogger } from '@caxri/system';
-import { computeBuildFingerprint, e2eAgentPolicyEnvironment, logEventCatalog } from '@caxri/system';
+import {
+    computeBuildFingerprint,
+    e2eAgentPolicyEnvironment,
+    EXTENSION_HOST_PROTOCOL_FAULT_ENVIRONMENT_KEY,
+    logEventCatalog,
+} from '@caxri/system';
 import type { PowerMonitor } from 'electron';
 
 import { activeDesktopCommand, runDesktopCommand } from './desktop-command-scope';
@@ -194,6 +199,10 @@ export class DesktopServerConnection extends EventTarget {
                 ...(process.env.CAXRI_E2E_AGENT_UNKNOWN_RECOVERY_MS && {
                     CAXRI_E2E_AGENT_UNKNOWN_RECOVERY_MS:
                         process.env.CAXRI_E2E_AGENT_UNKNOWN_RECOVERY_MS,
+                }),
+                ...(process.env[EXTENSION_HOST_PROTOCOL_FAULT_ENVIRONMENT_KEY] && {
+                    [EXTENSION_HOST_PROTOCOL_FAULT_ENVIRONMENT_KEY]:
+                        process.env[EXTENSION_HOST_PROTOCOL_FAULT_ENVIRONMENT_KEY],
                 }),
                 ...(process.env.CAXRI_TEST_ROOT_PATH && {
                     CAXRI_TEST_ROOT_PATH: process.env.CAXRI_TEST_ROOT_PATH,

@@ -2,7 +2,11 @@ import { spawn } from 'node:child_process';
 import process from 'node:process';
 
 import type { ServerDesktopLaunch } from '@caxri/protocol';
-import { e2eFakeExecutableEnvironmentKeys, safeProcessEnvironment } from '@caxri/system';
+import {
+    e2eFakeExecutableEnvironmentKeys,
+    EXTENSION_HOST_PROTOCOL_FAULT_ENVIRONMENT_KEY,
+    safeProcessEnvironment,
+} from '@caxri/system';
 
 const DESKTOP_E2E_ENVIRONMENT_KEYS = [
     'CAXRI_E2E',
@@ -13,6 +17,7 @@ const DESKTOP_E2E_ENVIRONMENT_KEYS = [
     'CAXRI_E2E_MAX_POLL_INTERVAL_MS',
     'CAXRI_E2E_AGENT_MODE',
     'CAXRI_E2E_AGENT_PROVIDER',
+    EXTENSION_HOST_PROTOCOL_FAULT_ENVIRONMENT_KEY,
     'CAXRI_TEST_ROOT_PATH',
     'CAXRI_TEST_ROOT_PATHS',
     ...e2eFakeExecutableEnvironmentKeys(),

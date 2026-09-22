@@ -186,6 +186,17 @@ export class SessionRenameService {
         return renamed;
     }
 
+    /**
+     * Retires in-memory manual ownership for a Session whose durable record is about to be deleted.
+     *
+     * In-flight manual provider work remains owned by the rename queue. Deletion does not cancel a user-requested
+     * provider rename, so the queue can finish its existing fencing sequence without leaving a revision behind for a
+     * future Session lookup.
+     */
+    forgetSession(sessionId: string): void {
+        this.manualRevisions.delete(sessionId);
+    }
+
     revision(sessionId: string): number {
         return this.manualRevisions.get(sessionId) ?? 0;
     }
@@ -311,6 +322,8 @@ export class SessionRenameService {
                     parsedTitle.error.issues[0]?.message ?? 'Session name is invalid',
                 ),
             );
+        if (!this.database.getSession(sessionId))
+            return Promise.reject(new CaxriError('NOT_FOUND', 'Session not found'));
         const normalizedTitle = parsedTitle.data;
         this.manualRevisions.set(sessionId, this.revision(sessionId) + 1);
         return this.queue.run(sessionId, () =>

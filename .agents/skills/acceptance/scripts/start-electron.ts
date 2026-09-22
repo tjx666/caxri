@@ -6,9 +6,8 @@ import { basename, dirname, join, relative, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-import { assertBuildOutputsFresh, e2eAgentEnvironmentKeys } from '@caxri/system';
+import { assertBuildOutputsFresh } from '@caxri/system';
 
-import { acceptanceThemeImportCaseIds } from '../../../../apps/desktop/src/main/acceptance-theme-import';
 import type { DesktopLeaseHandle } from '../../switch-worktree/scripts/desktop-lease';
 import {
     acquireDesktopLease,
@@ -50,6 +49,10 @@ import {
     runtimeStateSchema,
     writeRuntimeState,
 } from './runtime-state';
+import {
+    acceptanceFixtureEnvironment,
+    AMBIENT_ACCEPTANCE_ENVIRONMENT_KEYS,
+} from './start-electron-environment';
 import {
     hasBooleanOption,
     help,
@@ -195,17 +198,7 @@ export function createElectronLaunchSpec({
      * Acceptance is never allowed to inherit an opt-in real provider or user-global hook policy.
      */
     const isolatedEnvironment = { ...environment };
-    for (const key of [
-        ...e2eAgentEnvironmentKeys(),
-        'CAXRI_E2E_AGENT_HOOKS',
-        'CAXRI_ACCEPTANCE_EXTERNAL_OPEN',
-        'CAXRI_ACCEPTANCE_THEME_IMPORT',
-        'CAXRI_TEST_ROOT_PATH',
-        'CAXRI_TEST_ROOT_PATHS',
-        'CAXRI_REAL_AGENT_E2E',
-        'CAXRI_REAL_AGENT_OK',
-    ])
-        delete isolatedEnvironment[key];
+    for (const key of AMBIENT_ACCEPTANCE_ENVIRONMENT_KEYS) delete isolatedEnvironment[key];
     return {
         args: ['apps/desktop', `--remote-debugging-port=${port}`],
         command: electronPath,
@@ -217,12 +210,7 @@ export function createElectronLaunchSpec({
                 CAXRI_ACCEPTANCE: '1',
                 CAXRI_E2E: '1',
                 CAXRI_E2E_WINDOW_MODE: 'visible',
-                CAXRI_ACCEPTANCE_EXTERNAL_OPEN:
-                    caseId === 'session-pr-open-parity' ? 'session-pr-open-parity-v1' : undefined,
-                CAXRI_ACCEPTANCE_THEME_IMPORT:
-                    useTestRootFixture && acceptanceThemeImportCaseIds.has(caseId ?? '')
-                        ? caseId
-                        : undefined,
+                ...acceptanceFixtureEnvironment(caseId, useTestRootFixture),
                 ...(useTestRootFixture && {
                     CAXRI_TEST_ROOT_PATH: testRootPath,
                     CAXRI_TEST_ROOT_PATHS: JSON.stringify(testRootPaths),

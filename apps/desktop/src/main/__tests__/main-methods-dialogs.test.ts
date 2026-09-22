@@ -11,7 +11,7 @@ const electronMock = vi.hoisted(() => ({
 }));
 vi.mock('electron', () => ({ dialog: electronMock.dialog, shell: electronMock.shell }));
 
-import { externalLinkPrompt } from '../confirmations';
+import { deleteSessionPrompt, externalLinkPrompt } from '../confirmations';
 import { createMainMethodHandler } from '../main-methods';
 import type { ProcessExplorerWindowController } from '../process-explorer-window';
 import type { DesktopServerConnection } from '../server-connection';
@@ -157,6 +157,69 @@ describe('external.open trust wiring', () => {
         ).resolves.toEqual({ status: 'rejected', reason: 'unsupported_protocol' });
         expect(electronMock.dialog.showMessageBox).not.toHaveBeenCalled();
         expect(electronMock.shell.openExternal).not.toHaveBeenCalled();
+    });
+});
+
+describe('session.delete Acceptance confirmation', () => {
+    const bootstrap = {
+        projects: [],
+        sessions: [{ displayTitle: 'Fixture naming hold', id: 'session-1', projectId: 'p1' }],
+    };
+
+    function deleteRequest() {
+        return requestMock({
+            'app.bootstrap': () => Promise.resolve(bootstrap),
+            'session.delete': () => Promise.resolve({ deleted: true }),
+            'terminal.runningCount': () => Promise.resolve(0),
+        });
+    }
+
+    it('routes the real confirmation copy through the fixture and honours its answer', async () => {
+        const request = deleteRequest();
+        const confirm = vi.fn().mockResolvedValue({ response: 0 });
+        const handle = createMainMethodHandler({
+            ...options({ request }),
+            acceptanceSessionDeleteFixture: { confirm },
+        });
+
+        await expect(
+            handle({ method: 'session.delete', params: { sessionId: 'session-1' } }),
+        ).resolves.toEqual({ deleted: true });
+        expect(confirm).toHaveBeenCalledWith(
+            'session-1',
+            deleteSessionPrompt('Fixture naming hold', 0),
+        );
+        expect(electronMock.dialog.showMessageBox).not.toHaveBeenCalled();
+
+        confirm.mockResolvedValueOnce({ response: 1 });
+        await expect(
+            handle({ method: 'session.delete', params: { sessionId: 'session-1' } }),
+        ).resolves.toEqual({ canceled: true });
+        // A non-zero answer must stop at Main: only the confirmed first deletion reached the Server.
+        expect(request.mock.calls.filter(([method]) => method === 'session.delete')).toHaveLength(
+            1,
+        );
+        expect(electronMock.dialog.showMessageBox).not.toHaveBeenCalled();
+    });
+
+    it('leaves bulk and Project deletion on the real native confirmation', async () => {
+        const request = requestMock({
+            'app.bootstrap': () => Promise.resolve(bootstrap),
+            'terminal.runningCount': () => Promise.resolve(0),
+        });
+        const handle = createMainMethodHandler({
+            ...options({ request }),
+            acceptanceSessionDeleteFixture: { confirm: vi.fn() },
+        });
+        electronMock.dialog.showMessageBox.mockResolvedValue({ response: 1 });
+
+        await expect(
+            handle({ method: 'session.deleteMany', params: { sessionIds: ['session-1'] } }),
+        ).resolves.toEqual({ canceled: true });
+        await expect(
+            handle({ method: 'project.delete', params: { projectId: 'p1' } }),
+        ).resolves.toEqual({ canceled: true });
+        expect(electronMock.dialog.showMessageBox).toHaveBeenCalledTimes(2);
     });
 });
 
