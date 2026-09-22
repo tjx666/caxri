@@ -317,7 +317,7 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                     'this Session';
                 const sessionPrompt = deleteSessionPrompt(sessionTitle, count);
                 const result = sessionDeleteFixture
-                    ? await sessionDeleteFixture.confirm(sessionPrompt)
+                    ? await sessionDeleteFixture.confirm(sessionId, sessionPrompt)
                     : await dialog.showMessageBox(mainWindow!, sessionPrompt);
                 if (result.response !== 0) return { canceled: true };
                 return supervisor.request('session.delete', { sessionId });

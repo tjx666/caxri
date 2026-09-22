@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createAcceptanceSessionDeleteFixture } from '../acceptance-session-delete';
 
 const caseId = 'audit-naming-cancel';
+const sessionId = 'session-holding-the-naming-slot';
 const prompt = {
     buttons: ['Delete', 'Cancel'],
     cancelId: 1,
@@ -55,20 +56,30 @@ describe('Acceptance session delete fixture', () => {
         const command = (
             decision: 'cancel' | 'confirm',
             sequence: number,
-            requestedCaseId = caseId,
+            overrides: { caseId?: string; sessionId?: string } = {},
         ) =>
-            writeFile(commandPath, JSON.stringify({ caseId: requestedCaseId, decision, sequence }));
+            writeFile(
+                commandPath,
+                JSON.stringify({
+                    caseId: overrides.caseId ?? caseId,
+                    decision,
+                    sequence,
+                    sessionId: overrides.sessionId ?? sessionId,
+                }),
+            );
 
         await command('confirm', 1);
-        await expect(fixture.confirm(prompt)).resolves.toEqual({ response: 0 });
-        // Replaying the same command must not confirm a second deletion the case never asked for.
-        await expect(fixture.confirm(prompt)).rejects.toThrow('does not match');
+        await expect(fixture.confirm(sessionId, prompt)).resolves.toEqual({ response: 0 });
+        // The command is consumed, so no second deletion can ride on it — not even after a restart reuses the profile.
+        await expect(fixture.confirm(sessionId, prompt)).rejects.toThrow();
+        await command('confirm', 2, { sessionId: 'a-different-session' });
+        await expect(fixture.confirm(sessionId, prompt)).rejects.toThrow('does not match');
         await command('cancel', 2);
-        await expect(fixture.confirm(prompt)).resolves.toEqual({ response: 1 });
-        await command('confirm', 3, 'audit-argv-bounds');
-        await expect(fixture.confirm(prompt)).rejects.toThrow('does not match');
+        await expect(fixture.confirm(sessionId, prompt)).resolves.toEqual({ response: 1 });
+        await command('confirm', 3, { caseId: 'audit-argv-bounds' });
+        await expect(fixture.confirm(sessionId, prompt)).rejects.toThrow('does not match');
         await writeFile(commandPath, JSON.stringify({ caseId, decision: 'delete-everything' }));
-        await expect(fixture.confirm(prompt)).rejects.toThrow();
+        await expect(fixture.confirm(sessionId, prompt)).rejects.toThrow();
 
         const receipt = await readFile(receiptPath, 'utf8');
         expect(receipt.trim().split('\n')).toHaveLength(2);
@@ -79,6 +90,7 @@ describe('Acceptance session delete fixture', () => {
             caseId,
             decision: 'confirm',
             sequence: 1,
+            sessionId,
         });
     });
 });
