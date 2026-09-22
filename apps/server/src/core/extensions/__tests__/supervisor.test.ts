@@ -3,14 +3,19 @@ import { fork } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 
 import { toWireError } from '@caxri/protocol';
+import type { ExtensionHostProtocolFault } from '@caxri/system';
 import {
     currentObservationContext,
+    extensionHostProtocolFaults,
+    logEventCatalog,
     runWithObservationContext,
     StructuredLogger,
 } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ExtensionHostRequest } from '../../../extension-host/protocol';
+import { extensionHostParentMessageSchema } from '../../../extension-host/protocol';
+import { extensionHostProtocolRejectionReasons } from '../../../extension-host/protocol-diagnostics';
 import {
     extensionHostReplyError,
     ExtensionHostSupervisor,
@@ -511,5 +516,108 @@ describe('ExtensionHostSupervisor message boundary', () => {
             method: 'cancel',
             params: { requestId: 'summary-request' },
         });
+    });
+});
+
+describe('Acceptance protocol fault injection', () => {
+    function createRespondingChild() {
+        // ChildProcess uses Node's EventEmitter contract; EventTarget cannot represent its message/exit events.
+        // eslint-disable-next-line unicorn/prefer-event-target
+        const child = Object.assign(new EventEmitter(), {
+            connected: true,
+            exitCode: null,
+            signalCode: null,
+            pid: 321,
+            kill: vi.fn(() => true),
+            send: vi.fn((message: ExtensionHostRequest | { type: string }) => {
+                if (!('method' in message)) return true;
+                queueMicrotask(() =>
+                    child.emit('message', {
+                        type: 'reply',
+                        id: message.id,
+                        ok: true,
+                        result:
+                            message.method === 'configure'
+                                ? { configured: 1 }
+                                : { activated: true },
+                    }),
+                );
+                return true;
+            }),
+        });
+        return child;
+    }
+
+    async function startWithFaults(protocolFaults: ExtensionHostProtocolFault[]) {
+        const child = createRespondingChild();
+        vi.mocked(fork).mockReturnValue(child as unknown as ChildProcess);
+        const logger = new StructuredLogger(
+            '/tmp/caxri-extension-supervisor-test',
+            'server-core',
+            'error',
+        );
+        const rejectionReasons: string[] = [];
+        vi.spyOn(logger, 'write').mockImplementation((_level, event, payload) => {
+            if (event !== logEventCatalog.extensionHost.invalidMessage) return;
+            rejectionReasons.push((payload as { fields: { reason: string } }).fields.reason);
+        });
+        const supervisor = new ExtensionHostSupervisor({
+            ...observationIdentity,
+            appVersion: '0.0.17',
+            commit: 'test',
+            extensionHostPath: '/out/main/extension-host.js',
+            logger,
+            protocolFaults,
+            registrations: () => [],
+            requestApi: () => Promise.resolve({}),
+        });
+        const started = supervisor.start();
+        child.emit('message', { type: 'ready' });
+        await started;
+        return { child, rejectionReasons };
+    }
+
+    it('records no rejection and sends no fault envelope without an admitted sequence', async () => {
+        const { child, rejectionReasons } = await startWithFaults([]);
+
+        expect(rejectionReasons).toEqual([]);
+        expect(child.send.mock.calls.some(([message]) => !('method' in (message as object)))).toBe(
+            false,
+        );
+        expect(child.kill).not.toHaveBeenCalled();
+    });
+
+    it('classifies an injected malformed child envelope and stops the Host', async () => {
+        const { child, rejectionReasons } = await startWithFaults(['child-envelope']);
+
+        expect(rejectionReasons).toEqual(['child-envelope']);
+        expect(child.kill).toHaveBeenCalled();
+    });
+
+    it('classifies an injected invalid reply payload against a real reply', async () => {
+        const { child, rejectionReasons } = await startWithFaults(['reply-result']);
+
+        await vi.waitFor(() => expect(rejectionReasons).toEqual(['reply-result']));
+        expect(child.kill).toHaveBeenCalled();
+    });
+
+    it('delivers a malformed parent envelope over the live channel for the Host to classify', async () => {
+        const { child, rejectionReasons } = await startWithFaults(['parent-envelope']);
+
+        const faultEnvelopes = child.send.mock.calls
+            .map(([message]) => message)
+            .filter((message) => !('method' in (message as object)));
+        expect(faultEnvelopes).toHaveLength(1);
+        // The envelope only produces `parent-envelope` if the Host's own parent schema rejects it, so assert that
+        // rejection here rather than the weaker claim that some non-request message was sent.
+        expect(extensionHostParentMessageSchema.safeParse(faultEnvelopes[0]).success).toBe(false);
+        // The Host owns this classification; the supervisor must not log the child's reason for it.
+        expect(rejectionReasons).toEqual([]);
+    });
+
+    it('keeps the Acceptance fault sequence aligned with the logged rejection reasons', () => {
+        expect([...extensionHostProtocolFaults]).toEqual([
+            ...extensionHostProtocolRejectionReasons,
+        ]);
     });
 });
