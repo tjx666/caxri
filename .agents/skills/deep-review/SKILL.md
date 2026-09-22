@@ -113,6 +113,9 @@ An author reviewing their own implementation must dispatch one clean-context sub
 light-mode instructions and scope, then adjudicate its findings. Start that author review only after
 the applicable focused checks have passed; a running check is not a passing receipt. This is an independence boundary,
 not an escalation to deep mode.
+Reuse the author's passing checks for the unchanged reviewed files; rerun a check only to investigate
+a concrete finding, missing evidence, or a changed source state. Independence means independent
+judgment, not repeating an already-passing build or desktop workflow.
 
 ## Quick mode
 
