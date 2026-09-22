@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
     createSourceControlViewNavigation,
     serializeSourceControlViewNavigation,
-    setSourceControlDirectoriesExpanded,
+    setSourceControlDisclosuresExpanded,
     updateSourceControlViewNavigation,
 } from '../source-control-state';
 
@@ -65,7 +65,7 @@ describe('Source Control navigation state', () => {
     it('updates a directory subtree atomically without changing existing disclosure state', () => {
         const initial = { sibling: true, stale: false };
 
-        const updated = setSourceControlDirectoriesExpanded(
+        const updated = setSourceControlDisclosuresExpanded(
             initial,
             ['root', 'root/nested'],
             false,
@@ -88,7 +88,7 @@ describe('Source Control navigation state', () => {
                 (_, index) => `root/directory-${index}`,
             ),
         ];
-        const expandedDirectories = setSourceControlDirectoriesExpanded({}, keys, false);
+        const expandedDirectories = setSourceControlDisclosuresExpanded({}, keys, false);
 
         const serialized = serializeSourceControlViewNavigation({
             expandedDirectories,

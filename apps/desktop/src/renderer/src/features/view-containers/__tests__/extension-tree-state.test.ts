@@ -230,6 +230,13 @@ describe('extension tree interaction gate', () => {
         expect(pointerTreeRowAction(branch, 'disclosure', 'click', 2)).toBe('none');
     });
 
+    it('gives a command branch body the recursive toggle Option-click promises', () => {
+        // Regression: a collapsible row that also opens a page activated the command on Option-click,
+        // so recursive disclosure was reachable on its chevron alone.
+        expect(pointerTreeRowAction(branch, 'body', 'click', 1, true)).toBe('toggle-recursive');
+        expect(pointerTreeRowAction(leaf, 'body', 'click', 1, true)).toBe('activate');
+    });
+
     it('keeps a plain branch body as an expansion target', () => {
         expect(pointerTreeRowAction(plainBranch, 'body', 'click', 1)).toBe('toggle');
         expect(pointerTreeRowAction(plainBranch, 'body', 'click', 2)).toBe('none');
