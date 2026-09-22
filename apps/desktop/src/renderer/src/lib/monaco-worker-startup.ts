@@ -1,15 +1,12 @@
 /**
- * A Worker that Monaco asked for but that never ran its own script. The thread exists — it answers a debugger and its
- * `performance.now()` advances — yet the module body never executed, so `self.onmessage` was never installed and every
- * message Monaco sends it is dropped in silence. Observed on a window that had been up for ten hours: the Worker target
- * was live, empty, and 598KB of script had neither loaded nor failed (issue #962).
+ * Tracks whether a Worker supplied to Monaco has answered. The historical incident included a live debugger target
+ * whose module body had not executed, but this passive watcher observes replies and cannot establish that cause.
  */
 type EditorWorkerStartup = 'started' | 'pending' | 'stalled';
 
 /**
- * A Worker that has not answered by this point did not start. Monaco's own Workers answer their first message in tens
- * of milliseconds, so the budget is generous enough that a loaded machine never trips it and short enough that the diff
- * stall watcher's own eight-second timeout still has something to read when it fires.
+ * A missing first reply is a stall signal, not proof that the script never ran. A debugger can pause startup and later
+ * resume it, so a late first reply must retire the stall before Retry can terminate the now-healthy Worker.
  */
 const STARTUP_TIMEOUT_MS = 5_000;
 
@@ -30,7 +27,7 @@ const state = {
 
 /**
  * Per-lifetime aggregates read by the diff stall diagnostic. `created` that keeps growing while `started` does not is
- * the signature of the failure above: Monaco kept asking for Workers and none of them ever ran.
+ * the signature of the failure above: Monaco kept asking for Workers and none of them answered.
  */
 export interface EditorWorkerStartupSummary {
     created: number;
@@ -39,7 +36,7 @@ export interface EditorWorkerStartupSummary {
     recovered: number;
     /**
      * Workers currently known to have missed their startup budget and not yet been released. A non-zero value is what
-     * lets a stalled diff say "the Worker never started" instead of "the comparison is taking a while".
+     * lets a stalled diff distinguish missing Worker replies from a comparison taking longer than its budget.
      */
     stalledNow: number;
 }
@@ -84,7 +81,7 @@ export function monitorEditorWorkerStartup(worker: Worker, label: string): Worke
     const tracked: TrackedWorker = { worker, label, startup: 'pending', timer: undefined };
     state.tracked.add(tracked);
     const onFirstMessage = (): void => {
-        if (tracked.startup !== 'pending') return;
+        if (!state.tracked.has(tracked)) return;
         tracked.startup = 'started';
         state.started += 1;
         release(tracked);
@@ -105,7 +102,7 @@ export function monitorEditorWorkerStartup(worker: Worker, label: string): Worke
  */
 function createWorkerErrorEvent(): Event {
     try {
-        return new ErrorEvent('error', { message: 'caxri: editor worker never started' });
+        return new ErrorEvent('error', { message: 'caxri: editor worker did not answer' });
     } catch {
         return new Event('error');
     }

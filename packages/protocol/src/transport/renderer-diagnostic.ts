@@ -228,8 +228,8 @@ export const editorWorkerStallDiagnosticSchema = z.strictObject({
     editorWorkersStarted: editorWorkerCountSchema,
     editorWorkersStartupStalled: editorWorkerCountSchema,
     /**
-     * Startup-stalled Workers still held at the moment of this record. This is the field that lets a reader say the
-     * diff had no Worker to compute it, rather than that the computation was slow.
+     * Workers still missing their first reply after the startup budget. This distinguishes observed Worker silence from
+     * a slow comparison without asserting that the module body never executed.
      */
     editorWorkersStartupStalledNow: editorWorkerCountSchema,
 });
@@ -401,13 +401,15 @@ export const rendererDiagnosticSchema = z
         if (diagnostic.kind === 'editor-worker-stall') {
             if (diagnostic.stallCount > diagnostic.diffOpenCount)
                 addAggregateIssue(context, 'stallCount');
-            // A Worker is counted exactly once, as started or as a startup stall, so the two can never outnumber the
-            // Workers this window created.
+            // A late first reply contributes to both historical totals. Only currently stalled Workers are disjoint
+            // from started Workers; rejecting that legitimate overlap would silently drop recovery diagnostics.
             if (
-                diagnostic.editorWorkersStarted + diagnostic.editorWorkersStartupStalled >
+                diagnostic.editorWorkersStarted + diagnostic.editorWorkersStartupStalledNow >
                 diagnostic.editorWorkersCreated
             )
                 addAggregateIssue(context, 'editorWorkersStarted');
+            if (diagnostic.editorWorkersStartupStalled > diagnostic.editorWorkersCreated)
+                addAggregateIssue(context, 'editorWorkersStartupStalled');
             if (diagnostic.editorWorkersStartupStalledNow > diagnostic.editorWorkersStartupStalled)
                 addAggregateIssue(context, 'editorWorkersStartupStalledNow');
             if (diagnostic.workerRoundTrip === 'ok' && diagnostic.workerRoundTripMs === null)

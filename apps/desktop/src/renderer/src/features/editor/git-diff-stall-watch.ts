@@ -6,8 +6,8 @@ import type { WorkerRoundTripResult } from '../../lib/worker-round-trip';
 import { probeWorkerRoundTrip } from '../../lib/worker-round-trip';
 
 /**
- * A diff that has not resolved by this point is not "slow": Monaco's own computation budget is well under a second even
- * for large files, so the remaining explanation is a Worker that will never answer.
+ * A comparison past this budget needs an explicit incomplete state. Missing Worker replies are one possible cause; a
+ * slow computation can still recover, so the timeout is not a permanent-failure diagnosis.
  */
 const DIFF_STALL_TIMEOUT_MS = 8_000;
 
@@ -74,9 +74,8 @@ export interface GitDiffStallWatchDependencies {
  * `stalled` means it passed the timeout without one. A surface that shows the diff needs both, because until the answer
  * arrives "no highlights" and "no difference" are the same picture. See issue #978.
  *
- * `worker-not-started` is the stall whose cause this window already knows: a Worker Monaco asked for never ran its
- * script, so there is nothing computing this diff and nothing that will. It is kept apart from a plain `stalled`
- * because only this one has a recovery the user can act on. See issue #962.
+ * `worker-not-started` is the internal label for a missing first reply, not proof the module body never ran. It lets
+ * the surface explain the observed Worker silence separately from a comparison timeout. See issue #962.
  */
 export type GitDiffComputationOutcome = 'computed' | 'stalled' | 'worker-not-started';
 

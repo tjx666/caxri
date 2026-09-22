@@ -266,6 +266,26 @@ describe('Renderer diagnostic contract', () => {
         );
     });
 
+    it('accepts historical startup stalls after the Worker begins replying', () => {
+        const recovered = {
+            ...validEditorWorkerStallDiagnostic,
+            outcome: 'recovered',
+            editorWorkersCreated: 1,
+            editorWorkersStarted: 1,
+            editorWorkersStartupStalled: 1,
+            editorWorkersStartupStalledNow: 0,
+        };
+        expect(rendererDiagnosticSchema.parse(recovered)).toEqual(recovered);
+        expect(
+            rendererDiagnosticSchema.safeParse({ ...recovered, editorWorkersStartupStalledNow: 1 })
+                .success,
+        ).toBe(false);
+        expect(
+            rendererDiagnosticSchema.safeParse({ ...recovered, editorWorkersStartupStalled: 2 })
+                .success,
+        ).toBe(false);
+    });
+
     it('carries every combination of the two Worker return paths', () => {
         // Each pair is a different conclusion for a reader of desktop.jsonl, which is the whole reason both are
         // recorded: the Worker never ran, only the Renderer-internal reply was lost (issue #962), or messaging was

@@ -1,5 +1,8 @@
 # Editor state, search, and diff surfaces
 
+Worker stall diagnostics, debugger-pause evidence, and recovery verification are documented in
+[Editor Worker stalls](../../../../docs/editor-worker-stalls.md).
+
 Import navigation resolves relative paths and tsconfig `paths`/`baseUrl` inside Server Core. It selects
 the nearest `tsconfig.json` beneath the authorized Project, follows bounded relative `extends` chains,
 and retains declaring-directory origins. Parsed JSONC is cached by file identity and metadata; each
