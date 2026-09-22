@@ -1,0 +1,32 @@
+diff --git a/dist/index.js b/dist/index.js
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -648,7 +648,11 @@
+         offset
+     ]);
+     React__default.default.useEffect(()=>{
+-        if (toast.promise && toastType === 'loading' || toast.duration === Infinity || toast.type === 'loading') return;
++        if (toast.promise && toastType === 'loading' || duration === Infinity || toast.type === 'loading') {
++            // An infinite interval must not be subtracted when a finite timer resumes while hovered.
++            lastCloseTimerStartTimeRef.current = Math.max(lastCloseTimerStartTimeRef.current, closeTimerStartTimeRef.current);
++            return;
++        }
+         let timeoutId;
+         // Pause the timer on each hover
+         const pauseTimer = ()=>{
+diff --git a/dist/index.mjs b/dist/index.mjs
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -641,7 +641,11 @@
+         offset
+     ]);
+     React.useEffect(()=>{
+-        if (toast.promise && toastType === 'loading' || toast.duration === Infinity || toast.type === 'loading') return;
++        if (toast.promise && toastType === 'loading' || duration === Infinity || toast.type === 'loading') {
++            // An infinite interval must not be subtracted when a finite timer resumes while hovered.
++            lastCloseTimerStartTimeRef.current = Math.max(lastCloseTimerStartTimeRef.current, closeTimerStartTimeRef.current);
++            return;
++        }
+         let timeoutId;
+         // Pause the timer on each hover
+         const pauseTimer = ()=>{

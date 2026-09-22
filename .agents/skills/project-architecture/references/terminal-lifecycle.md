@@ -6,7 +6,9 @@ the private protocol. Terminal Host exclusively spawns and owns the resulting PT
 bounded launch executable and argument settings; configured initial args precede provider-owned resume
 args. Agent executables use a cached, bounded login-shell PATH shared with version probes, while normal
 Shell Terminals retain their existing login-shell startup. Standard proxy and custom-CA variables are
-retained, while unrelated credentials and Caxri-internal variables are excluded.
+retained, while unrelated credentials and Caxri-internal variables are excluded. The content-free
+`CAXRI_RUNNER_OWNER` marker survives detached Server and Host launches so interrupted CI can reclaim
+only its own descendants.
 
 Desktop Main forwards a narrow E2E-only Agent policy to Server Core: default launches block every
 provider, fake mode maps declared providers to absolute fixture executables, and real mode permits
@@ -15,6 +17,15 @@ policy; isolated login profiles also prepend generated fake-or-blocked shims so 
 in a Shell cannot fall through to a machine-installed CLI. Focused Electron coverage may request a
 bounded E2E-only Terminal output flush delay through the Desktop-to-Server-to-Terminal Host allowlist;
 production keeps the fixed 16 ms coalescing window.
+
+Terminal Host frames complete ANSI controls before sending the same boundary to its screen parser and
+live delivery queue. A snapshot never captures half a cursor command; complete controls are queued
+atomically, while plain text can be byte-bounded. Incomplete controls retain at most 128 KiB (larger
+than the supported OSC 52 envelope); an oversized control is omitted through its terminator with a
+visible, content-free notice. Image recovery and live delivery keep their independent 64 KiB policy.
+The serialized screen patch clips hidden alternate-buffer columns after a shrink and preserves the
+full-width cursor, including genuine pending wrap. Keep the screen and engine-output regressions when
+upgrading xterm; see the patched dependency notes in `stack-baseline.md`.
 
 When at least one provider lifecycle integration is enabled, every Shell PTY receives its own observation-only
 hook generation, socket path, and token before spawn. A managed Agent child overrides that context with an
