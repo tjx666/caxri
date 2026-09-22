@@ -10,6 +10,9 @@ consumers.
 `packages/utils` is browser-safe and free of runtime dependencies. It holds pure functions only.
 Domain types, protocol schemas, and React code never move there.
 
+Application source cannot import bundled implementation under `extensions/`; consume the public
+Extension API and Host protocol. Repository build tooling may compose extension artifacts.
+
 `packages/mobile-transport` is the browser-safe cryptographic and wire-format boundary shared by
 native mobile clients and the Server gateway. It cannot import Node.js, Electron, native Desktop
 packages, or application source. Its public package root is the only supported entrypoint.
