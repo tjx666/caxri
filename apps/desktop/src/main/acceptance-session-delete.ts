@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { constants } from 'node:fs';
-import { appendFile, open } from 'node:fs/promises';
+import { appendFile, open, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type { MessageBoxOptions } from 'electron';
@@ -17,16 +17,18 @@ const commandSchema = z.strictObject({
     caseId: z.string(),
     decision: z.enum(['confirm', 'cancel']),
     sequence: z.number().int().positive(),
+    sessionId: z.string().min(1).max(200),
 });
 
 /**
  * Supplies only the native confirmation's answer for the fixed Session deletion Acceptance cases. Each deletion needs
- * its own freshly written command file with a higher sequence, so an armed launch can never silently confirm a deletion
- * the case did not ask for. The Renderer command, Main authorization, and the Server deletion itself all stay in the
- * path under test.
+ * its own freshly written command file naming the exact Session and carrying a higher sequence, so an armed launch can
+ * neither confirm a second deletion nor confirm a different Session than the case asked for. The consumed command is
+ * removed so a reused `restart` profile cannot replay it against the next launch's fresh in-memory sequence. The
+ * Renderer command, Main authorization, and the Server deletion itself all stay in the path under test.
  *
- * The receipt deliberately records no prompt text: the confirmation names the Session, and Session names are private
- * Acceptance material. The button set and sequence identify the answered prompt without capturing one.
+ * The receipt records the opaque Session id but no prompt text: the confirmation names the Session, and Session names
+ * are private Acceptance material while the local id is not.
  */
 export function createAcceptanceSessionDeleteFixture(options: {
     environment: NodeJS.ProcessEnv;
@@ -47,7 +49,7 @@ export function createAcceptanceSessionDeleteFixture(options: {
     let lastSequence = 0;
 
     return {
-        async confirm(prompt: MessageBoxOptions): Promise<{ response: number }> {
+        async confirm(sessionId: string, prompt: MessageBoxOptions): Promise<{ response: number }> {
             const handle = await open(
                 commandPath,
                 constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
@@ -65,9 +67,14 @@ export function createAcceptanceSessionDeleteFixture(options: {
             } finally {
                 await handle.close();
             }
-            if (command.caseId !== caseId || command.sequence <= lastSequence)
-                throw new Error('Acceptance session delete command does not match this launch');
+            if (
+                command.caseId !== caseId ||
+                command.sessionId !== sessionId ||
+                command.sequence <= lastSequence
+            )
+                throw new Error('Acceptance session delete command does not match this deletion');
             lastSequence = command.sequence;
+            await rm(commandPath, { force: true });
             await appendFile(
                 receiptPath,
                 `${JSON.stringify({
@@ -75,6 +82,7 @@ export function createAcceptanceSessionDeleteFixture(options: {
                     caseId,
                     decision: command.decision,
                     sequence: command.sequence,
+                    sessionId,
                 })}\n`,
                 {
                     encoding: 'utf8',

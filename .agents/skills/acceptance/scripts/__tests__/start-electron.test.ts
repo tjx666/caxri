@@ -138,14 +138,17 @@ describe('Acceptance Electron launcher seams', () => {
                 testRootPath: '/tmp/project',
                 testRootPaths: ['/tmp/project'],
                 userDataDir: '/tmp/caxri-acceptance-owned',
-                // Both keys are present in the ambient environment; only the admitted case may keep one.
                 environment: {
                     CAXRI_ACCEPTANCE_SESSION_DELETE: 'audit-naming-cancel',
                     CAXRI_E2E_EXTENSION_HOST_FAULTS: 'reply-result',
+                    CAXRI_REAL_AGENT_OK: '1',
                 },
             });
+            // Admission is decided by the case id alone: the ambient values above never survive into the launch.
             expect(spec.options.env.CAXRI_ACCEPTANCE_SESSION_DELETE).toBe(expectedDelete);
             expect(spec.options.env.CAXRI_E2E_EXTENSION_HOST_FAULTS).toBe(expectedFaults);
+            // `CAXRI_REAL_AGENT_OK` is stripped and never rewritten, so it proves the strip list itself still runs.
+            expect(spec.options.env).not.toHaveProperty('CAXRI_REAL_AGENT_OK');
         },
     );
 
