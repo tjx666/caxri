@@ -568,17 +568,15 @@ printf '\033[4;5HCURSOR_MARK_${cjkBoundary}'
              */
             // eslint-disable-next-line no-await-in-loop -- each switch must settle before the replay can be inspected
             await expect.poll(() => selectedSessionId(running.page)).toBe(firstSessionId);
-            // eslint-disable-next-line no-await-in-loop -- the replay transaction publishes its final fitted grid only after xterm.write completes
+            // eslint-disable-next-line no-await-in-loop -- observe the post-replay fit, not the temporary source grid.
             await expect
-                .poll(() => renderedTerminalGrid(running.page, terminalId))
-                .toMatch(/^\d+x\d+$/);
-            // eslint-disable-next-line no-await-in-loop -- read back the grid that the replay transaction just published
-            const finalGrid = await renderedTerminalGrid(running.page, terminalId);
-            if (!finalGrid) throw new Error('Final Terminal grid was not published');
-            const [finalCols] = finalGrid.split('x').map(Number);
-            if (width === 1_200) expect(finalCols).toBe(sourceCols);
-            else if (width < 1_200) expect(finalCols).toBeLessThan(sourceCols);
-            else expect(finalCols).toBeGreaterThan(sourceCols);
+                .poll(async () => {
+                    const grid = await renderedTerminalGrid(running.page, terminalId);
+                    if (!grid) return;
+                    const [cols] = grid.split('x').map(Number);
+                    return Math.sign(cols - sourceCols);
+                })
+                .toBe(Math.sign(width - 1_200));
             // eslint-disable-next-line no-await-in-loop -- frame parsing must settle after the source-grid replay and final fit
             await expect.poll(() => hasPersistedGridFrame(running.page, terminalId)).toBe(true);
             // eslint-disable-next-line no-await-in-loop -- switch away so the next width forces a fresh persisted attachment

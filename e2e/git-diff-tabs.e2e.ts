@@ -10,6 +10,7 @@ import {
     clickGitGroupAction,
     createProjectSession,
     launchCaxri,
+    waitForSourceControlReady,
 } from './support/helpers.ts';
 
 // Duplicated instead of imported: E2E runs against the packaged app and must not pull Renderer modules into the test
@@ -42,6 +43,10 @@ test('Discard All Changes resolves the working diff in place without an error no
         await createProjectSession(page);
         await page.getByRole('tab', { name: 'Git', exact: true }).click();
         const repo = page.locator('.git-repository-section');
+        await repo
+            .getByRole('treeitem', { name: 'tracked.txt', exact: true })
+            .waitFor({ state: 'visible' });
+        await waitForSourceControlReady(page);
         await repo.getByRole('treeitem', { name: 'tracked.txt', exact: true }).click();
         await expect(page.locator('.git-file-diff')).toBeVisible();
         const diffBreadcrumb = page.getByRole('button', {
@@ -95,6 +100,10 @@ test('Discard All Changes resolves the working diff in place without an error no
         });
 
         await writeFile(join(root, 'tracked.txt'), trackedWorking);
+        await repo
+            .getByRole('treeitem', { name: 'tracked.txt', exact: true })
+            .waitFor({ state: 'visible' });
+        await waitForSourceControlReady(page);
         await repo.getByRole('treeitem', { name: 'tracked.txt', exact: true }).click();
         await expect(page.locator('.git-file-diff')).toBeVisible();
         await clickGitFileAction(repo, 'tracked.txt', 'Discard changes in tracked.txt');
@@ -158,6 +167,10 @@ test('Diff view options control layout, unchanged regions, and whitespace across
         await createProjectSession(page);
         await page.getByRole('tab', { name: 'Git', exact: true }).click();
         const repo = page.locator('.git-repository-section');
+        await repo
+            .getByRole('treeitem', { name: 'layout.ts', exact: true })
+            .waitFor({ state: 'visible' });
+        await waitForSourceControlReady(page);
         await repo.getByRole('treeitem', { name: 'layout.ts', exact: true }).click();
         const diff = page.locator('.git-file-diff');
         await expect(diff.locator('.monaco-diff-editor')).toBeVisible();
@@ -177,6 +190,10 @@ test('Diff view options control layout, unchanged regions, and whitespace across
         await page.keyboard.press('Escape');
         await expect(diff.locator('.editor.modified')).not.toContainText('const line40 = 40;');
         await expect(diff.locator('.diff-hidden-lines')).toHaveCount(0);
+        await repo
+            .getByRole('treeitem', { name: 'whitespace.ts', exact: true })
+            .waitFor({ state: 'visible' });
+        await waitForSourceControlReady(page);
         await repo.getByRole('treeitem', { name: 'whitespace.ts', exact: true }).click();
         const next = page.getByRole('button', { name: 'Next Change', exact: true });
         await expect(next).toBeDisabled();
@@ -276,10 +293,18 @@ test('Switching between two working diff tabs keeps each diff pointed at its own
             await expect(diff.getByRole('textbox', { name: 'Added file contents' })).toBeFocused();
         };
 
+        await repo
+            .getByRole('treeitem', { name: 'tracked.ts', exact: true })
+            .waitFor({ state: 'visible' });
+        await waitForSourceControlReady(page);
         await repo.getByRole('treeitem', { name: 'tracked.ts', exact: true }).click();
         await expect(trackedTab).toBeVisible();
         await expectTrackedDiff();
 
+        await repo
+            .getByRole('treeitem', { name: 'fresh.ts', exact: true })
+            .waitFor({ state: 'visible' });
+        await waitForSourceControlReady(page);
         await repo.getByRole('treeitem', { name: 'fresh.ts', exact: true }).click();
         await expect(freshTab).toBeVisible();
         await expectFreshDiff();
@@ -369,6 +394,10 @@ test('Opening a diff lands on the first change instead of the top of the file', 
         await createProjectSession(page);
         await page.getByRole('tab', { name: 'Git', exact: true }).click();
         const repo = page.locator('.git-repository-section');
+        await repo
+            .getByRole('treeitem', { name: 'long.ts', exact: true })
+            .waitFor({ state: 'visible' });
+        await waitForSourceControlReady(page);
         await repo.getByRole('treeitem', { name: 'long.ts', exact: true }).click();
         const diff = page.locator('.git-file-diff');
         await expect(diff.locator('.monaco-diff-editor')).toBeVisible();
