@@ -19,6 +19,14 @@ Keep these compatibility exceptions:
 
 - `@xterm/*`: exact beta versions from one verified upstream commit, with matching core peers.
 - `electron-vite`: exact accepted beta until the stable Vite 8 integration is adopted.
+- `electron`: exact prerelease while Caxri tracks the 45 alpha line, adopted for Chromium 155.
+  A caret is unsafe on a prerelease: `^45.0.0-alpha.10` would resolve forward to any later 45 alpha,
+  so an unrelated install could silently change the Chromium and Node under the Renderer and Main.
+  The matching `minimumReleaseAgeExclude` entry exists because the alpha line publishes faster than
+  the release-age floor. Drop the pin back to `^` once Electron 45 is stable.
+  The native add-ons are not part of this risk: `better-sqlite3`, `node-pty`, and `@parcel/watcher`
+  load in the Server artifact's own bundled Node runtime (`runtime/bin/node`), never in Main or the
+  Renderer, so they follow that runtime's ABI rather than Electron's.
 - `@base-ui/react`: exact 1.7.0. Version 1.8.0 triggers a `PopoverStore` / `syncTriggerCount`
   update loop when opening the multi-trigger Editor breadcrumb picker (React error 185).
   `e2e/editor-breadcrumbs.e2e.ts` reproduces it locally and in
