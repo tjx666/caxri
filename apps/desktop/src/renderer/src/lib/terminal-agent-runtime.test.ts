@@ -1,7 +1,7 @@
 import type { ProcessState } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { isAgentProcessRunning } from '../terminal-agent-runtime';
+import { isAgentProcessRunning } from './terminal-agent-runtime';
 
 interface AgentRuntimeMatrixRow {
     expected: boolean;
