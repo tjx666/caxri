@@ -25,6 +25,20 @@ export function editorStatusKey(sessionId: string, path: string): string {
     return `${sessionId}:${path}`;
 }
 
+/**
+ * Last line a selection actually covers. A selection that ends at column 1 of a later line stops short of that line, so
+ * reporting the raw end line would claim one line more than the user selected. Shared so the file editor's status bar
+ * and the diff editor's file reference describe the same span the same way.
+ */
+export function editorSelectionEndLine(
+    start: { lineNumber: number },
+    end: { column: number; lineNumber: number },
+): number {
+    return end.lineNumber > start.lineNumber && end.column === 1
+        ? end.lineNumber - 1
+        : end.lineNumber;
+}
+
 export const useEditorStatusStore = createStore<EditorStatusState>('editor-status', (set) => ({
     statuses: {},
     setStatus(key, status) {
