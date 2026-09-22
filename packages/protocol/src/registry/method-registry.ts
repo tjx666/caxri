@@ -619,6 +619,10 @@ export const methods = {
         ...serverRead,
         params: z.object({
             sessionId: identifierSchema,
+            /**
+             * Each surface replaces only its own previous search within the Session.
+             */
+            consumer: z.enum(['project-search', 'path-browser']),
             mode: fileSearchModeSchema,
             query: z.string().min(1).max(256),
             caseSensitive: z.boolean().default(false),

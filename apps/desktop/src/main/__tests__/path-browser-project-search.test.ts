@@ -80,7 +80,7 @@ describe('path browser Project-wide name search', () => {
         expect(request).toHaveBeenCalledWith('files.browse', expect.anything());
         expect(request).toHaveBeenCalledWith(
             'files.search',
-            expect.objectContaining({ mode: 'name', query: 'app' }),
+            expect.objectContaining({ consumer: 'path-browser', mode: 'name', query: 'app' }),
         );
     });
 
