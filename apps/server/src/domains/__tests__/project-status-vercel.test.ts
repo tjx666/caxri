@@ -1,0 +1,122 @@
+import { describe, expect, it, vi } from 'vitest';
+
+import type { BranchPublicationContext } from '../project-status-branch';
+import type { VercelDependencies } from '../project-status-vercel';
+import { loadVercelDeployments } from '../project-status-vercel';
+
+const featureHead = 'a'.repeat(40);
+const defaultHead = 'b'.repeat(40);
+const link = { team: 'team', project: 'widget' };
+
+interface Fixture {
+    readyState: string;
+    ref: string;
+    sha: string;
+    target: 'production' | 'preview';
+    uid: string;
+    url: string;
+}
+
+const fixtures: Fixture[] = [
+    {
+        readyState: 'READY',
+        ref: 'main',
+        sha: defaultHead,
+        target: 'production',
+        uid: 'dpl_default_production',
+        url: 'widget-default-production.vercel.app',
+    },
+    {
+        readyState: 'READY',
+        ref: 'feat/panel',
+        sha: featureHead,
+        target: 'preview',
+        uid: 'dpl_feature_preview',
+        url: 'widget-feature-preview.vercel.app',
+    },
+];
+
+/**
+ * Answers like `/v6/deployments` does: every `meta-*` pair and `target` narrows the list, so what a query omits is what
+ * it accepts. A fake that ignored the filters would pass whatever scope the caller asked for.
+ */
+function vercelRunner(): VercelDependencies['run'] {
+    return vi.fn<VercelDependencies['run']>((arguments_) => {
+        const query = new URL(arguments_[1] ?? '', 'https://api.vercel.com').searchParams;
+        const matching = fixtures.filter((fixture) => {
+            const facts: Record<string, string> = {
+                'meta-githubCommitRef': fixture.ref,
+                'meta-githubCommitSha': fixture.sha,
+                'meta-githubOrg': 'acme',
+                'meta-githubRepo': 'widget',
+                'target': fixture.target,
+            };
+            return Object.entries(facts).every(([key, value]) => {
+                const requested = query.get(key);
+                return requested === null || requested === value;
+            });
+        });
+        return Promise.resolve(
+            JSON.stringify(
+                matching.map((fixture) => ({
+                    created: 1_700_000_000_000,
+                    readyState: fixture.readyState,
+                    target: fixture.target,
+                    uid: fixture.uid,
+                    url: fixture.url,
+                    meta: {
+                        githubCommitRef: fixture.ref,
+                        githubCommitSha: fixture.sha,
+                        githubOrg: 'acme',
+                        githubRepo: 'widget',
+                    },
+                })),
+            ),
+        );
+    });
+}
+
+function dependencies(): VercelDependencies {
+    return {
+        links: new Map([['acme/widget', link]]),
+        onParseFailure: (error) => expect.unreachable(`unexpected parse failure: ${String(error)}`),
+        run: vercelRunner(),
+    };
+}
+
+function contextFor(branch: string, head: string): BranchPublicationContext {
+    return { branch, head, owner: 'acme', repo: 'widget', hasOrigin: true, detached: false };
+}
+
+describe('Vercel deployments', () => {
+    it('reports no production deployment for a branch that never triggered a production build', async () => {
+        const { deployments } = await loadVercelDeployments(
+            dependencies(),
+            contextFor('feat/panel', featureHead),
+            '/project',
+        );
+
+        // The default branch's live build is not this branch's: the Status row means "this shipped".
+        expect(deployments?.production).toBeUndefined();
+        expect(deployments?.preview).toMatchObject({
+            environment: 'preview',
+            hostname: 'widget-feature-preview.vercel.app',
+            state: 'success',
+        });
+        expect(deployments?.branchDeployments).toHaveLength(1);
+    });
+
+    it('reports the production deployment the checked-out branch shipped', async () => {
+        const { deployments } = await loadVercelDeployments(
+            dependencies(),
+            contextFor('main', defaultHead),
+            '/project',
+        );
+
+        expect(deployments?.production).toMatchObject({
+            environment: 'production',
+            hostname: 'widget-default-production.vercel.app',
+            state: 'success',
+        });
+    });
+});
