@@ -190,6 +190,22 @@ describe('Vercel deployment details', () => {
 });
 
 describe('parseGitHubPullRequest', () => {
+    it.each(['OPEN', 'CLOSED', 'MERGED'])(
+        'only associates a production commit with a merged PR (%s)',
+        (state) => {
+            const result = parseGitHubPullRequest(
+                JSON.stringify({
+                    number: 42,
+                    title: 'Delivery',
+                    url: 'https://github.com/acme/widget/pull/42',
+                    state,
+                    mergeCommit: { oid: 'b'.repeat(40) },
+                }),
+            );
+            expect(result.mergeCommit).toBe(state === 'MERGED' ? 'b'.repeat(40) : undefined);
+        },
+    );
+
     it.each([
         [undefined, 'cancelled'],
         ['SUCCESS', 'success'],

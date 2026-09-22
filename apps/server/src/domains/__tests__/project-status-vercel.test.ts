@@ -40,7 +40,7 @@ const fixtures: Fixture[] = [
  * Answers like `/v6/deployments` does: every `meta-*` pair and `target` narrows the list, so what a query omits is what
  * it accepts. A fake that ignored the filters would pass whatever scope the caller asked for.
  */
-function vercelRunner(): VercelDependencies['run'] {
+function vercelRunner(productionState = 'READY'): VercelDependencies['run'] {
     return vi.fn<VercelDependencies['run']>((arguments_) => {
         const query = new URL(arguments_[1] ?? '', 'https://api.vercel.com').searchParams;
         const matching = fixtures.filter((fixture) => {
@@ -60,7 +60,8 @@ function vercelRunner(): VercelDependencies['run'] {
             JSON.stringify(
                 matching.map((fixture) => ({
                     created: 1_700_000_000_000,
-                    readyState: fixture.readyState,
+                    readyState:
+                        fixture.target === 'production' ? productionState : fixture.readyState,
                     target: fixture.target,
                     uid: fixture.uid,
                     url: fixture.url,
@@ -76,11 +77,11 @@ function vercelRunner(): VercelDependencies['run'] {
     });
 }
 
-function dependencies(): VercelDependencies {
+function dependencies(productionState = 'READY'): VercelDependencies {
     return {
         links: new Map([['acme/widget', link]]),
         onParseFailure: (error) => expect.unreachable(`unexpected parse failure: ${String(error)}`),
-        run: vercelRunner(),
+        run: vercelRunner(productionState),
     };
 }
 
@@ -89,6 +90,36 @@ function contextFor(branch: string, head: string): BranchPublicationContext {
 }
 
 describe('Vercel deployments', () => {
+    it.each([
+        ['READY', 'success'],
+        ['BUILDING', 'pending'],
+        ['ERROR', 'failure'],
+    ])('reports merged PR production %s on the target branch', async (providerState, state) => {
+        const { deployments } = await loadVercelDeployments(
+            dependencies(providerState),
+            contextFor('feat/panel', featureHead),
+            '/project',
+            defaultHead,
+        );
+        expect(deployments?.production).toMatchObject({
+            environment: 'production',
+            state,
+            commit: { sha: defaultHead },
+        });
+        expect(deployments?.preview?.commit?.sha).toBe(featureHead);
+        expect(deployments?.branchDeployments).toHaveLength(1);
+    });
+
+    it('does not substitute another production build for a missing merge commit', async () => {
+        const { deployments } = await loadVercelDeployments(
+            dependencies(),
+            contextFor('feat/panel', featureHead),
+            '/project',
+            'c'.repeat(40),
+        );
+        expect(deployments?.production).toBeUndefined();
+    });
+
     it('reports no production deployment for a branch that never triggered a production build', async () => {
         const { deployments } = await loadVercelDeployments(
             dependencies(),
