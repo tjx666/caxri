@@ -1,9 +1,43 @@
 import type { DragEvent } from 'react';
 
+import type { TerminalRecord } from '@caxri/protocol';
+
 /**
  * Custom MIME type carrying a Files entry's absolute path to internal Caxri drop targets.
  */
 export const FILE_TREE_DRAG_TYPE = 'application/x-caxri-file-path';
+
+/**
+ * Path references allow Terminal insertion without granting Files move operations.
+ */
+const FILE_REFERENCE_DRAG_TYPE = 'application/x-caxri-file-reference';
+
+export function startFilePathDrag(
+    dataTransfer: DataTransfer,
+    path: string,
+    isMovable: boolean,
+): void {
+    dataTransfer.effectAllowed = isMovable ? 'copyMove' : 'copy';
+    dataTransfer.setData(isMovable ? FILE_TREE_DRAG_TYPE : FILE_REFERENCE_DRAG_TYPE, path);
+}
+
+export function terminalDragPath(event: DragEvent): string | undefined {
+    return event.dataTransfer.getData(FILE_REFERENCE_DRAG_TYPE) || dragPath(event);
+}
+
+export function hasTerminalDraggedPath(event: DragEvent): boolean {
+    return event.dataTransfer.types.includes(FILE_REFERENCE_DRAG_TYPE) || hasDraggedPath(event);
+}
+
+/**
+ * Agent worktree observation supersedes launch cwd only for resolving inserted references.
+ */
+export function terminalReferencePath(
+    path: string,
+    terminal: Pick<TerminalRecord, 'agentCwd' | 'cwd'>,
+): string {
+    return terminalInputPath(path, terminal.agentCwd ?? terminal.cwd);
+}
 
 /**
  * Project roots insert absolute paths without participating in Files move operations.

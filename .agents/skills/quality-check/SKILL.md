@@ -13,6 +13,8 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [-
 
 ## Selection
 
+- For scripted rewrites, assert the expected match count before writing and inspect the diff before
+  claiming coverage; a successful script exit does not prove the intended change occurred.
 - Iterate with the narrowest owning test, then run one changed-file check after the cohesive source
   batch is complete. Re-run only gates invalidated by later edits.
 - With no selector, run lint and related tests.

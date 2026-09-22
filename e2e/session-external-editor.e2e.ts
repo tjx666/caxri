@@ -9,6 +9,7 @@ import { execFileAsync } from '@caxri/system';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
+import { readFileForPoll } from './support/result-file-polling.ts';
 
 async function initializeRepo(root: string): Promise<void> {
     await mkdir(root, { recursive: true });
@@ -46,12 +47,13 @@ async function expectWorkbenchRoot(
         .toBe(rootPath);
 }
 
-test('Session external editor actions pass the current Workbench Root after Continue in Worktree', async () => {
+test('Session worktree context drives Terminal file drops and external editor actions', async () => {
     const createdDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-external-editor-e2e-'));
     const testDirectory = await realpath(createdDirectory);
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'owner');
     const worktree = join(testDirectory, 'worktree');
+    const droppedInput = join(testDirectory, 'dropped-input.txt');
     const editorArguments = join(testDirectory, 'external-editor-argv.json');
     const editorExecutable = join(testDirectory, 'fake-external-editor');
     await initializeRepo(root);
@@ -81,6 +83,7 @@ function signalShellTool(event, command) {
     env: process.env,
     input: JSON.stringify({
       session_id: 'session-external-editor-e2e',
+      cwd: step > 1 ? ${JSON.stringify(worktree)} : ${JSON.stringify(root)},
       tool_input: { command },
       tool_response: 'private fixture output',
       tool_use_id: 'session-external-editor-operation-' + step,
@@ -89,8 +92,15 @@ function signalShellTool(event, command) {
 }
 let step = 0;
 process.stdin.setRawMode?.(true);
-process.stdin.on('data', () => {
-  if (++step !== 1) return;
+process.stdin.on('data', (data) => {
+  if (++step === 2) {
+    signalShellTool('PostToolUse', 'pwd');
+    return;
+  }
+  if (step > 2) {
+    fs.appendFileSync(${JSON.stringify(droppedInput)}, data);
+    return;
+  }
   const command = 'git worktree add -b feature/external-editor ../worktree';
   signalShellTool('PreToolUse', command);
   childProcess.execFileSync('git', ['worktree', 'add', '-b', 'feature/external-editor', ${JSON.stringify(worktree)}], { cwd: ${JSON.stringify(root)} });
@@ -138,6 +148,26 @@ process.stdout.write('External editor Agent ready\r\n');
         await expect(prompt).toContainText(worktree);
         await prompt.getByRole('button', { name: 'Continue Session in Worktree' }).click();
         await expectWorkbenchRoot(running.page, sessionId, worktree);
+        await running.page.locator('.xterm-helper-textarea').press('c');
+
+        await expect
+            .poll(async () => {
+                const bootstrap = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
+                const terminal = bootstrap.terminals.find(
+                    (candidate) => candidate.sessionId === sessionId,
+                );
+                return { cwd: terminal?.cwd, agentCwd: terminal?.agentCwd };
+            })
+            .toEqual({ cwd: root, agentCwd: worktree });
+        const fileRow = running.page.locator('.file-list').getByRole('treeitem', {
+            name: 'worktree-only.txt',
+            exact: true,
+        });
+        await fileRow.dragTo(running.page.locator('.terminal-surface'));
+        await expect
+            .poll(() => readFileForPoll(() => readFile(droppedInput, 'utf8')))
+            .toBe('worktree-only.txt');
+        await expect(running.page.locator('.work-tab:not([data-terminal-id])')).toHaveCount(0);
 
         const sessionCard = running.page.locator(`.session-card[data-session-id="${sessionId}"]`);
         await sessionCard.click({ button: 'right' });

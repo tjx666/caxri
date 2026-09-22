@@ -127,6 +127,16 @@ describe('WorkbenchRootService reported Agent working directory', () => {
             ),
         );
         expect(context.events.filter((event) => event.event === 'workbench.candidate')).toEqual([]);
+        expect(context.events.filter((event) => event.event === 'state.changed')).toEqual([
+            {
+                event: 'state.changed',
+                payload: {
+                    kind: 'records',
+                    terminalIds: [context.sessions[0].terminal!.id],
+                    sessionIds: [],
+                },
+            },
+        ]);
         await context.service.close();
         context.database.close();
     });
@@ -337,6 +347,16 @@ describe('WorkbenchRootService reported Agent working directory', () => {
         await vi.waitFor(() =>
             expect(context.database.getTerminal(terminal.id)?.agentCwd).toBeUndefined(),
         );
+        expect(context.events.filter((event) => event.event === 'state.changed')).toEqual([
+            {
+                event: 'state.changed',
+                payload: { kind: 'records', terminalIds: [terminal.id], sessionIds: [] },
+            },
+            {
+                event: 'state.changed',
+                payload: { kind: 'records', terminalIds: [terminal.id], sessionIds: [] },
+            },
+        ]);
         await context.service.close();
         context.database.close();
     });
