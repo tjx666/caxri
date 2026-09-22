@@ -149,12 +149,16 @@ describe('decideAgentLifecycleUpdate', () => {
 });
 
 describe('shutdownOutcome', () => {
-    it('maps an unclean shutdown to interrupted Terminals and a failed primary Agent Session', () => {
+    /**
+     * Caxri crashing says nothing about any Agent conversation, so an unclean shutdown records the interruption on the
+     * Terminals and leaves every Session's own activity state untouched.
+     */
+    it('maps an unclean shutdown to interrupted Terminals and no Session state at all', () => {
         expect(shutdownOutcome('unclean')).toEqual({
             liveProcessStates: ['running', 'starting'],
             terminalProcessState: 'interrupted',
-            primaryAgentSessionState: 'failed',
         });
+        expect(shutdownOutcome('unclean').primaryAgentSessionState).toBeUndefined();
     });
 
     it('maps an orderly shutdown to interrupted Terminals and a completed primary Agent Session', () => {
@@ -410,11 +414,10 @@ describe('decideAgentMetadataUpdate', () => {
     });
 
     /**
-     * An unclean Caxri shutdown marks every live Session `failed`, which describes Caxri crashing rather than the Agent
-     * failing. The Terminals are auto-resumed, so the first probe of the recovered Agent has to clear that marker or
-     * the Session stays flagged until the user sends a throwaway message.
+     * `failed` no longer arrives in bulk from an unclean shutdown, but a provider-reported turn failure and a crashed
+     * Agent process still write it. A recovered Agent answering probes again must still be able to move off it.
      */
-    it('lets a probe clear the failed marker an unclean shutdown left on a recovered Session', () => {
+    it('lets a probe clear a failure marker on a recovered Session', () => {
         const primary = terminal({ id: 'claude-1', provider: 'claude' });
 
         expect(

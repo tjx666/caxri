@@ -620,6 +620,48 @@ describe('CaxriDatabaseConnection', () => {
         reopened.close();
     });
 
+    /**
+     * Caxri crashing is a fact about Caxri, not about any Agent conversation, so it may only touch the Terminal. Before
+     * https://github.com/tjx666/caxri/issues/1124 the same reopen also stamped `failed` on every live Session, which
+     * nothing could clear: a Session that was waiting on the user came back as a permanent Activity failure instead.
+     */
+    it('leaves every Session activity state alone after an unclean reopen', async () => {
+        const directory = await temporaryDirectory('caxri-db-unclean-session-state-');
+        const databasePath = join(directory, 'state.db');
+        const database = new CaxriDatabase(databasePath);
+        const project = database.projects.create(directory);
+        const states = ['waiting', 'running', 'completed'] as const;
+        const sessionIds = states.map((state) => {
+            const session = database.sessions.insert({
+                projectId: project.id,
+                displayTitle: `Codex ${state}`,
+            });
+            const terminal = database.terminals.insert({
+                sessionId: session.id,
+                kind: 'codex',
+                cwd: directory,
+                title: 'Codex',
+            });
+            database.terminals.updateState(terminal.id, 'running');
+            database.terminals.updateAgentProcessState(terminal.id, 'running');
+            database.sessions.setPrimaryAgent(session.id, {
+                primaryAgentTerminalId: terminal.id,
+                displayTitle: session.displayTitle,
+                lastActivityState: state,
+            });
+            return { sessionId: session.id, state, terminalId: terminal.id };
+        });
+        database.close();
+
+        const reopened = new CaxriDatabase(databasePath);
+        for (const { sessionId, state, terminalId } of sessionIds) {
+            expect(reopened.sessions.get(sessionId)?.lastActivityState).toBe(state);
+            // The interruption is still recorded, just on the Terminal that actually suffered it.
+            expect(reopened.terminals.get(terminalId)?.lastProcessState).toBe('interrupted');
+        }
+        reopened.close();
+    });
+
     it('marks running Terminals as interrupted for an orderly shutdown, keeping the Session resumable', async () => {
         const directory = await temporaryDirectory('caxri-db-shutdown-orderly-');
         const databasePath = join(directory, 'state.db');
