@@ -18,16 +18,15 @@ import { editorModelPath } from '@desktop-shared/editor-state';
 
 import { useResourceLoad } from '../../hooks/use-resource-load';
 import { describeDocumentReadFailure } from '../../lib/document-read-failure';
-import { useSelectedSession, useSelectedWorkbenchProject, useTheme } from '../../stores/selectors';
+import { useSelectedSession, useTheme } from '../../stores/selectors';
 import { sessionViewScope, useDocument } from '../../stores/session-view';
 import type { CodeEditorProperties } from './code-editor';
 import { cacheDocument, changeDocument } from './document-commands';
-import { EditorBreadcrumbs } from './editor-breadcrumbs';
 import { EditorLoadFailure } from './editor-load-failure';
 import { editorLoadReducer, initialEditorLoadState } from './editor-load-state';
 import { getLoadedCodeEditor, loadCodeEditor, subscribeLoadedCodeEditor } from './editor-loader';
-import { EditorPathBreadcrumbs } from './editor-path-breadcrumbs';
 import { editorStatusKey } from './editor-status';
+import { FileEditorBreadcrumbs } from './file-editor-breadcrumbs';
 
 const GitDiffEditor = lazy(async () => {
     const module = await import('./git-diff-editor');
@@ -109,7 +108,6 @@ function FileEditorSurface({ paneId, path }: { paneId: string; path: string }) {
     const session = useSelectedSession();
     const sessionId = session?.id;
     const scope = session ? sessionViewScope(session.id, session.workbenchProjectId) : undefined;
-    const project = useSelectedWorkbenchProject();
     const theme = useTheme();
     const document = useDocument(sessionId, path, session?.workbenchProjectId);
     const isExternal = isExternalEditorTabPath(path);
@@ -139,31 +137,12 @@ function FileEditorSurface({ paneId, path }: { paneId: string; path: string }) {
     }
     return (
         <div className="flex h-full min-h-0 flex-col">
-            {/*
-             * An external document keeps the rail — its absolute path is the only place the Session can see where the
-             * file actually lives — but gets the display-only variant, because no Project root sits behind its
-             * segments for the sibling picker to list.
-             */}
-            {(!isExternal || document.displayPath) && (
-                <div className="flex h-6 shrink-0 items-center overflow-hidden border-b border-border bg-surface">
-                    {isExternal
-                        ? document.displayPath && (
-                              <EditorPathBreadcrumbs
-                                  accessibilityLabel={`File breadcrumbs: ${document.displayPath}`}
-                                  path={document.displayPath}
-                              />
-                          )
-                        : project && (
-                              <EditorBreadcrumbs
-                                  paneId={paneId}
-                                  path={path}
-                                  projectRoot={project.rootPath}
-                                  sessionId={sessionId}
-                                  workbenchProjectId={session.workbenchProjectId}
-                              />
-                          )}
-                </div>
-            )}
+            <FileEditorBreadcrumbs
+                paneId={paneId}
+                path={path}
+                displayPath={document.displayPath}
+                isExternal={isExternal}
+            />
             <div className="min-h-0 flex-1">
                 <LoadedCodeEditor
                     editorInstanceId={paneId}
