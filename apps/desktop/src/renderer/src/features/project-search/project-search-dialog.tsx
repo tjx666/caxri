@@ -15,7 +15,8 @@ import { ProjectSearchPreview } from './project-search-preview';
 import { ProjectSearchResults } from './project-search-results';
 import { nextSelectionIndex, searchMatchKey } from './project-search-selection';
 import type { ProjectSearchDisplayState } from './project-search-status';
-import { useProjectSearch } from './use-project-search';
+import type { ProjectSearchDraft } from './use-project-search';
+import { useProjectSearch, useProjectSearchDraft } from './use-project-search';
 
 /**
  * DOM id of one result row. A match key carries a path, so it can hold anything a filename can — including the ASCII
@@ -72,6 +73,7 @@ async function openSearchMatch(
  */
 export function ProjectSearchDialog() {
     const isOpen = useDialogStore((state) => state.projectSearchOpen);
+    const draft = useProjectSearchDraft();
     return (
         <Dialog open={isOpen} onOpenChange={setProjectSearchOpen}>
             <PickerDialogContent
@@ -79,18 +81,18 @@ export function ProjectSearchDialog() {
                 backdropClassName="bg-overlay backdrop-blur-[2px]"
                 className="top-1/2 flex h-[70vh] max-h-[calc(100vh-64px)] w-[70vw] max-w-6xl -translate-y-1/2 flex-col"
             >
-                <ProjectSearchDialogBody />
+                <ProjectSearchDialogBody draft={draft} />
             </PickerDialogContent>
         </Dialog>
     );
 }
 
-function ProjectSearchDialogBody() {
+function ProjectSearchDialogBody({ draft }: { draft: ProjectSearchDraft }) {
     const rowIdPrefix = useId();
     const resultsId = useId();
     const isOpen = useDialogStore((state) => state.projectSearchOpen);
     const inputElement = useRef<HTMLInputElement>(null);
-    const search = useProjectSearch();
+    const search = useProjectSearch(draft);
     const { displayState, selectable, selected, selectedIndex, selectedKey, sessionId } = search;
     const rowId = (match: FileSearchMatch): string =>
         rowElementId(rowIdPrefix, searchMatchKey(match));
@@ -107,10 +109,8 @@ function ProjectSearchDialogBody() {
     }, [rowIdPrefix, selectedKey]);
 
     /**
-     * The popup stays mounted while the overlay is closed, so the last query, mode, and filters survive a reopen the
-     * way VS Code's Search view keeps them. Selecting the text on every open is what makes that a convenience instead
-     * of a trap: the next keystroke replaces the old query, while Escape-and-reopen still shows what was searched for.
-     * `autoFocus` only fires on the first mount, so the focus call belongs here too.
+     * The draft outlives the popup, while the popup unmounts to cancel reads and release its focus boundary. Select the
+     * preserved query on every open so the next keystroke replaces it, including reopens during the exit animation.
      */
     useEffect(() => {
         if (!isOpen) return;
