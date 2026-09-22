@@ -20,17 +20,9 @@ import {
     pageRequest,
     pressNewTerminal,
     splitTerminalToRight,
+    typeTerminal,
     waitForNewTerminalId,
 } from './support/helpers.ts';
-
-async function typeInTerminal(page: Page, terminalId: string, command: string): Promise<void> {
-    const input = page.locator(
-        `.terminal-pane[data-terminal-id="${terminalId}"] .xterm-helper-textarea`,
-    );
-    await input.focus();
-    await input.pressSequentially(command);
-    await input.press('Enter');
-}
 
 async function terminalIds(page: Page): Promise<string[]> {
     const state = await pageRequest<{ terminals: Array<{ id: string }> }>(page, 'app.bootstrap');
@@ -106,7 +98,7 @@ test('Command+Shift+K and Command+T/W affect only the active Terminal and pause 
     try {
         await createShellSession(running.page);
         const firstTerminalId = (await terminalIds(running.page))[0];
-        await typeInTerminal(running.page, firstTerminalId, String.raw`printf 'FIRST_MARKER\n'`);
+        await typeTerminal(running.page, String.raw`printf 'FIRST_MARKER\n'`, firstTerminalId);
         await expect(
             running.page.locator(
                 `.terminal-pane[data-terminal-id="${firstTerminalId}"] .xterm-rows`,
@@ -117,7 +109,7 @@ test('Command+Shift+K and Command+T/W affect only the active Terminal and pause 
         const secondTerminalId = await waitForNewTerminalId(running.page, [firstTerminalId]);
         await splitTerminalToRight(running.page, secondTerminalId);
         await expect(running.page.locator('.terminal-pane')).toHaveCount(2);
-        await typeInTerminal(running.page, secondTerminalId, String.raw`printf 'SECOND_MARKER\n'`);
+        await typeTerminal(running.page, String.raw`printf 'SECOND_MARKER\n'`, secondTerminalId);
         await running.page
             .locator(`.work-tab[data-terminal-id="${firstTerminalId}"] [role="tab"]`)
             .click();
@@ -137,7 +129,7 @@ test('Command+Shift+K and Command+T/W affect only the active Terminal and pause 
                 `.terminal-pane[data-terminal-id="${secondTerminalId}"] .xterm-rows`,
             ),
         ).toContainText('SECOND_MARKER');
-        await typeInTerminal(running.page, firstTerminalId, String.raw`printf 'AFTER_CLEAR\n'`);
+        await typeTerminal(running.page, String.raw`printf 'AFTER_CLEAR\n'`, firstTerminalId);
         await expect(
             running.page.locator(
                 `.terminal-pane[data-terminal-id="${firstTerminalId}"] .xterm-rows`,

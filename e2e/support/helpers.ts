@@ -1,7 +1,6 @@
 import { join, resolve } from 'node:path';
 import process from 'node:process';
 
-import { connectToServer, discoverServerManifest } from '@caxri/client/supervise';
 import type { AgentProvider } from '@caxri/protocol';
 import { agentProviderCatalog } from '@caxri/protocol';
 import { createE2EAgentEnvironment, e2eAgentEnvironmentKeys } from '@caxri/system';
@@ -29,6 +28,7 @@ import {
 import { closeE2EApp } from './desktop-lease-lifecycle.ts';
 import type { E2EApp } from './electron-app.ts';
 import { flushE2EErrorToasts, registerE2ELaunch } from './error-gate.ts';
+import { releaseE2EHost } from './host-shutdown.ts';
 import { stageDevelopmentTestExtension } from './test-extension.ts';
 import { resolveE2EClipboardPolicy, resolveE2EWorkerIsolation } from './worker-isolation.ts';
 
@@ -125,38 +125,6 @@ async function e2eAgentEnvironment(
                 : agentMode,
         sourceEnvironment: explicitEnvironmentWithPath,
     });
-}
-
-function errorCode(error: unknown): string | undefined {
-    return typeof error === 'object' && error !== null && 'code' in error
-        ? String(Reflect.get(error, 'code'))
-        : undefined;
-}
-
-async function stopE2EHost(userDataDirectory: string): Promise<void> {
-    let client: Awaited<ReturnType<typeof connectToServer>> | undefined;
-    try {
-        client = await connectToServer(userDataDirectory, 2_000);
-        await client.request('host.stop', { confirmLivePtys: true });
-    } catch (error) {
-        if (errorCode(error) !== 'NOT_FOUND' && errorCode(error) !== 'UNAVAILABLE') throw error;
-        return;
-    } finally {
-        client?.close();
-    }
-    for (let attempt = 0; attempt < 100; attempt += 1) {
-        try {
-            // Sequential polling by design: each attempt depends on the previous one finishing.
-            // eslint-disable-next-line no-await-in-loop
-            await discoverServerManifest(userDataDirectory);
-        } catch (error) {
-            if (errorCode(error) === 'NOT_FOUND') return;
-            throw error;
-        }
-        // eslint-disable-next-line no-await-in-loop -- deliberate delay between poll attempts
-        await new Promise((resolve) => setTimeout(resolve, 20));
-    }
-    throw new Error('Timed out waiting for the E2E Host to stop');
 }
 
 /**
@@ -259,7 +227,10 @@ export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<Runni
         },
     );
     let releasePromise: Promise<void> | undefined;
-    const releaseLease = (): Promise<void> => (releasePromise ??= releaseDesktopLease(lease));
+    const releaseLease = (): Promise<void> =>
+        (releasePromise ??= releaseE2EHost(userDataDir, preserveHostOnClose, () =>
+            releaseDesktopLease(lease),
+        ));
     let app: ElectronApplication;
     let clipboardBaseline: ClipboardSnapshot | undefined;
     let clipboardSnapshot: ClipboardSnapshot | undefined;
@@ -306,11 +277,6 @@ export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<Runni
                             ? error
                             : new Error('E2E clipboard cleanup failed with a non-Error value');
                     failure ??= clipboardRestoreFailure;
-                }
-                try {
-                    if (!preserveHostOnClose) await stopE2EHost(userDataDir);
-                } catch (error) {
-                    failure ??= error;
                 }
                 try {
                     await releaseLease();
@@ -617,8 +583,19 @@ export async function createAdditionalShellSession(page: Page): Promise<void> {
     await expect(page.getByRole('dialog')).toHaveCount(0);
 }
 
-export async function typeTerminal(page: Page, command: string): Promise<void> {
-    const input = page.locator(VISIBLE_TERMINAL_INPUT).last();
+export async function typeTerminal(
+    page: Page,
+    command: string,
+    terminalId?: string,
+): Promise<void> {
+    const pane = terminalId
+        ? page.locator(`.terminal-pane[data-terminal-id="${terminalId}"]`)
+        : page.locator(`${VISIBLE_SESSION} .terminal-pane`).last();
+    await expect(pane.locator('.terminal-surface')).toHaveAttribute(
+        'data-terminal-attached',
+        'true',
+    );
+    const input = pane.locator('.xterm-helper-textarea');
     await input.focus();
     await input.pressSequentially(command);
     await input.press('Enter');
@@ -726,6 +703,15 @@ export async function revealSettingsSection(dialog: Locator, name: string): Prom
 }
 
 /**
+ * Waits for a revision-bound action to stop targeting a snapshot currently being refreshed.
+ */
+export async function waitForSourceControlReady(page: Page): Promise<void> {
+    const tree = page.locator('.git-repositories[role="tree"]');
+    await expect(tree).toBeVisible();
+    await expect(tree).not.toHaveAttribute('aria-busy', 'true');
+}
+
+/**
  * Clicks a Source Control group toolbar action, such as `Open Changes` or `Discard All Changes`.
  *
  * Those buttons are revealed on hover or focus, the way VS Code reveals `.resource-group > .actions`: leaving the
@@ -746,6 +732,7 @@ export async function clickGitGroupAction(repo: Locator, name: string): Promise<
         .locator('.git-changes-caption')
         .filter({ has: repo.page().locator(selector) });
     await caption.hover();
+    await waitForSourceControlReady(repo.page());
     await caption.locator(selector).click();
 }
 
@@ -763,5 +750,6 @@ export async function clickGitFileAction(
     name: string,
 ): Promise<void> {
     await repo.getByRole('treeitem', { name: fileName, exact: true }).hover();
+    await waitForSourceControlReady(repo.page());
     await repo.getByRole('button', { name, exact: true }).click();
 }

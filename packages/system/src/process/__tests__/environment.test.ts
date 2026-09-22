@@ -9,6 +9,7 @@ describe('safeProcessEnvironment', () => {
                 CODEX_HOME: '/tmp/codex',
                 CODEX_SQLITE_HOME: '/tmp/codex-sqlite',
                 CLAUDE_CONFIG_DIR: '/tmp/claude',
+                CAXRI_RUNNER_OWNER: 'caxri-42-1-e2e',
                 GITHUB_TOKEN: 'secret',
                 PATH: '/usr/bin',
             }),
@@ -16,6 +17,7 @@ describe('safeProcessEnvironment', () => {
             CODEX_HOME: '/tmp/codex',
             CODEX_SQLITE_HOME: '/tmp/codex-sqlite',
             CLAUDE_CONFIG_DIR: '/tmp/claude',
+            CAXRI_RUNNER_OWNER: 'caxri-42-1-e2e',
             PATH: '/usr/bin',
         });
     });

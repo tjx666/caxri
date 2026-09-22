@@ -296,6 +296,14 @@ class E2EReceiptReporter implements Reporter {
             .map(({ path }) => path)
             .filter((path): path is string => Boolean(path))
             .map((path) => repoRelative(path));
+        /**
+         * An interrupted test has no independent outcome; the failure census must run it.
+         */
+        if (result.status === 'interrupted') {
+            planned.errorIdentity = null;
+            planned.verdict = 'unknown';
+            return;
+        }
         planned.errorIdentity = error ? stableErrorIdentity(error) : null;
         planned.verdict =
             result.status === 'passed'

@@ -20,6 +20,10 @@ const AGENT_LAUNCH_ENVIRONMENT_KEYS: Record<AgentProvider, readonly string[]> = 
 };
 
 const LAUNCH_ENVIRONMENT_KEYS = [
+    /**
+     * Keeps detached descendants attributable to their owning CI run during cleanup.
+     */
+    'CAXRI_RUNNER_OWNER',
     'HOME',
     'USER',
     'LOGNAME',

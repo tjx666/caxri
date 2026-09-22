@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react';
+import type { ReactElement, RefObject } from 'react';
 import { useEffect, useId, useState } from 'react';
 
 import type { ProjectRecord } from '@caxri/protocol';
@@ -10,11 +10,16 @@ import { ProjectIcon } from './project-icon';
 import { sidebarDetailCardDismissal } from './sidebar-detail-card-dismissal';
 
 export function ProjectDetailsCard({
+    anchor,
     project,
     sessionCount,
     suppressed = false,
     trigger,
 }: {
+    /**
+     * Position beside the entire heading so the card cannot cover its sibling actions.
+     */
+    anchor: RefObject<HTMLElement | null>;
     project: ProjectRecord;
     sessionCount: number;
     /**
@@ -52,6 +57,7 @@ export function ProjectDetailsCard({
                 Project root {project.rootPath}.
             </span>
             <HoverCardContent
+                anchor={anchor}
                 align="start"
                 className="project-details-card w-72 max-w-[calc(100vw-16px)] p-3"
                 collisionAvoidance={{ align: 'shift', fallbackAxisSide: 'end', side: 'flip' }}

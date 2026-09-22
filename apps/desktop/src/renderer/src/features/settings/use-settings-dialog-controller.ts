@@ -463,10 +463,12 @@ export function useSettingsDialogController() {
     }, [loadAgentSkillHealth, isOpen]);
 
     useEffect(() => {
-        if (!loaded || handledRequestId.current === request.id) return;
+        if (handledRequestId.current === request.id) return;
         let isCancelled = false;
         /**
-         * Defer the local view transition and consume the request only after StrictMode cleanup.
+         * Consume navigation independently of configuration loading. The tabs are already interactive while reads are
+         * pending; deferring the open request until they finish overwrites a newer user-selected tab. The microtask
+         * still lets StrictMode cleanup cancel its first effect pass.
          */
         queueMicrotask(() => {
             if (isCancelled || handledRequestId.current === request.id) return;
@@ -507,7 +509,7 @@ export function useSettingsDialogController() {
         return () => {
             isCancelled = true;
         };
-    }, [commitSource, loaded, request.id, request.view, tab, view]);
+    }, [commitSource, request.id, request.view, tab, view]);
 
     const changeTab = (next: ConfigKind): void => {
         if (next === tab) return;
