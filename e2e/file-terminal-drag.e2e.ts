@@ -1,4 +1,4 @@
-import { access, mkdir, mkdtemp, readFile, realpath, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, realpath, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -114,6 +114,14 @@ test('Files entries dragged to Terminal insert shell-safe cwd-relative paths wit
     const folderPath = join(root, folderName);
     await Promise.all([writeFile(filePath, 'fixture\n', 'utf8'), mkdir(folderPath)]);
 
+    const linkNames = ["linked 'file'.txt", 'linked folder'];
+    const externalFolder = join(testDirectory, 'shared');
+    await mkdir(externalFolder);
+    const externalFile = join(externalFolder, 'target.txt');
+    await writeFile(externalFile, 'fixture\n');
+    await symlink(externalFile, join(root, linkNames[0]));
+    await symlink(externalFolder, join(root, linkNames[1]));
+
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createProjectSession(running.page);
@@ -121,7 +129,27 @@ test('Files entries dragged to Terminal insert shell-safe cwd-relative paths wit
         const terminalSurface = running.page.locator('.terminal-surface');
         const terminalInput = running.page.locator('.xterm-helper-textarea');
 
-        const fileResult = join(root, '.file-drop-result');
+        /**
+         * Keep receipts outside the watched tree so a completed drop cannot reorder the next drag source.
+         */
+        const assertLinkDrop = async (name: string, index: number): Promise<void> => {
+            const result = join(testDirectory, `.link-drop-result-${index}`);
+            await terminalInput.click();
+            await running.page.keyboard.type("printf '%s' ");
+            await dragEntryToTerminal(
+                fileList.getByRole('treeitem', { name, exact: true }),
+                terminalSurface,
+            );
+            await expectMissing(result);
+            await expect(terminalInput).toBeFocused();
+            await running.page.keyboard.type(` > ${quoteShellPath(result)}`);
+            await running.page.keyboard.press('Enter');
+            await expect.poll(() => readFileForPoll(() => readFile(result, 'utf8'))).toBe(name);
+        };
+        await assertLinkDrop(linkNames[0], 0);
+        await assertLinkDrop(linkNames[1], 1);
+
+        const fileResult = join(testDirectory, '.file-drop-result');
         await terminalInput.click();
         await running.page.keyboard.type("printf '%s' ");
         await dragEntryToTerminal(
@@ -135,7 +163,7 @@ test('Files entries dragged to Terminal insert shell-safe cwd-relative paths wit
         // The Terminal launched in the Project root, so the drop spells the entry relative to it.
         await expect.poll(() => readFileForPoll(() => readFile(fileResult, 'utf8'))).toBe(fileName);
 
-        const folderResult = join(root, '.folder-drop-result');
+        const folderResult = join(testDirectory, '.folder-drop-result');
         await running.page.keyboard.type("printf '%s' ");
         await dragEntryToTerminal(
             fileList.getByRole('treeitem', { name: folderName, exact: true }),

@@ -9,7 +9,7 @@ import { GitFileStatusLetter } from '../../../components/git-file-status-letter'
 import { ContextMenu, ContextMenuTrigger } from '../../../components/ui/context-menu';
 import { Input } from '../../../components/ui/input';
 import { FileTypeIcon } from '../../../icons/files/file-type-icon';
-import { FILE_TREE_DRAG_TYPE, hasDraggedPath } from '../../../lib/file-drag';
+import { hasDraggedPath, startFilePathDrag } from '../../../lib/file-drag';
 import type { GitChildRepoKind, GitDecoration } from '../../../lib/git-decorations';
 import { gitDecorationClassName } from '../../../lib/git-decorations';
 import { cn } from '../../../lib/utilities';
@@ -411,7 +411,7 @@ function FileTreeItem({
             data-drop-target={isDropTarget}
             data-git-ignored={entry.gitIgnored}
             data-selected={selected}
-            draggable={editable && !dragBlocked}
+            draggable={!dragBlocked}
             style={fileTreeRowStyle({
                 depth,
                 isDirectory,
@@ -464,8 +464,7 @@ function FileTreeItem({
                 event.dataTransfer.dropEffect = 'move';
             }}
             onDragStart={(event) => {
-                event.dataTransfer.effectAllowed = 'copyMove';
-                event.dataTransfer.setData(FILE_TREE_DRAG_TYPE, entry.path);
+                startFilePathDrag(event.dataTransfer, entry.path, editable);
             }}
             onDrop={dropIntoDirectory}
             onPaste={(event) => {
