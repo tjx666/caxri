@@ -21,6 +21,7 @@ import { RendererPerformanceProfiler } from './features/renderer-performance/ren
 import { ScreencastOverlay } from './features/screencast/screencast-overlay';
 import { SecondarySidebar } from './features/secondary-sidebar/secondary-sidebar';
 import { ArchivedSessionsDialog } from './features/session/archived-sessions-dialog';
+import { ContentSearchDialog } from './features/session/content-search/content-search-dialog';
 import { CreateSessionDialog } from './features/session/create-session-dialog';
 import { createDesktopOpenQueue } from './features/session/desktop-open';
 import { useSessionAttentionAcknowledgement } from './features/session/session-attention';
@@ -242,6 +243,7 @@ export function App() {
                 <StatusBar />
                 <CreateSessionDialog />
                 <ArchivedSessionsDialog />
+                <ContentSearchDialog />
                 <SettingsDialog />
                 <UpdateDialog />
                 <CommandPalette />

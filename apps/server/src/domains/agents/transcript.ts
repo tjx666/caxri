@@ -148,12 +148,14 @@ export async function locateAgentTranscript(
     database: CaxriDatabase,
     terminalId: string,
     environment: AgentEnvironment = defaultAgentEnvironment(),
+    signal?: AbortSignal,
 ): Promise<AgentTranscriptLocation | undefined> {
+    signal?.throwIfAborted();
     const derived = resolveAgentTranscriptLocation(database, terminalId, environment);
     if (derived) return derived;
     const identity = boundAgentIdentity(database, terminalId);
     if (!identity) return;
-    return agentProviders[identity.provider].locateTranscript?.(identity, environment);
+    return agentProviders[identity.provider].locateTranscript?.(identity, environment, signal);
 }
 
 async function readTranscriptTail(

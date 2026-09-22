@@ -70,6 +70,8 @@ extracted below the boundary and tested there; if yes, extract it instead.
 
 For Monaco typing, reuse the existing spec pattern that clicks the visible `.monaco-editor`
 surface. Do not assume a textarea or clickable textbox: EditContext can expose a zero-size input.
+When capturing a modal handoff, wait for the outgoing popup to unmount; the incoming dialog being
+visible does not prove its predecessor's exit animation has finished.
 
 ## Scripted launch
 

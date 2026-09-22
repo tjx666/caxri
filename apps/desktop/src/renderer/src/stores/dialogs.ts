@@ -32,6 +32,7 @@ interface DialogState {
     settingsRequest: { id: number; view: SettingsView; provider?: AgentProvider };
     paletteOpen: boolean;
     projectSearchOpen: boolean;
+    sessionContentSearchOpen: boolean;
     agentActionsOpen: boolean;
     agentActionsTerminalId?: string;
     pathBrowserOpen: boolean;
@@ -82,6 +83,7 @@ interface DialogState {
     setSettingsOpen(isOpen: boolean): void;
     setPaletteOpen(isOpen: boolean): void;
     setProjectSearchOpen(isOpen: boolean): void;
+    setSessionContentSearchOpen(isOpen: boolean): void;
     openAgentActions(terminalId: string): void;
     setAgentActionsOpen(isOpen: boolean): void;
     setPathBrowserOpen(isOpen: boolean): void;
@@ -117,6 +119,7 @@ export const useDialogStore = createStore<DialogState>('dialogs', (set, get) => 
     settingsRequest: { id: 0, view: 'ui' },
     paletteOpen: false,
     projectSearchOpen: false,
+    sessionContentSearchOpen: false,
     agentActionsOpen: false,
     agentActionsTerminalId: undefined,
     pathBrowserOpen: false,
@@ -138,6 +141,7 @@ export const useDialogStore = createStore<DialogState>('dialogs', (set, get) => 
     setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
     setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
     setProjectSearchOpen: (projectSearchOpen) => set({ projectSearchOpen }),
+    setSessionContentSearchOpen: (sessionContentSearchOpen) => set({ sessionContentSearchOpen }),
     openAgentActions: (agentActionsTerminalId) =>
         set({ agentActionsOpen: true, agentActionsTerminalId }),
     setAgentActionsOpen: (agentActionsOpen) => set({ agentActionsOpen }),
@@ -210,3 +214,6 @@ export const clearSessionRenameRequest = (): void =>
     useDialogStore.getState().clearSessionRenameRequest();
 export const openStatusBarPicker = (picker: StatusBarPicker): void =>
     useDialogStore.getState().openStatusBarPicker(picker);
+
+export const setSessionContentSearchOpen = (isOpen: boolean): void =>
+    useDialogStore.getState().setSessionContentSearchOpen(isOpen);

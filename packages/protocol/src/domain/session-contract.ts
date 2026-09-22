@@ -16,6 +16,10 @@ import {
     sessionRestorePlacementSchema,
     sessionStateSchema,
 } from './session.js';
+import {
+    sessionContentSearchParametersSchema,
+    sessionContentSearchResultSchema,
+} from './session-content-search.js';
 
 const serverWrite = commandPolicy('server', 'write');
 const desktopWrite = commandPolicy('desktop', 'write');
@@ -36,6 +40,11 @@ const sessionAttentionReadResult = z.object({
     hasUnread: z.boolean(),
 });
 export const sessionMethods = {
+    'session.searchContent': {
+        ...commandPolicy('server', 'read'),
+        params: sessionContentSearchParametersSchema,
+        result: sessionContentSearchResultSchema,
+    },
     'session.reorder': {
         ...serverWrite,
         params: sessionReorderParametersSchema,

@@ -29,12 +29,18 @@ function pad(value: number): string {
     return String(value).padStart(2, '0');
 }
 
-async function findRolloutName(directory: string, suffix: string): Promise<string | undefined> {
+async function findRolloutName(
+    directory: string,
+    suffix: string,
+    signal?: AbortSignal,
+): Promise<string | undefined> {
     let handle: Awaited<ReturnType<typeof opendir>> | undefined;
     let scanned = 0;
     try {
+        signal?.throwIfAborted();
         handle = await opendir(directory);
         for await (const entry of handle) {
+            signal?.throwIfAborted();
             scanned += 1;
             if (scanned > MAX_CODEX_SESSION_DAY_ENTRIES) return;
             const name = entry.name.toLowerCase();
@@ -42,6 +48,7 @@ async function findRolloutName(directory: string, suffix: string): Promise<strin
                 return entry.name;
         }
     } catch {
+        signal?.throwIfAborted();
         // A missing day folder is the normal case for two of the three candidate days.
     } finally {
         try {
@@ -63,19 +70,24 @@ async function findRolloutName(directory: string, suffix: string): Promise<strin
 export async function locateCodexTranscript(
     context: { agentSessionId: string },
     environment: AgentEnvironment,
+    signal?: AbortSignal,
 ): Promise<AgentTranscriptLocation | undefined> {
+    signal?.throwIfAborted();
     const createdAt = uuidV7Timestamp(context.agentSessionId);
     if (createdAt === undefined) return;
     const sessionsRoot = codexSessionsRoot(environment);
     const suffix = `-${context.agentSessionId.toLowerCase()}.jsonl`;
-    const candidates = await Promise.all(
+    /**
+     * Cancellation must retain the caller's scan slot until all directory handles have settled.
+     */
+    const candidates = await Promise.allSettled(
         [0, -1, 1].map(async (dayOffset) => {
             const day = new Date(createdAt);
             day.setDate(day.getDate() + dayOffset);
             const year = String(day.getFullYear());
             const month = pad(day.getMonth() + 1);
             const root = join(sessionsRoot, year, month, pad(day.getDate()));
-            const name = await findRolloutName(root, suffix);
+            const name = await findRolloutName(root, suffix, signal);
             return name
                 ? {
                       anchorRoot: sessionsRoot,
@@ -86,5 +98,10 @@ export async function locateCodexTranscript(
                 : undefined;
         }),
     );
-    return candidates.find((candidate) => candidate !== undefined);
+    signal?.throwIfAborted();
+    for (const candidate of candidates) {
+        if (candidate.status === 'fulfilled' && candidate.value !== undefined)
+            return candidate.value;
+    }
+    return undefined;
 }

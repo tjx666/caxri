@@ -1,4 +1,5 @@
 export { listAgentActions, recordRecentAgentAction } from './actions';
+export { SessionContentSearch } from './content-search';
 export { type AgentEnvironment, agentProviderStateRoot, defaultAgentEnvironment } from './contract';
 export { AgentCoordinator } from './coordinator';
 export { delegationAdapter } from './delegation';

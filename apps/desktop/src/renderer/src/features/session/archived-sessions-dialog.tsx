@@ -21,7 +21,11 @@ import {
 } from '../../components/ui/select';
 import { resolveAgentIcon } from '../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
-import { setArchivedSessionsOpen, useDialogStore } from '../../stores/dialogs';
+import {
+    setArchivedSessionsOpen,
+    setSessionContentSearchOpen,
+    useDialogStore,
+} from '../../stores/dialogs';
 import { useProjects, useSessions, useTerminals } from '../../stores/selectors';
 import type {
     ArchivedSessionFilters,
@@ -363,6 +367,11 @@ function ArchivedEmptyState({
     );
 }
 
+function openSessionContentSearchFromArchive(): void {
+    setArchivedSessionsOpen(false);
+    setSessionContentSearchOpen(true);
+}
+
 function ArchivedSessionsDialogBody() {
     const projects = useProjects() ?? NO_RECORDS;
     const sessions = useSessions() ?? NO_RECORDS;
@@ -404,6 +413,9 @@ function ArchivedSessionsDialogBody() {
         <>
             <DialogHeader>
                 <DialogTitle>Archived Sessions</DialogTitle>
+                <Button variant="secondary" onClick={openSessionContentSearchFromArchive}>
+                    Search Session Content
+                </Button>
                 <DialogDescription>
                     Search and manage archived work across every Project. Restoring a Session does
                     not start its Terminal.
