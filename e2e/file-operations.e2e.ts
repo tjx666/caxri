@@ -144,6 +144,7 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
         await expect(fileList.getByRole('alert')).toContainText(
             'A file or folder with that name already exists',
         );
+        await expect(fileList.getByRole('alert')).toContainText('Unable to rename item.');
         await expect(conflictingName).toBeVisible();
         await conflictingName.press('Escape');
         await expect(createdRow).toBeFocused();

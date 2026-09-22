@@ -118,6 +118,7 @@ describe('describeUpdateChip', () => {
             describeUpdateChip(
                 {
                     status: 'error',
+                    failureKind: 'other',
                     currentVersion: '1.0.0',
                     version: '1.1.0',
                     action: 'download',
@@ -134,6 +135,7 @@ describe('describeUpdateChip', () => {
             describeUpdateChip(
                 {
                     status: 'error',
+                    failureKind: 'other',
                     currentVersion: '1.0.0',
                     version: '1.1.0',
                     action: 'open',
@@ -149,6 +151,7 @@ describe('describeUpdateChip', () => {
             describeUpdateChip(
                 {
                     status: 'error',
+                    failureKind: 'other',
                     currentVersion: '1.0.0',
                     action: 'check',
                     message: 'GitHub is unreachable.',
@@ -204,6 +207,7 @@ describe('describeUpdateChip', () => {
             describeUpdateChip(
                 {
                     status: 'error',
+                    failureKind: 'other',
                     currentVersion: '1.0.0',
                     action: 'check',
                     message: 'Nope.',
@@ -319,6 +323,7 @@ describe('shouldExplainUnsignedInstall', () => {
         expect(
             shouldExplainUnsignedInstall({
                 status: 'error',
+                failureKind: 'other',
                 currentVersion: '1.0.0',
                 action: 'download',
                 version: '1.1.0',
@@ -339,10 +344,41 @@ describe('shouldExplainUnsignedInstall', () => {
         expect(
             shouldExplainUnsignedInstall({
                 status: 'error',
+                failureKind: 'other',
                 currentVersion: '1.0.0',
                 action: 'check',
                 message: 'GitHub is unreachable.',
             }),
         ).toBe(false);
     });
+});
+
+describe('update failure recovery copy', () => {
+    it('keeps raw transport diagnostics out of the recovery message', () => {
+        const state: UpdateState = {
+            status: 'error',
+            failureKind: 'other',
+            currentVersion: '1.0.0',
+            action: 'download',
+            message: 'net::ERR_CONNECTION_RESET',
+        };
+        const copy = describeUpdateStatus(state);
+        expect(copy.description).not.toContain('ERR_CONNECTION_RESET');
+        expect(copy.description).toContain('try again');
+    });
+});
+
+it('explains network and integrity failures separately', () => {
+    const base = {
+        status: 'error',
+        currentVersion: '1.0.0',
+        action: 'download',
+        message: 'internal',
+    } as const;
+    expect(describeUpdateStatus({ ...base, failureKind: 'network' }).description).toContain(
+        'Check your network',
+    );
+    expect(describeUpdateStatus({ ...base, failureKind: 'integrity' }).description).toContain(
+        'was not opened',
+    );
 });

@@ -2,7 +2,7 @@ import { useState } from 'react';
 
 import type { WorkbenchRootOption } from '@caxri/protocol';
 
-import { useCaxriQuery, useToastOnQueryError } from '../../queries/client';
+import { useCaxriQuery } from '../../queries/client';
 import { useStatusBarPickerRequest } from './use-status-bar-picker-request';
 import { selectWorkbenchRoot } from './workbench-root-commands';
 
@@ -11,12 +11,12 @@ export function useWorkbenchRootPicker(sessionId: string) {
     const [all, setAll] = useState(false);
     const [search, setSearch] = useState('');
     const [switching, setSwitching] = useState(false);
+    const [switchingLabel, setSwitchingLabel] = useState('');
     const rootsQuery = useCaxriQuery(
         'session.workbenchRoots',
         { sessionId },
         { enabled: open, staleTime: 0 },
     );
-    useToastOnQueryError(rootsQuery.isError, rootsQuery.error, 'Unable to list Workbench Roots');
     const changeOpen = (isOpen: boolean) => {
         if (switching) return;
         setOpen(isOpen);
@@ -29,6 +29,7 @@ export function useWorkbenchRootPicker(sessionId: string) {
     const select = async (root: WorkbenchRootOption) => {
         if (switching) return;
         setSwitching(true);
+        setSwitchingLabel(root.displayTitle);
         setOpen(false);
         try {
             const selected = await selectWorkbenchRoot(sessionId, root);
@@ -37,5 +38,16 @@ export function useWorkbenchRootPicker(sessionId: string) {
             setSwitching(false);
         }
     };
-    return { open, all, search, switching, rootsQuery, changeOpen, setAll, setSearch, select };
+    return {
+        open,
+        all,
+        search,
+        switching,
+        switchingLabel,
+        rootsQuery,
+        changeOpen,
+        setAll,
+        setSearch,
+        select,
+    };
 }

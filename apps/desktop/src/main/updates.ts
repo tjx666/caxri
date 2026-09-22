@@ -29,6 +29,33 @@ const releaseSchema = z.object({
 
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
+type UpdateFailureKind = Extract<UpdateState, { status: 'error' }>['failureKind'];
+
+/**
+ * Carries an actionable category without making the Renderer parse platform diagnostics.
+ */
+class UpdateFailure extends Error {
+    constructor(
+        readonly kind: UpdateFailureKind,
+        message: string,
+    ) {
+        super(message);
+    }
+}
+
+function updateFailureKind(error: unknown): UpdateFailureKind {
+    return error instanceof UpdateFailure ? error.kind : 'other';
+}
+
+async function readUpdateNetwork<T>(operation: () => Promise<T>): Promise<T> {
+    try {
+        return await operation();
+    } catch (error) {
+        if (isAbortError(error)) throw error;
+        throw new UpdateFailure('network', errorMessage(error, 'The update connection failed.'));
+    }
+}
+
 interface AvailableRelease {
     version: string;
     fileName: string;
@@ -69,7 +96,8 @@ function assertStableVersion(version: string): void {
 }
 
 function assertSuccessfulResponse(response: Response, label: string): void {
-    if (!response.ok) throw new Error(`${label} failed with status ${response.status}.`);
+    if (!response.ok)
+        throw new UpdateFailure('network', `${label} failed with status ${response.status}.`);
 }
 
 /**
@@ -113,7 +141,7 @@ async function readBoundedResponse(response: Response, maximumBytes: number): Pr
             // Each read must observe the previous chunk before deciding whether to request more,
             // so this stream cannot be drained in parallel.
             // eslint-disable-next-line no-await-in-loop -- sequential stream read, see comment above
-            const result = await reader.read();
+            const result = await readUpdateNetwork(() => reader.read());
             if (result.done) break;
             totalBytes += result.value.byteLength;
             if (totalBytes > maximumBytes)
@@ -153,11 +181,12 @@ function parseChecksum(source: string, fileName: string): string {
     // independently instead.
     const trimmed = source.trim();
     const separatorIndex = trimmed.search(/\s/);
-    if (separatorIndex === -1) throw new Error('The release checksum file is invalid.');
+    if (separatorIndex === -1)
+        throw new UpdateFailure('integrity', 'The release checksum file is invalid.');
     const hex = trimmed.slice(0, separatorIndex);
     const name = trimmed.slice(separatorIndex).trimStart().replace(/^\*/, '');
     if (name !== fileName || !/^[0-9a-f]{64}$/i.test(hex))
-        throw new Error('The release checksum file is invalid.');
+        throw new UpdateFailure('integrity', 'The release checksum file is invalid.');
     return hex.toLowerCase();
 }
 
@@ -189,7 +218,11 @@ export function updateStateLogFields(state: UpdateState): Record<string, string 
     return {
         status: state.status,
         ...('version' in state && { version: state.version ?? null }),
-        ...(state.status === 'error' && { action: state.action, message: state.message }),
+        ...(state.status === 'error' && {
+            action: state.action,
+            failureKind: state.failureKind,
+            message: state.message,
+        }),
         ...(state.status === 'unavailable' && {
             reason: state.reason,
             /**
@@ -232,7 +265,8 @@ export class UpdateService {
     private announcedVersion: string | undefined;
 
     constructor(private readonly options: UpdateServiceOptions) {
-        this.fetch = options.fetch ?? globalThis.fetch;
+        const fetch = options.fetch ?? globalThis.fetch;
+        this.fetch = (input, init) => readUpdateNetwork(() => fetch(input, init));
         this.now = options.now ?? Date.now;
         this.state = { status: 'idle', currentVersion: options.currentVersion };
     }
@@ -325,14 +359,23 @@ export class UpdateService {
             const dmg = release.assets.find((asset) => asset.name === fileName);
             const checksum = release.assets.find((asset) => asset.name === checksumName);
             if (!dmg || !checksum)
-                throw new Error('The release is missing its arm64 DMG or checksum.');
+                throw new UpdateFailure(
+                    'integrity',
+                    'The release is missing its arm64 DMG or checksum.',
+                );
             if (dmg.size > MAX_DMG_BYTES || checksum.size > MAX_CHECKSUM_BYTES)
-                throw new Error('A release asset is larger than the allowed update size.');
+                throw new UpdateFailure(
+                    'integrity',
+                    'A release asset is larger than the allowed update size.',
+                );
             if (
                 !isExactReleaseAssetUrl(dmg.browser_download_url, version, fileName) ||
                 !isExactReleaseAssetUrl(checksum.browser_download_url, version, checksumName)
             ) {
-                throw new Error('A release asset URL does not match the requested version.');
+                throw new UpdateFailure(
+                    'integrity',
+                    'A release asset URL does not match the requested version.',
+                );
             }
 
             this.release = {
@@ -354,6 +397,7 @@ export class UpdateService {
                 status: 'error',
                 currentVersion: this.options.currentVersion,
                 action: 'check',
+                failureKind: updateFailureKind(error),
                 message: updateErrorMessage(error, 'Unable to check for updates.'),
             });
         }
@@ -402,9 +446,15 @@ export class UpdateService {
                     ? contentLength
                     : release.expectedBytes;
             if (totalBytes && totalBytes > MAX_DMG_BYTES)
-                throw new Error('The DMG is larger than the allowed update size.');
+                throw new UpdateFailure(
+                    'integrity',
+                    'The DMG is larger than the allowed update size.',
+                );
             if (totalBytes && release.expectedBytes && release.expectedBytes !== totalBytes)
-                throw new Error('The DMG size does not match the release metadata.');
+                throw new UpdateFailure(
+                    'integrity',
+                    'The DMG size does not match the release metadata.',
+                );
 
             const reader = response.body.getReader();
             let file: FileHandle | undefined;
@@ -417,11 +467,14 @@ export class UpdateService {
                     // Each read must observe the previous chunk before deciding whether to request
                     // more, so this stream cannot be drained in parallel.
                     // eslint-disable-next-line no-await-in-loop -- sequential stream read, see comment above
-                    const result = await reader.read();
+                    const result = await readUpdateNetwork(() => reader.read());
                     if (result.done) break;
                     receivedBytes += result.value.byteLength;
                     if (receivedBytes > MAX_DMG_BYTES)
-                        throw new Error('The DMG is larger than the allowed update size.');
+                        throw new UpdateFailure(
+                            'integrity',
+                            'The DMG is larger than the allowed update size.',
+                        );
                     // The chunk must be fully written to disk before the next chunk is read, so
                     // this write cannot be parallelized with the loop's next iteration.
                     // eslint-disable-next-line no-await-in-loop -- sequential file write, see comment above
@@ -451,9 +504,12 @@ export class UpdateService {
                 await file?.close();
             }
             if (release.expectedBytes && receivedBytes !== release.expectedBytes)
-                throw new Error('The DMG size does not match the release metadata.');
+                throw new UpdateFailure(
+                    'integrity',
+                    'The DMG size does not match the release metadata.',
+                );
             if (hash.digest('hex') !== checksum)
-                throw new Error('The DMG failed SHA-256 verification.');
+                throw new UpdateFailure('integrity', 'The DMG failed SHA-256 verification.');
 
             await rm(finalPath, { force: true });
             await rename(temporaryPath, finalPath);
@@ -475,6 +531,7 @@ export class UpdateService {
                 status: 'error',
                 currentVersion: this.options.currentVersion,
                 action: 'download',
+                failureKind: updateFailureKind(error),
                 message: updateErrorMessage(error, 'Unable to download the update.'),
                 version: release.version,
                 fileName: release.fileName,
@@ -555,6 +612,7 @@ export class UpdateService {
             return Promise.resolve(
                 this.publish({
                     status: 'error',
+                    failureKind: 'other',
                     currentVersion: this.options.currentVersion,
                     action: 'check',
                     message: 'Check for an available update before downloading it.',
@@ -586,6 +644,7 @@ export class UpdateService {
         if (!release || !this.readyPath)
             return this.publish({
                 status: 'error',
+                failureKind: 'other',
                 currentVersion: this.options.currentVersion,
                 action: 'download',
                 message: 'Download and verify the update before opening it.',
@@ -595,6 +654,7 @@ export class UpdateService {
         if (error)
             return this.publish({
                 status: 'error',
+                failureKind: 'other',
                 currentVersion: this.options.currentVersion,
                 action: 'open',
                 message: updateErrorMessage(new Error(error), 'Unable to open the update.'),

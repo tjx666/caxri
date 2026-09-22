@@ -114,6 +114,43 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
         );
 
         /**
+         * A failed sample must not present the preceding sample as live process data.
+         */
+        await running.app.evaluate(({ app }) => {
+            const scope = globalThis as Record<string, unknown>;
+            scope.__caxriProcessMetrics = Object.getOwnPropertyDescriptor(app, 'getAppMetrics');
+            Object.defineProperty(app, 'getAppMetrics', {
+                configurable: true,
+                value: () => {
+                    throw new Error('Sampling temporarily unavailable');
+                },
+            });
+        });
+        try {
+            await processPage.getByRole('button', { name: 'Refresh processes' }).click();
+            await expect(processPage.locator('.process-error')).toBeVisible();
+            await expect(processPage.locator('.process-row')).toHaveCount(0);
+            const retry = processPage.getByRole('button', { name: 'Retry', exact: true });
+            await expect(retry).toBeVisible();
+        } finally {
+            await running.app.evaluate(({ app }) => {
+                const scope = globalThis as Record<string, unknown>;
+                Object.defineProperty(
+                    app,
+                    'getAppMetrics',
+                    scope.__caxriProcessMetrics as PropertyDescriptor,
+                );
+                Reflect.deleteProperty(scope, '__caxriProcessMetrics');
+            });
+        }
+        const retry = processPage.getByRole('button', { name: 'Retry', exact: true });
+        await retry.focus();
+        await retry.press('Enter');
+        await expect(processPage.locator('.process-error')).toHaveCount(0);
+        await expect(processPage.locator('.process-row')).toHaveCount(expandedRowCount);
+        await expect(processPage.getByText(/Updated .*Refreshes every 2 seconds/)).toBeVisible();
+
+        /**
          * Header sorting reorders siblings without flattening the tree.
          */
         const memoryHeader = grid.getByRole('columnheader', { name: 'Memory (MB)' });

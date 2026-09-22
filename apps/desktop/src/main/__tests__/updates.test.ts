@@ -96,12 +96,14 @@ describe('update state log fields', () => {
         expect(
             updateStateLogFields({
                 status: 'error',
+                failureKind: 'network',
                 currentVersion: '0.0.3',
                 action: 'check',
                 message: 'The GitHub release check failed with status 404.',
             }),
         ).toEqual({
             status: 'error',
+            failureKind: 'network',
             action: 'check',
             message: 'The GitHub release check failed with status 404.',
         });
@@ -195,6 +197,7 @@ describe('UpdateService', () => {
         expect(result.status).toBe('error');
         if (result.status !== 'error') throw new Error('Expected a download error');
         expect(result.action).toBe('download');
+        expect(result.failureKind).toBe('integrity');
         expect(result.message).toContain('SHA-256');
         await expect(access(join(directory, 'Caxri-0.0.4-arm64.dmg.part'))).rejects.toThrow();
         await expect(access(join(directory, 'Caxri-0.0.4-arm64.dmg'))).rejects.toThrow();
@@ -366,6 +369,7 @@ describe('UpdateService', () => {
         if (result.status !== 'error') throw new Error('Expected a release check error');
         expect(result.action).toBe('check');
         expect(result.message).toContain('status 500');
+        expect(result.failureKind).toBe('network');
     });
 
     it('coalesces concurrent checks into one GitHub request', async () => {

@@ -112,6 +112,13 @@ exec /bin/zsh -l
             running.page.getByRole('button', { name: 'Open project files: status-project' }),
         ).toHaveCount(0);
         await expect(branch).toHaveText('feature/status-bar');
+        await expect(branch).not.toHaveAttribute('title');
+        await branch.hover();
+        await expect(running.page.locator('.tooltip-popup')).toContainText(
+            'Switch branch from feature/status-bar',
+        );
+        await running.page.mouse.move(0, 0);
+        await expect(running.page.locator('.tooltip-popup')).toHaveCount(0);
         await expect(pullRequest).toHaveAttribute(
             'href',
             'https://github.com/tjx666/status-project/pull/11',
