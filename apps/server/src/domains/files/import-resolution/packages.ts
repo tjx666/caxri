@@ -11,6 +11,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+async function isExistingDirectory(path: string): Promise<boolean> {
+    try {
+        return (await stat(path)).isDirectory();
+    } catch {
+        return false;
+    }
+}
+
 /**
  * Only lexical package names/subpaths are admitted; encoded traversal and filesystem paths are not packages.
  */
@@ -126,6 +134,15 @@ export function packageFileCandidates(path: string): string[] {
 export class PackageImports {
     constructor(private readonly files: ImportConfigFiles) {}
 
+    /**
+     * Walks the ancestors of the importing file looking for `node_modules/<name>`.
+     *
+     * Almost every level is a miss, and a miss must stay cheap: this runs per bare specifier, for every open document,
+     * on Monaco's debounced link pass. Authorization is therefore attempted only once a directory is actually there.
+     * `packageParts` has already rejected traversal and separators, and the loop never leaves the Project root, so the
+     * probe path is lexically inside the root; it reveals only whether an entry exists. Authorization still runs, on
+     * the same path, before anything is resolved or read, so which package roots are admitted does not change.
+     */
     private async find(
         sessionId: string,
         from: ResolvedSessionPath,
@@ -140,6 +157,12 @@ export class PackageImports {
         ) {
             const packageRoot = join(directory, 'node_modules', name);
             try {
+                // oxlint-disable-next-line react-doctor/async-await-in-loop
+                if (!(await isExistingDirectory(packageRoot))) {
+                    if (directory === from.root) break;
+                    directory = dirname(directory);
+                    continue;
+                }
                 // oxlint-disable-next-line react-doctor/async-await-in-loop
                 const entry = await this.files.authorize(sessionId, packageRoot);
                 // oxlint-disable-next-line react-doctor/async-await-in-loop

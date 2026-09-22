@@ -1,5 +1,5 @@
 import type { SessionContentSearchResult } from '@caxri/protocol';
-import { CaxriError } from '@caxri/protocol';
+import { agentProviderIds, CaxriError } from '@caxri/protocol';
 import { waitForSharedOperation } from '@caxri/system';
 
 import type { CaxriDatabase } from '../../db';
@@ -62,7 +62,7 @@ export class SessionContentSearch {
             if (
                 !terminal?.provider ||
                 !terminal.agentSessionId ||
-                !['claude', 'codex', 'grok'].includes(terminal.provider)
+                !agentProviderIds.includes(terminal.provider)
             ) {
                 result.unavailable += 1;
                 continue;

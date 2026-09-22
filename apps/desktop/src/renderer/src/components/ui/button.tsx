@@ -11,16 +11,22 @@ import { cn } from '@/lib/utilities';
  *
  * Every hover response is gated on `enabled:`: a disabled button still matches `:hover` in CSS even though Chromium
  * dispatches no pointer events to it, so an ungated hover fill advertises an action the control cannot perform.
+ *
+ * `aria-disabled` is treated as the same state. A busy control that must keep keyboard focus cannot set the native
+ * `disabled` attribute, because Chromium evicts focus from an element the moment it becomes disabled; those call sites
+ * set `aria-disabled` and refuse the click in their handler instead. The native `:disabled`/`:enabled` pseudo-classes
+ * never match such a button, so the dimming and the hover gate are mirrored onto the attribute.
  */
 const buttonVariants = cva(
-    'inline-flex cursor-pointer items-center justify-center gap-2 rounded border border-transparent transition-[background] duration-75 ease-out disabled:cursor-not-allowed disabled:opacity-45',
+    'inline-flex cursor-pointer items-center justify-center gap-2 rounded border border-transparent transition-[background] duration-75 ease-out disabled:cursor-not-allowed disabled:opacity-45 aria-disabled:cursor-not-allowed aria-disabled:opacity-45',
     {
         variants: {
             variant: {
                 default:
-                    'border-accent bg-accent text-accent-foreground enabled:hover:brightness-110',
-                secondary: 'border-border bg-elevated enabled:hover:bg-[var(--selection)]',
-                ghost: 'bg-transparent enabled:hover:bg-[var(--selection)]',
+                    'border-accent bg-accent text-accent-foreground enabled:not-aria-disabled:hover:brightness-110',
+                secondary:
+                    'border-border bg-elevated enabled:not-aria-disabled:hover:bg-[var(--selection)]',
+                ghost: 'bg-transparent enabled:not-aria-disabled:hover:bg-[var(--selection)]',
                 danger: 'border-danger bg-danger text-danger-foreground',
             },
             size: {

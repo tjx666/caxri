@@ -3,7 +3,9 @@ import {
     agentTranscriptTabPath,
     createPaneLayout,
     gitChangesDiffTabPath,
+    gitCommitFileDiffTabPath,
     gitFileDiffTabPath,
+    gitPullRequestFileDiffTabPath,
 } from '@caxri/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -265,6 +267,26 @@ describe('sendActiveFileReferenceToTerminal from a Git diff tab', () => {
 
         expect(canSendActiveFileReference()).toBe(false);
         await sendActiveFileReferenceToTerminal();
+
+        expect(mocks.sendTerminalSequence).not.toHaveBeenCalled();
+    });
+
+    it('declines a commit or pull-request comparison, whose caret numbers a past revision', async () => {
+        mocks.getDiffEditorFileSelection.mockReturnValue({
+            line: 42,
+            column: 1,
+            selectionStartLine: 42,
+            selectionEndLine: 42,
+        });
+
+        const expectNoReference = async (path: string): Promise<void> => {
+            activeFile(path);
+            expect(canSendActiveFileReference()).toBe(false);
+            await sendActiveFileReferenceToTerminal();
+        };
+
+        await expectNoReference(gitCommitFileDiffTabPath('repo-1', 'a'.repeat(40), 'src/index.ts'));
+        await expectNoReference(gitPullRequestFileDiffTabPath('repo-1', 'src/index.ts'));
 
         expect(mocks.sendTerminalSequence).not.toHaveBeenCalled();
     });

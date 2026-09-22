@@ -45,12 +45,37 @@ const RECENT_MESSAGE_LIMIT = 6;
  */
 const MAX_RECORD_CHARS = 256 * 1024;
 
+const TITLE_MESSAGE_CHARS = 1600;
+
+interface ScannedTitleMessage extends TitleMessage {
+    /**
+     * Grok writes one turn as a run of `*_message_chunk` records, so a chunk is a fragment rather than a message.
+     */
+    isChunk: boolean;
+}
+
 /**
  * Only visible conversation messages are naming material; tools, injected instructions and duplicate events are not.
  */
-export function extractAgentTitleMessage(record: unknown): TitleMessage | undefined {
+export function extractAgentTitleMessage(record: unknown): ScannedTitleMessage | undefined {
     const message = extractVisibleTranscriptMessage(record);
-    return message && { role: message.role, text: [...message.text].slice(0, 1600).join('') };
+    return (
+        message && {
+            isChunk: message.isChunk,
+            role: message.role,
+            text: [...message.text].slice(0, TITLE_MESSAGE_CHARS).join(''),
+        }
+    );
+}
+
+/**
+ * Joins a streaming fragment onto the message it continues, with no separator, the way Session content search coalesces
+ * the same records. The character cap belongs to the joined message: capping each fragment would let one Grok turn
+ * contribute far more naming material than a Claude or Codex turn.
+ */
+function appendTitleChunk(message: TitleMessage, text: string): void {
+    const remaining = TITLE_MESSAGE_CHARS - [...message.text].length;
+    if (remaining > 0) message.text += [...text].slice(0, remaining).join('');
 }
 
 interface ScanRange {
@@ -105,7 +130,7 @@ async function* readRangeLines(handle: FileHandle, range: ScanRange): AsyncGener
     if (pending && !isFragmentPending) yield pending;
 }
 
-function parseTitleMessageLine(line: string): TitleMessage | undefined {
+function parseTitleMessageLine(line: string): ScannedTitleMessage | undefined {
     try {
         return extractAgentTitleMessage(JSON.parse(line));
     } catch {
@@ -140,11 +165,20 @@ export async function readAgentTitleMessages(
             const isOpeningWindow = position === 0;
             // A later range is newer than everything before it, so it replaces the latest exchange rather than extending it.
             if (!isOpeningWindow) recent = [];
+            /**
+             * The message a following chunk continues. Reset per range: a later range opens mid-file, so its first
+             * chunk is not a continuation of anything this scan retained.
+             */
+            let openChunk: { message: TitleMessage; role: 'assistant' | 'user' } | undefined;
             // Ranges are scanned in file order so the opening is found before the tail is read.
             // eslint-disable-next-line no-await-in-loop -- ordered range scan, see comment above
             for await (const line of readRangeLines(opened.handle, range)) {
-                const message = parseTitleMessageLine(line);
-                if (message) {
+                const scanned = parseTitleMessageLine(line);
+                if (scanned && scanned.isChunk && openChunk?.role === scanned.role) {
+                    appendTitleChunk(openChunk.message, scanned.text);
+                } else if (scanned) {
+                    const message: TitleMessage = { role: scanned.role, text: scanned.text };
+                    openChunk = scanned.isChunk ? { message, role: scanned.role } : undefined;
                     const current = index++;
                     if (
                         isOpeningWindow &&

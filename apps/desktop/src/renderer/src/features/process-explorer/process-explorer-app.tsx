@@ -69,7 +69,11 @@ export function ProcessExplorerApp() {
                 const nextSnapshot = await globalThis.processExplorer.snapshot();
                 setSnapshot(nextSnapshot);
                 setError(undefined);
-            } catch {
+            } catch (error_: unknown) {
+                // The visible copy is deliberately plain, so this is the only place the cause survives. Main mirrors
+                // Renderer error-level console records into `desktop.jsonl` as an error class plus a stable digest
+                // (`console-error-fields.ts`), which is what separates a one-off sampling failure from a repeating one.
+                console.error('processExplorer.snapshot failed', error_);
                 setSnapshot(undefined);
                 setError('Unable to sample processes. Try again.');
             } finally {
@@ -183,7 +187,7 @@ export function ProcessExplorerApp() {
                     <Tooltip content="Refresh processes">
                         <button
                             type="button"
-                            className="absolute right-3 grid size-[26px] cursor-pointer place-items-center rounded border-0 bg-transparent p-0 text-muted [-webkit-app-region:no-drag] hover:bg-elevated hover:text-foreground focus-visible:outline focus-visible:outline-1 focus-visible:outline-foreground disabled:cursor-default disabled:opacity-55"
+                            className="absolute right-3 grid size-[26px] cursor-pointer place-items-center rounded border-0 bg-transparent p-0 text-muted [-webkit-app-region:no-drag] not-aria-disabled:hover:bg-elevated not-aria-disabled:hover:text-foreground focus-visible:outline focus-visible:outline-1 focus-visible:outline-foreground aria-disabled:cursor-default aria-disabled:opacity-55"
                             aria-label="Refresh processes"
                             aria-disabled={refreshing}
                             aria-busy={refreshing}
@@ -266,11 +270,12 @@ export function ProcessExplorerApp() {
                         </div>
                     </div>
                 </div>
-                <footer
-                    className="flex items-center px-3 text-[11px] text-muted"
-                    role="status"
-                    aria-live="polite"
-                >
+                {/*
+                 * Not a live region. Its timestamp changes on every two-second sample, so announcing it would talk
+                 * over the user for as long as the window is open while saying nothing they asked for. The table
+                 * already reports sampling through `aria-busy`, and this line stays readable on demand.
+                 */}
+                <footer className="flex items-center px-3 text-[11px] text-muted">
                     {snapshot
                         ? `Updated ${new Date(snapshot.sampledAt).toLocaleTimeString('en-US')}. `
                         : 'No current sample. '}
