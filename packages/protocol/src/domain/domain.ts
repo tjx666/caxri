@@ -530,6 +530,10 @@ export const fileDocumentSchema = z.object({
     content: z.string(),
     mtimeMs: z.number(),
     size: z.number(),
+    /**
+     * Dependency documents are view-only, including after tab restore or a watcher refresh.
+     */
+    readOnly: z.boolean().optional(),
 });
 
 /**

@@ -4,10 +4,6 @@ import { parseExternalEditorTab } from '@caxri/protocol';
 export interface EditorDocument extends FileDocument {
     dirty: boolean;
     /**
-     * Main-authorized external documents are view-only and must never reach the Project-scoped save path.
-     */
-    readOnly?: boolean;
-    /**
      * Marks content whose lifetime is the current Renderer. It is retained while its tab is open and never restored
      * from SQLite.
      */

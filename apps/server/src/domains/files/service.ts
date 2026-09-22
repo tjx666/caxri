@@ -21,9 +21,13 @@ import type { OpenFile } from './documents';
 import { DocumentService } from './documents';
 import {
     importCandidatePaths,
+    ImportConfigFiles,
     isRelativeImportSpecifier,
+    PackageImports,
     relativeImportCandidatePaths,
-} from './import-specifier';
+    TsconfigImports,
+    tsconfigImportTargets,
+} from './import-resolution';
 import type { GitIgnoreDecorator, ListingServiceOptions, OpenDirectory } from './listing';
 import { ListingService } from './listing';
 import type { FileMutationJournalOptions, FileMutationOperationScope } from './mutation-journal';
@@ -38,7 +42,6 @@ import type {
 } from './search';
 import { SearchService } from './search';
 import { shallowestProjectPath } from './shallowest-project-path';
-import { TsconfigImports, tsconfigImportTargets } from './tsconfig-imports';
 import type { WatcherServiceOptions } from './watcher';
 import { WatcherService } from './watcher';
 
@@ -80,6 +83,8 @@ export class FileService {
     private readonly activeLocates = new Map<string, AbortController>();
     private readonly watcher: WatcherService;
     private readonly importConfigs: TsconfigImports;
+    private readonly importFiles: ImportConfigFiles;
+    private readonly packageImports: PackageImports;
 
     constructor(
         database: CaxriDatabase,
@@ -97,7 +102,9 @@ export class FileService {
             this.resolveSessionPath(sessionId, input);
         const resolveWorkspacePath = (sessionId: string, input?: string) =>
             this.resolveSessionPath(sessionId, input, true);
-        this.importConfigs = new TsconfigImports(resolveWorkspacePath);
+        this.importFiles = new ImportConfigFiles(resolveWorkspacePath);
+        this.packageImports = new PackageImports(this.importFiles);
+        this.importConfigs = new TsconfigImports(this.importFiles, this.packageImports);
         this.operations = new FileOperationQueue(options.maximumPendingOperations);
         this.mutationJournal = new FileMutationJournal(
             options.mutationJournalPath,
@@ -413,7 +420,18 @@ export class FileService {
                 ? relativeImportCandidatePaths(from.workspacePath ?? from.path, specifier)
                 : tsconfigImportTargets(config, specifier).flatMap(importCandidatePaths);
             // oxlint-disable-next-line react-doctor/async-await-in-loop
-            const path = await this.resolveImportSpecifier(parameters, candidates, budget); // eslint-disable-line no-await-in-loop -- see above
+            let path = await this.resolveImportSpecifier(parameters, candidates, budget); // eslint-disable-line no-await-in-loop -- see above
+            if (!path && !isRelativeImportSpecifier(specifier) && budget.remaining > 0) {
+                // oxlint-disable-next-line react-doctor/async-await-in-loop
+                // eslint-disable-next-line no-await-in-loop -- package fallback follows alias resolution
+                const packageCandidates = await this.packageImports.candidates(
+                    parameters.sessionId,
+                    from,
+                    specifier,
+                );
+                // oxlint-disable-next-line react-doctor/async-await-in-loop
+                path = await this.resolveImportSpecifier(parameters, packageCandidates, budget); // eslint-disable-line no-await-in-loop -- first authorized target wins
+            }
             if (path) resolved.push({ path, specifier });
         }
         return { resolved };
@@ -543,7 +561,7 @@ export class FileService {
     }
 
     async close(): Promise<void> {
-        this.importConfigs.clear();
+        this.importFiles.clear();
         await Promise.all([
             this.searcher.close(),
             this.watcher.close(),

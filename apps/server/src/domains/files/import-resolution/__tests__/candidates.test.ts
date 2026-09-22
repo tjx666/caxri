@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isRelativeImportSpecifier, relativeImportCandidatePaths } from '../import-specifier';
+import { isRelativeImportSpecifier, relativeImportCandidatePaths } from '../candidates';
 
 describe('isRelativeImportSpecifier', () => {
     it('accepts only paths written relative to the importing document', () => {

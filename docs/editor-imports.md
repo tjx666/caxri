@@ -8,7 +8,7 @@ Relative imports try the written file, emitted JavaScript-to-TypeScript alternat
 extensions and directory barrels. A real file with the written extension retains priority.
 
 For aliases, the nearest `tsconfig.json` between the importing file and its Project root owns
-resolution. JSONC comments and trailing commas are supported. Relative `extends` chains merge
+resolution. JSONC comments and trailing commas are supported. Relative and package-based `extends` chains merge
 parent settings before child settings, retaining the declaring directory for relative paths.
 `paths` selects an exact key before the wildcard with the longest literal prefix, and tries that
 mapping's targets in order. `baseUrl` supplies the mapping base and resolves otherwise unmapped
@@ -26,3 +26,14 @@ compiler project references or evaluate executable configuration. Each JSONC rea
 256 KiB, inheritance at 16 levels and 128 configuration probes, and file candidates at 4096 per
 request. A 64-entry metadata-validated cache avoids reparsing unchanged configs without adding
 watchers. The protocol limits each document batch to 128 specifiers.
+
+Bare package imports search `node_modules` from the importing directory up to the Project root.
+Package exports respect exact subpaths, wildcard subpaths and explicit exclusions. Type targets
+take priority over runtime targets; JavaScript targets also try their declaration-file counterpart.
+Packages without exports use `types`, `typings`, `main`, `module`, then an index entry. This is
+source navigation, not a complete Node runtime resolver; separate `@types` packages are not inferred.
+
+Dependency documents reached through a `node_modules` entry open read-only, including linked
+package stores and their hard-linked files. Only dependency document reads allow these hard links;
+ordinary source reads and all mutation restrictions remain unchanged. The editor shows **Read-only**, restores that restriction after reopening, and the
+Server rejects saves independently of the UI. Ordinary Project source remains editable.

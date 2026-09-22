@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { link, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -42,6 +42,12 @@ async function fixture() {
     return {
         directory,
         root,
+        readDocument(path: string) {
+            return service.read(session.id, join(root, path));
+        },
+        saveDocument(path: string, content: string) {
+            return service.write(session.id, join(root, path), content);
+        },
         async write(path: string, content = '') {
             await mkdir(dirname(join(root, path)), { recursive: true });
             await writeFile(join(root, path), content);
@@ -57,6 +63,109 @@ async function fixture() {
 }
 
 describe('FileService import resolution', () => {
+    it('opens package types and exported subpaths through pnpm-style links as read-only', async () => {
+        const project = await fixture();
+        await project.write('src/main.ts');
+        const packageRoot = join(project.directory, 'store', 'example-package');
+        await mkdir(join(packageRoot, 'dist'), { recursive: true });
+        await mkdir(join(project.root, 'node_modules'));
+        await writeFile(
+            join(packageRoot, 'package.json'),
+            JSON.stringify({
+                exports: {
+                    '.': { types: './dist/index.d.ts', import: './dist/index.js' },
+                    './feature': { import: './dist/feature.js' },
+                    './private': null,
+                },
+            }),
+        );
+        await Promise.all(
+            ['index.d.ts', 'index.js', 'feature.d.ts', 'feature.js', 'private.d.ts'].map((name) =>
+                writeFile(join(packageRoot, 'dist', name), 'export {};'),
+            ),
+        );
+        await link(
+            join(packageRoot, 'dist/index.d.ts'),
+            join(project.directory, 'store-copy.d.ts'),
+        );
+        await symlink(packageRoot, join(project.root, 'node_modules', 'example-package'));
+        expect(
+            await project.resolve('src/main.ts', [
+                'example-package',
+                'example-package/feature',
+                'example-package/private',
+                'missing-package',
+            ]),
+        ).toEqual({
+            resolved: [
+                {
+                    specifier: 'example-package',
+                    path: join(project.root, 'node_modules/example-package/dist/index.d.ts'),
+                },
+                {
+                    specifier: 'example-package/feature',
+                    path: join(project.root, 'node_modules/example-package/dist/feature.d.ts'),
+                },
+            ],
+        });
+        expect(
+            await project.readDocument('node_modules/example-package/dist/index.d.ts'),
+        ).toMatchObject({ readOnly: true });
+        await expect(
+            project.saveDocument('node_modules/example-package/dist/index.d.ts', 'changed'),
+        ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+        expect(await project.readDocument('src/main.ts')).not.toMatchObject({ readOnly: true });
+        await link(join(packageRoot, 'dist/index.d.ts'), join(project.root, 'src/linked.ts'));
+        await expect(project.readDocument('src/linked.ts')).rejects.toMatchObject({ code: 'IO' });
+    });
+
+    it('supports scoped legacy types, wildcard exports and package-based tsconfig inheritance', async () => {
+        const project = await fixture();
+        await project.write('src/main.ts');
+        await project.write(
+            'node_modules/@example/legacy/package.json',
+            '{ "types": "types.d.ts", "main": "index.js" }',
+        );
+        await project.write('node_modules/@example/legacy/types.d.ts');
+        await project.write('node_modules/@example/legacy/index.js');
+        await project.write(
+            'node_modules/pattern/package.json',
+            '{ "exports": { "./*": "./types/*.d.ts" } }',
+        );
+        await project.write('node_modules/pattern/types/feature.d.ts');
+        await project.write(
+            'node_modules/config-base/package.json',
+            '{ "tsconfig": "config.json" }',
+        );
+        await project.write(
+            'node_modules/config-base/config.json',
+            '{ "compilerOptions": { "paths": { "configured": ["./value"] } } }',
+        );
+        await project.write('node_modules/config-base/value.ts');
+        await project.write('tsconfig.json', '{ "extends": "config-base" }');
+        expect(
+            await project.resolve('src/main.ts', [
+                '@example/legacy',
+                'pattern/feature',
+                'configured',
+            ]),
+        ).toEqual({
+            resolved: [
+                {
+                    specifier: '@example/legacy',
+                    path: join(project.root, 'node_modules/@example/legacy/types.d.ts'),
+                },
+                {
+                    specifier: 'pattern/feature',
+                    path: join(project.root, 'node_modules/pattern/types/feature.d.ts'),
+                },
+                {
+                    specifier: 'configured',
+                    path: join(project.root, 'node_modules/config-base/value.ts'),
+                },
+            ],
+        });
+    });
     it('uses the nearest config, inherited path origins and ordered wildcard fallbacks', async () => {
         const project = await fixture();
         await project.write(

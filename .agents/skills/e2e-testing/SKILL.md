@@ -68,6 +68,9 @@ extracted below the boundary and tested there; if yes, extract it instead.
    Terminal inset or background coverage, use contrasting application and Terminal theme colors so
    uncovered pixels cannot pass unnoticed.
 
+For Monaco typing, reuse the existing spec pattern that clicks the visible `.monaco-editor`
+surface. Do not assume a textarea or clickable textbox: EditContext can expose a zero-size input.
+
 ## Scripted launch
 
 Use the launch helpers instead of the developer's real profile:

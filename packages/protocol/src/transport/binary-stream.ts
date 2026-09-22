@@ -169,6 +169,7 @@ const binaryStreamTerminalAttachmentResultSchema = z
 const binaryStreamFileDocumentResultSchema = z
     .object({
         kind: z.literal('file-document'),
+        readOnly: z.boolean().optional(),
         path: pathSchema,
         mtimeMs: z.number(),
         size: z.number().int().nonnegative(),

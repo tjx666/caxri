@@ -561,6 +561,7 @@ describe('architecture-a5-binary-streams: ServerClient integration', () => {
                             content: download,
                             mtimeMs: 10,
                             size: download.length,
+                            readOnly: true,
                         };
                     case 'files.write':
                         return {
@@ -629,7 +630,9 @@ describe('architecture-a5-binary-streams: ServerClient integration', () => {
             const controlStartedAt = performance.now();
             await expect(client.request('app.health', {})).resolves.toMatchObject({ ready: true });
             const controlRoundTripMs = performance.now() - controlStartedAt;
-            await expect(transfer).resolves.toMatchObject({ content: download });
+            const downloaded = await transfer;
+            expect(downloaded.readOnly).toBe(true);
+            expect(downloaded.content).toBe(download);
             const transferMs = performance.now() - transferStartedAt;
             expect(controlRoundTripMs).toBeLessThan(500);
             expect(transferMs).toBeLessThan(5_000);

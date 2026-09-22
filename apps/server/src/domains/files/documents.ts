@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { Stats } from 'node:fs';
 import { constants } from 'node:fs';
 import { lstat, open, realpath, rename, unlink } from 'node:fs/promises';
-import { basename, dirname, join, relative } from 'node:path';
+import { basename, dirname, join, relative, sep } from 'node:path';
 
 import type {
     FileAsset,
@@ -71,6 +71,15 @@ const PREVIEW_ASSET_MEDIA_TYPES = new Map<string, PreviewAssetMediaType>([
     ['svg', 'image/svg+xml'],
     ['webp', 'image/webp'],
 ]);
+
+/**
+ * Use the workspace entry identity so a linked dependency remains view-only without locking its source Project.
+ */
+function isDependencyDocument(resolved: ResolvedSessionPath): boolean {
+    return relative(resolved.root, resolved.workspacePath ?? resolved.path)
+        .split(sep)
+        .includes('node_modules');
+}
 
 function previewAssetMediaType(path: string): PreviewAssetMediaType | undefined {
     const name = basename(path);
@@ -152,6 +161,7 @@ export class DocumentService {
         signal?.throwIfAborted();
         const resolved = await this.resolveDocumentPath(sessionId, path, expected);
         signal?.throwIfAborted();
+        const isReadOnlyDependency = isDependencyDocument(resolved);
         const stats = await lstat(resolved.path);
         if (!stats.isFile() || stats.isSymbolicLink())
             throw new CaxriError('IO', 'Path is not a file');
@@ -160,11 +170,15 @@ export class DocumentService {
             if ((await realpath(resolved.path)) !== resolved.path)
                 throw new CaxriError('IO', 'File path changed during read');
             const openedStats = await file.stat();
+            /**
+             * Pnpm may hard-link package-store files. Authorized dependency entries are view-only; inode checks still
+             * reject replacement and write() refuses their workspace identities before any mutation.
+             */
             if (
                 !openedStats.isFile() ||
                 openedStats.dev !== stats.dev ||
                 openedStats.ino !== stats.ino ||
-                openedStats.nlink > 1
+                (!isReadOnlyDependency && openedStats.nlink > 1)
             ) {
                 throw new CaxriError(
                     'IO',
@@ -184,6 +198,7 @@ export class DocumentService {
                 content: buffer.toString('utf8'),
                 mtimeMs: openedStats.mtimeMs,
                 size: openedStats.size,
+                ...(isReadOnlyDependency && { readOnly: true }),
             };
         } finally {
             await file.close();
@@ -251,6 +266,8 @@ export class DocumentService {
         expected?: ResolvedSessionPath,
     ): Promise<FileDocument> {
         const resolved = await this.resolveDocumentPath(sessionId, path, expected);
+        if (isDependencyDocument(resolved))
+            throw new CaxriError('FORBIDDEN', 'Dependency files are read-only');
         const stats = await lstat(resolved.path);
         if (!stats.isFile() || stats.isSymbolicLink())
             throw new CaxriError('IO', 'Only existing regular files can be saved');
