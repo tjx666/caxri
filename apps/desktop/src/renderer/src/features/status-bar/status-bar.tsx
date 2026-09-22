@@ -152,8 +152,10 @@ function StatusBarContext({
     repo,
     sessionId,
     workbenchProject,
+    isWorktree,
 }: {
     chipVisibility: ChipVisibility;
+    isWorktree: boolean;
     repo?: NonNullable<ProjectStatusOverview['repository']>;
     sessionId?: string;
     workbenchProject?: ProjectRecord;
@@ -181,7 +183,12 @@ function StatusBarContext({
              */}
             {sessionId && <WorkbenchRootPicker branch={repo?.branch} sessionId={sessionId} />}
             {repo && sessionId && (
-                <BranchPicker branch={repo.branch} repositoryId={repo.id} sessionId={sessionId} />
+                <BranchPicker
+                    branch={repo.branch}
+                    repositoryId={repo.id}
+                    sessionId={sessionId}
+                    showTrigger={!isWorktree}
+                />
             )}
             {repo && <RepoStatusChips chipVisibility={chipVisibility} repo={repo} />}
         </div>
@@ -210,6 +217,9 @@ export function StatusBar() {
         >
             <StatusBarContext
                 chipVisibility={chipVisibility}
+                isWorktree={Boolean(
+                    session && workbenchProject && workbenchProject.id !== session.projectId,
+                )}
                 repo={repo}
                 sessionId={sessionId}
                 workbenchProject={workbenchProject}

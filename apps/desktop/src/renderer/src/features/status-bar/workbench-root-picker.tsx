@@ -118,32 +118,36 @@ function WorkbenchRootTrigger({
     isSwitching,
     isWorktree,
     title,
+    rootPath,
 }: {
     branch: string;
     isExpanded: boolean;
     isSwitching: boolean;
     isWorktree: boolean;
     title: string;
+    rootPath: string;
 }) {
     return (
-        <PopoverTrigger
-            role="combobox"
-            aria-expanded={isExpanded}
-            aria-haspopup="listbox"
-            disabled={isSwitching}
-            aria-label={`Switch Workbench Root from ${title}, branch ${branch}`}
-            className={cn(
-                statusItemClassName,
-                'h-5 w-auto max-w-full justify-start px-[5px] text-[11px]',
-            )}
-        >
-            {isWorktree ? (
-                <WorktreeIcon size={13} className="flex-none" />
-            ) : (
-                <FolderGit2 size={13} className="flex-none" />
-            )}
-            <span className="min-w-0 truncate">{title}</span>
-        </PopoverTrigger>
+        <Tooltip content={`${rootPath}\nBranch: ${branch}`}>
+            <PopoverTrigger
+                role="combobox"
+                aria-expanded={isExpanded}
+                aria-haspopup="listbox"
+                disabled={isSwitching}
+                aria-label={`Switch Workbench Root from ${title}, branch ${branch}`}
+                className={cn(
+                    statusItemClassName,
+                    'h-5 w-auto max-w-full justify-start px-[5px] text-[11px]',
+                )}
+            >
+                {isWorktree ? (
+                    <WorktreeIcon size={13} className="flex-none" />
+                ) : (
+                    <FolderGit2 size={13} className="flex-none" />
+                )}
+                <span className="min-w-0 truncate">{title}</span>
+            </PopoverTrigger>
+        </Tooltip>
     );
 }
 
@@ -198,15 +202,14 @@ function WorkbenchRootPickerContent({ branch, sessionId }: WorkbenchRootPickerPr
     );
     return (
         <Popover open={picker.open} onOpenChange={picker.changeOpen}>
-            <Tooltip content={workbenchProject.rootPath}>
-                <WorkbenchRootTrigger
-                    branch={current?.branch ?? branch ?? 'No branch'}
-                    isExpanded={picker.open}
-                    isSwitching={picker.switching}
-                    isWorktree={workbenchProject.id !== session.projectId}
-                    title={workbenchProject.displayTitle}
-                />
-            </Tooltip>
+            <WorkbenchRootTrigger
+                branch={branch ?? current?.branch ?? 'No branch'}
+                isExpanded={picker.open}
+                isSwitching={picker.switching}
+                isWorktree={workbenchProject.id !== session.projectId}
+                title={workbenchProject.displayTitle}
+                rootPath={workbenchProject.rootPath}
+            />
             <PopoverContent
                 side="top"
                 className="w-96 max-w-[calc(100vw-16px)]"

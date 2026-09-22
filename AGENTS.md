@@ -53,6 +53,8 @@ directories.
   use `dianjiang` to consult another agent harness. Keep the consultation read-only unless the
   current request explicitly authorizes the same scoped mutation. Treat the result as evidence.
   Final adjudication stays with the primary agent against current repository state.
+- Treat concrete UI improvement feedback with a clear, bounded outcome as an implementation
+  request. Proceed through delivery unless the user explicitly asks for discussion or analysis only.
 - A request to review current local work authorizes the primary agent to repair validated P0/P1
   findings introduced by that work when the fix is unambiguous, local, and inside the requested
   scope. This applies to direct review, `deep-review`, and `dianjiang` review. Keep delegated
