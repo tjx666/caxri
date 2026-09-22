@@ -8,6 +8,12 @@ import { locateAgentTranscript } from '../transcript';
 import { contentMatchSnippet } from './matching';
 import { TranscriptSearchReader } from './reader';
 
+/**
+ * Derived from the protocol catalog so a new Agent provider becomes searchable with the rest of the app instead of
+ * silently counting as unavailable. A Set because this is tested once per candidate Session inside the scan loop.
+ */
+const SEARCHABLE_PROVIDERS = new Set<string>(agentProviderIds);
+
 interface SearchLimits {
     timeoutMs: number;
     sessions: number;
@@ -62,7 +68,7 @@ export class SessionContentSearch {
             if (
                 !terminal?.provider ||
                 !terminal.agentSessionId ||
-                !agentProviderIds.includes(terminal.provider)
+                !SEARCHABLE_PROVIDERS.has(terminal.provider)
             ) {
                 result.unavailable += 1;
                 continue;
