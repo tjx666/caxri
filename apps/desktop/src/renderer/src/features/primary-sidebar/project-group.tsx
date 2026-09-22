@@ -1,5 +1,5 @@
 import type { DragEvent } from 'react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
 import { ChevronDown, ChevronRight, Paintbrush } from 'lucide-react';
@@ -116,6 +116,7 @@ export function ProjectGroup({
     const revealRowId = primarySidebarRevealRowId(project.id);
     const createSessionRowId = primarySidebarCreateSessionRowId(project.id);
     const [menuOpen, setMenuOpen] = useState(false);
+    const headingReference = useRef<HTMLDivElement>(null);
     /**
      * The worktree marker's column is reserved for the whole group at once, so markers align and titles do not shift
      * sideways as Sessions come and go. Scoped to the group because a Project without one should not be indented for a
@@ -149,6 +150,7 @@ export function ProjectGroup({
                  * `aria-expanded` have to sit on the element focus reaches, not on the box around it.
                  */}
                 <div
+                    ref={headingReference}
                     className="project-heading group/project-heading flex min-h-7 cursor-grab items-center gap-1 rounded-md text-foreground hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] active:cursor-grabbing"
                     data-project-id={project.id}
                     draggable
@@ -184,6 +186,7 @@ export function ProjectGroup({
                         </button>
                     </Tooltip>
                     <ProjectDetailsCard
+                        anchor={headingReference}
                         project={project}
                         sessionCount={projectSessions.length}
                         suppressed={menuOpen}

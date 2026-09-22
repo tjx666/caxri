@@ -226,6 +226,11 @@ test('Project search opens name results and reveals grouped content matches', as
 
         // Enter opens whatever `aria-activedescendant` names, without the list ever taking focus.
         await contentSearch.press('Enter');
+        /**
+         * Reopen only after the closing Portal actually unmounts; reopening during its exit animation accidentally
+         * preserves component-local state and hides a lost search draft on a slower runner.
+         */
+        await expect(contentSearch).toHaveCount(0);
         await expect(running.page.locator('.line-numbers.active-line-number')).toHaveText('80');
         await expect(
             running.page.locator('.view-line').filter({ hasText: 'MagicNeedle' }),

@@ -45,6 +45,7 @@ const e2eRequestState: {
     logsQueryTimestamps: number[];
     mobilePairingBridge?: E2EMobilePairingBridge;
     pathBrowserStartGate?: E2ERequestGate;
+    settingsLoadGate?: E2ERequestGate;
     sessionStateUpdateCount: number;
 } = { logsQueryCount: 0, logsQueryTimestamps: [], sessionStateUpdateCount: 0 };
 
@@ -78,6 +79,11 @@ async function requestWithId<M extends CaxriMethod>(
     if (isE2E && method === 'session.updateState') e2eRequestState.sessionStateUpdateCount += 1;
     if (isE2E && method === 'pathBrowser.start' && e2eRequestState.pathBrowserStartGate) {
         const gate = e2eRequestState.pathBrowserStartGate;
+        gate.markReached();
+        await gate.released;
+    }
+    if (isE2E && method === 'theme.get' && e2eRequestState.settingsLoadGate) {
+        const gate = e2eRequestState.settingsLoadGate;
         gate.markReached();
         await gate.released;
     }
@@ -165,6 +171,14 @@ if (isE2E) {
         armPathBrowserStartGate: () => {
             e2eRequestState.pathBrowserStartGate = createE2ERequestGate();
         },
+        armSettingsLoadGate: () => {
+            e2eRequestState.settingsLoadGate = createE2ERequestGate();
+        },
+        releaseSettingsLoadGate: () => {
+            e2eRequestState.settingsLoadGate?.release();
+            e2eRequestState.settingsLoadGate = undefined;
+        },
+        waitForSettingsLoadGate: () => e2eRequestState.settingsLoadGate?.reached,
         releasePathBrowserStartGate: () => {
             e2eRequestState.pathBrowserStartGate?.release();
             e2eRequestState.pathBrowserStartGate = undefined;
