@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -210,7 +210,8 @@ exec /bin/zsh -l
 });
 
 test('Status Bar hides the branch chip in a linked worktree and keeps the branch command', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'caxri-statusbar-worktree-'));
+    const temporaryDirectory = await mkdtemp(join(tmpdir(), 'caxri-statusbar-worktree-'));
+    const directory = await realpath(temporaryDirectory);
     const root = join(directory, 'owner');
     const worktree = join(directory, 'worktree');
     await execFileAsync('mkdir', ['-p', root]);
@@ -243,6 +244,13 @@ test('Status Bar hides the branch chip in a linked worktree and keeps the branch
         });
         await expect(selector).toBeVisible();
         await expect(page.getByRole('combobox', { name: /^Switch branch from/ })).toHaveCount(0);
+        await expect(page.getByRole('dialog', { name: 'Authorize worktree?' })).toHaveCount(0);
+        /**
+         * Root identity updates before switching finishes. Hover does not wait for enabled, and React drops mousemove
+         * on a disabled button, so the tooltip cannot start its hover delay until this settles.
+         */
+        await expect(selector).toBeEnabled();
+        await page.mouse.move(0, 0);
         await selector.hover();
         await expect(page.locator('.tooltip-popup')).toContainText('feature/worktree');
         await expect(page.locator('.tooltip-popup')).toContainText(worktree);
