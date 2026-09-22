@@ -192,6 +192,8 @@ export function markShutdown(
         .set({ lastAgentProcessState: terminalProcessState, updatedAt: now })
         .where(inArray(terminals.lastAgentProcessState, liveProcessStates))
         .run();
+    // An unclean shutdown deliberately supplies no Session state: see `shutdownOutcome`'s `unclean` entry.
+    if (primaryAgentSessionState === undefined) return;
     const affectedTerminalIds = database
         .select({ id: terminals.id })
         .from(terminals)
