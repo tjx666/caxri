@@ -120,6 +120,39 @@ describe('Acceptance Electron launcher seams', () => {
         expect(spec.options.env.CAXRI_ACCEPTANCE_THEME_IMPORT).toBe(expected);
     });
 
+    it.each([
+        [undefined, undefined, undefined],
+        ['other-case', undefined, undefined],
+        ['audit-naming-cancel', 'audit-naming-cancel', undefined],
+        [
+            'audit-extension-message-reasons',
+            undefined,
+            'parent-envelope,child-envelope,reply-result',
+        ],
+    ])(
+        'binds Session deletion and protocol fault authority to case %s',
+        (caseId, expectedDelete, expectedFaults) => {
+            const spec = createElectronLaunchSpec({
+                caseId,
+                port: 9222,
+                testRootPath: '/tmp/project',
+                testRootPaths: ['/tmp/project'],
+                userDataDir: '/tmp/caxri-acceptance-owned',
+                environment: {
+                    CAXRI_ACCEPTANCE_SESSION_DELETE: 'audit-argv-bounds',
+                    CAXRI_E2E_EXTENSION_HOST_FAULTS: 'reply-result',
+                    CAXRI_REAL_AGENT_OK: '1',
+                },
+            });
+            // Every ambient value above names a different fixture than the expectation, so a launch value that matched
+            // one would prove the case id was not what decided admission.
+            expect(spec.options.env.CAXRI_ACCEPTANCE_SESSION_DELETE).toBe(expectedDelete);
+            expect(spec.options.env.CAXRI_E2E_EXTENSION_HOST_FAULTS).toBe(expectedFaults);
+            // `CAXRI_REAL_AGENT_OK` is stripped and never rewritten, so it proves the strip list itself still runs.
+            expect(spec.options.env).not.toHaveProperty('CAXRI_REAL_AGENT_OK');
+        },
+    );
+
     it('protects a reused profile as soon as verified process ownership is inherited', () => {
         expect(shouldPreserveInheritedRuntimeState(runtime.ownedProcesses)).toBe(true);
         expect(shouldPreserveInheritedRuntimeState([])).toBe(false);

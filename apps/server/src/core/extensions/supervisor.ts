@@ -20,11 +20,12 @@ import {
     MAX_VIEW_TREE_PAYLOAD_BYTES,
     treeItemSchema,
 } from '@caxri/protocol';
-import type { StructuredLogger } from '@caxri/system';
+import type { ExtensionHostProtocolFault, StructuredLogger } from '@caxri/system';
 import {
     currentObservationContext,
     logEventCatalog,
     mergeObservationContext,
+    resolveExtensionHostProtocolFaults,
     runWithObservationContext,
     safeProcessEnvironment,
 } from '@caxri/system';
@@ -39,6 +40,7 @@ import {
     extensionWorkspaceOperations,
     MAX_EXTENSION_PROJECT_STATUS_REFRESH_TOKEN_LENGTH,
 } from '../../extension-host/protocol';
+import { logProtocolRejection } from '../../extension-host/protocol-diagnostics';
 import { observationContextSchema } from '../../observability/context-schema';
 
 interface PendingRequest {
@@ -56,6 +58,11 @@ export interface ExtensionHostSupervisorOptions {
     executable?: string;
     extensionHostPath: string;
     logger: StructuredLogger;
+    /**
+     * Acceptance-only override for the reproduced protocol-rejection sequence. Production callers omit it so the
+     * sequence is resolved from the fail-closed environment gate instead.
+     */
+    protocolFaults?: ExtensionHostProtocolFault[];
     registrations(): ExtensionHostRegistration[];
     requestApi(request: ExtensionHostApiRequest, signal?: AbortSignal): Promise<unknown>;
     serverId: string;
@@ -251,9 +258,12 @@ export class ExtensionHostSupervisor extends EventTarget {
     private restartResetTimer?: NodeJS.Timeout;
     private circuitOpen = false;
     private startAttempts = 0;
+    private readonly protocolFaults: ExtensionHostProtocolFault[];
+    private corruptNextReplyResult = false;
 
     constructor(private readonly options: ExtensionHostSupervisorOptions) {
         super();
+        this.protocolFaults = options.protocolFaults ?? resolveExtensionHostProtocolFaults();
     }
 
     private rejectPendingRequests(message: string): void {
@@ -325,13 +335,67 @@ export class ExtensionHostSupervisor extends EventTarget {
         }
     }
 
+    /**
+     * Replaces the next successful reply's payload so the real `reply-result` rejection runs against a real reply.
+     * Armed only by an Acceptance fault sequence. `undefined` is the only value every method rejects: `viewOperation`
+     * accepts any serializable payload including `null`, so the reason under test would otherwise depend on which
+     * request happened to answer first.
+     */
+    private applyReplyResultFault(message: ExtensionHostMessage): ExtensionHostMessage {
+        if (!this.corruptNextReplyResult || message.type !== 'reply' || !message.ok) return message;
+        this.corruptNextReplyResult = false;
+        return { ...message, result: undefined };
+    }
+
+    /**
+     * Reproduces one Extension Host protocol rejection for an Acceptance case, consuming the sequence one fault per
+     * successful start so each supervised restart surfaces the next reason in the Logs panel.
+     *
+     * Every fault enters through the same code path the corresponding production failure would take: `parent-envelope`
+     * sends a malformed envelope over the live IPC channel and is classified by the Host itself, `child-envelope` hands
+     * the supervisor's own message handler a malformed value, and `reply-result` arms the corruption above and drives a
+     * real request so a real reply is what fails validation. None of them bypass `logProtocolRejection`, and none carry
+     * caller-supplied content into the protocol.
+     */
+    private injectNextProtocolFault(child: ChildProcess): void {
+        const fault = this.protocolFaults.at(0);
+        if (fault === undefined) return;
+        try {
+            this.deliverProtocolFault(fault, child);
+        } catch {
+            // `sendRequest` throws synchronously on a closed or saturated channel, and this runs outside `startOnce`'s
+            // try/catch. Swallow it so an undelivered fault cannot fail an otherwise successful start, disarm the reply
+            // corruption so it can never reach an unrelated later reply, and leave the fault queued for the next start.
+            this.corruptNextReplyResult = false;
+            return;
+        }
+        this.protocolFaults.shift();
+    }
+
+    private deliverProtocolFault(fault: ExtensionHostProtocolFault, child: ChildProcess): void {
+        if (fault === 'reply-result') {
+            this.corruptNextReplyResult = true;
+            // eslint-disable-next-line no-void -- The reply is the subject under test; its rejection is the expected outcome.
+            void this.sendRequest('configure', {
+                extensions: this.options.registrations(),
+            }).catch(() => {});
+            return;
+        }
+        if (fault === 'child-envelope') {
+            this.onMessage({ type: 'caxri-acceptance-invalid-envelope' });
+            return;
+        }
+        if (!isChildConnected(child)) throw new Error('Extension Host channel is closed');
+        child.send({ type: 'caxri-acceptance-invalid-envelope' });
+    }
+
     private onMessage(value: unknown): void {
         if (!isExtensionHostMessage(value)) {
-            this.options.logger.write('error', logEventCatalog.extensionHost.invalidMessage);
+            logProtocolRejection(this.options.logger, 'child-envelope');
             this.child?.kill();
             return;
         }
-        const message = value;
+        const message = this.applyReplyResultFault(value);
         if (message.type === 'ready') {
             this.resolveReady?.();
             this.resolveReady = undefined;
@@ -366,7 +430,7 @@ export class ExtensionHostSupervisor extends EventTarget {
                     code: 'EXTENSION_HOST_UNAVAILABLE',
                 }),
             );
-            this.options.logger.write('error', logEventCatalog.extensionHost.invalidMessage);
+            logProtocolRejection(this.options.logger, 'reply-result');
             this.child?.kill();
         } else if (message.ok) pending.resolve(message.result);
         else pending.reject(extensionHostReplyError(message.error));
@@ -384,6 +448,9 @@ export class ExtensionHostSupervisor extends EventTarget {
         this.rejectReady = undefined;
         this.resolveReady = undefined;
         this.rejectPendingRequests(`Extension Host exited with code ${code}`);
+        // An armed reply corruption belongs to the generation that armed it. Without this reset an injected
+        // `configure` that never answers `ok` would corrupt a healthy Host's reply after the restart.
+        this.corruptNextReplyResult = false;
         if (this.intentionalStop) return;
         this.options.logger.write('error', logEventCatalog.extensionHost.exit, {
             fields: { code },
@@ -507,6 +574,7 @@ export class ExtensionHostSupervisor extends EventTarget {
         }, RESTART_STABILITY_MS);
         this.restartResetTimer.unref();
         this.dispatchEvent(new Event('start'));
+        this.injectNextProtocolFault(child);
     }
 
     private sendRequest(

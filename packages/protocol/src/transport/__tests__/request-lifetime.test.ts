@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
+import {
+    extensionViewOperationMetadata,
+    extensionViewOperationNames,
+} from '../../registry/view-methods';
 import { isNonExpiringServerOperation, isNonExpiringViewOperation } from '../request-lifetime';
 
 describe('isNonExpiringServerOperation', () => {
@@ -32,11 +36,13 @@ describe('isNonExpiringServerOperation', () => {
 });
 
 describe('isNonExpiringViewOperation', () => {
-    it('keeps opaque provider actions on their authoritative completion path', () => {
-        expect(isNonExpiringViewOperation('source.action')).toBe(true);
+    it('derives view lifetimes from the shared operation policy', () => {
+        for (const operation of extensionViewOperationNames)
+            expect(isNonExpiringViewOperation(operation)).toBe(
+                extensionViewOperationMetadata[operation].lifetime === 'non-expiring',
+            );
         expect(isNonExpiringViewOperation('git.sync')).toBe(true);
         expect(isNonExpiringViewOperation('git.discard')).toBe(true);
         expect(isNonExpiringViewOperation('files.list')).toBe(false);
-        expect(isNonExpiringViewOperation('source.snapshot')).toBe(false);
     });
 });

@@ -1,10 +1,12 @@
 import type {
     ExtensionViewEventContext,
+    ExtensionViewOperationName,
     SourceControlActionResult,
     SourceControlHistoryDetails,
     SourceControlHistoryPage,
     SourceControlViewModel,
 } from '@caxri/protocol';
+import { isExtensionViewReadOperation } from '@caxri/protocol';
 import type { QueryClient } from '@tanstack/react-query';
 
 import { caxri } from '../../lib/caxri';
@@ -43,12 +45,7 @@ export interface SourceControlClient {
     ): Promise<SourceControlViewModel>;
 }
 
-type ViewOperation =
-    | 'badge.snapshot'
-    | 'source.action'
-    | 'source.historyDetails'
-    | 'source.historyPage'
-    | 'source.snapshot';
+type ViewOperation = ExtensionViewOperationName;
 
 /**
  * Every operation name {@link controlledViewQueryKey} can put in a cache key. Cache predicates match against this union
@@ -148,7 +145,7 @@ export async function viewOperation<Result>(
          * generation-independent fence: a late read never enters React Query, while a provider action preserves its own
          * completion semantics.
          */
-        if (operation !== 'source.action') signal?.throwIfAborted();
+        if (isExtensionViewReadOperation(operation)) signal?.throwIfAborted();
         return result;
     } finally {
         signal?.removeEventListener('abort', cancel);

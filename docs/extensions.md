@@ -12,6 +12,10 @@ message. The Extension Host loads extension code and owns extension objects, pro
 events, opaque tree handles, and cancellation tokens. Server Core domain services own SQLite,
 Projects, Sessions, PTYs, files, Git, settings, and project status.
 
+Application source must not import bundled extension implementation from `extensions/`. ESLint
+enforces this direction; use the public Extension API and Host protocol instead. Build tooling may
+still compose extension artifacts independently of application runtime imports.
+
 An Extension Host crash advances every extension generation and temporarily marks contributed
 containers as crashed. The Server Core and PTYs remain alive. The supervisor restarts the child and
 reconfigures it from Server Core-owned descriptors. Old API bindings, providers, commands, refresh timers,
@@ -218,6 +222,17 @@ grant. Once an authorized Sync or Discard crosses its mutation boundary, a concu
 cannot turn its authoritative completion into a retryable stale-generation error. Cancellation still
 propagates to Server Core, but non-expiring mutations keep their API request pending until Server Core distinguishes
 pre-boundary `CANCELLED` from an authoritative post-boundary completion.
+
+View operation policies are exhaustive over the public protocol's operation union. Adding an
+operation must also define its result schema, provider dispatch, read-cancellation behavior, and
+request lifetime. Shared policy metadata does not grant capabilities: Core still authorizes the
+target view and active context, and the Host still validates the provider registration and generation.
+The four snapshot/history reads remain cancellable; `source.action` retains its authoritative
+completion and non-expiring request lifetime.
+
+Private protocol rejection logs use `extension_host.invalid_message` with one closed `reason`:
+`parent-envelope`, `child-envelope`, or `reply-result`. These distinguish the receiving boundary
+and validation stage without recording the rejected message, provider output, or error text.
 
 ## View badges
 

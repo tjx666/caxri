@@ -403,7 +403,13 @@ export const IMPORT_PATH_ALIASES: ReadonlyArray<{ prefix: string; target: string
     { prefix: '@desktop-shared/', target: 'apps/desktop/src/shared/' },
 ];
 
-export const VITEST_SOURCE_ROOTS = ['apps', '.agents/skills', 'scripts', 'packages'] as const;
+export const VITEST_SOURCE_ROOTS = [
+    'apps',
+    'extensions',
+    '.agents/skills',
+    'scripts',
+    'packages',
+] as const;
 
 /**
  * Returns whether a test directly imports or re-exports a source file through a relative or tsconfig-alias static

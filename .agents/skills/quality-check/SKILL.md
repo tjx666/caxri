@@ -25,8 +25,9 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [-
   to supported files. Always inspect the resulting diff. Appending file paths to `bun run format`
   does not narrow formatting; use `bun run --silent check <files...> --lint` for a focused pass.
 - `--test` runs changed test files, the existing bounded colocated/domain candidates, and Vitest
-  suites that directly import or re-export a changed source through a static relative specifier. It
-  deliberately ignores dynamic and transitive imports so composition-root suites do not turn a
+  suites that directly import or re-export a changed source through a static relative specifier.
+  Keep the checker's source roots aligned with Vitest's include patterns, including `extensions/`.
+  It deliberately ignores dynamic and transitive imports so composition-root suites do not turn a
   focused check into a broad test run.
 - `--type` runs the repository-wide TypeScript check because TypeScript cannot safely validate one
   file in isolation.

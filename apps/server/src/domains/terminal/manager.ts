@@ -330,6 +330,11 @@ export class TerminalManager {
         this.titleListeners.delete(terminalId);
     }
 
+    private retireTerminalViewState(terminalId: string): void {
+        this.viewSizes.delete(terminalId);
+        this.inputEpochs.delete(terminalId);
+    }
+
     private retireAgentLifecycleSoon(
         terminalId: string,
         state?: ProcessState,
@@ -572,7 +577,10 @@ export class TerminalManager {
         )
             return null;
         const attached = await this.execution.attach(terminalId, size);
-        if (size) this.viewSizes.set(terminalId, size);
+        /**
+         * The execution boundary is asynchronous; retirement may remove the Terminal while attach is pending.
+         */
+        if (size && this.database.getTerminal(terminalId)) this.viewSizes.set(terminalId, size);
         const snapshot = attached.snapshot ?? this.snapshots.read(terminalId);
         this.logAttach(
             terminalId,
@@ -700,8 +708,7 @@ export class TerminalManager {
     }
 
     close(terminalId: string): void {
-        this.viewSizes.delete(terminalId);
-        this.inputEpochs.delete(terminalId);
+        this.retireTerminalViewState(terminalId);
         /**
          * Retire unconditionally: closure is authoritative even before a process exists, and `retireAgentLifecycleSoon`
          * itself decides whether a pending launch still owes a receipt.
@@ -720,6 +727,7 @@ export class TerminalManager {
         const terminalIds = this.database.listTerminals(sessionId).map(({ id }) => id);
         // Retire metadata-owned launches too: executable discovery may not have reserved a Host slot yet.
         for (const terminalId of terminalIds) {
+            this.retireTerminalViewState(terminalId);
             this.retireAgentLifecycleSoon(terminalId, 'stopped', 'terminalClosed');
             this.onStateChanged?.(terminalId, 'stopped');
         }

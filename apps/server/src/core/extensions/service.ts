@@ -9,7 +9,7 @@ import type {
     TreeChildrenResult,
     ViewCatalogSnapshot,
 } from '@caxri/protocol';
-import { CaxriError, methods } from '@caxri/protocol';
+import { CaxriError, isExtensionViewReadOperation, methods } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
@@ -74,13 +74,6 @@ const readWorkspaceOperations = new Set<ExtensionWorkspaceOperation>([
     'git.pullRequestChanges',
     'git.remoteHost',
     'git.summary',
-]);
-
-const readViewOperations = new Set<ExtensionViewOperation>([
-    'badge.snapshot',
-    'source.snapshot',
-    'source.historyPage',
-    'source.historyDetails',
 ]);
 
 function workspaceCapability(operation: ExtensionWorkspaceOperation): ExtensionCapability {
@@ -653,7 +646,7 @@ export class ExtensionService extends EventTarget {
                 assertActiveViewContext(parameters.context, await this.options.activeContext());
             const failure = extensionFailure(error);
             if (
-                readViewOperations.has(parameters.operation) &&
+                isExtensionViewReadOperation(parameters.operation) &&
                 failure.code === 'GENERATION_EXPIRED'
             )
                 throw new CaxriError('CANCELLED', failure.message);
@@ -661,11 +654,11 @@ export class ExtensionService extends EventTarget {
         }
         if (this.states.get(extension.extensionId)?.generation !== generation) {
             const message = 'View provider generation expired';
-            if (readViewOperations.has(parameters.operation))
+            if (isExtensionViewReadOperation(parameters.operation))
                 throw new CaxriError('CANCELLED', message);
             throw Object.assign(new Error(message), { code: 'GENERATION_EXPIRED' });
         }
-        if (readViewOperations.has(parameters.operation))
+        if (isExtensionViewReadOperation(parameters.operation))
             assertActiveViewContext(parameters.context, await this.options.activeContext());
         return validatedExtensionWorkspaceResult(parameters.operation, result);
     }

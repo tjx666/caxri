@@ -286,6 +286,24 @@ export class SessionAutoNamingService {
         this.running.set(session.id, { controller, promise: execute() });
     }
 
+    /**
+     * Retires all Session-keyed naming state before its durable record is deleted.
+     *
+     * A running task stays in `running` until its promise settles so `close()` still owns every started task. Its
+     * controller is aborted first; queued semaphore work then observes the same signal through `isEligible()` and
+     * releases its slot without starting provider work. The finalizer also checks that signal before recreating any
+     * retry state, so a late provider result cannot resurrect state for the retired Session.
+     */
+    forgetSession(sessionId: string): void {
+        this.running.get(sessionId)?.controller.abort();
+        clearTimeout(this.retryTimers.get(sessionId));
+        this.retryTimers.delete(sessionId);
+        this.retryAfter.delete(sessionId);
+        this.deferred.delete(sessionId);
+        this.blockedLaunches.delete(sessionId);
+        this.retryDeferredCounts.delete(sessionId);
+    }
+
     async close(): Promise<void> {
         this.closed = true;
         for (const timer of this.retryTimers.values()) clearTimeout(timer);

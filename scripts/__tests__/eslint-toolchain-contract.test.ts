@@ -1,5 +1,5 @@
 import { readdir, readFile } from 'node:fs/promises';
-import { join, matchesGlob, relative, resolve } from 'node:path';
+import { dirname, join, matchesGlob, relative, resolve } from 'node:path';
 
 import { ESLint } from 'eslint';
 import { format, resolveConfig } from 'prettier';
@@ -41,6 +41,39 @@ async function effectiveConfigFor(path: string): Promise<EffectiveConfig> {
 }
 
 describe('shared ESLint preset toolchain contract', () => {
+    it('rejects application imports of bundled extension implementation', async () => {
+        const paths = [
+            'apps/desktop/src/main/extension-import.ts',
+            'apps/desktop/src/renderer/src/extension-import.ts',
+            'apps/server/src/core/extension-import.ts',
+            'apps/cli/src/extension-import.ts',
+        ];
+        const results = await Promise.all(
+            paths.map((path) => {
+                const specifier = relative(dirname(path), 'extensions/status/src/extension.ts');
+                return lintSource(path, `import '${specifier}';`);
+            }),
+        );
+        for (const result of results)
+            expect(result.messages.map(({ messageId }) => messageId)).toContain(
+                'extensionImplementationImport',
+            );
+    });
+
+    it('preserves extension public API and build artifact composition imports', async () => {
+        const results = await Promise.all([
+            lintSource('apps/server/src/core/extension-contract.ts', "import 'caxri';"),
+            lintSource(
+                'scripts/extension-build.ts',
+                "import '../extensions/status/src/extension';",
+            ),
+        ]);
+        for (const result of results)
+            expect(result.messages.map(({ messageId }) => messageId)).not.toContain(
+                'extensionImplementationImport',
+            );
+    });
+
     it('keeps ESLint syntactic-only: type-aware rules stay with oxlint, not ESLint', async () => {
         // Type-aware linting moved to `oxlint --type-aware` (see .oxlintrc.json and
         // scripts/__tests__/oxlint-toolchain-contract.test.ts). ESLint must neither fire nor even
