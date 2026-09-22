@@ -23,9 +23,10 @@ const commandSchema = z.strictObject({
 /**
  * Supplies only the native confirmation's answer for the fixed Session deletion Acceptance cases. Each deletion needs
  * its own freshly written command file naming the exact Session and carrying a higher sequence, so an armed launch can
- * neither confirm a second deletion nor confirm a different Session than the case asked for. The consumed command is
- * removed so a reused `restart` profile cannot replay it against the next launch's fresh in-memory sequence. The
- * Renderer command, Main authorization, and the Server deletion itself all stay in the path under test.
+ * neither confirm a second deletion nor confirm a different Session than the case asked for. Reading the command also
+ * consumes it, on the rejected paths too, so a reused `restart` profile cannot replay a leftover against the next
+ * launch's fresh in-memory sequence. The Renderer command, Main authorization, and the Server deletion itself all stay
+ * in the path under test.
  *
  * The receipt records the opaque Session id but no prompt text: the confirmation names the Session, and Session names
  * are private Acceptance material while the local id is not.
@@ -66,6 +67,7 @@ export function createAcceptanceSessionDeleteFixture(options: {
                 command = commandSchema.parse(JSON.parse(buffer.toString('utf8', 0, bytesRead)));
             } finally {
                 await handle.close();
+                await rm(commandPath, { force: true });
             }
             if (
                 command.caseId !== caseId ||
@@ -74,7 +76,6 @@ export function createAcceptanceSessionDeleteFixture(options: {
             )
                 throw new Error('Acceptance session delete command does not match this deletion');
             lastSequence = command.sequence;
-            await rm(commandPath, { force: true });
             await appendFile(
                 receiptPath,
                 `${JSON.stringify({
