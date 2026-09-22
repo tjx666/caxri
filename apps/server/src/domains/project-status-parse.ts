@@ -43,6 +43,7 @@ type GitHubCheck = z.infer<typeof githubCheckSchema>;
 export const githubPullRequestSchema = z.object({
     body: z.string().optional(),
     isDraft: z.boolean().optional(),
+    mergeCommit: z.object({ oid: z.string() }).nullish(),
     state: z.string().optional(),
     number: z.number().int().positive().optional(),
     statusCheckRollup: z.array(githubCheckSchema).optional(),
@@ -347,6 +348,7 @@ export function parseGitHubPullRequest(
 ): {
     body: string;
     pullRequest?: ProjectStatusRepo['pullRequest'];
+    mergeCommit?: string;
 } {
     const raw = parseExternalJson(value, githubPullRequestSchema, 'GitHub pull request');
     if (!raw.number || !raw.title || !raw.url) return { body: raw.body ?? '' };
@@ -358,6 +360,11 @@ export function parseGitHubPullRequest(
     checks.sort((a, b) => CHECK_ORDER.indexOf(a.state) - CHECK_ORDER.indexOf(b.state));
     return {
         body: raw.body ?? '',
+        mergeCommit:
+            raw.state?.toUpperCase() === 'MERGED' &&
+            /^[\da-f]{40}$/i.test(raw.mergeCommit?.oid ?? '')
+                ? raw.mergeCommit?.oid
+                : undefined,
         pullRequest: {
             number: raw.number,
             title: raw.title,

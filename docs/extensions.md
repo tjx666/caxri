@@ -267,10 +267,10 @@ Vercel deployment rows (Production, Preview, and branch deployment children) ope
 deployment's Vercel details page, including canceled, pending, and failed attempts. Server Core
 reads bounded deployment lists through `vc api` to retain the stable deployment ID; the site
 hostname is not an inspector identifier. The hover card keeps the site URL as a separate `alias`
-action. Every deployment row is scoped to the checked-out branch: Production represents that
-branch's latest production attempt and Preview the local HEAD's latest preview attempt, so a branch
-that never triggered a production build shows no Production row rather than the default branch's
-live build under a "shipped" glyph. Opening details does not substitute an older successful
+action. Production represents the merged PR's exact merge commit when one is known, otherwise the
+checked-out branch's latest production attempt. Preview still represents the local HEAD's latest
+preview attempt. A branch with neither a matching merged PR build nor its own production build
+shows no Production row rather than the default branch's live build under a "shipped" glyph. Opening details does not substitute an older successful
 deployment.
 Canceled deployments retain neutral aggregation semantics but display a muted circle-slash icon
 and explicit `canceled` text in the environment summary and hover-card badge. Branch deployment

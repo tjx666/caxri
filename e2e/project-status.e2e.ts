@@ -70,7 +70,7 @@ fi
 sleep "$(cat ${JSON.stringify(statusDelayPath)})"
 printf 'request\n' >> ${JSON.stringify(statusRequestLogPath)}
 status_title=$(cat ${JSON.stringify(statusTitlePath)})
-printf '{"body":"Related to https://linear.app/example/issue/TASK-42/project-status","state":"MERGED","isDraft":false,"number":42,"title":"%s","url":"https://github.com/tjx666/project/pull/42","statusCheckRollup":[{"workflowName":"Test","name":"App","status":"COMPLETED","conclusion":"FAILURE","startedAt":"2026-08-23T00:00:00.000Z","completedAt":"2026-08-23T00:02:05.000Z"},{"workflowName":"Test","name":"Packages","status":"COMPLETED","conclusion":"SUCCESS","startedAt":"2026-08-23T00:00:00.000Z","completedAt":"2026-08-23T00:01:00.000Z","detailsUrl":${JSON.stringify(longCheckUrl)}}]}' "$status_title"
+printf '{"body":"Related to https://linear.app/example/issue/TASK-42/project-status","state":"MERGED","mergeCommit":{"oid":"c3d4e5f60718293a4b5c6d7e8f90123456789abc"},"isDraft":false,"number":42,"title":"%s","url":"https://github.com/tjx666/project/pull/42","statusCheckRollup":[{"workflowName":"Test","name":"App","status":"COMPLETED","conclusion":"FAILURE","startedAt":"2026-08-23T00:00:00.000Z","completedAt":"2026-08-23T00:02:05.000Z"},{"workflowName":"Test","name":"Packages","status":"COMPLETED","conclusion":"SUCCESS","startedAt":"2026-08-23T00:00:00.000Z","completedAt":"2026-08-23T00:01:00.000Z","detailsUrl":${JSON.stringify(longCheckUrl)}}]}' "$status_title"
 `,
         'utf8',
     );
@@ -82,9 +82,9 @@ printf '{"body":"Related to https://linear.app/example/issue/TASK-42/project-sta
     await writeFile(
         join(bin, 'vc'),
         String.raw`#!/bin/sh
-# Vercel ANDs its filters, so the branch-scoped target queries must match before the branch list.
 case " $* " in
   *" teams ls "*) printf '%s' '{"teams":[{"slug":"tjx666"}]}' ;;
+  *"meta-githubCommitRef="*"target=production"*) printf '%s' '[]' ;;
   *"target=production"*) printf '%s' '[{"uid":"dpl_Production123","created":1700000000000,"name":"project","readyState":"READY","target":"production","url":"project-production-tjx666.vercel.app","meta":{"githubCommitSha":"c3d4e5f60718293a4b5c6d7e8f90123456789abc","githubCommitMessage":"fix: restore the production alias","githubCommitOrg":"tjx666","githubCommitRepo":"project"}}]' ;;
   *"target=preview"*) printf '%s' '[{"uid":"dpl_Canceled123","name":"project","readyState":"CANCELED","target":"preview","url":"project-preview-tjx666.vercel.app","meta":{"githubCommitSha":"d4e5f60718293a4b5c6d7e8f90123456789abcde","githubCommitMessage":"refactor: split the status tree","githubCommitOrg":"tjx666","githubCommitRepo":"project"}}]' ;;
   *"meta-githubCommitRef="*) printf '%s' '[{"uid":"dpl_Ready123","created":1700000000000,"name":"project","readyState":"READY","target":"preview","url":"project-8ykp416o7-tjx666.vercel.app","meta":{"githubCommitSha":"a1b2c3d4e5f60718293a4b5c6d7e8f9012345678","githubCommitMessage":"feat: add the status rollup\n\nBody the row never shows.","githubCommitOrg":"tjx666","githubCommitRepo":"project","githubCommitAuthorLogin":"tjx666"}},{"uid":"dpl_Building123","name":"project","readyState":"BUILDING","target":"preview","url":"project-building-tjx666.vercel.app"},{"uid":"dpl_Queued123","name":"project","readyState":"QUEUED","target":"production","url":"project-queued-tjx666.vercel.app","meta":{"githubCommitSha":"b2c3d4e5f60718293a4b5c6d7e8f90123456789a","githubCommitMessage":"chore: bump the deploy target","githubCommitOrg":"tjx666","githubCommitRepo":"project"}}]' ;;
