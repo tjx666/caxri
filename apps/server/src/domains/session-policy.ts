@@ -68,11 +68,11 @@ export function sessionActivityReasonForAgentState(
  * Why a Server is bulk-marking every still-alive Terminal at connection-open/close time. `unclean` covers a previous
  * process crash/kill discovered on the next `openDatabase` call; `orderly` covers a graceful Server shutdown (app quit,
  * Session reload). Both leave still-alive Terminals `interrupted` so the next Server start can auto-resume them (with
- * their Agent conversation intact, per GitHub issue #18) — only their primary Agent Session outcome differs: `failed`
- * for an unclean shutdown versus `completed` for an orderly one, since nothing actually failed there. `terminate`
- * covers the explicit user-initiated "Terminate and Close" action (`terminal.terminateAll`): Terminals are marked
- * `stopped`, the same terminal state as a normal exit, so the next Server start treats them as finished and does not
- * auto-restore them.
+ * their Agent conversation intact, per GitHub issue #18) — only their primary Agent Session outcome differs. An
+ * `orderly` quit ends each turn, so it records `completed`; an `unclean` crash says nothing about any conversation and
+ * records no Session state at all. `terminate` covers the explicit user-initiated "Terminate and Close" action
+ * (`terminal.terminateAll`): Terminals are marked `stopped`, the same terminal state as a normal exit, so the next
+ * Server start treats them as finished and does not auto-restore them.
  */
 export type ShutdownReason = 'unclean' | 'orderly' | 'terminate';
 
@@ -87,15 +87,26 @@ export interface ShutdownOutcome {
     terminalProcessState: ProcessState;
     /**
      * Session activity state written when a Session's primary Agent Terminal lands in `terminalProcessState`.
+     *
+     * `undefined` means "leave every Session alone". A Session's activity state describes what its Agent conversation
+     * was doing; whether a process survived is the Terminal's `lastProcessState`. Only a shutdown that says something
+     * about the conversation itself may write here.
      */
-    primaryAgentSessionState: AgentActivityState;
+    primaryAgentSessionState?: AgentActivityState;
 }
 
 const SHUTDOWN_OUTCOMES: Record<ShutdownReason, ShutdownOutcome> = {
+    /**
+     * Caxri died; the Agents did not. Writing a Session state here used to stamp `failed` on every live Session at
+     * once, which is a fact about Caxri's process wearing a field that means "what is this conversation doing". Nothing
+     * ever cleared it, so each unclean exit permanently converted every live Session into a top-of-list Activity row
+     * the user could not act on or dismiss. The Session keeps whatever it was — a Session waiting on the user still is
+     * — and `interrupted` on the Terminal carries the process truth on its own. See
+     * https://github.com/tjx666/caxri/issues/1124.
+     */
     unclean: {
         liveProcessStates: ['running', 'starting'],
         terminalProcessState: 'interrupted',
-        primaryAgentSessionState: 'failed',
     },
     orderly: {
         liveProcessStates: ['running', 'starting'],
