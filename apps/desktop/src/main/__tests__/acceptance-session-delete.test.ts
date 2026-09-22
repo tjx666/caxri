@@ -74,6 +74,8 @@ describe('Acceptance session delete fixture', () => {
         await expect(fixture.confirm(sessionId, prompt)).rejects.toThrow();
         await command('confirm', 2, { sessionId: 'a-different-session' });
         await expect(fixture.confirm(sessionId, prompt)).rejects.toThrow('does not match');
+        // A rejected command is consumed too, so it cannot outlive this launch and be replayed by the next one.
+        await expect(fixture.confirm(sessionId, prompt)).rejects.toThrow();
         await command('cancel', 2);
         await expect(fixture.confirm(sessionId, prompt)).resolves.toEqual({ response: 1 });
         await command('confirm', 3, { caseId: 'audit-argv-bounds' });

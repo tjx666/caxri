@@ -40,8 +40,10 @@ launch must pass it through `--case-id`. A different id silently produces an unf
 - `audit-naming-cancel` answers the Session deletion confirmation in Main instead of opening the
   native sheet. Each deletion still needs its own command file written into the launch's
   `userDataDir` before the gesture: `acceptance-session-delete-command.json` holding
-  `{"caseId":"audit-naming-cancel","decision":"confirm","sequence":<n>}` with a higher `sequence`
-  than the previous one. Cite `acceptance-session-delete-receipt.jsonl` as evidence.
+  `{"caseId":"audit-naming-cancel","decision":"confirm","sequence":<n>,"sessionId":"<id>"}`, where
+  `sessionId` is the Session the gesture deletes and `sequence` is higher than the previous one.
+  Every field is required; the fixture rejects a command that names a different Session. Cite
+  `acceptance-session-delete-receipt.jsonl` as evidence.
 - `audit-extension-message-reasons` injects one Extension Host protocol fault per supervised start,
   and the Host restarts between them. The three reasons land in two different logs: the Extension
   Host records `parent-envelope` because it classifies that envelope itself, while Server Core
