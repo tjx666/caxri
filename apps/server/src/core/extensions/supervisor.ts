@@ -39,6 +39,7 @@ import {
     extensionWorkspaceOperations,
     MAX_EXTENSION_PROJECT_STATUS_REFRESH_TOKEN_LENGTH,
 } from '../../extension-host/protocol';
+import { logProtocolRejection } from '../../extension-host/protocol-diagnostics';
 import { observationContextSchema } from '../../observability/context-schema';
 
 interface PendingRequest {
@@ -327,7 +328,7 @@ export class ExtensionHostSupervisor extends EventTarget {
 
     private onMessage(value: unknown): void {
         if (!isExtensionHostMessage(value)) {
-            this.options.logger.write('error', logEventCatalog.extensionHost.invalidMessage);
+            logProtocolRejection(this.options.logger, 'child-envelope');
             this.child?.kill();
             return;
         }
@@ -366,7 +367,7 @@ export class ExtensionHostSupervisor extends EventTarget {
                     code: 'EXTENSION_HOST_UNAVAILABLE',
                 }),
             );
-            this.options.logger.write('error', logEventCatalog.extensionHost.invalidMessage);
+            logProtocolRejection(this.options.logger, 'reply-result');
             this.child?.kill();
         } else if (message.ok) pending.resolve(message.result);
         else pending.reject(extensionHostReplyError(message.error));

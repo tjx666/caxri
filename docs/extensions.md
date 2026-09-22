@@ -226,6 +226,10 @@ target view and active context, and the Host still validates the provider regist
 The four snapshot/history reads remain cancellable; `source.action` retains its authoritative
 completion and non-expiring request lifetime.
 
+Private protocol rejection logs use `extension_host.invalid_message` with one closed `reason`:
+`parent-envelope`, `child-envelope`, or `reply-result`. These distinguish the receiving boundary
+and validation stage without recording the rejected message, provider output, or error text.
+
 ## View badges
 
 A contributed view opts in with `"badge": true` in its manifest and registers a

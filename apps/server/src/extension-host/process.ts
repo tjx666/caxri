@@ -38,6 +38,7 @@ import type {
     ExtensionHostRequest,
 } from './protocol';
 import { extensionHostParentMessageSchema } from './protocol';
+import { logProtocolRejection } from './protocol-diagnostics';
 import { executeViewOperation } from './view-provider-service';
 
 function isApiReply(
@@ -142,7 +143,7 @@ Object.defineProperty(globalThis, Symbol.for('caxri.extension-api'), {
 process.on('message', (value: unknown) => {
     const parsed = extensionHostParentMessageSchema.safeParse(value);
     if (!parsed.success) {
-        logger.write('error', logEventCatalog.extensionHost.invalidMessage);
+        logProtocolRejection(logger, 'parent-envelope');
         // eslint-disable-next-line no-void -- The lifecycle flushes diagnostics and exits the owned process.
         void processLifecycle.stopAfterProtocolViolation();
         return;
