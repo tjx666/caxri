@@ -5,9 +5,8 @@ import { openStatusBarPicker } from '../../stores/dialogs';
 import { getSelectedSession } from '../../stores/selectors';
 
 /**
- * Whether the status bar is currently showing the branch chip, which is the control `git.switchBranch` asks to open.
- * Read from the same cached `projectStatus.overview` the chip itself renders from, so the palette cannot offer a Switch
- * Branch that would land on a chip that is not there — a Session outside a repository has no branch to leave.
+ * Whether the selected Session has a repository whose branches can be switched. The picker stays mounted even when a
+ * linked worktree hides its status bar trigger, so command availability does not depend on chip visibility.
  */
 export function canSwitchBranch(): boolean {
     const session = getSelectedSession();
