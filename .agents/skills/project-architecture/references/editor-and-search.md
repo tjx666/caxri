@@ -1,5 +1,15 @@
 # Editor state, search, and diff surfaces
 
+Import navigation resolves relative paths and tsconfig `paths`/`baseUrl` inside Server Core. It selects
+the nearest `tsconfig.json` beneath the authorized Project, follows bounded relative `extends` chains,
+and retains declaring-directory origins. Parsed JSONC is cached by file identity and metadata; each
+request reauthorizes entries and checks ancestors again, so edits and newly created nearer configs
+apply without a restart. Config reads are limited to 256 KiB, inheritance to 16 levels and 128 probes,
+and candidate file probes to 4096 per request. Every candidate passes the existing workspace-link
+authorization, and unresolved or invalid imports remain plain text. Click and keyboard navigation
+share this resolver. [Import navigation](../../../../docs/editor-imports.md) documents resolution
+order and limits.
+
 The editor remains intentionally narrow: open, edit, save, in-file search, and diff. Broader IDE
 surfaces require a separate product decision rather than growing incidentally from file operations.
 

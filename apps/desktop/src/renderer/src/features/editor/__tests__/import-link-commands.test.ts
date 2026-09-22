@@ -14,6 +14,7 @@ interface FakeUri {
     authority: string;
     path: string;
     scheme: string;
+    query?: string;
 }
 
 const registered = {
@@ -100,7 +101,8 @@ describe('import links', () => {
                 tooltip: '⌘ click to open',
                 url: {
                     authority: 'session-a',
-                    path: '/project/src/sibling.ts',
+                    path: '/project/src/app.ts',
+                    query: 'specifier=.%2Fsibling',
                     scheme: 'caxri-import',
                 },
             },
@@ -126,17 +128,23 @@ describe('import links', () => {
         await expect(provide(["import { a } from './sibling';"])).resolves.toEqual({ links: [] });
     });
 
-    it('opens its own links against their Session and declines every other scheme', () => {
+    it('re-resolves its links against their Session at activation and declines every other scheme', async () => {
+        mocks.request.mockResolvedValueOnce({
+            resolved: [{ specifier: '@/alias', path: '/project/new-target.ts' }],
+        });
         expect(
             registered.open!({
                 authority: 'session-a',
-                path: '/project/src/sibling.ts',
+                path: '/project/src/app.ts',
+                query: 'specifier=%40%2Falias',
                 scheme: 'caxri-import',
             }),
         ).toBe(true);
-        expect(mocks.openFileForSession).toHaveBeenCalledWith(
-            'session-a',
-            '/project/src/sibling.ts',
+        await vi.waitFor(() =>
+            expect(mocks.openFileForSession).toHaveBeenCalledWith(
+                'session-a',
+                '/project/new-target.ts',
+            ),
         );
 
         expect(registered.open!({ authority: '', path: '/etc/passwd', scheme: 'file' })).toBe(

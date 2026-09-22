@@ -9,18 +9,17 @@ import { pushToast } from '../../stores/toasts';
 import { getActivePaneId, getActivePaneTab } from '../workbench/pane-actions';
 import { openFileForSession } from './document-commands';
 import { mountedEditor } from './editor-reveal';
-import { findRelativeImportSpecifiers, importSpecifierAtPosition } from './import-links';
+import { findImportSpecifiers, importSpecifierAtPosition } from './import-links';
 
 /**
- * Languages whose relative imports this provider understands. JSON is deliberately absent: its `$ref` paths are not
- * module specifiers.
+ * Languages whose imports this provider understands. JSON is deliberately absent: its `$ref` paths are not module
+ * specifiers.
  */
 const IMPORT_LINK_LANGUAGES = ['javascript', 'javascriptreact', 'typescript', 'typescriptreact'];
 
 /**
- * Carries the already-resolved absolute path, and the Session it was resolved against, from the link to the opener. A
- * dedicated scheme rather than `file:` so this opener claims only the links it created and every other link keeps its
- * default handling.
+ * Carries the importing document, specifier and Session from the link to the opener. A dedicated scheme rather than
+ * `file:` so this opener claims only the links it created and every other link keeps its default handling.
  */
 const IMPORT_LINK_SCHEME = 'caxri-import';
 
@@ -31,7 +30,14 @@ const IMPORT_LINK_TOOLTIP = '⌘ click to open';
  * the real Monaco module, which only loads inside a browser environment.
  */
 export interface ImportLinkMonaco {
-    Uri: { from: (components: { authority: string; path: string; scheme: string }) => Uri };
+    Uri: {
+        from: (components: {
+            authority: string;
+            path: string;
+            query: string;
+            scheme: string;
+        }) => Uri;
+    };
     editor: { registerLinkOpener: (opener: { open: (resource: Uri) => boolean }) => IDisposable };
     languages: {
         registerLinkProvider: (
@@ -42,7 +48,7 @@ export interface ImportLinkMonaco {
 }
 
 /**
- * Resolves the relative specifiers in one model against the Server, which is the only side that can tell whether
+ * Resolves the specifiers in one model against the Server, which is the only side that can tell whether
  * `'../../errors'` is `errors.ts`, `errors/index.ts`, or nothing at all. Returning no link for an unresolved specifier
  * is the point: a `tsconfig` alias or a package name must not render as a link that jumps somewhere wrong.
  */
@@ -55,7 +61,7 @@ async function provideImportLinks(
     // all carry a URI this rejects.
     const document = parseEditorModelPath(model.uri);
     if (!document) return { links: [] };
-    const matches = findRelativeImportSpecifiers(model.getLinesContent(), MAX_RESOLVED_IMPORTS);
+    const matches = findImportSpecifiers(model.getLinesContent(), MAX_RESOLVED_IMPORTS);
     if (matches.length === 0) return { links: [] };
     let resolved: Array<{ path: string; specifier: string }>;
     try {
@@ -86,7 +92,8 @@ async function provideImportLinks(
                     tooltip: IMPORT_LINK_TOOLTIP,
                     url: monaco.Uri.from({
                         authority: document.sessionId,
-                        path,
+                        path: document.path,
+                        query: new URLSearchParams({ specifier: match.specifier }).toString(),
                         scheme: IMPORT_LINK_SCHEME,
                     }),
                 },
@@ -96,7 +103,7 @@ async function provideImportLinks(
 }
 
 /**
- * Makes the relative paths inside import statements clickable, opening the target in the current Session's editor.
+ * Makes resolved import specifiers clickable, opening the target in the current Session's editor.
  *
  * Registered once for the whole application rather than per editor instance: Monaco keys link providers by language,
  * and a second registration would offer every link twice.
@@ -109,10 +116,12 @@ export function registerImportLinks(monaco: ImportLinkMonaco): IDisposable[] {
         monaco.editor.registerLinkOpener({
             open: (resource) => {
                 if (resource.scheme !== IMPORT_LINK_SCHEME) return false;
+                const specifier = new URLSearchParams(resource.query).get('specifier');
+                if (!specifier) return false;
                 // Opened against the Session the link was resolved in, not the selected one, so a link clicked in a
                 // background pane cannot land in another Session's editor.
-                // eslint-disable-next-line no-void -- intentional floating-promise discard, openFileForSession reports its own errors
-                void openFileForSession(resource.authority, resource.path);
+                // eslint-disable-next-line no-void -- intentional floating-promise discard, resolveAndOpenImport reports errors
+                void resolveAndOpenImport(resource.authority, resource.path, specifier);
                 return true;
             },
         }),
@@ -140,8 +149,8 @@ export function canOpenImportLinkAtCursor(): boolean {
 }
 
 /**
- * Opens the file named by the relative import under the caret — the keyboard half of ⌘-clicking the same path, which
- * until now was the only way to follow one.
+ * Opens the file named by the import under the caret — the keyboard half of ⌘-clicking the same path, which until now
+ * was the only way to follow one.
  *
  * Resolved here rather than by running Monaco's own `editor.action.openLink`: that action reads whatever the link
  * detector last computed, so it silently does nothing while a pass is still in flight, and it cannot tell "no link
@@ -155,29 +164,40 @@ export async function openImportLinkAtCursor(): Promise<void> {
     const document = parseEditorModelPath(model.uri);
     if (!document) return;
     const match = importSpecifierAtPosition(
-        findRelativeImportSpecifiers(model.getLinesContent(), MAX_RESOLVED_IMPORTS),
+        findImportSpecifiers(model.getLinesContent(), MAX_RESOLVED_IMPORTS),
         position.lineNumber,
         position.column,
     );
     if (!match) {
-        pushToast('info', 'Put the cursor on a relative import path to open it.');
+        pushToast('info', 'Put the cursor on an import path to open it.');
         return;
     }
+    await resolveAndOpenImport(document.sessionId, document.path, match.specifier);
+}
+
+/**
+ * Re-resolve at activation so cached Monaco links cannot open an old target after a config edit.
+ */
+async function resolveAndOpenImport(
+    sessionId: string,
+    from: string,
+    specifier: string,
+): Promise<void> {
     let resolved: Array<{ path: string; specifier: string }>;
     try {
         ({ resolved } = await caxri.request('files.resolveImports', {
-            sessionId: document.sessionId,
-            from: document.path,
-            specifiers: [match.specifier],
+            sessionId,
+            from,
+            specifiers: [specifier],
         }));
     } catch {
-        pushToast('error', `Unable to resolve ${match.specifier}`);
+        pushToast('error', `Unable to resolve ${specifier}`);
         return;
     }
-    const path = resolved.find((entry) => entry.specifier === match.specifier)?.path;
+    const path = resolved.find((entry) => entry.specifier === specifier)?.path;
     if (!path) {
-        pushToast('info', `${match.specifier} does not resolve to a file in this Project.`);
+        pushToast('info', `${specifier} does not resolve to a file in this Project.`);
         return;
     }
-    await openFileForSession(document.sessionId, path);
+    await openFileForSession(sessionId, path);
 }

@@ -62,10 +62,10 @@ const MONACO_WARMUP_LANGUAGES = [
 
 /**
  * Registers every Caxri-owned Monarch language, silences the TypeScript worker's project-less semantic diagnostics,
- * makes relative import paths clickable, and configures the module-level `loader`. Wrapped in one function (invoked
- * once below through a `const` initializer, not a bare top-level call) so this file's only top-level side effects are
- * assignment expressions and variable declarations, which is what unicorn/no-top-level-side-effects allows in an
- * exported module.
+ * makes resolved import specifiers clickable, and configures the module-level `loader`. Wrapped in one function
+ * (invoked once below through a `const` initializer, not a bare top-level call) so this file's only top-level side
+ * effects are assignment expressions and variable declarations, which is what unicorn/no-top-level-side-effects allows
+ * in an exported module.
  */
 function registerMonacoLanguages(): void {
     loader.config({ monaco });
