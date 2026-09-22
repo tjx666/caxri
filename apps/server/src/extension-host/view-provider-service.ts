@@ -1,5 +1,10 @@
 import { randomUUID } from 'node:crypto';
 
+import {
+    assertNever,
+    extensionViewOperationMetadata,
+    isExtensionViewReadOperation,
+} from '@caxri/protocol';
 import type {
     CaxriApi,
     DisposableLike,
@@ -169,8 +174,11 @@ async function executeProviderOperation(
         context?.kind === 'session'
             ? `${context.sessionId}:${context.workbenchProjectId}`
             : 'no-session';
-    if (operation === 'badge.snapshot' && 'provideBadge' in provider)
-        return (await provider.provideBadge({ scopeId }, token)) ?? null;
+    if (operation === 'badge.snapshot') {
+        if ('provideBadge' in provider)
+            return (await provider.provideBadge({ scopeId }, token)) ?? null;
+        throw hostError('CAPABILITY_DENIED', 'View provider does not support this operation');
+    }
     if (!('provideView' in provider))
         throw hostError('CAPABILITY_DENIED', 'View provider does not support this operation');
     const scopedArguments = { ...arguments_, scopeId };
@@ -184,9 +192,7 @@ async function executeProviderOperation(
         case 'source.action':
             return provider.runAction(scopedArguments as never, token);
         default:
-            throw Object.assign(new Error('Unsupported Source Control operation'), {
-                code: 'CAPABILITY_DENIED',
-            });
+            return assertNever(operation, 'Unsupported Source Control operation');
     }
 }
 
@@ -201,7 +207,7 @@ export async function executeViewOperation(parameters: {
 }): Promise<unknown> {
     if (didConsumeCancelTombstone(parameters.requestId))
         throw hostError('CANCELLED', 'View request was cancelled before registration');
-    const key = `${parameters.operation === 'badge.snapshot' ? 'badge' : 'source'}:${parameters.viewId}`;
+    const key = `${extensionViewOperationMetadata[parameters.operation].provider}:${parameters.viewId}`;
     const registration = providers.get(key);
     if (
         !registration ||
@@ -240,7 +246,10 @@ export async function executeViewOperation(parameters: {
          * its provider has crossed a mutation boundary, so a successfully returned result is authoritative.
          */
         // oxlint-disable-next-line typescript/no-unnecessary-condition -- asynchronous cancellation race
-        if (parameters.operation !== 'source.action' && cancellation.token.isCancellationRequested)
+        if (
+            isExtensionViewReadOperation(parameters.operation) &&
+            cancellation.token.isCancellationRequested
+        )
             throw hostError('CANCELLED', 'View request was cancelled');
         return result;
     } catch (error) {

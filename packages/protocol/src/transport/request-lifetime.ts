@@ -1,3 +1,8 @@
+import {
+    extensionViewOperationMetadata,
+    isExtensionViewOperationName,
+} from '../registry/view-methods.js';
+
 const nonExpiringServerOperations = new Set([
     'agent.dispatch.waitInternal',
     'agent.delegation.waitInternal',
@@ -14,7 +19,7 @@ const nonExpiringServerOperations = new Set([
     'terminal.input',
 ]);
 
-const nonExpiringViewOperations = new Set(['source.action', 'git.sync', 'git.discard']);
+const nonExpiringViewOperations = new Set(['git.sync', 'git.discard']);
 
 /**
  * Durable Files mutations, save/copy, and Runtime-authorized destructive Git apply lack a safe retry boundary, while
@@ -31,5 +36,9 @@ export function isNonExpiringServerOperation(method: string): boolean {
  * abandon them and invite a duplicate retry. The provider's cancellation and revision fences still apply.
  */
 export function isNonExpiringViewOperation(operation: string): boolean {
-    return nonExpiringViewOperations.has(operation);
+    return (
+        nonExpiringViewOperations.has(operation) ||
+        (isExtensionViewOperationName(operation) &&
+            extensionViewOperationMetadata[operation].lifetime === 'non-expiring')
+    );
 }

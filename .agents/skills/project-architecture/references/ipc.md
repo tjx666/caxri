@@ -19,6 +19,10 @@ reject an ID reused with different command content. The Electron adapter additio
 requesting WebContents before invoking that dispatcher. Internal Server methods remain outside the
 public command registry.
 
+Controlled view operations use the public protocol union and exhaustive metadata for provider
+routing, cancellation, and request lifetime. Host dispatch must remain exhaustive over that union;
+Core capability and active-context authorization remain independent of the shared lifecycle policy.
+
 Visible task delegation owns a separate `agent-delegation` Server domain. Its explicit
 `agents.delegate` capability and `agent:delegate` grant never widen human Terminal steer or general
 Agent control. Task identity, frozen launch settings and private answers are persisted before/after
