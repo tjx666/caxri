@@ -16,6 +16,27 @@ describe('findTerminalLinks with CJK prose', () => {
         },
     );
 
+    it('separates enumerated location links at a CJK boundary', () => {
+        // Regression: the location parser walks back to whitespace, so an enumeration comma between two
+        // paths was folded into one target such as `src/a.ts:10, src/b.ts`.
+        expect(findTerminalLinks('修改了 src/a.ts:10、src/b.ts:20 两处')).toMatchObject([
+            { kind: 'file', startIndex: 4, target: 'src/a.ts', location: { startLine: 10 } },
+            { kind: 'file', startIndex: 16, target: 'src/b.ts', location: { startLine: 20 } },
+        ]);
+        expect(findTerminalLinks('src/a.ts、src/b.ts:20')).toMatchObject([
+            { kind: 'file', target: 'src/a.ts' },
+            { kind: 'file', target: 'src/b.ts', location: { startLine: 20 } },
+        ]);
+        expect(findTerminalLinks('src/a.ts#L3、src/b.ts#L9')).toMatchObject([
+            { kind: 'file', target: 'src/a.ts', location: { startLine: 3 } },
+            { kind: 'file', target: 'src/b.ts', location: { startLine: 9 } },
+        ]);
+        expect(findTerminalLinks('src/a.ts:1、docs/目录。版本/file.ts:8')).toMatchObject([
+            { kind: 'file', target: 'src/a.ts', location: { startLine: 1 } },
+            { kind: 'file', target: 'docs/目录。版本/file.ts', location: { startLine: 8 } },
+        ]);
+    });
+
     it.each([':', '：'])('detaches a CJK label ending in %s from a relative path', (separator) => {
         const prefix = `字段说明${separator}`;
         for (const suffix of ['', ':57', ':57:3', '#L57-L59']) {
