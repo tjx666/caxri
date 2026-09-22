@@ -158,22 +158,19 @@ describe('shutdownOutcome', () => {
             liveProcessStates: ['running', 'starting'],
             terminalProcessState: 'interrupted',
         });
-        expect(shutdownOutcome('unclean').primaryAgentSessionState).toBeUndefined();
     });
 
-    it('maps an orderly shutdown to interrupted Terminals and a completed primary Agent Session', () => {
+    it('maps an orderly shutdown to interrupted Terminals without changing Session activity', () => {
         expect(shutdownOutcome('orderly')).toEqual({
             liveProcessStates: ['running', 'starting'],
             terminalProcessState: 'interrupted',
-            primaryAgentSessionState: 'completed',
         });
     });
 
-    it('maps an explicit terminate shutdown to stopped Terminals and a completed primary Agent Session', () => {
+    it('maps an explicit terminate shutdown to stopped Terminals without changing Session activity', () => {
         expect(shutdownOutcome('terminate')).toEqual({
             liveProcessStates: ['running', 'starting'],
             terminalProcessState: 'stopped',
-            primaryAgentSessionState: 'completed',
         });
     });
 });

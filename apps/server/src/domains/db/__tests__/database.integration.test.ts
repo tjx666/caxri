@@ -662,6 +662,51 @@ describe('CaxriDatabaseConnection', () => {
         reopened.close();
     });
 
+    it.each(['orderly', 'terminate'] as const)(
+        'preserves conversation activity across %s shutdown and reopen',
+        async (reason) => {
+            const directory = await temporaryDirectory('caxri-db-session-shutdown-');
+            const databasePath = join(directory, 'state.db');
+            const database = new CaxriDatabase(databasePath);
+            const project = database.projects.create(directory);
+            const records = (['waiting', 'running', 'completed'] as const).map((state) => {
+                const session = database.sessions.insert({
+                    projectId: project.id,
+                    displayTitle: `Conversation ${state}`,
+                });
+                const terminal = database.terminals.insert({
+                    sessionId: session.id,
+                    kind: 'codex',
+                    cwd: directory,
+                    title: 'Codex',
+                });
+                database.terminals.updateState(terminal.id, 'running');
+                database.terminals.updateAgentProcessState(terminal.id, 'running');
+                database.sessions.setPrimaryAgent(session.id, {
+                    primaryAgentTerminalId: terminal.id,
+                    displayTitle: session.displayTitle,
+                    lastActivityState: state,
+                });
+                return { sessionId: session.id, terminalId: terminal.id, state };
+            });
+            database.markShutdown(reason);
+            database.close();
+
+            const reopened = new CaxriDatabase(databasePath);
+            try {
+                for (const { sessionId, terminalId, state } of records) {
+                    expect(reopened.sessions.get(sessionId)?.lastActivityState).toBe(state);
+                    expect(reopened.terminals.get(terminalId)).toMatchObject({
+                        lastProcessState: reason === 'terminate' ? 'stopped' : 'interrupted',
+                        lastAgentProcessState: reason === 'terminate' ? 'stopped' : 'interrupted',
+                    });
+                }
+            } finally {
+                reopened.close();
+            }
+        },
+    );
+
     it('marks running Terminals as interrupted for an orderly shutdown, keeping the Session resumable', async () => {
         const directory = await temporaryDirectory('caxri-db-shutdown-orderly-');
         const databasePath = join(directory, 'state.db');
