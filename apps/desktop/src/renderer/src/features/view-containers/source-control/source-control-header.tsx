@@ -60,7 +60,7 @@ export function SourceControlHeader({ controller }: { controller: SourceControlC
                                 <button
                                     type="button"
                                     className={cn(
-                                        'grid size-6 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 text-muted hover:text-foreground',
+                                        'grid size-6 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 text-muted not-aria-disabled:hover:text-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-45',
                                         model.selectedModeId === mode.id &&
                                             'bg-surface text-foreground',
                                     )}

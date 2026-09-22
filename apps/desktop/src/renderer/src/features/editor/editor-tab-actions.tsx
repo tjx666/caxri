@@ -2,6 +2,7 @@ import type { GitDiffTab } from '@caxri/protocol';
 import {
     gitCommitFileDiffTabPath,
     gitPullRequestFileDiffTabPath,
+    isWorkingFileDiffTab,
     parseGitDiffTab,
 } from '@caxri/protocol';
 import { ArrowDown, ArrowUp, FileSymlink, GitCommitHorizontal, GitPullRequest } from 'lucide-react';
@@ -151,10 +152,13 @@ function GitDiffTabActions({
                     onClick={() => {
                         if (!session || !openPath) return;
                         // Carry the reader's place across: opening the file at line 1 loses the hunk they were on, and
-                        // the modified side already numbers lines the way the opened file does.
-                        const selection = paneId
-                            ? getDiffEditorFileSelection(tabPath, paneId)
-                            : undefined;
+                        // the modified side already numbers lines the way the opened file does. Only for a working-tree
+                        // comparison — a commit or pull-request tab shows a past revision, so its caret would land on
+                        // unrelated code in the current file.
+                        const selection =
+                            paneId && isWorkingFileDiffTab(tab)
+                                ? getDiffEditorFileSelection(tabPath, paneId)
+                                : undefined;
                         // eslint-disable-next-line no-void -- openFileForSession reports failures through tryCommand
                         void openFileForSession(session.id, openPath, {
                             focus: true,

@@ -5,6 +5,23 @@ export interface VisibleTranscriptMessage {
 }
 
 /**
+ * Markers that open an injected instruction envelope rather than something the user or the Agent wrote.
+ */
+const INJECTED_BLOCK_PATTERN =
+    /^(?:# AGENTS\.md instructions|<environment_context>|<permissions instructions>|<system-reminder>|<INSTRUCTIONS>|<user_instructions>|<user-prompt-submit-hook>|<local-command|<command-name>|<command-message>)/u;
+
+/**
+ * Drops injected envelopes one content block at a time. Providers append an envelope as a sibling block beside genuine
+ * text, so testing the joined message only caught an envelope that happened to lead it and let a trailing one through.
+ * Session content search returns this text to the Renderer verbatim as a match snippet, so a leaked block is
+ * user-visible. Blocks are tested leading-whitespace-insensitively but retained unmodified, because Grok streaming
+ * chunks are coalesced by the caller and must keep their own spacing.
+ */
+function visibleBlockText(blocks: string[]): string {
+    return blocks.filter((block) => !INJECTED_BLOCK_PATTERN.test(block.trimStart())).join('\n');
+}
+
+/**
  * Shared visible-message boundary for title generation and Session search. Tool bodies, sidechains and injected
  * instructions are excluded before callers truncate or combine text. No transcript data belongs in diagnostics.
  */
@@ -37,26 +54,20 @@ export function extractVisibleTranscriptMessage(
     if (message.role !== 'user' && message.role !== 'assistant') return;
     const rawText =
         typeof message.content === 'string'
-            ? message.content
+            ? visibleBlockText([message.content])
             : Array.isArray(message.content)
-              ? message.content
-                    .flatMap((part: unknown) => {
+              ? visibleBlockText(
+                    message.content.flatMap((part: unknown) => {
                         if (!part || typeof part !== 'object') return [];
                         const block = part as { type?: string; text?: unknown };
                         return ['text', 'input_text', 'output_text'].includes(block.type ?? '') &&
                             typeof block.text === 'string'
                             ? [block.text]
                             : [];
-                    })
-                    .join('\n')
+                    }),
+                )
               : '';
     const text = isGrokChunk ? rawText : rawText.trim();
-    if (
-        !text ||
-        /^(?:# AGENTS\.md instructions|<environment_context>|<permissions instructions>|<system-reminder>|<INSTRUCTIONS>|<local-command|<command-name>|<command-message>)/u.test(
-            text,
-        )
-    )
-        return;
+    if (!text) return;
     return { role: message.role, text, isChunk: isGrokChunk };
 }

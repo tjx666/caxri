@@ -63,4 +63,41 @@ describe('visible transcript messages', () => {
         ])
             expect(extractVisibleTranscriptMessage(record)).toBeUndefined();
     });
+
+    it('drops an injected envelope that trails a genuine content block', () => {
+        expect(
+            extractVisibleTranscriptMessage({
+                type: 'user',
+                message: {
+                    content: [
+                        { type: 'text', text: 'rename the selected Session' },
+                        {
+                            type: 'text',
+                            text: '<system-reminder>synthetic injected guidance</system-reminder>',
+                        },
+                        {
+                            type: 'text',
+                            text: '\n<user_instructions>synthetic</user_instructions>',
+                        },
+                    ],
+                },
+            })?.text,
+        ).toBe('rename the selected Session');
+        expect(
+            extractVisibleTranscriptMessage({
+                type: 'response_item',
+                payload: {
+                    type: 'message',
+                    role: 'user',
+                    content: [
+                        {
+                            type: 'input_text',
+                            text: '<environment_context>synthetic</environment_context>',
+                        },
+                        { type: 'input_text', text: 'open the diff for that file' },
+                    ],
+                },
+            })?.text,
+        ).toBe('open the diff for that file');
+    });
 });

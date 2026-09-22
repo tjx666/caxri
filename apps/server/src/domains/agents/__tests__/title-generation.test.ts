@@ -23,7 +23,7 @@ describe('Session title material', () => {
                     content: [{ type: 'input_text', text: 'Fix the session rename race' }],
                 },
             }),
-        ).toEqual({ role: 'user', text: 'Fix the session rename race' });
+        ).toEqual({ isChunk: false, role: 'user', text: 'Fix the session rename race' });
         expect(
             extractAgentTitleMessage({
                 type: 'response_item',
@@ -60,7 +60,11 @@ describe('Session title material', () => {
                     ],
                 },
             }),
-        ).toEqual({ role: 'assistant', text: 'The title reader used the wrong precedence.' });
+        ).toEqual({
+            isChunk: false,
+            role: 'assistant',
+            text: 'The title reader used the wrong precedence.',
+        });
     });
 
     it('separates the opening request from the latest exchange in the prompt', () => {
@@ -180,6 +184,27 @@ describe('Session title transcript reading', () => {
         expect(context.recent).toHaveLength(6);
         expect(context.recent.map((message) => message.text)).not.toContain('first request');
         expect(context.recent.at(-1)?.text).toBe('step 9');
+        await rm(location.baseRoot, { force: true, recursive: true });
+    });
+
+    it('reads a Grok streaming turn as one message instead of many fragments', async () => {
+        const grokChunk = (sessionUpdate: string, text: string): string =>
+            JSON.stringify({
+                method: 'session/update',
+                params: { update: { sessionUpdate, content: { type: 'text', text } } },
+            });
+        const location = await writeTranscript([
+            grokChunk('user_message_chunk', 'rename the '),
+            grokChunk('user_message_chunk', 'selected Session'),
+            grokChunk('agent_message_chunk', 'Renamed it '),
+            grokChunk('agent_message_chunk', 'to Session titles.'),
+        ]);
+        const context = await readAgentTitleMessages(location);
+        expect(context.opening).toEqual([
+            { role: 'user', text: 'rename the selected Session' },
+            { role: 'assistant', text: 'Renamed it to Session titles.' },
+        ]);
+        expect(context.recent).toEqual([]);
         await rm(location.baseRoot, { force: true, recursive: true });
     });
 

@@ -1,5 +1,5 @@
 import type { MethodResult, SessionRecord } from '@caxri/protocol';
-import { isVirtualEditorTabPath, parseGitDiffTab } from '@caxri/protocol';
+import { isVirtualEditorTabPath, isWorkingFileDiffTab, parseGitDiffTab } from '@caxri/protocol';
 
 import { resolveRepositoryFilePath as resolveRepoFilePath } from '../../lib/repository-file-path';
 import { caxriQueryKey, queryClient } from '../../queries/client';
@@ -44,13 +44,17 @@ interface ActiveFileReference {
  * The line comes from the mounted diff editor's caret: a diff surface owns per-instance comparison models and publishes
  * nothing to the editor status store, so the position exists only in the diff action registry. Resolving the repository
  * root here also keeps a submodule or linked worktree addressed by its own root instead of the Project root.
+ *
+ * Restricted to a working-tree comparison. A commit or pull-request tab renders a past revision, so its caret line
+ * addresses different code than the file on disk, and the path may not be in the checkout at all — this write reaches
+ * the Terminal with no Server round-trip, so nothing downstream would catch either mistake.
  */
 function activeGitDiffReference(
     session: SessionRecord,
     tabPath: string,
 ): ActiveFileReference | undefined {
     const tab = parseGitDiffTab(tabPath);
-    if (!tab || tab.kind === 'changes') return;
+    if (!tab || !isWorkingFileDiffTab(tab)) return;
     const summary = queryClient.getQueryData<MethodResult<'git.summary'>>(
         caxriQueryKey('git.summary', { sessionId: session.id }),
     );

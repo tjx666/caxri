@@ -22,6 +22,20 @@ export type GitDiffTab =
           source: 'commit';
       };
 
+/**
+ * Whether the tab's modified side is the file the checkout holds right now.
+ *
+ * Only an uncommitted working-tree comparison qualifies. A commit or pull-request comparison renders a snapshot read
+ * with `git show <sha>:<path>`, so its line numbers address a past revision and the path may not exist on disk at all.
+ * Anything that carries a caret into the real file, or types a `@path#Lnn` reference with no Server round-trip to
+ * confirm the file, must gate on this rather than on `kind` alone.
+ */
+export function isWorkingFileDiffTab(
+    tab: GitDiffTab,
+): tab is Extract<GitDiffTab, { kind: 'file' }> {
+    return tab.kind === 'file' && tab.source === 'working';
+}
+
 const GIT_DIFF_TAB_PREFIX = 'caxri-git-diff://';
 
 export function gitFileDiffTabPath(repoId: string, path: string): string {

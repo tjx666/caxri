@@ -64,9 +64,9 @@ test('a paused diff worker reports a stall and recovers when its startup resumes
             .getByRole('treeitem', { name: 'example.txt', exact: true })
             .click();
         const diff = page.locator('.git-file-diff');
-        await expect(
-            diff.getByText('The background worker has not answered', { exact: false }),
-        ).toBeVisible({ timeout: 15000 });
+        await expect(diff.getByText('This comparison never started', { exact: false })).toBeVisible(
+            { timeout: 15000 },
+        );
         await page.screenshot({
             path: test.info().outputPath('diff-worker-stalled.png'),
             mask: [page.locator('.xterm')],
