@@ -332,7 +332,7 @@ export const commandDefinitions: CommandDefinition[] = [
         id: 'editor.openImportLink',
         title: 'Open Import Link',
         category: 'Editor',
-        description: 'Open the file named by the relative import path under the editor cursor',
+        description: 'Open the file named by the import specifier under the editor cursor',
         keywords: ['definition', 'follow', 'go to', 'module', 'specifier'],
     },
     {
