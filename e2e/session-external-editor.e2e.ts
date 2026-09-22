@@ -151,14 +151,26 @@ process.stdout.write('External editor Agent ready\r\n');
         await running.page.locator('.xterm-helper-textarea').press('c');
 
         await expect
-            .poll(async () => {
-                const bootstrap = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
-                const terminal = bootstrap.terminals.find(
-                    (candidate) => candidate.sessionId === sessionId,
-                );
-                return { cwd: terminal?.cwd, agentCwd: terminal?.agentCwd };
-            })
-            .toEqual({ cwd: root, agentCwd: worktree });
+            .poll(() =>
+                running.page.evaluate((id) => {
+                    const inspector = (
+                        globalThis as unknown as {
+                            __caxriStores: {
+                                getState(name: string): { bootstrap?: BootstrapState } | undefined;
+                            };
+                        }
+                    ).__caxriStores;
+                    const terminal = inspector
+                        .getState('workbench')
+                        ?.bootstrap?.terminals.find((candidate) => candidate.sessionId === id);
+                    return {
+                        cwd: terminal?.cwd,
+                        agentCwd: terminal?.agentCwd,
+                        state: terminal?.lastAgentProcessState,
+                    };
+                }, sessionId),
+            )
+            .toEqual({ cwd: root, agentCwd: worktree, state: 'running' });
         const fileRow = running.page.locator('.file-list').getByRole('treeitem', {
             name: 'worktree-only.txt',
             exact: true,

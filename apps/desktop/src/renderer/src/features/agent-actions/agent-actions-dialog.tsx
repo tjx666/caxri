@@ -26,11 +26,11 @@ import {
 } from '../../components/ui/command';
 import { Dialog, DialogTitle, PickerDialogContent } from '../../components/ui/dialog';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
+import { isAgentProcessRunning } from '../../lib/terminal-agent-runtime';
 import { useCaxriQuery } from '../../queries/client';
 import { setAgentActionsOpen, useDialogStore } from '../../stores/dialogs';
 import { getBootstrap, useSessions, useSettings, useTerminal } from '../../stores/selectors';
 import { pushToast } from '../../stores/toasts';
-import { isAgentProcessRunning } from '../terminal/terminal-agent-runtime';
 import { focusTerminalById } from '../terminal/terminal-commands';
 import type { AgentActionSubmitMode } from './agent-action-input';
 import {

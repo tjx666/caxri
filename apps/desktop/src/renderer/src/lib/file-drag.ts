@@ -2,6 +2,8 @@ import type { DragEvent } from 'react';
 
 import type { TerminalRecord } from '@caxri/protocol';
 
+import { isAgentProcessRunning } from './terminal-agent-runtime';
+
 /**
  * Custom MIME type carrying a Files entry's absolute path to internal Caxri drop targets.
  */
@@ -34,9 +36,12 @@ export function hasTerminalDraggedPath(event: DragEvent): boolean {
  */
 export function terminalReferencePath(
     path: string,
-    terminal: Pick<TerminalRecord, 'agentCwd' | 'cwd'>,
+    terminal: Pick<TerminalRecord, 'agentCwd' | 'cwd' | 'lastAgentProcessState'>,
 ): string {
-    return terminalInputPath(path, terminal.agentCwd ?? terminal.cwd);
+    const baseDirectory = isAgentProcessRunning(terminal.lastAgentProcessState)
+        ? (terminal.agentCwd ?? terminal.cwd)
+        : terminal.cwd;
+    return terminalInputPath(path, baseDirectory);
 }
 
 /**

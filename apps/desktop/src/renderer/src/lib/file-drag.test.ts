@@ -160,12 +160,27 @@ describe('Terminal file references', () => {
     });
 
     it('resolves references against the verified Agent worktree before launch cwd', () => {
-        const terminal = { cwd: '/repo', agentCwd: '/worktrees/task' };
+        const terminal = {
+            cwd: '/repo',
+            agentCwd: '/worktrees/task',
+            lastAgentProcessState: 'running' as const,
+        };
         expect(terminalReferencePath('/worktrees/task/src/file.ts', terminal)).toBe('src/file.ts');
         expect(terminalReferencePath('/worktrees/task/linked folder', terminal)).toBe(
             "'linked folder'",
         );
         expect(terminalReferencePath('/repo/src/file.ts', terminal)).toBe('/repo/src/file.ts');
         expect(terminalReferencePath('/repo/src/file.ts', { cwd: '/repo' })).toBe('src/file.ts');
+    });
+    it('uses the shell launch directory after the Agent child exits', () => {
+        const terminal = {
+            cwd: '/repo',
+            agentCwd: '/worktrees/task',
+            lastAgentProcessState: 'stopped' as const,
+        };
+        expect(terminalReferencePath('/worktrees/task/src/file.ts', terminal)).toBe(
+            '/worktrees/task/src/file.ts',
+        );
+        expect(terminalReferencePath('/repo/src/file.ts', terminal)).toBe('src/file.ts');
     });
 });
