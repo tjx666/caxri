@@ -12,6 +12,10 @@ message. The Extension Host loads extension code and owns extension objects, pro
 events, opaque tree handles, and cancellation tokens. Server Core domain services own SQLite,
 Projects, Sessions, PTYs, files, Git, settings, and project status.
 
+Application source must not import bundled extension implementation from `extensions/`. ESLint
+enforces this direction; use the public Extension API and Host protocol instead. Build tooling may
+still compose extension artifacts independently of application runtime imports.
+
 An Extension Host crash advances every extension generation and temporarily marks contributed
 containers as crashed. The Server Core and PTYs remain alive. The supervisor restarts the child and
 reconfigures it from Server Core-owned descriptors. Old API bindings, providers, commands, refresh timers,
