@@ -373,17 +373,22 @@ export class ProjectStatusService {
         prepared: PreparedRepo,
         isForced: boolean,
     ): Promise<ProjectStatusRepo> {
+        const github = this.loadGitHub(prepared.repository.rootPath, prepared.context, isForced);
         const [githubState, vercelState, branchState] = await Promise.all([
-            this.loadGitHub(prepared.repository.rootPath, prepared.context, isForced),
-            loadVercelDeployments(
-                {
-                    links: this.vercel.links,
-                    onParseFailure: (error) => this.logExternalParseFailure('vc', error),
-                    run: (arguments_, cwd) => this.runCommand('vc', arguments_, cwd),
-                },
-                prepared.context,
-                prepared.repository.rootPath,
-            ),
+            github,
+            (async () => {
+                const state = await github;
+                return loadVercelDeployments(
+                    {
+                        links: this.vercel.links,
+                        onParseFailure: (error) => this.logExternalParseFailure('vc', error),
+                        run: (arguments_, cwd) => this.runCommand('vc', arguments_, cwd),
+                    },
+                    prepared.context,
+                    prepared.repository.rootPath,
+                    state.mergeCommit,
+                );
+            })(),
             readBranchPublication(
                 prepared.context,
                 (source, arguments_, cwd) => this.runCommand(source, arguments_, cwd),
@@ -417,6 +422,7 @@ export class ProjectStatusService {
         isForced: boolean,
     ): Promise<
         Pick<ProjectStatusRepo, 'pullRequest' | 'linearIssues' | 'acceptances'> & {
+            mergeCommit?: string;
             errors: ProjectStatusError[];
         }
     > {
@@ -456,6 +462,7 @@ export class ProjectStatusService {
             ]);
             return {
                 pullRequest: parsed.pullRequest,
+                mergeCommit: parsed.mergeCommit,
                 linearIssues: linear.issues,
                 acceptances: acceptance.acceptances,
                 errors: [
