@@ -16,24 +16,20 @@ import type { MobileConnectionStatus } from './connection-state';
 import type { MobileCredential } from './credential-store';
 import { expoMobileCredentialStore } from './expo-credential-store';
 import { expoMobileGatewayRuntime } from './expo-mobile-gateway-runtime';
-import type { MobileGatewayConnection, PairedMobileConnection } from './mobile-gateway-client';
+import type { MobileGatewayConnection } from './mobile-gateway-client';
 import {
-    isMobilePairingCancelledError,
     MobileGatewayRequestError,
-    MobilePairingCancelledError,
     MobileReconnectError,
     pairMobileGateway,
     reconnectMobileGateway,
 } from './mobile-gateway-client';
-import type { PairingOperation } from './pairing-attempt';
-import { createPairingAttemptRegistry, runPairingAttempt } from './pairing-attempt';
 import { observeMobileConnectionTermination } from './reconnect-lifecycle';
 import { useMobileReconnect } from './use-mobile-reconnect';
 
 interface MobileClientContextValue {
     forgetDevice: () => Promise<void>;
     lastSeenAt: number | null;
-    pair: (pairingLink: string) => PairingOperation;
+    pair: (pairingLink: string) => Promise<void>;
     paired: boolean;
     request: <M extends CaxriMethod>(
         method: M,
@@ -45,14 +41,6 @@ interface MobileClientContextValue {
 
 const MobileClientContext = createContext<MobileClientContextValue | null>(null);
 
-const settlePairingCompletion = async (operation: Promise<void>): Promise<void> => {
-    try {
-        await operation;
-    } catch {
-        // The owning screen receives the original operation error.
-    }
-};
-
 export const MobileClientProvider = ({ children }: { children: ReactNode }) => {
     const [credential, setCredential] = useState<MobileCredential | null>(null);
     const [lastSeenAt, setLastSeenAt] = useState<number | null>(null);
@@ -60,8 +48,6 @@ export const MobileClientProvider = ({ children }: { children: ReactNode }) => {
     const [status, setStatus] = useState<MobileConnectionStatus>('booting');
     const connection = useRef<MobileGatewayConnection | null>(null);
     const removeTerminationListener = useRef<() => void>(() => {});
-    const pairingAttempts = useRef(createPairingAttemptRegistry());
-    const pairingCompletion = useRef(Promise.resolve());
 
     const replaceConnection = useCallback((next: MobileGatewayConnection | null): void => {
         removeTerminationListener.current();
@@ -90,7 +76,6 @@ export const MobileClientProvider = ({ children }: { children: ReactNode }) => {
     );
 
     useEffect(() => {
-        const attemptRegistry = pairingAttempts.current;
         let isActive = true;
         const loadCredential = async (): Promise<void> => {
             try {
@@ -106,7 +91,6 @@ export const MobileClientProvider = ({ children }: { children: ReactNode }) => {
         void loadCredential();
         return () => {
             isActive = false;
-            attemptRegistry.cancelCurrent();
             replaceConnection(null);
         };
     }, [replaceConnection]);
@@ -148,74 +132,32 @@ export const MobileClientProvider = ({ children }: { children: ReactNode }) => {
     });
 
     const pair = useCallback(
-        (pairingLink: string): PairingOperation => {
-            const attempt = pairingAttempts.current.begin();
+        async (pairingLink: string): Promise<void> => {
             replaceConnection(null);
             setStatus('connecting');
-            const previousCompletion = pairingCompletion.current;
-            const promise = (async (): Promise<void> => {
-                try {
-                    await previousCompletion;
-                    if (!pairingAttempts.current.isCurrent(attempt))
-                        throw new MobilePairingCancelledError();
-                    await runPairingAttempt<PairedMobileConnection>({
-                        adopt: (paired) => adoptConnection(paired.connection),
-                        attempt,
-                        cancellationError: () => new MobilePairingCancelledError(),
-                        isCurrent: () => pairingAttempts.current.isCurrent(attempt),
-                        onComplete: () => {
-                            setLastSeenAt(Date.now());
-                            setRetryAttempt(0);
-                            setStatus('connected');
-                            pairingAttempts.current.finish(attempt);
-                        },
-                        onPaired: (paired) => setCredential(paired.credential),
-                        pair: (signal) =>
-                            pairMobileGateway({
-                                displayName: Device.modelName ?? 'Mobile device',
-                                pairingLink,
-                                runtime: expoMobileGatewayRuntime,
-                                signal,
-                                store: expoMobileCredentialStore,
-                            }),
-                        rollback: (paired) => paired.rollback(),
-                    });
-                } catch (error) {
-                    if (
-                        pairingAttempts.current.isCurrent(attempt) &&
-                        !isMobilePairingCancelledError(error)
-                    )
-                        setStatus(credential ? 'stale' : 'unpaired');
-                    throw error;
-                } finally {
-                    pairingAttempts.current.finish(attempt);
-                }
-            })();
-            pairingCompletion.current = settlePairingCompletion(promise);
-            return {
-                cancel: () => {
-                    const isCurrent = pairingAttempts.current.isCurrent(attempt);
-                    pairingAttempts.current.cancel(attempt);
-                    if (isCurrent) setStatus(credential ? 'stale' : 'unpaired');
-                },
-                promise,
-            };
+            try {
+                const paired = await pairMobileGateway({
+                    displayName: Device.modelName ?? 'Mobile device',
+                    pairingLink,
+                    runtime: expoMobileGatewayRuntime,
+                    store: expoMobileCredentialStore,
+                });
+                setCredential(paired.credential);
+                if (!adoptConnection(paired.connection)) return;
+                setLastSeenAt(Date.now());
+                setRetryAttempt(0);
+                setStatus('connected');
+            } catch (error) {
+                setStatus(credential ? 'stale' : 'unpaired');
+                throw error;
+            }
         },
         [adoptConnection, credential, replaceConnection],
     );
 
     const forgetDevice = useCallback(async (): Promise<void> => {
-        const previousCompletion = pairingCompletion.current;
-        pairingAttempts.current.cancelCurrent();
         replaceConnection(null);
-        const clearing = (async (): Promise<void> => {
-            await previousCompletion;
-            await expoMobileCredentialStore.clear();
-        })();
-        const clearingCompletion = settlePairingCompletion(clearing);
-        pairingCompletion.current = clearingCompletion;
-        await clearing;
-        if (pairingCompletion.current !== clearingCompletion) return;
+        await expoMobileCredentialStore.clear();
         setCredential(null);
         setLastSeenAt(null);
         setRetryAttempt(0);

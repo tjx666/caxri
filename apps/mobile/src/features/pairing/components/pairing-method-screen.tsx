@@ -5,13 +5,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Clipboard from 'expo-clipboard';
-import { router, useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
 
 import { ActionButton } from '../../../components/action-button';
 import { useMobileTheme } from '../../../theme/use-mobile-theme';
 import { useMobileClient } from '../../connection/mobile-client-provider';
-import { isMobilePairingCancelledError } from '../../connection/mobile-gateway-client';
-import type { PairingOperation } from '../../connection/pairing-attempt';
 import { pairingErrorMessage } from '../pairing-error';
 
 interface PairingMethodScreenProperties {
@@ -20,95 +18,44 @@ interface PairingMethodScreenProperties {
 
 export const PairingMethodScreen = ({ method }: PairingMethodScreenProperties) => {
     const theme = useMobileTheme();
-    const { pair: startPairing } = useMobileClient();
+    const client = useMobileClient();
     const [cameraPermission, requestCameraPermission] = useCameraPermissions();
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const pairing = useRef(false);
-    const lifecycle = useRef<{ active: boolean }>({ active: false });
-    const activePairing = useRef<PairingOperation | null>(null);
-    const pendingClipboard = useRef<AbortController | null>(null);
     const lastScannedValue = useRef<string | null>(null);
-    const isLifecycleActive = useCallback(() => lifecycle.current.active, []);
-
-    const cancelPairing = useCallback((): void => {
-        pendingClipboard.current?.abort();
-        pendingClipboard.current = null;
-        activePairing.current?.cancel();
-        activePairing.current = null;
-        pairing.current = false;
-        lastScannedValue.current = null;
-        if (isLifecycleActive()) setBusy(false);
-    }, [isLifecycleActive]);
-
-    useFocusEffect(
-        useCallback(() => {
-            lifecycle.current.active = true;
-            setBusy(false);
-            return () => {
-                lifecycle.current.active = false;
-                cancelPairing();
-            };
-        }, [cancelPairing]),
-    );
 
     const pair = useCallback(
         async (source: string): Promise<void> => {
-            if (pairing.current || pendingClipboard.current || !isLifecycleActive()) return;
+            if (pairing.current) return;
             pairing.current = true;
             setBusy(true);
             setError(null);
-            const operation = startPairing(source);
-            activePairing.current = operation;
             try {
-                await operation.promise;
-                if (isLifecycleActive() && activePairing.current === operation)
-                    router.replace('/sessions');
+                await client.pair(source);
+                router.replace('/sessions');
             } catch (pairingError) {
-                if (
-                    isLifecycleActive() &&
-                    activePairing.current === operation &&
-                    !isMobilePairingCancelledError(pairingError)
-                )
-                    setError(pairingErrorMessage(pairingError));
+                setError(pairingErrorMessage(pairingError));
+                pairing.current = false;
             } finally {
-                if (activePairing.current === operation) {
-                    activePairing.current = null;
-                    pairing.current = false;
-                    if (isLifecycleActive()) setBusy(false);
-                }
+                setBusy(false);
             }
         },
-        [isLifecycleActive, startPairing],
+        [client],
     );
 
     const paste = useCallback(async (): Promise<void> => {
-        if (pairing.current || pendingClipboard.current || !isLifecycleActive()) return;
-        const controller = new AbortController();
-        pendingClipboard.current = controller;
-        setBusy(true);
-        setError(null);
-        try {
-            const source = await Clipboard.getStringAsync();
-            if (controller.signal.aborted || !isLifecycleActive()) return;
-            if (!source) {
-                setError('Your clipboard does not contain a Caxri pairing link.');
-                return;
-            }
-            pendingClipboard.current = null;
-            await pair(source);
-        } finally {
-            if (pendingClipboard.current === controller) {
-                pendingClipboard.current = null;
-                if (isLifecycleActive() && !activePairing.current) setBusy(false);
-            }
+        const source = await Clipboard.getStringAsync();
+        if (!source) {
+            setError('Your clipboard does not contain a Caxri pairing link.');
+            return;
         }
-    }, [isLifecycleActive, pair]);
+        await pair(source);
+    }, [pair]);
 
     const scan = useCallback(
         (source: string): void => {
-            if (lastScannedValue.current === source || pairing.current || pendingClipboard.current)
-                return;
+            if (lastScannedValue.current === source) return;
             lastScannedValue.current = source;
             // eslint-disable-next-line no-void -- The scanner owns this single in-flight pairing attempt.
             void pair(source);
@@ -216,10 +163,7 @@ export const PairingMethodScreen = ({ method }: PairingMethodScreenProperties) =
                     </View>
                     <ActionButton
                         accessibilityHint="Returns to the pairing method choices."
-                        onPress={() => {
-                            cancelPairing();
-                            router.back();
-                        }}
+                        onPress={() => router.back()}
                         testID={`pairing-${method}-back-button`}
                         theme={theme}
                         variant="secondary"

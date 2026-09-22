@@ -113,8 +113,3 @@ a smaller Desktop workspace or an interactive Terminal.
 - Phase one stores the Mac addresses advertised at pairing time. If the Mac changes Wi-Fi networks
   or receives different local addresses, forget the device and pair it again; automatic discovery
   is intentionally deferred until it can be added without broadening LAN trust.
-- Leaving a pairing screen, replacing an attempt, or forgetting a device cancels the owner’s in-flight
-  handshake and ignores any late result. Only the current attempt may persist a credential or adopt
-  a gateway connection; a cancelled persistence step restores the prior credential when it is still
-  current, and an older cleanup cannot remove a newer pairing. A pending clipboard read follows the
-  same screen lifetime.
