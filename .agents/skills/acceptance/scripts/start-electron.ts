@@ -6,7 +6,13 @@ import { basename, dirname, join, relative, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-import { assertBuildOutputsFresh, e2eAgentEnvironmentKeys } from '@caxri/system';
+import {
+    ACCEPTANCE_EXTENSION_HOST_FAULT_SEQUENCE,
+    acceptanceExtensionHostFaultCaseIds,
+    assertBuildOutputsFresh,
+    e2eAgentEnvironmentKeys,
+    EXTENSION_HOST_PROTOCOL_FAULT_ENVIRONMENT_KEY,
+} from '@caxri/system';
 
 import { acceptanceThemeImportCaseIds } from '../../../../apps/desktop/src/main/acceptance-theme-import';
 import type { DesktopLeaseHandle } from '../../switch-worktree/scripts/desktop-lease';
@@ -204,6 +210,7 @@ export function createElectronLaunchSpec({
         'CAXRI_TEST_ROOT_PATHS',
         'CAXRI_REAL_AGENT_E2E',
         'CAXRI_REAL_AGENT_OK',
+        EXTENSION_HOST_PROTOCOL_FAULT_ENVIRONMENT_KEY,
     ])
         delete isolatedEnvironment[key];
     return {
@@ -222,6 +229,10 @@ export function createElectronLaunchSpec({
                 CAXRI_ACCEPTANCE_THEME_IMPORT:
                     useTestRootFixture && acceptanceThemeImportCaseIds.has(caseId ?? '')
                         ? caseId
+                        : undefined,
+                [EXTENSION_HOST_PROTOCOL_FAULT_ENVIRONMENT_KEY]:
+                    acceptanceExtensionHostFaultCaseIds.has(caseId ?? '')
+                        ? ACCEPTANCE_EXTENSION_HOST_FAULT_SEQUENCE
                         : undefined,
                 ...(useTestRootFixture && {
                     CAXRI_TEST_ROOT_PATH: testRootPath,

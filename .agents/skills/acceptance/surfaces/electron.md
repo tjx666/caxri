@@ -32,6 +32,15 @@ give the dialog-specific observation to the user. Do not trigger system UI. Only
 request explicitly asking the agent to verify a native dialog permits the fail-closed exception in
 [../references/native-dialogs.md](../references/native-dialogs.md).
 
+## Case ids bound to a launcher fixture
+
+Some fixtures arm themselves only for a fixed case id, so the plan must reuse that exact id and the
+launch must pass it through `--case-id`. A different id silently produces an unfaulted run.
+
+- `audit-extension-message-reasons` injects one Extension Host protocol fault per supervised start,
+  so Server Core logs `parent-envelope`, `child-envelope`, and `reply-result` once each and the Host
+  restarts between them.
+
 ## Finish
 
 Stop only the owned launcher:

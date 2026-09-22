@@ -3,7 +3,11 @@ import process from 'node:process';
 
 import type { AgentProvider } from '@caxri/protocol';
 import { agentProviderCatalog } from '@caxri/protocol';
-import { createE2EAgentEnvironment, e2eAgentEnvironmentKeys } from '@caxri/system';
+import {
+    createE2EAgentEnvironment,
+    e2eAgentEnvironmentKeys,
+    EXTENSION_HOST_PROTOCOL_FAULT_ENVIRONMENT_KEY,
+} from '@caxri/system';
 import type { ElectronApplication, Locator, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 import { _electron as electron } from 'playwright';
@@ -212,6 +216,11 @@ export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<Runni
     for (const key of agentEnvironmentKeys) {
         if (!Object.hasOwn(agentEnvironment, key)) delete launchEnvironmentSource[key];
     }
+    /**
+     * The Acceptance-only Extension Host fault sequence would otherwise be inherited from the developer's shell and
+     * kill the Host on every E2E launch. The Acceptance launcher strips it the same way.
+     */
+    delete launchEnvironmentSource[EXTENSION_HOST_PROTOCOL_FAULT_ENVIRONMENT_KEY];
     const launchEnvironment = Object.fromEntries(
         Object.entries(launchEnvironmentSource).filter(
             (entry): entry is [string, string] => entry[1] !== undefined,
