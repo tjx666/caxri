@@ -38,8 +38,10 @@ Some fixtures arm themselves only for a fixed case id, so the plan must reuse th
 launch must pass it through `--case-id`. A different id silently produces an unfaulted run.
 
 - `audit-extension-message-reasons` injects one Extension Host protocol fault per supervised start,
-  so Server Core logs `parent-envelope`, `child-envelope`, and `reply-result` once each and the Host
-  restarts between them.
+  and the Host restarts between them. The three reasons land in two different logs: the Extension
+  Host records `parent-envelope` because it classifies that envelope itself, while Server Core
+  records `child-envelope` and `reply-result`. Read both processes' logs; filtering to Server Core
+  alone shows two reasons and looks like the fixture never armed.
 
 ## Finish
 

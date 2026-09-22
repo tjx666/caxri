@@ -615,6 +615,25 @@ describe('Acceptance protocol fault injection', () => {
         expect(rejectionReasons).toEqual([]);
     });
 
+    it('corrupts the reply with a payload every request method rejects', () => {
+        // `viewOperation` accepts any serializable payload, `null` included, so only `undefined` makes the injected
+        // `reply-result` reason independent of which in-flight request answers first.
+        for (const method of [
+            'configure',
+            'activate',
+            'treeChildren',
+            'viewOperation',
+            'executeCommand',
+            'activeContextChanged',
+            'gitChanged',
+            'projectStatusChanged',
+            'cancel',
+            'shutdown',
+        ] as const)
+            expect(isExtensionHostResult(method, undefined)).toBe(false);
+        expect(isExtensionHostResult('viewOperation', null)).toBe(true);
+    });
+
     it('keeps the Acceptance fault sequence aligned with the logged rejection reasons', () => {
         expect([...extensionHostProtocolFaults]).toEqual([
             ...extensionHostProtocolRejectionReasons,
