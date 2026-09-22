@@ -11,6 +11,7 @@ import {
     CommandItem,
     CommandList,
 } from '../../components/ui/command';
+import { Dialog, PickerDialogContent } from '../../components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { Spinner } from '../../components/ui/spinner';
 import { cn } from '../../lib/utilities';
@@ -24,10 +25,12 @@ export function BranchPicker({
     branch,
     repositoryId,
     sessionId,
+    showTrigger = true,
 }: {
     branch: string;
     repositoryId: string;
     sessionId: string;
+    showTrigger?: boolean;
 }) {
     const [open, setOpen] = useState(false);
     const [switching, setSwitching] = useState(false);
@@ -58,6 +61,74 @@ export function BranchPicker({
         }
     };
 
+    const content = (
+        <Command
+            // `cmdk` points the input's `aria-labelledby` at this label, and
+            // `aria-labelledby` outranks `aria-label`, so this string — not a prop on
+            // `CommandInput` — is the search field's accessible name. The popup keeps
+            // `Branches` as its own dialog name above.
+            label="Search branches"
+            defaultValue={branch}
+            filter={pickerSearchScore}
+        >
+            <CommandInput autoFocus placeholder="Search branches…" />
+            <CommandList className="max-h-[min(360px,var(--available-height))]">
+                {branchesQuery.isLoading && (
+                    <div className="flex items-center gap-2 px-2 py-2 text-muted">
+                        <Spinner aria-hidden="true" className="size-3" />
+                        Loading branches…
+                    </div>
+                )}
+                {!branchesQuery.isLoading && (
+                    <CommandEmpty>
+                        {branchesQuery.isError
+                            ? 'Unable to load branches. Reopen to retry.'
+                            : 'No matching branches.'}
+                    </CommandEmpty>
+                )}
+                {branches.map(({ name, committedAt }, index) => (
+                    <CommandItem
+                        key={name}
+                        value={name}
+                        disabled={switching}
+                        className="items-center text-[13px]"
+                        onSelect={() => {
+                            // eslint-disable-next-line no-void -- intentional floating-promise discard, switchBranch() reports its own errors via tryCommand
+                            void selectBranch(name);
+                        }}
+                    >
+                        <Check
+                            size={13}
+                            className={cn('flex-none', name !== branch && 'invisible')}
+                            aria-hidden="true"
+                        />
+                        <span className="min-w-0 flex-1 truncate">{name}</span>
+                        {committedAt !== undefined && (
+                            <span className="flex-none text-[11px] text-muted">
+                                {committedLabels[index]}
+                            </span>
+                        )}
+                    </CommandItem>
+                ))}
+            </CommandList>
+        </Command>
+    );
+    /**
+     * Keep command access independent of the optional status bar trigger.
+     */
+    if (!showTrigger) {
+        return (
+            <Dialog
+                open={open}
+                onOpenChange={(isOpen) => {
+                    if (!switching) setOpen(isOpen);
+                }}
+            >
+                <PickerDialogContent aria-label="Branches">{content}</PickerDialogContent>
+            </Dialog>
+        );
+    }
+
     return (
         <Popover
             open={open}
@@ -86,56 +157,7 @@ export function BranchPicker({
                 className="w-96 max-w-[calc(100vw-16px)]"
                 aria-label="Branches"
             >
-                <Command
-                    // `cmdk` points the input's `aria-labelledby` at this label, and
-                    // `aria-labelledby` outranks `aria-label`, so this string — not a prop on
-                    // `CommandInput` — is the search field's accessible name. The popup keeps
-                    // `Branches` as its own dialog name above.
-                    label="Search branches"
-                    defaultValue={branch}
-                    filter={pickerSearchScore}
-                >
-                    <CommandInput autoFocus placeholder="Search branches…" />
-                    <CommandList className="max-h-[min(360px,var(--available-height))]">
-                        {branchesQuery.isLoading && (
-                            <div className="flex items-center gap-2 px-2 py-2 text-muted">
-                                <Spinner aria-hidden="true" className="size-3" />
-                                Loading branches…
-                            </div>
-                        )}
-                        {!branchesQuery.isLoading && (
-                            <CommandEmpty>
-                                {branchesQuery.isError
-                                    ? 'Unable to load branches. Reopen to retry.'
-                                    : 'No matching branches.'}
-                            </CommandEmpty>
-                        )}
-                        {branches.map(({ name, committedAt }, index) => (
-                            <CommandItem
-                                key={name}
-                                value={name}
-                                disabled={switching}
-                                className="items-center text-[13px]"
-                                onSelect={() => {
-                                    // eslint-disable-next-line no-void -- intentional floating-promise discard, switchBranch() reports its own errors via tryCommand
-                                    void selectBranch(name);
-                                }}
-                            >
-                                <Check
-                                    size={13}
-                                    className={cn('flex-none', name !== branch && 'invisible')}
-                                    aria-hidden="true"
-                                />
-                                <span className="min-w-0 flex-1 truncate">{name}</span>
-                                {committedAt !== undefined && (
-                                    <span className="flex-none text-[11px] text-muted">
-                                        {committedLabels[index]}
-                                    </span>
-                                )}
-                            </CommandItem>
-                        ))}
-                    </CommandList>
-                </Command>
+                {content}
             </PopoverContent>
         </Popover>
     );

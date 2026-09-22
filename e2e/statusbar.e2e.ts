@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -206,5 +206,80 @@ exec /bin/zsh -l
             // Ignore close failures during cleanup.
         }
         await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('Status Bar hides the branch chip in a linked worktree and keeps the branch command', async () => {
+    const temporaryDirectory = await mkdtemp(join(tmpdir(), 'caxri-statusbar-worktree-'));
+    const directory = await realpath(temporaryDirectory);
+    const root = join(directory, 'owner');
+    const worktree = join(directory, 'worktree');
+    await execFileAsync('mkdir', ['-p', root]);
+    await execFileAsync('git', ['init', '-b', 'main'], { cwd: root });
+    await execFileAsync('git', ['config', 'user.email', 'caxri@example.com'], { cwd: root });
+    await execFileAsync('git', ['config', 'user.name', 'Caxri E2E'], { cwd: root });
+    await execFileAsync('git', ['commit', '--allow-empty', '-m', 'initial'], { cwd: root });
+    await execFileAsync('git', ['worktree', 'add', '-b', 'feature/worktree', worktree], {
+        cwd: root,
+    });
+    await execFileAsync('git', ['branch', 'feature/alternate'], { cwd: root });
+    const running = await launchCaxri({
+        userDataDir: join(directory, 'profile'),
+        testRootPath: root,
+    });
+    try {
+        const page = running.page;
+        await createProjectSession(page);
+        await expect(page.getByRole('combobox', { name: 'Switch branch from main' })).toBeVisible();
+        await page.getByRole('combobox', { name: /^Switch Workbench Root from owner/ }).click();
+        await page
+            .getByRole('option', { name: 'feature/worktree, Authorize', exact: true })
+            .click();
+        await page
+            .getByRole('dialog', { name: 'Authorize worktree?' })
+            .getByRole('button', { name: 'Authorize and switch', exact: true })
+            .click();
+        const selector = page.getByRole('combobox', {
+            name: /^Switch Workbench Root from worktree/,
+        });
+        await expect(selector).toBeVisible();
+        await expect(page.getByRole('combobox', { name: /^Switch branch from/ })).toHaveCount(0);
+        await expect(page.getByRole('dialog', { name: 'Authorize worktree?' })).toHaveCount(0);
+        /**
+         * Root identity updates before switching finishes. Hover does not wait for enabled, and React drops mousemove
+         * on a disabled button, so the tooltip cannot start its hover delay until this settles.
+         */
+        await expect(selector).toBeEnabled();
+        await page.mouse.move(0, 0);
+        await selector.hover();
+        await expect(page.locator('.tooltip-popup')).toContainText('feature/worktree');
+        await expect(page.locator('.tooltip-popup')).toContainText(worktree);
+        await page.mouse.move(0, 0);
+        await page.keyboard.press('Meta+Shift+P');
+        const palette = page.getByRole('dialog', { name: 'Command Palette' });
+        await palette
+            .getByPlaceholder('Search projects, sessions, and commands…')
+            .fill('Switch Branch');
+        await palette.getByRole('option', { name: /Switch Branch/ }).click();
+        const branches = page.getByRole('dialog', { name: 'Branches', exact: true });
+        await expect(branches.getByRole('combobox', { name: 'Search branches' })).toBeFocused();
+        await branches.getByRole('option', { name: /^feature\/alternate / }).click();
+        await expect(branches).not.toBeVisible();
+        await expect
+            .poll(async () =>
+                (
+                    await execFileAsync('git', ['branch', '--show-current'], { cwd: worktree })
+                ).stdout.trim(),
+            )
+            .toBe('feature/alternate');
+        await selector.hover();
+        await expect(page.locator('.tooltip-popup')).toContainText('feature/alternate');
+        await page.mouse.move(0, 0);
+        await selector.click();
+        await page.getByRole('option', { name: 'main, Main worktree', exact: true }).click();
+        await expect(page.getByRole('combobox', { name: 'Switch branch from main' })).toBeVisible();
+    } finally {
+        await running.app.close();
+        await rm(directory, { recursive: true, force: true });
     }
 });
