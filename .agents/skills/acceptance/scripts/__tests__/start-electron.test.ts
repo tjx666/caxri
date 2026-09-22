@@ -120,6 +120,35 @@ describe('Acceptance Electron launcher seams', () => {
         expect(spec.options.env.CAXRI_ACCEPTANCE_THEME_IMPORT).toBe(expected);
     });
 
+    it.each([
+        [undefined, undefined, undefined],
+        ['other-case', undefined, undefined],
+        ['audit-naming-cancel', 'audit-naming-cancel', undefined],
+        [
+            'audit-extension-message-reasons',
+            undefined,
+            'parent-envelope,child-envelope,reply-result',
+        ],
+    ])(
+        'binds Session deletion and protocol fault authority to case %s',
+        (caseId, expectedDelete, expectedFaults) => {
+            const spec = createElectronLaunchSpec({
+                caseId,
+                port: 9222,
+                testRootPath: '/tmp/project',
+                testRootPaths: ['/tmp/project'],
+                userDataDir: '/tmp/caxri-acceptance-owned',
+                // Both keys are present in the ambient environment; only the admitted case may keep one.
+                environment: {
+                    CAXRI_ACCEPTANCE_SESSION_DELETE: 'audit-naming-cancel',
+                    CAXRI_E2E_EXTENSION_HOST_FAULTS: 'reply-result',
+                },
+            });
+            expect(spec.options.env.CAXRI_ACCEPTANCE_SESSION_DELETE).toBe(expectedDelete);
+            expect(spec.options.env.CAXRI_E2E_EXTENSION_HOST_FAULTS).toBe(expectedFaults);
+        },
+    );
+
     it('protects a reused profile as soon as verified process ownership is inherited', () => {
         expect(shouldPreserveInheritedRuntimeState(runtime.ownedProcesses)).toBe(true);
         expect(shouldPreserveInheritedRuntimeState([])).toBe(false);
