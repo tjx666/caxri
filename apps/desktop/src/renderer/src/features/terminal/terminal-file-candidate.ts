@@ -154,6 +154,37 @@ export function detachPathCandidateFromCjkProse(token: RawToken, wordSeparators:
 }
 
 /**
+ * A filename and its `:line:column` or `#L` suffix are short, so the enumeration test below inspects a bounded tail
+ * rather than slicing the whole prefix at every boundary; a line made of CJK punctuation would otherwise cost a
+ * quadratic scan.
+ */
+const ENUMERATED_PATH_TAIL_LENGTH = 64;
+
+function hasFileNameBefore(text: string, end: number): boolean {
+    const tail = text.slice(Math.max(0, end - ENUMERATED_PATH_TAIL_LENGTH), end);
+    const { target } = parseTerminalFileLocation(tail.slice(tail.lastIndexOf('/') + 1));
+    return /^\.[\w-]+$/u.test(target) || /^[^/:]+\.[a-z\d][\w-]{0,15}$/iu.test(target);
+}
+
+/**
+ * Start offset of the last path in a CJK enumeration such as `src/a.ts:10、src/b.ts:20`. Location parsing walks back to
+ * whitespace so a configured word separator can stay inside a path, which also lets it swallow the enumeration comma
+ * and report `src/a.ts:10、src/b.ts` as one target; `detachPathCandidateFromCjkProse` cannot see that comma because it
+ * only inspects the text before the first slash. Cut after a boundary only when the text before it already ends in a
+ * filename, so a directory legitimately containing CJK punctuation (`docs/目录。版本/file.ts`) keeps its protection — a
+ * directory whose name ends in a filename shape (`docs/v1.0。版本/`) is the accepted trade-off. Custom word separators
+ * retain exact tokenization control.
+ */
+export function enumeratedPathCandidateStart(text: string, wordSeparators: string): number {
+    if (wordSeparators !== TERMINAL_DEFAULT_WORD_SEPARATORS) return 0;
+    for (let index = text.length - 2; index > 0; index -= 1) {
+        if (CJK_PROSE_BOUNDARIES.has(text[index]) && hasFileNameBefore(text, index))
+            return index + 1;
+    }
+    return 0;
+}
+
+/**
  * Agent prose often glues a full-width note such as `（后者含密钥）。` directly onto a path, and the default word separators
  * contain no CJK punctuation. Only the final path segment is cut so CJK punctuation inside earlier directory names
  * (`docs/目录。版本/file.ts`) keeps its existing protection; custom word separators retain exact tokenization control.

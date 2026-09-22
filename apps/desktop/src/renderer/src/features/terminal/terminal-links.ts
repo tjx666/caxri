@@ -5,6 +5,7 @@ import type { RawToken } from './terminal-file-candidate';
 import {
     CJK_PROSE_BOUNDARIES,
     detachPathCandidateFromCjkProse,
+    enumeratedPathCandidateStart,
     hasAmbiguousCjkProsePrefix,
     isLikelyFilePath,
     TERMINAL_DEFAULT_WORD_SEPARATORS,
@@ -158,10 +159,11 @@ function locationPathStart(text: string, pathEnd: number, wordSeparators: string
     }
     const opener = unmatchedOpeners.at(-1);
     const wrapperStart = opener ? opener.index + 1 : start;
-    return detachPathCandidateFromCjkProse(
+    const detached = detachPathCandidateFromCjkProse(
         { index: wrapperStart, text: text.slice(wrapperStart, pathEnd) },
         wordSeparators,
-    ).index;
+    );
+    return detached.index + enumeratedPathCandidateStart(detached.text, wordSeparators);
 }
 
 /**
