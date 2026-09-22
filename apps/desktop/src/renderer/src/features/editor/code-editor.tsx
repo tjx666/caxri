@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 
 import type { ThemeTokens } from '@caxri/protocol';
+import { defaultAppSettings } from '@caxri/protocol';
 import { parseEditorModelPath } from '@desktop-shared/editor-state';
 import type { OnMount } from '@monaco-editor/react';
 import Editor from '@monaco-editor/react';
@@ -9,7 +10,9 @@ import { useEditorOptions } from '@/hooks/use-editor-options';
 
 import { applyEditorTheme } from '../../lib/editor-theme';
 import { monaco } from '../../lib/monaco';
+import { useWorkbenchStore } from '../../stores/workbench';
 import { publishSourceScroll } from '../preview/preview-scroll-sync';
+import { foldEditorOnOpen } from './editor-auto-fold';
 import { resolveEditorLanguage } from './editor-language';
 import { synchronizeControlledEditorModel } from './editor-model-sync';
 import { markEditorBeforeMount, markEditorMounted } from './editor-performance';
@@ -86,12 +89,26 @@ export function CodeEditor({
     const statusKeyReference = useRef(statusKey);
     const language = resolveEditorLanguage(path);
     const editorOptions = useEditorOptions();
+    const foldOnOpenLineThreshold = useWorkbenchStore(
+        (state) =>
+            state.bootstrap?.settings['editor.foldOnOpenLineThreshold'] ??
+            defaultAppSettings['editor.foldOnOpenLineThreshold'],
+    );
+    /**
+     * Held in a ref rather than read from the effect's dependencies: folding is a decision about the moment a document
+     * opens, and depending on the live value would collapse every editor that is already open the instant the setting
+     * changed — under the hands of whoever was reading one.
+     */
+    const foldOnOpenThresholdReference = useRef(foldOnOpenLineThreshold);
     const handleChange = useCallback(
         (content: string | undefined) => {
             if (!programmaticChangeReference.current) onChange(content);
         },
         [onChange],
     );
+    useEffect(() => {
+        foldOnOpenThresholdReference.current = foldOnOpenLineThreshold;
+    }, [foldOnOpenLineThreshold]);
     useEffect(() => applyEditorTheme(theme), [theme]);
     /**
      * Scroll position and cursor outlive the widget that showed them. The two halves run in different effect phases on
@@ -149,6 +166,17 @@ export function CodeEditor({
                 registrationReference.current = undefined;
         };
     }, [editorInstanceId, language, path]);
+    /**
+     * Declared after the two effects above on purpose: the remembered position is restored and any queued reveal has
+     * been applied by the time this runs, so both are visible to the decision in `foldEditorOnOpen`. The first mount
+     * cannot go through here — the wrapper creates the editor asynchronously — and is handled in `onMount` instead, in
+     * the same order.
+     */
+    useEffect(() => {
+        const editor = editorReference.current;
+        if (editor)
+            foldEditorOnOpen(editor, editorInstanceId, foldOnOpenThresholdReference.current);
+    }, [editorInstanceId, path]);
     useEffect(() => {
         statusKeyReference.current = statusKey;
         const frame = requestAnimationFrame(() => {
@@ -194,6 +222,7 @@ export function CodeEditor({
                     editor,
                     editorInstanceId,
                 );
+                foldEditorOnOpen(editor, editorInstanceId, foldOnOpenThresholdReference.current);
                 publishEditorStatus(editor, statusKeyReference.current);
                 markEditorMounted();
             }}
