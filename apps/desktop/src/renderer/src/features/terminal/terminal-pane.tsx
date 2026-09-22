@@ -24,6 +24,7 @@ import {
 import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
 import { useCommandShortcut } from '../../lib/keybindings';
+import { isAgentProcessRunning } from '../../lib/terminal-agent-runtime';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
 import { openSettings } from '../../stores/dialogs';
@@ -31,7 +32,6 @@ import { useSessionById, useSettings, useTerminal, useTheme } from '../../stores
 import { useWorkbenchStore } from '../../stores/workbench';
 import { useTerminalLinkPicker } from './hooks/use-terminal-link-picker';
 import { useTerminalPaneRuntime } from './hooks/use-terminal-pane-runtime';
-import { isAgentProcessRunning } from './terminal-agent-runtime';
 import {
     activateTerminal,
     clearActiveTerminal,

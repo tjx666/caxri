@@ -45,7 +45,6 @@ import {
     switchBranchFromCommand,
 } from '../features/status-bar/status-bar-picker-commands';
 import { cycleActiveTab } from '../features/tabs/tab-navigation';
-import { isAgentProcessRunning } from '../features/terminal/terminal-agent-runtime';
 import {
     clearActiveTerminal,
     closeTerminal,
@@ -75,6 +74,7 @@ import {
 } from '../features/workbench/pane-actions';
 import { caxri } from '../lib/caxri';
 import { isEditableEventTarget } from '../lib/keybindings';
+import { isAgentProcessRunning } from '../lib/terminal-agent-runtime';
 import { useChromeLayoutStore } from '../stores/chrome-layout';
 import { useDialogStore } from '../stores/dialogs';
 import { getBootstrap, getSelectedSession, selectSelectedProject } from '../stores/selectors';

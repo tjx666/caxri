@@ -1,5 +1,12 @@
 # Terminal input, links, layout, and actions
 
+Files and Editor drops insert a shell-escaped path relative to a running Agent's verified
+`agentCwd`, falling back to the Terminal's launch `cwd`. After the Agent child exits, the surrounding
+shell uses launch `cwd` even if Agent metadata retains the worktree. Switching the visible Workbench Root alone does not
+change an existing Terminal's reference base. Server Core publishes a Terminal record change when
+`agentCwd` is set or cleared, independently of Workbench Root follow policy. Workspace symlinks
+retain their entry paths and use copy-only reference payloads, so dragging a link cannot enable Files move operations.
+
 The Client binary-stream writer reserves one validated payload larger than the ordinary burst budget
 separately from that bounded burst. A concurrent resize or small input can queue before or after a large
 paste without consuming its allowance; a second large payload is rejected until the first settles.
