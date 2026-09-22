@@ -3,7 +3,7 @@ import { dirname } from 'node:path';
 
 import { agentProviderIds } from '@caxri/protocol';
 import Database from 'better-sqlite3';
-import { and, eq, inArray, isNotNull } from 'drizzle-orm';
+import { inArray } from 'drizzle-orm';
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 
@@ -17,7 +17,7 @@ import {
     schemaVersionForMigration,
 } from './migrations/manifest';
 import * as schema from './schema';
-import { sessions, terminals } from './schema';
+import { terminals } from './schema';
 
 export { CURRENT_SCHEMA_VERSION } from './migrations/manifest';
 export { DEFAULT_LAYOUT_VERSION } from './schema';
@@ -169,19 +169,18 @@ function initializeSchema(database: Database.Database): void {
 }
 
 /**
- * Bulk-marks Terminals that were still alive as of `reason` (see {@link ShutdownReason}) with the resulting
- * Terminal/Session state pair decided by `session-policy.ts`'s {@link shutdownOutcome}. This module owns only the
- * query/update mechanics; which states apply is a domain decision. Exported as `markShutdown` for both the recovery
- * path at {@link openDatabase} (always `unclean`) and `./index.ts`'s `CaxriDatabaseConnection.markShutdown`
- * (orderly/terminate, chosen by the caller).
+ * Bulk-marks Terminals that were still alive as of `reason` (see {@link ShutdownReason}) with the resulting Terminal
+ * process state decided by `session-policy.ts`'s {@link shutdownOutcome}. This module owns only the query/update
+ * mechanics; which states apply is a domain decision. Exported as `markShutdown` for both the recovery path at
+ * {@link openDatabase} (always `unclean`) and `./index.ts`'s `CaxriDatabaseConnection.markShutdown` (orderly/terminate,
+ * chosen by the caller).
  */
 export function markShutdown(
     database: CaxriDrizzleDatabase,
     now: number,
     reason: ShutdownReason,
 ): void {
-    const { liveProcessStates, terminalProcessState, primaryAgentSessionState } =
-        shutdownOutcome(reason);
+    const { liveProcessStates, terminalProcessState } = shutdownOutcome(reason);
     database
         .update(terminals)
         .set({ lastProcessState: terminalProcessState, updatedAt: now })
@@ -191,22 +190,6 @@ export function markShutdown(
         .update(terminals)
         .set({ lastAgentProcessState: terminalProcessState, updatedAt: now })
         .where(inArray(terminals.lastAgentProcessState, liveProcessStates))
-        .run();
-    // An unclean shutdown deliberately supplies no Session state: see `shutdownOutcome`'s `unclean` entry.
-    if (primaryAgentSessionState === undefined) return;
-    const affectedTerminalIds = database
-        .select({ id: terminals.id })
-        .from(terminals)
-        .where(
-            and(
-                isNotNull(terminals.provider),
-                eq(terminals.lastProcessState, terminalProcessState),
-            ),
-        );
-    database
-        .update(sessions)
-        .set({ lastActivityState: primaryAgentSessionState })
-        .where(inArray(sessions.primaryAgentTerminalId, affectedTerminalIds))
         .run();
 }
 
