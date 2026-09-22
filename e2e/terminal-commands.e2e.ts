@@ -55,15 +55,6 @@ async function themeTokenColor(page: Page, token: '--danger' | '--success'): Pro
     }, token);
 }
 
-async function typeInTerminal(page: Page, terminalId: string, command: string): Promise<void> {
-    const input = page.locator(
-        `.terminal-pane[data-terminal-id="${terminalId}"] .xterm-helper-textarea`,
-    );
-    await input.focus();
-    await input.pressSequentially(command);
-    await input.press('Enter');
-}
-
 async function expectCommandState(
     surface: Locator,
     expected: { commandCount: number; completedCount: number; lastExitStatus?: number },
@@ -241,7 +232,7 @@ test('command gutter paints running, succeeded, and failed phases without moving
         await expect(surface).toHaveAttribute('data-terminal-renderer', /^(?:dom|webgl)$/u);
         const layoutBefore = await terminalLayoutEvidence(surface);
 
-        await typeInTerminal(running.page, terminalId, 'sleep 60');
+        await typeTerminal(running.page, 'sleep 60', terminalId);
         await expectCommandState(surface, { commandCount: 1, completedCount: 0 });
         const runningPixels = await terminalDecorationPixelEvidence(
             running.app,
@@ -265,7 +256,7 @@ test('command gutter paints running, succeeded, and failed phases without moving
         expect(failedPixels.changedPixels, JSON.stringify(failedPixels)).toBeGreaterThan(16);
         expect(failedPixels.computedColor).toBe(await themeTokenColor(running.page, '--danger'));
 
-        await typeInTerminal(running.page, terminalId, 'true');
+        await typeTerminal(running.page, 'true', terminalId);
         await expectCommandState(surface, {
             commandCount: 2,
             completedCount: 2,
@@ -376,7 +367,7 @@ test('zsh command boundaries survive scrollback, split resize, Session switches,
         await running.page
             .locator(`.work-tab[data-terminal-id="${firstTerminalId}"] [role="tab"]`)
             .click();
-        await typeInTerminal(running.page, firstTerminalId, 'true # AFTER_SPLIT');
+        await typeTerminal(running.page, 'true # AFTER_SPLIT', firstTerminalId);
         await expectCommandState(terminalSurface(running.page, firstTerminalId), {
             commandCount: 1,
             completedCount: 1,
@@ -417,7 +408,7 @@ test('zsh command boundaries survive scrollback, split resize, Session switches,
         await running.page
             .locator(`.work-tab[data-terminal-id="${firstTerminalId}"] [role="tab"]`)
             .click();
-        await typeInTerminal(running.page, firstTerminalId, 'true # AFTER_SESSION_SWITCH');
+        await typeTerminal(running.page, 'true # AFTER_SESSION_SWITCH', firstTerminalId);
         await expectCommandState(terminalSurface(running.page, firstTerminalId), {
             commandCount: 2,
             completedCount: 2,
@@ -425,12 +416,15 @@ test('zsh command boundaries survive scrollback, split resize, Session switches,
         });
 
         await running.page.reload();
-        await expect(terminalSurface(running.page, firstTerminalId)).toBeVisible();
+        await expect(terminalSurface(running.page, firstTerminalId)).toHaveAttribute(
+            'data-terminal-attached',
+            'true',
+        );
         await expectCommandState(terminalSurface(running.page, firstTerminalId), {
             commandCount: 0,
             completedCount: 0,
         });
-        await typeInTerminal(running.page, firstTerminalId, 'true # AFTER_RENDERER_RELOAD');
+        await typeTerminal(running.page, 'true # AFTER_RENDERER_RELOAD', firstTerminalId);
         await expectCommandState(terminalSurface(running.page, firstTerminalId), {
             commandCount: 1,
             completedCount: 1,

@@ -1,11 +1,47 @@
-import { describe, expect, it } from 'vitest';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 
-import type { E2ETestReceipt } from '../reporters/e2e-receipt-reporter';
-import {
+import type { FullConfig, Suite, TestCase, TestResult } from '@playwright/test/reporter';
+import { describe, expect, it, vi } from 'vitest';
+
+import type { E2EPoolReceipt, E2ETestReceipt } from '../reporters/e2e-receipt-reporter';
+import E2EReceiptReporter, {
     assertE2EPoolReceipt,
     createE2EPoolReceipt,
     summarizeE2ETests,
 } from '../reporters/e2e-receipt-reporter';
+
+it('leaves an interrupted test unknown so the pool census executes it independently', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-receipt-interrupted-'));
+    const path = join(directory, 'receipt.json');
+    vi.stubEnv('CAXRI_E2E_POOL', 'parallel-safe');
+    vi.stubEnv('CAXRI_E2E_RECEIPT_PATH', path);
+    try {
+        const reporter = new E2EReceiptReporter();
+        const interrupted = {
+            id: 'interrupted',
+            expectedStatus: 'passed',
+            location: { file: resolve('e2e/example.e2e.ts'), line: 1, column: 1 },
+            titlePath: () => ['', 'example', 'interrupted'],
+        } as TestCase;
+        reporter.onBegin({} as FullConfig, { allTests: () => [interrupted] } as Suite);
+        reporter.onTestEnd(interrupted, {
+            status: 'interrupted',
+            duration: 100,
+            attachments: [],
+            errors: [{ message: 'Target page, context or browser has been closed' }],
+        } as unknown as TestResult);
+        await reporter.onEnd();
+        const result = JSON.parse(await readFile(path, 'utf8')) as E2EPoolReceipt;
+        expect(result.tests).toEqual([
+            expect.objectContaining({ verdict: 'unknown', errorIdentity: null, durationMs: 100 }),
+        ]);
+    } finally {
+        vi.unstubAllEnvs();
+        await rm(directory, { recursive: true, force: true });
+    }
+});
 
 function receipt(overrides: Partial<E2ETestReceipt> = {}): E2ETestReceipt {
     return {

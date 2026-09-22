@@ -17,6 +17,8 @@ Validate the smallest observable behavior below the Electron desktop boundary.
    than skipping the test. Existing untested modules are debt, not precedent: touching an
    untested area does not require backfilling its whole suite, but the behavior you add or change
    there must be covered.
+   Callback regressions must assert the callback was actually registered before invoking it;
+   a no-op fallback can make an unreachable scenario falsely pass.
 3. Do not unit-test React components by default. Extract meaningful state into a hook or pure
    function; route rendering and interaction to `e2e-testing`.
 4. Run the narrowest relevant files:

@@ -1,4 +1,6 @@
-import { readdir, readFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
@@ -17,6 +19,7 @@ import {
     combinePoolReceipts,
     mergeCensusReceipts,
     parseE2EPool,
+    readInvocationReceipt,
     resolveParallelWorkers,
     resolvePoolOutcome,
 } from '../run-e2e-pools';
@@ -55,6 +58,40 @@ function receipt(pool: 'control' | 'desktop-exclusive' | 'parallel-safe', tests:
 }
 
 describe('E2E pools', () => {
+    it('records an invocation crash even when the reporter never writes its receipt', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-receipt-'));
+        try {
+            const missing = await readInvocationReceipt(
+                join(directory, 'missing.json'),
+                'parallel-safe',
+            );
+            const outcome = resolvePoolOutcome(
+                combinePoolReceipts('parallel-safe', [missing]),
+                [{ specs: ['e2e/safe.e2e.ts'] }],
+                [137],
+            );
+            expect(outcome).toMatchObject({
+                result: 137,
+                receipt: {
+                    status: 'failed',
+                    missingSpecs: ['e2e/safe.e2e.ts'],
+                    abortedInvocations: [{ exitCode: 137, specs: ['e2e/safe.e2e.ts'] }],
+                },
+            });
+            expect(Number.isNaN(Date.parse(outcome.receipt.startedAt))).toBe(false);
+            const initial = receipt('parallel-safe', [testReceipt('safe', 'unknown')]);
+            expect(mergeCensusReceipts(initial, [missing])).toMatchObject({
+                status: 'failed',
+                unknown: 1,
+            });
+            await writeFile(join(directory, 'malformed.json'), '{');
+            await expect(
+                readInvocationReceipt(join(directory, 'malformed.json'), 'parallel-safe'),
+            ).rejects.toThrow();
+        } finally {
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
     it('requires one explicit logical pool per single-machine job step', () => {
         expect(parseE2EPool(['--pool', 'parallel-safe'])).toBe('parallel-safe');
         expect(parseE2EPool(['--pool', 'desktop-exclusive'])).toBe('desktop-exclusive');

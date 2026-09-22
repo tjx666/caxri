@@ -174,6 +174,8 @@ one.
 
 CI retains screenshots, traces, the final viewport/grid, fixture ready markers, and content-free
 Main/Runtime logs for failures. Keep the failed CI run red while diagnosing it.
+Use a distinct `CAXRI_E2E_OUTPUT_DIR` for each local reproduction and verification round when comparing
+failures; Playwright clears its output directory at startup, including a preceding pool's evidence.
 
 ### Diagnosing an error-gate notification
 
