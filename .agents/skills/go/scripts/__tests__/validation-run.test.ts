@@ -294,7 +294,7 @@ describe('Go validation runner', () => {
                 {
                     arguments: [
                         '-e',
-                        'process.stdout.write(JSON.stringify({ github: process.env.GH_TOKEN, internal: process.env.CAXRI_GITHUB_TOKEN, path: process.env.PATH, proxy: process.env.HTTPS_PROXY, workers: process.env.CAXRI_VITEST_MAX_WORKERS }))',
+                        'process.stdout.write(JSON.stringify({ authorized: process.env.CAXRI_FULL_SUITE_AUTHORIZED, github: process.env.GH_TOKEN, internal: process.env.CAXRI_GITHUB_TOKEN, path: process.env.PATH, proxy: process.env.HTTPS_PROXY, workers: process.env.CAXRI_VITEST_MAX_WORKERS }))',
                     ],
                     executable: process.execPath,
                     kind: 'fixture',
@@ -302,6 +302,7 @@ describe('Go validation runner', () => {
                 },
                 {
                     environment: {
+                        CAXRI_FULL_SUITE_AUTHORIZED: '1',
                         CAXRI_GITHUB_TOKEN: 'private-internal-token',
                         CAXRI_VITEST_MAX_WORKERS: '2',
                         GH_TOKEN: 'private-github-token',
@@ -313,7 +314,11 @@ describe('Go validation runner', () => {
             ),
         ).resolves.toBe(0);
 
-        expect(JSON.parse(terminalOutput)).toEqual({ path: '/safe/bin', workers: '2' });
+        expect(JSON.parse(terminalOutput)).toEqual({
+            authorized: '1',
+            path: '/safe/bin',
+            workers: '2',
+        });
         const log = await readFile(
             join(dirname(statePath), 'validation/validation-001.log'),
             'utf8',
