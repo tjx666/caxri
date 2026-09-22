@@ -42,9 +42,8 @@ function createMonacoWorker(label: string): Worker {
 
 monacoGlobalScope.MonacoEnvironment = {
     /**
-     * Every Worker Monaco asks for is watched for the one failure that renders as a working editor: a Worker whose
-     * script never runs, which drops every message Monaco sends it without an error (issue #962). Watching is passive;
-     * the Worker handed back is the one Monaco asked for.
+     * Watch for a missing first reply, which can leave a comparison looking unchanged without an error (issue #962).
+     * Watching is passive; a missing reply does not establish whether the script ran, and the Worker is unchanged.
      */
     getWorker: (_moduleId: string, label: string): Worker =>
         monitorEditorWorkerStartup(createMonacoWorker(label), label),

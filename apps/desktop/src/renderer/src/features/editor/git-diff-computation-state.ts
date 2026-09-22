@@ -10,12 +10,11 @@ export const DIFF_STALL_REASON =
     "Couldn't compare these two versions. This isn't a result — the comparison never finished, so the file may well have changed.";
 
 /**
- * The same denial, plus the cause this window has already established: the background worker that computes comparisons
- * never started, so nothing is working on this diff. Naming it is what makes Retry worth pressing — it releases that
- * worker before asking again, which a retry against a healthy-but-slow comparison would have no reason to do.
+ * The first reply is missing. Debugger startup pauses are reproducible, but silence alone cannot distinguish one from a
+ * slow or failed script. Give a recovery action without turning that diagnostic hypothesis into a claimed cause.
  */
 export const DIFF_WORKER_NOT_STARTED_REASON =
-    "Couldn't compare these two versions: the background worker that computes comparisons never started, so nothing is comparing them. This isn't a result — Retry releases that worker and asks for a new one.";
+    'The background worker has not answered, so this comparison is incomplete. If a debugger is pausing workers, resume or disconnect it. Then choose Retry.';
 
 /**
  * Translates one diff computation's outcome into the editor surface's load transition, so the diff shares the file
