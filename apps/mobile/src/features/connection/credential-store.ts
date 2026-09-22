@@ -15,7 +15,10 @@ const mobileCredentialSchema = z.strictObject({
 });
 
 export type MobileCredential = z.infer<typeof mobileCredentialSchema>;
-type MobileCredentialIdentity = Pick<MobileCredential, 'deviceId' | 'generation' | 'serverId'>;
+export type MobileCredentialIdentity = Pick<
+    MobileCredential,
+    'credential' | 'deviceId' | 'generation' | 'serverId'
+>;
 
 export interface CredentialStorageAdapter {
     deleteItemAsync(key: string): Promise<void>;
@@ -28,6 +31,14 @@ export interface MobileCredentialStore {
     clearIfCurrent(identity: MobileCredentialIdentity): Promise<boolean>;
     load(): Promise<MobileCredential | null>;
     save(credential: MobileCredential): Promise<void>;
+    saveIfActive(
+        credential: MobileCredential,
+        isActive: () => boolean,
+    ): Promise<{ previous: MobileCredential | null; saved: boolean }>;
+    restoreIfCurrent(
+        identity: MobileCredentialIdentity,
+        replacement: MobileCredential | null,
+    ): Promise<boolean>;
 }
 
 /**
@@ -61,18 +72,21 @@ export const createMobileCredentialStore = (
             return null;
         }
     };
+    const isMatchingIdentity = (
+        current: MobileCredential | null,
+        identity: MobileCredentialIdentity,
+    ): boolean =>
+        current !== null &&
+        current.serverId === identity.serverId &&
+        current.deviceId === identity.deviceId &&
+        current.generation === identity.generation &&
+        current.credential === identity.credential;
     return {
         clear: () => serialize(() => storage.deleteItemAsync(MOBILE_CREDENTIAL_KEY)),
         clearIfCurrent: (identity) =>
             serialize(async () => {
                 const current = await loadStored();
-                if (
-                    !current ||
-                    current.serverId !== identity.serverId ||
-                    current.deviceId !== identity.deviceId ||
-                    current.generation !== identity.generation
-                )
-                    return false;
+                if (!isMatchingIdentity(current, identity)) return false;
                 await storage.deleteItemAsync(MOBILE_CREDENTIAL_KEY);
                 return true;
             }),
@@ -81,6 +95,35 @@ export const createMobileCredentialStore = (
             serialize(async () => {
                 const value = mobileCredentialSchema.parse(credential);
                 await storage.setItemAsync(MOBILE_CREDENTIAL_KEY, JSON.stringify(value));
+            }),
+        saveIfActive: (credential, isActive) =>
+            serialize(async () => {
+                const previous = await loadStored();
+                if (!isActive()) return { previous, saved: false };
+                const value = mobileCredentialSchema.parse(credential);
+                await storage.setItemAsync(MOBILE_CREDENTIAL_KEY, JSON.stringify(value));
+                if (isActive()) return { previous, saved: true };
+
+                // Keep the write, active-state check, and cancellation rollback in this one queue slot. A load that was
+                // queued while SecureStore was writing must observe the pre-pairing value, never the cancelled one.
+                const current = await loadStored();
+                if (isMatchingIdentity(current, value)) {
+                    if (previous === null) await storage.deleteItemAsync(MOBILE_CREDENTIAL_KEY);
+                    else
+                        await storage.setItemAsync(MOBILE_CREDENTIAL_KEY, JSON.stringify(previous));
+                }
+                return { previous, saved: false };
+            }),
+        restoreIfCurrent: (identity, replacement) =>
+            serialize(async () => {
+                const current = await loadStored();
+                if (!isMatchingIdentity(current, identity)) return false;
+                if (replacement === null) await storage.deleteItemAsync(MOBILE_CREDENTIAL_KEY);
+                else {
+                    const value = mobileCredentialSchema.parse(replacement);
+                    await storage.setItemAsync(MOBILE_CREDENTIAL_KEY, JSON.stringify(value));
+                }
+                return true;
             }),
     };
 };

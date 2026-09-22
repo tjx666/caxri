@@ -44,25 +44,41 @@ const pairingLink = serializeMobilePairingLink({
  */
 class FakeGatewaySocket extends EventTarget {
     #keys?: MobileSessionKeys;
+    readonly #messageDelayMs: number;
+    readonly #onHello?: () => void;
+    readonly #onConfirmation?: () => void;
+    readonly #pairingResultDelayMs: number;
     #shouldFailNextSealedSend = false;
     readonly #shouldRevokeAfterPair: boolean;
     #serverCounter = 0;
     #transcript?: HandshakeTranscript;
 
-    constructor(shouldRevokeAfterPair = false) {
+    constructor(
+        shouldRevokeAfterPair = false,
+        messageDelayMs = 0,
+        onHello?: () => void,
+        pairingResultDelayMs = messageDelayMs,
+        onConfirmation?: () => void,
+    ) {
         super();
+        this.#messageDelayMs = messageDelayMs;
+        this.#onHello = onHello;
+        this.#onConfirmation = onConfirmation;
+        this.#pairingResultDelayMs = pairingResultDelayMs;
         this.#shouldRevokeAfterPair = shouldRevokeAfterPair;
         queueMicrotask(() => this.dispatchEvent(new Event('open')));
     }
 
-    #message(value: unknown): void {
+    #message(value: unknown, delayMs = this.#messageDelayMs): void {
         const data = JSON.stringify(value);
-        queueMicrotask(() => {
+        const dispatch = (): void => {
             this.dispatchEvent(new MessageEvent('message', { data }));
-        });
+        };
+        if (delayMs === 0) queueMicrotask(dispatch);
+        else setTimeout(dispatch, delayMs);
     }
 
-    #sealed(value: unknown, key?: Uint8Array): void {
+    #sealed(value: unknown, key?: Uint8Array, delayMs = this.#messageDelayMs): void {
         if (!this.#keys || !this.#transcript) throw new Error('Handshake is incomplete');
         const counter = this.#serverCounter++;
         const source = JSON.stringify(value);
@@ -76,13 +92,16 @@ class FakeGatewaySocket extends EventTarget {
             },
             new TextEncoder().encode(source),
         );
-        this.#message({
-            type: 'sealed',
-            version: MOBILE_TRANSPORT_VERSION,
-            connectionId,
-            counter,
-            ciphertext: encodeHex(ciphertext),
-        });
+        this.#message(
+            {
+                type: 'sealed',
+                version: MOBILE_TRANSPORT_VERSION,
+                connectionId,
+                counter,
+                ciphertext: encodeHex(ciphertext),
+            },
+            delayMs,
+        );
     }
 
     close(): void {
@@ -98,6 +117,7 @@ class FakeGatewaySocket extends EventTarget {
         const hello = mobileClientHelloSchema.safeParse(raw);
         if (hello.success) {
             if (hello.data.mode !== 'pair') throw new Error('Expected pair hello');
+            this.#onHello?.();
             const serverPublicKey = mobilePublicKey(serverSecret);
             this.#transcript = {
                 mode: 'pair',
@@ -139,13 +159,18 @@ class FakeGatewaySocket extends EventTarget {
                 )
             )
                 throw new Error('Client confirmation failed');
-            this.#sealed({
-                type: 'paired',
-                deviceId,
-                generation: 1,
-                credential: deviceCredential,
-                projectIds: ['project-1'],
-            });
+            this.#onConfirmation?.();
+            this.#sealed(
+                {
+                    type: 'paired',
+                    deviceId,
+                    generation: 1,
+                    credential: deviceCredential,
+                    projectIds: ['project-1'],
+                },
+                undefined,
+                this.#pairingResultDelayMs,
+            );
             if (this.#shouldRevokeAfterPair) {
                 this.sendRevoked();
                 queueMicrotask(() => this.close());
@@ -233,6 +258,18 @@ class UnverifiedReconnectSocket extends EventTarget {
             confirmation: encodeHex(handshakeConfirmation(untrustedKeys, 'server')),
         });
         queueMicrotask(() => this.dispatchEvent(new MessageEvent('message', { data })));
+    }
+}
+
+class NeverOpenSocket extends EventTarget {
+    closeCount = 0;
+
+    close(): void {
+        this.closeCount += 1;
+    }
+
+    send(): void {
+        throw new Error('The pre-open fixture must not send.');
     }
 }
 
@@ -404,5 +441,182 @@ describe('mobile gateway client', () => {
             expect.objectContaining<Partial<MobileReconnectError>>({ code: 'unverified' }),
         );
         await expect(store.load()).resolves.toEqual(mobileCredential);
+    });
+
+    it('closes a pairing handshake when its owner leaves before the server result arrives', async () => {
+        const { store } = memoryStore();
+        const controller = new AbortController();
+        let reportHelloSent = (): void => {};
+        // eslint-disable-next-line unicorn/prefer-promise-with-resolvers -- The Mobile TypeScript target does not include the ES2024 API.
+        const helloSent = new Promise<void>((resolve) => {
+            reportHelloSent = resolve;
+        });
+        const runtime: MobileGatewayRuntime = {
+            openWebSocket: () =>
+                new FakeGatewaySocket(false, 50, reportHelloSent) as unknown as WebSocket,
+            platform: 'android',
+            randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
+        };
+        const pairing = pairMobileGateway({
+            displayName: 'Pixel fixture',
+            pairingLink,
+            runtime,
+            signal: controller.signal,
+            store,
+        });
+
+        await helloSent;
+        controller.abort();
+
+        await expect(pairing).rejects.toThrow('Pairing was cancelled.');
+        await expect(store.load()).resolves.toBeNull();
+    });
+
+    it('cancels while waiting for the sealed pairing result instead of waiting for the timeout', async () => {
+        const { store } = memoryStore();
+        const controller = new AbortController();
+        let reportConfirmationSent = (): void => {};
+        // eslint-disable-next-line unicorn/prefer-promise-with-resolvers -- The Mobile TypeScript target does not include the ES2024 API.
+        const confirmationSent = new Promise<void>((resolve) => {
+            reportConfirmationSent = resolve;
+        });
+        const runtime: MobileGatewayRuntime = {
+            openWebSocket: () =>
+                new FakeGatewaySocket(
+                    false,
+                    0,
+                    undefined,
+                    50,
+                    reportConfirmationSent,
+                ) as unknown as WebSocket,
+            platform: 'android',
+            randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
+        };
+        const pairing = pairMobileGateway({
+            displayName: 'Pixel fixture',
+            pairingLink,
+            runtime,
+            signal: controller.signal,
+            store,
+        });
+
+        await confirmationSent;
+        controller.abort();
+
+        await expect(pairing).rejects.toThrow('Pairing was cancelled.');
+        await expect(store.load()).resolves.toBeNull();
+    });
+
+    it('cleans the pre-open socket listeners and timeout when its owner aborts', async () => {
+        vi.useFakeTimers();
+        try {
+            const { store } = memoryStore();
+            const controller = new AbortController();
+            let socket: NeverOpenSocket | undefined;
+            const runtime: MobileGatewayRuntime = {
+                openWebSocket: () => {
+                    socket = new NeverOpenSocket();
+                    return socket as unknown as WebSocket;
+                },
+                platform: 'android',
+                randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
+            };
+            const pairing = pairMobileGateway({
+                displayName: 'Pixel fixture',
+                pairingLink,
+                runtime,
+                signal: controller.signal,
+                store,
+            });
+
+            controller.abort();
+            await expect(pairing).rejects.toThrow('Pairing was cancelled.');
+            expect(socket?.closeCount).toBe(1);
+            vi.advanceTimersByTime(10_001);
+            expect(socket?.closeCount).toBe(1);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('does not finish pairing after its owner aborts during credential persistence', async () => {
+        const previousCredential = {
+            ...mobileCredential,
+            generation: 7,
+            credential: '88'.repeat(32),
+        } satisfies MobileCredential;
+        const values = new Map<string, string>();
+        let isDelaySave = false;
+        let reportSaveStarted = (): void => {};
+        let releaseSave = (): void => {};
+        // eslint-disable-next-line unicorn/prefer-promise-with-resolvers -- The Mobile TypeScript target does not include the ES2024 API.
+        const saveStarted = new Promise<void>((resolve) => {
+            reportSaveStarted = resolve;
+        });
+        // eslint-disable-next-line unicorn/prefer-promise-with-resolvers -- The Mobile TypeScript target does not include the ES2024 API.
+        const saveMayFinish = new Promise<void>((resolve) => {
+            releaseSave = resolve;
+        });
+        const store = createMobileCredentialStore({
+            deleteItemAsync: (key) => {
+                values.delete(key);
+                return Promise.resolve();
+            },
+            getItemAsync: (key) => Promise.resolve(values.get(key) ?? null),
+            setItemAsync: async (key, value) => {
+                if (isDelaySave) {
+                    reportSaveStarted();
+                    await saveMayFinish;
+                }
+                values.set(key, value);
+            },
+        });
+        await store.save(previousCredential);
+        isDelaySave = true;
+        const controller = new AbortController();
+        const runtime: MobileGatewayRuntime = {
+            openWebSocket: () => new FakeGatewaySocket() as unknown as WebSocket,
+            platform: 'android',
+            randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
+        };
+        const pairing = pairMobileGateway({
+            displayName: 'Pixel fixture',
+            pairingLink,
+            runtime,
+            signal: controller.signal,
+            store,
+        });
+
+        await saveStarted;
+        controller.abort();
+        releaseSave();
+
+        await expect(pairing).rejects.toThrow('Pairing was cancelled.');
+        await expect(store.load()).resolves.toEqual(previousCredential);
+    });
+
+    it('rolls back a completed handoff without removing the prior pairing', async () => {
+        const { store } = memoryStore();
+        const previousCredential = {
+            ...mobileCredential,
+            generation: 7,
+            credential: '88'.repeat(32),
+        } satisfies MobileCredential;
+        await store.save(previousCredential);
+        const runtime: MobileGatewayRuntime = {
+            openWebSocket: () => new FakeGatewaySocket() as unknown as WebSocket,
+            platform: 'android',
+            randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
+        };
+
+        const paired = await pairMobileGateway({
+            displayName: 'Pixel fixture',
+            pairingLink,
+            runtime,
+            store,
+        });
+        await paired.rollback();
+
+        await expect(store.load()).resolves.toEqual(previousCredential);
     });
 });
