@@ -4,11 +4,26 @@ import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import { identifierSchema, MAX_TERMINAL_INPUT_LENGTH, pathSchema } from './domain.js';
 
-export const MAX_LONG_PASTE_CHARACTERS = 1_048_576;
+/**
+ * Bounds one saved paste independently of the smaller native Terminal input budget.
+ */
+export const MAX_LONG_PASTE_BYTES = 16 * 1024 * 1024;
+
+/**
+ * UTF-16 length alone cannot enforce a file's UTF-8 byte budget.
+ */
+export function isLongPasteWithinLimit(content: string): boolean {
+    return (
+        content.length <= MAX_LONG_PASTE_BYTES &&
+        new TextEncoder().encode(content).byteLength <= MAX_LONG_PASTE_BYTES
+    );
+}
 
 export const terminalLongPasteParametersSchema = z.object({
     terminalId: identifierSchema,
-    content: z.string().min(1).max(MAX_LONG_PASTE_CHARACTERS),
+    content: z.string().min(1).max(MAX_LONG_PASTE_BYTES).refine(isLongPasteWithinLimit, {
+        message: 'Pasted text exceeds the local file safety limit',
+    }),
 });
 
 /**
@@ -26,13 +41,13 @@ export const terminalLongPasteResultSchema = z.discriminatedUnion('status', [
     z.object({ status: z.literal('passthrough') }),
     z.object({
         agentLaunchId: identifierSchema,
-        characterCount: z.number().int().min(1).max(MAX_LONG_PASTE_CHARACTERS),
+        characterCount: z.number().int().min(1).max(MAX_LONG_PASTE_BYTES),
         filePath: pathSchema,
         lineCount: z
             .number()
             .int()
             .min(1)
-            .max(MAX_LONG_PASTE_CHARACTERS + 1),
+            .max(MAX_LONG_PASTE_BYTES + 1),
         status: z.literal('saved'),
     }),
 ]);

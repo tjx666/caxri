@@ -52,7 +52,11 @@ Text pasted into a running managed Agent above `terminal.longPasteThreshold` (20
 default) is written to an owner-only file under the user data directory and replaced, in the same
 input position, with a short reference naming the file, its size, and the option to delegate a
 summary to a subagent on a small, fast model. The original never reaches the PTY, the logs, or
-SQLite. Raising the threshold to its maximum restores ordinary native paste for every size.
+SQLite. Raising the threshold to its maximum keeps pastes up to 1,048,576 UTF-16 code units
+native; larger pastes still use a saved file. Saved pastes accept up to 16 MiB of UTF-8 text,
+with the same byte limit enforced before the request and at the Server. Oversized input stays in
+the clipboard, is never forwarded to the PTY, and produces a message explaining how to save it
+manually and share the file path.
 
 Files are kept for 30 days, capped at 128 MiB in total, and pruned oldest first on every paste and
 on an hourly timer. A reference is fenced to the Agent launch that was running when the paste
@@ -60,4 +64,6 @@ started: if that process is replaced while the file is being written, the paste 
 than handed to the new process.
 
 A Shell that was promoted to an Agent by foreground detection keeps native paste, because Caxri has
-no managed launch to fence the reference to.
+no managed launch to fence the reference to. Its native paste remains limited to 1,048,576 UTF-16
+code units; larger input is rejected with an explicit message instead of being sent to a
+Terminal input method that would reject it.

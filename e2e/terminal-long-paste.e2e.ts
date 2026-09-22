@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import type { AppSettings } from '@caxri/protocol';
-import { MAX_LONG_PASTE_CHARACTERS } from '@caxri/protocol';
+import { MAX_TERMINAL_INPUT_PAYLOAD_LENGTH } from '@caxri/protocol';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
@@ -90,7 +90,7 @@ process.stdout.write('\u001b[?2004hNATIVE_PASTE_READY\r\n');
             .toEqual([{ kind: 'claude', lastAgentProcessState: 'running' }]);
         const original = 'Synthetic handoff line\n'
             .repeat(100)
-            .padEnd(MAX_LONG_PASTE_CHARACTERS, 'x');
+            .padEnd(MAX_TERMINAL_INPUT_PAYLOAD_LENGTH - 12, 'x');
         await running.clipboard.writeText(original);
         const input = pane.locator('.xterm-helper-textarea');
         await input.focus();
@@ -163,7 +163,7 @@ if (process.argv.includes('--ephemeral')) {
         const rows = running.page.locator('.xterm-rows');
         const input = running.page.locator('.xterm-helper-textarea');
         await expect(rows).toContainText('LONG_PASTE_AGENT_READY');
-        const original = `LONG_PASTE_ORIGINAL_SENTINEL\n${'x'.repeat(2_100)}`;
+        const original = `LONG_PASTE_ORIGINAL_SENTINEL\n${'x'.repeat(5 * 1024 * 1024)}`;
         await running.clipboard.writeText(original);
         await input.focus();
         await input.press('Meta+V');

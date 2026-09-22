@@ -2,7 +2,7 @@ import { mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { defaultAppSettings } from '@caxri/protocol';
+import { defaultAppSettings, MAX_LONG_PASTE_BYTES } from '@caxri/protocol';
 import { afterEach, assert, describe, expect, it, vi } from 'vitest';
 
 import { CaxriDatabase } from '../../db/repository';
@@ -82,6 +82,23 @@ function holdMutations(service: LongPasteService) {
 }
 
 describe('LongPasteService', () => {
+    it('rejects UTF-8 content above the shared budget before creating a paste file', async () => {
+        const test = await fixture();
+        const content = '界'.repeat(Math.floor(MAX_LONG_PASTE_BYTES / 3) + 1);
+        await expect(
+            test.service.prepare({ terminalId: test.terminal.id, content }),
+        ).rejects.toMatchObject({ code: 'VALIDATION' });
+        expect(await readdir(test.userDataPath)).not.toContain('pastes');
+    });
+    it('saves text beyond the former protocol and local file limits intact', async () => {
+        const test = await fixture();
+        const content = 'x'.repeat(5 * 1024 * 1024);
+        const result = await test.service.prepare({ terminalId: test.terminal.id, content });
+        assert(result.status === 'saved');
+        expect(await readFile(result.filePath, 'utf8')).toBe(content);
+        expect(result.characterCount).toBe(content.length);
+    });
+
     it('preserves native paste after a running Shell is promoted to an Agent', async () => {
         const test = await fixture({ kind: 'shell' });
         test.agentLaunch.current = undefined;

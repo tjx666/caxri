@@ -11,7 +11,6 @@ import {
     MAX_CONFIGURATION_SOURCE_BYTES,
     MAX_FILE_BROWSE_ENTRIES,
     MAX_KEYBINDINGS,
-    MAX_LONG_PASTE_CHARACTERS,
     MAX_TERMINAL_INPUT_LENGTH,
     MAX_TERMINAL_INPUT_PAYLOAD_LENGTH,
     methods,
@@ -73,8 +72,8 @@ describe('method table', () => {
         ).toThrow();
     });
 
-    it('accepts the largest long paste with the complete bracketed-paste envelope', () => {
-        const content = 'x'.repeat(MAX_LONG_PASTE_CHARACTERS);
+    it('accepts the largest native paste with the complete bracketed-paste envelope', () => {
+        const content = 'x'.repeat(MAX_TERMINAL_INPUT_PAYLOAD_LENGTH - 12);
         expect(() =>
             parseCaxriRequest('terminal.prepareLongPaste', { terminalId: 'terminal-1', content }),
         ).not.toThrow();
