@@ -337,13 +337,14 @@ export class ExtensionHostSupervisor extends EventTarget {
 
     /**
      * Replaces the next successful reply's payload so the real `reply-result` rejection runs against a real reply.
-     * Armed only by an Acceptance fault sequence; `null` fails every method's result contract, so the reason under test
-     * cannot depend on which request happened to answer first.
+     * Armed only by an Acceptance fault sequence. `undefined` is the only value every method rejects: `viewOperation`
+     * accepts any serializable payload including `null`, so the reason under test would otherwise depend on which
+     * request happened to answer first.
      */
     private applyReplyResultFault(message: ExtensionHostMessage): ExtensionHostMessage {
         if (!this.corruptNextReplyResult || message.type !== 'reply' || !message.ok) return message;
         this.corruptNextReplyResult = false;
-        return { ...message, result: null };
+        return { ...message, result: undefined };
     }
 
     /**
@@ -447,6 +448,9 @@ export class ExtensionHostSupervisor extends EventTarget {
         this.rejectReady = undefined;
         this.resolveReady = undefined;
         this.rejectPendingRequests(`Extension Host exited with code ${code}`);
+        // An armed reply corruption belongs to the generation that armed it. Without this reset an injected
+        // `configure` that never answers `ok` would corrupt a healthy Host's reply after the restart.
+        this.corruptNextReplyResult = false;
         if (this.intentionalStop) return;
         this.options.logger.write('error', logEventCatalog.extensionHost.exit, {
             fields: { code },
