@@ -63,6 +63,7 @@ export const coreForwardedMethods = [
     'session.reorderPinned',
     'session.pullRequests',
     'session.rename',
+    'session.searchContent',
     'session.resume',
     'session.select',
     'session.selectWorkbenchRoot',

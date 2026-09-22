@@ -7,6 +7,18 @@ import { describe, expect, it, onTestFinished } from 'vitest';
 import { locateGrokTranscript } from '../paths';
 
 describe('Grok transcript identity', () => {
+    it('refuses a canceled lookup before directory traversal', async () => {
+        const controller = new AbortController();
+        controller.abort();
+        await expect(
+            locateGrokTranscript(
+                { cwd: '/synthetic', agentSessionId: 'owned' },
+                { homeDirectory: '/synthetic', variables: {} },
+                controller.signal,
+            ),
+        ).rejects.toMatchObject({ name: 'AbortError' });
+    });
+
     it('derives an exact session under the percent-encoded cwd', async () => {
         const environment = { homeDirectory: '/synthetic', variables: {} };
         expect(

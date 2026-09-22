@@ -734,6 +734,7 @@ export const codexProvider: AgentProviderDescriptor = {
         return readCodexState(context, stateDirectories);
     },
     renameSession: renameCodexSession,
-    locateTranscript: (context, environment) => locateCodexTranscript(context, environment),
+    locateTranscript: (context, environment, signal) =>
+        locateCodexTranscript(context, environment, signal),
     resumeArguments: (agentSessionId) => ['resume', agentSessionId],
 };

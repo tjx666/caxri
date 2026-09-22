@@ -119,6 +119,7 @@ export interface CommandContext {
         openPalette(): void;
         openPathBrowser(): void;
         openProjectSearch(): void;
+        openSessionContentSearch(): void;
     };
     windows: { openProcessExplorer(): void };
     developer: { reportBug(): void; toggleScreencastMode(): void };

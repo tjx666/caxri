@@ -6,6 +6,7 @@ import { sessionRenameTitleSchema } from '@caxri/protocol';
 
 import type { AgentTranscriptLocation } from './transcript-security';
 import { openSafeAgentTranscript } from './transcript-security';
+import { extractVisibleTranscriptMessage } from './visible-transcript-message';
 
 interface TitleMessage {
     role: 'assistant' | 'user';
@@ -48,44 +49,8 @@ const MAX_RECORD_CHARS = 256 * 1024;
  * Only visible conversation messages are naming material; tools, injected instructions and duplicate events are not.
  */
 export function extractAgentTitleMessage(record: unknown): TitleMessage | undefined {
-    if (!record || typeof record !== 'object') return;
-    const entry = record as {
-        type?: string;
-        payload?: { type?: string; role?: string; content?: unknown };
-        message?: { content?: unknown };
-        isMeta?: boolean;
-        isSidechain?: boolean;
-    };
-    if (entry.isMeta || entry.isSidechain) return;
-    const message =
-        entry.type === 'response_item' && entry.payload?.type === 'message'
-            ? { role: entry.payload.role, content: entry.payload.content }
-            : { role: entry.type, content: entry.message?.content };
-    if (message.role !== 'user' && message.role !== 'assistant') return;
-    const text = (
-        typeof message.content === 'string'
-            ? message.content
-            : Array.isArray(message.content)
-              ? message.content
-                    .flatMap((part: unknown) => {
-                        if (!part || typeof part !== 'object') return [];
-                        const block = part as { type?: string; text?: unknown };
-                        return ['text', 'input_text', 'output_text'].includes(block.type ?? '') &&
-                            typeof block.text === 'string'
-                            ? [block.text]
-                            : [];
-                    })
-                    .join('\n')
-              : ''
-    ).trim();
-    if (
-        !text ||
-        /^(?:# AGENTS\.md instructions|<environment_context>|<permissions instructions>|<system-reminder>|<INSTRUCTIONS>|<local-command|<command-name>|<command-message>)/u.test(
-            text,
-        )
-    )
-        return;
-    return { role: message.role, text: [...text].slice(0, 1600).join('') };
+    const message = extractVisibleTranscriptMessage(record);
+    return message && { role: message.role, text: [...message.text].slice(0, 1600).join('') };
 }
 
 interface ScanRange {
