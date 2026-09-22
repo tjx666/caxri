@@ -33,7 +33,7 @@ import { REFRESHING_ACTION_MESSAGE } from '../source-control-history-state';
 import type { SourceControlPanelState } from '../source-control-panel-state';
 import { resolveSourceControlPanelState } from '../source-control-panel-state';
 import type { SourceControlViewNavigation } from '../source-control-state';
-import { setSourceControlDirectoriesExpanded } from '../source-control-state';
+import { setSourceControlDisclosuresExpanded } from '../source-control-state';
 import type { SourceControlNavigationScope } from './use-source-control-navigation';
 import { useSourceControlNavigation } from './use-source-control-navigation';
 
@@ -51,6 +51,17 @@ type SourceControlViewEmptyController = Exclude<SourceControlPanelState, { statu
     refresh: () => void;
 };
 
+/**
+ * One recursive disclosure gesture, whose rows live in three separate persisted maps. It travels as one target so the
+ * repository, its groups, and their directories change together instead of through three renders, any of which a
+ * background refresh could land between.
+ */
+export interface SourceControlSubtreeTarget {
+    directoryKeys: readonly string[];
+    groupIds: readonly string[];
+    providerId?: string;
+}
+
 interface SourceControlViewReadyController {
     activeEditorResource: string | undefined;
     fileHistoryExpanded: boolean;
@@ -63,6 +74,7 @@ interface SourceControlViewReadyController {
     setFileHistoryExpanded: Dispatch<SetStateAction<boolean>>;
     setGroupExpanded: (groupId: string, isExpanded: boolean) => void;
     setProviderExpanded: (providerId: string, isExpanded: boolean) => void;
+    setSubtreeExpanded: (target: SourceControlSubtreeTarget, isExpanded: boolean) => void;
     status: 'ready';
 }
 
@@ -317,7 +329,7 @@ export function useSourceControlController(
         selectMode,
         setDirectoriesExpanded: (keys, isExpanded) =>
             updateNavigation({
-                expandedDirectories: setSourceControlDirectoriesExpanded(
+                expandedDirectories: setSourceControlDisclosuresExpanded(
                     navigation.expandedDirectories,
                     keys,
                     isExpanded,
@@ -334,6 +346,25 @@ export function useSourceControlController(
                     ...navigation.expandedProviders,
                     [providerId]: isExpanded,
                 },
+            }),
+        setSubtreeExpanded: ({ directoryKeys, groupIds, providerId }, isExpanded) =>
+            updateNavigation({
+                expandedDirectories: setSourceControlDisclosuresExpanded(
+                    navigation.expandedDirectories,
+                    directoryKeys,
+                    isExpanded,
+                ),
+                expandedGroups: setSourceControlDisclosuresExpanded(
+                    navigation.expandedGroups,
+                    groupIds,
+                    isExpanded,
+                ),
+                ...(providerId && {
+                    expandedProviders: {
+                        ...navigation.expandedProviders,
+                        [providerId]: isExpanded,
+                    },
+                }),
             }),
         status: 'ready',
     };

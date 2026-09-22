@@ -1,4 +1,4 @@
-import type { MouseEvent } from 'react';
+import type { KeyboardEvent } from 'react';
 import { useState } from 'react';
 
 import type {
@@ -15,12 +15,18 @@ import { Tooltip } from '../../../components/ui/tooltip';
 import { openExternalUrl } from '../../../lib/external-link';
 import { cn } from '../../../lib/utilities';
 import { pushToast } from '../../../stores/toasts';
-import type { SourceControlController } from './hooks/use-source-control-controller';
+import type {
+    SourceControlController,
+    SourceControlSubtreeTarget,
+} from './hooks/use-source-control-controller';
 import { SourceControlHistory } from './source-control-history';
 import { SourceControlIcon } from './source-control-icon';
 import type { SourceControlRowMenuItem } from './source-control-row-menu';
 import { sourceControlActionMenuItems } from './source-control-row-menu';
-import { buildSourceControlResourceTree } from './source-control-tree';
+import {
+    buildSourceControlResourceTree,
+    sourceControlGroupExpansionKeys,
+} from './source-control-tree';
 import { SourceControlTreeItems } from './source-control-tree-items';
 import { SourceControlTreeRow } from './source-control-tree-row';
 
@@ -29,14 +35,16 @@ type ProviderModel = SourceControlViewModel['providers'][number];
 type GroupModel = ProviderModel['groups'][number];
 
 /**
- * Alt activation for a row whose primary click already owns disclosure. Returns `true` when the row must not also run
- * its ordinary click behavior, so a caller can keep both gestures on one control.
+ * Command activation for a row whose primary click already owns disclosure. Returns `true` when the row must not also
+ * run its ordinary click behavior, so a caller can keep both gestures on one control. The external page sits on Command
+ * rather than Option because Option is the app-wide recursive disclosure gesture, which every collapsible row owes the
+ * user (issue #1129); it reads the modifier off a bare shape so a keyboard chord can reuse this path.
  */
 function didOpenExternalLink(
-    event: MouseEvent<HTMLElement>,
+    event: { metaKey: boolean },
     link: SourceControlExternalLink | undefined,
 ): boolean {
-    if (!link || !event.altKey) return false;
+    if (!link || !event.metaKey) return false;
     // eslint-disable-next-line no-void -- intentional floating-promise discard; failures surface as a toast
     void openExternalUrl(link.url, (message) => pushToast('error', message));
     return true;
@@ -46,9 +54,33 @@ function rowTooltip(
     lines: ReadonlyArray<string | undefined>,
     link: SourceControlExternalLink | undefined,
 ): string {
-    return [...lines, link && `Option-click to ${link.label.toLowerCase()}`]
+    return [
+        ...lines,
+        link && `Command-click to ${link.label.toLowerCase()}`,
+        'Option-click to expand or collapse everything below',
+    ]
         .filter(Boolean)
         .join('\n');
+}
+
+/**
+ * The disclosure keys one recursive gesture covers, built only when the gesture happens: `providerKey` mirrors
+ * `SourceControlTreeItems`, so it carries the selected mode and two modes never share a folder's disclosure.
+ */
+function subtreeTarget(
+    controller: ReadyController,
+    provider: ProviderModel,
+    groups: readonly GroupModel[],
+    isProviderIncluded: boolean,
+): SourceControlSubtreeTarget {
+    const providerKey = `${controller.model.selectedModeId}:${provider.id}`;
+    return {
+        directoryKeys: groups.flatMap((group) =>
+            sourceControlGroupExpansionKeys(group.resources, providerKey),
+        ),
+        groupIds: groups.map((group) => group.id),
+        ...(isProviderIncluded && { providerId: provider.id }),
+    };
 }
 
 function ProviderHeader({
@@ -106,7 +138,7 @@ function ProviderHeader({
                 level={1}
                 className="git-repository-row flex min-w-0 flex-1 cursor-pointer items-center gap-2 overflow-hidden border-0 bg-transparent p-2 text-left text-foreground"
                 aria-expanded={expanded}
-                aria-keyshortcuts={provider.externalLink ? 'Alt' : undefined}
+                aria-keyshortcuts={provider.externalLink ? 'Meta Alt' : 'Alt'}
                 data-path={provider.rootPath}
                 tooltip={rowTooltip(
                     [provider.tooltip, provider.descriptionTooltip],
@@ -115,7 +147,31 @@ function ProviderHeader({
                 menuItems={menuItems}
                 onClick={(event) => {
                     if (didOpenExternalLink(event, provider.externalLink)) return;
+                    if (event.altKey) {
+                        controller.setSubtreeExpanded(
+                            subtreeTarget(controller, provider, provider.groups, true),
+                            !expanded,
+                        );
+                        return;
+                    }
                     controller.setProviderExpanded(provider.id, !expanded);
+                }}
+                onKeyDown={(event: KeyboardEvent<HTMLButtonElement>) => {
+                    if (event.key !== 'Enter') return;
+                    /**
+                     * Alt+Enter never reaches a button's click handler, so both modifier gestures need naming here for
+                     * a keyboard user — the same pairing the directory rows use.
+                     */
+                    if (didOpenExternalLink(event, provider.externalLink)) {
+                        event.preventDefault();
+                        return;
+                    }
+                    if (!event.altKey) return;
+                    event.preventDefault();
+                    controller.setSubtreeExpanded(
+                        subtreeTarget(controller, provider, provider.groups, true),
+                        !expanded,
+                    );
                 }}
             >
                 {/*
@@ -215,33 +271,51 @@ function ProviderHeader({
 function GroupCaption({
     controller,
     expanded,
-    externalLink,
     group,
-    providerId,
+    provider,
 }: {
     controller: ReadyController;
     expanded: boolean;
+    group: GroupModel;
+    provider: ProviderModel;
+}) {
     /**
      * The provider's page for the changes this group lists — the pull request whose number the caption already prints.
      */
-    externalLink?: SourceControlExternalLink;
-    group: GroupModel;
-    providerId: string;
-}) {
+    const externalLink = provider.externalLink;
+    const toggleRecursively = (): void =>
+        controller.setSubtreeExpanded(
+            subtreeTarget(controller, provider, [group], false),
+            !expanded,
+        );
     return (
         <div className="git-changes-caption group flex items-center justify-between pr-2 text-[10px] font-bold tracking-[0.06em] text-muted uppercase">
             <SourceControlTreeRow
-                rowId={`group:${providerId}:${group.id}`}
+                rowId={`group:${provider.id}:${group.id}`}
                 level={2}
                 type="button"
                 className="flex h-7 min-w-0 flex-1 cursor-pointer items-center gap-1 border-0 bg-transparent px-2 text-left text-[10px] font-bold tracking-[0.06em] text-muted uppercase hover:text-foreground"
                 aria-expanded={expanded}
-                aria-keyshortcuts={externalLink ? 'Alt' : undefined}
-                tooltip={externalLink ? rowTooltip([group.label], externalLink) : undefined}
+                aria-keyshortcuts={externalLink ? 'Meta Alt' : 'Alt'}
+                tooltip={rowTooltip([group.label], externalLink)}
                 menuItems={sourceControlActionMenuItems(group.actions, controller.runAction)}
                 onClick={(event) => {
                     if (didOpenExternalLink(event, externalLink)) return;
+                    if (event.altKey) {
+                        toggleRecursively();
+                        return;
+                    }
                     controller.setGroupExpanded(group.id, !expanded);
+                }}
+                onKeyDown={(event: KeyboardEvent<HTMLButtonElement>) => {
+                    if (event.key !== 'Enter') return;
+                    if (didOpenExternalLink(event, externalLink)) {
+                        event.preventDefault();
+                        return;
+                    }
+                    if (!event.altKey) return;
+                    event.preventDefault();
+                    toggleRecursively();
                 }}
             >
                 {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
@@ -314,9 +388,8 @@ export function SourceControlProviderSection({
                                     <GroupCaption
                                         controller={controller}
                                         expanded={groupExpanded}
-                                        externalLink={provider.externalLink}
                                         group={group}
-                                        providerId={provider.id}
+                                        provider={provider}
                                     />
                                     <DisclosureMotion
                                         animate

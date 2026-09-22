@@ -250,6 +250,42 @@ process.exit(result.status ?? 1);
             ),
         ).toBe('−');
         await diff.screenshot({ path: test.info().outputPath('git-pr-deleted-file-diff.png') });
+
+        /**
+         * Option-click is the app-wide recursive disclosure gesture, so the repository row collapses its group captions
+         * and folders with it, and the pull-request page moved to Command-click (issue #1129).
+         */
+        await running.app.evaluate(({ dialog, shell }) => {
+            const target = globalThis as typeof globalThis & { caxriOpenedLinks?: string[] };
+            target.caxriOpenedLinks = [];
+            // github.com is untrusted in a fresh profile; answer the native prompt with "Open Once".
+            dialog.showMessageBox = () => Promise.resolve({ response: 0, checkboxChecked: false });
+            shell.openExternal = (url) => {
+                target.caxriOpenedLinks!.push(url);
+                return Promise.resolve();
+            };
+        });
+        const repo = running.page.locator('.git-repository-section').first();
+        const caption = repo.locator('.git-changes-caption [role="treeitem"]');
+        await expect(caption).toHaveAttribute('aria-expanded', 'true');
+        await repo.locator('.git-repository-row').click({ modifiers: ['Alt'] });
+        await expect(repo.locator('.git-files')).toHaveCount(0);
+        await repo.locator('.git-repository-row').click();
+        await expect(caption).toHaveAttribute('aria-expanded', 'false');
+        await caption.click({ modifiers: ['Meta'] });
+        await expect(caption).toHaveAttribute('aria-expanded', 'false');
+        await expect
+            .poll(() =>
+                running.app.evaluate(
+                    () =>
+                        (globalThis as typeof globalThis & { caxriOpenedLinks?: string[] })
+                            .caxriOpenedLinks ?? [],
+                ),
+            )
+            .toContain('https://github.com/tjx666/project/pull/42');
+        await caption.click({ modifiers: ['Alt'] });
+        await expect(caption).toHaveAttribute('aria-expanded', 'true');
+        await expect(repo.locator('.git-row[data-path="pr-only.txt"]')).toBeVisible();
     } finally {
         await rm(refreshGate, { force: true });
         try {

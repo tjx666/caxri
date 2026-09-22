@@ -3,7 +3,7 @@ import { MAX_SOURCE_CONTROL_VIEW_STATE_ENTRIES } from '@caxri/protocol';
 
 export type SourceControlViewNavigation = SourceControlViewState;
 
-export function setSourceControlDirectoriesExpanded(
+export function setSourceControlDisclosuresExpanded(
     current: Readonly<Record<string, boolean>>,
     keys: readonly string[],
     isExpanded: boolean,

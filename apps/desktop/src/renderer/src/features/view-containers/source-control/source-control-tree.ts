@@ -66,6 +66,19 @@ export function buildSourceControlResourceTree(
 }
 
 /**
+ * Every directory disclosure key a group's resources produce, so a recursive gesture on the group caption or the
+ * repository row above it can write the whole subtree in one navigation update instead of one per visible row.
+ */
+export function sourceControlGroupExpansionKeys(
+    resources: readonly SourceControlResource[],
+    providerKey: string,
+): string[] {
+    return buildSourceControlResourceTree(resources).flatMap((node) =>
+        sourceControlDirectoryExpansionKeys(node, providerKey),
+    );
+}
+
+/**
  * Returns the complete eager Source Control directory subtree as persisted disclosure keys.
  */
 export function sourceControlDirectoryExpansionKeys(
