@@ -564,6 +564,7 @@ class FileBinarySession extends BaseBinarySession {
                 ok: true,
                 result: {
                     kind: 'file-document',
+                    readOnly: document.readOnly,
                     path: document.path,
                     mtimeMs: document.mtimeMs,
                     size: document.size,

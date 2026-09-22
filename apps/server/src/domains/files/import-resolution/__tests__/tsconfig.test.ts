@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { tsconfigImportTargets } from '../tsconfig-imports';
+import { tsconfigImportTargets } from '../tsconfig';
 
 describe('tsconfigImportTargets', () => {
     it('prefers exact aliases, then the longest wildcard prefix without retrying a broader alias', () => {

@@ -424,6 +424,7 @@ class FileStreamClient extends ClientBinarySocket {
         this.result.resolve(
             parseCaxriResult(this.operation.method, {
                 path: this.reply.result.path,
+                readOnly: this.reply.result.readOnly,
                 content,
                 mtimeMs: this.reply.result.mtimeMs,
                 size: this.reply.result.size,

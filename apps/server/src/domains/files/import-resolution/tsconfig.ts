@@ -1,13 +1,11 @@
-import { stat } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 
-import { CaxriError } from '@caxri/protocol';
-import { parseJsonc } from '@caxri/system';
 import { z } from 'zod';
 
-import { readBoundedRegularFileText } from '../bounded-file-reader';
-import { isOutsideRoot } from '../path-security';
-import type { ResolvedSessionPath } from '../project-roots';
+import { isOutsideRoot } from '../../path-security';
+import type { ResolvedSessionPath } from '../../project-roots';
+import type { ImportConfigFiles } from './config-files';
+import type { PackageImports } from './packages';
 
 const configPathSchema = z.string().max(2048);
 const parentListSchema = z.array(configPathSchema).max(16);
@@ -28,95 +26,60 @@ interface ImportConfig {
     pathsDirectory?: string;
 }
 
-interface CachedConfig {
-    fingerprint: string;
-    value: z.infer<typeof configSchema>;
-}
-
-/**
- * Whether a missing candidate permits the next extension or parent lookup.
- */
-function isMissing(error: unknown): boolean {
-    return (
-        (error instanceof CaxriError && error.code === 'NOT_FOUND') ||
-        (error as NodeJS.ErrnoException).code === 'ENOENT'
-    );
-}
-
 /**
  * Metadata-validated JSONC cache: every hit reauthorizes the workspace entry, and parents are revisited on each request
  * so a new nearer config or an edited inherited config takes effect without another watcher. Relative settings retain
  * their declaring config directory, as specified by TypeScript: https://www.typescriptlang.org/tsconfig/extends.html
  */
 export class TsconfigImports {
-    private readonly cache = new Map<string, CachedConfig>();
-
     constructor(
-        private readonly authorize: (
-            sessionId: string,
-            path: string,
-        ) => Promise<ResolvedSessionPath>,
+        private readonly files: ImportConfigFiles,
+        private readonly packages: PackageImports,
     ) {}
 
-    private async read(
+    private async resolveParent(
         sessionId: string,
+        root: string,
         path: string,
-    ): Promise<z.infer<typeof configSchema> | undefined> {
-        try {
-            const entry = await this.authorize(sessionId, path);
-            const metadata = await stat(entry.path);
-            if (!metadata.isFile() || metadata.size > 256 * 1024)
-                throw new Error('Invalid import config');
-            const fingerprint = [
-                entry.path,
-                metadata.dev,
-                metadata.ino,
-                metadata.size,
-                metadata.mtimeMs,
-                metadata.ctimeMs,
-            ].join(':');
-            const cached = this.cache.get(path);
-            if (cached?.fingerprint === fingerprint) return cached.value;
-            const value = configSchema.parse(
-                parseJsonc(await readBoundedRegularFileText(entry.path, 256 * 1024)),
-            );
-            if (Object.keys(value.compilerOptions?.paths ?? {}).length > 128)
-                throw new Error('Too many import aliases');
-            if (this.cache.size >= 64) this.cache.delete(this.cache.keys().next().value!);
-            this.cache.set(path, { fingerprint, value });
-            return value;
-        } catch (error) {
-            this.cache.delete(path);
-            if (isMissing(error)) return undefined;
-            throw error;
+        parent: string,
+    ): Promise<string> {
+        if (/^\.{1,2}\//u.test(parent)) {
+            const candidate = resolve(dirname(path), parent);
+            return candidate.endsWith('.json') ? candidate : `${candidate}.json`;
         }
+        const candidate = await this.packages.configPath(
+            sessionId,
+            { root, path, workspacePath: path },
+            parent,
+        );
+        if (!candidate) throw new Error('Missing import config package');
+        return candidate;
     }
 
     private async inherit(
         sessionId: string,
         path: string,
+        root: string,
         seen: Set<string>,
         budget: { remaining: number },
     ): Promise<ImportConfig | undefined> {
         if (seen.has(path) || seen.size >= 16 || budget.remaining-- <= 0)
             throw new Error('Import config inheritance exceeds its budget');
-        const value = await this.read(sessionId, path);
-        if (!value) return undefined;
+        const raw = await this.files.read(sessionId, path, true);
+        if (raw === undefined) return undefined;
+        const value = configSchema.parse(raw);
+        if (Object.keys(value.compilerOptions?.paths ?? {}).length > 128)
+            throw new Error('Too many import aliases');
         const nextSeen = new Set(seen).add(path);
         let inherited: ImportConfig = {};
         const parents = typeof value.extends === 'string' ? [value.extends] : (value.extends ?? []);
         /* eslint-disable no-await-in-loop -- later parents override earlier options */
         for (const parent of parents) {
-            if (!/^\.{1,2}\//u.test(parent)) throw new Error('Unsupported import config parent');
-            const parentPath = resolve(dirname(path), parent);
+            // oxlint-disable-next-line react-doctor/async-await-in-loop
+            const parentPath = await this.resolveParent(sessionId, root, path, parent);
 
             // oxlint-disable-next-line react-doctor/async-await-in-loop
-            const base = await this.inherit(
-                sessionId,
-                parentPath.endsWith('.json') ? parentPath : `${parentPath}.json`,
-                nextSeen,
-                budget,
-            );
+            const base = await this.inherit(sessionId, parentPath, root, nextSeen, budget);
             if (!base) throw new Error('Missing import config parent');
             inherited = { ...inherited, ...base };
         }
@@ -134,10 +97,6 @@ export class TsconfigImports {
         };
     }
 
-    clear(): void {
-        this.cache.clear();
-    }
-
     async load(sessionId: string, from: ResolvedSessionPath): Promise<ImportConfig | undefined> {
         let directory = dirname(from.workspacePath ?? from.path);
         const budget = { remaining: 128 };
@@ -152,6 +111,7 @@ export class TsconfigImports {
                 const config = await this.inherit(
                     sessionId,
                     join(directory, 'tsconfig.json'),
+                    from.root,
                     new Set(),
                     budget,
                 );

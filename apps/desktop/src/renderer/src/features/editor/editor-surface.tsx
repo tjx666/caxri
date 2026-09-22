@@ -142,6 +142,7 @@ function FileEditorSurface({ paneId, path }: { paneId: string; path: string }) {
                 path={path}
                 displayPath={document.displayPath}
                 isExternal={isExternal}
+                readOnly={document.readOnly}
             />
             <div className="min-h-0 flex-1">
                 <LoadedCodeEditor

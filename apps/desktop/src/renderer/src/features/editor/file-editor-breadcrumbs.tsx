@@ -10,11 +10,13 @@ export function FileEditorBreadcrumbs({
     path,
     displayPath,
     isExternal,
+    readOnly,
 }: {
     paneId: string;
     path: string;
     displayPath?: string;
     isExternal: boolean;
+    readOnly?: boolean;
 }) {
     const session = useSelectedSession();
     const project = useSelectedWorkbenchProject();
@@ -35,6 +37,7 @@ export function FileEditorBreadcrumbs({
                     workbenchProjectId={session.workbenchProjectId}
                 />
             ) : null}
+            {readOnly && <span className="mr-2 shrink-0 text-xs text-muted">Read-only</span>}
         </div>
     );
 }
