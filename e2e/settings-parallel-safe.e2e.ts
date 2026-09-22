@@ -5,6 +5,56 @@ import { join } from 'node:path';
 import { expect, test } from './support/fixtures.ts';
 import { createShellSession, launchCaxri, pageRequest } from './support/helpers.ts';
 
+test('Settings preserves a tab selected while its initial configuration is loading', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-settings-load-e2e-'));
+    const root = join(directory, 'project');
+    await mkdir(root);
+    const running = await launchCaxri({
+        userDataDir: join(directory, 'user-data'),
+        testRootPath: root,
+    });
+    try {
+        await running.page.evaluate(() => {
+            (
+                globalThis as typeof globalThis & {
+                    caxriE2E: { armSettingsLoadGate(): void };
+                }
+            ).caxriE2E.armSettingsLoadGate();
+        });
+        await running.page.keyboard.press('Meta+,');
+        await running.page.evaluate(() =>
+            (
+                globalThis as typeof globalThis & {
+                    caxriE2E: { waitForSettingsLoadGate(): Promise<void> };
+                }
+            ).caxriE2E.waitForSettingsLoadGate(),
+        );
+        const dialog = running.page.getByRole('dialog');
+        const theme = dialog.getByRole('tab', { name: 'Theme', exact: true });
+        await theme.click();
+        await expect(theme).toHaveAttribute('aria-selected', 'true');
+        await running.page.evaluate(() => {
+            (
+                globalThis as typeof globalThis & {
+                    caxriE2E: { releaseSettingsLoadGate(): void };
+                }
+            ).caxriE2E.releaseSettingsLoadGate();
+        });
+        await expect(dialog.getByRole('button', { name: 'Import Theme' })).toBeVisible();
+        await expect(theme).toHaveAttribute('aria-selected', 'true');
+        await running.page.keyboard.press('Escape');
+        await expect(dialog).toHaveCount(0);
+        await running.page.keyboard.press('Meta+,');
+        await expect(dialog.getByRole('tab', { name: 'Settings', exact: true })).toHaveAttribute(
+            'aria-selected',
+            'true',
+        );
+    } finally {
+        await running.app.close();
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
 test('Settings shortcut opens while Terminal input has focus', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-settings-shortcut-e2e-'));
     const userData = join(testDirectory, 'user-data');

@@ -9,6 +9,7 @@ import {
     createAdditionalShellSession,
     createProjectSession,
     launchCaxri,
+    pageRequest,
     selectedSessionId,
     sessionCard,
 } from './support/helpers.ts';
@@ -33,6 +34,10 @@ test('a restored Session goes to the top while the archive notice Undo puts it b
         const oldest = await selectedSessionId(running.page);
         await createAdditionalShellSession(running.page);
         const middle = await selectedSessionId(running.page);
+        await pageRequest(running.page, 'session.rename', {
+            sessionId: middle,
+            displayTitle: 'Middle',
+        });
         await createAdditionalShellSession(running.page);
         const newest = await selectedSessionId(running.page);
         const sidebarOrder = () =>
@@ -63,8 +68,9 @@ test('a restored Session goes to the top while the archive notice Undo puts it b
          * The notice expires after four seconds, so the Undo is clicked as soon as it appears; that the row left the
          * sidebar at all is already proven by the archive above.
          */
-        const notice = running.page.locator('.toast', { hasText: 'Archived' });
-        await notice.getByRole('button', { name: 'Undo' }).click();
+        await running.page
+            .getByRole('button', { name: 'Undo archiving Middle', exact: true })
+            .click();
         await expect.poll(sidebarOrder).toEqual([oldest, newest, middle]);
     } finally {
         try {

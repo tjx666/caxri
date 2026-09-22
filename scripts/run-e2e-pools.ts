@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 import { spawn } from 'node:child_process';
-import { appendFile, mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import process from 'node:process';
 
@@ -61,6 +61,7 @@ async function runInvocation(
     isCensus = false,
     outputSuffix?: string,
 ): Promise<number> {
+    await rm(receiptPath, { force: true });
     const child = spawn(
         'bunx',
         [
@@ -149,7 +150,6 @@ export function mergeCensusReceipts(
         startedAt: initial.startedAt,
         tests: tests.values().toArray(),
     });
-    assertE2EPoolCensusComplete(merged);
     return merged;
 }
 
@@ -206,12 +206,31 @@ async function writeReceipt(path: string, receipt: E2EPoolReceipt): Promise<void
     await rename(temporary, path);
 }
 
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/e2e-pools.test.ts
+export async function readInvocationReceipt(path: string, pool: E2EPool): Promise<E2EPoolReceipt> {
+    try {
+        const receipt = JSON.parse(await readFile(path, 'utf8')) as E2EPoolReceipt;
+        if (receipt.pool !== pool) throw new Error('E2E invocation pool does not match');
+        return receipt;
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        /**
+         * A crash before onEnd has no test verdicts to census. Preserve that absence so the final receipt records the
+         * invocation's exit code and missing specs instead of failing before it can publish any evidence.
+         */
+        const now = new Date().toISOString();
+        return createE2EPoolReceipt({ pool, startedAt: now, finishedAt: now, tests: [] });
+    }
+}
+
 async function runPool(
     invocations: readonly E2EPoolInvocation[],
     pool: E2EPool,
     workers: number,
     coordinatorToken?: string,
 ): Promise<{ receipt: E2EPoolReceipt; result: number }> {
+    const finalReceiptPath = `test-results/receipts/${pool}.json`;
+    await rm(finalReceiptPath, { force: true });
     const receiptPaths = invocations.map(
         (_invocation, index) => `test-results/receipts/${pool}-${index}.json`,
     );
@@ -231,9 +250,7 @@ async function runPool(
         exitCodes.push(code);
     }
     const receipts = await Promise.all(
-        receiptPaths.map(
-            async (path) => JSON.parse(await readFile(path, 'utf8')) as E2EPoolReceipt,
-        ),
+        receiptPaths.map((path) => readInvocationReceipt(path, pool)),
     );
     const receipt = combinePoolReceipts(pool, receipts);
     const censusReceipts: E2EPoolReceipt[] = [];
@@ -258,14 +275,15 @@ async function runPool(
         censusInvocations.push(censusInvocation);
         exitCodes.push(censusCode);
         // eslint-disable-next-line no-await-in-loop -- reads the receipt just written by the preceding sequential invocation
-        censusReceipts.push(JSON.parse(await readFile(censusPath, 'utf8')) as E2EPoolReceipt);
+        censusReceipts.push(await readInvocationReceipt(censusPath, pool));
     }
     const outcome = resolvePoolOutcome(
         mergeCensusReceipts(receipt, censusReceipts),
         [...invocations, ...censusInvocations],
         exitCodes,
     );
-    await writeReceipt(`test-results/receipts/${pool}.json`, outcome.receipt);
+    await writeReceipt(finalReceiptPath, outcome.receipt);
+    assertE2EPoolCensusComplete(outcome.receipt);
     return outcome;
 }
 

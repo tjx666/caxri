@@ -45,7 +45,8 @@ test('customizes, persists, and clears a controlled Project icon', async () => {
         });
 
         const customHeading = projectHeading(running.page, customProject.id);
-        await customHeading.hover();
+        await customHeading.locator('.project-select').hover();
+        await expect(running.page.locator('.project-details-card')).toBeVisible();
         await customHeading
             .getByRole('button', {
                 name: `Customize Project Icon for ${customProject.displayTitle}`,

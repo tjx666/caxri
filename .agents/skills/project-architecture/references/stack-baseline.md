@@ -84,3 +84,14 @@ with TypeScript 7; see [electron-toolchain.md](electron-toolchain.md).
 ## Local compatibility target
 
 The baseline machine provides Node 24, Bun 1.3, Xcode Command Line Tools, current Claude Code, and current Codex. Install/rebuild probes must still execute through the installed Electron binary because host Node success does not prove Electron ABI compatibility.
+
+## Recovery and notification dependency patches
+
+- `patches/xterm-addon-serialize.patch` clips stale alternate-buffer cells to the visible grid and
+  fixes [full-row cursor restoration](https://github.com/xtermjs/xterm.js/issues/6165). Both shipped
+  module formats and upstream source carry the same correction. Remove it only after the owning
+  `screen.test.ts` round-trip cases pass against the replacement package.
+- `patches/sonner.patch` preserves pause accounting when an options menu changes a notification
+  from finite duration to Infinity and back. Upstream's
+  [duration reset](https://github.com/emilkowalski/sonner/pull/533) does not reset that timer baseline.
+  Keep the long-open menu E2E when upgrading or removing this patch.

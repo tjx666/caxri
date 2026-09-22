@@ -73,8 +73,10 @@ export interface ProjectSearchModel {
     terminationMessage: string | undefined;
 }
 
-export function useProjectSearch(): ProjectSearchModel {
-    const session = useSelectedSession();
+/**
+ * Lives outside the Portal so closing a search cancels its work without discarding the user's query and filters.
+ */
+export function useProjectSearchDraft() {
     const [query, setQuery] = useState('');
     /**
      * Content, not name. `cmd+shift+f` means "search in files" in every editor this dialog is modelled on, and the
@@ -89,6 +91,48 @@ export function useProjectSearch(): ProjectSearchModel {
     const [include, setInclude] = useState('');
     const [exclude, setExclude] = useState('');
     const [useIgnoreFiles, setUseIgnoreFiles] = useState(true);
+    return {
+        query,
+        setQuery,
+        mode,
+        setMode,
+        caseSensitive,
+        setCaseSensitive,
+        wholeWord,
+        setWholeWord,
+        regex,
+        setRegex,
+        include,
+        setInclude,
+        exclude,
+        setExclude,
+        useIgnoreFiles,
+        setUseIgnoreFiles,
+    };
+}
+
+export type ProjectSearchDraft = ReturnType<typeof useProjectSearchDraft>;
+
+export function useProjectSearch(draft: ProjectSearchDraft): ProjectSearchModel {
+    const session = useSelectedSession();
+    const {
+        query,
+        setQuery,
+        mode,
+        setMode,
+        caseSensitive,
+        setCaseSensitive,
+        wholeWord,
+        setWholeWord,
+        regex,
+        setRegex,
+        include,
+        setInclude,
+        exclude,
+        setExclude,
+        useIgnoreFiles,
+        setUseIgnoreFiles,
+    } = draft;
     /**
      * The selection is stored beside the result list it indexes into, so a new list resets to its first row during
      * render instead of through an effect that would paint a stale selection for one frame. The user is typing: the row

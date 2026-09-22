@@ -5,12 +5,14 @@ import type { TerminalOutputQueue } from './buffer';
 import type { TerminalColorQueryResponder } from './color-query';
 import type { TerminalImageOutputFilter, TerminalImageRecoveryFilter } from './image-recovery';
 import type { PtyThroughputTally } from './observability';
+import type { TerminalOutputFramer } from './output-framer';
 import type { AgentOutputRecovery } from './output-recovery';
 import type { TerminalScreenState } from './screen';
 
 export interface LiveTerminal {
     colorQuery?: TerminalColorQueryResponder;
     imageRecovery: TerminalImageRecoveryFilter;
+    outputFramer: TerminalOutputFramer;
     imageOutput: TerminalImageOutputFilter;
     process: pty.IPty;
     record: TerminalRecord;

@@ -1,5 +1,7 @@
 import { lstat, realpath } from 'node:fs/promises';
 
+import { mapWithConcurrency } from '@caxri/system';
+
 import { SingleFlight } from '../single-flight';
 import { parseWorktreeEntries } from './repo';
 import { sharedGitRequest } from './request-signal';
@@ -84,10 +86,18 @@ export class RepoTopologyRegistry {
     }
 
     private async load(root: string, git: TopologyRegistryOptions['git']): Promise<RepoTopology> {
-        const [commonDirectoryOutput, worktreeOutput] = await Promise.all([
-            git(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']),
-            git(root, ['worktree', 'list', '--porcelain', '-z']),
-        ]);
+        /**
+         * A failed probe must still drain its sibling command. Otherwise summary returns before that command logs its
+         * failure, letting shutdown flush the logger and remove its directory while a producer is still running.
+         */
+        const [commonDirectoryOutput, worktreeOutput] = await mapWithConcurrency(
+            [
+                ['rev-parse', '--path-format=absolute', '--git-common-dir'],
+                ['worktree', 'list', '--porcelain', '-z'],
+            ],
+            2,
+            (arguments_) => git(root, arguments_),
+        );
         const repoKey = await realpath(commonDirectoryOutput.trim());
         const worktrees = (
             await Promise.all(

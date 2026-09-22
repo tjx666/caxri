@@ -99,6 +99,15 @@ test('Project Status shortcut works from editable focus and keeps its live bindi
         await expectSelected(running.page, 'Status');
 
         const statusTab = sidebarTab(running.page, 'Status');
+        /**
+         * Selection precedes the view's asynchronous initialization. Its first badge/tree refresh can cancel a pending
+         * hover tooltip, so wait for this fixture's settled empty state before starting the hover delay.
+         */
+        await expect(
+            running.page.getByRole('tree', { name: 'Project Status' }).getByRole('treeitem', {
+                name: /^No Git repository, Initialize a Git repository/,
+            }),
+        ).toBeVisible();
         await statusTab.hover();
         const statusTooltip = running.page
             .locator('.tooltip-popup:visible')
