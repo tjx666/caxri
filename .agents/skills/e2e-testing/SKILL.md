@@ -111,6 +111,8 @@ evidence rather than automated test or Acceptance evidence.
   so the spec proceeds one step early and only loses the race on a loaded runner. Wait on the value
   that separates the two: capture the identity the mutation returned and assert the UI carries it,
   as `session-list-window.e2e.ts` does with `data-session-id` before it sends a key.
+- Keep drag-test receipts outside watched Project roots; a previous assertion must not trigger a
+  tree refresh that moves the next pointer target.
 - Do not mutate the filesystem while a menu, popover, or other transient surface is open. A watched
   filesystem event refreshes the Files tree, which can re-render the very row the open menu is
   anchored to and make its items unreachable for the full click timeout. Change permissions or
