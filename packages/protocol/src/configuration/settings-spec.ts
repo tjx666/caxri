@@ -557,6 +557,23 @@ export const settingsSpec = [
         default: true,
     },
     {
+        kind: 'integer',
+        key: 'editor.foldOnOpenLineThreshold',
+        title: 'Fold on open above',
+        description:
+            'Collapse every foldable region the first time a file longer than this opens, the same as Fold All. Set to 0 to never fold on open.',
+        category: 'editor',
+        keywords: ['fold', 'folding', 'collapse', 'outline', 'overview', 'long', 'large', 'open'],
+        min: 0,
+        /**
+         * Out of reach of any source file a person reads in the Editor, so raising the field to its maximum also
+         * behaves as an off switch. `0` remains the explicit one.
+         */
+        max: 1_000_000,
+        default: 1_000,
+        display: { unit: 'lines', step: 100 },
+    },
+    {
         kind: 'boolean',
         key: 'git.fetchGitHubAvatars',
         title: 'Fetch commit avatars from GitHub',

@@ -309,6 +309,7 @@ const rows: SettingRowSource[] = [
     specRow('editor.autoClosingDelete'),
     specRow('editor.stickyTabStops'),
     specRow('editor.unfoldOnClickAfterEndOfLine'),
+    specRow('editor.foldOnOpenLineThreshold'),
     specRow('editor.dragAndDrop'),
     specRow('editor.cursorBlinking'),
     specRow('editor.cursorSmoothCaretAnimation'),
