@@ -42,6 +42,37 @@ describe('RepoTopologyRegistry', () => {
         return { calls: () => calls, registry };
     }
 
+    it('drains sibling discovery commands before returning a failure', async () => {
+        const started = Promise.withResolvers<void>();
+        const sibling = Promise.withResolvers<string>();
+        const failure = new Error('discovery failed');
+        const registry = new RepoTopologyRegistry({
+            git: (_cwd, arguments_) => {
+                if (arguments_.includes('--git-common-dir')) return Promise.reject(failure);
+                started.resolve();
+                return sibling.promise;
+            },
+        });
+        let isSettled = false;
+        const outcome = (async () => {
+            try {
+                return await registry.topology(primaryRoot);
+            } catch (error) {
+                return error;
+            } finally {
+                isSettled = true;
+            }
+        })();
+        try {
+            await started.promise;
+            await new Promise<void>((resolve) => setImmediate(resolve));
+            expect(isSettled).toBe(false);
+        } finally {
+            sibling.resolve('');
+            expect(await outcome).toBe(failure);
+        }
+    });
+
     it('serves repeated lookups from cache without spawning Git', async () => {
         const { calls, registry } = createRegistry(() => [primaryRoot, linkedRoot]);
         const first = await registry.topology(primaryRoot);
