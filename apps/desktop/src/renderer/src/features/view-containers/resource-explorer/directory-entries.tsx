@@ -86,12 +86,14 @@ function InlineFileName({
     depth = 0,
     initialValue,
     label,
+    failureLabel,
     onCancel,
     onSubmit,
 }: {
     depth: number;
     initialValue: string;
     label: string;
+    failureLabel: string;
     onCancel: () => void;
     onSubmit: (value: string) => Promise<void>;
 }) {
@@ -112,7 +114,7 @@ function InlineFileName({
         try {
             await onSubmit(value);
         } catch (submissionError) {
-            setError(describeFailure(submissionError, 'Unable to change item'));
+            setError(describeFailure(submissionError, failureLabel));
         } finally {
             setPending(false);
         }
@@ -195,6 +197,11 @@ export function DirectoryEntries({
                     depth={depth}
                     initialValue=""
                     label={editing.itemKind === 'directory' ? 'New folder name' : 'New file name'}
+                    failureLabel={
+                        editing.itemKind === 'directory'
+                            ? 'Unable to create folder'
+                            : 'Unable to create file'
+                    }
                     onCancel={() => {
                         setEditing(undefined);
                         requestFocus(editing.returnFocus);
@@ -369,6 +376,7 @@ function FileTreeItem({
                 depth={depth}
                 initialValue={entry.name}
                 label={`Rename ${entry.name}`}
+                failureLabel="Unable to rename item"
                 onCancel={() => {
                     setEditing(undefined);
                     requestFocus({ kind: 'path', path: entry.path });

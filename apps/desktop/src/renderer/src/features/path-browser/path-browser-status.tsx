@@ -1,4 +1,3 @@
-import { describeFailure } from '../../stores/toasts';
 import type { usePathBrowser } from './use-path-browser';
 
 export function PathBrowserHelp({
@@ -38,7 +37,7 @@ export function PathBrowserStatus({
     if (displayedError)
         return (
             <p className="p-6 text-center text-danger" role="alert">
-                {describeFailure(displayedError, 'Unable to open path')}
+                {displayedError.message}
             </p>
         );
     if (!isResultsReady) return <p className="p-6 text-center text-muted">Searching…</p>;

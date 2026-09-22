@@ -423,18 +423,15 @@ export async function didTrashFile(
         client.forgetEditorPath(workbenchProjectId, result.path),
     );
     await invalidateDirectory(client, parentDirectoryPath(result.path));
-    pushToast('success', `Moved '${result.name}' to Trash`);
     /**
-     * The user already confirmed this destructive action knowing changes were unsaved (the `hasUnsavedChanges` copy
-     * above), but `closeOpenEditorsUnderPath` still discards those dirty buffers without a trace. A persisted notice —
-     * like the external-write notice in `external-sync.ts` — keeps that loss visible instead of vanishing with the
-     * success toast.
+     * One persistent card keeps the confirmed loss of unsaved edits visible without duplicating success feedback.
      */
-    if (hasUnsavedChanges)
-        pushToast(
-            'info',
-            `Unsaved changes to '${result.name}' were discarded; only the last saved version moved to Trash`,
-            { persist: true },
-        );
+    pushToast(
+        'success',
+        hasUnsavedChanges
+            ? `Moved '${result.name}' to Trash. Unsaved changes were discarded; only the last saved version can be restored.`
+            : `Moved '${result.name}' to Trash`,
+        { persist: hasUnsavedChanges },
+    );
     return true;
 }

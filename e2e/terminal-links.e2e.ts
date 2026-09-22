@@ -16,6 +16,7 @@ import {
     sessionCard,
     typeTerminal,
 } from './support/helpers.ts';
+import { expectDisabledTerminalCopyHint } from './support/terminal-links.ts';
 
 type LinkProbeName = 'caxriExternalLinkProbe' | 'caxriKeyboardLinkProbe' | 'caxriReferenceProbe';
 interface LinkProbe {
@@ -561,7 +562,6 @@ test('Terminal detected-link picker opens file and OSC 8 links without a pointer
         ),
         writeFile(deniedFile, 'outside Project root\n'),
     ]);
-
     const running = await launchCaxri({
         userDataDir: userData,
         testRootPath: root,
@@ -569,6 +569,7 @@ test('Terminal detected-link picker opens file and OSC 8 links without a pointer
     });
     try {
         await createShellSession(running.page);
+        await expectDisabledTerminalCopyHint(running.page);
         await running.app.evaluate(({ dialog, shell }) => {
             const target = globalThis as typeof globalThis & {
                 caxriKeyboardLinkProbe?: {

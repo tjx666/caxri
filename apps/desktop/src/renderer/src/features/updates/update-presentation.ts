@@ -90,7 +90,17 @@ export function describeUpdateStatus(
                 description: 'The DMG passed SHA-256 verification.',
             };
         case 'error':
-            return { title: 'Update failed', description: state.message };
+            return {
+                title: 'Update failed',
+                description:
+                    state.failureKind === 'network'
+                        ? 'The update connection was interrupted. Check your network and try again.'
+                        : state.failureKind === 'integrity'
+                          ? 'The download could not be verified and was not opened. Download it again.'
+                          : state.action === 'open'
+                            ? 'The downloaded installer could not be opened. Try again or open it from Finder.'
+                            : 'The update could not be completed. Please try again.',
+            };
     }
 }
 

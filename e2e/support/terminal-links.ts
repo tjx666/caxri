@@ -170,3 +170,24 @@ export async function clickTerminalLink(page: Page, text: string): Promise<void>
         await page.keyboard.up('Meta');
     }
 }
+
+/**
+ * Disabled menu items still explain why the operation is unavailable through the shared tooltip.
+ */
+export async function expectDisabledTerminalCopyHint(page: Page): Promise<void> {
+    /**
+     * The screen overlays DOM rows; click the empty row's coordinates, as link probes do, without selecting the prompt.
+     */
+    const bounds = await page.locator('.xterm-rows > div').last().boundingBox();
+    if (!bounds) throw new Error('The empty Terminal row is not visible');
+    await page.mouse.click(bounds.x + 4, bounds.y + bounds.height / 2, { button: 'right' });
+    const copyItem = page.getByRole('menuitem', { name: 'Copy', exact: true });
+    await expect(copyItem).toHaveAttribute('aria-disabled', 'true');
+    await copyItem.locator('..').hover();
+    await expect(page.locator('.tooltip-popup')).toContainText(
+        'Select text in the Terminal to copy it',
+    );
+    await page.keyboard.press('Escape');
+    await page.mouse.move(0, 0);
+    await expect(page.locator('.tooltip-popup')).toHaveCount(0);
+}

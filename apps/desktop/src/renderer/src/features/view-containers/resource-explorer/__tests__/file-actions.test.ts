@@ -330,11 +330,12 @@ describe('file action lifecycle', () => {
         });
         expect(getToasts()).toContainEqual(
             expect.objectContaining({
-                type: 'info',
+                type: 'success',
                 duration: Infinity,
-                title: "Unsaved changes to 'source.txt' were discarded; only the last saved version moved to Trash",
+                title: "Moved 'source.txt' to Trash. Unsaved changes were discarded; only the last saved version can be restored.",
             }),
         );
+        expect(getToasts()).toHaveLength(1);
     });
 
     it('cleans the Workbench Root the confirmation was about, not the one in effect afterwards', async () => {

@@ -12,6 +12,7 @@ import { useCaxriQuery } from '../../queries/client';
 import { tryCommand } from '../../stores/toasts';
 import { getBuiltinViewComponent } from './builtin-components';
 import { ControlledViewProvider } from './controlled-view-provider';
+import { describeExtensionFailure } from './extension-failure';
 import { ExtensionTreeView } from './extension-tree-view';
 import { resolveViewContainerId } from './resolution';
 import { ResourceExplorerView } from './resource-explorer/resource-explorer-view';
@@ -52,8 +53,24 @@ export function ViewContainerSurface({
         );
     if (catalogQuery.isError)
         return (
-            <div className="flex min-h-0 flex-1 items-center justify-center gap-2 text-xs text-danger">
-                <AlertTriangle size={15} /> {catalogQuery.error.message}
+            <div
+                role="alert"
+                className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 text-xs text-muted"
+            >
+                <AlertTriangle size={15} /> Unable to load views.
+                <Button
+                    size="sm"
+                    variant="secondary"
+                    aria-disabled={catalogQuery.isFetching}
+                    aria-busy={catalogQuery.isFetching}
+                    onClick={() => {
+                        if (catalogQuery.isFetching) return;
+                        // eslint-disable-next-line no-void -- query state renders the retry outcome inline
+                        void catalogQuery.refetch();
+                    }}
+                >
+                    Retry
+                </Button>
             </div>
         );
     const catalog = catalogQuery.data;
@@ -108,7 +125,7 @@ export function ViewContainerSurface({
                                           <p className="font-medium text-foreground">
                                               Extension unavailable
                                           </p>
-                                          <p>{container.error.message}</p>
+                                          <p>{describeExtensionFailure(container.error)}</p>
                                           {container.source.kind === 'extension' &&
                                               (() => {
                                                   const extensionId = container.source.extensionId;
