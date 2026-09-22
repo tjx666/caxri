@@ -227,6 +227,7 @@ export const appSettingsSchema = z.object({
     'editor.dragAndDrop': booleanField(spec['editor.dragAndDrop']),
     'editor.minimap.enabled': booleanField(spec['editor.minimap.enabled']),
     'editor.unfoldOnClickAfterEndOfLine': booleanField(spec['editor.unfoldOnClickAfterEndOfLine']),
+    'editor.foldOnOpenLineThreshold': integerField(spec['editor.foldOnOpenLineThreshold']),
     'terminal.scrollback': integerField(spec['terminal.scrollback']),
     'terminal.longPasteThreshold': integerField(spec['terminal.longPasteThreshold']),
     'terminal.copyOnSelect': booleanField(spec['terminal.copyOnSelect']),

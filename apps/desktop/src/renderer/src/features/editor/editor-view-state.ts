@@ -71,6 +71,21 @@ export function restoreEditorViewState(
 }
 
 /**
+ * Whether this pane already holds a remembered position for the editor's current model — in other words, whether this
+ * document has been shown here before during this window's lifetime. `restoreEditorViewState` re-inserts the entry
+ * rather than consuming it, so the answer is the same before and after a restore, and a caller that runs after the
+ * restore still learns that it is not looking at a first open.
+ */
+export function hasEditorViewState(
+    editor: MonacoEditor,
+    editorInstanceId: string | undefined,
+): boolean {
+    const modelUri = currentModelUri(editor);
+    if (!modelUri) return false;
+    return viewStates.has(viewStateKey(modelUri, editorInstanceId));
+}
+
+/**
  * Test seam: the cache is module state shared by every editor in the window.
  */
 export function clearEditorViewStates(): void {
