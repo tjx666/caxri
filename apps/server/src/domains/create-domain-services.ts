@@ -241,6 +241,11 @@ export async function createDomainServices(
         processId: terminals.processId(terminal.id),
     });
     const forgetSessionRuntime = (sessionId: string): void => {
+        /**
+         * Retire naming before resetting its revision fence or removing the Session's database identity.
+         */
+        agentRuntime.automaticNaming.forgetSession(sessionId);
+        sessionRenames.forgetSession(sessionId);
         terminalRestores.forget(sessionId);
         terminalSuspension.forgetSession(sessionId);
         coordinator.forgetSession(sessionId);

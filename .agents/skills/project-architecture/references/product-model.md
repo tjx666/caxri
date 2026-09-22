@@ -14,6 +14,11 @@ Archiving a Session hides it from active navigation without stopping or deleting
 Project and Session deletion removes Caxri metadata only. It never removes the authorized Project
 folder or user files.
 
+Every Session deletion path, including bulk and owning-Project deletion, retires Session runtime
+state before deleting metadata. Retirement aborts automatic naming, clears naming retry and manual
+revision bookkeeping, and releases Terminal view-size and input-epoch state. Late naming results
+remain fenced by their cancelled owner and the current database identity.
+
 Desktop notification history is a bounded Renderer-memory projection, separate from Sonner's
 live toast queue. Only typed reminder preferences persist in `settings.jsonc`, through the
 existing Server-owned scalar settings patch path. History never stores action closures or writes
