@@ -359,6 +359,34 @@ describe('architecture-a3b-terminal-host: RemoteTerminalExecution view attachmen
             });
         });
 
+        it.each([false, true])(
+            'restores one current view after an ambiguous timeout (adopted=%s)',
+            async (adopted) => {
+                const { control, execution, output, attachmentIdOf, flush } =
+                    await attachedTerminal();
+                control.failNextAttach = new CaxriError('TIMEOUT', 'Synthetic attachment timeout');
+                await expect(execution.attach(terminal.id)).rejects.toMatchObject({
+                    code: 'TIMEOUT',
+                });
+                flush('during-timeout', attachmentIdOf(adopted ? 1 : 0));
+                expect(output.mock.calls.flat()).toEqual(adopted ? ['during-timeout'] : []);
+
+                control.attachSnapshot = snapshot;
+                await expect(execution.attach(terminal.id)).resolves.toMatchObject({ snapshot });
+                output.mockClear();
+                flush('original-stale', attachmentIdOf(0));
+                flush('timed-out-stale', attachmentIdOf(1));
+                flush('current', attachmentIdOf(2));
+                expect(output.mock.calls.flat()).toEqual(['current']);
+                expect(execution.write(terminal.id, 'typed')).toBe(true);
+                await vi.waitFor(() => expect(control.requestCount('terminal.input')).toBe(1));
+                expect(control.requests.at(-1)?.scope).toMatchObject({
+                    attachmentId: attachmentIdOf(2),
+                });
+                expect(control.requestCount('terminal.start')).toBe(1);
+            },
+        );
+
         it('classifies the host refusing a stale scope instead of logging it as unknown', async () => {
             const { control, execution, logger, output, attachmentIdOf, flush } =
                 await attachedTerminal();
