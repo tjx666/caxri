@@ -56,6 +56,7 @@ import * as useOnVisible from '@/hooks/use-on-visible';
 import * as usePointerDragResize from '@/hooks/use-pointer-drag-resize';
 import * as usePolledQuery from '@/hooks/use-polled-query';
 import * as useRelativeTime from '@/hooks/use-relative-time';
+import * as useResourceLoad from '@/hooks/use-resource-load';
 import * as useShouldReduceMotion from '@/hooks/use-should-reduce-motion';
 import * as motionLib from '@/lib/motion';
 import * as utilities from '@/lib/utilities';
@@ -111,5 +112,6 @@ export default {
     '@/hooks/use-pointer-drag-resize': usePointerDragResize,
     '@/hooks/use-polled-query': usePolledQuery,
     '@/hooks/use-relative-time': useRelativeTime,
+    '@/hooks/use-resource-load': useResourceLoad,
     '@/hooks/use-should-reduce-motion': useShouldReduceMotion,
 };

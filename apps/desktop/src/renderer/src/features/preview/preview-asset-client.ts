@@ -27,11 +27,29 @@ function cacheKey(sessionId: string, path: string): string {
     return `${sessionId}\0${path}`;
 }
 
+/**
+ * Decodes one asset's payload.
+ *
+ * `Uint8Array.fromBase64` is the fast path and is what the Renderer actually runs, but it does not exist in the Node
+ * runtime this module's unit tests execute under. Without the fallback every decode there threw, the read reported an
+ * ordinary missing-image failure, and the suite's refcount cases silently asserted against `undefined` instead of the
+ * behavior they describe. The fallback reads one character at a time rather than through `Uint8Array.from`, which pays
+ * a callback per byte across an asset that may reach the 8 MiB read ceiling.
+ */
+function decodeAsset(base64: string): Uint8Array<ArrayBuffer> {
+    if (typeof Uint8Array.fromBase64 === 'function') return Uint8Array.fromBase64(base64);
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1)
+        bytes[index] = binary.codePointAt(index) ?? 0;
+    return bytes;
+}
+
 async function readAsset(sessionId: string, path: string): Promise<string | undefined> {
     await assetReads.acquire();
     try {
         const asset = await caxri.request('files.readAsset', { sessionId, path });
-        const blob = new Blob([Uint8Array.fromBase64(asset.base64)], { type: asset.mediaType });
+        const blob = new Blob([decodeAsset(asset.base64)], { type: asset.mediaType });
         return URL.createObjectURL(blob);
     } catch {
         // A missing, oversized, or unauthorized image is an ordinary document defect: the caller shows a placeholder.

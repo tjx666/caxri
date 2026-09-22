@@ -10,6 +10,19 @@ const { acquireAsset, releaseAsset } = await import('../preview-asset-client');
 const PIXEL = 'R0lGODlhAQABAAAAACw=';
 
 /**
+ * `Uint8Array.prototype.toBase64` is a Renderer API the Node runtime these tests execute under does not have, and the
+ * Renderer may not import Node builtins, so neither it nor `Buffer` is available here. `btoa` takes a string, and
+ * spreading a multi-megabyte asset into `String.fromCodePoint` at once overflows the argument list.
+ */
+function encodeBase64(bytes: Uint8Array): string {
+    const chunkSize = 0x8000;
+    let binary = '';
+    for (let index = 0; index < bytes.length; index += chunkSize)
+        binary += String.fromCodePoint(...bytes.subarray(index, index + chunkSize));
+    return btoa(binary);
+}
+
+/**
  * Object URLs are the one thing in the preview whose lifetime the DOM does not manage for us: a revoked URL keeps
  * rendering as a broken image with no error anywhere, so every refcount path gets a test.
  */
@@ -77,7 +90,7 @@ describe('preview asset client', () => {
         request.mockResolvedValue({
             path: '/p/large.png',
             mediaType: 'image/png',
-            base64: expected.toBase64(),
+            base64: encodeBase64(expected),
             size: expected.byteLength,
         });
         try {
