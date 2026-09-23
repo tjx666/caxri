@@ -271,7 +271,10 @@ describe('sendActiveFileReferenceToTerminal from a Git diff tab', () => {
         expect(mocks.sendTerminalSequence).not.toHaveBeenCalled();
     });
 
-    it('declines a commit or pull-request comparison, whose caret numbers a past revision', async () => {
+    it('references the caret line of a commit or pull-request comparison too', async () => {
+        // These render a past revision, so the line can address different code in the checkout. Issue #1147 chose the
+        // reference anyway: a reader asking about the line in front of them is better served by one that may need
+        // adjusting than by a shortcut that silently does nothing.
         mocks.getDiffEditorFileSelection.mockReturnValue({
             line: 42,
             column: 1,
@@ -279,15 +282,17 @@ describe('sendActiveFileReferenceToTerminal from a Git diff tab', () => {
             selectionEndLine: 42,
         });
 
-        const expectNoReference = async (path: string): Promise<void> => {
+        const expectReference = async (path: string): Promise<void> => {
             activeFile(path);
-            expect(canSendActiveFileReference()).toBe(false);
+            expect(canSendActiveFileReference()).toBe(true);
             await sendActiveFileReferenceToTerminal();
+            expect(mocks.sendTerminalSequence).toHaveBeenLastCalledWith(
+                'terminal-1',
+                '@src/index.ts#L42 ',
+            );
         };
 
-        await expectNoReference(gitCommitFileDiffTabPath('repo-1', 'a'.repeat(40), 'src/index.ts'));
-        await expectNoReference(gitPullRequestFileDiffTabPath('repo-1', 'src/index.ts'));
-
-        expect(mocks.sendTerminalSequence).not.toHaveBeenCalled();
+        await expectReference(gitCommitFileDiffTabPath('repo-1', 'a'.repeat(40), 'src/index.ts'));
+        await expectReference(gitPullRequestFileDiffTabPath('repo-1', 'src/index.ts'));
     });
 });
