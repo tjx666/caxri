@@ -40,11 +40,13 @@ import {
  * to the Agent when that provider can accept one; greying the entry out here made the menu disagree with the row's own
  * Enter key, which always opened the input.
  *
- * This menu, the row's double-click, and Enter all open the same inline rename editor.
+ * This menu, the row's double-click, and Enter all open the same inline rename editor. A list with no inline editor —
+ * the Activity queue — omits `onBeginRename`, and the menu drops the entry rather than offering one that does nothing.
  */
 export function SessionRowMenu({
     children,
     onBeginRename,
+    onMarkRead,
     onOpenChange,
     project,
     pullRequest,
@@ -52,7 +54,12 @@ export function SessionRowMenu({
     terminals,
 }: {
     children: ReactElement;
-    onBeginRename: () => void;
+    onBeginRename?: () => void;
+    /**
+     * Clears the row's Unread Attention without opening it. Passed by the Activity queue, where that is the list's own
+     * Delete action; the entry renders only while the Session is unread.
+     */
+    onMarkRead?: () => void;
     onOpenChange?: (isOpen: boolean) => void;
     project: ProjectRecord;
     pullRequest?: SessionPullRequest;
@@ -98,7 +105,7 @@ export function SessionRowMenu({
             onOpenChangeComplete={(isOpen) => {
                 if (isOpen || !renameRequested) return;
                 setRenameRequested(false);
-                onBeginRename();
+                onBeginRename?.();
             }}
         >
             <ContextMenuTrigger render={children} />
@@ -113,9 +120,16 @@ export function SessionRowMenu({
                  * tree key, not a keybinding — it archives the row focus is on, which is not necessarily the selected
                  * Session, so it cannot become a command binding without changing which Session it would take.
                  */}
-                <ContextMenuItem hint={renameShortcut} onClick={() => setRenameRequested(true)}>
-                    Rename
-                </ContextMenuItem>
+                {onMarkRead && session.hasUnread && (
+                    <ContextMenuItem hint="delete" onClick={onMarkRead}>
+                        Mark as Read
+                    </ContextMenuItem>
+                )}
+                {onBeginRename && (
+                    <ContextMenuItem hint={renameShortcut} onClick={() => setRenameRequested(true)}>
+                        Rename
+                    </ContextMenuItem>
+                )}
                 {/*
                  * Pin has no key hint: it is neither a tree key nor a catalog command, because it acts on the clicked
                  * row rather than the selected Session — the same reason Archive keeps a literal instead of a binding.
@@ -123,7 +137,11 @@ export function SessionRowMenu({
                 <ContextMenuItem onClick={() => setSessionPinned(session.id, !pinned)}>
                     {pinned ? 'Unpin Session' : 'Pin Session'}
                 </ContextMenuItem>
-                <ContextMenuItem hint="delete" onClick={() => archiveSession(session.id)}>
+                {/* In the Activity queue Delete marks the row read instead, so the hint moves to that entry. */}
+                <ContextMenuItem
+                    hint={onMarkRead ? undefined : 'delete'}
+                    onClick={() => archiveSession(session.id)}
+                >
                     Archive
                 </ContextMenuItem>
                 {detached ? (

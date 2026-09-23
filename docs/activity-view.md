@@ -37,6 +37,11 @@ Rows are grouped, and the groups are ordered:
 | Recently finished | It completed within the retention window below                  |
 | Idle              | Everything else, including a detached Agent that did not fail   |
 
+Each heading leads with its own muted glyph — a bell with a dot, a bolt, an hourglass, a warning
+triangle, a double check, and a moon — so a group is found by shape before its label is read, as in
+Paseo's status list. None of them reuses a row glyph's circle family: the heading names the section,
+and repeating the row glyph above its own rows would say the same thing twice.
+
 An empty group is not rendered. Inside a group, rows keep Session activity recency, so the newest
 event in a group is always its first row.
 
@@ -67,13 +72,19 @@ showing it, so switching back to the tree stops the clock by unmounting its only
 
 ## Visual grammar
 
-A row is a state glyph, the Session title on its own line, and `project · time` beneath it. There is
-no state phrase on the row at all:
+A row is a state glyph, the Session title on its own line with its pull request glyph at the right
+edge, and the Agent, Project, worktree, and time beneath it. There is no state phrase on the row at
+all:
 
 ```text
-⊘  Rate limiter for /v1/search
-   api-server · 18m ago
+⊘  Rate limiter for /v1/search              ⇡
+   ✳ api-server ⑂ api-server-rate-limit · 18m ago
 ```
+
+The second line says where the Session runs, in the order a user narrows it down: which Agent CLI
+(its identity icon), which repository, and — only when the Session works in a linked worktree rather
+than its Project root — which worktree, marked by the same `worktree` codicon the Project tree uses.
+The pull request glyph is the Project tree's own, colored by lifecycle, in the same right-edge slot.
 
 **The state is a shape because every group heading already names it.** A row under **Working** that
 also printed "Working" repeated its own heading, and three of the six groups did exactly that, word
@@ -86,23 +97,34 @@ Six states, six shapes: a check for a finished turn, a question mark for one wai
 for a failure, a spinner while the Agent runs, a hollow circle for idle, a dashed one when no
 activity was ever reported. A detached Agent shows the unplugged glyph instead of its frozen state.
 
-Color is the one thing the shape does not carry, and it still follows the two-tier rule: only
-**Needs attention** and **Failed** rows are tinted, so visual weight always means "this one wants
-you" and never has to be decoded against a legend. An unread row's tint comes from _why_ it needs
+Color is the one thing the shape does not carry, and it follows the two-tier rule: only
+**Needs attention** and **Failed** rows are tinted warning or danger, so that weight always means
+"this one wants you" and never has to be decoded against a legend. The one exception is the
+**Working** spinner, which is `--success` green: it is the only motion in the list, and in muted grey
+it read as a loading placeholder rather than an Agent making progress. It cannot be confused with a
+request, because an unread running Session sits under **Needs attention** with its attention glyph. An unread row's tint comes from _why_ it needs
 the user (`sessionUnreadTone`), not from what its Agent is doing right now — a completed turn is a
 neutral state, which would print the commonest unread row of all in the same grey as an Idle one,
 and an unread Session still running is a success state, which would put green under "Needs
 attention".
 
-The title takes a line to itself. The Project and time share a fixed-height line below it: when
-space runs out, the entire time disappears before the Project truncates. CSS wrapping and clipping
+The title takes a line to itself. The location and time share a fixed-height line below it: when
+space runs out, the entire time disappears first, then the worktree name truncates, and the Project
+truncates last. CSS wrapping and clipping
 keep this priority independent of text length without measuring in JavaScript or changing the row
 height. A Project wider than the entire line still truncates visually; its text remains complete
-for assistive technology and its shared tooltip reveals the full name. The Project has priority
+for assistive technology and the row's hover card shows the full name. The Project has priority
 because it is the only thing telling the user which repository a row belongs to.
 
-An unread row reserves its mark-read button's width in the title's right padding rather than
-surrendering it on hover, so the title never reflows under the pointer.
+An unread row reserves its mark-read button's width at the end of the title line rather than
+surrendering it on hover, so the title never reflows under the pointer. The pull request glyph shares
+that slot and hides while the button shows.
+
+Rows wear the Project tree's Session hover card and context menu, so a Session reads and acts the
+same in either body of the side bar. Neither the glyph nor the Project name carries a tooltip of its
+own, because a second hover popup on one row would compete with the card. The menu differs in two
+entries: an unread row leads with **Mark as Read** (Delete's pointer twin, so Archive loses its
+`delete` hint here), and **Rename** is absent because this list has no inline editor to open.
 
 ## Interaction
 
@@ -117,6 +139,7 @@ over them.
 | `Home` / `End`          | First / last Session row                                       |
 | `Delete` / `Backspace`  | Mark the row read, clearing its reminder without opening it    |
 | Row's check button      | The pointer equivalent of Delete                               |
+| Right-click             | The Session context menu, led by Mark as Read when unread      |
 | `Cmd+Shift+N`           | Select the next Session needing attention, wrapping at the end |
 | `Cmd+Alt+U`             | Switch the side bar between the Project tree and this queue    |
 
