@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto';
+import process from 'node:process';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import { runCapture } from './process';
 import type { ProcessEntry, StopOperations } from './worktree-processes';
 import {
     isWorktreeOwnedCommand,
@@ -49,6 +51,15 @@ function stoppedIds(launcherPid?: number): number[] {
 }
 
 describe('worktree process ownership', () => {
+    it('runs process-table commands with a stable locale', async () => {
+        vi.stubEnv('LC_ALL', 'zh_CN.UTF-8');
+        try {
+            expect((await runCapture('printenv', ['LC_ALL'], process.cwd())).trim()).toBe('C');
+        } finally {
+            vi.unstubAllEnvs();
+        }
+    });
+
     it('keeps the two leading columns apart from command lines that contain spaces', () => {
         const helper = parseProcessTable(TABLE).find((entry) => entry.pid === 502);
 
@@ -173,10 +184,15 @@ describe('stopping owned processes', () => {
         let round = 0;
         return {
             cwd: () => Promise.resolve(undefined),
-            identity: () => Promise.resolve(undefined),
+            identity: (pid) => Promise.resolve(`start-${pid}`),
             list: () => {
                 round += 1;
-                return Promise.resolve(alive(round));
+                return Promise.resolve(
+                    alive(round).map((entry) => ({
+                        ...entry,
+                        identity: entry.identity ?? `start-${entry.pid}`,
+                    })),
+                );
             },
             signalProcess: (pid, signal) => signals.push([pid, signal]),
             signals,
@@ -185,7 +201,9 @@ describe('stopping owned processes', () => {
     }
 
     it('escalates to SIGKILL only for the processes that survived SIGTERM', async () => {
-        const targets = entries().filter((entry) => [600, 603].includes(entry.pid));
+        const targets = entries()
+            .filter((entry) => [600, 603].includes(entry.pid))
+            .map((entry) => ({ ...entry, identity: `start-${entry.pid}` }));
         const stubborn = targets.filter((entry) => entry.pid === 603);
         const stop = operations(() => stubborn);
 
@@ -210,6 +228,42 @@ describe('stopping owned processes', () => {
 
         expect(stop.signals).toEqual([]);
         expect(list).not.toHaveBeenCalled();
+    });
+
+    it('does not signal a PID reused after the ownership snapshot', async () => {
+        const original: ProcessEntry = {
+            command: 'Caxri Dev',
+            identity: 'original-start',
+            parentPid: 1,
+            pid: 900,
+        };
+        const replacement = { ...original, identity: 'replacement-start' };
+        const stop = operations(() => [replacement]);
+        stop.identity = () => Promise.resolve(replacement.identity);
+
+        const result = await stopProcesses([original], stop);
+
+        expect(stop.signals).toEqual([]);
+        expect(result).toEqual({ stopped: [original], survivors: [] });
+    });
+
+    it('does not escalate when the original PID is reused after SIGTERM', async () => {
+        const original: ProcessEntry = {
+            command: 'Caxri Dev',
+            identity: 'original-start',
+            parentPid: 1,
+            pid: 900,
+        };
+        const replacement = { ...original, identity: 'replacement-start' };
+        const stop = operations(() => [replacement]);
+        let reads = 0;
+        stop.identity = () =>
+            Promise.resolve(++reads === 1 ? original.identity : replacement.identity);
+
+        const result = await stopProcesses([original], stop);
+
+        expect(stop.signals).toEqual([[900, 'SIGTERM']]);
+        expect(result).toEqual({ stopped: [original], survivors: [] });
     });
 
     it('reports a replacement PID spawned after the original target exited', async () => {

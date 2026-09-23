@@ -198,6 +198,7 @@ describe('FileMutationJournal', () => {
             },
             async (stage) => {
                 const result = {
+                    birthtime: sourceStats.birthtimeNs.toString(),
                     device: sourceStats.dev.toString(),
                     inode: sourceStats.ino.toString(),
                     kind: 'file' as const,
@@ -230,6 +231,20 @@ describe('FileMutationJournal', () => {
         expect((await recovered.get('operation-3'))?.error).toBeUndefined();
         await expect(access(source)).rejects.toThrow();
         await recovered.close();
+
+        persisted[0].expectedResult!.birthtime = (sourceStats.birthtimeNs + 1n).toString();
+        await writeFile(path, JSON.stringify(persisted), 'utf8');
+        const replacedVolume = new FileMutationJournal(path, () => {}, logger);
+        await replacedVolume.initialize();
+        await expect(replacedVolume.get('operation-3')).resolves.toMatchObject({ phase: 'failed' });
+        await replacedVolume.close();
+
+        delete persisted[0].expectedResult!.birthtime;
+        await writeFile(path, JSON.stringify(persisted), 'utf8');
+        const olderRecord = new FileMutationJournal(path, () => {}, logger);
+        await olderRecord.initialize();
+        await expect(olderRecord.get('operation-3')).resolves.toMatchObject({ phase: 'failed' });
+        await olderRecord.close();
     });
 
     it('reconciles a created file from its confirmed post-create identity after restart', async () => {
