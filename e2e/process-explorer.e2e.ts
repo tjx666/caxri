@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { execFileAsync } from '@caxri/system';
 
-import { expect, test } from './support/fixtures.ts';
+import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import { createShellSession, launchCaxri, runtimeStatus } from './support/helpers.ts';
 
 test('Process Explorer opens one live Caxri process tree and closes independently', async () => {
@@ -115,7 +115,20 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
 
         /**
          * A failed sample must not present the preceding sample as live process data.
+         *
+         * The visible copy is deliberately plain, so the window records the cause through `console.error`; Main mirrors
+         * that into `desktop.jsonl` as an error class plus a digest. Both the direct Renderer capture and that mirrored
+         * record are the expected result of the failure injected below, not an unhandled error.
          */
+        allowE2EErrors([
+            { source: 'renderer', event: 'console', code: 'CONSOLE_ERROR', count: 1 },
+            {
+                source: 'desktop',
+                event: 'process_explorer.console_error',
+                code: 'CONSOLE_ERROR',
+                count: 1,
+            },
+        ]);
         await running.app.evaluate(({ app }) => {
             const scope = globalThis as Record<string, unknown>;
             scope.__caxriProcessMetrics = Object.getOwnPropertyDescriptor(app, 'getAppMetrics');
