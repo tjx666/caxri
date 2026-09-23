@@ -134,6 +134,9 @@ function WorkbenchRootTrigger({
             content={
                 isSwitching ? `Switching to ${switchingLabel}…` : `${rootPath}\nBranch: ${branch}`
             }
+            // The pointer is still on the trigger once its menu opens, so a hover delay that fires after the click
+            // would raise the tooltip over the menu's first options and swallow the click meant for them.
+            disabled={isExpanded}
         >
             <PopoverTrigger
                 role="combobox"

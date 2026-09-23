@@ -283,7 +283,11 @@ test('Status Bar hides the branch chip in a linked worktree and keeps the branch
         await expect(page.locator('.tooltip-popup')).toContainText('feature/alternate');
         await page.mouse.move(0, 0);
         await selector.click();
-        await page.getByRole('option', { name: 'main, Main worktree', exact: true }).click();
+        const mainRoot = page.getByRole('option', { name: 'main, Main worktree', exact: true });
+        await expect(mainRoot).toBeVisible();
+        // The pointer still rests on the trigger, but its tooltip must not cover the menu the trigger just opened.
+        await expect(page.locator('.tooltip-popup')).toHaveCount(0);
+        await mainRoot.click();
         await expect(page.getByRole('combobox', { name: 'Switch branch from main' })).toBeVisible();
     } finally {
         await running.app.close();
