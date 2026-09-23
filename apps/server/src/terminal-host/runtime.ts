@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import process from 'node:process';
 
 import type {
@@ -63,7 +64,7 @@ export interface TerminalExecutionOwner {
     textTail?(terminalId: string, maximumCharacters: number): Promise<string | null>;
     start(input: TerminalExecutionStart): number;
     waitForAttachedSize(terminalId: string, timeoutMs: number): Promise<void>;
-    write(terminalId: string, data: string): boolean;
+    write(terminalId: string, data: string | Buffer): boolean;
 }
 
 export interface ManagedAgentExecutionOwner {
@@ -424,7 +425,14 @@ export class TerminalHostRuntime {
                         request.params.expectedAgentLaunchId
                 )
                     throw new CaxriError('CONFLICT', 'Managed Agent changed before Terminal input');
-                return { accepted: this.engine.write(scope.terminalId, request.params.data) };
+                return {
+                    accepted: this.engine.write(
+                        scope.terminalId,
+                        request.params.encoding === 'binary'
+                            ? Buffer.from(request.params.data, 'latin1')
+                            : request.params.data,
+                    ),
+                };
             }
             case 'terminal.agent.input': {
                 const scope = this.requireTerminalScope(envelope);

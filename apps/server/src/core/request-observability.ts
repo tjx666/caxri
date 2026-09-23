@@ -7,10 +7,11 @@ import type { ServerOperation } from '@caxri/protocol';
  * remain logged at both boundaries.
  */
 const UNLOGGED_SUCCESS_METHODS = {
-    control: new Set<string>(['logs.query'] satisfies ServerOperation[]),
+    control: new Set<string>(['logs.query', 'terminal.inputBinary'] satisfies ServerOperation[]),
     domain: new Set<string>([
         'logs.query',
         'terminal.input',
+        'terminal.inputBinary',
         'terminal.inputAgentExact',
         'terminal.resize',
     ] satisfies ServerOperation[]),

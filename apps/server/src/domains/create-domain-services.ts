@@ -34,7 +34,11 @@ import {
     TerminalRestoreSupervisor,
     TerminalSuspensionService,
 } from './terminal';
-import { createTerminalAgentExactInputHandler, createTerminalInputHandler } from './terminal-input';
+import {
+    createTerminalAgentExactInputHandler,
+    createTerminalBinaryInputHandler,
+    createTerminalInputHandler,
+} from './terminal-input';
 import { createTerminalMoveHandler } from './terminal-move';
 import { createTerminalRestartHandler } from './terminal-restart';
 import { createInterruptedTerminalRestorer } from './terminal-restore';
@@ -672,6 +676,12 @@ export async function createDomainServices(
         },
         'terminal.openFileLink': () => mainOwned('terminal.openFileLink'),
         'terminal.input': createTerminalInputHandler({ coordinator, database, send, terminals }),
+        'terminal.inputBinary': createTerminalBinaryInputHandler({
+            coordinator,
+            database,
+            send,
+            terminals,
+        }),
         'terminal.inputAgentExact': createTerminalAgentExactInputHandler({
             coordinator,
             database,

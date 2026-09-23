@@ -34,6 +34,7 @@ describe('Agent-exact Terminal input', () => {
             'safe',
             'launch-1',
             undefined,
+            undefined,
         );
         expect(observeUserInput).toHaveBeenCalledTimes(2);
         expect(observeUserInput).toHaveBeenLastCalledWith('terminal-1', 'safe');
@@ -53,6 +54,7 @@ describe('Agent-exact Terminal input', () => {
             'terminal-1',
             'delegated',
             'launch-1',
+            undefined,
             undefined,
         );
     });

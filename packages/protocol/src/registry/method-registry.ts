@@ -53,6 +53,7 @@ import {
     identifierSchema,
     keybindingConflictSchema,
     keybindingSchema,
+    MAX_TERMINAL_INPUT_LENGTH,
     MAX_TERMINAL_INPUT_PAYLOAD_LENGTH,
     movedFileEntrySchema,
     mutableFileEntrySchema,
@@ -405,6 +406,23 @@ export const methods = {
         params: z.object({
             terminalId: identifierSchema,
             data: z.string().max(MAX_TERMINAL_INPUT_PAYLOAD_LENGTH),
+        }),
+        result: z.null(),
+    },
+    'terminal.inputBinary': {
+        ...terminalStreamControl,
+        params: z.object({
+            terminalId: identifierSchema,
+            data: z
+                .string()
+                .min(1)
+                .max(MAX_TERMINAL_INPUT_LENGTH)
+                .refine(
+                    (data) =>
+                        [...data].every((character) => (character.codePointAt(0) ?? 0) <= 0xff),
+                    'Binary Terminal input must contain only bytes',
+                ),
+            expectedAgentLaunchId: identifierSchema.optional(),
         }),
         result: z.null(),
     },
