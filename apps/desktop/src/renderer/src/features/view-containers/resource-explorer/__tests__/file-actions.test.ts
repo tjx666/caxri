@@ -13,7 +13,14 @@ import { useSessionViewStore } from '../../../../stores/session-view';
 import { dismissToast, getToasts } from '../../../../stores/toasts';
 import { useWorkbenchStore } from '../../../../stores/workbench';
 import { controlledViewQueryKey } from '../../view-operation-client';
-import { didTrashFile, duplicateFile, moveFile, pasteFile, renameFile } from '../file-actions';
+import {
+    createItem,
+    didTrashFile,
+    duplicateFile,
+    moveFile,
+    pasteFile,
+    renameFile,
+} from '../file-actions';
 import { useFileClipboardStore } from '../file-clipboard';
 import {
     resolveFileConflictChoice,
@@ -711,6 +718,79 @@ describe('moveFile conflict prompt', () => {
         // branch of `reconcileFileMutation` calls it), so only `moveFile`'s own `finally` can clear
         // the registration it made before this attempt. Without that `finally`, this entry would
         // stay registered for the life of the Renderer.
+        expect(failureToastSuppressionSizeForTests()).toBe(0);
+    });
+});
+
+describe('inline create and rename conflicts', () => {
+    const conflict = new CaxriError('CONFLICT', 'A file or folder with that name already exists');
+
+    function failedOperation(
+        kind: 'create' | 'rename',
+        input: Record<string, unknown>,
+    ): FileMutationOperation {
+        return {
+            id: `${kind}-conflict-1`,
+            kind,
+            sessionId: 'session-a',
+            phase: 'failed',
+            input,
+            error: { code: 'CONFLICT', message: conflict.message },
+            startedAt: 1,
+            updatedAt: 2,
+        } as FileMutationOperation;
+    }
+
+    beforeEach(() => {
+        useWorkbenchStore.setState({
+            bootstrap: {
+                sessions: [session('session-a', 'project-1')],
+                sessionStates: [],
+                terminals: [],
+            } as unknown as BootstrapState,
+        });
+    });
+
+    // The inline name field already explains the conflict, so reconciling the failed durable operation must not
+    // raise a second, identical notification (issue #987).
+    it('propagates a create conflict to the inline field without a toast', async () => {
+        vi.stubGlobal('crypto', { randomUUID: () => 'create-conflict-1' });
+        const failed = failedOperation('create', {
+            directory: '/project/src',
+            name: 'duplicate.txt',
+            kind: 'file',
+        });
+        mocks.request.mockImplementation((method: string) => {
+            if (method === 'files.create') return Promise.reject(conflict);
+            if (method === 'files.operation.get') return Promise.resolve(failed);
+            return Promise.resolve(null);
+        });
+
+        await expect(
+            createItem(client, 'session-a', '/project/src', 'duplicate.txt', 'file'),
+        ).rejects.toBe(conflict);
+
+        expect(getToasts()).toEqual([]);
+        expect(failureToastSuppressionSizeForTests()).toBe(0);
+    });
+
+    it('propagates a rename conflict to the inline field without a toast', async () => {
+        vi.stubGlobal('crypto', { randomUUID: () => 'rename-conflict-1' });
+        const failed = failedOperation('rename', {
+            path: '/project/created.txt',
+            name: 'draft.txt',
+        });
+        mocks.request.mockImplementation((method: string) => {
+            if (method === 'files.rename') return Promise.reject(conflict);
+            if (method === 'files.operation.get') return Promise.resolve(failed);
+            return Promise.resolve(null);
+        });
+
+        await expect(
+            renameFile(client, 'session-a', '/project/created.txt', 'draft.txt'),
+        ).rejects.toBe(conflict);
+
+        expect(getToasts()).toEqual([]);
         expect(failureToastSuppressionSizeForTests()).toBe(0);
     });
 });
