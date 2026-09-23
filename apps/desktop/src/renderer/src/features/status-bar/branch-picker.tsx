@@ -122,6 +122,8 @@ export function BranchPicker({
         >
             <Tooltip
                 content={switching ? `Switching to ${switching}…` : `Switch branch from ${branch}`}
+                // Same reason as the Workbench Root trigger: an open menu must not sit under its own trigger's tooltip.
+                disabled={open}
             >
                 <PopoverTrigger
                     role="combobox"
