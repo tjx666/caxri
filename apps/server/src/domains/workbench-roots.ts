@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { lstat, realpath } from 'node:fs/promises';
 import { isAbsolute, relative } from 'node:path';
 
@@ -25,6 +24,8 @@ import {
     isSameWorkbenchBinding,
     updateObservedAgentCwd,
 } from './workbench-provenance';
+import type { WorkbenchCandidate } from './workbench-root-candidates';
+import { addWorkbenchCandidate } from './workbench-root-candidates';
 import {
     discoverWorkbenchRoots,
     isSameWorkbenchRootIdentity,
@@ -34,19 +35,10 @@ import {
     worktreeIdentityId,
 } from './workbench-root-discovery';
 
-const MAX_CANDIDATES = 256;
 const MAX_OBSERVED_AGENT_CWDS = 256;
 const MAX_PENDING_DELETION_VALIDATIONS = 256;
 const SHELL_VALIDATION_SETTLE_MS = 100;
 const workbenchRootLogEvents = logEventCatalog.workbenchRoot;
-
-interface WorkbenchCandidate {
-    candidateId: string;
-    repositoryKey: string;
-    rootPath: string;
-    sessionId: string;
-    state: 'pending' | 'claimed';
-}
 
 type TopologyValidation =
     { status: 'available'; topology: GitWorktreeTopology } | { status: 'unavailable' };
@@ -216,23 +208,7 @@ export class WorkbenchRootService {
         rootPath: string;
         sessionId: string;
     }): void {
-        for (const [candidateId, candidate] of this.candidates)
-            if (candidate.sessionId === input.sessionId) this.candidates.delete(candidateId);
-        while (this.candidates.size >= MAX_CANDIDATES) {
-            const oldest = this.candidates.keys().next().value;
-            if (!oldest) break;
-            this.candidates.delete(oldest);
-        }
-        const candidateId = randomUUID();
-        this.candidates.set(candidateId, {
-            ...input,
-            candidateId,
-            state: 'pending',
-        });
-        this.options.emit({
-            event: 'workbench.candidate',
-            payload: { candidateId, sessionId: input.sessionId, rootPath: input.rootPath },
-        });
+        addWorkbenchCandidate(this.candidates, input, (event) => this.options.emit(event));
     }
 
     private loadTopology(ownerRoot: string): Promise<GitWorktreeTopology> {

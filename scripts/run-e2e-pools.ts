@@ -13,7 +13,11 @@ import {
 import type { E2EPoolInvocation } from '../e2e/support/pools';
 import { createE2EPoolPlan } from '../e2e/support/pools';
 import { waitForChildExit } from './exec';
-import type { E2EAbortedInvocation, E2EPoolReceipt } from './reporters/e2e-receipt-reporter';
+import type {
+    E2EAbortedInvocation,
+    E2EPoolReceipt,
+    E2ETestReceipt,
+} from './reporters/e2e-receipt-reporter';
 import {
     assertE2EPoolCensusComplete,
     assertE2EPoolReceipt,
@@ -52,6 +56,22 @@ async function discoverE2ESpecs(): Promise<string[]> {
         .toSorted((left, right) => left.localeCompare(right));
 }
 
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/e2e-pools.test.ts
+export function playwrightTestArguments(
+    invocation: E2EPoolInvocation,
+    workers: number,
+    isCensus: boolean,
+): string[] {
+    return [
+        'playwright',
+        'test',
+        ...invocation.specs,
+        `--workers=${workers}`,
+        ...(isCensus ? ['--max-failures=0'] : []),
+        '--reporter=line,./scripts/reporters/e2e-receipt-reporter.ts',
+    ];
+}
+
 async function runInvocation(
     invocation: E2EPoolInvocation,
     pool: E2EPool,
@@ -62,28 +82,17 @@ async function runInvocation(
     outputSuffix?: string,
 ): Promise<number> {
     await rm(receiptPath, { force: true });
-    const child = spawn(
-        'bunx',
-        [
-            'playwright',
-            'test',
-            ...invocation.specs,
-            `--workers=${workers}`,
-            ...(isCensus ? ['--max-failures=1'] : []),
-            '--reporter=line,./scripts/reporters/e2e-receipt-reporter.ts',
-        ],
-        {
-            cwd: projectRoot,
-            env: {
-                ...process.env,
-                CAXRI_E2E_OUTPUT_DIR: `test-results/${pool}${outputSuffix ? `/${outputSuffix}` : ''}`,
-                CAXRI_E2E_POOL: pool,
-                CAXRI_E2E_RECEIPT_PATH: receiptPath,
-                ...(coordinatorToken && { CAXRI_E2E_COORDINATOR_TOKEN: coordinatorToken }),
-            },
-            stdio: 'inherit',
+    const child = spawn('bunx', playwrightTestArguments(invocation, workers, isCensus), {
+        cwd: projectRoot,
+        env: {
+            ...process.env,
+            CAXRI_E2E_OUTPUT_DIR: `test-results/${pool}${outputSuffix ? `/${outputSuffix}` : ''}`,
+            CAXRI_E2E_POOL: pool,
+            CAXRI_E2E_RECEIPT_PATH: receiptPath,
+            ...(coordinatorToken && { CAXRI_E2E_COORDINATOR_TOKEN: coordinatorToken }),
         },
-    );
+        stdio: 'inherit',
+    });
     return waitForChildExit(child);
 }
 
@@ -116,6 +125,10 @@ export function combinePoolReceipts(
     return combined;
 }
 
+function censusLocation(location: string): string {
+    return location.replace(/:\d+$/u, '');
+}
+
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/run-e2e-census-fixture.ts and scripts/__tests__/e2e-pools.test.ts
 export function mergeCensusReceipts(
     initial: E2EPoolReceipt,
@@ -126,18 +139,32 @@ export function mergeCensusReceipts(
     const unknown = new Set(
         initial.tests.filter(({ verdict }) => verdict === 'unknown').map(({ id }) => id),
     );
+    const unknownLocations = new Set(
+        initial.tests
+            .filter(({ verdict }) => verdict === 'unknown')
+            .map(({ location }) => censusLocation(location)),
+    );
     for (const receipt of census) {
         assertE2EPoolReceipt(receipt);
         if (receipt.pool !== initial.pool) throw new Error('E2E census pool does not match');
         for (const test of receipt.tests) {
             if (!unknown.has(test.id)) {
-                throw new Error(`E2E census returned an unexpected test: ${test.id}`);
+                const planned = tests.get(test.id);
+                /**
+                 * File:line reruns can also report a previously settled parameterized sibling.
+                 */
+                if (
+                    planned?.location !== test.location ||
+                    !unknownLocations.has(censusLocation(test.location))
+                )
+                    throw new Error(`E2E census returned an unexpected test: ${test.id}`);
+            } else {
+                if (test.verdict === 'unknown') {
+                    throw new Error(`E2E census did not produce a verdict for ${test.id}`);
+                }
+                tests.set(test.id, test);
+                unknown.delete(test.id);
             }
-            if (test.verdict === 'unknown') {
-                throw new Error(`E2E census did not produce a verdict for ${test.id}`);
-            }
-            tests.set(test.id, test);
-            unknown.delete(test.id);
         }
     }
     const merged = createE2EPoolReceipt({
@@ -151,6 +178,20 @@ export function mergeCensusReceipts(
         tests: tests.values().toArray(),
     });
     return merged;
+}
+
+/**
+ * One unrestricted census run covers every parameterized test declared at the same file and line.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/e2e-pools.test.ts
+export function censusTargets(tests: readonly E2ETestReceipt[]): E2ETestReceipt[] {
+    const locations = new Set<string>();
+    return tests.filter((test) => {
+        const location = censusLocation(test.location);
+        if (test.verdict !== 'unknown' || locations.has(location)) return false;
+        locations.add(location);
+        return true;
+    });
 }
 
 /**
@@ -255,7 +296,7 @@ async function runPool(
     const receipt = combinePoolReceipts(pool, receipts);
     const censusReceipts: E2EPoolReceipt[] = [];
     const censusInvocations: E2EPoolInvocation[] = [];
-    const unknownTests = receipt.tests.filter(({ verdict }) => verdict === 'unknown').entries();
+    const unknownTests = censusTargets(receipt.tests).entries();
     for (const [index, test] of unknownTests) {
         const censusPath = `test-results/receipts/${pool}-census-${index}.json`;
         const line = /:(\d+):\d+$/u.exec(test.location)?.[1];

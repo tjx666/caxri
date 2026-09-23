@@ -8,6 +8,7 @@ import { pipeline } from 'node:stream/promises';
 import { CaxriError } from '@caxri/protocol';
 
 export interface FileIdentity {
+    birthtime?: string;
     device: string;
     inode: string;
     path: string;
@@ -65,12 +66,22 @@ export async function streamCopyFile(
 
 export async function createdIdentity(path: string): Promise<FileIdentity> {
     const stats = await lstat(path, { bigint: true });
-    return { path, device: stats.dev.toString(), inode: stats.ino.toString() };
+    return {
+        birthtime: stats.birthtimeNs.toString(),
+        path,
+        device: stats.dev.toString(),
+        inode: stats.ino.toString(),
+    };
 }
 
 export async function createdHandleIdentity(file: FileHandle, path: string): Promise<FileIdentity> {
     const stats = await file.stat({ bigint: true });
-    return { path, device: stats.dev.toString(), inode: stats.ino.toString() };
+    return {
+        birthtime: stats.birthtimeNs.toString(),
+        path,
+        device: stats.dev.toString(),
+        inode: stats.ino.toString(),
+    };
 }
 
 export async function assertPathIdentity(identity: FileIdentity): Promise<void> {

@@ -71,12 +71,13 @@ if (process.argv.includes('--version')) {
   process.stdout.write('codex 0.147.0\n');
   process.exit(0);
 }
-function signalShellTool(event, command) {
+function signalShellTool(event, command, cwd = process.cwd()) {
   const hooks = JSON.parse(fs.readFileSync(path.join(process.env.CODEX_HOME, 'hooks.json'), 'utf8'));
   const group = hooks.hooks[event].find((candidate) => candidate.matcher === '^Bash$');
   childProcess.execFileSync('/bin/sh', ['-c', group.hooks[0].command], {
     env: process.env,
     input: JSON.stringify({
+      cwd,
       session_id: 'workbench-e2e-session',
       tool_input: { command },
       tool_response: 'private fixture output',
@@ -93,7 +94,8 @@ process.stdin.on('data', (chunk) => {
     signalShellTool('PreToolUse', "rtk git -C '/repo with spaces' worktree add -b feature/workbench ../worktree");
     childProcess.execFileSync('git', ['worktree', 'add', '-b', 'feature/workbench', ${JSON.stringify(worktree)}], { cwd: ${JSON.stringify(root)} });
     fs.writeFileSync(path.join(${JSON.stringify(worktree)}, 'worktree-only.txt'), 'worktree context\n');
-    signalShellTool('PostToolUse', "rtk git -C '/repo with spaces' worktree add -b feature/workbench ../worktree");
+    // The same hook reports creation and the new cwd, so the visible candidate receives both observations.
+    signalShellTool('PostToolUse', "rtk git -C '/repo with spaces' worktree add -b feature/workbench ../worktree", ${JSON.stringify(worktree)});
   } else if (step === 2) {
     signalShellTool('PreToolUse', 'git worktree remove --force ../worktree');
     childProcess.execFileSync('git', ['worktree', 'remove', '--force', ${JSON.stringify(worktree)}], { cwd: ${JSON.stringify(root)} });

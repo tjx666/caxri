@@ -215,6 +215,12 @@ export async function runCli(argv: string[]): Promise<void> {
             if (arguments_.operands.length > 0)
                 throw new CommandError('stop does not accept a target', 2);
             const result = await stopWorktree(process.cwd());
+            if (result.survivors.length > 0) {
+                if (arguments_.json) print(result, true);
+                throw new CommandError(
+                    `Still running after SIGKILL: PIDs ${result.survivors.map(({ pid }) => pid).join(', ')}`,
+                );
+            }
             print(
                 arguments_.json
                     ? result
@@ -223,11 +229,6 @@ export async function runCli(argv: string[]): Promise<void> {
                       : `Stopped ${result.stopped.length} process(es) owned by this checkout`,
                 arguments_.json,
             );
-            if (result.survivors.length > 0) {
-                throw new CommandError(
-                    `Still running after SIGKILL: PIDs ${result.survivors.map(({ pid }) => pid).join(', ')}`,
-                );
-            }
             return;
         }
         case 'remove': {

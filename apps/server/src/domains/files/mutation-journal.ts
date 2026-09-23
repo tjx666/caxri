@@ -191,10 +191,17 @@ export class FileMutationJournal {
     ): Promise<boolean> {
         if (!expected?.device || !expected.inode) return false;
         const target = await pathIdentity(expected.path);
+        if (target?.kind !== expected.kind || target.inode !== expected.inode) return false;
+        /**
+         * MacOS can renumber devices after a restart, while another volume mounted at the same path may reuse an inode.
+         * A changed device therefore requires the original creation time as an additional match. Older staged records
+         * without that timestamp fail closed and keep their files untouched.
+         */
         if (
-            target?.kind !== expected.kind ||
-            target.device !== expected.device ||
-            target.inode !== expected.inode
+            target.device !== expected.device &&
+            (!expected.birthtime ||
+                expected.birthtime === '0' ||
+                target.birthtime !== expected.birthtime)
         )
             return false;
         if (operation.kind === 'create') return true;

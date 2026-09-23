@@ -25,10 +25,12 @@ type MutableEntry = ServerOperationResult<'files.create'>;
 type MovedEntry = ServerOperationResult<'files.rename'>;
 type MutationStage<Result> = (expectedResult: Result) => Promise<void>;
 interface StagedCreatedEntry extends MutableEntry {
+    birthtime?: string;
     device?: string;
     inode?: string;
 }
 interface StagedMovedEntry extends MovedEntry {
+    birthtime?: string;
     device: string;
     inode: string;
 }
@@ -213,7 +215,12 @@ export class FileMutationService {
                         previousPath: source.path,
                     };
                     // eslint-disable-next-line no-await-in-loop -- see comment above the loop
-                    await stage?.({ ...result, device: source.device, inode: source.inode });
+                    await stage?.({
+                        ...result,
+                        birthtime: source.birthtime,
+                        device: source.device,
+                        inode: source.inode,
+                    });
                     // eslint-disable-next-line no-await-in-loop -- see comment above the loop
                     await this.afterMutationStage?.();
                     let isReplacedTarget = false;
@@ -356,6 +363,7 @@ export class FileMutationService {
             path: resolved.path,
             name: basename(resolved.path),
             kind: stats.isDirectory() ? 'directory' : 'file',
+            birthtime: stats.birthtimeNs.toString(),
             device: stats.dev.toString(),
             inode: stats.ino.toString(),
         };
@@ -394,7 +402,12 @@ export class FileMutationService {
                         await file.close();
                     }
                 }
-                await stage?.({ ...result, device: identity.device, inode: identity.inode });
+                await stage?.({
+                    ...result,
+                    birthtime: identity.birthtime,
+                    device: identity.device,
+                    inode: identity.inode,
+                });
                 await assertPathIdentity(identity);
             } finally {
                 release();
