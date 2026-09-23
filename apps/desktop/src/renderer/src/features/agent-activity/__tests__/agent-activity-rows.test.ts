@@ -2,10 +2,14 @@ import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protoc
 import { describe, expect, it } from 'vitest';
 
 import { AGENT_ACTIVITY_FINISHED_RETENTION_MS } from '../agent-activity-retention';
+import type { AgentActivitySelectionAnchor } from '../agent-activity-rows';
 import {
     agentActivityGroups,
+    agentActivityHeadingPresentation,
+    agentActivitySelectionAnchor,
     agentAttentionCount,
     isAgentActivityActionable,
+    isAgentActivitySelectionAnchorCurrent,
     nextAgentAttentionSessionId,
 } from '../agent-activity-rows';
 
@@ -39,10 +43,15 @@ function terminal(sessionId: string, overrides: Partial<TerminalRecord> = {}): T
     } as TerminalRecord;
 }
 
-function groupsOf(sessions: readonly SessionRecord[], terminals: readonly TerminalRecord[] = []) {
+function groupsOf(
+    sessions: readonly SessionRecord[],
+    terminals: readonly TerminalRecord[] = [],
+    selectionAnchor?: AgentActivitySelectionAnchor,
+) {
     return agentActivityGroups({
         now: NOW,
         projects: [project('alpha'), project('beta')],
+        selectionAnchor,
         sessions,
         terminals,
     });
@@ -72,6 +81,99 @@ describe('agentActivityGroups', () => {
             session('read', { hasUnread: false, lastActivityState: 'waiting' }),
         ]);
         expect(groups.map((group) => group.id)).toEqual(['waiting']);
+    });
+
+    it('keeps the selected viewed generation in place without keeping it unread', () => {
+        const staleAt = NOW - AGENT_ACTIVITY_FINISHED_RETENTION_MS - 1;
+        const unread = session('selected', {
+            attentionEpoch: 1,
+            hasUnread: true,
+            lastActivityState: 'completed',
+            lastSessionActivityAt: staleAt,
+        });
+        const other = session('other', {
+            hasUnread: true,
+            lastActivityState: 'waiting',
+            lastSessionActivityAt: staleAt - 1,
+        });
+        const anchor = agentActivitySelectionAnchor(groupsOf([unread, other]), unread.id);
+        expect(anchor).toBeDefined();
+
+        const viewed = { ...unread, hasUnread: false, readAttentionEpoch: 1 };
+        const groups = groupsOf([viewed, other], [], anchor);
+        expect(groups[0].rows.map((row) => row.session.id)).toEqual(['selected', 'other']);
+        expect(groups[0].rows[0].session.hasUnread).toBe(false);
+        expect(agentAttentionCount([project('alpha')], [viewed, other])).toBe(1);
+        expect(agentActivityHeadingPresentation(groups[0])).toEqual({
+            count: 1,
+            label: 'Needs attention',
+            summary: '1 unread Session',
+        });
+        expect(agentActivityHeadingPresentation(groupsOf([viewed], [], anchor)[0])).toEqual({
+            count: undefined,
+            label: 'Viewing',
+            summary: '1 read Session',
+        });
+        expect(agentAttentionCount([project('alpha')], [viewed])).toBe(0);
+        expect(groupsOf([viewed, other])[0].rows.map((row) => row.session.id)).toEqual(['other']);
+    });
+
+    it('releases the viewed position for a new Agent activity or attention generation', () => {
+        const unread = session('selected', {
+            attentionEpoch: 1,
+            hasUnread: true,
+            lastActivityState: 'waiting',
+        });
+        const anchor = agentActivitySelectionAnchor(groupsOf([unread]), unread.id);
+        expect(anchor).toBeDefined();
+        expect(
+            groupsOf(
+                [{ ...unread, hasUnread: false, lastActivityState: 'completed' }],
+                [],
+                anchor,
+            ).at(0)?.id,
+        ).toBe('finished');
+        expect(
+            groupsOf([{ ...unread, attentionEpoch: 2, hasUnread: false }], [], anchor).at(0)?.id,
+        ).toBe('waiting');
+    });
+
+    it('keeps a viewed completed Session in place while its Terminal resumes on selection', () => {
+        const staleAt = NOW - AGENT_ACTIVITY_FINISHED_RETENTION_MS - 1;
+        const unread = session('selected', {
+            attentionEpoch: 1,
+            hasUnread: true,
+            lastActivityState: 'completed',
+            lastSessionActivityAt: staleAt,
+        });
+        const anchor = agentActivitySelectionAnchor(
+            groupsOf([unread], [terminal('selected', { lastProcessState: 'interrupted' })]),
+            unread.id,
+        );
+        expect(anchor).toBeDefined();
+
+        const viewed = { ...unread, hasUnread: false, readAttentionEpoch: 1 };
+        expect(
+            isAgentActivitySelectionAnchorCurrent(
+                anchor!,
+                viewed,
+                terminal('selected', { lastProcessState: 'running' }),
+            ),
+        ).toBe(true);
+        const groups = groupsOf(
+            [viewed],
+            [terminal('selected', { lastProcessState: 'running' })],
+            anchor,
+        );
+        expect(groups[0]?.id).toBe('attention');
+        expect(groups[0]?.rows[0]?.session.id).toBe(unread.id);
+        expect(
+            isAgentActivitySelectionAnchorCurrent(
+                anchor!,
+                viewed,
+                terminal('selected', { agentOperation: 'compacting' }),
+            ),
+        ).toBe(false);
     });
 
     it('keeps a finished Session listed until its retention window closes', () => {

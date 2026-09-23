@@ -36,6 +36,61 @@ export interface AgentActivityGroup {
 }
 
 /**
+ * A viewed unread generation may keep its row in place until the user leaves that Session.
+ */
+export interface AgentActivitySelectionAnchor {
+    agentOperation: TerminalRecord['agentOperation'];
+    attentionEpoch: number;
+    lastActivityState: SessionRecord['lastActivityState'];
+    lastSessionActivityAt: number;
+    sessionId: string;
+}
+
+export function agentActivitySelectionAnchor(
+    groups: readonly AgentActivityGroup[],
+    selectedSessionId: string | undefined,
+): AgentActivitySelectionAnchor | undefined {
+    const row = groups
+        .find((group) => group.id === 'attention')
+        ?.rows.find((candidate) => candidate.session.id === selectedSessionId);
+    if (!row) return undefined;
+    return {
+        agentOperation: row.terminal?.agentOperation,
+        attentionEpoch: row.session.attentionEpoch,
+        lastActivityState: row.session.lastActivityState,
+        lastSessionActivityAt: row.session.lastSessionActivityAt,
+        sessionId: row.session.id,
+    };
+}
+
+export function isAgentActivitySelectionAnchorCurrent(
+    anchor: AgentActivitySelectionAnchor,
+    session: SessionRecord | undefined,
+    terminal: TerminalRecord | undefined,
+): boolean {
+    return Boolean(
+        session &&
+        session.id === anchor.sessionId &&
+        session.attentionEpoch === anchor.attentionEpoch &&
+        session.lastActivityState === anchor.lastActivityState &&
+        session.lastSessionActivityAt === anchor.lastSessionActivityAt &&
+        terminal?.agentOperation === anchor.agentOperation,
+    );
+}
+
+function isViewedSelection(
+    session: SessionRecord,
+    terminal: TerminalRecord | undefined,
+    anchor: AgentActivitySelectionAnchor | undefined,
+): boolean {
+    return Boolean(
+        anchor &&
+        !session.hasUnread &&
+        isAgentActivitySelectionAnchorCurrent(anchor, session, terminal),
+    );
+}
+
+/**
  * Attention first, then live work, then everything that is merely history.
  *
  * `attention` deliberately outranks `working`: Caxri's unread flag means "something happened that you have not looked
@@ -61,6 +116,35 @@ const GROUP_LABELS: Record<AgentActivityGroupId, string> = {
     working: 'Working',
 };
 
+export function agentActivityHeadingPresentation(group: AgentActivityGroup): {
+    count: number | undefined;
+    label: string;
+    summary: string;
+} {
+    if (group.id === 'attention') {
+        const unreadCount = group.rows.filter((row) => row.session.hasUnread).length;
+        if (unreadCount === 0) {
+            const viewedCount = group.rows.length;
+            return {
+                count: undefined,
+                label: 'Viewing',
+                summary: `${viewedCount} read ${viewedCount === 1 ? 'Session' : 'Sessions'}`,
+            };
+        }
+        return {
+            count: unreadCount,
+            label: group.label,
+            summary: `${unreadCount} unread ${unreadCount === 1 ? 'Session' : 'Sessions'}`,
+        };
+    }
+    const count = group.rows.length;
+    return {
+        count,
+        label: group.label,
+        summary: `${count} ${count === 1 ? 'Session' : 'Sessions'}`,
+    };
+}
+
 /**
  * The two groups whose rows ask the user to do something. They are the only ones that earn a tinted callout; every
  * other state stays quiet chrome, so visual weight in this list always means "this one wants you" and never has to be
@@ -74,8 +158,10 @@ function groupForSession(
     session: SessionRecord,
     status: SessionStatus,
     now: number,
+    isViewedSelection: boolean,
 ): AgentActivityGroupId | undefined {
     if (status.kind === 'attention') return 'attention';
+    if (isViewedSelection) return 'attention';
     /**
      * Failure survives the hand-over. Detaching stops the Terminal so another client can resume it; it does not resolve
      * anything, and nothing else will ever clear a failed Session, so a detached failure stays in `failed` rather than
@@ -108,11 +194,13 @@ function groupForSession(
 export function agentActivityGroups({
     now,
     projects,
+    selectionAnchor,
     sessions,
     terminals,
 }: {
     now: number;
     projects: readonly ProjectRecord[];
+    selectionAnchor?: AgentActivitySelectionAnchor;
     sessions: readonly SessionRecord[];
     terminals: readonly TerminalRecord[];
 }): AgentActivityGroup[] {
@@ -124,7 +212,12 @@ export function agentActivityGroups({
         if (project === undefined) continue;
         const terminal = sessionAgentTerminal(session, terminals);
         const status = sessionStatus(session, terminal);
-        const groupId = groupForSession(session, status, now);
+        const groupId = groupForSession(
+            session,
+            status,
+            now,
+            isViewedSelection(session, terminal, selectionAnchor),
+        );
         if (!groupId) continue;
         const row: AgentActivityRow = {
             groupId,
