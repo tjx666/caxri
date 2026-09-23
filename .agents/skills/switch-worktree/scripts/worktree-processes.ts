@@ -241,9 +241,28 @@ export async function inspectWorktreeProcesses(
 
 async function survivingTargets(
     operations: StopOperations,
-    targetIds: ReadonlySet<number>,
+    targetsByPid: ReadonlyMap<number, ProcessEntry>,
 ): Promise<ProcessEntry[]> {
-    return (await operations.list()).filter((entry) => targetIds.has(entry.pid));
+    return (await operations.list()).filter((entry) => {
+        const target = targetsByPid.get(entry.pid);
+        return Boolean(target?.identity && entry.identity === target.identity);
+    });
+}
+
+/**
+ * A PID is never signal authority after its captured process start identity changes.
+ */
+async function signalMatchingTargets(
+    targets: readonly ProcessEntry[],
+    operations: StopOperations,
+    signal: NodeJS.Signals,
+): Promise<void> {
+    for (const target of targets) {
+        // eslint-disable-next-line no-await-in-loop -- each target needs its own current identity before signaling.
+        if (target.identity && (await operations.identity(target.pid)) === target.identity) {
+            operations.signalProcess(target.pid, signal);
+        }
+    }
 }
 
 /**
@@ -255,22 +274,22 @@ export async function stopProcesses(
     operations: StopOperations = defaultStopOperations,
 ): Promise<StopProcessesResult> {
     if (targets.length === 0) return { stopped: [], survivors: [] };
-    const targetIds = new Set(targets.map((entry) => entry.pid));
-    for (const { pid } of targets) operations.signalProcess(pid, 'SIGTERM');
+    const targetsByPid = new Map(targets.map((entry) => [entry.pid, entry]));
+    await signalMatchingTargets(targets, operations, 'SIGTERM');
     let remaining: ProcessEntry[] = targets as ProcessEntry[];
     for (let waited = 0; waited < TERMINATION_WAIT_MS; waited += TERMINATION_POLL_MS) {
         // eslint-disable-next-line no-await-in-loop -- bounded wait for the signalled processes to exit
         await operations.wait(TERMINATION_POLL_MS);
         // eslint-disable-next-line no-await-in-loop -- bounded wait for the signalled processes to exit
-        remaining = await survivingTargets(operations, targetIds);
+        remaining = await survivingTargets(operations, targetsByPid);
         if (remaining.length === 0) return { stopped: [...targets], survivors: [] };
     }
-    for (const { pid } of remaining) operations.signalProcess(pid, 'SIGKILL');
+    await signalMatchingTargets(remaining, operations, 'SIGKILL');
     for (let waited = 0; waited < FORCE_WAIT_MS; waited += TERMINATION_POLL_MS) {
         // eslint-disable-next-line no-await-in-loop -- bounded wait for force-terminated processes to exit
         await operations.wait(TERMINATION_POLL_MS);
         // eslint-disable-next-line no-await-in-loop -- bounded wait for force-terminated processes to exit
-        remaining = await survivingTargets(operations, targetIds);
+        remaining = await survivingTargets(operations, targetsByPid);
         if (remaining.length === 0) break;
     }
     return {

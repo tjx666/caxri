@@ -32,6 +32,8 @@ export async function runCapture(
         const { stdout } = await execFileAsync(command, arguments_, {
             cwd,
             encoding: 'utf8',
+            // `ps lstart` is localized; process ownership parsing requires the C locale.
+            env: { ...process.env, LC_ALL: 'C' },
             maxBuffer: MAX_OUTPUT_BYTES,
         });
         return stdout;

@@ -446,11 +446,13 @@ export const mutableFileEntrySchema = z.object({
 export const movedFileEntrySchema = mutableFileEntrySchema.extend({ previousPath: pathSchema });
 
 const stagedMovedFileEntrySchema = movedFileEntrySchema.extend({
+    birthtime: z.string().min(1).optional(),
     device: z.string().min(1),
     inode: z.string().min(1),
 });
 
 const stagedCreatedFileEntrySchema = mutableFileEntrySchema.extend({
+    birthtime: z.string().min(1).optional(),
     device: z.string().min(1).optional(),
     inode: z.string().min(1).optional(),
 });
