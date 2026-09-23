@@ -16,4 +16,25 @@ describe('TerminalInputQueue', () => {
             expectedAgentLaunchId: 'launch-1',
         });
     });
+
+    it('preserves binary mouse bytes and their order between text inputs', () => {
+        const queue = new TerminalInputQueue('attachment-1', {});
+        queue.enqueue('before', false, 'launch-1');
+        queue.enqueue('\u{1B}[M \u{80}\u{FF}', false, 'launch-1', 'binary');
+        queue.enqueue('after', false, 'launch-1');
+
+        expect(queue.takeBatch().params).toEqual({
+            data: 'before',
+            expectedAgentLaunchId: 'launch-1',
+        });
+        expect(queue.takeBatch().params).toEqual({
+            data: '\u{1B}[M \u{80}\u{FF}',
+            encoding: 'binary',
+            expectedAgentLaunchId: 'launch-1',
+        });
+        expect(queue.takeBatch().params).toEqual({
+            data: 'after',
+            expectedAgentLaunchId: 'launch-1',
+        });
+    });
 });

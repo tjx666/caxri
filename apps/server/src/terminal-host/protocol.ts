@@ -155,6 +155,7 @@ const terminalRequestSchemas = [
             params: z
                 .object({
                     data: z.string().max(MAX_TERMINAL_INPUT_LENGTH),
+                    encoding: z.literal('binary').optional(),
                     expectedAgentLaunchId: identifierSchema.optional(),
                 })
                 .strict(),

@@ -47,6 +47,31 @@ export function createTerminalInputHandler(
 }
 
 /**
+ * Mouse reports are byte strings from xterm, not submitted text. Keep them out of Session Activity and preserve their
+ * values until Terminal Host writes a Buffer to the PTY.
+ */
+export function createTerminalBinaryInputHandler(
+    options: TerminalInputHandlerOptions,
+): DomainHandlers['terminal.inputBinary'] {
+    return async ({ terminalId, data, expectedAgentLaunchId }, abortSignal) => {
+        const terminal = options.database.getTerminal(terminalId);
+        assertE2EAgentInputFromEnvironment(terminal?.provider);
+        const accepted = expectedAgentLaunchId
+            ? options.terminals.writeAgentExact(
+                  terminalId,
+                  data,
+                  expectedAgentLaunchId,
+                  'human',
+                  undefined,
+                  'binary',
+              )
+            : await options.terminals.writeAcknowledged(terminalId, data, abortSignal, 'binary');
+        if (!accepted) throw new CaxriError('CONFLICT', 'Terminal changed before binary input');
+        return null;
+    };
+}
+
+/**
  * Prevents an asynchronous long-paste replacement from crossing into a new Agent generation.
  */
 export function createTerminalAgentExactInputHandler(

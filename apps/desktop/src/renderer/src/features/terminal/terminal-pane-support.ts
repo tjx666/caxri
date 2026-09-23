@@ -20,6 +20,7 @@ import {
     registerTerminalInputGate,
     registerTerminalPasteHandler,
     resolveTerminalCommitLink,
+    sendTerminalBinaryInput,
     sendTerminalInput,
     sendTerminalInputToAgent,
 } from './terminal-commands';
@@ -89,7 +90,7 @@ export function xtermThemeWithoutOverviewRulerBorder(theme: ITheme | undefined):
 
 /**
  * Keeps keyboard input and Files-drop paste on the same live xterm path. `xterm.paste` preserves bracketed-paste
- * semantics, while `onData` remains the single ordered bridge into the Server-owned PTY.
+ * semantics. Xterm emits byte-encoded mouse reports through `onBinary`, separate from keyboard `onData`.
  */
 export function registerTerminalInputHandlers(
     terminal: Terminal,
@@ -113,6 +114,13 @@ export function registerTerminalInputHandlers(
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         void sendInput(data);
     });
+    const binaryDisposable = terminal.onBinary((data) => {
+        if (!isRunning()) return;
+        // eslint-disable-next-line no-void -- the request reports its own failure.
+        void sendTerminalBinaryInput(terminalId, data, expectedAgentLaunchId()).catch((error) => {
+            if (!isDisposed) reportTerminalOperationError(error, 'Terminal input failed');
+        });
+    });
     const unregisterInputGate = registerTerminalInputGate(terminalId, isRunning);
     const unregisterPasteHandler = registerTerminalPasteHandler(terminalId, {
         paste(data) {
@@ -127,6 +135,7 @@ export function registerTerminalInputHandlers(
         unregisterInputGate();
         unregisterPasteHandler();
         dataDisposable.dispose();
+        binaryDisposable.dispose();
     };
 }
 
