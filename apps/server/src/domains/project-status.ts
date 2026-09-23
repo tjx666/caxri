@@ -4,7 +4,6 @@ import type {
     ProjectStatusError,
     ProjectStatusOverview,
     ProjectStatusRepository as ProjectStatusRepo,
-    ProjectStatusState,
     ProjectStatusSummary,
     ServerEvent,
 } from '@caxri/protocol';
@@ -30,7 +29,8 @@ import { loadOverviewAcceptances, loadPullRequestAcceptances } from './project-s
 import { ProjectStatusAlertTracker } from './project-status-alerts';
 import type { BranchPublicationContext } from './project-status-branch';
 import { prepareStatusRepo, readBranchPublication } from './project-status-branch';
-import { carryOverDelivery } from './project-status-carry-over';
+import type { PreparedRepo, PreparedSummary, SummaryCacheEntry } from './project-status-carry-over';
+import { pendingSummaryEntry } from './project-status-carry-over';
 import { projectStatusCliError } from './project-status-external';
 import { loadOverviewLinearIssues, loadPullRequestLinearIssues } from './project-status-linear';
 import {
@@ -40,6 +40,8 @@ import {
 } from './project-status-parse';
 import { loadVercelDeployments } from './project-status-vercel';
 import { VercelDeploymentStore } from './project-status-vercel-store';
+import type { WatchOutcome } from './project-status-watch';
+import { deliveryKeys, DeliveryWatch, isInFlight } from './project-status-watch';
 import type { SessionTranscriptContext } from './session-context';
 import { SingleFlight } from './single-flight';
 
@@ -56,10 +58,6 @@ const SUMMARY_CACHE_LIMIT = 128;
 const SUMMARY_PENDING_CACHE_TTL_MS = 20_000;
 const SUMMARY_SETTLED_CACHE_TTL_MS = 120_000;
 /**
- * The states that make a snapshot worth re-asking for on the short window.
- */
-const IN_FLIGHT_STATES = new Set<ProjectStatusState>(['pending', 'queued']);
-/**
  * A failed refresh must back off _further_ than a successful one, never less. The previous 30s retried a rate-limited
  * `gh` twice as often as a healthy one, which is how a transient limit turned into a sustained one.
  */
@@ -70,26 +68,7 @@ const SUMMARY_FAILURE_CACHE_TTL_MS = 5 * 60_000;
  */
 const POLL_MIN_DELAY_MS = 15_000;
 const POLL_MAX_DELAY_MS = 5 * 60_000;
-
 type RepoContext = BranchPublicationContext;
-
-interface PreparedRepo {
-    context: RepoContext;
-    repository: ProjectStatusRepo;
-}
-
-interface PreparedSummary {
-    fingerprint?: string;
-    repositories: PreparedRepo[];
-    summary: ProjectStatusSummary;
-}
-
-interface SummaryCacheEntry {
-    expiresAt: number;
-    fingerprint: string;
-    refreshToken?: string;
-    value?: ProjectStatusSummary;
-}
 
 export interface ProjectStatusServiceOptions {
     cacheLimit?: number;
@@ -107,6 +86,11 @@ export interface ProjectStatusServiceOptions {
      * shared: one production query per repository instead of one per reader.
      */
     vercel?: VercelDeploymentStore;
+    /**
+     * Every Session whose delivery failures should raise a notification — in practice every unarchived Session. Without
+     * it only the selected Session is watched.
+     */
+    listWatchedSessions?: () => readonly string[];
     /**
      * Reads the clues this Session's own Agent conversation produced, so the status bar can name the issue a branch is
      * about even when the pull request body never said it. A Server assembled without it simply drops that source.
@@ -139,10 +123,11 @@ export class ProjectStatusService {
     private readonly acceptance: AcceptanceStore;
     private readonly github: GitHubPullRequestStore;
     private readonly linear: LinearIssueStore;
-    private readonly alerts = new ProjectStatusAlertTracker();
+    private readonly alerts: ProjectStatusAlertTracker;
     private polledSessionId?: string;
     private pollTimer?: NodeJS.Timeout;
     private isPollScheduled = false;
+    private readonly watch?: DeliveryWatch;
 
     constructor(
         private readonly git: Pick<GitService, 'summary'>,
@@ -150,6 +135,20 @@ export class ProjectStatusService {
         private readonly runner: ExternalStatusRunner = runExternalStatusCommand,
         private readonly options: ProjectStatusServiceOptions = {},
     ) {
+        this.alerts = new ProjectStatusAlertTracker({ now: () => this.now() });
+        const { listWatchedSessions } = options;
+        if (listWatchedSessions) {
+            this.watch = new DeliveryWatch({
+                clearTimer: (timer) => this.clearTimer(timer),
+                isEnabled: () => this.areAlertsEnabled(),
+                listSessions: listWatchedSessions,
+                logger,
+                selectedSessionId: () => this.polledSessionId,
+                setTimer: (callback, delayMs) => this.setTimer(callback, delayMs),
+                summaryOf: (sessionId) => this.summaries.get(sessionId)?.value,
+                watchSession: (sessionId, covered) => this.watchSession(sessionId, covered),
+            });
+        }
         this.github =
             options.github ?? new GitHubPullRequestStore(this.runner, { now: () => this.now() });
         this.vercel =
@@ -498,13 +497,7 @@ export class ProjectStatusService {
          * exists to show. Holding it for the settled window would report "not started" for up to two minutes after it
          * started, and for a repository reporting through commit statuses rather than check runs, for the whole run.
          */
-        const isPending = summary.repositories.some(
-            (repo) =>
-                IN_FLIGHT_STATES.has(repo.pullRequest?.state ?? 'unknown') ||
-                IN_FLIGHT_STATES.has(repo.deployments?.production?.state ?? 'unknown') ||
-                IN_FLIGHT_STATES.has(repo.deployments?.preview?.state ?? 'unknown'),
-        );
-        return isPending ? SUMMARY_PENDING_CACHE_TTL_MS : SUMMARY_SETTLED_CACHE_TTL_MS;
+        return isInFlight(summary) ? SUMMARY_PENDING_CACHE_TTL_MS : SUMMARY_SETTLED_CACHE_TTL_MS;
     }
 
     /**
@@ -514,8 +507,7 @@ export class ProjectStatusService {
      */
     private publishAlerts(sessionId: string, summary: ProjectStatusSummary): void {
         const alerts = this.alerts.observe(summary);
-        if (alerts.length === 0) return;
-        if (this.options.settings?.()['projectStatus.notifications.enabled'] !== true) return;
+        if (alerts.length === 0 || !this.areAlertsEnabled()) return;
         for (const alert of alerts) {
             this.logger.write('info', logEventCatalog.projectStatus.alert, {
                 fields: { kind: alert.kind },
@@ -525,6 +517,44 @@ export class ProjectStatusService {
                 payload: { sessionId, ...alert },
             });
         }
+    }
+
+    /**
+     * Refreshes one background Session's delivery status unless another Session in this round already covered the same
+     * repository and branch. Deduplication runs on the local Git projection, so a Session that has since switched
+     * branches is judged by the branch it is on now rather than the one it last reported.
+     */
+    private async watchSession(sessionId: string, covered: Set<string>): Promise<WatchOutcome> {
+        const generation = this.sessionGeneration(sessionId);
+        const prepared = await this.prepareSummary(sessionId);
+        if (!prepared.fingerprint || this.sessionGenerations.get(sessionId) !== generation)
+            return 'skipped';
+        const keys = deliveryKeys(prepared.summary);
+        if (keys.length === 0) return 'skipped';
+        if (keys.every((key) => covered.has(key))) return 'duplicate';
+        for (const key of keys) covered.add(key);
+        const previous = this.summaries.get(sessionId);
+        if (previous?.fingerprint === prepared.fingerprint && previous.expiresAt > this.now())
+            return 'fresh';
+        this.rememberSummary(
+            sessionId,
+            pendingSummaryEntry(prepared, prepared.fingerprint, previous),
+        );
+        await this.refreshSummary(sessionId, prepared, generation, false);
+        return 'refreshed';
+    }
+
+    private sessionGeneration(sessionId: string): number {
+        let generation = this.sessionGenerations.get(sessionId);
+        if (generation === undefined) {
+            generation = ++this.nextSessionGeneration;
+            this.sessionGenerations.set(sessionId, generation);
+        }
+        return generation;
+    }
+
+    private areAlertsEnabled(): boolean {
+        return this.options.settings?.()['projectStatus.notifications.enabled'] === true;
     }
 
     private setTimer(callback: () => void, delayMs: number): NodeJS.Timeout {
@@ -679,19 +709,7 @@ export class ProjectStatusService {
             return prepared.summary;
         }
         const previous = this.summaries.get(sessionId);
-        let cached: SummaryCacheEntry =
-            previous?.fingerprint === prepared.fingerprint
-                ? previous
-                : {
-                      expiresAt: 0,
-                      fingerprint: prepared.fingerprint,
-                      refreshToken,
-                      value: carryOverDelivery(
-                          prepared.repositories,
-                          prepared.summary,
-                          previous?.value,
-                      ),
-                  };
+        let cached = pendingSummaryEntry(prepared, prepared.fingerprint, previous, refreshToken);
         const isFingerprintChanged = cached !== previous;
         const isForceRefresh = refreshToken !== undefined && cached.refreshToken !== refreshToken;
         if (isForceRefresh) cached = { ...cached, refreshToken };
@@ -734,7 +752,16 @@ export class ProjectStatusService {
     /**
      * Stops the resident poll. Called when the Server shuts down; the cache and alert baselines die with the process.
      */
+    /**
+     * Starts the delivery watch over every Session from {@link ProjectStatusServiceOptions.listWatchedSessions}, so a
+     * Session the user switched away from still raises its CI or deployment failure.
+     */
+    startDeliveryWatch(): void {
+        this.watch?.start();
+    }
+
     dispose(): void {
+        this.watch?.dispose();
         this.polledSessionId = undefined;
         if (!this.pollTimer) return;
         this.clearTimer(this.pollTimer);
@@ -754,11 +781,7 @@ export class ProjectStatusService {
     }
 
     async summary(sessionId: string, refreshToken?: string): Promise<ProjectStatusSummary> {
-        let generation = this.sessionGenerations.get(sessionId);
-        if (generation === undefined) {
-            generation = ++this.nextSessionGeneration;
-            this.sessionGenerations.set(sessionId, generation);
-        }
+        const generation = this.sessionGeneration(sessionId);
         try {
             return await this.requests.run(
                 `${sessionId}\0${generation}\0${refreshToken ?? ''}`,

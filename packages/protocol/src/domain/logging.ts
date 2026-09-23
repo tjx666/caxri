@@ -170,6 +170,7 @@ export const logEventCatalog = {
         refresh: 'project_status.refresh',
         refreshFailed: 'project_status.refresh_failed',
         summary: 'project_status.summary',
+        watch: 'project_status.watch',
     },
     sessionRename: {
         providerSyncSkipped: 'session_rename.provider_sync_skipped',

@@ -182,9 +182,12 @@ produce the same error, and the status bar said `PR unknown` for all eight unava
 
 ## Interest is pull-based
 
-There is no background poller. A record is only fetched when a surface actually reads it, so a key
-nobody is looking at costs nothing: Vercel is still reached only from the Status panel's
-`projectStatus.summary`, and never on behalf of a session that merely renders a sidebar badge. The
+A record is only fetched when a surface actually reads it, so a key nobody is looking at costs
+nothing: Vercel is reached only from Project Status summaries, and never on behalf of a session that
+merely renders a sidebar badge. The one background reader is the delivery-failure watch (see
+[Notifications](./notifications.md)): while delivery failure notifications are enabled it refreshes
+each unarchived Session's summary every one to three minutes, deduplicated per repository and
+branch, and it stops spending entirely when the setting is off. The
 Renderer's polls (`session.pullRequests`, `projectStatus.overview`) are now snapshot reads whose
 external CLI spend is entirely governed by the Server's TTLs and circuits.
 
