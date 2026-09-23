@@ -45,6 +45,19 @@ const RECENT_MESSAGE_LIMIT = 6;
 const MAX_RECORD_CHARS = 256 * 1024;
 
 /**
+ * Claude Code records a skill or custom prompt command as `<command-message>` markup, while built-in commands such as
+ * `/model` or `/effort` start with `<command-name>`. A Session opened by `/add-model gpt 6` has no other user message,
+ * so the invocation is restored as the typed command instead of being discarded with the built-ins.
+ */
+function restorePromptCommandInvocation(text: string): string | undefined {
+    if (!text.startsWith('<command-message>')) return;
+    const name = /<command-name>([^<]+)<\/command-name>/u.exec(text)?.[1]?.trim();
+    if (!name) return;
+    const arguments_ = /<command-args>([\s\S]*?)<\/command-args>/u.exec(text)?.[1]?.trim();
+    return arguments_ ? `${name} ${arguments_}` : name;
+}
+
+/**
  * Only visible conversation messages are naming material; tools, injected instructions and duplicate events are not.
  */
 export function extractAgentTitleMessage(record: unknown): TitleMessage | undefined {
@@ -78,6 +91,10 @@ export function extractAgentTitleMessage(record: unknown): TitleMessage | undefi
                     .join('\n')
               : ''
     ).trim();
+    const commandInvocation =
+        message.role === 'user' ? restorePromptCommandInvocation(text) : undefined;
+    if (commandInvocation)
+        return { role: 'user', text: [...commandInvocation].slice(0, 1600).join('') };
     if (
         !text ||
         /^(?:# AGENTS\.md instructions|<environment_context>|<permissions instructions>|<system-reminder>|<INSTRUCTIONS>|<local-command|<command-name>|<command-message>)/u.test(
