@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import { useMemo } from 'react';
 
-import { Inbox } from 'lucide-react';
+import { ListTodo } from 'lucide-react';
 
 import caxriLogoUrl from '../../assets/caxri-logo.png';
 import { executeCommand } from '../../commands/execute';
@@ -53,13 +53,12 @@ function ActivityModeToggle({ isActivityMode }: { isActivityMode: boolean }) {
                 onClick={() => executeCommand('primarySidebar.toggleActivity')}
             >
                 {/*
-                 * An inbox rather than the bell the Codex desktop app spends here: Caxri's status bar already ends in a
-                 * `Bell size={14}` carrying its own unread count (`features/toasts/notification-center.tsx`), and two
-                 * identical bells with two identical tallies in opposite corners would read as one feature. The nouns
-                 * are different too — that one holds app notifications, this one holds Sessions waiting on the user —
-                 * and an inbox is the more honest picture of a queue you work through and empty.
+                 * A to-do list, because the button swaps the side bar to a queue of Sessions ordered by what is still on
+                 * the user's plate. Neither notification picture fits: the status bar's `Bell`
+                 * (`features/toasts/notification-center.tsx`) holds app notifications, and `Inbox` is already the icon
+                 * of the Agent Inbox view (`features/view-containers/catalog-icon.tsx`), which holds peer messages.
                  */}
-                <Inbox size={14} />
+                <ListTodo size={14} />
                 {attentionCount > 0 && (
                     <span
                         aria-hidden="true"
