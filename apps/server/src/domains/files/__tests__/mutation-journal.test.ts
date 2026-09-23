@@ -217,12 +217,17 @@ describe('FileMutationJournal', () => {
         await expect(access(target)).resolves.toBeUndefined();
         await first.close();
 
+        const persisted = JSON.parse(await readFile(path, 'utf8')) as FileMutationOperation[];
+        persisted[0].expectedResult!.device = (sourceStats.dev + 1n).toString();
+        await writeFile(path, JSON.stringify(persisted), 'utf8');
+
         const recovered = new FileMutationJournal(path, () => {}, logger);
         await recovered.initialize();
         await expect(recovered.get('operation-3')).resolves.toMatchObject({
             phase: 'completed',
             result: { path: target, previousPath: source },
         });
+        expect((await recovered.get('operation-3'))?.error).toBeUndefined();
         await expect(access(source)).rejects.toThrow();
         await recovered.close();
     });
@@ -311,6 +316,7 @@ describe('FileMutationJournal', () => {
                 await rename(source, target);
                 await rename(target, preserved);
                 await writeFile(target, 'foreign', 'utf8');
+                expect((await lstat(target, { bigint: true })).ino).not.toBe(sourceStats.ino);
                 await new Promise<never>(() => {});
                 return expected;
             },
