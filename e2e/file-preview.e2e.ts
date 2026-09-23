@@ -2,8 +2,9 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { expect, test } from './support/fixtures.ts';
+import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri } from './support/helpers.ts';
+import { measurePreviewDecode } from './support/preview-decode-benchmark.ts';
 
 const CODE_BLOCK_SOURCE = 'const answer = 42;\nexport { answer };\n';
 
@@ -23,6 +24,13 @@ const README = [
     '```',
     '',
     '![badge](./badge.svg)',
+    ...Array.from({ length: 30 }, (_, index) => `![image ${index}](./image-${index}.svg)`),
+    ...Array.from({ length: 11 }, (_, index) => [
+        '```mermaid',
+        `graph LR; Source${index} --> Preview${index}`,
+        '```',
+        '',
+    ]).flat(),
     '',
     'See the [guide](./guide.md).',
     '',
@@ -42,6 +50,10 @@ const BADGE_SVG =
  * heading, a highlighted block, a diagram, and an object-URL image after the Renderer decorates the mounted DOM.
  */
 test('previews Markdown and SVG in a virtual editor tab', async () => {
+    allowE2EErrors([
+        { source: 'renderer', event: 'toast', code: 'ERROR_TOAST', count: 1 },
+        { source: 'server-core', event: 'ipc.request_failed', code: 'NOT_FOUND', count: 1 },
+    ]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-file-preview-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -50,6 +62,9 @@ test('previews Markdown and SVG in a virtual editor tab', async () => {
         writeFile(join(root, 'README.md'), README, 'utf8'),
         writeFile(join(root, 'guide.md'), '# Guide\n', 'utf8'),
         writeFile(join(root, 'badge.svg'), BADGE_SVG, 'utf8'),
+        ...Array.from({ length: 30 }, (_, index) =>
+            writeFile(join(root, `image-${index}.svg`), BADGE_SVG, 'utf8'),
+        ),
     ]);
 
     const running = await launchCaxri({
@@ -58,6 +73,9 @@ test('previews Markdown and SVG in a virtual editor tab', async () => {
         testRootPath: root,
     });
     try {
+        const decode = await measurePreviewDecode(running.page);
+        expect(decode.valid).toBe(true);
+        console.log('CAXRI_PREVIEW_DECODE_BENCHMARK', JSON.stringify(decode));
         await createProjectSession(running.page);
         await running.page.getByRole('treeitem', { name: 'README.md', exact: true }).click();
         /**
@@ -78,8 +96,9 @@ test('previews Markdown and SVG in a virtual editor tab', async () => {
         // Task lists, Mermaid, and images are each rendered by a different stage after the HTML mounts.
         await expect(preview.locator('.caxri-markdown-checkbox')).toHaveCount(2);
         await expect(preview.locator('.caxri-markdown-checkbox').first()).toBeChecked();
-        await expect(preview.locator('.caxri-markdown-diagram svg')).toBeVisible();
-        const image = preview.locator('.caxri-markdown-image');
+        await expect(preview.locator('.caxri-markdown-diagram svg')).toHaveCount(12);
+        await expect(preview.locator('.caxri-markdown-image[src^="blob:"]')).toHaveCount(31);
+        const image = preview.locator('.caxri-markdown-image').first();
         await expect(image).toHaveAttribute('src', /^blob:/u);
         await expect
             .poll(() => image.evaluate((element: HTMLImageElement) => element.naturalWidth))
@@ -121,9 +140,17 @@ test('previews Markdown and SVG in a virtual editor tab', async () => {
         await expect.poll(() => running.clipboard.textEquals(CODE_BLOCK_SOURCE)).toBe(true);
         await running.clipboard.claimText(CODE_BLOCK_SOURCE);
 
-        // A link to another previewable document opens its own preview tab rather than navigating this one.
+        // A file can disappear after its link was rendered but before its preview reads the document.
+        await rm(join(root, 'guide.md'));
         await preview.getByRole('link', { name: 'guide' }).click();
         await expect(running.page.getByRole('tab', { name: 'Preview: guide.md' })).toBeVisible();
+        const failure = running.page.locator('.empty-work[role="alert"]');
+        await expect(failure).toContainText("Couldn't open this file");
+        await expect(running.page.getByText('Loading file…', { exact: true })).toHaveCount(0);
+        await writeFile(join(root, 'guide.md'), '# Guide\n', 'utf8');
+        const retry = failure.getByRole('button', { name: 'Retry', exact: true });
+        await retry.focus();
+        await retry.press('Enter');
         await expect(preview.getByRole('heading', { name: 'Guide' })).toBeVisible();
 
         await running.page.getByRole('treeitem', { name: 'badge.svg', exact: true }).click();

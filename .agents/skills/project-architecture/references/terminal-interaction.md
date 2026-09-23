@@ -12,6 +12,13 @@ separately from that bounded burst. A concurrent resize or small input can queue
 paste without consuming its allowance; a second large payload is rejected until the first settles.
 WebSocket callback backpressure and the socket high-water mark still apply to every chunk.
 
+Terminal attachment recovery belongs to the Client binary-stream boundary: `TIMEOUT` and
+`UNAVAILABLE` can leave both Host ownership ambiguous and the output socket closed. Retry with fresh
+tickets and streams at most twice, after 250 ms and 1 s, under the same cancellable Terminal operation
+lease. Detach, Terminal close, or disconnect cancels backoff; input is never retried. Server snapshot
+reply ordering prevents failed streams from leaking output into replay. Do not roll back ambiguous Host
+ownership or retry only a Host request behind a closed Client stream.
+
 Terminal file-link detection forwards the raw text, owning Terminal ID, and optional editor location
 without giving Renderer filesystem access. Server Core tries exact absolute, current Workbench Project,
 and persisted Terminal-cwd candidates first. When an ordinary relative path is incomplete, a bounded

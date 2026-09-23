@@ -125,7 +125,7 @@ describe('command registry', () => {
             ['session.selectPrevious', 'session.selectNext'],
             ['session.navigateBack', 'session.navigateForward'],
             ['session.detach', 'session.resume'],
-            ['session.openArchived'],
+            ['session.openArchived', 'session.searchContent'],
         ]);
         expect(
             getNativeMenuCommandGroups('help').map((group) => group.map((command) => command.id)),

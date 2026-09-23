@@ -18,12 +18,20 @@ export function SourceControlHeader({ controller }: { controller: SourceControlC
                             variant="ghost"
                             aria-label="Refresh Source Control"
                             aria-busy={controller.isRefreshing || undefined}
-                            disabled={
+                            aria-disabled={
                                 controller.status === 'no-session' ||
                                 controller.status === 'loading' ||
                                 controller.isRefreshing
                             }
-                            onClick={controller.refresh}
+                            onClick={() => {
+                                if (
+                                    controller.status === 'no-session' ||
+                                    controller.status === 'loading' ||
+                                    controller.isRefreshing
+                                )
+                                    return;
+                                controller.refresh();
+                            }}
                         >
                             <SourceControlIcon icon={{ kind: 'theme', id: 'refresh' }} />
                         </Button>
@@ -52,14 +60,16 @@ export function SourceControlHeader({ controller }: { controller: SourceControlC
                                 <button
                                     type="button"
                                     className={cn(
-                                        'grid size-6 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 text-muted hover:text-foreground',
+                                        'grid size-6 cursor-pointer place-items-center rounded border-0 bg-transparent p-0 text-muted not-aria-disabled:hover:text-foreground aria-disabled:cursor-not-allowed aria-disabled:opacity-45',
                                         model.selectedModeId === mode.id &&
                                             'bg-surface text-foreground',
                                     )}
                                     aria-label={mode.label}
                                     aria-pressed={model.selectedModeId === mode.id}
-                                    disabled={controller.isRefreshing}
-                                    onClick={() => selectMode(mode)}
+                                    aria-disabled={controller.isRefreshing}
+                                    onClick={() => {
+                                        if (!controller.isRefreshing) selectMode(mode);
+                                    }}
                                 >
                                     <SourceControlIcon icon={mode.icon} />
                                 </button>
@@ -74,8 +84,9 @@ export function SourceControlHeader({ controller }: { controller: SourceControlC
                                 aria-label={action.accessibilityLabel ?? action.label}
                                 aria-pressed={action.pressed}
                                 className={cn(action.pressed && 'bg-elevated text-foreground')}
-                                disabled={controller.isRefreshing || action.disabled}
+                                aria-disabled={controller.isRefreshing || action.disabled}
                                 onClick={() => {
+                                    if (controller.isRefreshing || action.disabled) return;
                                     // eslint-disable-next-line no-void -- the controller owns provider action errors
                                     void runAction(action);
                                 }}
@@ -90,8 +101,9 @@ export function SourceControlHeader({ controller }: { controller: SourceControlC
                             variant="ghost"
                             aria-label={refreshLabel}
                             aria-busy={controller.isRefreshing || undefined}
-                            disabled={controller.isRefreshing || model.refreshAction.disabled}
+                            aria-disabled={controller.isRefreshing || model.refreshAction.disabled}
                             onClick={() => {
+                                if (controller.isRefreshing || model.refreshAction.disabled) return;
                                 // eslint-disable-next-line no-void -- the controller owns provider action errors
                                 void runAction(model.refreshAction);
                             }}

@@ -1,8 +1,21 @@
 import { useSyncExternalStore } from 'react';
 
 import type { MonacoDiffEditor } from '@monaco-editor/react';
+import type { editor as Monaco } from 'monaco-editor';
+
+import { editorSelectionEndLine } from './editor-status';
 
 export type DiffNavigationDirection = 'next' | 'previous';
+
+/**
+ * Where the caret sits in the compared file, in that file's own line numbers.
+ */
+export interface DiffEditorFileSelection {
+    line: number;
+    column: number;
+    selectionStartLine: number;
+    selectionEndLine: number;
+}
 
 /**
  * The navigation boundary also accepts a one-hunk, single-sided code editor.
@@ -10,7 +23,15 @@ export type DiffNavigationDirection = 'next' | 'previous';
 export type DiffEditorActions = Pick<
     MonacoDiffEditor,
     'focus' | 'getLineChanges' | 'goToDiff' | 'onDidUpdateDiff'
->;
+> & {
+    /**
+     * Reads the caret from the side whose line numbers match the file on disk, so a caller can carry the reader's
+     * position into the file itself. A diff surface publishes nothing to the editor status store — its models are
+     * per-instance comparison snapshots, not the Session's document — so this registry is the only place that knows
+     * it.
+     */
+    getFileSelection(): DiffEditorFileSelection | undefined;
+};
 
 export interface DiffEditorActionState {
     hasChanges: boolean;
@@ -52,6 +73,51 @@ function updateSnapshot(key: string, registration: DiffEditorRegistration): void
 
 export function getDiffEditorActionState(tabPath: string, paneId: string): DiffEditorActionState {
     return snapshots.get(registrationKey(tabPath, paneId)) ?? emptyActionState;
+}
+
+/**
+ * Reads one code editor's current selection as a file position. Shared by both diff surfaces so the single-sided
+ * added/deleted editor reports the same span shape as the two-sided comparison.
+ */
+export function codeEditorFileSelection(
+    editor: Monaco.ICodeEditor,
+): DiffEditorFileSelection | undefined {
+    const selection = editor.getSelection();
+    if (!selection) return undefined;
+    const start = selection.getStartPosition();
+    const end = selection.getEndPosition();
+    return {
+        line: selection.positionLineNumber,
+        column: selection.positionColumn,
+        selectionStartLine: start.lineNumber,
+        selectionEndLine: editorSelectionEndLine(start, end),
+    };
+}
+
+/**
+ * Adapts a mounted Monaco diff editor to the registry contract.
+ *
+ * The caret is read from the modified side because that is the side whose line numbers address the file a caller can
+ * open: the original side numbers a past revision, and a line there has no fixed counterpart in the current file.
+ */
+export function monacoDiffEditorActions(editor: MonacoDiffEditor): DiffEditorActions {
+    return {
+        focus: () => editor.focus(),
+        getFileSelection: () => codeEditorFileSelection(editor.getModifiedEditor()),
+        getLineChanges: () => editor.getLineChanges(),
+        goToDiff: (direction) => editor.goToDiff(direction),
+        onDidUpdateDiff: (listener) => editor.onDidUpdateDiff(listener),
+    };
+}
+
+/**
+ * Caret of the diff editor mounted for this tab occurrence, or `undefined` when none is mounted or it has no selection.
+ */
+export function getDiffEditorFileSelection(
+    tabPath: string,
+    paneId: string,
+): DiffEditorFileSelection | undefined {
+    return registrations.get(registrationKey(tabPath, paneId))?.editor.getFileSelection();
 }
 
 export function subscribeDiffEditorActions(

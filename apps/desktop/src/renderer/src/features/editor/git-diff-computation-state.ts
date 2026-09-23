@@ -10,12 +10,15 @@ export const DIFF_STALL_REASON =
     "Couldn't compare these two versions. This isn't a result — the comparison never finished, so the file may well have changed.";
 
 /**
- * The same denial, plus the cause this window has already established: the background worker that computes comparisons
- * never started, so nothing is working on this diff. Naming it is what makes Retry worth pressing — it releases that
- * worker before asking again, which a retry against a healthy-but-slow comparison would have no reason to do.
+ * The first reply is missing. Shares the sibling reason's vocabulary on purpose: the user asked to see a comparison,
+ * not to run one anywhere in particular, so neither the worker nor an attached debugger belongs in the sentence
+ * (DESIGN.md, "No implementation vocabulary in the UI"). A debugger startup pause is one reproducible cause of this
+ * silence, but silence alone cannot distinguish it from a slow or failed script, so naming it would state a hypothesis
+ * as the cause and hand almost every user an instruction they cannot act on. The operator-facing explanation lives in
+ * `docs/editor-worker-stalls.md`; the visible text stops at the recovery action.
  */
 export const DIFF_WORKER_NOT_STARTED_REASON =
-    "Couldn't compare these two versions: the background worker that computes comparisons never started, so nothing is comparing them. This isn't a result — Retry releases that worker and asks for a new one.";
+    "Couldn't compare these two versions. This comparison never started, so the file may well have changed. Choose Retry.";
 
 /**
  * Translates one diff computation's outcome into the editor surface's load transition, so the diff shares the file

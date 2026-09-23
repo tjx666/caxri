@@ -262,6 +262,7 @@ export interface AgentProviderDescriptor {
     locateTranscript?(
         context: { agentSessionId: string; cwd: string },
         environment: AgentEnvironment,
+        signal?: AbortSignal,
     ): Promise<AgentTranscriptLocation | undefined>;
 }
 

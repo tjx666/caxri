@@ -29,6 +29,13 @@ const VALIDATION_CHILD_PATH = fileURLToPath(new URL('validation-child.ts', impor
 
 const VALIDATION_ENVIRONMENT_KEYS = [
     'BUN_INSTALL',
+    /**
+     * The canonical platform-neutral gate list includes `bun run test`, which `full` deep review requires a passed
+     * receipt for at the exact head. That command refuses to run outside CI unless the user grants this flag
+     * (`.agents/skills/quality-check/scripts/full-suite-authorization.ts`), so stripping it here made the gate
+     * unsatisfiable locally — the review demanded a receipt its own sandbox prevented. The flag carries authorization,
+     * not a credential, so forwarding it leaks nothing into the durable validation log.
+     */
     'CAXRI_FULL_SUITE_AUTHORIZED',
     'CAXRI_REACT_DOCTOR_BASE',
     'CAXRI_VITEST_MAX_WORKERS',
@@ -87,7 +94,7 @@ interface RunValidationDependencies {
  * Formal validation inherits only deterministic toolchain context. In particular, repository and GitHub credentials are
  * never copied into commands whose stdout and stderr become durable logs.
  */
-function safeValidationEnvironment(
+export function safeValidationEnvironment(
     source: NodeJS.ProcessEnv = process.env,
 ): Record<string, string> {
     const environment: Record<string, string> = {};

@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import type { Locator, Page } from './support/fixtures.ts';
-import { allowE2EErrors, expect, test } from './support/fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 import {
     createProjectSession,
     launchCaxri,
@@ -56,9 +56,8 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
     // `conflict: 'reject'` first so the dialog can offer Replace/Keep Both/Cancel. Those deliberate
     // probes are no longer declared here: `CONFLICT` is a caller-absorbed outcome and every boundary
     // logs it at `warn` (`isCallerHandledFailure` in `@caxri/protocol`), so the error gate never sees
-    // it. Only the rename-onto-existing-name case notifies the user; the other three open the dialog,
-    // which replaces the notification with Replace/Keep Both/Cancel.
-    allowE2EErrors([{ source: 'renderer', event: 'toast', code: 'ERROR_TOAST', count: 1 }]);
+    // it. The rename-onto-existing-name case explains itself inline under the name field (no toast);
+    // the other three open the dialog with Replace/Keep Both/Cancel.
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-file-operations-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const rootInput = join(testDirectory, 'project');
@@ -144,7 +143,10 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
         await expect(fileList.getByRole('alert')).toContainText(
             'A file or folder with that name already exists',
         );
+        await expect(fileList.getByRole('alert')).toContainText('Unable to rename item.');
         await expect(conflictingName).toBeVisible();
+        // The inline message is the only explanation; no second notification repeats it (issue #987).
+        await expect(running.page.locator('.toast')).toHaveCount(0);
         await conflictingName.press('Escape');
         await expect(createdRow).toBeFocused();
 

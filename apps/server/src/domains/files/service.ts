@@ -19,7 +19,15 @@ import type { ResolvedSessionPath } from '../project-roots';
 import { ProjectRootResolver } from '../project-roots';
 import type { OpenFile } from './documents';
 import { DocumentService } from './documents';
-import { relativeImportCandidatePaths } from './import-specifier';
+import {
+    importCandidatePaths,
+    ImportConfigFiles,
+    isRelativeImportSpecifier,
+    PackageImports,
+    relativeImportCandidatePaths,
+    TsconfigImports,
+    tsconfigImportTargets,
+} from './import-resolution';
 import type { GitIgnoreDecorator, ListingServiceOptions, OpenDirectory } from './listing';
 import { ListingService } from './listing';
 import type { FileMutationJournalOptions, FileMutationOperationScope } from './mutation-journal';
@@ -74,6 +82,9 @@ export class FileService {
      */
     private readonly activeLocates = new Map<string, AbortController>();
     private readonly watcher: WatcherService;
+    private readonly importConfigs: TsconfigImports;
+    private readonly importFiles: ImportConfigFiles;
+    private readonly packageImports: PackageImports;
 
     constructor(
         database: CaxriDatabase,
@@ -91,6 +102,9 @@ export class FileService {
             this.resolveSessionPath(sessionId, input);
         const resolveWorkspacePath = (sessionId: string, input?: string) =>
             this.resolveSessionPath(sessionId, input, true);
+        this.importFiles = new ImportConfigFiles(resolveWorkspacePath);
+        this.packageImports = new PackageImports(this.importFiles);
+        this.importConfigs = new TsconfigImports(this.importFiles, this.packageImports);
         this.operations = new FileOperationQueue(options.maximumPendingOperations);
         this.mutationJournal = new FileMutationJournal(
             options.mutationJournalPath,
@@ -129,9 +143,11 @@ export class FileService {
 
     private async resolveImportSpecifier(
         parameters: ServerOperationParameters<'files.resolveImports'>,
-        specifier: string,
+        candidates: string[],
+        budget: { remaining: number },
     ): Promise<string | undefined> {
-        for (const candidate of relativeImportCandidatePaths(parameters.from, specifier)) {
+        for (const candidate of candidates) {
+            if (budget.remaining-- <= 0) return undefined;
             try {
                 // eslint-disable-next-line no-await-in-loop -- first existing candidate wins, see resolveImports
                 const resolved = await this.projectRoots.resolveSessionPath(
@@ -372,25 +388,50 @@ export class FileService {
     }
 
     /**
-     * Resolves the relative module specifiers written in one open document to the files they name.
+     * Resolves relative and tsconfig-mapped module specifiers in one open document to authorized files.
      *
      * Candidates are built from the document's own entry path rather than its canonical path, so a document reached
      * through a workspace link resolves its siblings the way the user sees them. Every candidate still goes through
      * `resolveSessionPath`, so a specifier that climbs out of the Session's Project (`'../../../../etc/passwd'`) is
      * refused by the same check every other file read uses. A specifier that resolves to nothing is simply left out:
-     * the editor then shows no link, which is the intended answer for an alias or a package name.
+     * the editor then shows no link. Configuration lookup stays inside the same authorized Project.
      */
     async resolveImports(
         parameters: ServerOperationParameters<'files.resolveImports'>,
     ): Promise<ServerOperationResult<'files.resolveImports'>> {
-        await this.projectRoots.resolveSessionPath(parameters.sessionId, parameters.from, true);
+        const from = await this.projectRoots.resolveSessionPath(
+            parameters.sessionId,
+            parameters.from,
+            true,
+        );
         const resolved: Array<{ path: string; specifier: string }> = [];
         const uniqueSpecifiers = new Set(parameters.specifiers);
+        const budget = { remaining: 4096 };
+        const config = parameters.specifiers.some(
+            (specifier) => !isRelativeImportSpecifier(specifier),
+        )
+            ? await this.importConfigs.load(parameters.sessionId, from)
+            : undefined;
         for (const specifier of uniqueSpecifiers) {
+            if (budget.remaining <= 0) break;
             // Candidates are probed in order and the first regular file wins, so these awaits are intentionally
             // sequential: a parallel probe would do the filesystem work of every fallback for every hit.
+            const candidates = isRelativeImportSpecifier(specifier)
+                ? relativeImportCandidatePaths(from.workspacePath ?? from.path, specifier)
+                : tsconfigImportTargets(config, specifier).flatMap(importCandidatePaths);
             // oxlint-disable-next-line react-doctor/async-await-in-loop
-            const path = await this.resolveImportSpecifier(parameters, specifier); // eslint-disable-line no-await-in-loop -- see above
+            let path = await this.resolveImportSpecifier(parameters, candidates, budget); // eslint-disable-line no-await-in-loop -- see above
+            if (!path && !isRelativeImportSpecifier(specifier) && budget.remaining > 0) {
+                // oxlint-disable-next-line react-doctor/async-await-in-loop
+                // eslint-disable-next-line no-await-in-loop -- package fallback follows alias resolution
+                const packageCandidates = await this.packageImports.candidates(
+                    parameters.sessionId,
+                    from,
+                    specifier,
+                );
+                // oxlint-disable-next-line react-doctor/async-await-in-loop
+                path = await this.resolveImportSpecifier(parameters, packageCandidates, budget); // eslint-disable-line no-await-in-loop -- first authorized target wins
+            }
             if (path) resolved.push({ path, specifier });
         }
         return { resolved };
@@ -520,6 +561,7 @@ export class FileService {
     }
 
     async close(): Promise<void> {
+        this.importFiles.clear();
         await Promise.all([
             this.searcher.close(),
             this.watcher.close(),

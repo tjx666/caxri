@@ -316,12 +316,14 @@ describe('Renderer design contract', () => {
         ).toEqual([]);
     });
 
-    it('gates the shared Button and the Session history controls hover affordances behind :enabled', async () => {
+    it('gates the shared Button and the Session history controls hover affordances behind the disabled state', async () => {
         // A disabled button still matches `:hover` in CSS even though Chromium dispatches no pointer events to it, so
-        // an ungated `hover:` utility paints a hover fill under a cursor whose click does nothing. The Button recipe is
-        // the shared obligation; the history arrows are listed because they add their own hover utility on top of it.
-        // Other consumers that pass `disabled` are not scanned yet — widening this to every `.tsx` needs a way to tell
-        // a disabled-capable control from an always-interactive one first.
+        // an ungated `hover:` utility paints a hover fill under a cursor whose click does nothing. `aria-disabled:` is
+        // the second half of the same contract: a busy control that must keep keyboard focus cannot set the native
+        // attribute, and `:enabled` still matches it, so only `not-aria-disabled:` suppresses its hover there.
+        // The Button recipe is the shared obligation; the history arrows are listed because they add their own hover
+        // utility on top of it. Other consumers that pass `disabled` are not scanned yet — widening this to every
+        // `.tsx` needs a way to tell a disabled-capable control from an always-interactive one first.
         const paths = [
             join(rendererRoot, 'components/ui/button.tsx'),
             join(rendererRoot, 'features/primary-sidebar/session-history-navigation.tsx'),
@@ -332,7 +334,12 @@ describe('Renderer design contract', () => {
                 const sourceFile = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true);
                 return source
                     .matchAll(/([\w-]*:?)hover:/g)
-                    .filter((match) => !['enabled:', 'group-', 'peer-'].includes(match[1]))
+                    .filter(
+                        (match) =>
+                            !['enabled:', 'not-aria-disabled:', 'group-', 'peer-'].includes(
+                                match[1],
+                            ),
+                    )
                     .map((match) => sourceLocation(path, sourceFile, match.index))
                     .toArray();
             }),
@@ -340,7 +347,7 @@ describe('Renderer design contract', () => {
 
         expect(
             violationsByFile.flat(),
-            'use `enabled:hover:` so a disabled control never renders a hover affordance',
+            'gate `hover:` behind `enabled:` or `not-aria-disabled:` so a disabled control never renders a hover affordance',
         ).toEqual([]);
     });
 });

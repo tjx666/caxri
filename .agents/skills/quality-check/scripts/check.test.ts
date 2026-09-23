@@ -530,6 +530,7 @@ describe('direct import test selection', () => {
         expect(direct).toEqual([
             'apps/server/src/domains/files/__tests__/external-links.integration.test.ts',
             'apps/server/src/domains/files/__tests__/files.browse.integration.test.ts',
+            'apps/server/src/domains/files/__tests__/files.imports.integration.test.ts',
             'apps/server/src/domains/files/__tests__/files.integration.test.ts',
             'apps/server/src/domains/files/__tests__/files.watching.integration.test.ts',
             'apps/server/src/domains/files/__tests__/git-ignore.integration.test.ts',
@@ -542,6 +543,7 @@ describe('direct import test selection', () => {
         expect(selected).toEqual([
             'apps/server/src/domains/files/__tests__/external-links.integration.test.ts',
             'apps/server/src/domains/files/__tests__/files.browse.integration.test.ts',
+            'apps/server/src/domains/files/__tests__/files.imports.integration.test.ts',
             'apps/server/src/domains/files/__tests__/files.integration.test.ts',
             'apps/server/src/domains/files/__tests__/files.watching.integration.test.ts',
             'apps/server/src/domains/files/__tests__/git-ignore.integration.test.ts',

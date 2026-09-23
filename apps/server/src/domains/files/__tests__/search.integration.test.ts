@@ -121,6 +121,7 @@ function searchParameters(
 ): ServerOperationParameters<'files.search'> {
     return {
         sessionId,
+        consumer: 'project-search',
         mode: 'content',
         query: 'MagicNeedle',
         caseSensitive: false,
@@ -321,48 +322,83 @@ describe('SearchService', () => {
         }
     });
 
-    it('cancels superseded work and reports result and time bounds explicitly', async () => {
-        const bounded = await fixture({ search: { maxResults: 1 } });
+    it('keeps Search and path-browser consumers independent within one Session', async () => {
+        const { database, service, session } = await fixture();
         try {
-            const result = await bounded.service.search(searchParameters(bounded.session.id));
-            expect(result.matches).toHaveLength(1);
-            expect(result.truncated).toBe(true);
-            expect(result.terminationReason).toBe('result-limit');
-
-            const first = bounded.service.search(
-                searchParameters(bounded.session.id, { query: 'never-found' }),
-            );
-            const second = bounded.service.search(
-                searchParameters(bounded.session.id, { mode: 'name', query: 'alpha' }),
-            );
-            await expect(first).resolves.toMatchObject({
-                canceled: true,
-                matches: [],
-                terminationReason: 'canceled',
+            const content = service.search({
+                ...searchParameters(session.id),
+                consumer: 'project-search',
             });
-            await expect(second).resolves.toMatchObject({
+            const names = service.search({
+                ...searchParameters(session.id, { mode: 'name', query: 'alpha' }),
+                consumer: 'path-browser',
+            });
+            const [contentResult, nameResult] = await Promise.all([content, names]);
+            expect(contentResult).toMatchObject({
                 canceled: false,
-                terminationReason: 'result-limit',
+                terminationReason: 'completed',
             });
+            expect(nameResult).toMatchObject({ canceled: false, terminationReason: 'completed' });
+            expect(contentResult.matches.length).toBeGreaterThan(0);
+            expect(nameResult.matches.map((match) => match.relativePath)).toEqual([
+                'src/alpha.test.ts',
+                'src/alpha.ts',
+            ]);
         } finally {
-            await bounded.service.close();
-            bounded.database.close();
-        }
-
-        const timed = await fixture({ search: { timeoutMs: 0 } });
-        try {
-            await expect(
-                timed.service.search(searchParameters(timed.session.id)),
-            ).resolves.toMatchObject({
-                truncated: true,
-                canceled: false,
-                terminationReason: 'timeout',
-            });
-        } finally {
-            await timed.service.close();
-            timed.database.close();
+            await service.close();
+            database.close();
         }
     });
+
+    it.each(['project-search', 'path-browser'] as const)(
+        'cancels superseded %s work and reports result and time bounds explicitly',
+        async (consumer) => {
+            const bounded = await fixture({ search: { maxResults: 1 } });
+            try {
+                const result = await bounded.service.search(searchParameters(bounded.session.id));
+                expect(result.matches).toHaveLength(1);
+                expect(result.truncated).toBe(true);
+                expect(result.terminationReason).toBe('result-limit');
+
+                const first = bounded.service.search(
+                    searchParameters(bounded.session.id, { query: 'never-found', consumer }),
+                );
+                const second = bounded.service.search(
+                    searchParameters(bounded.session.id, {
+                        mode: 'name',
+                        query: 'alpha',
+                        consumer,
+                    }),
+                );
+                await expect(first).resolves.toMatchObject({
+                    canceled: true,
+                    matches: [],
+                    terminationReason: 'canceled',
+                });
+                await expect(second).resolves.toMatchObject({
+                    canceled: false,
+                    terminationReason: 'result-limit',
+                });
+            } finally {
+                await bounded.service.close();
+                bounded.database.close();
+            }
+
+            const timed = await fixture({ search: { timeoutMs: 0 } });
+            try {
+                await expect(
+                    timed.service.search(searchParameters(timed.session.id)),
+                ).resolves.toMatchObject({
+                    truncated: true,
+                    canceled: false,
+                    terminationReason: 'timeout',
+                });
+            } finally {
+                await timed.service.close();
+                timed.database.close();
+            }
+        },
+    );
 
     it('terminates pathological regular expressions without blocking Server Core', async () => {
         const timed = await fixture({ search: { timeoutMs: 150 } });

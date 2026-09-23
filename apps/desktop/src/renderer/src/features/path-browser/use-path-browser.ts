@@ -8,6 +8,7 @@ import { useDebouncedValue } from '@/hooks/use-debounced-value';
 
 import { isDirectoryEntry } from '../../lib/file-entry';
 import { setPathBrowserOpen } from '../../stores/dialogs';
+import { describeFailure } from '../../stores/toasts';
 import { openExternalEditorDocument } from '../editor/external-editor-documents';
 import { createItem } from '../view-containers/resource-explorer/file-actions';
 import { activeResourceExplorerClient } from '../view-containers/resource-explorer-catalog-client';
@@ -71,7 +72,7 @@ function isSnapshot(result: PathBrowserNavigationResult): result is PathBrowserS
 }
 
 function toBrowserError(value: unknown, fallback: string): Error {
-    return value instanceof Error ? value : new Error(fallback);
+    return new Error(describeFailure(value, fallback));
 }
 
 /**
@@ -453,36 +454,52 @@ export function usePathBrowser(projectRoot: string, sessionId: string, workbench
      */
     const createFromQuery = async (): Promise<void> => {
         if (!candidateToCreate || !snapshot?.canCreate || inputState.mode !== 'project') return;
-        const client = await activeResourceExplorerClient();
-        const path = projectDirectoryPath(projectRoot, snapshot.directoryLabel);
-        const directory = path === '/' ? path : path.slice(0, -1);
-        const created = await createItem(
-            client,
-            sessionId,
-            directory,
-            candidateToCreate.name,
-            candidateToCreate.kind,
-        );
-        if (!created) return;
-        if (candidateToCreate.kind === 'directory') {
-            const listed = await browsePath({
-                browserId: snapshot.browserId,
-                input: candidateToCreate.name,
-                mode: 'project',
-            });
-            const directory = listed.entries.find(
-                (entry) => entry.kind === 'directory' && entry.name === candidateToCreate.name,
+        if (isNavigating) return;
+        setIsNavigating(true);
+        setError(undefined);
+        try {
+            const client = await activeResourceExplorerClient();
+            const path = projectDirectoryPath(projectRoot, snapshot.directoryLabel);
+            const directory = path === '/' ? path : path.slice(0, -1);
+            const created = await createItem(
+                client,
+                sessionId,
+                directory,
+                candidateToCreate.name,
+                candidateToCreate.kind,
             );
-            if (!directory) throw new Error('Created folder could not be reopened');
-            await applySnapshotOperation(
-                navigatePathBrowser({
+            if (!created) return;
+            if (candidateToCreate.kind === 'directory') {
+                const listed = await browsePath({
                     browserId: snapshot.browserId,
-                    target: { entryId: directory.id, kind: 'entry' },
-                }),
+                    input: candidateToCreate.name,
+                    mode: 'project',
+                });
+                const directory = listed.entries.find(
+                    (entry) => entry.kind === 'directory' && entry.name === candidateToCreate.name,
+                );
+                if (!directory) throw new Error('Created folder could not be reopened');
+                await applySnapshotOperation(
+                    navigatePathBrowser({
+                        browserId: snapshot.browserId,
+                        target: { entryId: directory.id, kind: 'entry' },
+                    }),
+                );
+                return;
+            }
+            closePathBrowser();
+        } catch (error_) {
+            setError(
+                toBrowserError(
+                    error_,
+                    candidateToCreate.kind === 'directory'
+                        ? 'Unable to create folder'
+                        : 'Unable to create file',
+                ),
             );
-            return;
+        } finally {
+            setIsNavigating(false);
         }
-        closePathBrowser();
     };
 
     const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {

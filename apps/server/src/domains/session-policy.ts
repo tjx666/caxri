@@ -68,9 +68,8 @@ export function sessionActivityReasonForAgentState(
  * Why a Server is bulk-marking every still-alive Terminal at connection-open/close time. `unclean` covers a previous
  * process crash/kill discovered on the next `openDatabase` call; `orderly` covers a graceful Server shutdown (app quit,
  * Session reload). Both leave still-alive Terminals `interrupted` so the next Server start can auto-resume them (with
- * their Agent conversation intact, per GitHub issue #18) — only their primary Agent Session outcome differs. An
- * `orderly` quit ends each turn, so it records `completed`; an `unclean` crash says nothing about any conversation and
- * records no Session state at all. `terminate` covers the explicit user-initiated "Terminate and Close" action
+ * their Agent conversation intact). None of these shutdown reasons changes Session activity: ending a process does not
+ * complete its conversation. `terminate` covers the explicit user-initiated "Terminate and Close" action
  * (`terminal.terminateAll`): Terminals are marked `stopped`, the same terminal state as a normal exit, so the next
  * Server start treats them as finished and does not auto-restore them.
  */
@@ -85,14 +84,6 @@ export interface ShutdownOutcome {
      * Process state written to every previously-alive Terminal.
      */
     terminalProcessState: ProcessState;
-    /**
-     * Session activity state written when a Session's primary Agent Terminal lands in `terminalProcessState`.
-     *
-     * `undefined` means "leave every Session alone". A Session's activity state describes what its Agent conversation
-     * was doing; whether a process survived is the Terminal's `lastProcessState`. Only a shutdown that says something
-     * about the conversation itself may write here.
-     */
-    primaryAgentSessionState?: AgentActivityState;
 }
 
 const SHUTDOWN_OUTCOMES: Record<ShutdownReason, ShutdownOutcome> = {
@@ -111,17 +102,16 @@ const SHUTDOWN_OUTCOMES: Record<ShutdownReason, ShutdownOutcome> = {
     orderly: {
         liveProcessStates: ['running', 'starting'],
         terminalProcessState: 'interrupted',
-        primaryAgentSessionState: 'completed',
     },
     terminate: {
         liveProcessStates: ['running', 'starting'],
         terminalProcessState: 'stopped',
-        primaryAgentSessionState: 'completed',
     },
 };
 
 /**
- * Decides the bulk Terminal/Session state transition for a given shutdown `reason`.
+ * Decides the Terminal process transition for a shutdown. Exiting or terminating Caxri does not complete a
+ * conversation: Session activity must survive every shutdown reason independently of Terminal process state.
  */
 export function shutdownOutcome(reason: ShutdownReason): ShutdownOutcome {
     return SHUTDOWN_OUTCOMES[reason];

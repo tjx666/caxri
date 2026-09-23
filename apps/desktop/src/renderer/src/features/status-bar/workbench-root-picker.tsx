@@ -3,7 +3,6 @@ import { Check, FolderGit2 } from 'lucide-react';
 
 import {
     Command,
-    CommandEmpty,
     CommandGroup,
     CommandInput,
     CommandItem,
@@ -16,6 +15,7 @@ import { Tooltip } from '../../components/ui/tooltip';
 import { WorktreeIcon } from '../../icons/codicons/worktree-icon';
 import { cn } from '../../lib/utilities';
 import { useSelectedSession, useSelectedWorkbenchProject } from '../../stores/selectors';
+import { PickerQueryStatus } from './picker-query-status';
 import { pickerSearchScore } from './picker-search';
 import { statusItemClassName } from './status-item';
 import { useWorkbenchRootPicker } from './use-workbench-root-picker';
@@ -116,6 +116,7 @@ function WorkbenchRootTrigger({
     branch,
     isExpanded,
     isSwitching,
+    switchingLabel,
     isWorktree,
     title,
     rootPath,
@@ -123,56 +124,48 @@ function WorkbenchRootTrigger({
     branch: string;
     isExpanded: boolean;
     isSwitching: boolean;
+    switchingLabel: string;
     isWorktree: boolean;
     title: string;
     rootPath: string;
 }) {
     return (
-        <Tooltip content={`${rootPath}\nBranch: ${branch}`}>
+        <Tooltip
+            content={
+                isSwitching ? `Switching to ${switchingLabel}…` : `${rootPath}\nBranch: ${branch}`
+            }
+            // The pointer is still on the trigger once its menu opens, so a hover delay that fires after the click
+            // would raise the tooltip over the menu's first options and swallow the click meant for them.
+            disabled={isExpanded}
+        >
             <PopoverTrigger
                 role="combobox"
                 aria-expanded={isExpanded}
                 aria-haspopup="listbox"
-                disabled={isSwitching}
-                aria-label={`Switch Workbench Root from ${title}, branch ${branch}`}
+                aria-disabled={isSwitching}
+                aria-busy={isSwitching}
+                aria-label={
+                    isSwitching
+                        ? `Switching to ${switchingLabel}…`
+                        : `Switch Workbench Root from ${title}, branch ${branch}`
+                }
                 className={cn(
                     statusItemClassName,
                     'h-5 w-auto max-w-full justify-start px-[5px] text-[11px]',
                 )}
             >
-                {isWorktree ? (
+                {isSwitching ? (
+                    <Spinner size={13} />
+                ) : isWorktree ? (
                     <WorktreeIcon size={13} className="flex-none" />
                 ) : (
                     <FolderGit2 size={13} className="flex-none" />
                 )}
-                <span className="min-w-0 truncate">{title}</span>
+                <span className="min-w-0 truncate" role={isSwitching ? 'status' : undefined}>
+                    {isSwitching ? `Switching to ${switchingLabel}…` : title}
+                </span>
             </PopoverTrigger>
         </Tooltip>
-    );
-}
-
-/**
- * The menu's own empty and failure states. `cmdk` owns "no match"; the query owns "not loaded yet" and "could not
- * load", and the two must not be rendered as the same blank list.
- */
-function WorkbenchRootPlaceholder({
-    isError,
-    isLoading,
-}: {
-    isError: boolean;
-    isLoading: boolean;
-}) {
-    if (isLoading)
-        return (
-            <div className="flex items-center gap-2 px-2 py-2 text-muted">
-                <Spinner aria-hidden="true" className="size-3" />
-                Loading worktrees…
-            </div>
-        );
-    return (
-        <CommandEmpty>
-            {isError ? 'Unable to load worktrees. Reopen to retry.' : 'No matching worktrees.'}
-        </CommandEmpty>
     );
 }
 
@@ -206,6 +199,7 @@ function WorkbenchRootPickerContent({ branch, sessionId }: WorkbenchRootPickerPr
                 branch={branch ?? current?.branch ?? 'No branch'}
                 isExpanded={picker.open}
                 isSwitching={picker.switching}
+                switchingLabel={picker.switchingLabel}
                 isWorktree={workbenchProject.id !== session.projectId}
                 title={workbenchProject.displayTitle}
                 rootPath={workbenchProject.rootPath}
@@ -232,10 +226,7 @@ function WorkbenchRootPickerContent({ branch, sessionId }: WorkbenchRootPickerPr
                         placeholder="Search worktrees…"
                     />
                     <CommandList className="max-h-[min(360px,var(--available-height))]">
-                        <WorkbenchRootPlaceholder
-                            isError={picker.rootsQuery.isError}
-                            isLoading={picker.rootsQuery.isLoading}
-                        />
+                        <PickerQueryStatus noun="worktrees" query={picker.rootsQuery} />
                         {recommended.length > 0 && (
                             <>
                                 <CommandGroup heading="From this conversation">

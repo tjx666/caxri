@@ -1,12 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
-import { findRelativeImportSpecifiers, importSpecifierAtPosition } from '../import-links';
+import { findImportSpecifiers, importSpecifierAtPosition } from '../import-links';
 
 function specifiers(source: string): string[] {
-    return findRelativeImportSpecifiers(source.split('\n'), 128).map((match) => match.specifier);
+    return findImportSpecifiers(source.split('\n'), 128).map((match) => match.specifier);
 }
 
-describe('findRelativeImportSpecifiers', () => {
+describe('findImportSpecifiers', () => {
+    it('preserves relative file names containing spaces or colons', () => {
+        expect(specifiers("import './with space';\nimport './with:colon';")).toEqual([
+            './with space',
+            './with:colon',
+        ]);
+    });
     it('finds the relative path of every import form that names a file', () => {
         expect(
             specifiers(
@@ -21,7 +27,7 @@ describe('findRelativeImportSpecifiers', () => {
         ).toEqual(['../../errors', './side-effect', './barrel', './lazy', './legacy']);
     });
 
-    it('ignores package names and path aliases, which this feature cannot resolve', () => {
+    it('submits path aliases and package-shaped names for Server resolution', () => {
         expect(
             specifiers(
                 [
@@ -30,11 +36,19 @@ describe('findRelativeImportSpecifiers', () => {
                     "import styles from '~/styles.css';",
                 ].join('\n'),
             ),
+        ).toEqual(['openai', '@/lib/utilities', '~/styles.css']);
+    });
+
+    it('ignores absolute paths and URL or builtin schemes', () => {
+        expect(
+            specifiers(
+                "import '/outside/file';\nimport 'https://example.com/file';\nimport 'node:fs';",
+            ),
         ).toEqual([]);
     });
 
     it('covers exactly the text between the quotes so the underline matches the path', () => {
-        const [match] = findRelativeImportSpecifiers(["import a from '../b';"], 128);
+        const [match] = findImportSpecifiers(["import a from '../b';"], 128);
 
         expect(match).toEqual({
             endColumn: 20,
@@ -49,7 +63,7 @@ describe('findRelativeImportSpecifiers', () => {
     });
 
     it('reports the line each specifier sits on and stops at the requested limit', () => {
-        const matches = findRelativeImportSpecifiers(
+        const matches = findImportSpecifiers(
             ["import a from './a';", '', "import b from './b';", "import c from './c';"],
             2,
         );
@@ -62,10 +76,7 @@ describe('findRelativeImportSpecifiers', () => {
 });
 
 describe('importSpecifierAtPosition', () => {
-    const matches = findRelativeImportSpecifiers(
-        ["import a from './a';", "import b from '../b/c';"],
-        128,
-    );
+    const matches = findImportSpecifiers(["import a from './a';", "import b from '../b/c';"], 128);
 
     it('claims the caret anywhere on the specifier, including both edges', () => {
         // `./a` occupies columns 16-18; column 19 is the caret resting just past its last character.

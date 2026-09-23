@@ -42,9 +42,8 @@ function createMonacoWorker(label: string): Worker {
 
 monacoGlobalScope.MonacoEnvironment = {
     /**
-     * Every Worker Monaco asks for is watched for the one failure that renders as a working editor: a Worker whose
-     * script never runs, which drops every message Monaco sends it without an error (issue #962). Watching is passive;
-     * the Worker handed back is the one Monaco asked for.
+     * Watch for a missing first reply, which can leave a comparison looking unchanged without an error (issue #962).
+     * Watching is passive; a missing reply does not establish whether the script ran, and the Worker is unchanged.
      */
     getWorker: (_moduleId: string, label: string): Worker =>
         monitorEditorWorkerStartup(createMonacoWorker(label), label),
@@ -62,10 +61,10 @@ const MONACO_WARMUP_LANGUAGES = [
 
 /**
  * Registers every Caxri-owned Monarch language, silences the TypeScript worker's project-less semantic diagnostics,
- * makes relative import paths clickable, and configures the module-level `loader`. Wrapped in one function (invoked
- * once below through a `const` initializer, not a bare top-level call) so this file's only top-level side effects are
- * assignment expressions and variable declarations, which is what unicorn/no-top-level-side-effects allows in an
- * exported module.
+ * makes resolved import specifiers clickable, and configures the module-level `loader`. Wrapped in one function
+ * (invoked once below through a `const` initializer, not a bare top-level call) so this file's only top-level side
+ * effects are assignment expressions and variable declarations, which is what unicorn/no-top-level-side-effects allows
+ * in an exported module.
  */
 function registerMonacoLanguages(): void {
     loader.config({ monaco });

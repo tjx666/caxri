@@ -530,6 +530,10 @@ export const fileDocumentSchema = z.object({
     content: z.string(),
     mtimeMs: z.number(),
     size: z.number(),
+    /**
+     * Dependency documents are view-only, including after tab restore or a watcher refresh.
+     */
+    readOnly: z.boolean().optional(),
 });
 
 /**
@@ -666,6 +670,7 @@ export const updateStateSchema = z.discriminatedUnion('status', [
         status: z.literal('error'),
         currentVersion: updateVersionFields.currentVersion,
         action: z.enum(['check', 'download', 'open']),
+        failureKind: z.enum(['network', 'integrity', 'other']),
         message: z.string().min(1).max(2_048),
         version: updateVersionFields.version.optional(),
         fileName: updateVersionFields.fileName.optional(),

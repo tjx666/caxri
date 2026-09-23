@@ -182,6 +182,14 @@ export const commandDefinitions: CommandDefinition[] = [
         nativeMenu: { menu: 'session', group: 2, order: 1 },
     },
     {
+        id: 'session.searchContent',
+        title: 'Search Session Content',
+        category: 'Session',
+        description: 'Find active and archived Sessions by user and assistant messages',
+        keywords: ['conversation', 'transcript', 'history'],
+        nativeMenu: { menu: 'session', group: 4, order: 1 },
+    },
+    {
         id: 'session.openArchived',
         title: 'Show Archived Sessions',
         category: 'Session',
@@ -332,7 +340,7 @@ export const commandDefinitions: CommandDefinition[] = [
         id: 'editor.openImportLink',
         title: 'Open Import Link',
         category: 'Editor',
-        description: 'Open the file named by the relative import path under the editor cursor',
+        description: 'Open the file named by the import specifier under the editor cursor',
         keywords: ['definition', 'follow', 'go to', 'module', 'specifier'],
     },
     {

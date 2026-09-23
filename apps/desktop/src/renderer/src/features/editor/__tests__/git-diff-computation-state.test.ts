@@ -27,7 +27,7 @@ describe('Git diff computation state', () => {
         expect(DIFF_STALL_REASON).toMatch(/never finished/);
     });
 
-    it('names the worker when this window already knows none of them started', () => {
+    it('offers a recovery action when this window already knows no comparison started', () => {
         const state = editorLoadReducer(
             initialEditorLoadState,
             gitDiffComputationAction('worker-not-started', 0),
@@ -39,9 +39,13 @@ describe('Git diff computation state', () => {
             status: 'failed',
             tone: 'failed',
         });
-        // Retry is only worth pressing because it releases that worker; the sentence has to say so.
+        // Retry is the only way out of this state, so the sentence has to name it.
         expect(DIFF_WORKER_NOT_STARTED_REASON).toMatch(/Retry/);
         expect(DIFF_WORKER_NOT_STARTED_REASON).not.toMatch(/unchanged|no changes|identical/i);
+        // DESIGN.md: no implementation vocabulary in the UI. Both failure sentences describe the comparison the user
+        // asked for, never the worker that computes it or the debugger that may have paused one.
+        for (const reason of [DIFF_STALL_REASON, DIFF_WORKER_NOT_STARTED_REASON])
+            expect(reason).not.toMatch(/worker|debugger|thread|IPC|timeout/i);
     });
 
     it('returns to the diff once a retried comparison answers', () => {

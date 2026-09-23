@@ -103,6 +103,22 @@ describe('Monaco worker startup watch', () => {
         expect(worker.terminated).toBe(0);
     });
 
+    it('recognizes a delayed first reply and preserves the recovered Worker on Retry', () => {
+        vi.useFakeTimers();
+        const worker = createWorker();
+        monitorEditorWorkerStartup(worker, 'editorWorkerService');
+        vi.advanceTimersByTime(5_000);
+        worker.reply();
+
+        expect(editorWorkerStartupSummary()).toMatchObject({
+            started: 1,
+            stalled: 1,
+            stalledNow: 0,
+        });
+        expect(releaseStalledEditorWorkers()).toBe(0);
+        expect(worker.terminated).toBe(0);
+    });
+
     it('keeps the per-lifetime totals while releasing only what is still stalled', () => {
         vi.useFakeTimers();
         monitorEditorWorkerStartup(createWorker(), 'editorWorkerService');

@@ -329,7 +329,7 @@ describe('fileMutationOperationSchema discriminated union', () => {
 });
 
 describe('updateStateSchema discriminated union', () => {
-    it('requires action and message only on the error status', () => {
+    it('requires action, failure kind, and message on the error status', () => {
         expect(
             updateStateSchema.safeParse({ status: 'idle', currentVersion: '1.0.0' }).success,
         ).toBe(true);
@@ -339,6 +339,7 @@ describe('updateStateSchema discriminated union', () => {
                 currentVersion: '1.0.0',
                 action: 'check',
                 message: 'network unavailable',
+                failureKind: 'network',
             }).success,
         ).toBe(true);
         expect(

@@ -188,14 +188,16 @@ function TerminalRecoveryBar({
             data-terminal-exit-state={processState}
             role="status"
         >
-            <span className={terminalRecoveryMessageClassName} title={exitPresentation.label}>
-                {exitPresentation.icon === 'pending' ? (
-                    <Spinner size={14} />
-                ) : (
-                    ExitIcon && <ExitIcon size={14} />
-                )}
-                {exitPresentation.label}
-            </span>
+            <Tooltip content={exitPresentation.label}>
+                <span className={terminalRecoveryMessageClassName}>
+                    {exitPresentation.icon === 'pending' ? (
+                        <Spinner size={14} />
+                    ) : (
+                        ExitIcon && <ExitIcon size={14} />
+                    )}
+                    {exitPresentation.label}
+                </span>
+            </Tooltip>
             <TerminalRecoveryActions
                 failureReason={failureReason}
                 processState={processState}
@@ -367,24 +369,29 @@ export function TerminalPane({
                     }
                 />
                 <ContextMenuContent>
-                    <ContextMenuItem
-                        disabled={!contextMenuHasSelection}
-                        title={
-                            contextMenuHasSelection
-                                ? undefined
-                                : 'Select text in the Terminal to copy it'
-                        }
-                        onClick={() => copyActiveTerminalSelection(terminalId)}
+                    <Tooltip
+                        content="Select text in the Terminal to copy it"
+                        disabled={contextMenuHasSelection}
                     >
-                        Copy
-                    </ContextMenuItem>
-                    <ContextMenuItem
-                        disabled={!isRunning}
-                        title={isRunning ? undefined : 'Terminal is not running'}
-                        onClick={() => pasteFromClipboard()}
-                    >
-                        Paste
-                    </ContextMenuItem>
+                        <span className="block">
+                            <ContextMenuItem
+                                disabled={!contextMenuHasSelection}
+                                onClick={() => copyActiveTerminalSelection(terminalId)}
+                            >
+                                Copy
+                            </ContextMenuItem>
+                        </span>
+                    </Tooltip>
+                    <Tooltip content="Terminal is not running" disabled={isRunning}>
+                        <span className="block">
+                            <ContextMenuItem
+                                disabled={!isRunning}
+                                onClick={() => pasteFromClipboard()}
+                            >
+                                Paste
+                            </ContextMenuItem>
+                        </span>
+                    </Tooltip>
                     <ContextMenuSeparator />
                     <ContextMenuItem onClick={() => clearActiveTerminal(terminalId)}>
                         Clear

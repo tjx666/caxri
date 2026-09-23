@@ -61,7 +61,7 @@ function isSearchCanceled(signal: AbortSignal): boolean {
 }
 
 /**
- * Bounded, Session-rooted Project search with latest-request cancellation per Session.
+ * Bounded, Session-rooted Project search with latest-request cancellation per Session and consumer.
  */
 export class SearchService {
     private readonly active = new Map<string, AbortController>();
@@ -252,9 +252,10 @@ export class SearchService {
         parameters: SearchParameters,
         externalSignal?: AbortSignal,
     ): Promise<SearchResult> {
-        this.active.get(parameters.sessionId)?.abort();
+        const key = JSON.stringify([parameters.sessionId, parameters.consumer]);
+        this.active.get(key)?.abort();
         const controller = new AbortController();
-        this.active.set(parameters.sessionId, controller);
+        this.active.set(key, controller);
         const cancel = (): void => controller.abort();
         if (externalSignal?.aborted) controller.abort();
         externalSignal?.addEventListener('abort', cancel, { once: true });
@@ -263,8 +264,7 @@ export class SearchService {
             return await this.run(parameters, controller.signal, startedAt);
         } finally {
             externalSignal?.removeEventListener('abort', cancel);
-            if (this.active.get(parameters.sessionId) === controller)
-                this.active.delete(parameters.sessionId);
+            if (this.active.get(key) === controller) this.active.delete(key);
         }
     }
 

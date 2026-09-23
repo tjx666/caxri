@@ -353,7 +353,7 @@ export function pinDocumentTab(tabId: string): void {
  */
 async function didSaveDocumentAt(sessionId: string, path: string): Promise<boolean> {
     const document = getSessionDocuments(sessionId)?.[path];
-    if (!document) return true;
+    if (!document || document.readOnly) return true;
     const operation = trackDocumentOperation(sessionId, path);
     const retryState = sessionStateOf(sessionId);
     const retryTab = retryState

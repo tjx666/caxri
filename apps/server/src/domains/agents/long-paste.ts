@@ -9,7 +9,7 @@ import type {
     ServerOperationParameters,
     TerminalLongPasteResult,
 } from '@caxri/protocol';
-import { CaxriError } from '@caxri/protocol';
+import { CaxriError, MAX_LONG_PASTE_BYTES } from '@caxri/protocol';
 import { AsyncSemaphore } from '@caxri/system';
 
 import type { CaxriDatabase } from '../db';
@@ -18,7 +18,6 @@ const LONG_PASTE_DIRECTORY_NAME = 'pastes';
 const LONG_PASTE_RETENTION_MS = 30 * 24 * 60 * 60 * 1_000;
 const LONG_PASTE_CLEANUP_INTERVAL_MS = 60 * 60 * 1_000;
 const MAX_LONG_PASTE_DIRECTORY_BYTES = 128 * 1024 * 1024;
-const MAX_LONG_PASTE_CONTENT_BYTES = 4 * 1024 * 1024;
 const PASTE_FILE_NAME = /^paste-\d{8}T\d{6}-[\da-f-]{36}\.txt$/u;
 
 /**
@@ -147,7 +146,7 @@ export class LongPasteService {
         if (parameters.content.length <= settings['terminal.longPasteThreshold'])
             throw new CaxriError('CONFLICT', 'Pasted text is below the configured threshold');
         const contentBytes = Buffer.byteLength(parameters.content, 'utf8');
-        if (contentBytes > MAX_LONG_PASTE_CONTENT_BYTES)
+        if (contentBytes > MAX_LONG_PASTE_BYTES)
             throw new CaxriError('VALIDATION', 'Pasted text exceeds the local file safety limit');
         if (signal?.aborted)
             throw new CaxriError('CANCELLED', 'Long paste preparation was cancelled');

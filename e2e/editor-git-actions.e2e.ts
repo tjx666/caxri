@@ -159,6 +159,12 @@ test('Editor title actions open the file last-commit and pull-request diffs', as
         await expect(
             running.page.getByRole('tab', { name: 'tracked.txt', exact: true }).first(),
         ).toHaveAttribute('aria-selected', 'true');
+        /**
+         * The file opens where the diff was being read. `after first change` is line 10, and the diff surface publishes
+         * no editor status of its own, so landing here proves the caret travelled from the diff editor rather than the
+         * file tab defaulting to its first line. See issue #1147.
+         */
+        await expect(running.page.getByLabel(/^Editor position: Ln 10, Col /)).toBeVisible();
         await expect(nextChange).toHaveCount(0);
 
         await running.page.getByRole('tab', { name: 'tracked.txt', exact: true }).first().click();

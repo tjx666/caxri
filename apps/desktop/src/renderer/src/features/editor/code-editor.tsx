@@ -17,7 +17,7 @@ import { resolveEditorLanguage } from './editor-language';
 import { synchronizeControlledEditorModel } from './editor-model-sync';
 import { markEditorBeforeMount, markEditorMounted } from './editor-performance';
 import { registerEditorRevealTarget } from './editor-reveal';
-import { useEditorStatusStore } from './editor-status';
+import { editorSelectionEndLine, useEditorStatusStore } from './editor-status';
 import { rememberEditorViewState, restoreEditorViewState } from './editor-view-state';
 
 export interface CodeEditorProperties {
@@ -48,10 +48,7 @@ function publishEditorStatus(editor: MonacoCodeEditor, statusKey: string | undef
         line: selection.positionLineNumber,
         column: selection.positionColumn,
         selectionStartLine: start.lineNumber,
-        selectionEndLine:
-            end.lineNumber > start.lineNumber && end.column === 1
-                ? end.lineNumber - 1
-                : end.lineNumber,
+        selectionEndLine: editorSelectionEndLine(start, end),
         selectedCharacters: Math.max(0, endOffset - startOffset),
         languageId: model.getLanguageId(),
     });

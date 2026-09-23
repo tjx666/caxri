@@ -9,7 +9,12 @@ import type {
     AgentTranscriptWatcher,
     LongPasteService,
 } from './agents';
-import { listAgentActions, readAgentTranscript, recordRecentAgentAction } from './agents';
+import {
+    listAgentActions,
+    readAgentTranscript,
+    recordRecentAgentAction,
+    SessionContentSearch,
+} from './agents';
 import type { ConfigService } from './config';
 import type { CaxriDatabase } from './db';
 import type { DiagnosticsService } from './diagnostics';
@@ -76,6 +81,7 @@ type ServiceHandlerMethods =
     | 'projectStatus.summary'
     | 'projectStatus.overview'
     | 'session.pullRequests'
+    | 'session.searchContent'
     | 'settings.get'
     | 'settings.inspect'
     | 'settings.patch'
@@ -151,6 +157,7 @@ export function createServiceHandlers(services: {
         userDataPath,
         vercel,
     } = services;
+    const sessionContentSearch = new SessionContentSearch(database, agentEnvironment);
     const sessionPullRequests = new SessionPullRequestService(
         database,
         git,
@@ -212,6 +219,7 @@ export function createServiceHandlers(services: {
         'files.readAsset': ({ sessionId, path }, signal) =>
             files.readAsset(sessionId, path, signal),
         'files.write': ({ sessionId, path, content }) => files.write(sessionId, path, content),
+        'session.searchContent': ({ query }, signal) => sessionContentSearch.search(query, signal),
         'files.search': (parameters, signal) => files.search(parameters, signal),
         'pathBrowser.start': () => mainOwned('pathBrowser.start'),
         'pathBrowser.browse': () => mainOwned('pathBrowser.browse'),

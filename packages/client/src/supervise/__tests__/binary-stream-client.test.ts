@@ -1,4 +1,4 @@
-import { MAX_TERMINAL_INPUT_PAYLOAD_LENGTH } from '@caxri/protocol';
+import { CaxriError, MAX_TERMINAL_INPUT_PAYLOAD_LENGTH } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import { BinaryStreamClient } from '../binary-stream-client';
@@ -18,7 +18,86 @@ function createClient() {
     return { client, terminals };
 }
 
+async function captureFailure(operation: Promise<unknown>): Promise<unknown> {
+    try {
+        return await operation;
+    } catch (error) {
+        return error;
+    }
+}
+
 describe('BinaryStreamClient', () => {
+    it.each(['TIMEOUT', 'UNAVAILABLE', 'FORBIDDEN', 'CANCELLED'] as const)(
+        'bounds attachment recovery and preserves the final error: %s',
+        async (code) => {
+            vi.useFakeTimers();
+            const error = new CaxriError(code, 'Synthetic attachment failure');
+            const issueTicket = vi.fn<(id: string) => Promise<never>>().mockRejectedValue(error);
+            const client = new BinaryStreamClient({
+                emitEvent: vi.fn(),
+                endpoint: { host: '127.0.0.1', path: '/control', port: 1, protocol: 'ws' },
+                issueTicket,
+                onTerminalTransportFailure: vi.fn(),
+                timeoutMs: 1_000,
+            });
+            try {
+                const result = captureFailure(
+                    client.request('request-1', 'terminal.attach', {
+                        terminalId: 'terminal-1',
+                    }),
+                );
+                await vi.runAllTimersAsync();
+                await expect(result).resolves.toBe(error);
+                const expectedAttempts = code === 'TIMEOUT' || code === 'UNAVAILABLE' ? 3 : 1;
+                expect(issueTicket).toHaveBeenCalledTimes(expectedAttempts);
+                expect(new Set(issueTicket.mock.calls.map(([id]) => id)).size).toBe(
+                    expectedAttempts,
+                );
+                expect(vi.getTimerCount()).toBe(0);
+            } finally {
+                client.close();
+                vi.useRealTimers();
+            }
+        },
+    );
+
+    it.each(['detach', 'terminal-close', 'disconnect'] as const)(
+        'cancels attachment recovery during backoff: %s',
+        async (action) => {
+            vi.useFakeTimers();
+            const issueTicket = vi
+                .fn<(id: string) => Promise<never>>()
+                .mockRejectedValue(new CaxriError('TIMEOUT', 'Synthetic timeout'));
+            const client = new BinaryStreamClient({
+                emitEvent: vi.fn(),
+                endpoint: { host: '127.0.0.1', path: '/control', port: 1, protocol: 'ws' },
+                issueTicket,
+                onTerminalTransportFailure: vi.fn(),
+                timeoutMs: 1_000,
+            });
+            try {
+                const result = captureFailure(
+                    client.request('request-1', 'terminal.attach', {
+                        terminalId: 'terminal-1',
+                    }),
+                );
+                await vi.advanceTimersByTimeAsync(0);
+                expect(issueTicket).toHaveBeenCalledTimes(1);
+                expect(vi.getTimerCount()).toBe(1);
+                if (action === 'detach') client.beginTerminalDetach('terminal-1').complete();
+                else if (action === 'terminal-close') client.closeTerminal('terminal-1');
+                else client.close();
+                await expect(result).resolves.toMatchObject({ code: 'CANCELLED' });
+                await vi.runAllTimersAsync();
+                expect(issueTicket).toHaveBeenCalledTimes(1);
+                expect(vi.getTimerCount()).toBe(0);
+            } finally {
+                client.close();
+                vi.useRealTimers();
+            }
+        },
+    );
+
     it('pipelines input through an established persistent Terminal stream', async () => {
         const first = Promise.withResolvers<null>();
         const second = Promise.withResolvers<null>();
