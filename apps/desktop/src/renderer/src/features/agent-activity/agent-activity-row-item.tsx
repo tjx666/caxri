@@ -1,5 +1,7 @@
 import type { ComponentType } from 'react';
+import { useState } from 'react';
 
+import type { ProjectRecord, TerminalRecord } from '@caxri/protocol';
 import {
     Check,
     Circle,
@@ -11,8 +13,13 @@ import {
 } from 'lucide-react';
 
 import { Spinner } from '../../components/ui/spinner';
-import { Tooltip } from '../../components/ui/tooltip';
+import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
+import { WorktreeIcon } from '../../icons/codicons/worktree-icon';
 import { cn } from '../../lib/utilities';
+import { useSessionPullRequest } from '../primary-sidebar/hooks/use-session-pull-request';
+import { SessionActivityCard } from '../primary-sidebar/session-activity-card';
+import { SessionPullRequestIndicator } from '../primary-sidebar/session-pull-request-indicator';
+import { SessionRowMenu } from '../primary-sidebar/session-row-menu';
 import { didSelectSession } from '../session/session-commands';
 import type { AgentActivityGlyphId } from './agent-activity-glyph';
 import { agentActivityGlyph } from './agent-activity-glyph';
@@ -33,11 +40,15 @@ const GLYPH_COMPONENTS: Record<AgentActivityGlyphId, ComponentType<{ size?: numb
 };
 
 /**
- * One Session in the Activity list: a state glyph, the Session title, and the Project and time below it.
+ * One Session in the Activity list: a state glyph, the Session title with its pull request, and below them the Agent,
+ * Project, worktree, and time.
  *
  * The state is a shape rather than a phrase because every group heading already names it — a row under "Working" that
  * also prints "Working" repeats its own heading, and the phrase costs the width the Project name needs in a 230px
- * column. `agent-activity-glyph.ts` owns which shape, which words, and the two-tier tone rule behind them.
+ * column. `agent-activity-glyph.ts` owns which shape, which words, and the tone rule behind them.
+ *
+ * The row wears the same hover card and context menu as a Project tree row, so a Session reads and acts the same in
+ * either body of the side bar; only Rename is missing, because this list has no inline editor to open.
  */
 export function AgentActivityRowItem({
     onMarkRead,
@@ -45,6 +56,8 @@ export function AgentActivityRowItem({
     roving,
     row,
     selected,
+    terminals,
+    worktreeProject,
     onFocusChange,
 }: {
     onFocusChange: (rowId: string) => void;
@@ -53,15 +66,27 @@ export function AgentActivityRowItem({
     roving: boolean;
     row: AgentActivityRow;
     selected: boolean;
+    terminals: TerminalRecord[];
+    /**
+     * Workbench Root Project when this Session works in a linked worktree instead of its own Project root.
+     */
+    worktreeProject: ProjectRecord | undefined;
 }) {
-    const { session } = row;
+    const { project, session, terminal } = row;
     const canMarkRead = session.hasUnread;
     const glyph = agentActivityGlyph(row);
     const GlyphIcon = GLYPH_COMPONENTS[glyph.id];
-    return (
+    const { pullRequest, unavailable: pullRequestUnavailable } = useSessionPullRequest(session.id);
+    const visiblePullRequest = pullRequestUnavailable ? undefined : pullRequest;
+    /**
+     * The hover card opens on a delay and would otherwise pop over an open context menu; closing it while the menu is
+     * open keeps one popup on screen at a time, the same as a Project tree row.
+     */
+    const [menuOpen, setMenuOpen] = useState(false);
+    const trigger = (
         <div
             className={cn(
-                'agent-activity-row group/activity-row relative flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-foreground',
+                'agent-activity-row relative flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-foreground',
                 'hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)]',
                 'focus-visible:ring-1 focus-visible:ring-accent focus-visible:outline-none',
                 selected && 'active bg-elevated',
@@ -100,44 +125,73 @@ export function AgentActivityRowItem({
                 }
             }}
         >
-            <Tooltip content={glyph.label}>
-                <span
-                    role="img"
-                    aria-label={glyph.label}
-                    className={cn(
-                        'agent-activity-glyph flex size-3.5 flex-none items-center justify-center',
-                        glyph.toneClassName,
-                    )}
-                    data-activity-glyph={glyph.id}
-                    tabIndex={-1}
-                >
-                    <GlyphIcon size={14} />
-                </span>
-            </Tooltip>
+            {/*
+             * No tooltip of its own: the row's hover card already spells the state out, and a second hover popup on
+             * the same row would compete with it. The accessible name keeps the words for assistive technology.
+             */}
+            <span
+                role="img"
+                aria-label={glyph.label}
+                className={cn(
+                    'agent-activity-glyph flex size-3.5 flex-none items-center justify-center',
+                    glyph.toneClassName,
+                )}
+                data-activity-glyph={glyph.id}
+            >
+                <GlyphIcon size={14} />
+            </span>
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                 {/*
                  * The title owns its line outright. Its neighbours moved down because it is the only value here that is
                  * routinely long — "Rate limiter for /v1/search" against a Project name that is usually one short word
                  * — so at the Primary Side Bar's 230px default it was the one truncating while a Project name and a
                  * time sat beside it with room to spare.
+                 *
+                 * The pull request glyph ends this line, in the same right-edge 14px slot a Project tree row gives it. An
+                 * unread row's mark-read button is positioned over that slot, so the slot is reserved whenever either
+                 * can appear and the title never reflows under the pointer; the glyph hides while the button shows.
                  */}
-                <span className={cn('truncate text-xs text-foreground', canMarkRead && 'pr-6')}>
-                    {session.displayTitle}
+                <span className="flex min-w-0 items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-xs text-foreground">
+                        {session.displayTitle}
+                    </span>
+                    {(visiblePullRequest !== undefined || canMarkRead) && (
+                        <span className="agent-activity-trailing flex w-5 flex-none justify-end">
+                            <SessionPullRequestIndicator
+                                className={cn(
+                                    canMarkRead &&
+                                        'transition-opacity group-hover/activity-row:opacity-0',
+                                )}
+                                pullRequest={visiblePullRequest}
+                            />
+                        </span>
+                    )}
                 </span>
                 <span className="agent-activity-metadata flex h-4 min-w-0 flex-wrap items-start gap-x-1.5 overflow-hidden text-[11px] leading-4 text-muted">
                     {/*
-                     * The Project name is the one value that must survive: the list is flat, so it is the only thing
-                     * telling the user which repository a row belongs to. The unbreakable time wraps below the clipped
-                     * single line before the Project loses width; a Project wider than the whole line still truncates.
+                     * Where the Session runs, in the order a user narrows it down: which Agent CLI, which repository,
+                     * which worktree. The Project name is the one value that must survive: the list is flat, so it is
+                     * the only thing telling the user which repository a row belongs to. This group is one flex item, so
+                     * the unbreakable time wraps below the clipped single line before any of it loses width; inside it
+                     * the worktree name truncates first, and a Project wider than the whole line truncates last.
                      */}
-                    <Tooltip content={row.projectName}>
-                        <span
-                            className="agent-activity-project max-w-full min-w-0 shrink-0 truncate"
-                            tabIndex={-1}
-                        >
-                            {row.projectName}
+                    <span className="agent-activity-location flex h-4 max-w-full min-w-0 items-center gap-1">
+                        <span className="flex size-3 flex-none items-center justify-center">
+                            <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={12} />
                         </span>
-                    </Tooltip>
+                        <span className="agent-activity-project max-w-[calc(100%-1rem)] min-w-0 shrink-0 truncate">
+                            {project.displayTitle}
+                        </span>
+                        {worktreeProject && (
+                            <span
+                                className="agent-activity-worktree flex min-w-0 shrink items-center gap-0.5"
+                                data-session-worktree={worktreeProject.displayTitle}
+                            >
+                                <WorktreeIcon className="flex-none" size={11} />
+                                <span className="truncate">{worktreeProject.displayTitle}</span>
+                            </span>
+                        )}
+                    </span>
                     {relativeTime && (
                         <span className="agent-activity-time flex flex-none gap-1.5 whitespace-nowrap">
                             <span aria-hidden="true">·</span>
@@ -146,29 +200,51 @@ export function AgentActivityRowItem({
                     )}
                 </span>
             </span>
-            {canMarkRead && (
-                /*
-                 * `tabIndex={-1}`: inside `role="tree"` the row itself is the only Tab stop (DESIGN.md), so this is the
-                 * pointer affordance for an action the keyboard reaches through Delete on the row.
-                 *
-                 * Positioned rather than laid out, at the end of the title line the time vacated. An unread row
-                 * reserves its width up front (`pr-6` on the title above, three pixels clear of this button's 21px)
-                 * instead of surrendering it on hover, so the title never reflows under the pointer — and a read row,
-                 * which can never show this button, keeps the full line.
-                 */
-                <button
-                    aria-label={`Mark ${session.displayTitle} as read`}
-                    className="agent-activity-mark-read absolute top-1.5 right-2 rounded p-1 text-muted opacity-0 group-hover/activity-row:opacity-100 hover:bg-elevated hover:text-foreground focus-visible:opacity-100"
-                    tabIndex={-1}
-                    type="button"
-                    onClick={(event) => {
-                        event.stopPropagation();
-                        onMarkRead();
-                    }}
-                >
-                    <Check aria-hidden="true" size={13} />
-                </button>
-            )}
         </div>
+    );
+    return (
+        <SessionRowMenu
+            onMarkRead={canMarkRead ? onMarkRead : undefined}
+            onOpenChange={setMenuOpen}
+            project={project}
+            pullRequest={visiblePullRequest}
+            session={session}
+            terminals={terminals}
+        >
+            <div className="agent-activity-row-shell group/activity-row relative">
+                <SessionActivityCard
+                    project={project}
+                    pullRequest={pullRequest}
+                    pullRequestUnavailable={pullRequestUnavailable}
+                    session={session}
+                    suppressed={menuOpen}
+                    terminal={terminal}
+                    trigger={trigger}
+                    worktreeProject={worktreeProject}
+                />
+                {canMarkRead && (
+                    /*
+                     * A sibling of the row rather than a child, the same way a Project tree row keeps its hover
+                     * actions outside the hover card's trigger: a pointer on the button is not a pointer asking for the
+                     * card.
+                     *
+                     * `tabIndex={-1}`: inside `role="tree"` the row itself is the only Tab stop (DESIGN.md), so this is
+                     * the pointer affordance for an action the keyboard reaches through Delete on the row.
+                     */
+                    <button
+                        aria-label={`Mark ${session.displayTitle} as read`}
+                        className="agent-activity-mark-read absolute top-1 right-1.5 rounded p-1 text-muted opacity-0 group-hover/activity-row:opacity-100 hover:bg-elevated hover:text-foreground focus-visible:opacity-100"
+                        tabIndex={-1}
+                        type="button"
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            onMarkRead();
+                        }}
+                    >
+                        <Check aria-hidden="true" size={13} />
+                    </button>
+                )}
+            </div>
+        </SessionRowMenu>
     );
 }

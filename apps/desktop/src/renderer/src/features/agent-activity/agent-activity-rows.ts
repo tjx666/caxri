@@ -13,10 +13,11 @@ export type AgentActivityGroupId =
 export interface AgentActivityRow {
     groupId: AgentActivityGroupId;
     /**
-     * Owning Project's display name, shown on the row's second line because the list is flat: without it a row cannot
-     * say which repository it belongs to.
+     * Owning Project, named on the row's second line because the list is flat: without it a row cannot say which
+     * repository it belongs to. The whole record rather than its name, because the row's hover card and context menu
+     * act on the Project too.
      */
-    projectName: string;
+    project: ProjectRecord;
     session: SessionRecord;
     /**
      * The same projection the row's glyph uses, resolved here because the group a row lands in has to be decided by it
@@ -115,19 +116,19 @@ export function agentActivityGroups({
     sessions: readonly SessionRecord[];
     terminals: readonly TerminalRecord[];
 }): AgentActivityGroup[] {
-    const projectNames = new Map(projects.map((project) => [project.id, project.displayTitle]));
+    const projectsById = new Map(projects.map((project) => [project.id, project]));
     const rowsByGroup = new Map<AgentActivityGroupId, AgentActivityRow[]>();
     for (const session of sessions) {
         if (session.archivedAt !== undefined) continue;
-        const projectName = projectNames.get(session.projectId);
-        if (projectName === undefined) continue;
+        const project = projectsById.get(session.projectId);
+        if (project === undefined) continue;
         const terminal = sessionAgentTerminal(session, terminals);
         const status = sessionStatus(session, terminal);
         const groupId = groupForSession(session, status, now);
         if (!groupId) continue;
         const row: AgentActivityRow = {
             groupId,
-            projectName,
+            project,
             session,
             status,
             statusPresentation: sessionActivityPresentation(

@@ -49,21 +49,29 @@ const TONE_TEXT_CLASSNAME: Record<SessionActivityPresentation['tone'], string> =
  * "Idle" under "Idle" — three of the six groups repeated themselves verbatim, and the phrase cost the width the Project
  * name needed. The shape carries it instead, and {@link AgentActivityGlyph.label} carries the words.
  *
- * Tone still follows the list's two-tier rule unchanged ({@link isAgentActivityActionable}): only a row that asks the
- * user for something is tinted, so visual weight always means "this one wants you". An unread row is tinted by _why_ it
- * is unread rather than by what its Agent is doing now — `statusPresentation` answers the second question, and its
- * answer is `neutral` for a completed turn, the commonest attention reason of all.
+ * Tone follows the list's two-tier rule ({@link isAgentActivityActionable}): apart from a live turn's green spinner,
+ * only a row that asks the user for something is tinted, so warning and danger weight always means "this one wants
+ * you". An unread row is tinted by _why_ it is unread rather than by what its Agent is doing now — `statusPresentation`
+ * answers the second question, and its answer is `neutral` for a completed turn, the commonest attention reason of
+ * all.
  */
 export function agentActivityGlyph(row: AgentActivityRow): AgentActivityGlyph {
     const { groupId, session, status, statusPresentation } = row;
     if (status.kind === 'detached')
         return { id: 'unplug', label: 'Detached', toneClassName: TONE_TEXT_CLASSNAME.neutral };
-    // `running` folds in compaction, so the label comes from the live presentation rather than the stored state.
+    /**
+     * `running` folds in compaction, so the label comes from the live presentation rather than the stored state.
+     *
+     * The one tint outside the two-tier rule below. A live turn is the only motion in the list, and in muted grey a
+     * spinner under "Working" read as a loading placeholder rather than an Agent doing work; green names it as
+     * progress. It cannot be mistaken for a request, because an unread running Session sits under "Needs attention"
+     * with its attention glyph instead, and this branch only ever renders under "Working".
+     */
     if (status.kind === 'running')
         return {
             id: 'spinner',
             label: statusPresentation.label,
-            toneClassName: TONE_TEXT_CLASSNAME.neutral,
+            toneClassName: TONE_TEXT_CLASSNAME.success,
         };
     const state: AgentActivityState =
         groupId === 'attention'

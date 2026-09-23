@@ -1,13 +1,21 @@
 import { useMemo, useRef, useState } from 'react';
 
+import type { LucideIcon } from 'lucide-react';
+import { BellDot, CheckCheck, Hourglass, Moon, TriangleAlert, Zap } from 'lucide-react';
+
 import { useRelativeTimes } from '@/hooks/use-relative-time';
 
 import { useProjects, useSelectedSession, useSessions, useTerminals } from '../../stores/selectors';
 import { tryCommand } from '../../stores/toasts';
-import { topLevelProjects } from '../primary-sidebar/project-visibility';
+import { useSessionPullRequestPoll } from '../primary-sidebar/hooks/use-session-pull-request';
+import { sessionWorktreeProject, topLevelProjects } from '../primary-sidebar/project-visibility';
 import { markSessionRead } from '../session/session-commands';
 import { AgentActivityRowItem } from './agent-activity-row-item';
-import type { AgentActivityGroup, AgentActivityRow } from './agent-activity-rows';
+import type {
+    AgentActivityGroup,
+    AgentActivityGroupId,
+    AgentActivityRow,
+} from './agent-activity-rows';
 import { agentActivityGroups } from './agent-activity-rows';
 import type { AgentActivityVerticalKey } from './agent-activity-tree';
 import {
@@ -18,6 +26,25 @@ import {
 import { useAgentActivityClock } from './use-agent-activity-clock';
 
 const NO_RECORDS: never[] = [];
+/**
+ * A glyph before each group heading, so the eye finds a group by shape before it reads the label — Paseo's status list
+ * does the same. Every shape is deliberately different from the circle-family glyphs the rows use: a heading icon names
+ * the section, and repeating the row glyph above its own rows would say the same thing twice. They stay in the
+ * heading's muted tone, because color in this list is reserved for rows that want the user.
+ */
+const GROUP_ICONS: Record<AgentActivityGroupId, LucideIcon> = {
+    attention: BellDot,
+    failed: TriangleAlert,
+    finished: CheckCheck,
+    idle: Moon,
+    waiting: Hourglass,
+    working: Zap,
+};
+function AgentActivityGroupIcon({ groupId }: { groupId: AgentActivityGroupId }) {
+    const Icon = GROUP_ICONS[groupId];
+    return <Icon aria-hidden="true" className="agent-activity-heading-icon flex-none" size={12} />;
+}
+
 const VERTICAL_KEYS: ReadonlySet<string> = new Set(['ArrowDown', 'ArrowUp', 'End', 'Home']);
 
 type RenderRow =
@@ -39,6 +66,8 @@ export function AgentActivityView() {
     const selectedSessionId = useSelectedSession()?.id;
     const [focusedRowId, setFocusedRowId] = useState<string>();
     const treeReference = useRef<HTMLDivElement>(null);
+    // Owns the cadence only; each row subscribes to its own slice of the snapshot this keeps fresh.
+    useSessionPullRequestPoll();
 
     const groups = useMemo(
         () =>
@@ -77,6 +106,23 @@ export function AgentActivityView() {
     const relativeTimes = useRelativeTimes(
         useMemo(() => sessionRows.map((row) => row.session.lastSessionActivityAt), [sessionRows]),
         'narrow',
+    );
+    /**
+     * Resolved against every Project, not just the top-level ones the rows are drawn from: an auto-registered worktree
+     * Project is exactly the kind the side bar hides, and naming it is the point.
+     */
+    const worktreeProjectBySessionId = useMemo(
+        () =>
+            new Map(
+                sessionRows.map(
+                    (row) =>
+                        [
+                            row.session.id,
+                            sessionWorktreeProject(row.session, allProjects ?? NO_RECORDS),
+                        ] as const,
+                ),
+            ),
+        [allProjects, sessionRows],
     );
     const relativeTimeBySessionId = useMemo(
         () =>
@@ -157,6 +203,7 @@ export function AgentActivityView() {
                             data-row-id={entry.group.id}
                             role="treeitem"
                         >
+                            <AgentActivityGroupIcon groupId={entry.group.id} />
                             <span>{entry.group.label}</span>
                             <span aria-hidden="true">{entry.group.rows.length}</span>
                             <span className="sr-only">
@@ -170,6 +217,8 @@ export function AgentActivityView() {
                             roving={rovingRowId === entry.row.session.id}
                             row={entry.row}
                             selected={selectedSessionId === entry.row.session.id}
+                            terminals={terminals}
+                            worktreeProject={worktreeProjectBySessionId.get(entry.row.session.id)}
                             onFocusChange={setFocusedRowId}
                             onMarkRead={() => markRead(entry.row)}
                         />
