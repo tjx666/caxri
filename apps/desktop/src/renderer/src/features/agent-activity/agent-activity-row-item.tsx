@@ -96,6 +96,9 @@ export function AgentActivityRowItem({
             data-session-id={session.id}
             role="treeitem"
             aria-level={2}
+            aria-description={
+                !canMarkRead && row.groupId === 'attention' ? 'Viewed and read' : undefined
+            }
             aria-selected={selected}
             aria-keyshortcuts={canMarkRead ? 'Delete Backspace' : undefined}
             tabIndex={roving ? 0 : -1}

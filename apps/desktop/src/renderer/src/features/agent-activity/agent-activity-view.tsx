@@ -9,14 +9,21 @@ import { useProjects, useSelectedSession, useSessions, useTerminals } from '../.
 import { tryCommand } from '../../stores/toasts';
 import { useSessionPullRequestPoll } from '../primary-sidebar/hooks/use-session-pull-request';
 import { sessionWorktreeProject, topLevelProjects } from '../primary-sidebar/project-visibility';
+import { sessionAgentTerminal } from '../session/session-agent-terminal';
 import { markSessionRead } from '../session/session-commands';
 import { AgentActivityRowItem } from './agent-activity-row-item';
 import type {
     AgentActivityGroup,
     AgentActivityGroupId,
     AgentActivityRow,
+    AgentActivitySelectionAnchor,
 } from './agent-activity-rows';
-import { agentActivityGroups } from './agent-activity-rows';
+import {
+    agentActivityGroups,
+    agentActivityHeadingPresentation,
+    agentActivitySelectionAnchor,
+    isAgentActivitySelectionAnchorCurrent,
+} from './agent-activity-rows';
 import type { AgentActivityVerticalKey } from './agent-activity-tree';
 import {
     flattenAgentActivityRows,
@@ -48,7 +55,12 @@ function AgentActivityGroupIcon({ groupId }: { groupId: AgentActivityGroupId }) 
 const VERTICAL_KEYS: ReadonlySet<string> = new Set(['ArrowDown', 'ArrowUp', 'End', 'Home']);
 
 type RenderRow =
-    { group: AgentActivityGroup; kind: 'heading' } | { kind: 'session'; row: AgentActivityRow };
+    | {
+          group: AgentActivityGroup;
+          heading: ReturnType<typeof agentActivityHeadingPresentation>;
+          kind: 'heading';
+      }
+    | { kind: 'session'; row: AgentActivityRow };
 
 /**
  * Every Project's Agent Sessions in one flat, attention-first list.
@@ -69,7 +81,7 @@ export function AgentActivityView() {
     // Owns the cadence only; each row subscribes to its own slice of the snapshot this keeps fresh.
     useSessionPullRequestPoll();
 
-    const groups = useMemo(
+    const canonicalGroups = useMemo(
         () =>
             agentActivityGroups({
                 now,
@@ -80,6 +92,58 @@ export function AgentActivityView() {
                 terminals,
             }),
         [allProjects, now, sessions, terminals],
+    );
+    /**
+     * Capture the unread generation on the selection render, before the visibility acknowledgement reaches the Server.
+     * React retries this component immediately after the guarded state adjustment, so children only see the new
+     * anchor.
+     */
+    const [selection, setSelection] = useState<{
+        anchor: AgentActivitySelectionAnchor | undefined;
+        sessionId: string | undefined;
+    }>(() => ({
+        anchor: agentActivitySelectionAnchor(canonicalGroups, selectedSessionId),
+        sessionId: selectedSessionId,
+    }));
+    let selectionAnchor = selection.anchor;
+    if (selection.sessionId !== selectedSessionId) {
+        selectionAnchor = agentActivitySelectionAnchor(canonicalGroups, selectedSessionId);
+        setSelection({ anchor: selectionAnchor, sessionId: selectedSessionId });
+    } else if (selectionAnchor) {
+        const anchoredSession = sessions.find(
+            (session) => session.id === selectionAnchor?.sessionId,
+        );
+        if (
+            !isAgentActivitySelectionAnchorCurrent(
+                selectionAnchor,
+                anchoredSession,
+                anchoredSession ? sessionAgentTerminal(anchoredSession, terminals) : undefined,
+            )
+        ) {
+            selectionAnchor = undefined;
+            setSelection({ anchor: undefined, sessionId: selectedSessionId });
+        }
+    }
+    const groups = useMemo(
+        () =>
+            selectionAnchor?.sessionId === selectedSessionId
+                ? agentActivityGroups({
+                      now,
+                      projects: topLevelProjects(allProjects ?? NO_RECORDS),
+                      selectionAnchor,
+                      sessions,
+                      terminals,
+                  })
+                : canonicalGroups,
+        [
+            allProjects,
+            canonicalGroups,
+            now,
+            selectedSessionId,
+            selectionAnchor,
+            sessions,
+            terminals,
+        ],
     );
     const rows = useMemo(() => flattenAgentActivityRows(groups), [groups]);
     const rovingRowId = rovingAgentActivityRowId(rows, focusedRowId, selectedSessionId);
@@ -93,7 +157,7 @@ export function AgentActivityView() {
     const renderRows = useMemo(
         () =>
             groups.flatMap<RenderRow>((group) => [
-                { group, kind: 'heading' },
+                { group, heading: agentActivityHeadingPresentation(group), kind: 'heading' },
                 ...group.rows.map((row) => ({ kind: 'session' as const, row })),
             ]),
         [groups],
@@ -155,6 +219,11 @@ export function AgentActivityView() {
         const focusAfterRead =
             nextAgentActivityRowId(rows, row.session.id, 'ArrowDown') ??
             nextAgentActivityRowId(rows, row.session.id, 'ArrowUp');
+        setSelection((current) =>
+            current.anchor?.sessionId === row.session.id
+                ? { ...current, anchor: undefined }
+                : current,
+        );
         // Fire-and-forget: `tryCommand` turns any rejection into exactly one toast, and the Server keeps the same
         // generation unread so the next focus event can retry it.
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
@@ -204,11 +273,11 @@ export function AgentActivityView() {
                             role="treeitem"
                         >
                             <AgentActivityGroupIcon groupId={entry.group.id} />
-                            <span>{entry.group.label}</span>
-                            <span aria-hidden="true">{entry.group.rows.length}</span>
-                            <span className="sr-only">
-                                {`${entry.group.rows.length} ${entry.group.rows.length === 1 ? 'Session' : 'Sessions'}`}
-                            </span>
+                            <span>{entry.heading.label}</span>
+                            {entry.heading.count !== undefined && (
+                                <span aria-hidden="true">{entry.heading.count}</span>
+                            )}
+                            <span className="sr-only">{entry.heading.summary}</span>
                         </div>
                     ) : (
                         <AgentActivityRowItem
