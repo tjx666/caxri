@@ -28,7 +28,8 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [-
   suites that directly import or re-export a changed source through a static relative specifier.
   Keep the checker's source roots aligned with Vitest's include patterns, including `extensions/`.
   It deliberately ignores dynamic and transitive imports so composition-root suites do not turn a
-  focused check into a broad test run.
+  focused check into a broad test run. Renderer source changes also run the design and theme
+  contracts, which scan that source tree at runtime without importing individual files.
 - `--type` runs the repository-wide TypeScript check because TypeScript cannot safely validate one
   file in isolation.
 - `--knip` runs the repository-wide dead-code and unused-export gate for Renderer or shared-contract

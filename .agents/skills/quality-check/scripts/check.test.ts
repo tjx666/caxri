@@ -402,6 +402,28 @@ describe('testCandidatesForFile', () => {
 });
 
 describe('direct import test selection', () => {
+    it('routes Renderer source changes through both global scan contracts', async () => {
+        const selected = await selectedTestCandidates(process.cwd(), [
+            'apps/desktop/src/renderer/src/features/files/file-tree-panel.tsx',
+        ]);
+        expect(selected).toEqual(
+            expect.arrayContaining([
+                'apps/desktop/src/renderer/__tests__/renderer-design-contract.test.ts',
+                'apps/desktop/src/renderer/__tests__/renderer-theme-contract.test.ts',
+            ]),
+        );
+
+        const unrelated = await selectedTestCandidates(process.cwd(), [
+            'apps/server/src/domains/theme.ts',
+        ]);
+        expect(unrelated).not.toContain(
+            'apps/desktop/src/renderer/__tests__/renderer-design-contract.test.ts',
+        );
+        expect(unrelated).not.toContain(
+            'apps/desktop/src/renderer/__tests__/renderer-theme-contract.test.ts',
+        );
+    });
+
     it('recognizes direct relative static imports and re-exports without following dynamic imports', () => {
         expect(
             hasDirectSourceImport(
