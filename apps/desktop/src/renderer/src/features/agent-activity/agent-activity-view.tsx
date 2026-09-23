@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 
 import type { LucideIcon } from 'lucide-react';
-import { BellDot, CheckCheck, Hourglass, Moon, TriangleAlert, Zap } from 'lucide-react';
+import { CheckCheck, Hand, Hourglass, Moon, TriangleAlert, Zap } from 'lucide-react';
 
 import { useRelativeTimes } from '@/hooks/use-relative-time';
 
@@ -38,9 +38,12 @@ const NO_RECORDS: never[] = [];
  * does the same. Every shape is deliberately different from the circle-family glyphs the rows use: a heading icon names
  * the section, and repeating the row glyph above its own rows would say the same thing twice. They stay in the
  * heading's muted tone, because color in this list is reserved for rows that want the user.
+ *
+ * "Needs attention" is a raised hand rather than a bell: the status bar's notification center already owns the bell,
+ * and a Session in this group is waiting for the user's turn, not announcing an app notification.
  */
 const GROUP_ICONS: Record<AgentActivityGroupId, LucideIcon> = {
-    attention: BellDot,
+    attention: Hand,
     failed: TriangleAlert,
     finished: CheckCheck,
     idle: Moon,
