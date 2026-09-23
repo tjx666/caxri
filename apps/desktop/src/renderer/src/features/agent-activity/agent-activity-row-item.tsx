@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react';
 import { useState } from 'react';
 
-import type { ProjectRecord, TerminalRecord } from '@caxri/protocol';
+import type { ProjectRecord, SessionPullRequest, TerminalRecord } from '@caxri/protocol';
 import {
     Check,
     Circle,
@@ -193,23 +193,10 @@ export function AgentActivityRowItem({
                     )}
                 </span>
             </span>
-            {/*
-             * The pull request glyph sits in a right-edge slot centered on the whole two-line row, not on the title
-             * line: pinned to the title it floated in the top-right corner, detached from the metadata it describes.
-             * Only a pull request reserves the slot. The mark-read button overlays the right edge instead, because a
-             * slot reserved for a hover-only action would cost every unread row the width its Project name needs at
-             * the side bar's minimum width.
-             */}
-            {visiblePullRequest !== undefined && (
-                <span className="agent-activity-trailing flex w-5 flex-none justify-end">
-                    <SessionPullRequestIndicator
-                        className={cn(
-                            canMarkRead && 'transition-opacity group-hover/activity-row:opacity-0',
-                        )}
-                        pullRequest={visiblePullRequest}
-                    />
-                </span>
-            )}
+            <AgentActivityPullRequestSlot
+                hidesOnHover={canMarkRead}
+                pullRequest={visiblePullRequest}
+            />
         </div>
     );
     return (
@@ -233,34 +220,76 @@ export function AgentActivityRowItem({
                     worktreeProject={worktreeProject}
                 />
                 {canMarkRead && (
-                    /*
-                     * A sibling of the row rather than a child, the same way a Project tree row keeps its hover
-                     * actions outside the hover card's trigger: a pointer on the button is not a pointer asking for the
-                     * card.
-                     *
-                     * `tabIndex={-1}`: inside `role="tree"` the row itself is the only Tab stop (DESIGN.md), so this is
-                     * the pointer affordance for an action the keyboard reaches through Delete on the row.
-                     */
-                    <Tooltip content="Mark as Read">
-                        <button
-                            aria-label={`Mark ${session.displayTitle} as read`}
-                            aria-keyshortcuts="Delete"
-                            className={cn(
-                                sessionRowActionButton,
-                                'agent-activity-mark-read absolute top-1/2 right-1 z-10 -translate-y-1/2 opacity-0 transition-opacity group-hover/activity-row:opacity-100 focus-visible:opacity-100',
-                            )}
-                            tabIndex={-1}
-                            type="button"
-                            onClick={(event) => {
-                                event.stopPropagation();
-                                onMarkRead();
-                            }}
-                        >
-                            <Check aria-hidden="true" size={12} />
-                        </button>
-                    </Tooltip>
+                    <AgentActivityMarkReadButton
+                        sessionTitle={session.displayTitle}
+                        onMarkRead={onMarkRead}
+                    />
                 )}
             </div>
         </SessionRowMenu>
+    );
+}
+
+/**
+ * A sibling of the row rather than a child, the same way a Project tree row keeps its hover actions outside the hover
+ * card's trigger: a pointer on the button is not a pointer asking for the card. It wears the Project tree's
+ * hover-action chip and tooltip, so a Session's pointer actions look the same in either body of the side bar.
+ *
+ * `tabIndex={-1}`: inside `role="tree"` the row itself is the only Tab stop (DESIGN.md), so this is the pointer
+ * affordance for an action the keyboard reaches through Delete on the row.
+ */
+function AgentActivityMarkReadButton({
+    onMarkRead,
+    sessionTitle,
+}: {
+    onMarkRead: () => void;
+    sessionTitle: string;
+}) {
+    return (
+        <Tooltip content="Mark as Read">
+            <button
+                aria-label={`Mark ${sessionTitle} as read`}
+                aria-keyshortcuts="Delete"
+                className={cn(
+                    sessionRowActionButton,
+                    'agent-activity-mark-read absolute top-1/2 right-1 z-10 -translate-y-1/2 opacity-0 transition-opacity group-hover/activity-row:opacity-100 focus-visible:opacity-100',
+                )}
+                tabIndex={-1}
+                type="button"
+                onClick={(event) => {
+                    event.stopPropagation();
+                    onMarkRead();
+                }}
+            >
+                <Check aria-hidden="true" size={12} />
+            </button>
+        </Tooltip>
+    );
+}
+
+/**
+ * The pull request glyph sits in a right-edge slot centered on the whole two-line row, not on the title line: pinned to
+ * the title it floated in the top-right corner, detached from the metadata it describes. Only a pull request reserves
+ * the slot. The mark-read button overlays the right edge instead, because a slot reserved for a hover-only action would
+ * cost every unread row the width its Project name needs at the side bar's minimum width; the glyph hides while that
+ * button shows.
+ */
+function AgentActivityPullRequestSlot({
+    hidesOnHover,
+    pullRequest,
+}: {
+    hidesOnHover: boolean;
+    pullRequest: SessionPullRequest | undefined;
+}) {
+    if (!pullRequest) return null;
+    return (
+        <span className="agent-activity-trailing flex w-5 flex-none justify-end">
+            <SessionPullRequestIndicator
+                className={cn(
+                    hidesOnHover && 'transition-opacity group-hover/activity-row:opacity-0',
+                )}
+                pullRequest={pullRequest}
+            />
+        </span>
     );
 }
