@@ -73,7 +73,7 @@ describe('worktree process ownership', () => {
 
     it('captures start time and command as the process identity in the same listing', () => {
         const identityText = 'Thu Sep 24 00:00:00 2026     Caxri Dev';
-        expect(parseProcessTable(`  801     1 ${identityText}`, true)).toEqual([
+        expect(parseProcessTable(`  801     1 ${identityText}   `, true)).toEqual([
             {
                 command: 'Caxri Dev',
                 identity: createHash('sha256').update(identityText).digest('hex'),

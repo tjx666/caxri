@@ -25,7 +25,8 @@ const FORCE_WAIT_MS = 2000;
 
 /**
  * Parses the process table with an optional start-time identity captured by the same `ps` invocation. Command lines
- * keep their spaces, so the fixed numeric and start-time columns are split off first.
+ * keep their spaces, so the fixed numeric and start-time columns are split off first. macOS may pad a process title
+ * with trailing spaces; normalize those exactly as `getProcessIdentity` does before comparing ownership.
  */
 export function parseProcessTable(stdout: string, hasIdentity = false): ProcessEntry[] {
     return stdout.split('\n').flatMap((line) => {
@@ -38,9 +39,9 @@ export function parseProcessTable(stdout: string, hasIdentity = false): ProcessE
         if (!groups?.command) return [];
         return [
             {
-                command: groups.command,
+                command: groups.command.trimEnd(),
                 ...(groups.identityText && {
-                    identity: createHash('sha256').update(groups.identityText).digest('hex'),
+                    identity: createHash('sha256').update(groups.identityText.trim()).digest('hex'),
                 }),
                 parentPid: Number(groups.parentPid),
                 pid: Number(groups.pid),
