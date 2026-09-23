@@ -174,7 +174,11 @@ test('Session content search finds provider messages and requires explicit archi
         await expect(results.getByRole('button', { name: /^codex discussion/u })).toContainText(
             'Archived',
         );
-        await page.screenshot({ path: test.info().outputPath('content-search-results.png') });
+        // Diagnostic artifacts must not carry Terminal content, so the Session's shell stays masked.
+        await page.screenshot({
+            path: test.info().outputPath('content-search-results.png'),
+            mask: [page.locator('.xterm')],
+        });
         await input.fill('excluded-tool-marker');
         await expect(results.getByRole('button')).toHaveCount(0);
         await expect(dialog.getByText('No matches in the searched content.')).toBeVisible();
@@ -206,6 +210,7 @@ test('Session content search finds provider messages and requires explicit archi
         ).toHaveCount(0);
         await page.screenshot({
             path: test.info().outputPath('content-search-explicit-restore.png'),
+            mask: [page.locator('.xterm')],
         });
         await archived.getByRole('button', { name: 'Restore codex discussion' }).click();
         await expect

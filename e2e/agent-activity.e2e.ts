@@ -221,7 +221,10 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
         await expect(tree.locator('[tabindex="0"]')).toHaveCount(1);
         await betaRow.locator('.agent-activity-project').hover();
         await expect(page.locator('.tooltip-popup[data-open]')).toHaveText('web-client-platform');
-        await page.screenshot({ path: test.info().outputPath('activity-narrow-project.png') });
+        await page.screenshot({
+            path: test.info().outputPath('activity-narrow-project.png'),
+            mask: [page.locator('.xterm')],
+        });
         const alphaRow = tree.locator(
             `.agent-activity-row[data-session-id="${sessions.get('alpha')}"]`,
         );
@@ -234,7 +237,10 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
         await expect(page.locator('.tooltip-popup[data-open]')).toHaveText(
             'service-integration-platform-workspace',
         );
-        await page.screenshot({ path: test.info().outputPath('activity-project-tooltip.png') });
+        await page.screenshot({
+            path: test.info().outputPath('activity-project-tooltip.png'),
+            mask: [page.locator('.xterm')],
+        });
         await divider.dblclick();
         await expect(divider).toHaveAttribute('aria-valuenow', '230');
         expect(
@@ -246,7 +252,10 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
                         time.parentElement!.getBoundingClientRect().bottom,
                 ),
         ).toBe(true);
-        await page.screenshot({ path: test.info().outputPath('activity-default-width.png') });
+        await page.screenshot({
+            path: test.info().outputPath('activity-default-width.png'),
+            mask: [page.locator('.xterm')],
+        });
         await alphaRow.hover();
         await page.getByRole('button', { name: 'Mark alpha work as read' }).click();
         await expect(alphaRow).toHaveAttribute('data-activity-group', 'finished');
