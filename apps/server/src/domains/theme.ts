@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { dirname, extname, join } from 'node:path';
 
 /**
@@ -590,6 +591,10 @@ function mergeVsCodeTheme(
     };
 }
 
+/**
+ * Resolves one included parent; nested includes are not traversed, so only this merged document needs a final size
+ * check.
+ */
 async function resolveVsCodeInclude(
     path: string,
     source: string,
@@ -617,9 +622,15 @@ async function resolveVsCodeInclude(
      * that was not wrong — the parent is in the right directory, it just does not hold theme colors.
      */
     const parent = parseThemeDocument(() => parseJsonc(parentSource), JSON_THEME_PARSE_MESSAGE);
-    return JSON.stringify(
+    const merged = JSON.stringify(
         mergeVsCodeTheme(themeDocumentRoot(parent, JSON_THEME_ROOT_MESSAGE), document),
     );
+    if (Buffer.byteLength(merged, 'utf8') > MAX_THEME_IMPORT_FILE_BYTES)
+        throw new CaxriError(
+            'VALIDATION',
+            `Theme exceeds the ${MAX_THEME_IMPORT_FILE_BYTES} byte limit after merging its included parent`,
+        );
+    return merged;
 }
 
 export async function importTheme(

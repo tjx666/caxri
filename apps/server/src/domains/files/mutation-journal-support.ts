@@ -32,13 +32,20 @@ export async function pathKind(path: string): Promise<'file' | 'directory' | und
 
 export async function pathIdentity(
     path: string,
-): Promise<{ device: string; inode: string; kind: 'file' | 'directory' } | undefined> {
+): Promise<
+    { birthtime: string; device: string; inode: string; kind: 'file' | 'directory' } | undefined
+> {
     try {
         const stats = await lstat(path, { bigint: true });
         if (stats.isSymbolicLink()) return undefined;
         const kind = stats.isFile() ? 'file' : stats.isDirectory() ? 'directory' : undefined;
         if (!kind) return undefined;
-        return { device: stats.dev.toString(), inode: stats.ino.toString(), kind };
+        return {
+            birthtime: stats.birthtimeNs.toString(),
+            device: stats.dev.toString(),
+            inode: stats.ino.toString(),
+            kind,
+        };
     } catch (error) {
         if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
         throw error;

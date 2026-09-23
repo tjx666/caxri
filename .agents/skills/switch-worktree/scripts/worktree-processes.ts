@@ -1,16 +1,20 @@
+import { createHash } from 'node:crypto';
 import process from 'node:process';
 import { setTimeout as sleep } from 'node:timers/promises';
 
-import { runCapture } from './process';
+import { getProcessIdentity, runCapture } from './process';
 
 export interface ProcessEntry {
     command: string;
+    identity?: string;
     parentPid: number;
     pid: number;
 }
 
 export interface StopOperations {
     list: () => Promise<ProcessEntry[]>;
+    cwd: (pid: number) => Promise<string | undefined>;
+    identity: (pid: number) => Promise<string | undefined>;
     signalProcess: (pid: number, signal: NodeJS.Signals) => void;
     wait: (milliseconds: number) => Promise<unknown>;
 }
@@ -20,17 +24,25 @@ const TERMINATION_WAIT_MS = 5000;
 const FORCE_WAIT_MS = 2000;
 
 /**
- * Parses `ps -axo pid=,ppid=,command=`. Command lines keep their spaces — macOS helper executables live under paths
- * like `Electron Helper (Renderer).app` — so only the two leading numeric columns are split off.
+ * Parses the process table with an optional start-time identity captured by the same `ps` invocation. Command lines
+ * keep their spaces, so the fixed numeric and start-time columns are split off first. macOS may pad a process title
+ * with trailing spaces; normalize those exactly as `getProcessIdentity` does before comparing ownership.
  */
-export function parseProcessTable(stdout: string): ProcessEntry[] {
+export function parseProcessTable(stdout: string, hasIdentity = false): ProcessEntry[] {
     return stdout.split('\n').flatMap((line) => {
-        const match = /^\s*(?<pid>\d+)\s+(?<parentPid>\d+)\s+(?<command>\S.*)$/u.exec(line);
+        const match = (
+            hasIdentity
+                ? /^\s*(?<pid>\d+)\s+(?<parentPid>\d+)\s+(?<identityText>[A-Za-z]{3}\s+[A-Za-z]{3}\s+\d{1,2}\s+\d\d:\d\d:\d\d\s+\d{4}\s+(?<command>\S.*))$/u
+                : /^\s*(?<pid>\d+)\s+(?<parentPid>\d+)\s+(?<command>\S.*)$/u
+        ).exec(line);
         const groups = match?.groups;
         if (!groups?.command) return [];
         return [
             {
-                command: groups.command,
+                command: groups.command.trimEnd(),
+                ...(groups.identityText && {
+                    identity: createHash('sha256').update(groups.identityText.trim()).digest('hex'),
+                }),
                 parentPid: Number(groups.parentPid),
                 pid: Number(groups.pid),
             },
@@ -109,11 +121,13 @@ function descendantProcessIds(
 export function worktreeProcessesToStop({
     entries,
     launcherPid,
+    orphanMainPids = [],
     selfPid,
     worktreePath,
 }: {
     entries: readonly ProcessEntry[];
     launcherPid?: number;
+    orphanMainPids?: readonly number[];
     selfPid: number;
     worktreePath: string;
 }): ProcessEntry[] {
@@ -128,18 +142,73 @@ export function worktreeProcessesToStop({
             )
             .map((entry) => entry.pid),
     );
+    for (const pid of orphanMainPids) if (!protectedIds.has(pid)) seeds.add(pid);
     const targets = new Set([...seeds, ...descendantProcessIds(entries, seeds)]);
     return entries.filter((entry) => targets.has(entry.pid) && !protectedIds.has(entry.pid));
 }
 
+/**
+ * Only a worktree-owned child can nominate an orphaned dev window, and its cwd must confirm the exact checkout.
+ */
+async function orphanedMainProcesses(
+    entries: readonly ProcessEntry[],
+    worktreePath: string,
+    operations: StopOperations,
+): Promise<{ verified: number[]; unresolved: number[] }> {
+    const byPid = new Map(entries.map((entry) => [entry.pid, entry]));
+    const candidates = new Map(
+        entries
+            .filter((entry) => isWorktreeOwnedCommand(entry.command, worktreePath))
+            .map((entry) => byPid.get(entry.parentPid))
+            .filter((parent) => parent?.parentPid === 1 && parent.command === 'Caxri Dev')
+            .map((parent) => [parent!.pid, parent!] as const),
+    );
+    const verified: number[] = [];
+    const unresolved: number[] = [];
+    for (const [pid, candidate] of candidates) {
+        // eslint-disable-next-line no-await-in-loop -- bounded candidate set; identity and cwd are checked before signaling.
+        const identity = await operations.identity(pid);
+        // eslint-disable-next-line no-await-in-loop -- an orphan is not owned until its cwd is confirmed.
+        const cwd = await operations.cwd(pid);
+        // eslint-disable-next-line no-await-in-loop -- detect PID reuse during the cwd lookup.
+        const currentIdentity = await operations.identity(pid);
+        const isSameProcess = Boolean(
+            candidate.identity &&
+            identity === candidate.identity &&
+            // eslint-disable-next-line unicorn/prefer-simple-condition-first -- compare the initial snapshot before the final identity read.
+            currentIdentity === identity,
+        );
+        if (isSameProcess && cwd === worktreePath) verified.push(pid);
+        else if (!isSameProcess || cwd === undefined) unresolved.push(pid);
+    }
+    return { verified, unresolved };
+}
+
 async function listProcesses(): Promise<ProcessEntry[]> {
     return parseProcessTable(
-        await runCapture('ps', ['-axo', 'pid=,ppid=,command='], process.cwd()),
+        await runCapture('ps', ['-ww', '-axo', 'pid=,ppid=,lstart=,command='], process.cwd()),
+        true,
     );
 }
 
 export const defaultStopOperations: StopOperations = {
     list: listProcesses,
+    identity: getProcessIdentity,
+    cwd: async (pid) => {
+        try {
+            const output = await runCapture(
+                'lsof',
+                ['-a', '-p', String(pid), '-d', 'cwd', '-Fn'],
+                process.cwd(),
+            );
+            return output
+                .split('\n')
+                .find((line) => line.startsWith('n'))
+                ?.slice(1);
+        } catch {
+            return;
+        }
+    },
     signalProcess: (pid, signal) => {
         try {
             process.kill(pid, signal);
@@ -155,11 +224,46 @@ export interface StopProcessesResult {
     survivors: ProcessEntry[];
 }
 
+/**
+ * Read-only ownership snapshot used by stop and by worktree removal's live-profile guard.
+ */
+export async function inspectWorktreeProcesses(
+    input: { launcherPid?: number; selfPid: number; worktreePath: string },
+    operations: StopOperations = defaultStopOperations,
+): Promise<{ entries: ProcessEntry[]; owned: ProcessEntry[]; unresolved: ProcessEntry[] }> {
+    const entries = await operations.list();
+    const orphaned = await orphanedMainProcesses(entries, input.worktreePath, operations);
+    return {
+        entries,
+        owned: worktreeProcessesToStop({ entries, ...input, orphanMainPids: orphaned.verified }),
+        unresolved: entries.filter((entry) => orphaned.unresolved.includes(entry.pid)),
+    };
+}
+
 async function survivingTargets(
     operations: StopOperations,
-    targetIds: ReadonlySet<number>,
+    targetsByPid: ReadonlyMap<number, ProcessEntry>,
 ): Promise<ProcessEntry[]> {
-    return (await operations.list()).filter((entry) => targetIds.has(entry.pid));
+    return (await operations.list()).filter((entry) => {
+        const target = targetsByPid.get(entry.pid);
+        return Boolean(target?.identity && entry.identity === target.identity);
+    });
+}
+
+/**
+ * A PID is never signal authority after its captured process start identity changes.
+ */
+async function signalMatchingTargets(
+    targets: readonly ProcessEntry[],
+    operations: StopOperations,
+    signal: NodeJS.Signals,
+): Promise<void> {
+    for (const target of targets) {
+        // eslint-disable-next-line no-await-in-loop -- each target needs its own current identity before signaling.
+        if (target.identity && (await operations.identity(target.pid)) === target.identity) {
+            operations.signalProcess(target.pid, signal);
+        }
+    }
 }
 
 /**
@@ -171,26 +275,54 @@ export async function stopProcesses(
     operations: StopOperations = defaultStopOperations,
 ): Promise<StopProcessesResult> {
     if (targets.length === 0) return { stopped: [], survivors: [] };
-    const targetIds = new Set(targets.map((entry) => entry.pid));
-    for (const { pid } of targets) operations.signalProcess(pid, 'SIGTERM');
+    const targetsByPid = new Map(targets.map((entry) => [entry.pid, entry]));
+    await signalMatchingTargets(targets, operations, 'SIGTERM');
     let remaining: ProcessEntry[] = targets as ProcessEntry[];
     for (let waited = 0; waited < TERMINATION_WAIT_MS; waited += TERMINATION_POLL_MS) {
         // eslint-disable-next-line no-await-in-loop -- bounded wait for the signalled processes to exit
         await operations.wait(TERMINATION_POLL_MS);
         // eslint-disable-next-line no-await-in-loop -- bounded wait for the signalled processes to exit
-        remaining = await survivingTargets(operations, targetIds);
+        remaining = await survivingTargets(operations, targetsByPid);
         if (remaining.length === 0) return { stopped: [...targets], survivors: [] };
     }
-    for (const { pid } of remaining) operations.signalProcess(pid, 'SIGKILL');
+    await signalMatchingTargets(remaining, operations, 'SIGKILL');
     for (let waited = 0; waited < FORCE_WAIT_MS; waited += TERMINATION_POLL_MS) {
         // eslint-disable-next-line no-await-in-loop -- bounded wait for force-terminated processes to exit
         await operations.wait(TERMINATION_POLL_MS);
         // eslint-disable-next-line no-await-in-loop -- bounded wait for force-terminated processes to exit
-        remaining = await survivingTargets(operations, targetIds);
+        remaining = await survivingTargets(operations, targetsByPid);
         if (remaining.length === 0) break;
     }
     return {
         stopped: targets.filter((entry) => remaining.every((alive) => alive.pid !== entry.pid)),
         survivors: remaining,
+    };
+}
+
+/**
+ * Re-enumerates ownership after shutdown so a restarted child cannot turn a failed stop into a success report.
+ */
+export async function stopWorktreeProcesses(
+    input: { launcherPid?: number; selfPid: number; worktreePath: string },
+    operations: StopOperations = defaultStopOperations,
+): Promise<StopProcessesResult> {
+    const initial = await inspectWorktreeProcesses(input, operations);
+    const targets = initial.owned;
+    const result = await stopProcesses(targets, operations);
+    if (targets.length > 0) await operations.wait(TERMINATION_POLL_MS);
+    const final = await inspectWorktreeProcesses(input, operations);
+    const survivors = new Map(
+        [
+            ...result.survivors,
+            ...final.owned,
+            ...initial.unresolved.filter((entry) =>
+                final.entries.some((current) => current.pid === entry.pid),
+            ),
+            ...final.unresolved,
+        ].map((entry) => [entry.pid, entry]),
+    );
+    return {
+        stopped: result.stopped.filter((entry) => !survivors.has(entry.pid)),
+        survivors: survivors.values().toArray(),
     };
 }

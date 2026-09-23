@@ -30,8 +30,8 @@ import {
 import type { StopOperations } from './worktree-processes';
 import {
     defaultStopOperations,
-    stopProcesses,
-    worktreeProcessesToStop,
+    inspectWorktreeProcesses,
+    stopWorktreeProcesses,
 } from './worktree-processes';
 
 const SEMANTIC_BRANCH = /^(?:feat|fix|refactor|perf|docs|test|chore)\/[a-z0-9][a-z0-9._/-]*$/;
@@ -377,13 +377,14 @@ export async function stopWorktree(
         (await isProcessIdentityAlive(record.pid, record.identity))
             ? record
             : undefined;
-    const targets = worktreeProcessesToStop({
-        entries: await operations.list(),
-        ...(launcher && { launcherPid: launcher.pid }),
-        selfPid: process.pid,
-        worktreePath: context.root,
-    });
-    const { stopped, survivors } = await stopProcesses(targets, operations);
+    const { stopped, survivors } = await stopWorktreeProcesses(
+        {
+            ...(launcher && { launcherPid: launcher.pid }),
+            selfPid: process.pid,
+            worktreePath: context.root,
+        },
+        operations,
+    );
     if (record && identity && survivors.every((entry) => entry.pid !== record.pid))
         await unlinkIfExists(developmentProcessPath(context, identity));
     return {
@@ -674,6 +675,15 @@ export async function removeWorktree(
                 `Refusing to remove worktree with active dev PID ${processRecord.pid}`,
             );
         }
+        const live = await inspectWorktreeProcesses({
+            selfPid: process.pid,
+            worktreePath: worktree.path,
+        });
+        const active = [...live.owned, ...live.unresolved];
+        if (active.length > 0)
+            throw new CommandError(
+                `Refusing to remove worktree with active processes: PIDs ${active.map(({ pid }) => pid).join(', ')}`,
+            );
         const desktop = await inspectDesktopLease(context.root);
         if (
             desktop.state === 'active' &&

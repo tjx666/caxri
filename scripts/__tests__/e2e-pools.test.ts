@@ -16,9 +16,11 @@ import {
     stableErrorIdentity,
 } from '../reporters/e2e-receipt-reporter';
 import {
+    censusTargets,
     combinePoolReceipts,
     mergeCensusReceipts,
     parseE2EPool,
+    playwrightTestArguments,
     readInvocationReceipt,
     resolveParallelWorkers,
     resolvePoolOutcome,
@@ -327,5 +329,39 @@ describe('E2E pools', () => {
         });
         expect(combined.specs.every(({ verdict }) => verdict !== 'unknown')).toBe(true);
         expect(combined.tests[1].artifacts).toEqual(['test-results/second/trace.zip']);
+    });
+
+    it('merges same-line parameterized census results without replacing prior verdicts', () => {
+        const location = 'e2e/terminal-recovery.e2e.ts:677:5';
+        const siblingLocation = 'e2e/terminal-recovery.e2e.ts:677:30';
+        const initial = receipt('parallel-safe', [
+            { ...testReceipt('known', 'fail', 'original-failure'), location: siblingLocation },
+            { ...testReceipt('codex', 'unknown'), location },
+            { ...testReceipt('claude', 'unknown'), location: siblingLocation },
+        ]);
+        const census = receipt('parallel-safe', [
+            { ...testReceipt('known', 'pass'), location: siblingLocation },
+            { ...testReceipt('codex', 'fail', 'codex-failure'), location },
+            { ...testReceipt('claude', 'pass'), location: siblingLocation },
+        ]);
+
+        expect(censusTargets(initial.tests).map(({ id }) => id)).toEqual(['codex']);
+        const merged = mergeCensusReceipts(initial, [census]);
+        expect(merged.unknown).toBe(0);
+        expect(merged.tests.map(({ id, verdict }) => [id, verdict])).toEqual([
+            ['known', 'fail'],
+            ['codex', 'fail'],
+            ['claude', 'pass'],
+        ]);
+        expect(merged.tests[1].errorIdentity).toBe('codex-failure');
+        expect(() =>
+            mergeCensusReceipts(initial, [receipt('parallel-safe', [testReceipt('unrelated')])]),
+        ).toThrow('unexpected test');
+        expect(playwrightTestArguments({ specs: [location] }, 1, true)).toContain(
+            '--max-failures=0',
+        );
+        expect(playwrightTestArguments({ specs: [location] }, 1, false)).not.toContain(
+            '--max-failures=0',
+        );
     });
 });

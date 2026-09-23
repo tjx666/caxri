@@ -130,7 +130,8 @@ evidence rather than automated test or Acceptance evidence.
   launch finalization and lease cleanup so one worker failure cannot poison later specs.
 - Preserve the first causal failure and its artifacts. Do not use retries to turn an original red
   result green or allow a lock/lease cascade to hide it.
-- CI keeps `maxFailures` for fast containment, then reruns only suppressed tests one at a time.
+- CI keeps `maxFailures` for fast containment, then reruns suppressed tests once per file and line with
+  `--max-failures=0` so every parameterized sibling receives a verdict.
   The final pool receipt must classify every planned spec as `pass`, `fail`, or `timeout`, retain
   per-test artifacts, and group repeated failures by stable error identity before repair begins.
   A `passed` receipt does not by itself prove a green pool: every child must also exit zero and

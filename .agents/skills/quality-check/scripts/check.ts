@@ -554,10 +554,17 @@ function parseNullSeparated(value: string): string[] {
     return value.split('\0').filter(Boolean);
 }
 
-async function discoverChangedFiles(root: string, isStaged: boolean): Promise<string[]> {
+export async function discoverChangedFiles(root: string, isStaged: boolean): Promise<string[]> {
     const trackedArguments = isStaged
         ? ['diff', '--cached', '--name-only', '-z', '--diff-filter=ACMR', '--']
-        : ['diff', 'HEAD', '--name-only', '-z', '--diff-filter=ACMR', '--'];
+        : [
+              'diff',
+              (await runCapture('git', ['merge-base', 'origin/main', 'HEAD'], root)).trim(),
+              '--name-only',
+              '-z',
+              '--diff-filter=ACMR',
+              '--',
+          ];
     const tracked = parseNullSeparated(await runCapture('git', trackedArguments, root));
     if (isStaged) return tracked;
 
@@ -684,12 +691,28 @@ async function skillContractTestCandidates(root: string, files: string[]): Promi
     return nested.flat();
 }
 
+/**
+ * Renderer contracts scan source files at runtime, so import-based test discovery cannot find them.
+ */
+function rendererContractTestCandidates(files: string[]): string[] {
+    if (
+        files.every((file) => !file.replaceAll('\\', '/').startsWith('apps/desktop/src/renderer/'))
+    ) {
+        return [];
+    }
+    return [
+        'apps/desktop/src/renderer/__tests__/renderer-design-contract.test.ts',
+        'apps/desktop/src/renderer/__tests__/renderer-theme-contract.test.ts',
+    ];
+}
+
 export async function selectedTestCandidates(root: string, files: string[]): Promise<string[]> {
     const candidates = [
         ...new Set([
             ...files.flatMap(testCandidatesForFile),
             ...(await directImportTestCandidates(root, files)),
             ...(await skillContractTestCandidates(root, files)),
+            ...rendererContractTestCandidates(files),
         ]),
     ];
     return existingFiles(root, candidates);
