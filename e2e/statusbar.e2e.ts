@@ -112,6 +112,13 @@ exec /bin/zsh -l
             running.page.getByRole('button', { name: 'Open project files: status-project' }),
         ).toHaveCount(0);
         await expect(branch).toHaveText('feature/status-bar');
+        await expect(branch).not.toHaveAttribute('title');
+        await branch.hover();
+        await expect(running.page.locator('.tooltip-popup')).toContainText(
+            'Switch branch from feature/status-bar',
+        );
+        await running.page.mouse.move(0, 0);
+        await expect(running.page.locator('.tooltip-popup')).toHaveCount(0);
         await expect(pullRequest).toHaveAttribute(
             'href',
             'https://github.com/tjx666/status-project/pull/11',
@@ -276,7 +283,11 @@ test('Status Bar hides the branch chip in a linked worktree and keeps the branch
         await expect(page.locator('.tooltip-popup')).toContainText('feature/alternate');
         await page.mouse.move(0, 0);
         await selector.click();
-        await page.getByRole('option', { name: 'main, Main worktree', exact: true }).click();
+        const mainRoot = page.getByRole('option', { name: 'main, Main worktree', exact: true });
+        await expect(mainRoot).toBeVisible();
+        // The pointer still rests on the trigger, but its tooltip must not cover the menu the trigger just opened.
+        await expect(page.locator('.tooltip-popup')).toHaveCount(0);
+        await mainRoot.click();
         await expect(page.getByRole('combobox', { name: 'Switch branch from main' })).toBeVisible();
     } finally {
         await running.app.close();

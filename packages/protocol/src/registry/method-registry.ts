@@ -130,7 +130,7 @@ export const MAX_FILE_BROWSE_ENTRIES = MAX_PATH_BROWSER_ENTRIES;
 export const MAX_FILE_LIST_ENTRIES = 1_024;
 /**
  * Import links are resolved for the whole open document at once, so this caps how much filesystem probing one editor
- * model can ask for. A file with more relative imports than this keeps links for the first ones it declares.
+ * model can ask for. A file with more imports than this keeps links for the first ones it declares.
  */
 export const MAX_RESOLVED_IMPORTS = 128;
 const resolvedImportSchema = z.object({ specifier: z.string(), path: pathSchema });
@@ -491,9 +491,9 @@ export const methods = {
         result: z.enum(['file', 'directory']),
     },
     /**
-     * Turns the relative specifiers written in one open document (`'./foo'`, `'../../errors'`) into the files they
-     * name, so the editor can offer them as links. Batched per document because the editor asks on every model change
-     * and a request per import would multiply that by the import count.
+     * Turns module specifiers written in one open document (`'./foo'`, `'@/errors'`) into the files they name, so the
+     * editor can offer them as links. Batched per document because the editor asks on every model change and a request
+     * per import would multiply that by the import count.
      *
      * Only specifiers that resolve to a regular file inside the Session's authorized Project are returned; an
      * unresolvable one is simply absent, which is what keeps an alias or a bare package name from rendering as a link
@@ -619,6 +619,10 @@ export const methods = {
         ...serverRead,
         params: z.object({
             sessionId: identifierSchema,
+            /**
+             * Each surface replaces only its own previous search within the Session.
+             */
+            consumer: z.enum(['project-search', 'path-browser']),
             mode: fileSearchModeSchema,
             query: z.string().min(1).max(256),
             caseSensitive: z.boolean().default(false),

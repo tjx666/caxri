@@ -1,8 +1,10 @@
 import type { TerminalLongPasteResult } from '@caxri/protocol';
+import { MAX_LONG_PASTE_BYTES, MAX_TERMINAL_INPUT_PAYLOAD_LENGTH } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
     formatLongPasteReference,
+    longPasteFailureMessage,
     shouldPrepareLongPaste,
     TerminalLongPasteController,
     TerminalLongPasteInputRoute,
@@ -11,6 +13,59 @@ import {
 type SavedLongPaste = Extract<TerminalLongPasteResult, { status: 'saved' }>;
 
 describe('long Terminal paste', () => {
+    it.each(['keyboard', 'clipboard'] as const)(
+        'rejects oversized UTF-8 content through %s without a request or native paste',
+        async (entry) => {
+            const content = '界'.repeat(Math.floor(MAX_LONG_PASTE_BYTES / 3) + 1);
+            const request = vi.fn();
+            const paste = vi.fn();
+            const onFailure = vi.fn();
+            const controller = new TerminalLongPasteController({
+                canAcceptAgentInput: () => true,
+                onDropped: vi.fn(),
+                onFailure,
+                onPendingChange: vi.fn(),
+                paste,
+                pasteAgentExact: paste,
+                request,
+                threshold: () => 1_024,
+            });
+            if (entry === 'keyboard') expect(controller.intercept(content)).toBe(true);
+            else await controller.pasteFromClipboard(() => Promise.resolve(content));
+            await vi.waitFor(() => expect(controller.isPending()).toBe(false));
+            expect(request).not.toHaveBeenCalled();
+            expect(paste).not.toHaveBeenCalled();
+            expect(onFailure).toHaveBeenCalledExactlyOnceWith('too-large');
+            expect(longPasteFailureMessage('too-large')).toContain('16 MiB');
+            expect(longPasteFailureMessage('too-large')).toContain('clipboard is unchanged');
+        },
+    );
+
+    it.each(['keyboard', 'clipboard'] as const)(
+        'does not pass an oversized unmanaged Agent paste to xterm through %s',
+        async (entry) => {
+            const content = 'x'.repeat(MAX_TERMINAL_INPUT_PAYLOAD_LENGTH);
+            const paste = vi.fn();
+            const onFailure = vi.fn();
+            const controller = new TerminalLongPasteController({
+                canAcceptAgentInput: () => true,
+                onDropped: vi.fn(),
+                onFailure,
+                onPendingChange: vi.fn(),
+                paste,
+                pasteAgentExact: paste,
+                request: () => Promise.resolve({ status: 'passthrough' }),
+                threshold: () => 1_024,
+            });
+            if (entry === 'keyboard') expect(controller.intercept(content)).toBe(true);
+            else await controller.pasteFromClipboard(() => Promise.resolve(content));
+            await vi.waitFor(() => expect(controller.isPending()).toBe(false));
+            expect(paste).not.toHaveBeenCalled();
+            expect(onFailure).toHaveBeenCalledExactlyOnceWith('native-too-large');
+            expect(longPasteFailureMessage('native-too-large')).toContain('Save it to a file');
+        },
+    );
+
     it.each(['stopped', 'disposed'] as const)(
         'does not deliver a delayed native paste after the Agent is %s',
         async (state) => {

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { execFileAsync } from '@caxri/system';
 
-import { expect, test } from './support/fixtures.ts';
+import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import { createShellSession, launchCaxri, runtimeStatus } from './support/helpers.ts';
 
 test('Process Explorer opens one live Caxri process tree and closes independently', async () => {
@@ -112,6 +112,56 @@ test('Process Explorer opens one live Caxri process tree and closes independentl
             'CAXRI_PROCESS_EXPLORER_BENCHMARK',
             JSON.stringify({ samples: sampleDurations.length, maxDurationMs }),
         );
+
+        /**
+         * A failed sample must not present the preceding sample as live process data.
+         *
+         * The visible copy is deliberately plain, so the window records the cause through `console.error`; Main mirrors
+         * that into `desktop.jsonl` as an error class plus a digest. Both the direct Renderer capture and that mirrored
+         * record are the expected result of the failure injected below, not an unhandled error.
+         */
+        allowE2EErrors([
+            { source: 'renderer', event: 'console', code: 'CONSOLE_ERROR', count: 1 },
+            {
+                source: 'desktop',
+                event: 'process_explorer.console_error',
+                code: 'CONSOLE_ERROR',
+                count: 1,
+            },
+        ]);
+        await running.app.evaluate(({ app }) => {
+            const scope = globalThis as Record<string, unknown>;
+            scope.__caxriProcessMetrics = Object.getOwnPropertyDescriptor(app, 'getAppMetrics');
+            Object.defineProperty(app, 'getAppMetrics', {
+                configurable: true,
+                value: () => {
+                    throw new Error('Sampling temporarily unavailable');
+                },
+            });
+        });
+        try {
+            await processPage.getByRole('button', { name: 'Refresh processes' }).click();
+            await expect(processPage.locator('.process-error')).toBeVisible();
+            await expect(processPage.locator('.process-row')).toHaveCount(0);
+            const retry = processPage.getByRole('button', { name: 'Retry', exact: true });
+            await expect(retry).toBeVisible();
+        } finally {
+            await running.app.evaluate(({ app }) => {
+                const scope = globalThis as Record<string, unknown>;
+                Object.defineProperty(
+                    app,
+                    'getAppMetrics',
+                    scope.__caxriProcessMetrics as PropertyDescriptor,
+                );
+                Reflect.deleteProperty(scope, '__caxriProcessMetrics');
+            });
+        }
+        const retry = processPage.getByRole('button', { name: 'Retry', exact: true });
+        await retry.focus();
+        await retry.press('Enter');
+        await expect(processPage.locator('.process-error')).toHaveCount(0);
+        await expect(processPage.locator('.process-row')).toHaveCount(expandedRowCount);
+        await expect(processPage.getByText(/Updated .*Refreshes every 2 seconds/)).toBeVisible();
 
         /**
          * Header sorting reorders siblings without flattening the tree.

@@ -1,7 +1,7 @@
 import type { editor as Monaco } from 'monaco-editor';
 
 import type { DiffEditorActions } from './git-diff-actions';
-import { registerDiffEditorActions } from './git-diff-actions';
+import { codeEditorFileSelection, registerDiffEditorActions } from './git-diff-actions';
 
 export type SingleDiffKind = 'added' | 'deleted';
 
@@ -61,6 +61,9 @@ export function bindSingleDiffEditor(
     const sizeListener = editor.onDidContentSizeChange(syncHeight);
     const actions: DiffEditorActions = {
         focus: () => editor.focus(),
+        // An `added` document is the new file, so its own line numbers address it directly. A `deleted` one numbers
+        // content that no longer exists; callers gate that separately, the way the toolbar disables Open Current File.
+        getFileSelection: () => codeEditorFileSelection(editor),
         getLineChanges: () => {
             const count = changedLineCount(editor);
             if (!count) return [];

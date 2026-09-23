@@ -10,16 +10,31 @@ const { acquireAsset, releaseAsset } = await import('../preview-asset-client');
 const PIXEL = 'R0lGODlhAQABAAAAACw=';
 
 /**
+ * `Uint8Array.prototype.toBase64` is a Renderer API the Node runtime these tests execute under does not have, and the
+ * Renderer may not import Node builtins, so neither it nor `Buffer` is available here. `btoa` takes a string, and
+ * spreading a multi-megabyte asset into `String.fromCodePoint` at once overflows the argument list.
+ */
+function encodeBase64(bytes: Uint8Array): string {
+    const chunkSize = 0x8000;
+    let binary = '';
+    for (let index = 0; index < bytes.length; index += chunkSize)
+        binary += String.fromCodePoint(...bytes.subarray(index, index + chunkSize));
+    return btoa(binary);
+}
+
+/**
  * Object URLs are the one thing in the preview whose lifetime the DOM does not manage for us: a revoked URL keeps
  * rendering as a broken image with no error anywhere, so every refcount path gets a test.
  */
 describe('preview asset client', () => {
     let created: string[] = [];
     let revoked: string[] = [];
+    let blobs: Blob[] = [];
 
     beforeEach(() => {
         created = [];
         revoked = [];
+        blobs = [];
         request.mockReset();
         request.mockResolvedValue({
             path: '/p/logo.gif',
@@ -27,7 +42,8 @@ describe('preview asset client', () => {
             base64: PIXEL,
             size: 8,
         });
-        vi.spyOn(URL, 'createObjectURL').mockImplementation(() => {
+        vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) => {
+            blobs.push(blob as Blob);
             const url = `blob:test/${created.length + 1}`;
             created.push(url);
             return url;
@@ -39,6 +55,54 @@ describe('preview asset client', () => {
 
     afterEach(() => {
         vi.restoreAllMocks();
+    });
+
+    it('bounds distinct image reads across concurrent preview consumers', async () => {
+        const releaseReads = Promise.withResolvers<void>();
+        let active = 0;
+        let peak = 0;
+        request.mockImplementation(async () => {
+            active += 1;
+            peak = Math.max(peak, active);
+            await releaseReads.promise;
+            active -= 1;
+            return { path: '/p/image.gif', mediaType: 'image/gif', base64: PIXEL, size: 8 };
+        });
+        const paths = Array.from({ length: 32 }, (_, index) => `/p/image-${index}.gif`);
+        const reads = paths.map((path) => acquireAsset('bounded-session', path));
+        try {
+            await vi.waitFor(() => expect(request).toHaveBeenCalledTimes(4));
+            expect(peak).toBe(4);
+        } finally {
+            releaseReads.resolve();
+            await Promise.all(reads);
+            for (const path of paths) releaseAsset('bounded-session', path);
+        }
+        expect(peak).toBe(4);
+        expect(created).toHaveLength(32);
+        expect(revoked).toHaveLength(32);
+    });
+
+    it('preserves every byte when decoding an asset at the read ceiling', async () => {
+        const expected = new Uint8Array(8 * 1024 * 1024).fill(0xa5);
+        expected[0] = 0;
+        expected[expected.length - 1] = 0xff;
+        request.mockResolvedValue({
+            path: '/p/large.png',
+            mediaType: 'image/png',
+            base64: encodeBase64(expected),
+            size: expected.byteLength,
+        });
+        try {
+            await acquireAsset('large-session', '/p/large.png');
+            const blob = blobs.at(-1) as Blob;
+            expect(blob.type).toBe('image/png');
+            const decoded = new Uint8Array(await blob.arrayBuffer());
+            expect(decoded.byteLength).toBe(expected.byteLength);
+            expect(decoded.every((value, index) => value === expected[index])).toBe(true);
+        } finally {
+            releaseAsset('large-session', '/p/large.png');
+        }
     });
 
     it('reads one asset once and hands the same URL to both holders', async () => {

@@ -1,11 +1,11 @@
 import type { KeyboardEvent } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { errorMessage } from '@caxri/protocol';
 import type { ProcessExplorerSnapshot } from '@desktop-shared/process-explorer';
 import { RefreshCw } from 'lucide-react';
 
-import { TooltipProvider } from '../../components/ui/tooltip';
+import { Button } from '../../components/ui/button';
+import { Tooltip, TooltipProvider } from '../../components/ui/tooltip';
 import { useContainerWidth } from '../../hooks/use-container-width';
 import { createVisibilityAwarePoll } from '../../lib/poll-scheduler';
 import { applyCssTheme } from '../../lib/theme-css';
@@ -48,6 +48,7 @@ export function ProcessExplorerApp() {
     const [collapsed, setCollapsed] = useState<Set<number>>(() => new Set());
     const [error, setError] = useState<string>();
     const [refreshing, setRefreshing] = useState(false);
+    const refreshInFlight = useRef(false);
     /**
      * The last row the user focused, which owns the grid's roving Tab stop until that process leaves the sample.
      */
@@ -60,6 +61,8 @@ export function ProcessExplorerApp() {
      */
     const [gridReference, gridWidth] = useContainerWidth<HTMLDivElement>(1);
     const refresh = useCallback((): void => {
+        if (refreshInFlight.current) return;
+        refreshInFlight.current = true;
         setRefreshing(true);
         async function runRefresh(): Promise<void> {
             try {
@@ -67,8 +70,14 @@ export function ProcessExplorerApp() {
                 setSnapshot(nextSnapshot);
                 setError(undefined);
             } catch (error_: unknown) {
-                setError(errorMessage(error_, 'Unable to sample processes'));
+                // The visible copy is deliberately plain, so this is the only place the cause survives. Main mirrors
+                // Renderer error-level console records into `desktop.jsonl` as an error class plus a stable digest
+                // (`console-error-fields.ts`), which is what separates a one-off sampling failure from a repeating one.
+                console.error('processExplorer.snapshot failed', error_);
+                setSnapshot(undefined);
+                setError('Unable to sample processes. Try again.');
             } finally {
+                refreshInFlight.current = false;
                 setRefreshing(false);
             }
         }
@@ -168,34 +177,37 @@ export function ProcessExplorerApp() {
     return (
         <TooltipProvider>
             <main
-                className="process-explorer grid h-full w-full grid-rows-[42px_minmax(0,1fr)] bg-background"
+                className="process-explorer grid h-full w-full grid-rows-[42px_minmax(0,1fr)_28px] bg-background"
                 data-sampled-at={snapshot?.sampledAt}
             >
                 <header className="process-titlebar relative flex items-center justify-center bg-title-bar-active-background px-12 pl-[84px] text-title-bar-active-foreground [-webkit-app-region:drag] window-inactive:bg-title-bar-inactive-background window-inactive:text-title-bar-inactive-foreground">
                     <strong className="overflow-hidden text-[12px] text-ellipsis whitespace-nowrap">
                         Process Explorer — Caxri
                     </strong>
-                    <button
-                        type="button"
-                        className="absolute right-3 grid size-[26px] cursor-pointer place-items-center rounded border-0 bg-transparent p-0 text-muted [-webkit-app-region:no-drag] hover:bg-elevated hover:text-foreground focus-visible:outline focus-visible:outline-1 focus-visible:outline-foreground disabled:cursor-default disabled:opacity-55"
-                        aria-label="Refresh processes"
-                        title="Refresh processes"
-                        disabled={refreshing}
-                        onClick={refresh}
-                    >
-                        <RefreshCw
-                            className={cn(
-                                refreshing && 'animate-[process-spin_900ms_linear_infinite]',
-                            )}
-                            size={15}
-                        />
-                    </button>
+                    <Tooltip content="Refresh processes">
+                        <button
+                            type="button"
+                            className="absolute right-3 grid size-[26px] cursor-pointer place-items-center rounded border-0 bg-transparent p-0 text-muted [-webkit-app-region:no-drag] not-aria-disabled:hover:bg-elevated not-aria-disabled:hover:text-foreground focus-visible:outline focus-visible:outline-1 focus-visible:outline-foreground aria-disabled:cursor-default aria-disabled:opacity-55"
+                            aria-label="Refresh processes"
+                            aria-disabled={refreshing}
+                            aria-busy={refreshing}
+                            onClick={refresh}
+                        >
+                            <RefreshCw
+                                className={cn(
+                                    refreshing && 'animate-[process-spin_900ms_linear_infinite]',
+                                )}
+                                size={15}
+                            />
+                        </button>
+                    </Tooltip>
                 </header>
                 <div
                     ref={gridReference}
                     className="process-grid min-h-0 overflow-auto"
                     role="treegrid"
                     aria-label="Caxri processes"
+                    aria-busy={refreshing}
                     style={processColumnWidthStyle(widths)}
                 >
                     <div role="rowgroup" style={{ minWidth: PROCESS_GRID_MIN_WIDTH }}>
@@ -230,7 +242,15 @@ export function ProcessExplorerApp() {
                                         'process-error text-danger',
                                     )}
                                 >
-                                    {error}
+                                    <p role="alert">{error}</p>
+                                    <Button
+                                        size="sm"
+                                        variant="secondary"
+                                        aria-disabled={refreshing}
+                                        onClick={refresh}
+                                    >
+                                        Retry
+                                    </Button>
                                 </div>
                             )}
                             {snapshot && roots.length === 0 && (
@@ -250,6 +270,17 @@ export function ProcessExplorerApp() {
                         </div>
                     </div>
                 </div>
+                {/*
+                 * Not a live region. Its timestamp changes on every two-second sample, so announcing it would talk
+                 * over the user for as long as the window is open while saying nothing they asked for. The table
+                 * already reports sampling through `aria-busy`, and this line stays readable on demand.
+                 */}
+                <footer className="flex items-center px-3 text-[11px] text-muted">
+                    {snapshot
+                        ? `Updated ${new Date(snapshot.sampledAt).toLocaleTimeString('en-US')}. `
+                        : 'No current sample. '}
+                    Refreshes every {SAMPLE_INTERVAL_MS / 1_000} seconds.
+                </footer>
             </main>
         </TooltipProvider>
     );

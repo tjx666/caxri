@@ -3,7 +3,7 @@ import { useEffect, useId, useLayoutEffect, useRef } from 'react';
 
 import type { GitDiffDocument, GitDiffTab } from '@caxri/protocol';
 import { gitDiffModelPath } from '@caxri/protocol';
-import type { DiffOnMount, MonacoDiffEditor, OnMount } from '@monaco-editor/react';
+import type { DiffOnMount, OnMount } from '@monaco-editor/react';
 import Editor from '@monaco-editor/react';
 
 import { useEditorOptions } from '@/hooks/use-editor-options';
@@ -12,7 +12,8 @@ import { applyEditorTheme } from '../../lib/editor-theme';
 import { monaco } from '../../lib/monaco';
 import { useTheme } from '../../stores/selectors';
 import { resolveRegisteredEditorLanguage } from './editor-language';
-import { registerDiffEditorActions } from './git-diff-actions';
+import type { DiffEditorActions } from './git-diff-actions';
+import { monacoDiffEditorActions, registerDiffEditorActions } from './git-diff-actions';
 import { observeGitEditorContentHeight } from './git-diff-model-lifecycle';
 import { GitMonacoDiffEditor } from './git-monaco-diff-editor';
 import { initialStackedEditorHeight, maxStackedEditorHeight } from './git-multi-diff-viewport';
@@ -52,7 +53,7 @@ export function GitDiffSurface({
     stacked?: boolean;
 }) {
     const theme = useTheme();
-    const editorReference = useRef<MonacoDiffEditor | null>(null);
+    const editorReference = useRef<DiffEditorActions | null>(null);
     const diffEditorRegistrationReference = useRef<(() => void) | undefined>(undefined);
     const editorOptions = useEditorOptions();
     const contentSizeListeners = useRef<Array<{ dispose(): void }>>([]);
@@ -174,11 +175,12 @@ export function GitDiffSurface({
             theme="caxri-active"
             beforeMount={() => applyEditorTheme(theme)}
             onMount={(editor: Parameters<DiffOnMount>[0]) => {
-                editorReference.current = editor;
+                const actions = monacoDiffEditorActions(editor);
+                editorReference.current = actions;
                 diffEditorRegistrationReference.current?.();
                 diffEditorRegistrationReference.current =
                     navigationKey && editorInstanceId
-                        ? registerDiffEditorActions(navigationKey, editorInstanceId, editor)
+                        ? registerDiffEditorActions(navigationKey, editorInstanceId, actions)
                         : undefined;
                 if (!stacked) return;
                 const original = editor.getOriginalEditor();

@@ -40,7 +40,7 @@ import {
 import { loadTerminalFonts } from '../terminal-fonts';
 import { createTerminalImageAddon, registerTerminalImageAddon } from '../terminal-images';
 import { registerTerminalClipboardHandlers, terminalKeyboardInput } from '../terminal-keyboard';
-import { createTerminalLongPasteRuntime } from '../terminal-long-paste';
+import { createTerminalLongPasteRuntime, longPasteFailureMessage } from '../terminal-long-paste';
 import {
     onError,
     registerTerminalInputHandlers,
@@ -292,14 +292,14 @@ export function useTerminalPaneRuntime({
             latest: () => latestReference.current,
             /**
              * The controller drops (rather than queues) a paste that arrives while a previous long paste is still being
-             * summarized, so this toast is the user's only feedback that their paste was discarded.
+             * saved, so this toast is the user's only feedback that their paste was discarded.
              */
             onDropped: () =>
                 pushToast(
                     'info',
-                    'Previous long paste is still being summarized; paste again in a moment.',
+                    'Previous long paste is still being saved; paste again in a moment.',
                 ),
-            onFailure: () => onError('Long paste could not be prepared'),
+            onFailure: (reason) => onError(longPasteFailureMessage(reason)),
             onPendingChange: (pending, shouldDisableStdin) => {
                 xterm.options.disableStdin = shouldDisableStdin;
                 setLongPasteState({ id: terminalId, pending });

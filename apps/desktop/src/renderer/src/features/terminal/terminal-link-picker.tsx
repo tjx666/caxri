@@ -7,6 +7,8 @@ import {
     CommandList,
 } from '../../components/ui/command';
 import { Dialog, DialogTitle, PickerDialogContent } from '../../components/ui/dialog';
+import { Tooltip } from '../../components/ui/tooltip';
+import { terminalLinkPickerCopy } from './terminal-link-picker-presentation';
 import type { TerminalLinkScanStatus } from './terminal-link-scanner';
 import type { TerminalDetectedLink } from './terminal-links';
 import { MAX_TERMINAL_DETECTED_LINKS } from './terminal-links';
@@ -41,9 +43,9 @@ function TerminalLinkGroup({
                     value={`${link.accessibleName} ${link.target}`}
                     onSelect={() => onSelect(link)}
                 >
-                    <span className="min-w-0 truncate" title={link.target}>
-                        {link.target}
-                    </span>
+                    <Tooltip content={link.target}>
+                        <span className="min-w-0 truncate">{link.target}</span>
+                    </Tooltip>
                     <small className="flex-none text-[11px] text-muted">
                         {link.detail ??
                             (link.kind === 'url'
@@ -80,45 +82,15 @@ export function TerminalLinkPicker({
      * otherwise uncontrolled and retains the full detected path, filtering every safe display candidate out.
      */
     const commandKey = mode;
+    const copy = terminalLinkPickerCopy(mode, isCommitCandidates, status);
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
             <PickerDialogContent>
-                <DialogTitle className="sr-only">
-                    {mode === 'candidates'
-                        ? isCommitCandidates
-                            ? 'Choose Git Repository'
-                            : 'Choose Terminal File'
-                        : 'Open Detected Link'}
-                </DialogTitle>
-                <Command
-                    key={commandKey}
-                    className="w-full"
-                    label={
-                        mode === 'candidates'
-                            ? isCommitCandidates
-                                ? 'Choose Git Repository'
-                                : 'Choose Terminal File'
-                            : 'Open Detected Link'
-                    }
-                >
-                    <CommandInput
-                        autoFocus
-                        placeholder={
-                            mode === 'candidates'
-                                ? isCommitCandidates
-                                    ? 'Search matching repositories…'
-                                    : 'Search matching files…'
-                                : 'Search links in the Terminal…'
-                        }
-                    />
-                    <CommandList>
-                        <CommandEmpty>
-                            {mode === 'candidates'
-                                ? isCommitCandidates
-                                    ? 'No matching repositories.'
-                                    : 'No matching files.'
-                                : 'No links found in the Terminal buffer.'}
-                        </CommandEmpty>
+                <DialogTitle className="sr-only">{copy.title}</DialogTitle>
+                <Command key={commandKey} className="w-full" label={copy.title}>
+                    <CommandInput autoFocus placeholder={copy.placeholder} />
+                    <CommandList aria-busy={status === 'scanning'}>
+                        <CommandEmpty>{copy.empty}</CommandEmpty>
                         {mode === 'detected' && (
                             <TerminalLinkGroup heading="URLs" links={urls} onSelect={onSelect} />
                         )}

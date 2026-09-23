@@ -57,6 +57,13 @@ export function isRelativeImportSpecifier(specifier: string): boolean {
 export function relativeImportCandidatePaths(fromPath: string, specifier: string): string[] {
     if (!isRelativeImportSpecifier(specifier)) return [];
     const target = resolve(dirname(fromPath), specifier);
+    return importCandidatePaths(target);
+}
+
+/**
+ * Expands an already selected relative or alias target using the same source-extension order.
+ */
+export function importCandidatePaths(target: string): string[] {
     const candidates = [
         target,
         ...typescriptSourceCandidates(target),

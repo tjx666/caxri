@@ -330,6 +330,7 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
         try {
             result = await options.getServer().request('files.search', {
                 sessionId: context.browseSessionId,
+                consumer: 'path-browser',
                 mode: 'name',
                 query: filter,
             });
@@ -352,9 +353,8 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
                 : [],
         );
         /**
-         * A canceled scan reached an unknown part of the Project — `files.search` shares one abort slot per Session
-         * with the Search view — so it must read as incomplete rather than as an authoritative "this name exists
-         * nowhere". Only a complete scan may be memoized for later filters to refine.
+         * A canceled scan reached an unknown part of the Project, so it must read as incomplete rather than as an
+         * authoritative "this name exists nowhere". Only a complete scan may be memoized for later filters to refine.
          */
         const isIncomplete = result.truncated || result.canceled;
         if (!isIncomplete) rememberProjectSearch(context.searchedFilters, filter, inRoot);

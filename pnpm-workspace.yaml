@@ -69,7 +69,8 @@ overrides:
 
 patchedDependencies:
   app-builder-lib: patches/app-builder-lib.patch
-  # Preserve timer pause accounting across an open reminder menu's Infinity duration.
+  # Preserve timer pause accounting across an open reminder menu's Infinity duration, and let the
+  # host refuse the Toaster's focus restoration while a dialog opened from a toast action owns focus.
   # https://github.com/emilkowalski/sonner/pull/533
   sonner@2.0.8: patches/sonner.patch
   # Clip stale alternate-buffer cells and preserve the full-row cursor during screen recovery.

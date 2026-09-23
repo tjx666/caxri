@@ -126,6 +126,11 @@ content, environment values, or credentials.
 
 ## Live CDP inspection
 
+Use raw CDP when the experiment controls debugger attachment itself: an automation client's
+auto-attach/resume behavior can invalidate that experiment. Retain owned-port and process checks.
+When an isolated provider HOME also covers a dev build, pass the verified pinned Node executable
+through `CAXRI_SERVER_RUNTIME_EXECUTABLE`; runtime discovery must not fall back to that empty HOME.
+
 Every unpackaged (dev) launch exposes CDP at `127.0.0.1:9223` and packaged (production) builds
 expose `127.0.0.1:9224` (`CAXRI_DEV_CDP_PORT` overrides either), so an installed app and a dev
 instance can run and be inspected concurrently. A production-build issue can usually be inspected

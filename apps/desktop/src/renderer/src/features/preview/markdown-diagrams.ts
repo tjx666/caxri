@@ -1,5 +1,6 @@
 import type { MarkdownDiagram } from '@caxri/markdown';
 import type { ThemeTokens } from '@caxri/protocol';
+import { delay, Semaphore } from 'es-toolkit';
 import type Mermaid from 'mermaid';
 
 import { PreviewMemoCache } from './preview-memo-cache';
@@ -9,6 +10,10 @@ import { PreviewMemoCache } from './preview-memo-cache';
  * layout for every diagram in it.
  */
 const renderedDiagrams = new PreviewMemoCache<string>(48);
+/**
+ * Mermaid owns global theme and layout state, so mounted previews share a single layout permit.
+ */
+const diagramRenders = new Semaphore(1);
 
 type MermaidModule = typeof Mermaid;
 
@@ -104,10 +109,18 @@ async function renderDiagramReportingFailure(
     theme: ThemeTokens,
     signal: AbortSignal,
 ): Promise<void> {
+    await diagramRenders.acquire();
     try {
+        if (signal.aborted) return;
+        /**
+         * A task boundary lets scrolling, input, and tab changes run between synchronous Mermaid layouts.
+         */
+        await delay(0, { signal });
         await renderDiagram(element, diagram, theme, signal);
     } catch (error) {
         if (!signal.aborted) reportDiagramFailure(element, error);
+    } finally {
+        diagramRenders.release();
     }
 }
 
@@ -124,17 +137,17 @@ function reportDiagramFailure(element: HTMLElement, error: unknown): void {
  * Renders every `mermaid` fence the document declared. A diagram that fails to parse shows its own error in place, the
  * way an editing preview should: the rest of the document keeps rendering.
  */
-export function renderDiagrams(
+export async function renderDiagrams(
     container: HTMLElement,
     diagrams: readonly MarkdownDiagram[],
     theme: ThemeTokens,
     signal: AbortSignal,
-): void {
+): Promise<void> {
+    const renders: Array<Promise<void>> = [];
     for (const diagram of diagrams) {
         const element = container.querySelector(`[data-caxri-diagram="${CSS.escape(diagram.id)}"]`);
         if (!(element instanceof HTMLElement)) continue;
-        // Fire-and-forget: the failure path writes into the diagram's own placeholder.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-        void renderDiagramReportingFailure(element, diagram, theme, signal);
+        renders.push(renderDiagramReportingFailure(element, diagram, theme, signal));
     }
+    await Promise.all(renders);
 }

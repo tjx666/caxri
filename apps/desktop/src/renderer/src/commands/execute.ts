@@ -303,6 +303,7 @@ const commandContext: CommandContext = {
     dialogs: {
         openSettings: (view = 'ui') => useDialogStore.getState().openSettings(view),
         openPalette: () => useDialogStore.getState().setPaletteOpen(true),
+        openSessionContentSearch: () => useDialogStore.getState().setSessionContentSearchOpen(true),
         openProjectSearch: () => useDialogStore.getState().setProjectSearchOpen(true),
         openPathBrowser: () => {
             const bootstrap = getBootstrap();

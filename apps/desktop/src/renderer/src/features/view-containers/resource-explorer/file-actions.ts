@@ -84,6 +84,12 @@ async function runTrackedFileOperation<Value>(options: {
     }
 }
 
+/**
+ * With `shouldPropagateFailure`, the caller owns explaining a failure (inline create/rename error, move conflict
+ * prompt), so the failed operation's reconciliation must not toast the same failure a second time. The suppression is
+ * registered before the request and always cleared once this call settles; the failed branch below awaits
+ * reconciliation first, so the registration is still in place when reconciliation decides whether to toast.
+ */
 async function runDurableFileMutation<Value>(options: {
     affectedPaths: readonly string[];
     errorLabel: string;
@@ -105,6 +111,21 @@ async function runDurableFileMutation<Value>(options: {
         })
     )
         return undefined;
+    if (options.shouldPropagateFailure) suppressFailureToast(options.id);
+    try {
+        return await runDurableFileMutationAttempt(options);
+    } finally {
+        if (options.shouldPropagateFailure) clearFailureToastSuppression(options.id);
+    }
+}
+
+async function runDurableFileMutationAttempt<Value>(options: {
+    errorLabel: string;
+    id: string;
+    shouldPropagateFailure?: boolean;
+    client: ResourceExplorerClient;
+    run: () => Promise<Value>;
+}): Promise<Value | undefined> {
     try {
         const result = await options.run();
         const operation = await options.client.getOperation(options.id);
@@ -238,10 +259,7 @@ export async function renameFile(
 }
 
 /**
- * Runs one `files.move` attempt. `operationId` defaults to a fresh id, but the propagating first attempt in `moveFile`
- * below passes its own id in so it can register/clear failure-toast suppression around the call (see
- * `suppressFailureToast` in `file-operation-reconciliation.ts`) — `attemptMove` itself owns none of that handshake,
- * only the request/tracking plumbing.
+ * Runs one `files.move` attempt under a fresh operation id.
  */
 function attemptMove(
     client: ResourceExplorerClient,
@@ -250,8 +268,8 @@ function attemptMove(
     directory: string,
     conflict: 'reject' | 'rename' | 'replace',
     shouldPropagateFailure: boolean,
-    operationId: string = crypto.randomUUID(),
 ): Promise<MethodResult<'files.move'> | undefined> {
+    const operationId = crypto.randomUUID();
     const projectId = getSessionProjectId(sessionId) ?? `session:${sessionId}`;
     return runDurableFileMutation({
         affectedPaths: [path, parentDirectoryPath(path), directory],
@@ -270,11 +288,8 @@ function attemptMove(
  * root) funnels through this single interactive orchestrator instead of each one choosing its own conflict policy.
  *
  * The first attempt always uses `reject`, and this function — not reconciliation — owns explaining whatever that
- * attempt fails with. It generates that attempt's operation id itself, registers it with `suppressFailureToast` before
- * calling `attemptMove` (`shouldPropagateFailure: true` makes the rejection reach this `catch` instead of
- * `runDurableFileMutation`'s own error-toast path), and always clears the registration in `finally` via
- * `clearFailureToastSuppression` — on success, on a `CONFLICT`, on any other failure, and even if the failed operation
- * never makes it back through `reconcileFileMutation` at all, so the registry entry can never outlive this call.
+ * attempt fails with: `shouldPropagateFailure: true` makes the rejection reach this `catch` instead of
+ * `runDurableFileMutation`'s own error-toast path, and keeps reconciliation from toasting the same failure again.
  *
  * A `CONFLICT` opens a Finder-style Replace/Keep Both/Cancel prompt (`file-conflict-dialog.ts`) instead of a toast.
  * Availability of Replace is gated on both sides of the collision actually being plain files, fetched fresh via
@@ -300,10 +315,8 @@ export async function moveFile(
     path: string,
     directory: string,
 ): Promise<MethodResult<'files.move'> | undefined> {
-    const operationId = crypto.randomUUID();
-    suppressFailureToast(operationId);
     try {
-        return await attemptMove(client, sessionId, path, directory, 'reject', true, operationId);
+        return await attemptMove(client, sessionId, path, directory, 'reject', true);
     } catch (error) {
         if (!isCaxriError(error) || error.code !== 'CONFLICT') {
             pushToast('error', errorMessage(error, 'Unable to move item'));
@@ -319,8 +332,7 @@ export async function moveFile(
             folderGated: isFolderGatedConflict(sourceKind, targetKind),
         });
         if (choice === 'cancel') return undefined;
-        // Awaited so `finally` clears the failure-toast suppression only after this retry settles, not before it.
-        return await attemptMove(
+        return attemptMove(
             client,
             sessionId,
             path,
@@ -328,8 +340,6 @@ export async function moveFile(
             choice === 'replace' ? 'replace' : 'rename',
             false,
         );
-    } finally {
-        clearFailureToastSuppression(operationId);
     }
 }
 
@@ -423,18 +433,15 @@ export async function didTrashFile(
         client.forgetEditorPath(workbenchProjectId, result.path),
     );
     await invalidateDirectory(client, parentDirectoryPath(result.path));
-    pushToast('success', `Moved '${result.name}' to Trash`);
     /**
-     * The user already confirmed this destructive action knowing changes were unsaved (the `hasUnsavedChanges` copy
-     * above), but `closeOpenEditorsUnderPath` still discards those dirty buffers without a trace. A persisted notice —
-     * like the external-write notice in `external-sync.ts` — keeps that loss visible instead of vanishing with the
-     * success toast.
+     * One persistent card keeps the confirmed loss of unsaved edits visible without duplicating success feedback.
      */
-    if (hasUnsavedChanges)
-        pushToast(
-            'info',
-            `Unsaved changes to '${result.name}' were discarded; only the last saved version moved to Trash`,
-            { persist: true },
-        );
+    pushToast(
+        'success',
+        hasUnsavedChanges
+            ? `Moved '${result.name}' to Trash. Unsaved changes were discarded; only the last saved version can be restored.`
+            : `Moved '${result.name}' to Trash`,
+        { persist: hasUnsavedChanges },
+    );
     return true;
 }

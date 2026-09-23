@@ -40,6 +40,14 @@ Keep these compatibility exceptions:
 - Corrective `overrides`: exact known-good versions, with the compatibility reason documented next
   to the override. Revisit them when the affected upstream dependency changes.
 
+`patches/sonner.patch` keeps both blur and unmount focus restoration from stealing focus while a
+modal is open, while still clearing Sonner's prior-focus bookkeeping. `ToastOutlet` supplies a live
+`shouldRestoreFocus` callback from the shared modal registry; Base UI does not expose `aria-modal`.
+The patch covers ESM and CommonJS;
+retain the patch until the [upstream restoration paths](https://github.com/emilkowalski/sonner/blob/main/src/index.tsx)
+respect modal ownership. Recheck the GPU notification/dialog and ordinary notification expiry E2E
+when updating Sonner.
+
 Tool runtime pins in `mise.toml` and `.bun-version`, workspace references, package versions, and
 extension engine contracts are not ordinary third-party dependency ranges.
 

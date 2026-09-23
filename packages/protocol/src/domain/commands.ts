@@ -22,6 +22,7 @@ export const commandIds = [
     'session.navigateBack',
     'session.navigateForward',
     'session.openArchived',
+    'session.searchContent',
     'session.focusNextAttention',
     'agentActions.open',
     'terminal.new',

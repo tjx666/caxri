@@ -1,12 +1,18 @@
+import * as filesystem from 'node:fs/promises';
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { resolveSafeAgentTranscriptPath } from '../../../transcript-security';
 import { codexProvider } from '..';
 import { locateCodexTranscript } from '../transcript';
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+    const actual = await importOriginal<typeof filesystem>();
+    return { ...actual, opendir: vi.fn(actual.opendir) };
+});
 
 /**
  * UUIDv7 whose leading 48 bits encode 2026-05-27T03:14:51.840Z.
@@ -25,14 +31,60 @@ function localDaySegments(time: number, dayOffset = 0): [string, string, string]
 }
 
 describe('locateCodexTranscript', () => {
+    it('refuses a canceled lookup before directory traversal', async () => {
+        const controller = new AbortController();
+        controller.abort();
+        await expect(
+            locateCodexTranscript(
+                { agentSessionId: THREAD_ID },
+                { homeDirectory: '/synthetic', variables: {} },
+                controller.signal,
+            ),
+        ).rejects.toMatchObject({ name: 'AbortError' });
+    });
+
     let home: string;
 
     beforeEach(async () => {
+        vi.mocked(filesystem.opendir).mockReset();
         home = await mkdtemp(join(tmpdir(), 'caxri-codex-transcript-'));
     });
 
     afterEach(async () => {
+        vi.restoreAllMocks();
         await rm(home, { force: true, recursive: true });
+    });
+
+    it('retains canceled lookups until every directory operation settles', async () => {
+        const pending = Array.from({ length: 3 }, () => Promise.withResolvers<never>());
+        let calls = 0;
+        vi.spyOn(filesystem, 'opendir').mockImplementation(() => pending[calls++].promise);
+        const controller = new AbortController();
+        let isSettled = false;
+        const lookup = locateCodexTranscript(
+            { agentSessionId: THREAD_ID },
+            environment(),
+            controller.signal,
+        );
+        const completion = (async () => {
+            try {
+                await lookup;
+            } catch {
+                // The cancellation rejection is asserted after all handles settle.
+            } finally {
+                isSettled = true;
+            }
+        })();
+        controller.abort();
+        pending[0].reject(controller.signal.reason);
+        try {
+            await new Promise<void>((resolve) => setImmediate(resolve));
+            expect(isSettled).toBe(false);
+        } finally {
+            for (const operation of pending) operation.reject(controller.signal.reason);
+            await completion;
+        }
+        await expect(lookup).rejects.toMatchObject({ name: 'AbortError' });
     });
 
     function environment() {

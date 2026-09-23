@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 
 import { Spinner } from '../../components/ui/spinner';
+import { Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
 import { didSelectSession } from '../session/session-commands';
 import type { AgentActivityGlyphId } from './agent-activity-glyph';
@@ -99,18 +100,20 @@ export function AgentActivityRowItem({
                 }
             }}
         >
-            <span
-                role="img"
-                aria-label={glyph.label}
-                className={cn(
-                    'agent-activity-glyph flex size-3.5 flex-none items-center justify-center',
-                    glyph.toneClassName,
-                )}
-                data-activity-glyph={glyph.id}
-                title={glyph.label}
-            >
-                <GlyphIcon size={14} />
-            </span>
+            <Tooltip content={glyph.label}>
+                <span
+                    role="img"
+                    aria-label={glyph.label}
+                    className={cn(
+                        'agent-activity-glyph flex size-3.5 flex-none items-center justify-center',
+                        glyph.toneClassName,
+                    )}
+                    data-activity-glyph={glyph.id}
+                    tabIndex={-1}
+                >
+                    <GlyphIcon size={14} />
+                </span>
+            </Tooltip>
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                 {/*
                  * The title owns its line outright. Its neighbours moved down because it is the only value here that is
@@ -121,20 +124,25 @@ export function AgentActivityRowItem({
                 <span className={cn('truncate text-xs text-foreground', canMarkRead && 'pr-6')}>
                     {session.displayTitle}
                 </span>
-                <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-muted">
+                <span className="agent-activity-metadata flex h-4 min-w-0 flex-wrap items-start gap-x-1.5 overflow-hidden text-[11px] leading-4 text-muted">
                     {/*
                      * The Project name is the one value that must survive: the list is flat, so it is the only thing
-                     * telling the user which repository a row belongs to. It truncates before the time does only
-                     * because a name long enough to reach that point is still recognizable from its first 20 characters.
+                     * telling the user which repository a row belongs to. The unbreakable time wraps below the clipped
+                     * single line before the Project loses width; a Project wider than the whole line still truncates.
                      */}
-                    <span className="agent-activity-project min-w-0 truncate">
-                        {row.projectName}
-                    </span>
+                    <Tooltip content={row.projectName}>
+                        <span
+                            className="agent-activity-project max-w-full min-w-0 shrink-0 truncate"
+                            tabIndex={-1}
+                        >
+                            {row.projectName}
+                        </span>
+                    </Tooltip>
                     {relativeTime && (
-                        <>
+                        <span className="agent-activity-time flex flex-none gap-1.5 whitespace-nowrap">
                             <span aria-hidden="true">·</span>
-                            <span className="flex-none">{relativeTime}</span>
-                        </>
+                            <span>{relativeTime}</span>
+                        </span>
                     )}
                 </span>
             </span>

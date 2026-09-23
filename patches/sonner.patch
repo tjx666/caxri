@@ -14,6 +14,45 @@ diff --git a/dist/index.js b/dist/index.js
          let timeoutId;
          // Pause the timer on each hover
          const pauseTimer = ()=>{
+@@ -987,7 +991,7 @@
+     const { id, invert, position = 'bottom-right', hotkey = [
+         'altKey',
+         'KeyT'
+-    ], expand, closeButton, className, offset, mobileOffset, theme = 'light', richColors, duration, style, visibleToasts = VISIBLE_TOASTS_AMOUNT, toastOptions, dir = getDocumentDirection(), gap = GAP, icons, customAriaLabel, containerAriaLabel = 'Notifications' } = props;
++    ], expand, closeButton, className, offset, mobileOffset, theme = 'light', richColors, duration, style, visibleToasts = VISIBLE_TOASTS_AMOUNT, toastOptions, dir = getDocumentDirection(), gap = GAP, icons, customAriaLabel, containerAriaLabel = 'Notifications', shouldRestoreFocus } = props;
+     const [toasts, setToasts] = React__default.default.useState([]);
+     const filteredToasts = React__default.default.useMemo(()=>{
+         if (id) {
+@@ -1133,9 +1137,11 @@
+         if (listRef.current) {
+             return ()=>{
+                 if (lastFocusedElementRef.current) {
+-                    lastFocusedElementRef.current.focus({
+-                        preventScroll: true
+-                    });
++                    if (shouldRestoreFocus?.() !== false) {
++                        lastFocusedElementRef.current.focus({
++                            preventScroll: true
++                        });
++                    }
+                     lastFocusedElementRef.current = null;
+                     isFocusWithinRef.current = false;
+                 }
+@@ -1179,9 +1185,11 @@
+                 if (isFocusWithinRef.current && !event.currentTarget.contains(event.relatedTarget)) {
+                     isFocusWithinRef.current = false;
+                     if (lastFocusedElementRef.current) {
+-                        lastFocusedElementRef.current.focus({
+-                            preventScroll: true
+-                        });
++                        if (shouldRestoreFocus?.() !== false) {
++                            lastFocusedElementRef.current.focus({
++                                preventScroll: true
++                            });
++                        }
+                         lastFocusedElementRef.current = null;
+                     }
+                 }
 diff --git a/dist/index.mjs b/dist/index.mjs
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
@@ -30,3 +69,66 @@ diff --git a/dist/index.mjs b/dist/index.mjs
          let timeoutId;
          // Pause the timer on each hover
          const pauseTimer = ()=>{
+@@ -980,7 +984,7 @@
+     const { id, invert, position = 'bottom-right', hotkey = [
+         'altKey',
+         'KeyT'
+-    ], expand, closeButton, className, offset, mobileOffset, theme = 'light', richColors, duration, style, visibleToasts = VISIBLE_TOASTS_AMOUNT, toastOptions, dir = getDocumentDirection(), gap = GAP, icons, customAriaLabel, containerAriaLabel = 'Notifications' } = props;
++    ], expand, closeButton, className, offset, mobileOffset, theme = 'light', richColors, duration, style, visibleToasts = VISIBLE_TOASTS_AMOUNT, toastOptions, dir = getDocumentDirection(), gap = GAP, icons, customAriaLabel, containerAriaLabel = 'Notifications', shouldRestoreFocus } = props;
+     const [toasts, setToasts] = React.useState([]);
+     const filteredToasts = React.useMemo(()=>{
+         if (id) {
+@@ -1126,9 +1130,11 @@
+         if (listRef.current) {
+             return ()=>{
+                 if (lastFocusedElementRef.current) {
+-                    lastFocusedElementRef.current.focus({
+-                        preventScroll: true
+-                    });
++                    if (shouldRestoreFocus?.() !== false) {
++                        lastFocusedElementRef.current.focus({
++                            preventScroll: true
++                        });
++                    }
+                     lastFocusedElementRef.current = null;
+                     isFocusWithinRef.current = false;
+                 }
+@@ -1172,9 +1178,11 @@
+                 if (isFocusWithinRef.current && !event.currentTarget.contains(event.relatedTarget)) {
+                     isFocusWithinRef.current = false;
+                     if (lastFocusedElementRef.current) {
+-                        lastFocusedElementRef.current.focus({
+-                            preventScroll: true
+-                        });
++                        if (shouldRestoreFocus?.() !== false) {
++                            lastFocusedElementRef.current.focus({
++                                preventScroll: true
++                            });
++                        }
+                         lastFocusedElementRef.current = null;
+                     }
+                 }
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -95,6 +95,8 @@
+     left?: string | number;
+ } | string | number;
+ interface ToasterProps {
++    /** Return false while another surface owns focus. Internal focus history is still cleared. */
++    shouldRestoreFocus?: () => boolean;
+     id?: string;
+     invert?: boolean;
+     theme?: 'light' | 'dark' | 'system';
+diff --git a/dist/index.d.mts b/dist/index.d.mts
+--- a/dist/index.d.mts
++++ b/dist/index.d.mts
+@@ -95,6 +95,8 @@
+     left?: string | number;
+ } | string | number;
+ interface ToasterProps {
++    /** Return false while another surface owns focus. Internal focus history is still cleared. */
++    shouldRestoreFocus?: () => boolean;
+     id?: string;
+     invert?: boolean;
+     theme?: 'light' | 'dark' | 'system';

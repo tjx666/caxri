@@ -41,7 +41,9 @@ export function encodeGrokCwdDirname(cwd: string): string {
 export async function grokProjectRoot(
     cwd: string,
     environment: AgentEnvironment,
+    signal?: AbortSignal,
 ): Promise<string | undefined> {
+    signal?.throwIfAborted();
     const base = join(grokHome(environment), 'sessions');
     const encoded = encodeGrokCwdDirname(cwd);
     if (encoded.length <= 255) return join(base, encoded);
@@ -53,6 +55,7 @@ export async function grokProjectRoot(
     }
     let count = 0;
     for await (const entry of directory) {
+        signal?.throwIfAborted();
         if (++count > 512) return;
         if (!entry.isDirectory()) continue;
         let handle: FileHandle | undefined;
@@ -82,9 +85,11 @@ export async function grokProjectRoot(
 export async function locateGrokTranscript(
     context: { agentSessionId: string; cwd: string },
     environment: AgentEnvironment,
+    signal?: AbortSignal,
 ) {
+    signal?.throwIfAborted();
     if (!isOpaqueAgentSessionId(context.agentSessionId)) return;
-    const root = await grokProjectRoot(context.cwd, environment);
+    const root = await grokProjectRoot(context.cwd, environment, signal);
     if (!root) return;
     const sessionRoot = join(root, context.agentSessionId);
     return {

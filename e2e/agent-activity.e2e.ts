@@ -85,6 +85,16 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
         database.prepare('UPDATE sessions SET last_session_activity_at = ?').run(activityAt);
         database
             .prepare(
+                'UPDATE projects SET display_title = ? WHERE id = (SELECT project_id FROM sessions WHERE id = ?)',
+            )
+            .run('web-client-platform', sessions.get('beta'));
+        database
+            .prepare(
+                'UPDATE projects SET display_title = ? WHERE id = (SELECT project_id FROM sessions WHERE id = ?)',
+            )
+            .run('service-integration-platform-workspace', sessions.get('alpha'));
+        database
+            .prepare(
                 `UPDATE sessions
                  SET attention_epoch = 1, read_attention_epoch = 0,
                      last_attention_kind = 'completed', last_activity_state = 'completed'
@@ -165,7 +175,7 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
         await expect(betaRow).toContainText('beta work');
         // The Project cell specifically, not the row: the Session title contains the Project name too, so asserting on
         // the whole row would pass even if the flat list never printed which repository a row belongs to.
-        await expect(betaRow.locator('.agent-activity-project')).toHaveText('beta');
+        await expect(betaRow.locator('.agent-activity-project')).toHaveText('web-client-platform');
         /*
          * The state is a glyph, not a phrase, so the words only survive as its accessible name. Assert both halves:
          * the shape that identifies the state visually, and the label a screen reader is left with once the phrase is
@@ -182,6 +192,18 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
          * the state was still a phrase: every unread row printed "· Waiting for you · " with no Project at all. A flat
          * cross-Project queue that cannot name the Project is the one thing this list must never do.
          */
+        const divider = page.getByRole('separator', {
+            name: 'Resize Primary Side Bar',
+            exact: true,
+        });
+        const dividerBounds = await divider.boundingBox();
+        if (!dividerBounds) throw new Error('The sidebar divider is not visible');
+        const rowHeight = await betaRow.evaluate((row) => row.getBoundingClientRect().height);
+        await page.mouse.move(dividerBounds.x + dividerBounds.width / 2, dividerBounds.y + 40);
+        await page.mouse.down();
+        await page.mouse.move(dividerBounds.x - 300, dividerBounds.y + 40);
+        await page.mouse.up();
+        await expect(divider).toHaveAttribute('aria-valuenow', '180');
         await expect
             .poll(() =>
                 betaRow
@@ -189,10 +211,51 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
                     .evaluate((cell) => cell.scrollWidth <= cell.clientWidth),
             )
             .toBe(true);
-
+        expect(await betaRow.evaluate((row) => row.getBoundingClientRect().height)).toBe(rowHeight);
+        expect(
+            await betaRow.locator('.agent-activity-time').evaluate((time) => {
+                const metadata = time.parentElement!;
+                return time.getBoundingClientRect().top >= metadata.getBoundingClientRect().bottom;
+            }),
+        ).toBe(true);
+        await expect(tree.locator('[tabindex="0"]')).toHaveCount(1);
+        await betaRow.locator('.agent-activity-project').hover();
+        await expect(page.locator('.tooltip-popup[data-open]')).toHaveText('web-client-platform');
+        await page.screenshot({
+            path: test.info().outputPath('activity-narrow-project.png'),
+            mask: [page.locator('.xterm')],
+        });
         const alphaRow = tree.locator(
             `.agent-activity-row[data-session-id="${sessions.get('alpha')}"]`,
         );
+        const alphaProject = alphaRow.locator('.agent-activity-project');
+        await expect(alphaProject).toHaveText('service-integration-platform-workspace');
+        expect(await alphaProject.evaluate((cell) => cell.scrollWidth > cell.clientWidth)).toBe(
+            true,
+        );
+        await alphaProject.hover();
+        await expect(page.locator('.tooltip-popup[data-open]')).toHaveText(
+            'service-integration-platform-workspace',
+        );
+        await page.screenshot({
+            path: test.info().outputPath('activity-project-tooltip.png'),
+            mask: [page.locator('.xterm')],
+        });
+        await divider.dblclick();
+        await expect(divider).toHaveAttribute('aria-valuenow', '230');
+        expect(
+            await betaRow
+                .locator('.agent-activity-time')
+                .evaluate(
+                    (time) =>
+                        time.getBoundingClientRect().bottom <=
+                        time.parentElement!.getBoundingClientRect().bottom,
+                ),
+        ).toBe(true);
+        await page.screenshot({
+            path: test.info().outputPath('activity-default-width.png'),
+            mask: [page.locator('.xterm')],
+        });
         await alphaRow.hover();
         await page.getByRole('button', { name: 'Mark alpha work as read' }).click();
         await expect(alphaRow).toHaveAttribute('data-activity-group', 'finished');

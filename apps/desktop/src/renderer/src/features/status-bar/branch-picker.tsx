@@ -4,19 +4,15 @@ import { Check, GitBranch } from 'lucide-react';
 
 import { useRelativeTimes } from '@/hooks/use-relative-time';
 
-import {
-    Command,
-    CommandEmpty,
-    CommandInput,
-    CommandItem,
-    CommandList,
-} from '../../components/ui/command';
+import { Command, CommandInput, CommandItem, CommandList } from '../../components/ui/command';
 import { Dialog, PickerDialogContent } from '../../components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { Spinner } from '../../components/ui/spinner';
+import { Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
-import { useCaxriQuery, useToastOnQueryError } from '../../queries/client';
+import { useCaxriQuery } from '../../queries/client';
 import { switchBranch } from './branch-commands';
+import { PickerQueryStatus } from './picker-query-status';
 import { pickerSearchScore } from './picker-search';
 import { statusItemClassName } from './status-item';
 import { useStatusBarPickerRequest } from './use-status-bar-picker-request';
@@ -33,14 +29,13 @@ export function BranchPicker({
     showTrigger?: boolean;
 }) {
     const [open, setOpen] = useState(false);
-    const [switching, setSwitching] = useState(false);
+    const [switching, setSwitching] = useState<string>();
     useStatusBarPickerRequest('branch', () => setOpen(true));
     const branchesQuery = useCaxriQuery(
         'git.branches',
         { sessionId, repositoryId },
         { enabled: open },
     );
-    useToastOnQueryError(branchesQuery.isError, branchesQuery.error, 'Unable to list branches');
     const loadedBranches = branchesQuery.data ?? [];
     // The current branch is pinned first; the rest keep the Server's most-recent-commit order.
     // Before the query resolves only the current branch is known, without a commit time.
@@ -52,12 +47,12 @@ export function BranchPicker({
 
     const selectBranch = async (nextBranch: string): Promise<void> => {
         if (nextBranch === branch || switching) return;
-        setSwitching(true);
+        setSwitching(nextBranch);
         setOpen(false);
         try {
             await switchBranch(sessionId, repositoryId, nextBranch);
         } finally {
-            setSwitching(false);
+            setSwitching(undefined);
         }
     };
 
@@ -73,24 +68,12 @@ export function BranchPicker({
         >
             <CommandInput autoFocus placeholder="Search branches…" />
             <CommandList className="max-h-[min(360px,var(--available-height))]">
-                {branchesQuery.isLoading && (
-                    <div className="flex items-center gap-2 px-2 py-2 text-muted">
-                        <Spinner aria-hidden="true" className="size-3" />
-                        Loading branches…
-                    </div>
-                )}
-                {!branchesQuery.isLoading && (
-                    <CommandEmpty>
-                        {branchesQuery.isError
-                            ? 'Unable to load branches. Reopen to retry.'
-                            : 'No matching branches.'}
-                    </CommandEmpty>
-                )}
+                <PickerQueryStatus noun="branches" query={branchesQuery} />
                 {branches.map(({ name, committedAt }, index) => (
                     <CommandItem
                         key={name}
                         value={name}
-                        disabled={switching}
+                        disabled={Boolean(switching)}
                         className="items-center text-[13px]"
                         onSelect={() => {
                             // eslint-disable-next-line no-void -- intentional floating-promise discard, switchBranch() reports its own errors via tryCommand
@@ -137,21 +120,35 @@ export function BranchPicker({
                 setOpen(isOpen);
             }}
         >
-            <PopoverTrigger
-                role="combobox"
-                aria-expanded={open}
-                aria-haspopup="listbox"
-                disabled={switching}
-                aria-label={`Switch branch from ${branch}`}
-                title={`Switch branch from ${branch}`}
-                className={cn(
-                    statusItemClassName,
-                    'h-5 w-auto max-w-full justify-start px-[5px] text-[11px]',
-                )}
+            <Tooltip
+                content={switching ? `Switching to ${switching}…` : `Switch branch from ${branch}`}
+                // Same reason as the Workbench Root trigger: an open menu must not sit under its own trigger's tooltip.
+                disabled={open}
             >
-                <GitBranch size={13} className="flex-none" />
-                <span className="min-w-0 truncate">{branch}</span>
-            </PopoverTrigger>
+                <PopoverTrigger
+                    role="combobox"
+                    aria-expanded={open}
+                    aria-haspopup="listbox"
+                    aria-disabled={Boolean(switching)}
+                    aria-busy={Boolean(switching)}
+                    aria-label={
+                        switching ? `Switching to ${switching}…` : `Switch branch from ${branch}`
+                    }
+                    className={cn(
+                        statusItemClassName,
+                        'h-5 w-auto max-w-full justify-start px-[5px] text-[11px]',
+                    )}
+                >
+                    {switching ? (
+                        <Spinner size={13} />
+                    ) : (
+                        <GitBranch size={13} className="flex-none" />
+                    )}
+                    <span className="min-w-0 truncate" role={switching ? 'status' : undefined}>
+                        {switching ? `Switching to ${switching}…` : branch}
+                    </span>
+                </PopoverTrigger>
+            </Tooltip>
             <PopoverContent
                 side="top"
                 className="w-96 max-w-[calc(100vw-16px)]"

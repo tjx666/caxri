@@ -45,6 +45,50 @@ test('Source Control navigates changed files with one tree Tab stop', async () =
         await running.page.keyboard.press('ArrowDown');
         await expect(group).toBeFocused();
         await tree.screenshot({ path: test.info().outputPath('tree-focus-2-group.png') });
+        /**
+         * Group actions share the row menu, so keyboard access does not add another Tab stop to the tree.
+         */
+        await running.app.evaluate(({ dialog }) => {
+            const scope = globalThis as Record<string, unknown>;
+            scope.__caxriScmDiscardConfirmations = 0;
+            dialog.showMessageBox = () => {
+                scope.__caxriScmDiscardConfirmations =
+                    Number(scope.__caxriScmDiscardConfirmations) + 1;
+                return Promise.resolve({ response: 1, checkboxChecked: false });
+            };
+        });
+        await running.page.keyboard.press('Shift+F10');
+        const groupMenu = running.page.locator('[data-slot="context-menu-content"]');
+        await expect(groupMenu).toBeVisible();
+        const discardAction = groupMenu.getByRole('menuitem', {
+            name: 'Discard All Changes',
+            exact: true,
+        });
+        await expect(discardAction).toBeVisible();
+        const actionIndex = (await groupMenu.getByRole('menuitem').allTextContents()).indexOf(
+            'Discard All Changes',
+        );
+        expect(actionIndex).toBeGreaterThanOrEqual(0);
+        await running.page.keyboard.press('Home');
+        for (let index = 0; index < actionIndex; index += 1) {
+            // eslint-disable-next-line no-await-in-loop -- each arrow key advances from the preceding focused menu item
+            await running.page.keyboard.press('ArrowDown');
+        }
+        await expect(discardAction).toBeFocused();
+        await groupMenu.screenshot({ path: test.info().outputPath('group-action-keyboard.png') });
+        await running.page.keyboard.press('Enter');
+        await expect
+            .poll(() =>
+                running.app.evaluate(
+                    () => (globalThis as Record<string, unknown>).__caxriScmDiscardConfirmations,
+                ),
+            )
+            .toBe(1);
+        await expect(groupMenu).toHaveCount(0);
+        await expect(group).toBeFocused();
+        await expect(rows).toHaveCount(25);
+        await expect(tree.locator('[role="treeitem"][tabindex="0"]')).toHaveCount(1);
+
         await running.page.keyboard.press('ArrowDown');
         await expect(rows.nth(2)).toBeFocused();
 

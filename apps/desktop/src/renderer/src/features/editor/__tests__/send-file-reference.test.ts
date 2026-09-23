@@ -1,12 +1,22 @@
 import type { BootstrapState, SessionRecord, TerminalRecord } from '@caxri/protocol';
-import { createPaneLayout } from '@caxri/protocol';
+import {
+    agentTranscriptTabPath,
+    createPaneLayout,
+    gitChangesDiffTabPath,
+    gitCommitFileDiffTabPath,
+    gitFileDiffTabPath,
+    gitPullRequestFileDiffTabPath,
+} from '@caxri/protocol';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
     activateTerminal: vi.fn(),
     focusTerminalById: vi.fn(),
+    getActivePaneId: vi.fn<() => string | undefined>(),
     getActivePaneTab: vi.fn(),
     getBootstrap: vi.fn<() => BootstrapState | undefined>(),
+    getDiffEditorFileSelection: vi.fn(),
+    getQueryData: vi.fn(),
     getSelectedSession: vi.fn<() => SessionRecord | undefined>(),
     getSessionState: vi.fn(),
     pushToast: vi.fn(),
@@ -30,7 +40,17 @@ vi.mock('../../terminal/terminal-commands', () => ({
     sendTerminalSequence: mocks.sendTerminalSequence,
     whenTerminalAttached: mocks.whenTerminalAttached,
 }));
-vi.mock('../../workbench/pane-actions', () => ({ getActivePaneTab: mocks.getActivePaneTab }));
+vi.mock('../../workbench/pane-actions', () => ({
+    getActivePaneId: mocks.getActivePaneId,
+    getActivePaneTab: mocks.getActivePaneTab,
+}));
+vi.mock('../git-diff-actions', () => ({
+    getDiffEditorFileSelection: mocks.getDiffEditorFileSelection,
+}));
+vi.mock('../../../queries/client', () => ({
+    caxriQueryKey: (method: string, parameters: unknown) => [method, parameters],
+    queryClient: { getQueryData: mocks.getQueryData },
+}));
 
 const { editorStatusKey, useEditorStatusStore } = await import('../editor-status');
 const { canSendActiveFileReference, sendActiveFileReferenceToTerminal } =
@@ -134,7 +154,7 @@ describe('sendActiveFileReferenceToTerminal', () => {
         );
     });
 
-    it('ignores virtual editor tabs and non-file tabs', async () => {
+    it('ignores non-file tabs and virtual tabs that are not a Git diff', async () => {
         mocks.getActivePaneTab.mockReturnValue({
             id: 'tab-2',
             resource: { kind: 'terminal', terminalId: 'terminal-1' },
@@ -143,6 +163,136 @@ describe('sendActiveFileReferenceToTerminal', () => {
         expect(canSendActiveFileReference()).toBe(false);
         await sendActiveFileReferenceToTerminal();
 
+        activeFile(agentTranscriptTabPath('terminal-1'));
+
+        expect(canSendActiveFileReference()).toBe(false);
+        await sendActiveFileReferenceToTerminal();
+
         expect(mocks.sendTerminalSequence).not.toHaveBeenCalled();
+    });
+});
+
+describe('sendActiveFileReferenceToTerminal from a Git diff tab', () => {
+    const diffTabPath = gitFileDiffTabPath('repo-1', 'src/index.ts');
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        useEditorStatusStore.setState({ statuses: {} });
+        mocks.getSelectedSession.mockReturnValue(session);
+        mocks.getBootstrap.mockReturnValue({ terminals: [terminal] } as BootstrapState);
+        mocks.getSessionState.mockReturnValue({
+            paneLayout: createPaneLayout({ kind: 'file', path: diffTabPath }),
+        });
+        mocks.selectSelectedWorkbenchProject.mockReturnValue({ rootPath: '/repo' });
+        mocks.whenTerminalAttached.mockResolvedValue(true);
+        mocks.getActivePaneId.mockReturnValue('pane-1');
+        mocks.getQueryData.mockReturnValue({
+            isRepository: true,
+            repositories: [{ id: 'repo-1', rootPath: '/repo', files: [] }],
+        });
+        activeFile(diffTabPath);
+    });
+
+    it('references the diff editor caret against the repository file', async () => {
+        mocks.getDiffEditorFileSelection.mockReturnValue({
+            line: 1251,
+            column: 7,
+            selectionStartLine: 1251,
+            selectionEndLine: 1251,
+        });
+
+        expect(canSendActiveFileReference()).toBe(true);
+        await sendActiveFileReferenceToTerminal();
+
+        expect(mocks.getDiffEditorFileSelection).toHaveBeenCalledWith(diffTabPath, 'pane-1');
+        expect(mocks.sendTerminalSequence).toHaveBeenCalledWith(
+            'terminal-1',
+            '@src/index.ts#L1251 ',
+        );
+    });
+
+    it('keeps the selected line span of a multi-line diff selection', async () => {
+        mocks.getDiffEditorFileSelection.mockReturnValue({
+            line: 9,
+            column: 1,
+            selectionStartLine: 3,
+            selectionEndLine: 8,
+        });
+
+        await sendActiveFileReferenceToTerminal();
+
+        expect(mocks.sendTerminalSequence).toHaveBeenCalledWith(
+            'terminal-1',
+            '@src/index.ts#L3-L8 ',
+        );
+    });
+
+    it('falls back to line 1 while the diff editor has no caret yet', async () => {
+        mocks.getDiffEditorFileSelection.mockReturnValue(undefined);
+
+        await sendActiveFileReferenceToTerminal();
+
+        expect(mocks.sendTerminalSequence).toHaveBeenCalledWith('terminal-1', '@src/index.ts#L1 ');
+    });
+
+    it('declines a file the working tree no longer has', async () => {
+        mocks.getQueryData.mockReturnValue({
+            isRepository: true,
+            repositories: [
+                {
+                    id: 'repo-1',
+                    rootPath: '/repo',
+                    files: [{ path: 'src/index.ts', kind: 'deleted' }],
+                },
+            ],
+        });
+
+        expect(canSendActiveFileReference()).toBe(false);
+        await sendActiveFileReferenceToTerminal();
+
+        expect(mocks.sendTerminalSequence).not.toHaveBeenCalled();
+    });
+
+    it('declines when the repository root is unknown', async () => {
+        mocks.getQueryData.mockReturnValue(undefined);
+
+        expect(canSendActiveFileReference()).toBe(false);
+        await sendActiveFileReferenceToTerminal();
+
+        expect(mocks.sendTerminalSequence).not.toHaveBeenCalled();
+    });
+
+    it('declines a multi-file changes tab, which names no single file', async () => {
+        activeFile(gitChangesDiffTabPath('repo-1', 'repo'));
+
+        expect(canSendActiveFileReference()).toBe(false);
+        await sendActiveFileReferenceToTerminal();
+
+        expect(mocks.sendTerminalSequence).not.toHaveBeenCalled();
+    });
+
+    it('references the caret line of a commit or pull-request comparison too', async () => {
+        // These render a past revision, so the line can address different code in the checkout. Issue #1147 chose the
+        // reference anyway: a reader asking about the line in front of them is better served by one that may need
+        // adjusting than by a shortcut that silently does nothing.
+        mocks.getDiffEditorFileSelection.mockReturnValue({
+            line: 42,
+            column: 1,
+            selectionStartLine: 42,
+            selectionEndLine: 42,
+        });
+
+        const expectReference = async (path: string): Promise<void> => {
+            activeFile(path);
+            expect(canSendActiveFileReference()).toBe(true);
+            await sendActiveFileReferenceToTerminal();
+            expect(mocks.sendTerminalSequence).toHaveBeenLastCalledWith(
+                'terminal-1',
+                '@src/index.ts#L42 ',
+            );
+        };
+
+        await expectReference(gitCommitFileDiffTabPath('repo-1', 'a'.repeat(40), 'src/index.ts'));
+        await expectReference(gitPullRequestFileDiffTabPath('repo-1', 'src/index.ts'));
     });
 });

@@ -171,6 +171,7 @@ export function useProjectSearch(draft: ProjectSearchDraft): ProjectSearchModel 
         queryFn: ({ signal }) =>
             caxri.requestWithSignal('files.search', signal, {
                 sessionId: sessionId!,
+                consumer: 'project-search',
                 ...searchOptions,
             }),
         enabled: sessionId !== undefined && debouncedQuery.length > 0,

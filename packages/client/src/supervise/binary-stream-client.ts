@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import type {
     BinaryStreamFrame,
     BinaryStreamOperation,
@@ -422,6 +424,7 @@ class FileStreamClient extends ClientBinarySocket {
         this.result.resolve(
             parseCaxriResult(this.operation.method, {
                 path: this.reply.result.path,
+                readOnly: this.reply.result.readOnly,
                 content,
                 mtimeMs: this.reply.result.mtimeMs,
                 size: this.reply.result.size,
@@ -525,7 +528,42 @@ export class BinaryStreamClient {
         }
         if (this.closed)
             throw new CaxriError('UNAVAILABLE', 'Caxri Server binary streams are closed');
-        return this.openTerminal(operation, id, lease);
+        /**
+         * A timed-out attachment has already lost its binary output channel. Retry here, where each attempt gets a
+         * fresh ticket and stream, rather than retrying only the Host request behind that closed channel. The Server
+         * holds output behind the successful snapshot reply, so failed attempts cannot duplicate replay. Keep the
+         * existing lease across backoff: detach, terminal close, and disconnect cancel recovery immediately.
+         */
+        const retryDelays = [250, 1_000];
+        let attempt = 0;
+        while (true) {
+            lease.assertActive();
+            try {
+                // eslint-disable-next-line no-await-in-loop -- a replacement must wait for the previous stream to fail
+                return await this.openTerminal(operation, attempt === 0 ? id : randomUUID(), lease);
+            } catch (error) {
+                lease.assertActive();
+                const delay = retryDelays.at(attempt);
+                if (
+                    delay === undefined ||
+                    !(error instanceof CaxriError) ||
+                    (error.code !== 'TIMEOUT' && error.code !== 'UNAVAILABLE')
+                )
+                    throw error;
+                attempt += 1;
+                let timer: ReturnType<typeof setTimeout> | undefined;
+                try {
+                    // eslint-disable-next-line no-await-in-loop -- bounded retries must respect cancellable backoff
+                    await lease.wait(
+                        new Promise<void>((resolve) => {
+                            timer = setTimeout(resolve, delay);
+                        }),
+                    );
+                } finally {
+                    if (timer) clearTimeout(timer);
+                }
+            }
+        }
     }
 
     private async requestTerminal(id: string, method: CaxriMethod, parameters: unknown) {

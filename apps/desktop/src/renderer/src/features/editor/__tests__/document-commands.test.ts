@@ -173,6 +173,27 @@ function installEmptySession(): void {
     useSessionViewStore.setState({ documents: {}, recentDocuments: {} });
 }
 
+it('does not edit or send a save request for a read-only dependency document', async () => {
+    const path = '/project/node_modules/example/index.d.ts';
+    installSessions(path, 'session-1');
+    useSessionViewStore.getState().cacheDocument('session-1', {
+        path,
+        content: 'export {};',
+        dirty: false,
+        mtimeMs: 1,
+        size: 10,
+        readOnly: true,
+    });
+    changeDocument(path, 'changed');
+    await saveActiveEditor();
+    expect(getSessionDocuments('session-1')?.[path]).toMatchObject({
+        content: 'export {};',
+        dirty: false,
+        readOnly: true,
+    });
+    expect(mocks.request).not.toHaveBeenCalledWith('files.write', expect.anything());
+});
+
 /**
  * An empty Session whose single pane is then filled with the given tabs, for the cases that need a specific rail rather
  * than the one-document-per-Session shape `installSessions` builds.

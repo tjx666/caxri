@@ -2,9 +2,9 @@ import {
     createElement,
     lazy,
     Suspense,
+    useCallback,
     useEffect,
     useReducer,
-    useState,
     useSyncExternalStore,
 } from 'react';
 
@@ -16,18 +16,17 @@ import {
 } from '@caxri/protocol';
 import { editorModelPath } from '@desktop-shared/editor-state';
 
-import { useSelectedSession, useSelectedWorkbenchProject, useTheme } from '../../stores/selectors';
+import { useResourceLoad } from '../../hooks/use-resource-load';
+import { describeDocumentReadFailure } from '../../lib/document-read-failure';
+import { useSelectedSession, useTheme } from '../../stores/selectors';
 import { sessionViewScope, useDocument } from '../../stores/session-view';
-import { describeFailure, isCancelledRequest } from '../../stores/toasts';
 import type { CodeEditorProperties } from './code-editor';
 import { cacheDocument, changeDocument } from './document-commands';
-import { EditorBreadcrumbs } from './editor-breadcrumbs';
 import { EditorLoadFailure } from './editor-load-failure';
-import type { EditorLoadTone } from './editor-load-state';
 import { editorLoadReducer, initialEditorLoadState } from './editor-load-state';
 import { getLoadedCodeEditor, loadCodeEditor, subscribeLoadedCodeEditor } from './editor-loader';
-import { EditorPathBreadcrumbs } from './editor-path-breadcrumbs';
 import { editorStatusKey } from './editor-status';
+import { FileEditorBreadcrumbs } from './file-editor-breadcrumbs';
 
 const GitDiffEditor = lazy(async () => {
     const module = await import('./git-diff-editor');
@@ -56,26 +55,6 @@ const emptyWorkClassName =
  * the recovery sentence replaces the technical one instead of quoting it.
  */
 const EDITOR_LOAD_FAILURE_REASON = "The editor didn't load. Reloading the window usually fixes it.";
-
-/**
- * Opening sentence of the document failure. `describeFailure` appends the concrete cause behind it (the file is gone,
- * permission was denied, and so on), which is the part that tells the user whether retrying can help.
- */
-const DOCUMENT_READ_FAILURE_LABEL = "Couldn't open this file";
-
-/**
- * A cancelled read is not a failure the user can act on — Main refuses queued Renderer work once quit starts, and the
- * Host client cancels everything in flight when a lease is replaced — so it is never dressed up as one
- * (`isCancelledRequest` documents the same rule for toasts). It still may not leave the spinner running forever,
- * because nothing re-issues the read afterwards, so it gets a neutral state that offers the retry.
- */
-const DOCUMENT_READ_INTERRUPTED_REASON = 'Opening this file was interrupted.';
-
-function describeDocumentReadFailure(error: unknown): { reason: string; tone: EditorLoadTone } {
-    return isCancelledRequest(error)
-        ? { reason: DOCUMENT_READ_INTERRUPTED_REASON, tone: 'interrupted' }
-        : { reason: describeFailure(error, DOCUMENT_READ_FAILURE_LABEL), tone: 'failed' };
-}
 
 function LoadedCodeEditor(properties: CodeEditorProperties) {
     const CodeEditor = useSyncExternalStore(
@@ -129,107 +108,42 @@ function FileEditorSurface({ paneId, path }: { paneId: string; path: string }) {
     const session = useSelectedSession();
     const sessionId = session?.id;
     const scope = session ? sessionViewScope(session.id, session.workbenchProjectId) : undefined;
-    const project = useSelectedWorkbenchProject();
     const theme = useTheme();
     const document = useDocument(sessionId, path, session?.workbenchProjectId);
     const isExternal = isExternalEditorTabPath(path);
-    const [documentLoad, dispatchDocumentLoad] = useReducer(
-        editorLoadReducer,
-        initialEditorLoadState,
+    const load = useCallback(
+        () => (sessionId ? cacheDocument(sessionId, path) : Promise.resolve(undefined)),
+        [path, sessionId],
     );
-    const attempt = documentLoad.attempt;
-
-    /**
-     * The pane keeps this component mounted across tab switches, so a failure recorded for the previous file has to be
-     * dropped before the next one reports anything. Done during render rather than in an effect: React restarts the
-     * render immediately without painting, while an effect runs after the browser may already have shown one frame of
-     * the previous file's error sitting over the new file's tab.
-     */
-    const target = `${sessionId ?? ''}\u{0}${path}`;
-    const [renderedTarget, setRenderedTarget] = useState(target);
-    if (renderedTarget !== target) {
-        setRenderedTarget(target);
-        dispatchDocumentLoad({ type: 'restarted' });
-    }
-
-    useEffect(() => {
-        if (!sessionId || document || isExternal) return;
-        let isDisposed = false;
-        // Fire-and-forget: `cacheDocument` still funnels its own failures into a toast via `tryCommand`, and hands the
-        // rejection back so the surface can show it too. The toast expires after four seconds; this state does not.
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-        void cacheDocument(sessionId, path)
-            .then((failure) => {
-                if (isDisposed) return;
-                dispatchDocumentLoad(
-                    failure
-                        ? {
-                              type: 'failed',
-                              attempt,
-                              ...describeDocumentReadFailure(failure.error),
-                          }
-                        : { type: 'succeeded', attempt },
-                );
-            })
-            .catch((error: unknown) => {
-                // `cacheDocument` resolves rather than rejects for every failure it expects; this keeps an unexpected
-                // one out of the endless spinner as well.
-                if (!isDisposed)
-                    dispatchDocumentLoad({
-                        type: 'failed',
-                        attempt,
-                        ...describeDocumentReadFailure(error),
-                    });
-            });
-        return () => {
-            isDisposed = true;
-        };
-    }, [attempt, document, isExternal, path, sessionId]);
+    const { failure, retry } = useResourceLoad({
+        target: `${scope ?? ''}\u{0}${path}`,
+        enabled: Boolean(sessionId && !document && !isExternal),
+        load,
+    });
 
     if (!sessionId || !scope || !theme) return null;
     if (!document) {
         if (isExternal)
             return <div className={emptyWorkClassName}>External file is no longer available.</div>;
-        if (documentLoad.status === 'failed')
+        if (failure)
             return (
                 <EditorLoadFailure
                     actionLabel="Retry"
-                    reason={documentLoad.reason}
-                    tone={documentLoad.tone}
-                    onAction={() => {
-                        dispatchDocumentLoad({ type: 'retried' });
-                    }}
+                    {...describeDocumentReadFailure(failure.error)}
+                    onAction={retry}
                 />
             );
         return <div className={emptyWorkClassName}>Loading file…</div>;
     }
     return (
         <div className="flex h-full min-h-0 flex-col">
-            {/*
-             * An external document keeps the rail — its absolute path is the only place the Session can see where the
-             * file actually lives — but gets the display-only variant, because no Project root sits behind its
-             * segments for the sibling picker to list.
-             */}
-            {(!isExternal || document.displayPath) && (
-                <div className="flex h-6 shrink-0 items-center overflow-hidden border-b border-border bg-surface">
-                    {isExternal
-                        ? document.displayPath && (
-                              <EditorPathBreadcrumbs
-                                  accessibilityLabel={`File breadcrumbs: ${document.displayPath}`}
-                                  path={document.displayPath}
-                              />
-                          )
-                        : project && (
-                              <EditorBreadcrumbs
-                                  paneId={paneId}
-                                  path={path}
-                                  projectRoot={project.rootPath}
-                                  sessionId={sessionId}
-                                  workbenchProjectId={session.workbenchProjectId}
-                              />
-                          )}
-                </div>
-            )}
+            <FileEditorBreadcrumbs
+                paneId={paneId}
+                path={path}
+                displayPath={document.displayPath}
+                isExternal={isExternal}
+                readOnly={document.readOnly}
+            />
             <div className="min-h-0 flex-1">
                 <LoadedCodeEditor
                     editorInstanceId={paneId}

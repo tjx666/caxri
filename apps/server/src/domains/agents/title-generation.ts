@@ -6,6 +6,7 @@ import { sessionRenameTitleSchema } from '@caxri/protocol';
 
 import type { AgentTranscriptLocation } from './transcript-security';
 import { openSafeAgentTranscript } from './transcript-security';
+import { extractVisibleTranscriptMessage } from './visible-transcript-message';
 
 interface TitleMessage {
     role: 'assistant' | 'user';
@@ -44,6 +45,15 @@ const RECENT_MESSAGE_LIMIT = 6;
  */
 const MAX_RECORD_CHARS = 256 * 1024;
 
+const TITLE_MESSAGE_CHARS = 1600;
+
+interface ScannedTitleMessage extends TitleMessage {
+    /**
+     * Grok writes one turn as a run of `*_message_chunk` records, so a chunk is a fragment rather than a message.
+     */
+    isChunk: boolean;
+}
+
 /**
  * Claude Code records a skill or custom prompt command as `<command-message>` markup, while built-in commands such as
  * `/model` or `/effort` start with `<command-name>`. A Session opened by `/add-model gpt 6` has no other user message,
@@ -60,49 +70,62 @@ function restorePromptCommandInvocation(text: string): string | undefined {
 /**
  * Only visible conversation messages are naming material; tools, injected instructions and duplicate events are not.
  */
-export function extractAgentTitleMessage(record: unknown): TitleMessage | undefined {
+/**
+ * The shared visible-message boundary drops all command markup, so a Claude user record is checked for a prompt command
+ * invocation before it reaches that boundary.
+ */
+function claudePromptCommandInvocation(record: unknown): string | undefined {
     if (!record || typeof record !== 'object') return;
     const entry = record as {
         type?: string;
-        payload?: { type?: string; role?: string; content?: unknown };
         message?: { content?: unknown };
         isMeta?: boolean;
         isSidechain?: boolean;
     };
-    if (entry.isMeta || entry.isSidechain) return;
-    const message =
-        entry.type === 'response_item' && entry.payload?.type === 'message'
-            ? { role: entry.payload.role, content: entry.payload.content }
-            : { role: entry.type, content: entry.message?.content };
-    if (message.role !== 'user' && message.role !== 'assistant') return;
-    const text = (
-        typeof message.content === 'string'
-            ? message.content
-            : Array.isArray(message.content)
-              ? message.content
+    if (entry.type !== 'user' || entry.isMeta || entry.isSidechain) return;
+    const content = entry.message?.content;
+    const text =
+        typeof content === 'string'
+            ? content
+            : Array.isArray(content)
+              ? content
                     .flatMap((part: unknown) => {
-                        if (!part || typeof part !== 'object') return [];
-                        const block = part as { type?: string; text?: unknown };
-                        return ['text', 'input_text', 'output_text'].includes(block.type ?? '') &&
-                            typeof block.text === 'string'
+                        const block = part as { type?: string; text?: unknown } | null;
+                        return block?.type === 'text' && typeof block.text === 'string'
                             ? [block.text]
                             : [];
                     })
                     .join('\n')
-              : ''
-    ).trim();
-    const commandInvocation =
-        message.role === 'user' ? restorePromptCommandInvocation(text) : undefined;
+              : '';
+    return restorePromptCommandInvocation(text.trim());
+}
+
+export function extractAgentTitleMessage(record: unknown): ScannedTitleMessage | undefined {
+    const commandInvocation = claudePromptCommandInvocation(record);
     if (commandInvocation)
-        return { role: 'user', text: [...commandInvocation].slice(0, 1600).join('') };
-    if (
-        !text ||
-        /^(?:# AGENTS\.md instructions|<environment_context>|<permissions instructions>|<system-reminder>|<INSTRUCTIONS>|<local-command|<command-name>|<command-message>)/u.test(
-            text,
-        )
-    )
-        return;
-    return { role: message.role, text: [...text].slice(0, 1600).join('') };
+        return {
+            isChunk: false,
+            role: 'user',
+            text: [...commandInvocation].slice(0, TITLE_MESSAGE_CHARS).join(''),
+        };
+    const message = extractVisibleTranscriptMessage(record);
+    return (
+        message && {
+            isChunk: message.isChunk,
+            role: message.role,
+            text: [...message.text].slice(0, TITLE_MESSAGE_CHARS).join(''),
+        }
+    );
+}
+
+/**
+ * Joins a streaming fragment onto the message it continues, with no separator, the way Session content search coalesces
+ * the same records. The character cap belongs to the joined message: capping each fragment would let one Grok turn
+ * contribute far more naming material than a Claude or Codex turn.
+ */
+function appendTitleChunk(message: TitleMessage, text: string): void {
+    const remaining = TITLE_MESSAGE_CHARS - [...message.text].length;
+    if (remaining > 0) message.text += [...text].slice(0, remaining).join('');
 }
 
 interface ScanRange {
@@ -157,7 +180,7 @@ async function* readRangeLines(handle: FileHandle, range: ScanRange): AsyncGener
     if (pending && !isFragmentPending) yield pending;
 }
 
-function parseTitleMessageLine(line: string): TitleMessage | undefined {
+function parseTitleMessageLine(line: string): ScannedTitleMessage | undefined {
     try {
         return extractAgentTitleMessage(JSON.parse(line));
     } catch {
@@ -192,11 +215,20 @@ export async function readAgentTitleMessages(
             const isOpeningWindow = position === 0;
             // A later range is newer than everything before it, so it replaces the latest exchange rather than extending it.
             if (!isOpeningWindow) recent = [];
+            /**
+             * The message a following chunk continues. Reset per range: a later range opens mid-file, so its first
+             * chunk is not a continuation of anything this scan retained.
+             */
+            let openChunk: { message: TitleMessage; role: 'assistant' | 'user' } | undefined;
             // Ranges are scanned in file order so the opening is found before the tail is read.
             // eslint-disable-next-line no-await-in-loop -- ordered range scan, see comment above
             for await (const line of readRangeLines(opened.handle, range)) {
-                const message = parseTitleMessageLine(line);
-                if (message) {
+                const scanned = parseTitleMessageLine(line);
+                if (scanned && scanned.isChunk && openChunk?.role === scanned.role) {
+                    appendTitleChunk(openChunk.message, scanned.text);
+                } else if (scanned) {
+                    const message: TitleMessage = { role: scanned.role, text: scanned.text };
+                    openChunk = scanned.isChunk ? { message, role: scanned.role } : undefined;
                     const current = index++;
                     if (
                         isOpeningWindow &&

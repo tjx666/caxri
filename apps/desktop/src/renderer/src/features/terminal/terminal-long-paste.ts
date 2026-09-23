@@ -1,4 +1,19 @@
 import type { TerminalLongPasteResult } from '@caxri/protocol';
+import {
+    isLongPasteWithinLimit,
+    MAX_LONG_PASTE_BYTES,
+    MAX_TERMINAL_INPUT_PAYLOAD_LENGTH,
+} from '@caxri/protocol';
+
+type LongPasteFailure = 'too-large' | 'native-too-large';
+
+export function longPasteFailureMessage(reason?: LongPasteFailure): string {
+    if (reason === 'too-large')
+        return `Pasted text exceeds the ${MAX_LONG_PASTE_BYTES / 1_048_576} MiB limit. Your clipboard is unchanged. Save it to a file and share its path.`;
+    if (reason === 'native-too-large')
+        return 'This Agent cannot receive a paste this large. Your clipboard is unchanged. Save it to a file and share its path.';
+    return 'Long paste could not be saved. Your clipboard is unchanged; try again or save it to a file.';
+}
 
 export function shouldPrepareLongPaste(options: {
     canAcceptAgentInput: boolean;
@@ -33,7 +48,7 @@ export function formatLongPasteReference(
 
 interface TerminalLongPasteControllerOptions {
     canAcceptAgentInput(): boolean;
-    onFailure(): void;
+    onFailure(reason?: LongPasteFailure): void;
     /**
      * Called when a paste arrives while a previous long paste is still being saved. The controller deliberately drops
      * the new paste instead of queueing it, so this is the caller's only signal that user input was silently discarded;
@@ -85,6 +100,10 @@ export class TerminalLongPasteController {
 
     private async prepare(text: string): Promise<void> {
         try {
+            if (!isLongPasteWithinLimit(text)) {
+                if (!this.isDisposed) this.options.onFailure('too-large');
+                return;
+            }
             const result = await this.options.request(text);
             if (!this.isDisposed) {
                 /**
@@ -96,7 +115,14 @@ export class TerminalLongPasteController {
                     /**
                      * Native paste is allowed only for a live, unsupported Agent, never after a preparation failure.
                      */
-                    if (this.options.canAcceptAgentInput()) this.options.paste(text);
+                    if (this.options.canAcceptAgentInput()) {
+                        /**
+                         * Reserve both six-character bracketed-paste markers emitted by xterm.
+                         */
+                        if (text.length > MAX_TERMINAL_INPUT_PAYLOAD_LENGTH - 12)
+                            this.options.onFailure('native-too-large');
+                        else this.options.paste(text);
+                    }
                     return;
                 }
                 this.options.pasteAgentExact(
@@ -188,7 +214,7 @@ interface TerminalLongPasteRuntimeSnapshot {
 export function createTerminalLongPasteRuntime(options: {
     latest: () => TerminalLongPasteRuntimeSnapshot;
     onDropped: () => void;
-    onFailure: () => void;
+    onFailure: TerminalLongPasteControllerOptions['onFailure'];
     onPendingChange: (isPending: boolean, shouldDisableStdin: boolean) => void;
     paste: (text: string) => void;
     request: (content: string) => Promise<TerminalLongPasteResult>;
