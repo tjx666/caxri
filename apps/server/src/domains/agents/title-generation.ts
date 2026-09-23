@@ -55,9 +55,59 @@ interface ScannedTitleMessage extends TitleMessage {
 }
 
 /**
+ * Claude Code records a skill or custom prompt command as `<command-message>` markup, while built-in commands such as
+ * `/model` or `/effort` start with `<command-name>`. A Session opened by `/add-model gpt 6` has no other user message,
+ * so the invocation is restored as the typed command instead of being discarded with the built-ins.
+ */
+function restorePromptCommandInvocation(text: string): string | undefined {
+    if (!text.startsWith('<command-message>')) return;
+    const name = /<command-name>([^<]+)<\/command-name>/u.exec(text)?.[1]?.trim();
+    if (!name) return;
+    const arguments_ = /<command-args>([\s\S]*?)<\/command-args>/u.exec(text)?.[1]?.trim();
+    return arguments_ ? `${name} ${arguments_}` : name;
+}
+
+/**
  * Only visible conversation messages are naming material; tools, injected instructions and duplicate events are not.
  */
+/**
+ * The shared visible-message boundary drops all command markup, so a Claude user record is checked for a prompt command
+ * invocation before it reaches that boundary.
+ */
+function claudePromptCommandInvocation(record: unknown): string | undefined {
+    if (!record || typeof record !== 'object') return;
+    const entry = record as {
+        type?: string;
+        message?: { content?: unknown };
+        isMeta?: boolean;
+        isSidechain?: boolean;
+    };
+    if (entry.type !== 'user' || entry.isMeta || entry.isSidechain) return;
+    const content = entry.message?.content;
+    const text =
+        typeof content === 'string'
+            ? content
+            : Array.isArray(content)
+              ? content
+                    .flatMap((part: unknown) => {
+                        const block = part as { type?: string; text?: unknown } | null;
+                        return block?.type === 'text' && typeof block.text === 'string'
+                            ? [block.text]
+                            : [];
+                    })
+                    .join('\n')
+              : '';
+    return restorePromptCommandInvocation(text.trim());
+}
+
 export function extractAgentTitleMessage(record: unknown): ScannedTitleMessage | undefined {
+    const commandInvocation = claudePromptCommandInvocation(record);
+    if (commandInvocation)
+        return {
+            isChunk: false,
+            role: 'user',
+            text: [...commandInvocation].slice(0, TITLE_MESSAGE_CHARS).join(''),
+        };
     const message = extractVisibleTranscriptMessage(record);
     return (
         message && {

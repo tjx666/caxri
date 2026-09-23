@@ -529,6 +529,65 @@ describe('ProjectStatusService', () => {
         );
     });
 
+    it('keeps the last delivery status while a moved HEAD on the same branch revalidates', async () => {
+        let head = 'a'.repeat(40);
+        let branch = 'feature/status';
+        const emitted = vi.fn();
+        const runner = vi.fn<ExternalStatusRunner>((command, arguments_) => {
+            if (command === 'git' && arguments_[0] === 'remote')
+                return Promise.resolve('git@github.com:example/project.git\n');
+            if (command === 'git' && arguments_.join(' ') === 'rev-parse HEAD')
+                return Promise.resolve(head);
+            if (
+                command === 'git' &&
+                arguments_[0] === 'symbolic-ref' &&
+                arguments_[1] === '--quiet'
+            )
+                return Promise.resolve(branch);
+            if (command === 'git') return Promise.resolve('');
+            if (command === 'gh' && arguments_[0] === 'api')
+                return Promise.resolve(JSON.stringify({ data: { repository: { ref: null } } }));
+            if (command === 'gh') {
+                return Promise.resolve(
+                    JSON.stringify({
+                        number: 7,
+                        title: 'Pull request 7',
+                        url: 'https://github.com/example/project/pull/7',
+                    }),
+                );
+            }
+            return Promise.resolve(JSON.stringify({ teams: [] }));
+        });
+        const service = new ProjectStatusService(
+            {
+                summary: () =>
+                    Promise.resolve({
+                        ...gitSummary,
+                        repositories: gitSummary.repositories.map((repo) => ({ ...repo, branch })),
+                    }),
+            },
+            await logger(),
+            runner,
+            { emit: emitted },
+        );
+
+        await service.summary('session-1');
+        await vi.waitFor(() => expect(emitted).toHaveBeenCalledTimes(1));
+        expect((await service.summary('session-1')).repositories[0]?.pullRequest?.number).toBe(7);
+
+        // An Agent commits while the user looks at another Session: the fingerprint moves with HEAD, but the branch
+        // and its pull request did not, so returning must not blank the panel back to a local-only summary.
+        head = 'b'.repeat(40);
+        const moved = await service.summary('session-1');
+        expect(moved.repositories[0]?.pullRequest?.number).toBe(7);
+
+        // A different branch owns a different pull request, so nothing carries over.
+        branch = 'feature/other';
+        const switched = await service.summary('session-1');
+        expect(switched.repositories[0]?.branch).toBe('feature/other');
+        expect(switched.repositories[0]?.pullRequest).toBeUndefined();
+    });
+
     it('keeps repositories visible when integrations fail', async () => {
         const refreshed = Promise.withResolvers<void>();
         const runner = vi.fn<ExternalStatusRunner>((command, arguments_) => {
