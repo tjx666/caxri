@@ -156,7 +156,7 @@ export function AgentActivityRowItem({
                         {session.displayTitle}
                     </span>
                     {(visiblePullRequest !== undefined || canMarkRead) && (
-                        <span className="agent-activity-trailing flex w-[21px] flex-none justify-end">
+                        <span className="agent-activity-trailing flex w-5 flex-none justify-end">
                             <SessionPullRequestIndicator
                                 className={cn(
                                     canMarkRead &&
