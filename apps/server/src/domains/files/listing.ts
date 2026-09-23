@@ -437,30 +437,19 @@ export class ListingService {
         const before = await lstat(path);
         if (!before.isDirectory() || before.isSymbolicLink())
             throw new CaxriError('IO', 'Path is not a directory');
-        const entries: Dirent[] = [];
-        let isReachedEnd = false;
-        let scannedEntries = 0;
-        const directoryHandle = await this.openDirectory(path);
-        try {
-            while (scannedEntries <= MAX_FILE_LIST_SCANNED_ENTRIES) {
-                // `Dir#read()` streams one entry per call from a single open directory handle.
-                // eslint-disable-next-line no-await-in-loop -- directory reads are inherently sequential
-                const entry = await directoryHandle.read();
-                if (!entry) {
-                    isReachedEnd = true;
-                    break;
-                }
-                scannedEntries += 1;
-                if (entries.length < MAX_FILE_LIST_SCANNED_ENTRIES) entries.push(entry);
-                else break;
-            }
-        } finally {
-            try {
-                await directoryHandle.close();
-            } catch {
-                // Ignore close failures: the directory handle is being discarded regardless.
-            }
+        let scan = await this.readDirectoryEntries(path);
+        let emptyRootVerification: { scannedEntries: number } | undefined;
+        if (path === root && scan.scannedEntries === 0) {
+            /**
+             * A CI root listing reported EOF when its fixture expected a child, but the physical root identity was not
+             * recorded. A second bounded handle can recover from a transient false EOF without emptying the Files
+             * tree.
+             */
+            const verification = await this.readDirectoryEntries(path);
+            emptyRootVerification = { scannedEntries: verification.scannedEntries };
+            if (verification.scannedEntries > 0) scan = verification;
         }
+        const { entries, isReachedEnd, scannedEntries } = scan;
         const after = await lstat(path);
         /**
          * Revalidate around streaming enumeration so a Session-root swap cannot disclose another directory.
@@ -527,12 +516,49 @@ export class ListingService {
                 entryCount: bounded.length,
                 scannedEntries,
                 truncated: isTruncated,
+                ...(path === root && { device: before.dev, inode: before.ino }),
+                ...(emptyRootVerification && {
+                    initialScannedEntries: 0,
+                    verificationScannedEntries: emptyRootVerification.scannedEntries,
+                }),
             },
         });
         return {
             entries: bounded,
             truncated: isTruncated,
         };
+    }
+
+    private async readDirectoryEntries(path: string): Promise<{
+        entries: Dirent[];
+        isReachedEnd: boolean;
+        scannedEntries: number;
+    }> {
+        const entries: Dirent[] = [];
+        let isReachedEnd = false;
+        let scannedEntries = 0;
+        const directoryHandle = await this.openDirectory(path);
+        try {
+            while (scannedEntries <= MAX_FILE_LIST_SCANNED_ENTRIES) {
+                // `Dir#read()` streams one entry per call from a single open directory handle.
+                // eslint-disable-next-line no-await-in-loop -- directory reads are inherently sequential
+                const entry = await directoryHandle.read();
+                if (!entry) {
+                    isReachedEnd = true;
+                    break;
+                }
+                scannedEntries += 1;
+                if (entries.length < MAX_FILE_LIST_SCANNED_ENTRIES) entries.push(entry);
+                else break;
+            }
+        } finally {
+            try {
+                await directoryHandle.close();
+            } catch {
+                // Ignore close failures: the directory handle is being discarded regardless.
+            }
+        }
+        return { entries, isReachedEnd, scannedEntries };
     }
 
     /**
