@@ -11,6 +11,7 @@ const UNLOGGED_SUCCESS_METHODS = {
     domain: new Set<string>([
         'logs.query',
         'terminal.input',
+        'terminal.inputBinary',
         'terminal.inputAgentExact',
         'terminal.resize',
     ] satisfies ServerOperation[]),

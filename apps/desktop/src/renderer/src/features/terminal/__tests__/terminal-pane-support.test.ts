@@ -85,6 +85,7 @@ describe('registerTerminalInputHandlers', () => {
             const pending = Promise.withResolvers<unknown>();
             mocks.caxriRequest.mockReturnValueOnce(pending.promise);
             const terminal = {
+                onBinary: () => ({ dispose: vi.fn() }),
                 onData: (handler: (data: string) => void) => {
                     onData = handler;
                     return { dispose: vi.fn() };
@@ -111,6 +112,7 @@ describe('registerTerminalInputHandlers', () => {
             const pending = Promise.withResolvers<unknown>();
             mocks.caxriRequest.mockReturnValueOnce(pending.promise);
             const terminal = {
+                onBinary: () => ({ dispose: vi.fn() }),
                 onData: (handler: (data: string) => void) => {
                     onData = handler;
                     return { dispose: vi.fn() };
@@ -135,6 +137,7 @@ describe('registerTerminalInputHandlers', () => {
         const paste = vi.fn();
         const terminal = {
             focus,
+            onBinary: () => ({ dispose: vi.fn() }),
             onData: vi.fn((handler: (data: string) => void) => {
                 onData = handler;
                 return dataDisposable;
@@ -164,6 +167,7 @@ describe('registerTerminalInputHandlers', () => {
         const paste = vi.fn();
         const terminal = {
             focus: vi.fn(),
+            onBinary: () => ({ dispose: vi.fn() }),
             onData: vi.fn((handler: (data: string) => void) => {
                 onData = handler;
                 return { dispose: vi.fn() };
@@ -185,6 +189,7 @@ describe('registerTerminalInputHandlers', () => {
     it('tags a generated paste with the Agent process expected by the Server', async () => {
         let onData: ((data: string) => void) | undefined;
         const terminal = {
+            onBinary: () => ({ dispose: vi.fn() }),
             onData: vi.fn((handler: (data: string) => void) => {
                 onData = handler;
                 return { dispose: vi.fn() };
@@ -207,5 +212,34 @@ describe('registerTerminalInputHandlers', () => {
             }),
         );
         unregister();
+    });
+
+    it('forwards xterm binary mouse input without converting its high bytes to text', async () => {
+        let onBinary: ((data: string) => void) | undefined;
+        const binaryDisposable = { dispose: vi.fn() };
+        const terminal = {
+            onData: vi.fn(() => ({ dispose: vi.fn() })),
+            onBinary: vi.fn((handler: (data: string) => void) => {
+                onBinary = handler;
+                return binaryDisposable;
+            }),
+        } as unknown as Terminal;
+        const unregister = registerTerminalInputHandlers(
+            terminal,
+            'mouse-terminal',
+            () => true,
+            () => 'launch-1',
+        );
+
+        onBinary?.('\u{1B}[M \u{80}\u{FF}');
+        await vi.waitFor(() =>
+            expect(mocks.caxriRequest).toHaveBeenCalledWith('terminal.inputBinary', {
+                terminalId: 'mouse-terminal',
+                data: '\u{1B}[M \u{80}\u{FF}',
+                expectedAgentLaunchId: 'launch-1',
+            }),
+        );
+        unregister();
+        expect(binaryDisposable.dispose).toHaveBeenCalledOnce();
     });
 });

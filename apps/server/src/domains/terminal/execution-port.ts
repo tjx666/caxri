@@ -118,6 +118,7 @@ export interface TerminalExecutionPort {
         terminalId: string,
         data: string,
         abortSignal?: AbortSignal,
+        encoding?: 'binary',
     ): Promise<boolean>;
     /**
      * Admits Agent input for one exact launch in a single synchronous turn, which is what lets a caller claim the
@@ -133,6 +134,7 @@ export interface TerminalExecutionPort {
         data: string,
         expectedAgentLaunchId: string,
         onDelivered?: (wasAccepted: boolean) => void,
+        encoding?: 'binary',
     ): boolean;
     writeAgent(terminalId: string, data: string): Promise<boolean>;
 }

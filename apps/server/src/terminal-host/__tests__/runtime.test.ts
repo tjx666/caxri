@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -235,6 +236,24 @@ describe('architecture-a3b-terminal-host: TerminalHostRuntime', () => {
             ),
         );
         expect(engine.write).toHaveBeenCalledWith(terminal.id, 'summary');
+        await runtime.accept(
+            privateRequest(
+                {
+                    method: 'terminal.input',
+                    params: {
+                        data: '\u{1B}[M \u{80}\u{FF}',
+                        encoding: 'binary',
+                        expectedAgentLaunchId: 'launch-1',
+                    },
+                },
+                inputScope,
+                'input-agent-mouse',
+            ),
+        );
+        expect(engine.write).toHaveBeenCalledWith(
+            terminal.id,
+            Buffer.from([0x1b, 0x5b, 0x4d, 0x20, 0x80, 0xff]),
+        );
         runtime.projectManagedAgentEvent({
             type: 'exited',
             terminalId: terminal.id,
@@ -252,7 +271,7 @@ describe('architecture-a3b-terminal-host: TerminalHostRuntime', () => {
                 'input-agent-stale',
             ),
         );
-        expect(engine.write).toHaveBeenCalledTimes(1);
+        expect(engine.write).toHaveBeenCalledTimes(2);
         expect(messages.at(-1)).toMatchObject({
             type: 'reply',
             id: 'input-agent-stale',

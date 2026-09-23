@@ -1,7 +1,19 @@
-import { MAX_TERMINAL_INPUT_LENGTH } from '@caxri/protocol';
+import {
+    CaxriError,
+    MAX_TERMINAL_INPUT_LENGTH,
+    MAX_TERMINAL_INPUT_PAYLOAD_LENGTH,
+} from '@caxri/protocol';
+
+/**
+ * The private protocol has a stricter per-request limit than the public Terminal input.
+ */
+const MAX_QUEUED_KEYBOARD_INPUT_CHARACTERS = MAX_TERMINAL_INPUT_LENGTH * 4;
+const MAX_QUEUED_TERMINAL_INPUT_CHARACTERS =
+    MAX_TERMINAL_INPUT_PAYLOAD_LENGTH + MAX_TERMINAL_INPUT_LENGTH * 4;
 
 interface TerminalInputChunk {
     data: string;
+    encoding?: 'binary';
     expectedAgentLaunchId?: string;
     receipt?: TerminalInputReceipt;
 }
@@ -11,7 +23,7 @@ export interface TerminalInputBatch {
     data: string;
     expectedAgentLaunchId?: string;
     length: number;
-    params: { data: string; expectedAgentLaunchId?: string };
+    params: { data: string; encoding?: 'binary'; expectedAgentLaunchId?: string };
 }
 
 export interface TerminalInputReceipt {
@@ -79,6 +91,15 @@ export class TerminalInputQueue<Identity> {
         return this.head < this.chunks.length;
     }
 
+    assertCapacity(length: number, shouldAcknowledge: boolean): void {
+        const capacity =
+            shouldAcknowledge || this.hasAcknowledgedInput
+                ? MAX_QUEUED_TERMINAL_INPUT_CHARACTERS
+                : MAX_QUEUED_KEYBOARD_INPUT_CHARACTERS;
+        if (this.queuedCharacters + length > capacity)
+            throw new CaxriError('CAPACITY', 'Terminal input queue capacity exceeded');
+    }
+
     settleAcceptedBatch(batch: TerminalInputBatch): boolean {
         if (this.activeBatch !== batch) return true;
         this.activeBatch = undefined;
@@ -99,6 +120,7 @@ export class TerminalInputQueue<Identity> {
         data: string,
         shouldAcknowledge: boolean,
         expectedAgentLaunchId?: string,
+        encoding?: 'binary',
     ): TerminalInputReceipt | undefined {
         const chunks = splitTerminalInput(data);
         const receipt = shouldAcknowledge
@@ -108,6 +130,7 @@ export class TerminalInputQueue<Identity> {
         this.chunks.push(
             ...chunks.map((chunk) => ({
                 data: chunk,
+                ...(encoding && { encoding }),
                 ...(expectedAgentLaunchId && { expectedAgentLaunchId }),
                 ...(receipt && { receipt }),
             })),
@@ -158,16 +181,22 @@ export class TerminalInputQueue<Identity> {
         const chunks: TerminalInputChunk[] = [];
         let length = 0;
         const expectedAgentLaunchId = this.chunks[this.head]?.expectedAgentLaunchId;
+        const encoding = this.chunks[this.head]?.encoding;
         while (this.head < this.chunks.length) {
             const chunk = this.chunks[this.head];
             if (chunk.expectedAgentLaunchId !== expectedAgentLaunchId) break;
+            if (chunk.encoding !== encoding) break;
             if (length > 0 && length + chunk.data.length > MAX_TERMINAL_INPUT_LENGTH) break;
             this.head += 1;
             chunks.push(chunk);
             length += chunk.data.length;
         }
         const data = chunks.map((chunk) => chunk.data).join('');
-        const parameters = { data, ...(expectedAgentLaunchId && { expectedAgentLaunchId }) };
+        const parameters = {
+            data,
+            ...(encoding && { encoding }),
+            ...(expectedAgentLaunchId && { expectedAgentLaunchId }),
+        };
         const batch = {
             chunks,
             data,

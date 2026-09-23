@@ -450,6 +450,21 @@ export async function sendTerminalInputToAgent(
 }
 
 /**
+ * Xterm's onBinary string contains raw byte values, including values above ASCII.
+ */
+export async function sendTerminalBinaryInput(
+    terminalId: string,
+    data: string,
+    expectedAgentLaunchId?: string,
+): Promise<void> {
+    await caxri.request('terminal.inputBinary', {
+        terminalId,
+        data,
+        ...(expectedAgentLaunchId && { expectedAgentLaunchId }),
+    });
+}
+
+/**
  * Hands a large paste to the Server so it can be summarized into a reference the Agent reads instead of pasted byte by
  * byte.
  */
