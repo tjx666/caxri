@@ -122,6 +122,22 @@ async function replaceValidationArtifact(statePath: string, index: number): Prom
 }
 
 describe('Go validation artifact scaling', () => {
+    it('accepts a validation receipt after the filesystem device number changes', async () => {
+        const { statePath } = await fixture();
+        await addCompletedValidationArtifacts(statePath, 1);
+        const state = await readState(statePath);
+        state.validations[0].logMetadata!.device += 1;
+        await writeState(statePath, state);
+
+        await expect(runStateCli(['validate', '--state', statePath])).resolves.toBeUndefined();
+
+        const logPath = join(dirname(statePath), state.validations[0].logPath);
+        const tampered = await readFile(logPath);
+        tampered[0] ^= 1;
+        await writeFile(logPath, tampered);
+        await expect(runStateCli(['validate', '--state', statePath])).rejects.toThrow('SHA-256');
+    });
+
     it('bounds ordinary checks while full audits preserve integrity and recovery', async () => {
         const { statePath } = await fixture();
         await addCompletedValidationArtifacts(statePath, 32);
