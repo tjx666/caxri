@@ -76,6 +76,21 @@ function hasSameMetadata(left: ValidationLogMetadata, right: ValidationLogMetada
     );
 }
 
+/**
+ * MacOS can assign a different device number to the same volume after reboot. A changed device still triggers a digest
+ * read, but the durable receipt compares the file's inode, timestamps, length, and SHA-256 instead.
+ */
+function hasSameReceiptMetadata(
+    left: ValidationLogMetadata,
+    right: ValidationLogMetadata,
+): boolean {
+    return (
+        left.ctimeMs === right.ctimeMs &&
+        left.inode === right.inode &&
+        left.mtimeMs === right.mtimeMs
+    );
+}
+
 async function resolveValidationLogPath(runDirectory: string, logPath: string): Promise<string> {
     const absoluteRunDirectory = resolve(runDirectory);
     const absolutePath = resolve(absoluteRunDirectory, logPath);
@@ -371,7 +386,10 @@ export async function reconcileValidationArtifacts(
                     if (actual.sha256 !== record.logSha256) {
                         integrityError =
                             'Validation log SHA-256 does not match the recorded receipt';
-                    } else if (isMetadataChanged) {
+                    } else if (
+                        isMetadataChanged &&
+                        !hasSameReceiptMetadata(actual.metadata, record.logMetadata)
+                    ) {
                         integrityError =
                             'Validation log identity or timestamps changed after the receipt was recorded';
                     }
