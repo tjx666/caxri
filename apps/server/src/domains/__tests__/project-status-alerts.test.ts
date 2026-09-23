@@ -178,4 +178,76 @@ describe('ProjectStatusAlertTracker', () => {
         expect(tracker.observe(worktree)).toHaveLength(1);
         expect(tracker.observe(checksSnapshot({ name: 'build', state: 'failure' }))).toEqual([]);
     });
+    describe('an item seen for the first time', () => {
+        const startedAt = 10_000_000;
+
+        it('alerts when the failure happened after the tracker started', () => {
+            let now = startedAt;
+            const tracker = new ProjectStatusAlertTracker({ now: () => now });
+            now += 60_000;
+            expect(
+                tracker.observe(
+                    checksSnapshot({ name: 'build', state: 'failure', completedAt: startedAt + 1 }),
+                ),
+            ).toHaveLength(1);
+        });
+
+        it('stays silent when the failure predates the tracker', () => {
+            let now = startedAt;
+            const tracker = new ProjectStatusAlertTracker({ now: () => now });
+            now += 60_000;
+            expect(
+                tracker.observe(
+                    checksSnapshot({ name: 'build', state: 'failure', completedAt: startedAt - 1 }),
+                ),
+            ).toEqual([]);
+        });
+
+        it('stays silent when the failure is older than the first-seen window', () => {
+            let now = startedAt;
+            const tracker = new ProjectStatusAlertTracker({ now: () => now });
+            now += 2 * 60 * 60_000;
+            expect(
+                tracker.observe(
+                    checksSnapshot({ name: 'build', state: 'failure', completedAt: startedAt + 1 }),
+                ),
+            ).toEqual([]);
+        });
+
+        it('alerts on a new preview build that failed between two polls', () => {
+            let now = startedAt;
+            const tracker = new ProjectStatusAlertTracker({ now: () => now });
+            now += 60_000;
+            expect(tracker.observe(previewSnapshot({ createdAt: startedAt + 1_000 }))).toHaveLength(
+                1,
+            );
+        });
+    });
+
+    it('notifies a production failure once even when two branches resolve to it', () => {
+        let now = 10_000_000;
+        const tracker = new ProjectStatusAlertTracker({ now: () => now });
+        now += 60_000;
+        const production = (branch: string): ProjectStatusSummary => ({
+            refreshedAt: 1,
+            repositories: [
+                repo({
+                    branch,
+                    deployments: {
+                        url: 'https://vercel.com/tjx666/caxri',
+                        branchDeployments: [],
+                        production: {
+                            environment: 'production',
+                            hostname: 'caxri-prod.vercel.app',
+                            state: 'failure',
+                            url: 'https://caxri-prod.vercel.app',
+                            createdAt: now - 1_000,
+                        },
+                    },
+                }),
+            ],
+        });
+        expect(tracker.observe(production('main'))).toHaveLength(1);
+        expect(tracker.observe(production('feat/merged'))).toEqual([]);
+    });
 });

@@ -271,6 +271,10 @@ export interface ProjectStatusCheck {
     state: ProjectStatusState;
     url?: string;
     durationMs?: number;
+    /**
+     * When the check settled, in epoch milliseconds.
+     */
+    completedAt?: number;
 }
 
 export interface ProjectStatusLinearIssue {
