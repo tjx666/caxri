@@ -684,12 +684,28 @@ async function skillContractTestCandidates(root: string, files: string[]): Promi
     return nested.flat();
 }
 
+/**
+ * Renderer contracts scan source files at runtime, so import-based test discovery cannot find them.
+ */
+function rendererContractTestCandidates(files: string[]): string[] {
+    if (
+        files.every((file) => !file.replaceAll('\\', '/').startsWith('apps/desktop/src/renderer/'))
+    ) {
+        return [];
+    }
+    return [
+        'apps/desktop/src/renderer/__tests__/renderer-design-contract.test.ts',
+        'apps/desktop/src/renderer/__tests__/renderer-theme-contract.test.ts',
+    ];
+}
+
 export async function selectedTestCandidates(root: string, files: string[]): Promise<string[]> {
     const candidates = [
         ...new Set([
             ...files.flatMap(testCandidatesForFile),
             ...(await directImportTestCandidates(root, files)),
             ...(await skillContractTestCandidates(root, files)),
+            ...rendererContractTestCandidates(files),
         ]),
     ];
     return existingFiles(root, candidates);
