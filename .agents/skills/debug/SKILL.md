@@ -15,6 +15,9 @@ the active repair scope when that input arrives.
    use `bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts dev` so the checkout owns
    an isolated profile and Desktop lease. Bare `bun run dev` is only a first-clone convenience for a
    human working outside an agent session.
+   For TUI interaction failures, compare the reported working app/CLI combinations, then trace one
+   failed keyboard or mouse event through xterm `onData`/`onBinary`, IPC, and PTY before assigning
+   the fault to Caxri or the CLI.
 2. Identify the owner from the `project-architecture` skill's architecture reference: Desktop Main
    for windows, dialogs, the Desktop lease, and the runtime profile; Server Core for Projects,
    Sessions, SQLite, settings, and the public command surface; Terminal Host for PTYs; Extension
