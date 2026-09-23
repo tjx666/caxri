@@ -1,6 +1,6 @@
 {
     "name": "caxri.fixture",
-    "version": "0.0.67",
+    "version": "0.0.68",
     "private": true,
     "type": "module",
     "main": "./dist/extension.js",
@@ -13,7 +13,7 @@
         "caxri": "workspace:*"
     },
     "engines": {
-        "caxri": "^0.0.67"
+        "caxri": "^0.0.68"
     },
     "caxri": {
         "capabilities": [
