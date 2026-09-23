@@ -2,6 +2,7 @@ import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protoc
 import { describe, expect, it } from 'vitest';
 
 import { agentActivityGlyph } from '../agent-activity-glyph';
+import type { AgentActivitySelectionAnchor } from '../agent-activity-rows';
 import { agentActivityGroups } from '../agent-activity-rows';
 
 const NOW = 1_000_000_000;
@@ -25,10 +26,15 @@ function session(id: string, overrides: Partial<SessionRecord> = {}): SessionRec
  * Glyphs are read off real rows rather than hand-built ones: which state a row shows depends on the group it landed in,
  * and `agentActivityGroups` is what decides that.
  */
-function glyphOf(record: SessionRecord, terminals: readonly TerminalRecord[] = []) {
+function glyphOf(
+    record: SessionRecord,
+    terminals: readonly TerminalRecord[] = [],
+    selectionAnchor?: AgentActivitySelectionAnchor,
+) {
     const groups = agentActivityGroups({
         now: NOW,
         projects: [{ displayTitle: 'alpha', id: 'alpha' } as ProjectRecord],
+        selectionAnchor,
         sessions: [record],
         terminals,
     });
@@ -107,6 +113,24 @@ describe('agentActivityGlyph', () => {
                 }),
             ),
         ).toMatchObject({ groupId: 'attention', id: 'x', toneClassName: 'text-danger' });
+    });
+
+    it('renders an anchored viewed row with its actual state and neutral tone', () => {
+        const viewed = session('viewed', {
+            attentionEpoch: 1,
+            hasUnread: false,
+            lastActivityState: 'completed',
+            lastAttentionKind: 'waiting',
+        });
+        expect(
+            glyphOf(viewed, [], {
+                agentOperation: undefined,
+                attentionEpoch: 1,
+                lastActivityState: 'completed',
+                lastSessionActivityAt: NOW,
+                sessionId: 'viewed',
+            }),
+        ).toMatchObject({ groupId: 'attention', id: 'check', toneClassName: 'text-muted' });
     });
 
     it('labels a detached Agent as handed over rather than by its frozen state', () => {

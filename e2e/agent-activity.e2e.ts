@@ -41,13 +41,22 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
     let running = await launchCaxri(launchOptions);
     try {
         await createProjectSession(running.page);
-        const initial = await pageRequest<{ selectedSessionId?: string }>(
-            running.page,
-            'app.bootstrap',
-        );
+        const initial = await pageRequest<{
+            projects: Array<{ id: string }>;
+            selectedSessionId?: string;
+        }>(running.page, 'app.bootstrap');
         if (!initial.selectedSessionId)
             throw new Error('The first Project fixture was not created');
         const sessions = new Map<string, string>([[PROJECT_NAMES[0], initial.selectedSessionId]]);
+        const stale = await pageRequest<{ session: { id: string } }>(
+            running.page,
+            'session.create',
+            {
+                defaultAgent: null,
+                projectId: initial.projects[0].id,
+            },
+        );
+        sessions.set('stale', stale.session.id);
 
         for (const [index, name] of PROJECT_NAMES.slice(1).entries()) {
             // Test folder grants are consumed in the order supplied through CAXRI_TEST_ROOT_PATHS.
@@ -110,6 +119,15 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
                  WHERE id = ?`,
             )
             .run(activityAt - 1_000, sessions.get('beta'));
+        database
+            .prepare(
+                `UPDATE sessions
+                 SET attention_epoch = 1, read_attention_epoch = 0,
+                     last_attention_kind = 'completed', last_activity_state = 'completed',
+                     last_session_activity_at = ?
+                 WHERE id = ?`,
+            )
+            .run(activityAt - 20 * 60_000, sessions.get('stale'));
         database.close();
 
         running = await launchCaxri(launchOptions);
@@ -119,8 +137,8 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
         // with the mode this test toggles.
         const activityToggle = page.locator('.primary-sidebar-activity-toggle');
         await expect(activityToggle).toHaveAttribute('aria-label', 'Show Activity');
-        // Two unread Sessions are waiting, so the toggle carries their tally before anyone opens the queue.
-        await expect(activityToggle.locator('.primary-sidebar-activity-badge')).toHaveText('2');
+        // Three unread Sessions are waiting, including a completed turn older than the retention window.
+        await expect(activityToggle.locator('.primary-sidebar-activity-badge')).toHaveText('3');
 
         /*
          * Focus a tree row first, so the toggle below has something to lose. The body that leaves is unmounted, taking
@@ -168,7 +186,7 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
                     .locator('.agent-activity-row[data-activity-group="attention"]')
                     .evaluateAll((rows) => rows.map((row) => row.dataset.sessionId)),
             )
-            .toEqual([sessions.get('alpha'), sessions.get('beta')]);
+            .toEqual([sessions.get('alpha'), sessions.get('beta'), sessions.get('stale')]);
         const betaRow = tree.locator(
             `.agent-activity-row[data-session-id="${sessions.get('beta')}"]`,
         );
@@ -275,14 +293,59 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
         });
         await page.keyboard.press('Escape');
         await expect(rowMenu).toHaveCount(0);
+        const staleRow = tree.locator(
+            `.agent-activity-row[data-session-id="${sessions.get('stale')}"]`,
+        );
+        const staleTopBeforeSelection = await staleRow.evaluate(
+            (row) => row.getBoundingClientRect().top,
+        );
+        await staleRow.click();
+        await expect.poll(() => selectedSessionId(page)).toBe(sessions.get('stale'));
+        await expect(activityToggle.locator('.primary-sidebar-activity-badge')).toHaveText('2');
+        await expect(staleRow).toHaveAttribute('data-activity-group', 'attention');
+        await expect(staleRow).toHaveAttribute('aria-selected', 'true');
+        await expect(staleRow).toHaveAttribute('aria-description', 'Viewed and read');
+        await expect(staleRow.locator('.agent-activity-glyph')).toHaveClass(/text-muted/);
+        const attentionHeading = tree.locator(
+            '.agent-activity-heading[data-activity-group="attention"]',
+        );
+        await expect(attentionHeading.locator('span').first()).toHaveText('Needs attention');
+        await expect(attentionHeading.locator('span[aria-hidden="true"]')).toHaveText('2');
+        await expect(staleRow.getByRole('button', { name: 'Mark stale work as read' })).toHaveCount(
+            0,
+        );
+        expect(await staleRow.evaluate((row) => row.getBoundingClientRect().top)).toBe(
+            staleTopBeforeSelection,
+        );
+        await page.mouse.move(800, 700);
+        await expect(page.locator('.session-activity-card')).toHaveCount(0);
+        await page.screenshot({
+            path: test.info().outputPath('activity-viewed-stale.png'),
+            mask: [page.locator('.xterm')],
+        });
+        await tree
+            .locator(`.agent-activity-row[data-session-id="${sessions.get('gamma')}"]`)
+            .click();
+        await expect(staleRow).toHaveCount(0);
+
         await alphaRow.hover();
         await page.getByRole('button', { name: 'Mark alpha work as read' }).click();
         await expect(alphaRow).toHaveAttribute('data-activity-group', 'finished');
         expect(await selectedSessionId(page)).toBe(sessions.get('gamma'));
 
+        const betaTopBeforeSelection = await betaRow.evaluate(
+            (row) => row.getBoundingClientRect().top,
+        );
         await page.mouse.move(600, 400);
         await page.keyboard.press('Meta+Shift+n');
         await expect.poll(() => selectedSessionId(page)).toBe(sessions.get('beta'));
+        await expect(activityToggle.locator('.primary-sidebar-activity-badge')).toHaveCount(0);
+        await expect(betaRow).toHaveAttribute('data-activity-group', 'attention');
+        await expect(attentionHeading.locator('span').first()).toHaveText('Viewing');
+        await expect(attentionHeading.locator('span[aria-hidden="true"]')).toHaveCount(0);
+        expect(await betaRow.evaluate((row) => row.getBoundingClientRect().top)).toBe(
+            betaTopBeforeSelection,
+        );
 
         await alphaRow.click();
         await expect.poll(() => selectedSessionId(page)).toBe(sessions.get('alpha'));

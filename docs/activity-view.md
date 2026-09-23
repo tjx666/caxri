@@ -45,6 +45,16 @@ and repeating the row glyph above its own rows would say the same thing twice.
 An empty group is not rendered. Inside a group, rows keep Session activity recency, so the newest
 event in a group is always its first row.
 
+Opening an unread Session acknowledges it immediately, but the selected row stays in its current
+place while Activity remains open and that Session is selected. This is a temporary display anchor,
+not unread state: the **Needs attention** heading and side bar badge count only actual unread
+Sessions, and the next attention command uses that same set. If the viewed row is the only one left
+there, the heading reads **Viewing** with no count. The viewed row loses its attention tint and
+mark-read action. Selecting another Session, switching to the Project tree, or leaving Activity
+releases the anchor; the row then takes its current group or leaves the list if it is no longer
+recent. A new Agent activity or attention generation also releases the anchor so live work is not
+frozen in an old group.
+
 Detaching an Agent hands it to another client and stops its Terminal; it does not update the
 Session's last Agent Activity, which stays frozen at whatever the final probe recorded. A detached
 Session is therefore read as quiet rather than by that frozen value — otherwise one detached
@@ -64,6 +74,8 @@ A finished Session stays listed for 15 minutes after its last activity
 would grow into a permanent archive of every Session that ever completed, and the queue would stop
 being readable at a glance. A **Failed** Session is deliberately exempt: nothing else will clear it,
 so ageing it out would silently lose the only place that failure is reported.
+The currently viewed row stays visible even after this window expires; it leaves when the user
+switches away, not while they are reading it.
 
 `useAgentActivityClock` subscribes to the same 30-second window clock the relative-time labels use
 rather than starting a second timer, so a row's "12m ago" and the window that label is about
@@ -134,7 +146,7 @@ over them.
 
 | Input                   | Result                                                         |
 | ----------------------- | -------------------------------------------------------------- |
-| Click, `Enter`, `Space` | Select that Session                                            |
+| Click, `Enter`, `Space` | Select that Session; keep a newly viewed row in place          |
 | `Up` / `Down`           | Move between Session rows, skipping headings                   |
 | `Home` / `End`          | First / last Session row                                       |
 | `Delete` / `Backspace`  | Mark the row read, clearing its reminder without opening it    |
