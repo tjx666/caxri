@@ -2,10 +2,12 @@ import { Buffer } from 'node:buffer';
 import type { Dir } from 'node:fs';
 import type * as FsPromises from 'node:fs/promises';
 import {
+    chmod,
     lstat,
     mkdir,
     mkdtemp,
     open,
+    opendir,
     readFile,
     realpath,
     rename,
@@ -71,6 +73,148 @@ afterEach(async () => {
 });
 
 describe('FileService', () => {
+    it('keeps a child directory listed when its permissions change after opening the parent', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-files-list-child-mode-'));
+        temporaryDirectories.push(directory);
+        const root = join(directory, 'project');
+        const child = join(root, 'volatile');
+        await mkdir(child, { recursive: true });
+        const canonicalRoot = await realpath(root);
+        const logger = createLogger(join(directory, 'logs'));
+        const listing = new ListingService(
+            () => Promise.resolve({ path: canonicalRoot, root: canonicalRoot }),
+            logger,
+            () => ({}),
+            undefined,
+            undefined,
+            undefined,
+            async (path) => {
+                const handle = await opendir(path);
+                await chmod(child, 0o000);
+                return handle;
+            },
+        );
+
+        try {
+            const result = await listing.listDirectory('session');
+            await logger.flush();
+            const records = (await readFile(logger.path, 'utf8'))
+                .trim()
+                .split('\n')
+                .map(
+                    (line) =>
+                        JSON.parse(line) as { event: string; fields?: Record<string, unknown> },
+                );
+            const listRecord = records.find((record) => record.event === 'file.list');
+            const stats = await lstat(canonicalRoot);
+
+            expect(result.entries.map((entry) => entry.name)).toEqual(['volatile']);
+            expect(result.truncated).toBe(false);
+            expect(listRecord?.fields).toMatchObject({
+                path: '.',
+                entryCount: 1,
+                device: stats.dev,
+                inode: stats.ino,
+            });
+        } finally {
+            await chmod(child, 0o700);
+        }
+    });
+
+    it('verifies a false root EOF and keeps the child visible with the resolved directory identity', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-files-list-false-eof-'));
+        temporaryDirectories.push(directory);
+        const root = join(directory, 'project');
+        await mkdir(join(root, 'volatile'), { recursive: true });
+        const canonicalRoot = await realpath(root);
+        const logger = createLogger(join(directory, 'logs'));
+        let openCount = 0;
+        const listing = new ListingService(
+            () => Promise.resolve({ path: canonicalRoot, root: canonicalRoot }),
+            logger,
+            () => ({}),
+            undefined,
+            undefined,
+            undefined,
+            (path) => {
+                openCount += 1;
+                return openCount === 1
+                    ? Promise.resolve({
+                          close: () => Promise.resolve(),
+                          read: () => Promise.resolve(null),
+                      } as unknown as Dir)
+                    : opendir(path);
+            },
+        );
+
+        const result = await listing.listDirectory('session');
+        await logger.flush();
+        const records = (await readFile(logger.path, 'utf8'))
+            .trim()
+            .split('\n')
+            .map(
+                (line) =>
+                    JSON.parse(line) as {
+                        event: string;
+                        fields?: Record<string, unknown>;
+                    },
+            );
+        const listRecord = records.find((record) => record.event === 'file.list');
+        const stats = await lstat(canonicalRoot);
+
+        expect(openCount).toBe(2);
+        expect(result.entries.map((entry) => entry.name)).toEqual(['volatile']);
+        expect(listRecord?.fields).toMatchObject({
+            path: '.',
+            entryCount: 1,
+            scannedEntries: 1,
+            device: stats.dev,
+            inode: stats.ino,
+            initialScannedEntries: 0,
+            verificationScannedEntries: 1,
+        });
+    });
+
+    it('records the resolved directory identity when both root scans are empty', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-files-list-empty-root-'));
+        temporaryDirectories.push(directory);
+        const root = join(directory, 'project');
+        await mkdir(root);
+        const canonicalRoot = await realpath(root);
+        const logger = createLogger(join(directory, 'logs'));
+        const listing = new ListingService(
+            () => Promise.resolve({ path: canonicalRoot, root: canonicalRoot }),
+            logger,
+            () => ({}),
+        );
+
+        const result = await listing.listDirectory('session');
+        await logger.flush();
+        const records = (await readFile(logger.path, 'utf8'))
+            .trim()
+            .split('\n')
+            .map(
+                (line) =>
+                    JSON.parse(line) as {
+                        event: string;
+                        fields?: Record<string, unknown>;
+                    },
+            );
+        const listRecord = records.find((record) => record.event === 'file.list');
+        const stats = await lstat(canonicalRoot);
+
+        expect(result.entries).toEqual([]);
+        expect(listRecord?.fields).toMatchObject({
+            path: '.',
+            entryCount: 0,
+            scannedEntries: 0,
+            device: stats.dev,
+            inode: stats.ino,
+            initialScannedEntries: 0,
+            verificationScannedEntries: 0,
+        });
+    });
+
     it('cancels one directory-list waiter without aborting a joined request', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-files-list-cancel-'));
         temporaryDirectories.push(directory);
