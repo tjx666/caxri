@@ -30,6 +30,7 @@ import { loadOverviewAcceptances, loadPullRequestAcceptances } from './project-s
 import { ProjectStatusAlertTracker } from './project-status-alerts';
 import type { BranchPublicationContext } from './project-status-branch';
 import { prepareStatusRepo, readBranchPublication } from './project-status-branch';
+import { carryOverDelivery } from './project-status-carry-over';
 import { projectStatusCliError } from './project-status-external';
 import { loadOverviewLinearIssues, loadPullRequestLinearIssues } from './project-status-linear';
 import {
@@ -677,15 +678,32 @@ export class ProjectStatusService {
             this.summaries.delete(sessionId);
             return prepared.summary;
         }
-        let cached = this.summaries.get(sessionId);
-        if (cached?.fingerprint !== prepared.fingerprint) {
-            cached = { expiresAt: 0, fingerprint: prepared.fingerprint, refreshToken };
-            this.rememberSummary(sessionId, cached);
-        }
+        const previous = this.summaries.get(sessionId);
+        let cached: SummaryCacheEntry =
+            previous?.fingerprint === prepared.fingerprint
+                ? previous
+                : {
+                      expiresAt: 0,
+                      fingerprint: prepared.fingerprint,
+                      refreshToken,
+                      value: carryOverDelivery(
+                          prepared.repositories,
+                          prepared.summary,
+                          previous?.value,
+                      ),
+                  };
+        const isFingerprintChanged = cached !== previous;
         const isForceRefresh = refreshToken !== undefined && cached.refreshToken !== refreshToken;
         if (isForceRefresh) cached = { ...cached, refreshToken };
         this.rememberSummary(sessionId, cached);
-        const source = cached.value ? (cached.expiresAt > this.now() ? 'fresh' : 'stale') : 'local';
+        /**
+         * `carried` marks a fingerprint change answered from the previous entry's delivery status (see
+         * `carryOverDelivery`), so how often a background HEAD move is absorbed stays measurable apart from TTL
+         * expiry.
+         */
+        let source: 'carried' | 'fresh' | 'local' | 'stale' = 'local';
+        if (isFingerprintChanged && cached.value) source = 'carried';
+        else if (cached.value) source = cached.expiresAt > this.now() ? 'fresh' : 'stale';
         if (isForceRefresh) await this.refreshSummary(sessionId, prepared, sessionGeneration, true);
         else if (source !== 'fresh') {
             // The cache event owns UI convergence for automatic stale-while-revalidate loads.
