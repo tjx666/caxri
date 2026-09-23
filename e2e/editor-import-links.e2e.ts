@@ -2,8 +2,21 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { Page } from '@playwright/test';
+
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri } from './support/helpers.ts';
+
+/**
+ * The editor showing a Session document.
+ *
+ * Once the workbench goes idle, `warmMonacoEditor` mounts a disposable off-screen editor for `caxri://warmup/editor.js`
+ * (`apps/desktop/src/renderer/src/lib/monaco.ts`). A bare `.monaco-editor` locator then matches two elements and fails
+ * Playwright's strict mode, so every lookup here is pinned to the Session's document editor.
+ */
+function documentEditor(page: Page) {
+    return page.locator('.monaco-editor[data-uri^="caxri://session/"]');
+}
 
 test('Editor import links use each package tsconfig and inherited aliases', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-editor-imports-e2e-'));
@@ -36,8 +49,8 @@ test('Editor import links use each package tsconfig and inherited aliases', asyn
         const files = page.getByRole('tree', { name: 'Files', exact: true });
         await files.getByRole('treeitem', { name: 'one', exact: true }).click();
         await files.getByRole('treeitem', { name: 'first.ts', exact: true }).click();
-        const importLink = page
-            .locator('.monaco-editor .detected-link')
+        const importLink = documentEditor(page)
+            .locator('.detected-link')
             .filter({ hasText: '@/value' });
         await expect(importLink).toBeVisible();
         await importLink.click({ modifiers: ['Meta'] });
@@ -47,7 +60,7 @@ test('Editor import links use each package tsconfig and inherited aliases', asyn
                 exact: true,
             }),
         ).toBeVisible();
-        await expect(page.locator('.monaco-editor .view-lines')).toContainText('shared-source');
+        await expect(documentEditor(page).locator('.view-lines')).toContainText('shared-source');
         await page.screenshot({ path: test.info().outputPath('inherited-alias.png') });
         await files.getByRole('treeitem', { name: 'two', exact: true }).click();
         await files.getByRole('treeitem', { name: 'second.ts', exact: true }).click();
@@ -56,7 +69,7 @@ test('Editor import links use each package tsconfig and inherited aliases', asyn
         await expect(
             page.getByRole('navigation', { name: 'File breadcrumbs: two/value.ts', exact: true }),
         ).toBeVisible();
-        await expect(page.locator('.monaco-editor .view-lines')).toContainText('package-source');
+        await expect(documentEditor(page).locator('.view-lines')).toContainText('package-source');
         await page.screenshot({ path: test.info().outputPath('nearest-alias.png') });
         await files.getByRole('treeitem', { name: 'second.ts', exact: true }).click();
         await expect(importLink).toBeVisible();
@@ -71,7 +84,7 @@ test('Editor import links use each package tsconfig and inherited aliases', asyn
                 exact: true,
             }),
         ).toBeVisible();
-        await expect(page.locator('.monaco-editor .view-lines')).toContainText('shared-source');
+        await expect(documentEditor(page).locator('.view-lines')).toContainText('shared-source');
     } finally {
         await running.app.close();
         await rm(directory, { recursive: true, force: true });
@@ -115,8 +128,8 @@ test('Editor package imports open linked declarations read-only and restore that
             .getByRole('tree', { name: 'Files', exact: true })
             .getByRole('treeitem', { name: 'main.ts', exact: true })
             .click();
-        await page
-            .locator('.monaco-editor .detected-link')
+        await documentEditor(page)
+            .locator('.detected-link')
             .filter({ hasText: /^fixture-dep$/u })
             .click({ modifiers: ['Meta'] });
         await expect(
@@ -126,31 +139,31 @@ test('Editor package imports open linked declarations read-only and restore that
             }),
         ).toBeVisible();
         await expect(page.getByText('Read-only', { exact: true })).toBeVisible();
-        await page.locator('.monaco-editor').click({ position: { x: 120, y: 24 } });
+        await documentEditor(page).click({ position: { x: 120, y: 24 } });
         await page.keyboard.type('replacement');
         await page.keyboard.press('Meta+s');
-        await expect(page.locator('.monaco-editor .view-lines')).not.toContainText('replacement');
+        await expect(documentEditor(page).locator('.view-lines')).not.toContainText('replacement');
         expect(await readFile(join(store, 'index.d.ts'), 'utf8')).toBe(declaration);
         await page.screenshot({ path: test.info().outputPath('dependency-read-only.png') });
         await running.app.close();
         running = await launchCaxri({ userDataDir: userDataDirectory, testRootPath: root });
         page = running.page;
         await expect(page.getByText('Read-only', { exact: true })).toBeVisible();
-        await page.locator('.monaco-editor').click({ position: { x: 120, y: 24 } });
+        await documentEditor(page).click({ position: { x: 120, y: 24 } });
         await page.keyboard.type('replacement');
-        await expect(page.locator('.monaco-editor .view-lines')).not.toContainText('replacement');
+        await expect(documentEditor(page).locator('.view-lines')).not.toContainText('replacement');
         const files = page.getByRole('tree', { name: 'Files', exact: true });
         await files.getByRole('treeitem', { name: 'main.ts', exact: true }).click();
         await expect(page.getByText('Read-only', { exact: true })).toHaveCount(0);
-        await page.locator('.monaco-editor').click({ position: { x: 120, y: 24 } });
+        await documentEditor(page).click({ position: { x: 120, y: 24 } });
         await page.keyboard.press('Meta+End');
         await page.keyboard.type('\n// editable-source');
         await page.keyboard.press('Meta+s');
         await expect
             .poll(() => readFile(join(root, 'main.ts'), 'utf8'))
             .toContain('editable-source');
-        await page
-            .locator('.monaco-editor .detected-link')
+        await documentEditor(page)
+            .locator('.detected-link')
             .filter({ hasText: /^fixture-dep\/feature$/u })
             .click({ modifiers: ['Meta'] });
         await expect(
@@ -159,7 +172,7 @@ test('Editor package imports open linked declarations read-only and restore that
                 exact: true,
             }),
         ).toBeVisible();
-        await expect(page.locator('.monaco-editor .view-lines')).toContainText('feature-type');
+        await expect(documentEditor(page).locator('.view-lines')).toContainText('feature-type');
         await expect(page.getByText('Read-only', { exact: true })).toBeVisible();
     } finally {
         await running.app.close();
