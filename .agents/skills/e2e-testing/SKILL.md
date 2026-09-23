@@ -106,6 +106,8 @@ evidence rather than automated test or Acceptance evidence.
   Wait for that marker before sending bytes; never use a sleep as readiness.
 - For Terminal resizing, wait for repeated identical guest/Runtime grid observations and compare
   them with the rendered xterm grid. Extra intermediate `SIGWINCH` values are valid.
+- Place cursor-addressed fixture text inside the smallest grid used by the test. Assert it immediately
+  after a viewport shrink before attributing later missing text to Session restore.
 - Treat only an expected transient filesystem `ENOENT` as pending. Propagate permission, malformed
   data, and other IO errors immediately.
 - An `expect.poll` callback must return a pending sentinel for an expected transient state instead
