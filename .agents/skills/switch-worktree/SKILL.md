@@ -140,10 +140,10 @@ and build outputs remain local. Vite owns Renderer port selection.
 bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts stop
 ```
 
-Stops the recorded `dev` launcher with its whole subtree — including the `Caxri Dev` window process,
-which reports the app name rather than a path — plus anything still executing out of this worktree
-after an interrupted run, such as a detached Server Core or a Playwright Electron. SIGTERM first,
-SIGKILL only for survivors, and a non-zero exit if anything outlives both.
+Stops the recorded `dev` launcher with its whole subtree, plus anything still executing out of this
+worktree after an interrupted run. An orphaned `Caxri Dev` main process is selected only when a
+worktree-owned child and its exact cwd confirm ownership. SIGTERM comes first, SIGKILL only for
+survivors; a final process scan fails if a child was restarted or ownership could not be confirmed.
 
 Never substitute a name or bundle match. `pkill -f "Caxri.app"` matches `/Applications/Caxri.app`
 and has already terminated the installed app mid-session; `pkill -f Electron` matches every Electron

@@ -1,16 +1,20 @@
+import { createHash } from 'node:crypto';
 import process from 'node:process';
 import { setTimeout as sleep } from 'node:timers/promises';
 
-import { runCapture } from './process';
+import { getProcessIdentity, runCapture } from './process';
 
 export interface ProcessEntry {
     command: string;
+    identity?: string;
     parentPid: number;
     pid: number;
 }
 
 export interface StopOperations {
     list: () => Promise<ProcessEntry[]>;
+    cwd: (pid: number) => Promise<string | undefined>;
+    identity: (pid: number) => Promise<string | undefined>;
     signalProcess: (pid: number, signal: NodeJS.Signals) => void;
     wait: (milliseconds: number) => Promise<unknown>;
 }
@@ -20,17 +24,24 @@ const TERMINATION_WAIT_MS = 5000;
 const FORCE_WAIT_MS = 2000;
 
 /**
- * Parses `ps -axo pid=,ppid=,command=`. Command lines keep their spaces — macOS helper executables live under paths
- * like `Electron Helper (Renderer).app` — so only the two leading numeric columns are split off.
+ * Parses the process table with an optional start-time identity captured by the same `ps` invocation. Command lines
+ * keep their spaces, so the fixed numeric and start-time columns are split off first.
  */
-export function parseProcessTable(stdout: string): ProcessEntry[] {
+export function parseProcessTable(stdout: string, hasIdentity = false): ProcessEntry[] {
     return stdout.split('\n').flatMap((line) => {
-        const match = /^\s*(?<pid>\d+)\s+(?<parentPid>\d+)\s+(?<command>\S.*)$/u.exec(line);
+        const match = (
+            hasIdentity
+                ? /^\s*(?<pid>\d+)\s+(?<parentPid>\d+)\s+(?<identityText>[A-Za-z]{3}\s+[A-Za-z]{3}\s+\d{1,2}\s+\d\d:\d\d:\d\d\s+\d{4}\s+(?<command>\S.*))$/u
+                : /^\s*(?<pid>\d+)\s+(?<parentPid>\d+)\s+(?<command>\S.*)$/u
+        ).exec(line);
         const groups = match?.groups;
         if (!groups?.command) return [];
         return [
             {
                 command: groups.command,
+                ...(groups.identityText && {
+                    identity: createHash('sha256').update(groups.identityText).digest('hex'),
+                }),
                 parentPid: Number(groups.parentPid),
                 pid: Number(groups.pid),
             },
@@ -109,11 +120,13 @@ function descendantProcessIds(
 export function worktreeProcessesToStop({
     entries,
     launcherPid,
+    orphanMainPids = [],
     selfPid,
     worktreePath,
 }: {
     entries: readonly ProcessEntry[];
     launcherPid?: number;
+    orphanMainPids?: readonly number[];
     selfPid: number;
     worktreePath: string;
 }): ProcessEntry[] {
@@ -128,18 +141,73 @@ export function worktreeProcessesToStop({
             )
             .map((entry) => entry.pid),
     );
+    for (const pid of orphanMainPids) if (!protectedIds.has(pid)) seeds.add(pid);
     const targets = new Set([...seeds, ...descendantProcessIds(entries, seeds)]);
     return entries.filter((entry) => targets.has(entry.pid) && !protectedIds.has(entry.pid));
 }
 
+/**
+ * Only a worktree-owned child can nominate an orphaned dev window, and its cwd must confirm the exact checkout.
+ */
+async function orphanedMainProcesses(
+    entries: readonly ProcessEntry[],
+    worktreePath: string,
+    operations: StopOperations,
+): Promise<{ verified: number[]; unresolved: number[] }> {
+    const byPid = new Map(entries.map((entry) => [entry.pid, entry]));
+    const candidates = new Map(
+        entries
+            .filter((entry) => isWorktreeOwnedCommand(entry.command, worktreePath))
+            .map((entry) => byPid.get(entry.parentPid))
+            .filter((parent) => parent?.parentPid === 1 && parent.command === 'Caxri Dev')
+            .map((parent) => [parent!.pid, parent!] as const),
+    );
+    const verified: number[] = [];
+    const unresolved: number[] = [];
+    for (const [pid, candidate] of candidates) {
+        // eslint-disable-next-line no-await-in-loop -- bounded candidate set; identity and cwd are checked before signaling.
+        const identity = await operations.identity(pid);
+        // eslint-disable-next-line no-await-in-loop -- an orphan is not owned until its cwd is confirmed.
+        const cwd = await operations.cwd(pid);
+        // eslint-disable-next-line no-await-in-loop -- detect PID reuse during the cwd lookup.
+        const currentIdentity = await operations.identity(pid);
+        const isSameProcess = Boolean(
+            candidate.identity &&
+            identity === candidate.identity &&
+            // eslint-disable-next-line unicorn/prefer-simple-condition-first -- compare the initial snapshot before the final identity read.
+            currentIdentity === identity,
+        );
+        if (isSameProcess && cwd === worktreePath) verified.push(pid);
+        else if (!isSameProcess || cwd === undefined) unresolved.push(pid);
+    }
+    return { verified, unresolved };
+}
+
 async function listProcesses(): Promise<ProcessEntry[]> {
     return parseProcessTable(
-        await runCapture('ps', ['-axo', 'pid=,ppid=,command='], process.cwd()),
+        await runCapture('ps', ['-ww', '-axo', 'pid=,ppid=,lstart=,command='], process.cwd()),
+        true,
     );
 }
 
 export const defaultStopOperations: StopOperations = {
     list: listProcesses,
+    identity: getProcessIdentity,
+    cwd: async (pid) => {
+        try {
+            const output = await runCapture(
+                'lsof',
+                ['-a', '-p', String(pid), '-d', 'cwd', '-Fn'],
+                process.cwd(),
+            );
+            return output
+                .split('\n')
+                .find((line) => line.startsWith('n'))
+                ?.slice(1);
+        } catch {
+            return;
+        }
+    },
     signalProcess: (pid, signal) => {
         try {
             process.kill(pid, signal);
@@ -153,6 +221,22 @@ export const defaultStopOperations: StopOperations = {
 export interface StopProcessesResult {
     stopped: ProcessEntry[];
     survivors: ProcessEntry[];
+}
+
+/**
+ * Read-only ownership snapshot used by stop and by worktree removal's live-profile guard.
+ */
+export async function inspectWorktreeProcesses(
+    input: { launcherPid?: number; selfPid: number; worktreePath: string },
+    operations: StopOperations = defaultStopOperations,
+): Promise<{ entries: ProcessEntry[]; owned: ProcessEntry[]; unresolved: ProcessEntry[] }> {
+    const entries = await operations.list();
+    const orphaned = await orphanedMainProcesses(entries, input.worktreePath, operations);
+    return {
+        entries,
+        owned: worktreeProcessesToStop({ entries, ...input, orphanMainPids: orphaned.verified }),
+        unresolved: entries.filter((entry) => orphaned.unresolved.includes(entry.pid)),
+    };
 }
 
 async function survivingTargets(
@@ -192,5 +276,33 @@ export async function stopProcesses(
     return {
         stopped: targets.filter((entry) => remaining.every((alive) => alive.pid !== entry.pid)),
         survivors: remaining,
+    };
+}
+
+/**
+ * Re-enumerates ownership after shutdown so a restarted child cannot turn a failed stop into a success report.
+ */
+export async function stopWorktreeProcesses(
+    input: { launcherPid?: number; selfPid: number; worktreePath: string },
+    operations: StopOperations = defaultStopOperations,
+): Promise<StopProcessesResult> {
+    const initial = await inspectWorktreeProcesses(input, operations);
+    const targets = initial.owned;
+    const result = await stopProcesses(targets, operations);
+    if (targets.length > 0) await operations.wait(TERMINATION_POLL_MS);
+    const final = await inspectWorktreeProcesses(input, operations);
+    const survivors = new Map(
+        [
+            ...result.survivors,
+            ...final.owned,
+            ...initial.unresolved.filter((entry) =>
+                final.entries.some((current) => current.pid === entry.pid),
+            ),
+            ...final.unresolved,
+        ].map((entry) => [entry.pid, entry]),
+    );
+    return {
+        stopped: result.stopped.filter((entry) => !survivors.has(entry.pid)),
+        survivors: survivors.values().toArray(),
     };
 }

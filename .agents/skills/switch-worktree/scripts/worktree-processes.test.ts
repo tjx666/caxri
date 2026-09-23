@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ProcessEntry, StopOperations } from './worktree-processes';
@@ -5,6 +7,7 @@ import {
     isWorktreeOwnedCommand,
     parseProcessTable,
     stopProcesses,
+    stopWorktreeProcesses,
     worktreeProcessesToStop,
 } from './worktree-processes';
 
@@ -57,6 +60,18 @@ describe('worktree process ownership', () => {
         });
     });
 
+    it('captures start time and command as the process identity in the same listing', () => {
+        const identityText = 'Thu Sep 24 00:00:00 2026     Caxri Dev';
+        expect(parseProcessTable(`  801     1 ${identityText}`, true)).toEqual([
+            {
+                command: 'Caxri Dev',
+                identity: createHash('sha256').update(identityText).digest('hex'),
+                parentPid: 1,
+                pid: 801,
+            },
+        ]);
+    });
+
     it('never claims the installed application, another Electron app, or a sibling worktree', () => {
         for (const pid of [501, 502, 503, 504]) expect(stoppedIds(599)).not.toContain(pid);
     });
@@ -76,6 +91,45 @@ describe('worktree process ownership', () => {
         expect(stoppedIds()).not.toContain(599);
         expect(stoppedIds(599)).toContain(599);
         expect(stoppedIds(599)).toContain(601);
+    });
+
+    it('reaches an orphaned dev main process only after verifying its worktree cwd', async () => {
+        const orphaned = parseProcessTable(
+            [
+                '  801     1 Caxri Dev',
+                `  802   801 ${WORKTREE}/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper --type=renderer`,
+                `  803   801 /opt/homebrew/bin/node ${WORKTREE}/apps/server/dist/server/bundles/server-core.js`,
+                `  700     1 /bin/zsh -lc cd ${WORKTREE} && bun run stop`,
+                `  701   700 /Users/me/.bun/bin/bun run ${WORKTREE}/.agents/skills/switch-worktree/scripts/switch-worktree.ts stop`,
+            ].join('\n'),
+        ).map((entry) => (entry.pid === 801 ? { ...entry, identity: 'orphan-start' } : entry));
+
+        const stop: StopOperations & { signals: number[] } = {
+            cwd: (pid) => Promise.resolve(pid === 801 ? WORKTREE : undefined),
+            identity: (pid) => Promise.resolve(pid === 801 ? 'orphan-start' : undefined),
+            list: () => Promise.resolve(orphaned),
+            signalProcess: (pid) => stop.signals.push(pid),
+            signals: [],
+            wait: () => Promise.resolve(),
+        };
+
+        await stopWorktreeProcesses({ selfPid: 701, worktreePath: WORKTREE }, stop);
+        expect(stop.signals).toContain(801);
+        expect(stop.signals).not.toContain(700);
+        expect(stop.signals).not.toContain(701);
+
+        stop.signals.length = 0;
+        stop.cwd = () => Promise.resolve('/Applications/Caxri.app');
+        await stopWorktreeProcesses({ selfPid: 701, worktreePath: WORKTREE }, stop);
+        expect(stop.signals).not.toContain(801);
+
+        stop.signals.length = 0;
+        stop.cwd = () => Promise.resolve(WORKTREE);
+        let identityReads = 0;
+        stop.identity = () => Promise.resolve(`generation-${++identityReads}`);
+        const reused = await stopWorktreeProcesses({ selfPid: 701, worktreePath: WORKTREE }, stop);
+        expect(stop.signals).not.toContain(801);
+        expect(reused.survivors.map(({ pid }) => pid)).toContain(801);
     });
 
     it('never signals the shell or the bun process running the stop command itself', () => {
@@ -118,6 +172,8 @@ describe('stopping owned processes', () => {
         const signals: Array<[number, NodeJS.Signals]> = [];
         let round = 0;
         return {
+            cwd: () => Promise.resolve(undefined),
+            identity: () => Promise.resolve(undefined),
             list: () => {
                 round += 1;
                 return Promise.resolve(alive(round));
@@ -154,5 +210,23 @@ describe('stopping owned processes', () => {
 
         expect(stop.signals).toEqual([]);
         expect(list).not.toHaveBeenCalled();
+    });
+
+    it('reports a replacement PID spawned after the original target exited', async () => {
+        const original = {
+            pid: 900,
+            parentPid: 1,
+            command: `${WORKTREE}/apps/server/dist/server-core.js`,
+        };
+        const replacement = { ...original, pid: 901 };
+        const stop = operations((round) =>
+            round === 1 ? [original] : round === 2 ? [] : [replacement],
+        );
+
+        const result = await stopWorktreeProcesses({ selfPid: 701, worktreePath: WORKTREE }, stop);
+
+        expect(stop.signals).toEqual([[900, 'SIGTERM']]);
+        expect(result.stopped.map(({ pid }) => pid)).toEqual([900]);
+        expect(result.survivors.map(({ pid }) => pid)).toEqual([901]);
     });
 });
