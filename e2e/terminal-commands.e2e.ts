@@ -354,7 +354,17 @@ test('zsh command boundaries survive scrollback, split resize, Session switches,
 
         await pressNewTerminal(running.page);
         const secondTerminalId = await waitForNewTerminalId(running.page, [firstTerminalId]);
+        const secondSurface = terminalSurface(running.page, secondTerminalId);
+        await expect(secondSurface).toHaveAttribute('data-terminal-attached', 'true');
+        await expectCommandState(secondSurface, { commandCount: 0, completedCount: 0 });
+        /**
+         * A new Terminal can exist in Server state and the tab bar before React switches the active pane. Splitting at
+         * that point preserves the first Terminal's mounted tracker, so its two observed commands correctly remain
+         * visible. Wait for its actual unmount before asserting that a later remount starts with no OSC history.
+         */
+        await expect(firstSurface).toHaveCount(0);
         await splitTerminalToRight(running.page, secondTerminalId);
+        await expectCommandState(secondSurface, { commandCount: 0, completedCount: 0 });
         await expect(terminalSurface(running.page, firstTerminalId)).toBeVisible();
         /**
          * A parsed attach snapshot cannot prove historical OSC boundaries. The remounted tracker must start empty
@@ -415,7 +425,14 @@ test('zsh command boundaries survive scrollback, split resize, Session switches,
             lastExitStatus: 0,
         });
 
+        await running.page.evaluate(() => {
+            document.documentElement.dataset.terminalCommandPreReload = 'true';
+        });
         await running.page.reload();
+        await expect(running.page.locator('html')).not.toHaveAttribute(
+            'data-terminal-command-pre-reload',
+            'true',
+        );
         await expect(terminalSurface(running.page, firstTerminalId)).toHaveAttribute(
             'data-terminal-attached',
             'true',
