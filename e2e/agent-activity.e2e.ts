@@ -329,7 +329,28 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
         await expect(staleRow).toHaveCount(0);
 
         await alphaRow.hover();
-        await page.getByRole('button', { name: 'Mark alpha work as read' }).click();
+        const markAlphaRead = page.getByRole('button', { name: 'Mark alpha work as read' });
+        await expect(markAlphaRead).toBeVisible();
+        /*
+         * The row's trailing actions are centered on the whole two-line row rather than pinned beside the title, so
+         * they read as belonging to the Session instead of floating in its top-right corner.
+         */
+        const [alphaRowBox, markAlphaReadBox] = await Promise.all([
+            alphaRow.boundingBox(),
+            markAlphaRead.boundingBox(),
+        ]);
+        expect(
+            Math.abs(
+                alphaRowBox!.y +
+                    alphaRowBox!.height / 2 -
+                    (markAlphaReadBox!.y + markAlphaReadBox!.height / 2),
+            ),
+        ).toBeLessThanOrEqual(1);
+        await page.screenshot({
+            path: test.info().outputPath('activity-mark-read-hover.png'),
+            mask: [page.locator('.xterm')],
+        });
+        await markAlphaRead.click();
         await expect(alphaRow).toHaveAttribute('data-activity-group', 'finished');
         expect(await selectedSessionId(page)).toBe(sessions.get('gamma'));
 

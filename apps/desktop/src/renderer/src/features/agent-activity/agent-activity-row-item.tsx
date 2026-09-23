@@ -149,26 +149,9 @@ export function AgentActivityRowItem({
                  * routinely long — "Rate limiter for /v1/search" against a Project name that is usually one short word
                  * — so at the Primary Side Bar's 230px default it was the one truncating while a Project name and a
                  * time sat beside it with room to spare.
-                 *
-                 * The pull request glyph ends this line, in the same right-edge 14px slot a Project tree row gives it. An
-                 * unread row's mark-read button is positioned over that slot, so the slot is reserved whenever either
-                 * can appear and the title never reflows under the pointer; the glyph hides while the button shows.
                  */}
-                <span className="flex min-w-0 items-center gap-2">
-                    <span className="min-w-0 flex-1 truncate text-xs text-foreground">
-                        {session.displayTitle}
-                    </span>
-                    {(visiblePullRequest !== undefined || canMarkRead) && (
-                        <span className="agent-activity-trailing flex w-5 flex-none justify-end">
-                            <SessionPullRequestIndicator
-                                className={cn(
-                                    canMarkRead &&
-                                        'transition-opacity group-hover/activity-row:opacity-0',
-                                )}
-                                pullRequest={visiblePullRequest}
-                            />
-                        </span>
-                    )}
+                <span className="min-w-0 truncate text-xs text-foreground">
+                    {session.displayTitle}
                 </span>
                 <span className="agent-activity-metadata flex h-4 min-w-0 flex-wrap items-start gap-x-1.5 overflow-hidden text-[11px] leading-4 text-muted">
                     {/*
@@ -203,6 +186,23 @@ export function AgentActivityRowItem({
                     )}
                 </span>
             </span>
+            {/*
+             * The pull request glyph sits in a right-edge slot centered on the whole two-line row, not on the title
+             * line: pinned to the title it floated in the top-right corner, detached from the metadata it describes.
+             * Only a pull request reserves the slot. The mark-read button overlays the right edge instead, because a
+             * slot reserved for a hover-only action would cost every unread row the width its Project name needs at
+             * the side bar's minimum width.
+             */}
+            {visiblePullRequest !== undefined && (
+                <span className="agent-activity-trailing flex w-5 flex-none justify-end">
+                    <SessionPullRequestIndicator
+                        className={cn(
+                            canMarkRead && 'transition-opacity group-hover/activity-row:opacity-0',
+                        )}
+                        pullRequest={visiblePullRequest}
+                    />
+                </span>
+            )}
         </div>
     );
     return (
@@ -236,7 +236,7 @@ export function AgentActivityRowItem({
                      */
                     <button
                         aria-label={`Mark ${session.displayTitle} as read`}
-                        className="agent-activity-mark-read absolute top-1 right-1.5 rounded p-1 text-muted opacity-0 group-hover/activity-row:opacity-100 hover:bg-elevated hover:text-foreground focus-visible:opacity-100"
+                        className="agent-activity-mark-read absolute top-1/2 right-1 -translate-y-1/2 rounded bg-elevated p-1 text-muted opacity-0 group-hover/activity-row:opacity-100 hover:text-foreground focus-visible:opacity-100"
                         tabIndex={-1}
                         type="button"
                         onClick={(event) => {
