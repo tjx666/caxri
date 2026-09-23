@@ -18,8 +18,8 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [-
 - Iterate with the narrowest owning test, then run one changed-file check after the cohesive source
   batch is complete. Re-run only gates invalidated by later edits.
 - With no selector, run lint and related tests.
-- With no file arguments, inspect staged, unstaged, and untracked files. `--staged` narrows this to
-  the index.
+- With no file arguments, inspect committed changes since the `origin/main` merge base plus staged,
+  unstaged, and untracked files. `--staged` narrows this to the index.
 - Explicit files take priority over Git discovery.
 - `--lint` applies ESLint, oxlint type-aware (`.oxlintrc.json`, TS files only), and Prettier fixes
   to supported files. Always inspect the resulting diff. Appending file paths to `bun run format`
