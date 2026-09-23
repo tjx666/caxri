@@ -158,7 +158,7 @@ describe('agentActivityGroups', () => {
 
     it('names each row with its owning Project', () => {
         const groups = groupsOf([session('one', { hasUnread: true, projectId: 'beta' })]);
-        expect(groups[0].rows[0].projectName).toBe('beta');
+        expect(groups[0].rows[0].project.displayTitle).toBe('beta');
     });
 });
 

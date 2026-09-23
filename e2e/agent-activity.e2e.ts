@@ -219,8 +219,12 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
             }),
         ).toBe(true);
         await expect(tree.locator('[tabindex="0"]')).toHaveCount(1);
+        /*
+         * The row wears the Project tree's Session hover card, which names the full Project — the only place a
+         * truncated one can still be read in full, now that the row has no tooltip competing with the card.
+         */
         await betaRow.locator('.agent-activity-project').hover();
-        await expect(page.locator('.tooltip-popup[data-open]')).toHaveText('web-client-platform');
+        await expect(page.locator('.session-activity-card')).toContainText('web-client-platform');
         await page.screenshot({
             path: test.info().outputPath('activity-narrow-project.png'),
             mask: [page.locator('.xterm')],
@@ -234,7 +238,7 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
             true,
         );
         await alphaProject.hover();
-        await expect(page.locator('.tooltip-popup[data-open]')).toHaveText(
+        await expect(page.locator('.session-activity-card')).toContainText(
             'service-integration-platform-workspace',
         );
         await page.screenshot({
@@ -256,6 +260,21 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
             path: test.info().outputPath('activity-default-width.png'),
             mask: [page.locator('.xterm')],
         });
+        /*
+         * The same context menu as a Project tree row, adapted to the queue: an unread row offers Mark as Read, and
+         * Rename is absent because this list has no inline editor for it to open.
+         */
+        await betaRow.click({ button: 'right' });
+        const rowMenu = page.getByRole('menu', { name: 'beta work actions' });
+        await expect(rowMenu.getByRole('menuitem', { name: /Mark as Read/ })).toBeVisible();
+        await expect(rowMenu.getByRole('menuitem', { name: /Archive/ })).toBeVisible();
+        await expect(rowMenu.getByRole('menuitem', { name: /Rename/ })).toHaveCount(0);
+        await page.screenshot({
+            path: test.info().outputPath('activity-row-menu.png'),
+            mask: [page.locator('.xterm')],
+        });
+        await page.keyboard.press('Escape');
+        await expect(rowMenu).toHaveCount(0);
         await alphaRow.hover();
         await page.getByRole('button', { name: 'Mark alpha work as read' }).click();
         await expect(alphaRow).toHaveAttribute('data-activity-group', 'finished');

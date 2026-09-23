@@ -64,9 +64,14 @@ describe('agentActivityGlyph', () => {
             toneClassName: 'text-danger',
         });
         expect(glyphOf(session('idle-one')).toneClassName).toBe('text-muted');
-        expect(
-            glyphOf(session('running-one', { lastActivityState: 'running' })).toneClassName,
-        ).toBe('text-muted');
+    });
+
+    it('marks a live turn as progress rather than a loading placeholder', () => {
+        expect(glyphOf(session('running-one', { lastActivityState: 'running' }))).toMatchObject({
+            groupId: 'working',
+            id: 'spinner',
+            toneClassName: 'text-success',
+        });
     });
 
     it('reads an unread row by why it is unread, not by what its Agent is doing now', () => {
