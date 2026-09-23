@@ -13,12 +13,14 @@ import {
 } from 'lucide-react';
 
 import { Spinner } from '../../components/ui/spinner';
+import { Tooltip } from '../../components/ui/tooltip';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { WorktreeIcon } from '../../icons/codicons/worktree-icon';
 import { cn } from '../../lib/utilities';
 import { useSessionPullRequest } from '../primary-sidebar/hooks/use-session-pull-request';
 import { SessionActivityCard } from '../primary-sidebar/session-activity-card';
 import { SessionPullRequestIndicator } from '../primary-sidebar/session-pull-request-indicator';
+import { sessionRowActionButton } from '../primary-sidebar/session-row-actions';
 import { SessionRowMenu } from '../primary-sidebar/session-row-menu';
 import { didSelectSession } from '../session/session-commands';
 import type { AgentActivityGlyphId } from './agent-activity-glyph';
@@ -90,6 +92,11 @@ export function AgentActivityRowItem({
                 'hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)]',
                 'focus-visible:ring-1 focus-visible:ring-accent focus-visible:outline-none',
                 selected && 'active bg-elevated',
+                /*
+                 * The Project tree's hover-action rule: while the mark-read chip shows, the text makes room for it and
+                 * fades before it instead of painting under it. A pull request slot is already wider than the chip.
+                 */
+                canMarkRead && visiblePullRequest === undefined && 'group-hover/activity-row:pr-7',
             )}
             data-activity-group={row.groupId}
             data-row-id={session.id}
@@ -234,18 +241,24 @@ export function AgentActivityRowItem({
                      * `tabIndex={-1}`: inside `role="tree"` the row itself is the only Tab stop (DESIGN.md), so this is
                      * the pointer affordance for an action the keyboard reaches through Delete on the row.
                      */
-                    <button
-                        aria-label={`Mark ${session.displayTitle} as read`}
-                        className="agent-activity-mark-read absolute top-1/2 right-1 -translate-y-1/2 rounded bg-elevated p-1 text-muted opacity-0 group-hover/activity-row:opacity-100 hover:text-foreground focus-visible:opacity-100"
-                        tabIndex={-1}
-                        type="button"
-                        onClick={(event) => {
-                            event.stopPropagation();
-                            onMarkRead();
-                        }}
-                    >
-                        <Check aria-hidden="true" size={13} />
-                    </button>
+                    <Tooltip content="Mark as Read">
+                        <button
+                            aria-label={`Mark ${session.displayTitle} as read`}
+                            aria-keyshortcuts="Delete"
+                            className={cn(
+                                sessionRowActionButton,
+                                'agent-activity-mark-read absolute top-1/2 right-1 z-10 -translate-y-1/2 opacity-0 transition-opacity group-hover/activity-row:opacity-100 focus-visible:opacity-100',
+                            )}
+                            tabIndex={-1}
+                            type="button"
+                            onClick={(event) => {
+                                event.stopPropagation();
+                                onMarkRead();
+                            }}
+                        >
+                            <Check aria-hidden="true" size={12} />
+                        </button>
+                    </Tooltip>
                 )}
             </div>
         </SessionRowMenu>
