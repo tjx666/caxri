@@ -157,6 +157,7 @@ export const effectfulCommandRecovery = {
     'session.updateState': 'memory',
     'terminal.create': 'durable',
     'terminal.input': 'none',
+    'terminal.inputBinary': 'none',
     'terminal.inputAgentExact': 'none',
     'terminal.prepareLongPaste': 'memory',
     'terminal.resize': 'none',

@@ -86,6 +86,7 @@ export const coreForwardedMethods = [
     'terminal.create',
     'terminal.detach',
     'terminal.input',
+    'terminal.inputBinary',
     'terminal.inputAgentExact',
     'terminal.prepareLongPaste',
     'terminal.moveToNewSession',

@@ -252,11 +252,13 @@ export class TerminalExecutionEngine {
     private writeLive(
         live: LiveTerminal,
         provider: TerminalRecord['provider'],
-        data: string,
+        data: string | Buffer,
     ): boolean {
         if (this.terminals.get(live.record.id) !== live) return false;
         if (provider) assertE2EAgentInput(readE2EAgentPolicy(), provider);
-        live.metricInputBytes += Buffer.byteLength(data, 'utf8');
+        live.metricInputBytes += Buffer.isBuffer(data)
+            ? data.byteLength
+            : Buffer.byteLength(data, 'utf8');
         live.throughput.firstInputAt ??= Date.now();
         live.metricTimer ??= setTimeout(() => this.flushMetrics(live), 1_000);
         live.process.write(data);
@@ -356,10 +358,10 @@ export class TerminalExecutionEngine {
         live.process.kill();
     }
 
-    write(terminalId: string, data: string): boolean {
+    write(terminalId: string, data: string | Buffer): boolean {
         const live = this.terminals.get(terminalId);
         if (!live) return false;
-        live.outputRecovery?.observeUserInput();
+        if (typeof data === 'string') live.outputRecovery?.observeUserInput();
         return this.writeLive(live, live.record.provider, data);
     }
 

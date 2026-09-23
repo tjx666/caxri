@@ -8,8 +8,8 @@ import type {
 } from '@caxri/protocol';
 import {
     CaxriError,
-    MAX_TERMINAL_INPUT_LENGTH,
-    MAX_TERMINAL_INPUT_PAYLOAD_LENGTH,
+    MAX_TERMINAL_INPUT_LENGTH as MAX_INPUT_LENGTH,
+    MAX_TERMINAL_INPUT_PAYLOAD_LENGTH as MAX_INPUT_PAYLOAD_LENGTH,
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
@@ -39,14 +39,6 @@ import { hotPathCompletions, settleHotPaths } from './hot-paths';
 import type { TerminalInputReceipt } from './input-queue';
 import { TerminalInputQueue } from './input-queue';
 import { buildShutdownCaptures } from './shutdown-captures';
-
-/**
- * Bounds accepted-but-not-yet-delivered input while allowing short bursts to coalesce. The private protocol has a
- * stricter per-request limit, so each drain emits at most one private frame's worth of text.
- */
-const MAX_QUEUED_KEYBOARD_INPUT_CHARACTERS = MAX_TERMINAL_INPUT_LENGTH * 4;
-const MAX_QUEUED_TERMINAL_INPUT_CHARACTERS =
-    MAX_TERMINAL_INPUT_PAYLOAD_LENGTH + MAX_TERMINAL_INPUT_LENGTH * 4;
 
 /**
  * Process-backed execution port. Renderer-owned input and resize preserve synchronous hot-path acceptance from cached
@@ -300,6 +292,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         maximumLength: number,
         shouldAcknowledge = false,
         expectedAgentLaunchId?: string,
+        encoding?: 'binary',
     ): {
         accepted: boolean;
         queue?: TerminalInputQueue<RemoteTerminalIdentity>;
@@ -324,13 +317,8 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
             queue = new TerminalInputQueue(identity.attachmentId, identity);
             this.inputQueues.set(terminalId, queue);
         }
-        const capacity =
-            shouldAcknowledge || queue.hasAcknowledgedInput
-                ? MAX_QUEUED_TERMINAL_INPUT_CHARACTERS
-                : MAX_QUEUED_KEYBOARD_INPUT_CHARACTERS;
-        if (queue.queuedCharacters + data.length > capacity)
-            throw new CaxriError('CAPACITY', 'Terminal input queue capacity exceeded');
-        const receipt = queue.enqueue(data, shouldAcknowledge, expectedAgentLaunchId);
+        queue.assertCapacity(data.length, shouldAcknowledge);
+        const receipt = queue.enqueue(data, shouldAcknowledge, expectedAgentLaunchId, encoding);
         if (!queue.completion) {
             queue.completion = this.drainInput(queue);
             this.background(queue.completion, 'terminal.input', terminalId);
@@ -445,17 +433,25 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
     }
 
     write(terminalId: string, data: string): boolean {
-        return this.acceptInput(terminalId, data, MAX_TERMINAL_INPUT_LENGTH).accepted;
+        return this.acceptInput(terminalId, data, MAX_INPUT_LENGTH).accepted;
     }
 
     async writeAcknowledged(
         terminalId: string,
         data: string,
         abortSignal?: AbortSignal,
+        encoding?: 'binary',
     ): Promise<boolean> {
         if (abortSignal?.aborted)
             throw new CaxriError('CANCELLED', 'Terminal input was cancelled before admission');
-        const result = this.acceptInput(terminalId, data, MAX_TERMINAL_INPUT_PAYLOAD_LENGTH, true);
+        const result = this.acceptInput(
+            terminalId,
+            data,
+            MAX_INPUT_PAYLOAD_LENGTH,
+            true,
+            undefined,
+            encoding,
+        );
         if (!result.accepted) return false;
         const { queue, receipt } = result;
         if (!queue || !receipt) return true;
@@ -474,10 +470,12 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         data: string,
         launchId: string,
         onDelivered?: (wasAccepted: boolean) => void,
+        encoding?: 'binary',
     ): boolean {
         const identity = this.identities.get(terminalId);
         if (identity?.agent?.launchId !== launchId) return false;
         if (!identity.attachmentId) {
+            if (encoding) return false;
             if (!canSendAgentInput(identity, data)) return false;
             /**
              * Background delegations use Host's exact-launch Agent capability without a Renderer attachment. That
@@ -491,7 +489,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
             );
             return true;
         }
-        return this.acceptInput(terminalId, data, MAX_TERMINAL_INPUT_LENGTH, false, launchId)
+        return this.acceptInput(terminalId, data, MAX_INPUT_LENGTH, false, launchId, encoding)
             .accepted;
     }
 

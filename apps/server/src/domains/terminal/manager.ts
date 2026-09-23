@@ -504,16 +504,16 @@ export class TerminalManager {
         terminalId: string,
         data: string,
         abortSignal?: AbortSignal,
+        encoding?: 'binary',
     ): Promise<boolean> {
-        this.observeUserInput(terminalId, data);
-        return this.execution.writeAcknowledged(terminalId, data, abortSignal);
+        if (!encoding) this.observeUserInput(terminalId, data);
+        return this.execution.writeAcknowledged(terminalId, data, abortSignal, encoding);
     }
 
     /**
-     * Checks and accepts a generated Agent input in one synchronous Server Core turn.
-     *
-     * `onDelivered` reports the Terminal Host's real answer for a Terminal with no Renderer attachment, whose write
-     * cannot be resolved inside that turn. See `TerminalExecutionPort.writeAgentExact`.
+     * Checks and accepts a generated Agent input in one synchronous Server Core turn. `onDelivered` reports the
+     * Terminal Host's real answer for a Terminal with no Renderer attachment, whose write cannot be resolved inside
+     * that turn. See `TerminalExecutionPort.writeAgentExact`.
      */
     writeAgentExact(
         terminalId: string,
@@ -521,9 +521,16 @@ export class TerminalManager {
         expectedAgentLaunchId: string,
         origin: 'human' | 'delegation' = 'human',
         onDelivered?: (wasAccepted: boolean) => void,
+        encoding?: 'binary',
     ): boolean {
-        if (origin === 'human') this.observeUserInput(terminalId, data);
-        return this.execution.writeAgentExact(terminalId, data, expectedAgentLaunchId, onDelivered);
+        if (origin === 'human' && !encoding) this.observeUserInput(terminalId, data);
+        return this.execution.writeAgentExact(
+            terminalId,
+            data,
+            expectedAgentLaunchId,
+            onDelivered,
+            encoding,
+        );
     }
 
     /**
