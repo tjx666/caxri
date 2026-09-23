@@ -12,11 +12,11 @@ about what matters. Codex's desktop app and T3 Code both put the queue in the le
 same reason; Orca keeps the tree and slides a dashboard over it, which still has the two competing
 for one column.
 
-Switch with the inbox button in the side bar header, `Cmd+Alt+U`, or the Command Palette entry
-**View: Toggle Activity**. It is an inbox rather than a bell because the Status Bar already ends in
-a bell with its own unread count, and that one holds app notifications rather than Sessions. The
-button carries the number of Sessions with Unread Attention, so the tally is legible while the tree
-is showing — which is exactly when the queue is unmounted.
+Switch with the to-do list button in the side bar header, `Cmd+Alt+U`, or the Command Palette
+entry **View: Toggle Activity**. The icon pictures a queue of work rather than a notification: the
+Status Bar already ends in a bell holding app notifications, and an inbox is the Agent Inbox view's
+icon. The button carries the number of Sessions with Unread Attention, so the tally is legible
+while the tree is showing — which is exactly when the queue is unmounted.
 `Cmd+Shift+N` jumps to the next Session that needs you, revealing the queue on the way so the user
 can see what else is in line.
 
@@ -37,10 +37,11 @@ Rows are grouped, and the groups are ordered:
 | Recently finished | It completed within the retention window below                  |
 | Idle              | Everything else, including a detached Agent that did not fail   |
 
-Each heading leads with its own muted glyph — a bell with a dot, a bolt, an hourglass, a warning
+Each heading leads with its own muted glyph — a raised hand, a bolt, an hourglass, a warning
 triangle, a double check, and a moon — so a group is found by shape before its label is read, as in
 Paseo's status list. None of them reuses a row glyph's circle family: the heading names the section,
-and repeating the row glyph above its own rows would say the same thing twice.
+and repeating the row glyph above its own rows would say the same thing twice. **Needs attention**
+is a raised hand rather than a bell because the Status Bar's notification center owns the bell.
 
 An empty group is not rendered. Inside a group, rows keep Session activity recency, so the newest
 event in a group is always its first row.
@@ -84,8 +85,8 @@ showing it, so switching back to the tree stops the clock by unmounting its only
 
 ## Visual grammar
 
-A row is a state glyph, the Session title on its own line with its pull request glyph at the right
-edge, and the Agent, Project, worktree, and time beneath it. There is no state phrase on the row at
+A row is a state glyph, the Session title on its own line, the Agent, Project, worktree, and time
+beneath it, and a pull request glyph at the right edge, centered on both lines. There is no state phrase on the row at
 all:
 
 ```text
@@ -97,6 +98,9 @@ The second line says where the Session runs, in the order a user narrows it down
 (its identity icon), which repository, and — only when the Session works in a linked worktree rather
 than its Project root — which worktree, marked by the same `worktree` codicon the Project tree uses.
 The pull request glyph is the Project tree's own, colored by lifecycle, in the same right-edge slot.
+It is centered on the whole row rather than on the title line, so it belongs to the Session instead
+of floating in the row's top-right corner. The title clips with the Project tree's right-edge fade
+rather than an ellipsis.
 
 **The state is a shape because every group heading already names it.** A row under **Working** that
 also printed "Working" repeated its own heading, and three of the six groups did exactly that, word
@@ -128,9 +132,12 @@ height. A Project wider than the entire line still truncates visually; its text 
 for assistive technology and the row's hover card shows the full name. The Project has priority
 because it is the only thing telling the user which repository a row belongs to.
 
-An unread row reserves its mark-read button's width at the end of the title line rather than
-surrendering it on hover, so the title never reflows under the pointer. The pull request glyph shares
-that slot and hides while the button shows.
+An unread row's mark-read button follows the Project tree's hover-action rule: the same `--elevated`
+chip, centered on the right edge with a **Mark as Read** tooltip, and on hover the row's text makes
+room and fades before it instead of painting under it. It reserves no width at rest, because a slot
+held for a hover-only action would cost every unread row the width its Project name needs at the
+side bar's minimum width. On a row with a pull request the button covers the glyph's slot, and the
+glyph hides while the button shows.
 
 Rows wear the Project tree's Session hover card and context menu, so a Session reads and acts the
 same in either body of the side bar. Neither the glyph nor the Project name carries a tooltip of its
