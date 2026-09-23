@@ -73,16 +73,17 @@ export function agentActivityGlyph(row: AgentActivityRow): AgentActivityGlyph {
             label: statusPresentation.label,
             toneClassName: TONE_TEXT_CLASSNAME.success,
         };
-    const state: AgentActivityState =
-        groupId === 'attention'
-            ? (session.lastAttentionKind ?? 'unknown')
-            : session.lastActivityState;
+    const unread = groupId === 'attention' && session.hasUnread;
+    const state: AgentActivityState = unread
+        ? (session.lastAttentionKind ?? 'unknown')
+        : session.lastActivityState;
     const presentation = sessionActivityPresentation(state);
-    const tone = !isAgentActivityActionable(groupId)
-        ? 'neutral'
-        : groupId === 'attention'
-          ? sessionUnreadTone(state)
-          : presentation.tone;
+    const tone =
+        !isAgentActivityActionable(groupId) || (groupId === 'attention' && !unread)
+            ? 'neutral'
+            : groupId === 'attention'
+              ? sessionUnreadTone(state)
+              : presentation.tone;
     return {
         id: GLYPH_BY_STATE[state],
         label: presentation.label,
