@@ -554,10 +554,17 @@ function parseNullSeparated(value: string): string[] {
     return value.split('\0').filter(Boolean);
 }
 
-async function discoverChangedFiles(root: string, isStaged: boolean): Promise<string[]> {
+export async function discoverChangedFiles(root: string, isStaged: boolean): Promise<string[]> {
     const trackedArguments = isStaged
         ? ['diff', '--cached', '--name-only', '-z', '--diff-filter=ACMR', '--']
-        : ['diff', 'HEAD', '--name-only', '-z', '--diff-filter=ACMR', '--'];
+        : [
+              'diff',
+              (await runCapture('git', ['merge-base', 'origin/main', 'HEAD'], root)).trim(),
+              '--name-only',
+              '-z',
+              '--diff-filter=ACMR',
+              '--',
+          ];
     const tracked = parseNullSeparated(await runCapture('git', trackedArguments, root));
     if (isStaged) return tracked;
 
