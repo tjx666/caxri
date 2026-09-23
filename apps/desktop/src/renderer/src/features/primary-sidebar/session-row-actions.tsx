@@ -5,7 +5,11 @@ import { Archive, Pin, PinOff } from 'lucide-react';
 import { Tooltip } from '../../components/ui/tooltip';
 import { archiveSession, setSessionPinned } from '../session/session-commands';
 
-const actionButton =
+/**
+ * The Session hover-action chip, shared with the Activity row's mark-read button so a Session's pointer actions look
+ * the same in either body of the Primary Side Bar.
+ */
+export const sessionRowActionButton =
     'grid size-5 cursor-pointer place-items-center rounded border-0 bg-elevated p-0 text-muted hover:text-foreground';
 
 /**
@@ -23,7 +27,7 @@ export function SessionRowActions({ session }: { session: SessionRecord }) {
             <Tooltip content={pinned ? 'Unpin Session' : 'Pin Session'}>
                 <button
                     type="button"
-                    className={`${actionButton} aria-pressed:text-accent`}
+                    className={`${sessionRowActionButton} aria-pressed:text-accent`}
                     aria-label={`Pin ${session.displayTitle}`}
                     aria-pressed={pinned}
                     tabIndex={-1}
@@ -35,7 +39,7 @@ export function SessionRowActions({ session }: { session: SessionRecord }) {
             <Tooltip content="Archive Session">
                 <button
                     type="button"
-                    className={actionButton}
+                    className={sessionRowActionButton}
                     aria-label={`Archive ${session.displayTitle}`}
                     aria-keyshortcuts="Delete"
                     tabIndex={-1}

@@ -331,6 +331,8 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
         await alphaRow.hover();
         const markAlphaRead = page.getByRole('button', { name: 'Mark alpha work as read' });
         await expect(markAlphaRead).toBeVisible();
+        // Wait out the fade-in so the screenshot shows the chip rather than a half-transparent frame.
+        await expect(markAlphaRead).toHaveCSS('opacity', '1');
         /*
          * The row's trailing actions are centered on the whole two-line row rather than pinned beside the title, so
          * they read as belonging to the Session instead of floating in its top-right corner.
