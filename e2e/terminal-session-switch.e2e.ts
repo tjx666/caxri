@@ -45,7 +45,8 @@ test('Session switches preserve a cursor-addressed Terminal screen and its live 
             String.raw`printf '\033[8;5HSESSION_SWITCH_MIDDLE_${cjkGlyph}'`,
             String.raw`printf '\033[10;1H'`,
             String.raw`printf '%*s${facepalmGlyph}X\rZ' "$((cols - 2))" ''`,
-            String.raw`printf '\033[%d;%dHSESSION_SWITCH_EDGE_${cjkGlyph}' "$((rows - 2))" "$((cols - 22))"`,
+            // Keep the wide glyph inside the grid after the viewport resize narrows this Terminal.
+            String.raw`printf '\033[%d;%dHSESSION_SWITCH_EDGE_${cjkGlyph}' "$((rows - 2))" "$((cols - 32))"`,
             `while [ ! -f '${backgroundTrigger}' ]; do sleep 0.05; done`,
             String.raw`awk 'BEGIN { for (i = 0; i < 120000; i += 1) printf "\033[2;1Hbackground-%06d", i }'`,
             String.raw`printf '\033[12;5HSESSION_SWITCH_BACKGROUND_${cjkGlyph}'`,
@@ -70,6 +71,7 @@ test('Session switches preserve a cursor-addressed Terminal screen and its live 
         await expect(screen.locator(':scope > div').nth(10)).toHaveText('Z');
         await running.page.setViewportSize({ height: 900, width: 1_400 });
         await expect(screen).toContainText('SESSION_SWITCH_TOP_界_é_');
+        await expect(screen).toContainText('SESSION_SWITCH_EDGE_界');
         await createAdditionalShellSession(running.page);
         const secondSessionId = await selectedSessionId(running.page);
         const firstSession = sessionCard(running.page, firstSessionId);
