@@ -63,6 +63,44 @@ describe('Session title material', () => {
         ).toEqual({ role: 'assistant', text: 'The title reader used the wrong precedence.' });
     });
 
+    it('restores a prompt command invocation as the user request and drops built-in commands', () => {
+        expect(
+            extractAgentTitleMessage({
+                type: 'user',
+                message: {
+                    content:
+                        '<command-message>add-model</command-message>\n<command-name>/add-model</command-name>\n<command-args>gpt 6 sol/luna</command-args>',
+                },
+            }),
+        ).toEqual({ role: 'user', text: '/add-model gpt 6 sol/luna' });
+        expect(
+            extractAgentTitleMessage({
+                type: 'user',
+                message: {
+                    content:
+                        '<command-message>commit</command-message>\n<command-name>/commit</command-name>',
+                },
+            }),
+        ).toEqual({ role: 'user', text: '/commit' });
+        expect(
+            extractAgentTitleMessage({
+                type: 'user',
+                message: {
+                    content:
+                        '<command-name>/effort</command-name>\n            <command-message>effort</command-message>\n            <command-args>high</command-args>',
+                },
+            }),
+        ).toBeUndefined();
+        expect(
+            extractAgentTitleMessage({
+                type: 'user',
+                message: {
+                    content: '<local-command-stdout>Set effort level</local-command-stdout>',
+                },
+            }),
+        ).toBeUndefined();
+    });
+
     it('separates the opening request from the latest exchange in the prompt', () => {
         const prompt = buildAgentTitlePrompt({
             opening: [
