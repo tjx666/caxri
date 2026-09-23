@@ -191,12 +191,10 @@ export class FileMutationJournal {
     ): Promise<boolean> {
         if (!expected?.device || !expected.inode) return false;
         const target = await pathIdentity(expected.path);
-        if (
-            target?.kind !== expected.kind ||
-            target.device !== expected.device ||
-            target.inode !== expected.inode
-        )
-            return false;
+        /**
+         * Device numbers can change across macOS restarts; the fixed path, kind, and inode identify this result.
+         */
+        if (target?.kind !== expected.kind || target.inode !== expected.inode) return false;
         if (operation.kind === 'create') return true;
         if (!('previousPath' in expected)) return false;
         return (await pathKind(expected.previousPath)) === undefined;
