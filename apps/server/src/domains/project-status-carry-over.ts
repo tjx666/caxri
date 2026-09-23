@@ -2,17 +2,59 @@ import type { ProjectStatusRepository, ProjectStatusSummary } from '@caxri/proto
 
 import type { BranchPublicationContext } from './project-status-branch';
 
+export interface PreparedRepo {
+    context: BranchPublicationContext;
+    repository: ProjectStatusRepository;
+}
+
+/**
+ * A Session's local Git projection, ready for the external refresh. `fingerprint` is absent when there is nothing to
+ * refresh.
+ */
+export interface PreparedSummary {
+    fingerprint?: string;
+    repositories: PreparedRepo[];
+    summary: ProjectStatusSummary;
+}
+
+export interface SummaryCacheEntry {
+    expiresAt: number;
+    fingerprint: string;
+    refreshToken?: string;
+    value?: ProjectStatusSummary;
+}
+
+/**
+ * The cache entry a Session holds while its refresh is in flight: the previous entry when the local inputs did not
+ * change, otherwise an expired one carrying whatever delivery status still applies (see {@link carryOverDelivery}).
+ */
+export function pendingSummaryEntry(
+    prepared: PreparedSummary,
+    fingerprint: string,
+    previous: SummaryCacheEntry | undefined,
+    refreshToken?: string,
+): SummaryCacheEntry {
+    if (previous?.fingerprint === fingerprint) return previous;
+    return {
+        expiresAt: 0,
+        fingerprint,
+        refreshToken,
+        value: carryOverDelivery(prepared.repositories, prepared.summary, previous?.value),
+    };
+}
+
 /**
  * Seeds a new fingerprint's cache entry with the delivery status the previous one already knew, so it is served
  * stale-while-revalidate instead of dropping back to a local-only summary.
  *
- * Only the selected Session is watched and polled, so an Agent committing or pushing in a background Session moves its
- * HEAD without touching the cache. Returning to that Session changed the fingerprint, which used to discard the whole
- * cached value: the Status panel reverted to "Checking origin…" with no pull request or deployments until the
- * background refresh landed seconds later. A repository keeps its old delivery fields only while it is still the same
- * GitHub branch — a different branch, remote, or a detached HEAD owns different delivery status, so it starts local.
+ * Only the selected Session is file-watched and polled quickly (background Sessions get at most the slow delivery
+ * watch), so an Agent committing or pushing in a background Session moves its HEAD without touching the cache.
+ * Returning to that Session changed the fingerprint, which used to discard the whole cached value: the Status panel
+ * reverted to "Checking origin…" with no pull request or deployments until the background refresh landed seconds later.
+ * A repository keeps its old delivery fields only while it is still the same GitHub branch — a different branch,
+ * remote, or a detached HEAD owns different delivery status, so it starts local.
  */
-export function carryOverDelivery(
+function carryOverDelivery(
     prepared: ReadonlyArray<{
         context: BranchPublicationContext;
         repository: ProjectStatusRepository;

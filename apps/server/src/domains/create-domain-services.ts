@@ -210,10 +210,16 @@ export async function createDomainServices(
     const projectStatus = new ProjectStatusService(git, logger, externalStatus.run, {
         emit: send,
         github: externalStatus.github,
+        listWatchedSessions: () =>
+            database
+                .listSessions()
+                .filter((session) => session.archivedAt === undefined)
+                .map((session) => session.id),
         sessionContext: (sessionId) => sessionContext.readSession(sessionId),
         settings: () => configuration.getSettings().value,
         vercel,
     });
+    projectStatus.startDeliveryWatch();
     workbenchRoots.setRootChangedHandler((sessionId) => {
         /**
          * Root changes end the old projection lifetime before consumers re-read. An inactive root has no file watcher,

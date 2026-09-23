@@ -17,6 +17,11 @@ const projectStatusCheckSchema = z.object({
     state: projectStatusStateSchema,
     url: z.url().optional(),
     durationMs: z.number().nonnegative().optional(),
+    /**
+     * When the check settled, in epoch milliseconds. Lets the delivery-failure alert tell a failure that happened while
+     * Caxri was watching from one that predates it.
+     */
+    completedAt: z.number().optional(),
 });
 
 const projectStatusLinearIssueSchema = z.object({
