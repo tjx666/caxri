@@ -61,7 +61,10 @@ test('Editor import links use each package tsconfig and inherited aliases', asyn
             }),
         ).toBeVisible();
         await expect(documentEditor(page).locator('.view-lines')).toContainText('shared-source');
-        await page.screenshot({ path: test.info().outputPath('inherited-alias.png') });
+        await page.screenshot({
+            path: test.info().outputPath('inherited-alias.png'),
+            mask: [page.locator('.xterm')],
+        });
         await files.getByRole('treeitem', { name: 'two', exact: true }).click();
         await files.getByRole('treeitem', { name: 'second.ts', exact: true }).click();
         await expect(importLink).toBeVisible();
@@ -70,7 +73,10 @@ test('Editor import links use each package tsconfig and inherited aliases', asyn
             page.getByRole('navigation', { name: 'File breadcrumbs: two/value.ts', exact: true }),
         ).toBeVisible();
         await expect(documentEditor(page).locator('.view-lines')).toContainText('package-source');
-        await page.screenshot({ path: test.info().outputPath('nearest-alias.png') });
+        await page.screenshot({
+            path: test.info().outputPath('nearest-alias.png'),
+            mask: [page.locator('.xterm')],
+        });
         await files.getByRole('treeitem', { name: 'second.ts', exact: true }).click();
         await expect(importLink).toBeVisible();
         await writeFile(
@@ -144,7 +150,10 @@ test('Editor package imports open linked declarations read-only and restore that
         await page.keyboard.press('Meta+s');
         await expect(documentEditor(page).locator('.view-lines')).not.toContainText('replacement');
         expect(await readFile(join(store, 'index.d.ts'), 'utf8')).toBe(declaration);
-        await page.screenshot({ path: test.info().outputPath('dependency-read-only.png') });
+        await page.screenshot({
+            path: test.info().outputPath('dependency-read-only.png'),
+            mask: [page.locator('.xterm')],
+        });
         await running.app.close();
         running = await launchCaxri({ userDataDir: userDataDirectory, testRootPath: root });
         page = running.page;
