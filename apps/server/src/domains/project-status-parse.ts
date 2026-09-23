@@ -291,6 +291,13 @@ function checkDuration(check: GitHubCheck): number | undefined {
     return Number.isFinite(duration) && duration >= 0 ? duration : undefined;
 }
 
+function checkCompletedAt(check: GitHubCheck): number | undefined {
+    if (!check.completedAt) return undefined;
+    const completedAt = Date.parse(check.completedAt);
+    // GitHub reports `0001-01-01T00:00:00Z` for a check that has not completed yet.
+    return Number.isFinite(completedAt) && completedAt > 0 ? completedAt : undefined;
+}
+
 function projectCheck(check: GitHubCheck): ProjectStatusCheck {
     return {
         name: check.workflowName
@@ -299,6 +306,7 @@ function projectCheck(check: GitHubCheck): ProjectStatusCheck {
         state: checkState(check),
         url: check.detailsUrl ?? check.targetUrl,
         durationMs: checkDuration(check),
+        completedAt: checkCompletedAt(check),
     };
 }
 
