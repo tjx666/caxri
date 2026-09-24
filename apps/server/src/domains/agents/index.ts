@@ -37,7 +37,7 @@ export {
     scanTranscriptPullRequestLine,
     type TranscriptPullRequestScan,
 } from './transcript-pull-requests';
-export { scanTranscriptLines } from './transcript-scan';
+export { scanTranscriptLines, scanTranscriptToEnd } from './transcript-scan';
 export type { AgentTranscriptLocation } from './transcript-security';
 export {
     createTranscriptSessionContextScan,

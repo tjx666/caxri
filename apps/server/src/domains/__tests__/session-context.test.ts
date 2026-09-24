@@ -70,6 +70,44 @@ describe('SessionContextService', () => {
         expect(second.directories).toContain('/worktrees/alpha');
     });
 
+    it('finds the latest acceptance round on the first read of a long transcript', async () => {
+        const id = 'a1b2c3d4-5e6f-4a7b-8c9d-0e1f2a3b4c5d';
+        const link = `https://app.lobehub.com/acceptance/${id}`;
+        const filler = `${JSON.stringify({
+            type: 'event_msg',
+            payload: { type: 'token_count', data: 'x'.repeat(1024 * 1024) },
+        })}\n`;
+        const finalMessage = `${JSON.stringify({
+            type: 'response_item',
+            payload: {
+                type: 'message',
+                role: 'assistant',
+                content: [{ type: 'output_text', text: `Acceptance: ${link}?r=7` }],
+            },
+        })}\n`;
+        await writeFile(
+            transcript,
+            `${claudeRecord(`echo ${link}?r=1`, cwd)}${filler.repeat(5)}${finalMessage}`,
+        );
+
+        const context = await service().read(session);
+
+        expect(context.acceptanceReferences).toEqual([{ id, round: 7 }]);
+    });
+
+    it('skips an oversized record to reach a later acceptance link', async () => {
+        const id = 'a1b2c3d4-5e6f-4a7b-8c9d-0e1f2a3b4c5d';
+        const oversized = JSON.stringify({ type: 'event_msg', data: 'x'.repeat(5 * 1024 * 1024) });
+        await writeFile(
+            transcript,
+            `${oversized}\n${claudeRecord(`Acceptance: https://app.lobehub.com/acceptance/${id}?r=7`, cwd)}`,
+        );
+
+        const context = await service().read(session);
+
+        expect(context.acceptanceReferences).toEqual([{ id, round: 7 }]);
+    });
+
     it('rescans from the start when the transcript shrinks below the cursor', async () => {
         const instance = service();
         await appendFile(transcript, claudeRecord('cd /worktrees/alpha', cwd));
@@ -79,6 +117,19 @@ describe('SessionContextService', () => {
         const rescanned = await instance.read(session);
         expect(rescanned.directories).toContain('/gamma');
         expect(rescanned.directories).not.toContain('/worktrees/alpha');
+    });
+
+    it('catches up to the tail of a long rewritten transcript in the same read', async () => {
+        const filler = `${JSON.stringify({ type: 'event_msg', data: 'x'.repeat(1024 * 1024) })}\n`;
+        const instance = service();
+        await writeFile(transcript, `${claudeRecord('cd /old', cwd)}${filler.repeat(6)}`);
+        await instance.read(session);
+
+        await writeFile(transcript, `${filler.repeat(5)}${claudeRecord('cd /new', cwd)}`);
+        const context = await instance.read(session);
+
+        expect(context.directories).toContain('/new');
+        expect(context.directories).not.toContain('/old');
     });
 
     it('joins concurrent reads of one transcript into a single pass', async () => {

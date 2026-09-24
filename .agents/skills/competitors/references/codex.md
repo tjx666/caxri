@@ -30,3 +30,20 @@ installed-version snapshot. No implementation code was copied.
   A real caller's ability to connect to the Caxri Unix socket remains a separate sandbox probe.
 
 See [Caxri delegation](../../../../docs/agent-delegation.md) for the current implementation contract.
+
+## Mouse selection in hosted terminals
+
+Research date: 2026-09-24. Local source reference: `3938a27c` (2026-09-21); installed CLI:
+0.156.1. The source snapshot is not an exact installed-version match.
+
+- The TUI enables mouse capture and handles transcript drag selection internally. Its highlight
+  does not create an xterm selection, so a host listening to xterm `onSelectionChange` cannot use
+  that drag as a copy-on-select signal.
+- The current [official source](https://github.com/openai/codex/blob/2230d644/codex-rs/tui/src/slash_command.rs)
+  describes `/raw` as copy-friendly scrollback mode; the local source accepts `/raw on` and `/raw off`.
+  The `/toggle-mouse-mode` workaround in an [older issue](https://github.com/openai/codex/issues/1247)
+  should not be recommended for the current TUI without version verification.
+- xterm's `mouseEventsRequireAlt` makes ordinary drag select terminal text and reserves Alt-drag
+  for TUI mouse input; wheel events are unaffected. `macOptionClickForcesSelection` instead keeps
+  TUI mouse input as the default and requires Option-drag for terminal selection. These are host
+  interaction choices, not transcript parsing fixes.
