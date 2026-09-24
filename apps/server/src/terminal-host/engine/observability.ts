@@ -156,6 +156,19 @@ export interface PtyThroughputObservation {
 export interface PtyThroughputTally {
     droppedBytes: number;
     /**
+     * Windows that dropped bytes over the whole lifetime, written in the retirement summary.
+     */
+    droppedWindows: number;
+    /**
+     * When the last `warn` `pty.throughput` drop record was written; undefined until the first drop.
+     */
+    dropLoggedAt?: number;
+    /**
+     * Dropped bytes and windows accumulated since that record, folded into the next one.
+     */
+    pendingDroppedBytes: number;
+    pendingDroppedWindows: number;
+    /**
      * Wall-clock time of the first input write, stamped by the engine when the bytes are actually written rather than
      * when their aggregation window closes, so `pty.first_input.durationMs` is a measured delay like every other
      * startup locator instead of one quantized to the one-second window boundary.
@@ -183,7 +196,10 @@ export type PtyRetireReason = 'discarded' | 'exited' | 'restart' | 'shutdown';
 export function createPtyThroughputTally(startedAt: number): PtyThroughputTally {
     return {
         droppedBytes: 0,
+        droppedWindows: 0,
         firstInputLogged: false,
+        pendingDroppedBytes: 0,
+        pendingDroppedWindows: 0,
         inputBytes: 0,
         outputBytes: 0,
         peakWindowBytes: 0,
@@ -201,11 +217,18 @@ export function createPtyThroughputTally(startedAt: number): PtyThroughputTally 
  * for), and the first window that carried input writes one `pty.first_input` record so the startup benchmark keeps a
  * low-frequency liveness signal.
  *
+ * The first drop in a lifetime is written at once; later drops fold into at most one record per
+ * {@link PTY_DROP_LOG_INTERVAL_MS}, carrying the bytes and windows dropped since the previous one. Production evidence
+ * (#1182): one record per dropping window made `pty.throughput` 94% of `terminal-host.jsonl` — ~98,700 records for
+ * ~348KB actually dropped. Nothing is lost: the retirement summary still totals every dropped byte and window.
+ *
  * History: 24c4eb18 first silenced the per-second `info` record and 614cccee reverted it because
  * `e2e/startup.performance.e2e.ts` waited on `pty.throughput` with `inputBytes > 0`. That consumer and the Terminal
  * integration test now wait on `pty.first_input`, so the per-window record can be omitted without timing out the
  * release benchmark. See #590 and #605.
  */
+export const PTY_DROP_LOG_INTERVAL_MS = 60_000;
+
 export function recordPtyThroughputWindow(
     logger: StructuredLogger,
     terminalId: string,
@@ -222,15 +245,28 @@ export function recordPtyThroughputWindow(
         tally.peakWindowBytes,
         observation.inputBytes + observation.outputBytes,
     );
-    if (observation.droppedBytes > 0)
-        logger.write('warn', logEventCatalog.pty.throughput, {
-            fields: {
-                terminalId,
-                inputBytes: observation.inputBytes,
-                outputBytes: observation.outputBytes,
-                droppedBytes: observation.droppedBytes,
-            },
-        });
+    if (observation.droppedBytes > 0) {
+        tally.droppedWindows += 1;
+        tally.pendingDroppedBytes += observation.droppedBytes;
+        tally.pendingDroppedWindows += 1;
+        if (
+            tally.dropLoggedAt === undefined ||
+            now - tally.dropLoggedAt >= PTY_DROP_LOG_INTERVAL_MS
+        ) {
+            logger.write('warn', logEventCatalog.pty.throughput, {
+                fields: {
+                    terminalId,
+                    inputBytes: observation.inputBytes,
+                    outputBytes: observation.outputBytes,
+                    droppedBytes: tally.pendingDroppedBytes,
+                    droppedWindows: tally.pendingDroppedWindows,
+                },
+            });
+            tally.dropLoggedAt = now;
+            tally.pendingDroppedBytes = 0;
+            tally.pendingDroppedWindows = 0;
+        }
+    }
     if (tally.firstInputLogged || observation.inputBytes === 0) return;
     tally.firstInputLogged = true;
     logger.write('info', logEventCatalog.pty.firstInput, {
@@ -259,6 +295,7 @@ export function recordPtyThroughputSummary(
             inputBytes: tally.inputBytes,
             outputBytes: tally.outputBytes,
             droppedBytes: tally.droppedBytes,
+            droppedWindows: tally.droppedWindows,
             peakWindowBytes: tally.peakWindowBytes,
             windows: tally.windows,
         },
