@@ -14,7 +14,7 @@ const fixedHex = (bytes: number) => z.string().regex(new RegExp(`^[0-9a-f]{${byt
 const identifierSchema = z.string().regex(/^[\w-]{1,200}$/u);
 
 /**
- * Mobile endpoints are intentionally limited to RFC1918 addresses plus the exact test-only loopback endpoint.
+ * Mobile endpoints accept private LAN, Tailscale IPv4, and the exact test-only loopback endpoint.
  */
 export const isPrivateMobileIpv4Address = (address: string): boolean => {
     const parts = address.split('.').map(Number);
@@ -24,6 +24,7 @@ export const isPrivateMobileIpv4Address = (address: string): boolean => {
     return (
         address === '127.0.0.1' ||
         first === 10 ||
+        (first === 100 && second >= 64 && second <= 127) ||
         (first === 172 && second >= 16 && second <= 31) ||
         (first === 192 && second === 168)
     );
@@ -31,7 +32,7 @@ export const isPrivateMobileIpv4Address = (address: string): boolean => {
 
 const privateIpv4AddressSchema = z
     .ipv4()
-    .refine(isPrivateMobileIpv4Address, 'Mobile endpoints must stay on a private local network');
+    .refine(isPrivateMobileIpv4Address, 'Mobile endpoints must use a supported private network');
 const hasUnsafeDeviceNameCharacter = (value: string): boolean =>
     [...value].some((character) => {
         const code = character.codePointAt(0)!;
@@ -99,6 +100,14 @@ export const mobileServerHelloSchema = z.strictObject({
     confirmation: fixedHex(32),
 });
 
+/**
+ * A version gate before authentication cannot disclose pairing or device state.
+ */
+export const mobileVersionMismatchSchema = z.strictObject({
+    type: z.literal('version-mismatch'),
+    supportedVersion: z.number().int().positive().max(255),
+});
+
 export const mobileClientConfirmationSchema = z.strictObject({
     type: z.literal('confirm'),
     version: z.literal(MOBILE_TRANSPORT_VERSION),
@@ -131,6 +140,7 @@ export const mobileRevokedSchema = z.strictObject({
 export type MobilePairingLink = z.infer<typeof mobilePairingLinkSchema>;
 export type MobileClientHello = z.infer<typeof mobileClientHelloSchema>;
 export type MobileServerHello = z.infer<typeof mobileServerHelloSchema>;
+export type MobileVersionMismatch = z.infer<typeof mobileVersionMismatchSchema>;
 export type MobileClientConfirmation = z.infer<typeof mobileClientConfirmationSchema>;
 export type MobileSealedFrame = z.infer<typeof mobileSealedFrameSchema>;
 export type MobilePairingResult = z.infer<typeof mobilePairingResultSchema>;

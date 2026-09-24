@@ -16,6 +16,7 @@ import {
     mobileRevokedSchema,
     mobileSealedFrameSchema,
     mobileServerHelloSchema,
+    mobileVersionMismatchSchema,
     openMobileFrame,
     PAIRING_SECRET_BYTES,
     parseMobilePairingLink,
@@ -40,9 +41,15 @@ import type { MobileCredential, MobileCredentialStore } from './credential-store
 import { MobileSocketReaderBudget } from './socket-reader-budget';
 
 const HANDSHAKE_TIMEOUT_MS = 10_000;
+const SOCKET_OPEN_TIMEOUT_MS = 4_000;
+const READ_REQUEST_TIMEOUT_MS = 3_000;
 const REQUEST_TIMEOUT_MS = 15_000;
+const FOREGROUND_PROBE_TIMEOUT_MS = 1_500;
 const textDecoder = new TextDecoder();
 const textEncoder = new TextEncoder();
+
+const isFastMobileRead = (method: CaxriMethod): boolean =>
+    method === 'mobile.dashboard' || method === 'terminal.preview';
 
 export class MobileGatewayRequestError extends Error {
     readonly code: string;
@@ -72,6 +79,17 @@ export class MobileReconnectError extends Error {
     constructor() {
         super('Caxri could not verify this stored pairing.');
         this.name = 'MobileReconnectError';
+    }
+}
+
+export class MobileVersionMismatchError extends Error {
+    readonly code = 'version-mismatch' as const;
+
+    constructor() {
+        super(
+            'This app and Caxri on your computer use different versions. Update both to the latest build.',
+        );
+        this.name = 'MobileVersionMismatchError';
     }
 }
 
@@ -197,28 +215,31 @@ const openSocketAt = async (
     address: string,
     port: number,
     runtime: MobileGatewayRuntime,
+    onSocket: (socket: WebSocket) => void,
 ): Promise<WebSocket> => {
     const socket = runtime.openWebSocket(`ws://${address}:${port}/mobile`);
+    onSocket(socket);
     await new Promise<void>((resolve, reject) => {
         const timeout: { handle?: ReturnType<typeof setTimeout> } = {};
-        const onError = (): void => {
+        function cleanup(): void {
             clearTimeout(timeout.handle);
-            socket.close();
-            reject(new MobilePairingError('unreachable', 'Caxri could not be reached.'));
-        };
-        const onOpen = (): void => {
-            clearTimeout(timeout.handle);
-            socket.removeEventListener('error', onError);
-            resolve();
-        };
-        timeout.handle = setTimeout(() => {
             socket.removeEventListener('open', onOpen);
             socket.removeEventListener('error', onError);
+            socket.removeEventListener('close', onError);
+        }
+        function onError(): void {
+            cleanup();
             socket.close();
             reject(new MobilePairingError('unreachable', 'Caxri could not be reached.'));
-        }, HANDSHAKE_TIMEOUT_MS);
+        }
+        function onOpen(): void {
+            cleanup();
+            resolve();
+        }
+        timeout.handle = setTimeout(onError, SOCKET_OPEN_TIMEOUT_MS);
         socket.addEventListener('open', onOpen, { once: true });
         socket.addEventListener('error', onError, { once: true });
+        socket.addEventListener('close', onError, { once: true });
     });
     return socket;
 };
@@ -228,15 +249,19 @@ const openSocket = async (
     port: number,
     runtime: MobileGatewayRuntime,
 ): Promise<WebSocket> => {
-    for (const address of addresses) {
-        try {
-            // eslint-disable-next-line no-await-in-loop -- candidates are tried in advertised reachability order.
-            return await openSocketAt(address, port, runtime);
-        } catch {
-            // Continue to the next private interface advertised by the same authenticated Server.
-        }
+    const sockets: WebSocket[] = [];
+    try {
+        const winner = await Promise.any(
+            addresses.map((address) =>
+                openSocketAt(address, port, runtime, (socket) => sockets.push(socket)),
+            ),
+        );
+        for (const socket of sockets) if (socket !== winner) socket.close();
+        return winner;
+    } catch {
+        for (const socket of sockets) socket.close();
+        throw new MobilePairingError('unreachable', 'Caxri could not be reached.');
     }
-    throw new MobilePairingError('unreachable', 'Caxri could not be reached.');
 };
 
 interface EstablishedSession {
@@ -308,7 +333,10 @@ const establish = async (input: {
     const reader = createSocketReader(socket);
     try {
         socket.send(JSON.stringify(input.clientHello));
-        const challenge = mobileServerHelloSchema.parse(await reader.next(HANDSHAKE_TIMEOUT_MS));
+        const response = await reader.next(HANDSHAKE_TIMEOUT_MS);
+        if (mobileVersionMismatchSchema.safeParse(response).success)
+            throw new MobileVersionMismatchError();
+        const challenge = mobileServerHelloSchema.parse(response);
         const transcript: HandshakeTranscript = {
             mode: input.mode,
             serverId: input.expectedServerId,
@@ -367,6 +395,7 @@ export class MobileGatewayConnection {
     readonly #session: EstablishedSession;
     #closedByOwner = false;
     #pending?: PendingMobileReply;
+    #outstandingMutations = 0;
     #requestSequence = Promise.resolve();
     #termination?: MobileGatewayTermination;
 
@@ -446,52 +475,65 @@ export class MobileGatewayConnection {
         return () => this.#listeners.delete(listener);
     }
 
+    hasOutstandingMutation(): boolean {
+        return this.#outstandingMutations > 0;
+    }
+
     async request<M extends CaxriMethod>(
         method: M,
         ...arguments_: ParametersArgument<M>
     ): Promise<MethodResult<M>> {
+        const isFastRead = isFastMobileRead(method);
+        if (!isFastRead) this.#outstandingMutations += 1;
         const previousRequest = this.#requestSequence;
         const currentRequest = (async (): Promise<MethodResult<M>> => {
-            await previousRequest;
-            if (this.#termination) throw eventError();
-            const id = `mobile_${encodeHex(this.#session.runtime.randomBytes(16))}`;
-            const replyPromise = new Promise<CommandReplyEnvelope>((resolve, reject) => {
-                const timeout = setTimeout(() => {
-                    if (this.#pending?.id !== id) return;
-                    const error = new Error('Caxri did not respond in time.');
-                    this.#pending = undefined;
-                    reject(error);
-                    this.#finish('disconnected', error);
-                }, REQUEST_TIMEOUT_MS);
-                this.#pending = {
-                    id,
-                    reject: (error) => {
-                        clearTimeout(timeout);
-                        reject(error);
-                    },
-                    resolve: (reply) => {
-                        clearTimeout(timeout);
-                        resolve(reply);
-                    },
-                };
-            });
             try {
-                sendSealed(this.#session, {
-                    protocolVersion: CAXRI_PROTOCOL_VERSION,
-                    id,
-                    method,
-                    params: arguments_[0] ?? {},
+                await previousRequest;
+                if (this.#termination) throw eventError();
+                const id = `mobile_${encodeHex(this.#session.runtime.randomBytes(16))}`;
+                const replyPromise = new Promise<CommandReplyEnvelope>((resolve, reject) => {
+                    const timeout = setTimeout(
+                        () => {
+                            if (this.#pending?.id !== id) return;
+                            const error = new Error('Caxri did not respond in time.');
+                            this.#pending = undefined;
+                            reject(error);
+                            this.#finish('disconnected', error);
+                        },
+                        isFastRead ? READ_REQUEST_TIMEOUT_MS : REQUEST_TIMEOUT_MS,
+                    );
+                    this.#pending = {
+                        id,
+                        reject: (error) => {
+                            clearTimeout(timeout);
+                            reject(error);
+                        },
+                        resolve: (reply) => {
+                            clearTimeout(timeout);
+                            resolve(reply);
+                        },
+                    };
                 });
-            } catch (error) {
-                this.#finish(
-                    'disconnected',
-                    error instanceof Error ? error : new Error('The Caxri connection closed.'),
-                );
+                try {
+                    sendSealed(this.#session, {
+                        protocolVersion: CAXRI_PROTOCOL_VERSION,
+                        id,
+                        method,
+                        params: arguments_[0] ?? {},
+                    });
+                } catch (error) {
+                    this.#finish(
+                        'disconnected',
+                        error instanceof Error ? error : new Error('The Caxri connection closed.'),
+                    );
+                }
+                const reply = await replyPromise;
+                if (!reply.ok)
+                    throw new MobileGatewayRequestError(reply.error.code, reply.error.message);
+                return parseCaxriResult(method, reply.result);
+            } finally {
+                if (!isFastRead) this.#outstandingMutations -= 1;
             }
-            const reply = await replyPromise;
-            if (!reply.ok)
-                throw new MobileGatewayRequestError(reply.error.code, reply.error.message);
-            return parseCaxriResult(method, reply.result);
         })();
         this.#requestSequence = (async (): Promise<void> => {
             try {
@@ -502,12 +544,44 @@ export class MobileGatewayConnection {
         })();
         return currentRequest;
     }
+
+    async probe(): Promise<void> {
+        let timeout: ReturnType<typeof setTimeout> | undefined;
+        try {
+            await Promise.race([
+                this.request('mobile.dashboard'),
+                new Promise<never>((_resolve, reject) => {
+                    timeout = setTimeout(() => {
+                        const error = new Error('Caxri did not respond to the foreground probe.');
+                        this.#finish('disconnected', error);
+                        reject(error);
+                    }, FOREGROUND_PROBE_TIMEOUT_MS);
+                }),
+            ]);
+        } finally {
+            clearTimeout(timeout);
+        }
+    }
 }
 
 export interface PairedMobileConnection {
     connection: MobileGatewayConnection;
     credential: MobileCredential;
 }
+
+const hasUnsupportedPairingLinkVersion = (source: string): boolean => {
+    try {
+        const url = new URL(source);
+        if (url.protocol !== 'caxri:' || url.hostname !== 'pair') return false;
+        const versionText = url.searchParams.get('v');
+        if (versionText === null) return false;
+        const version = Number(versionText);
+        if (!Number.isSafeInteger(version)) return false;
+        return version !== MOBILE_TRANSPORT_VERSION;
+    } catch {
+        return false;
+    }
+};
 
 export const pairMobileGateway = async (input: {
     displayName: string;
@@ -519,6 +593,8 @@ export const pairMobileGateway = async (input: {
     try {
         link = parseMobilePairingLink(input.pairingLink);
     } catch {
+        if (hasUnsupportedPairingLinkVersion(input.pairingLink))
+            throw new MobileVersionMismatchError();
         throw new MobilePairingError('invalid-link', 'This is not a Caxri pairing link.');
     }
     if (link.expiresAt <= Date.now())
@@ -548,7 +624,8 @@ export const pairMobileGateway = async (input: {
             },
         });
     } catch (error) {
-        if (error instanceof MobilePairingError) throw error;
+        if (error instanceof MobilePairingError || error instanceof MobileVersionMismatchError)
+            throw error;
         throw new MobilePairingError('rejected', 'Caxri could not verify this pairing.');
     }
     try {

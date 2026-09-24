@@ -42,7 +42,9 @@ split it into commits that can each be reviewed and reverted on their own.
 - Do not split mechanically by file count; split by intent and ownership boundary.
 
 Stage explicit paths or hunks with `git add -- <paths...>` or `git add -p`. Never use a broad stage
-command when it could capture unrelated work. Inspect `git diff --cached` before every commit.
+command when it could capture unrelated work. After interactive staging, verify the intended hunk
+actually entered the index; a wrapper may exit successfully without presenting a prompt. If it did
+not, apply a reviewed patch with `git apply --cached`. Inspect `git diff --cached` before every commit.
 
 ## Write messages
 

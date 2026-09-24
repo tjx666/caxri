@@ -18,6 +18,7 @@ import {
     mobileRevokedSchema,
     mobileSealedFrameSchema,
     mobileServerHelloSchema,
+    mobileVersionMismatchSchema,
     openMobileFrame,
     parseMobilePairingLink,
     sealMobileFrame,
@@ -161,6 +162,134 @@ describe('MobileGateway', () => {
         ).toBe('192.168.1.5');
     });
 
+    it('advertises a Tailscale address before a physical LAN address', () => {
+        expect(
+            selectMobileGatewayAddress({
+                en0: [
+                    {
+                        address: '192.168.1.5',
+                        netmask: '255.255.255.0',
+                        family: 'IPv4',
+                        mac: '00:00:00:00:00:01',
+                        internal: false,
+                        cidr: '192.168.1.5/24',
+                    },
+                ],
+                utun4: [
+                    {
+                        address: '100.100.100.1',
+                        netmask: '255.192.0.0',
+                        family: 'IPv4',
+                        mac: '00:00:00:00:00:02',
+                        internal: false,
+                        cidr: '100.100.100.1/10',
+                    },
+                ],
+            }),
+        ).toBe('100.100.100.1');
+    });
+
+    it.each(['pair', 'connect'] as const)(
+        'returns an explicit version mismatch before %s authentication',
+        async (mode) => {
+            const registry = await registryFixture();
+            const gateway = new MobileGateway({
+                adapters: { server: { invoke: vi.fn() } },
+                bootId: 'b'.repeat(32),
+                protocolIdentity: { serverId: 'a'.repeat(32), stateEpoch: 'c'.repeat(32) },
+                registry,
+                selectAddress: () => '127.0.0.1',
+            });
+            const enabled = await gateway.enable();
+            const pairing = gateway.createPairing(['project-1']);
+            const link = parseMobilePairingLink(pairing.pairingLink);
+            const socket = await openSocket(`ws://${enabled.address}:${enabled.port}/mobile`);
+            try {
+                const reply = nextMessage(socket);
+                socket.send(
+                    JSON.stringify({
+                        type: 'hello',
+                        version: MOBILE_TRANSPORT_VERSION + 1,
+                        mode,
+                        ...(mode === 'pair'
+                            ? { pairingId: link.pairingId }
+                            : { deviceId: `device_${'11'.repeat(16)}`, generation: 1 }),
+                    }),
+                );
+                expect(mobileVersionMismatchSchema.parse(await reply)).toEqual({
+                    type: 'version-mismatch',
+                    supportedVersion: MOBILE_TRANSPORT_VERSION,
+                });
+                expect(gateway.status().pendingPairingCount).toBe(1);
+            } finally {
+                socket.close();
+                await gateway.close();
+            }
+        },
+    );
+
+    it('consumes a pairing ID on the first hello and rejects a second handshake', async () => {
+        const registry = await registryFixture();
+        const gateway = new MobileGateway({
+            adapters: { server: { invoke: vi.fn() } },
+            bootId: 'b'.repeat(32),
+            protocolIdentity: { serverId: 'a'.repeat(32), stateEpoch: 'c'.repeat(32) },
+            registry,
+            selectAddress: () => '127.0.0.1',
+        });
+        const enabled = await gateway.enable();
+        const link = parseMobilePairingLink(gateway.createPairing(['project-1']).pairingLink);
+        const clientSecret = decodeHex('21'.repeat(32));
+        const clientPublicKey = mobilePublicKey(clientSecret);
+        const clientNonce = decodeHex('31'.repeat(32));
+        const hello = {
+            type: 'hello',
+            version: MOBILE_TRANSPORT_VERSION,
+            mode: 'pair',
+            pairingId: link.pairingId,
+            displayName: 'Test tablet',
+            platform: 'android',
+            clientPublicKey: encodeHex(clientPublicKey),
+            clientNonce: encodeHex(clientNonce),
+        };
+        const url = `ws://${enabled.address}:${enabled.port}/mobile`;
+        const first = await openSocket(url);
+        const second = await openSocket(url);
+        try {
+            const firstMessage = nextMessage(first);
+            first.send(JSON.stringify(hello));
+            mobileServerHelloSchema.parse(await firstMessage);
+            expect(gateway.status().pendingPairingCount).toBe(0);
+
+            const secondMessage = nextMessage(second);
+            second.send(JSON.stringify(hello));
+            const challenge = mobileServerHelloSchema.parse(await secondMessage);
+            const transcript: HandshakeTranscript = {
+                mode: 'pair',
+                serverId: link.serverId,
+                principalId: `paired-device:${challenge.deviceId}`,
+                connectionId: decodeHex(challenge.connectionId, 16),
+                clientPublicKey,
+                serverPublicKey: decodeHex(challenge.serverPublicKey, 32),
+                clientNonce,
+                serverNonce: decodeHex(challenge.serverNonce, 32),
+            };
+            const keys = deriveMobileSessionKeys({
+                localSecretKey: clientSecret,
+                peerPublicKey: transcript.serverPublicKey,
+                presharedKey: decodeHex(link.secret, 32),
+                transcript,
+            });
+            expect(
+                isHandshakeConfirmationValid(decodeHex(challenge.confirmation, 32), keys, 'server'),
+            ).toBe(false);
+        } finally {
+            first.close();
+            second.close();
+            await gateway.close();
+        }
+    });
+
     it('reuses the persisted endpoint port after mobile access is toggled', async () => {
         const registry = await registryFixture();
         const gateway = new MobileGateway({
@@ -299,8 +428,9 @@ describe('MobileGateway', () => {
         },
     );
 
-    it('pairs over encrypted frames, rejects methods outside the allowlist, and revokes the live generation', async () => {
+    it('pairs and authenticates a Tailscale source, rejects forbidden methods, and revokes the live generation', async () => {
         const registry = await registryFixture();
+        const sourceAddress = vi.fn(() => '100.100.100.1');
         const invoke = vi.fn<CommandAdapter['invoke']>((request) => {
             if (request.method !== 'mobile.dashboard')
                 throw new Error('Unexpected allowed request');
@@ -318,6 +448,7 @@ describe('MobileGateway', () => {
             random: (bytes) => new Uint8Array(bytes).fill(gatewayByte++),
             registry,
             selectAddress: () => '127.0.0.1',
+            sourceAddress,
         });
         expect(gateway.status()).toMatchObject({ enabled: false, pendingPairingCount: 0 });
         const enabled = await gateway.enable();
@@ -328,6 +459,7 @@ describe('MobileGateway', () => {
         const socket = await openSocket(gatewayUrl, {
             origin: `http://${enabled.address}:${enabled.port}`,
         });
+        expect(sourceAddress).toHaveBeenCalled();
 
         const clientSecret = decodeHex('21'.repeat(32));
         const clientPublicKey = mobilePublicKey(clientSecret);

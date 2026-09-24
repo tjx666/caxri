@@ -1,10 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import type { MobileConnectionStatus } from '../../connection/connection-state';
 import { useMobileClient } from '../../connection/mobile-client-provider';
 import type { MobileSessionItem, MobileSessionSections } from '../session-model';
 import { loadMobileSessionSections } from '../session-refresh';
 
 const POLL_INTERVAL_MS = 2_500;
+export const shouldPollSessionDashboard = (
+    status: MobileConnectionStatus,
+    isForeground: boolean,
+): boolean => status === 'connected' && isForeground;
+
+export const startSessionDashboardPolling = (poll: () => void): (() => void) => {
+    poll();
+    const interval = setInterval(poll, POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+};
+
 const emptySections: MobileSessionSections = {
     needsAttention: [],
     running: [],
@@ -50,13 +62,14 @@ export const nextSelectedSessionId = (
 };
 
 export const useSessionPolling = () => {
-    const { request, status } = useMobileClient();
+    const { isForeground, request, status } = useMobileClient();
     const [sections, setSections] = useState<MobileSessionSections>(emptySections);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [hasLoaded, setHasLoaded] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const loading = useRef(false);
+    const refreshEpoch = useRef(0);
     const pendingSections = useRef<MobileSessionSections | null>(null);
     const touchingList = useRef(false);
 
@@ -66,13 +79,15 @@ export const useSessionPolling = () => {
     }, []);
 
     const refresh = useCallback(async (): Promise<void> => {
-        if (status !== 'connected' || loading.current) return;
+        if (!shouldPollSessionDashboard(status, isForeground) || loading.current) return;
+        const epoch = ++refreshEpoch.current;
         loading.current = true;
         setIsLoading(true);
         try {
             const result = await loadMobileSessionSections({
                 dashboard: () => request('mobile.dashboard'),
             });
+            if (epoch !== refreshEpoch.current) return;
             if (result.status === 'error') {
                 setError('Unable to load Sessions.');
                 return;
@@ -82,21 +97,29 @@ export const useSessionPolling = () => {
             if (touchingList.current) pendingSections.current = result.sections;
             else commitSections(result.sections);
         } finally {
-            loading.current = false;
-            setIsLoading(false);
+            if (epoch === refreshEpoch.current) {
+                loading.current = false;
+                setIsLoading(false);
+            }
         }
-    }, [commitSections, request, status]);
+    }, [commitSections, isForeground, request, status]);
 
     useEffect(() => {
-        if (status !== 'connected') return;
-        const poll = (): void => {
+        if (!shouldPollSessionDashboard(status, isForeground)) {
+            refreshEpoch.current += 1;
+            loading.current = false;
+            return;
+        }
+        const stop = startSessionDashboardPolling(() => {
             // eslint-disable-next-line no-void -- The polling lifecycle is owned by this effect.
             void refresh();
+        });
+        return () => {
+            stop();
+            refreshEpoch.current += 1;
+            loading.current = false;
         };
-        poll();
-        const interval = setInterval(poll, POLL_INTERVAL_MS);
-        return () => clearInterval(interval);
-    }, [refresh, status]);
+    }, [isForeground, refresh, status]);
 
     const finishListInteraction = (): void => {
         touchingList.current = false;
@@ -114,7 +137,7 @@ export const useSessionPolling = () => {
         error,
         finishListInteraction,
         hasLoaded,
-        isLoading,
+        isLoading: shouldPollSessionDashboard(status, isForeground) && isLoading,
         refresh,
         sections,
         selected: sessions.find((session) => session.id === selectedId) ?? null,

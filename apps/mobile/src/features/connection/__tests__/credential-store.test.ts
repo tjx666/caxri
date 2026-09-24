@@ -47,6 +47,23 @@ describe('mobile credential store', () => {
         expect(new TextEncoder().encode(serialized).byteLength).toBeLessThan(512);
     });
 
+    it('retains Tailscale endpoints but rejects a stored public endpoint', async () => {
+        const storage = memoryStorage();
+        const store = createMobileCredentialStore(storage);
+
+        await store.save({ ...credential, addresses: ['100.64.0.1', '192.168.1.5'] });
+        await expect(store.load()).resolves.toEqual({
+            ...credential,
+            addresses: ['100.64.0.1', '192.168.1.5'],
+        });
+
+        storage.values.set(
+            'caxri.mobile-credential.v1',
+            JSON.stringify({ ...credential, addresses: ['8.8.8.8'] }),
+        );
+        await expect(store.load()).resolves.toBeNull();
+    });
+
     it('deletes invalid values instead of exposing them to reconnect', async () => {
         const storage = memoryStorage();
         storage.values.set('caxri.mobile-credential.v1', '{"credential":"secret"}');

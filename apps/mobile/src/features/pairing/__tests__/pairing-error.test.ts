@@ -1,9 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
-import { MobilePairingError } from '../../connection/mobile-gateway-client';
+import {
+    MobilePairingError,
+    MobileVersionMismatchError,
+} from '../../connection/mobile-gateway-client';
 import { pairingErrorMessage } from '../pairing-error';
 
 describe('pairingErrorMessage', () => {
+    it('uses the update-required copy for an incompatible pairing link or Server', () => {
+        expect(pairingErrorMessage(new MobileVersionMismatchError())).toBe(
+            'Update required. This app and Caxri on your computer use different versions. Update both to the latest build.',
+        );
+    });
+
     it.each([
         ['expired', 'This pairing code expired. Create a new code in Caxri Settings.'],
         ['invalid-link', 'This is not a valid Caxri pairing link. Copy or scan a new code.'],
