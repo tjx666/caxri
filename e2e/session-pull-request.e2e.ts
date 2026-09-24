@@ -47,9 +47,9 @@ async function writeClaudeMetadata(
  * The hover card's pull request link is the only pointer route to the PR, and the card is a non-modal preview: Tab from
  * the focused row leaves the sidebar and closes it (verified over CDP for #534). Keyboard users therefore reach the PR
  * through the Session row menu and the command palette, both of which this workflow drives end to end against a fake
- * `gh` that reports a merged PR or an open PR with failing checks for the checked-out branch.
+ * `gh` that reports a merged, open, or draft PR for the checked-out branch.
  */
-for (const state of ['merged', 'open'] as const) {
+for (const state of ['merged', 'open', 'draft'] as const) {
     test(`a ${state} Session pull request is visible on the row and opens from the keyboard`, async () => {
         const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-pull-request-e2e-'));
         const userData = join(testDirectory, 'user-data');
@@ -78,10 +78,10 @@ for (const state of ['merged', 'open'] as const) {
          */
         const view = JSON.stringify({
             number: 42,
-            title: 'Merged pull request fixture',
+            title: 'Pull request fixture',
             url: PULL_REQUEST_URL,
-            state: state.toUpperCase(),
-            isDraft: false,
+            state: state === 'draft' ? 'OPEN' : state.toUpperCase(),
+            isDraft: state === 'draft',
             body: '',
             statusCheckRollup:
                 state === 'open'
@@ -104,7 +104,7 @@ for (const state of ['merged', 'open'] as const) {
             `#!/bin/sh
 case " $* " in
   *" api graphql -f "*) printf '%s' '{"data":{"rateLimit":{"limit":5000,"remaining":5000,"used":0,"resetAt":"2100-01-01T00:00:00Z"}}}' ;;
-  *" pr list "*) printf '%s' '[{"number":42,"state":"${state.toUpperCase()}","isDraft":false}]' ;;
+  *" pr list "*) printf '%s' '[{"number":42,"state":"${state === 'draft' ? 'OPEN' : state.toUpperCase()}","isDraft":${state === 'draft'}}]' ;;
   *) printf '%s' '${view}' ;;
 esac
 `,
@@ -125,8 +125,11 @@ esac
             const description =
                 state === 'open'
                     ? 'Pull request #42 open, checks failing.'
-                    : 'Pull request #42 merged.';
+                    : `Pull request #42 ${state}.`;
             await expect(glyph).toHaveAttribute('aria-label', description);
+            if (state === 'draft') {
+                await expect(glyph.locator('svg')).toHaveClass(/lucide-git-pull-request$/u);
+            }
             await expect(glyph.locator('[data-pull-request-check-badge="failure"]')).toHaveCount(0);
             const statusTab = running.page.getByRole('tab', { name: 'Status', exact: true });
             const badge = statusTab.locator('[data-view-container-badge]');
@@ -185,10 +188,12 @@ esac
             await expect(card).toBeFocused();
             const hoverCard = running.page.locator('.session-activity-card');
             await expect(hoverCard).toContainText('#42');
-            await expect(hoverCard).toContainText(state === 'open' ? 'Open' : 'Merged');
+            await expect(hoverCard).toContainText(
+                state === 'open' ? 'Open' : state === 'draft' ? 'Draft' : 'Merged',
+            );
             if (state === 'open') await expect(hoverCard).toContainText('Checks failing');
             await hoverCard.screenshot({ path: test.info().outputPath(`pr-${state}-hover.png`) });
-            await expect(hoverCard).toContainText('Merged pull request fixture');
+            await expect(hoverCard).toContainText('Pull request fixture');
             await running.page.keyboard.press('Tab');
             await expect(card).not.toBeFocused();
             await expect(hoverCard).toHaveCount(0);
