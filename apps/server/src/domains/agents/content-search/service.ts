@@ -139,7 +139,7 @@ export class SessionContentSearch {
 
     async search(query: string, signal?: AbortSignal): Promise<SessionContentSearchResult> {
         signal?.throwIfAborted();
-        const sessions = this.database.listSessions();
+        const sessions = this.database.listVisibleSessions();
         const result: SessionContentSearchResult = {
             matches: [],
             scanned: 0,

@@ -5,9 +5,8 @@ import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { expect, it } from 'vitest';
 
-import { CURRENT_SCHEMA_VERSION } from '../connection';
 import { CaxriDatabaseConnection } from '../database-connection';
-import { migrationManifest } from '../migrations/manifest';
+import { migrationManifest, schemaVersionForMigration } from '../migrations/manifest';
 
 /**
  * Every unclean Caxri exit used to stamp `failed` on every live Session, and nothing ever cleared it, so upgrading
@@ -21,7 +20,12 @@ it('rewrites shutdown-stamped Session failures from their surviving activity rea
         const path = join(directory, 'state.db');
         const previous = new Database(path);
         previous.pragma('foreign_keys = ON');
-        const previousMigrations = migrationManifest.slice(0, -1);
+        const previousMigrations = migrationManifest.slice(
+            0,
+            migrationManifest.findIndex(
+                (migration) => migration.tag === '0030_clear-shutdown-stamped-session-failure',
+            ),
+        );
         for (const migration of previousMigrations)
             previous.exec(migration.sql.replaceAll('--> statement-breakpoint', ''));
         previous
@@ -40,7 +44,9 @@ it('rewrites shutdown-stamped Session failures from their surviving activity rea
             'INSERT INTO sessions (id, project_id, created_at, last_opened_at, display_title, last_activity_state, last_session_activity_reason) VALUES (?, ?, 1, 1, ?, ?, ?)',
         );
         for (const [id, state, reason] of rows) insert.run(id, 'project-1', id, state, reason);
-        previous.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 1}`);
+        previous.pragma(
+            `user_version = ${schemaVersionForMigration('0030_clear-shutdown-stamped-session-failure') - 1}`,
+        );
         previous.close();
 
         const upgraded = new CaxriDatabaseConnection(path);
