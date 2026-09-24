@@ -434,9 +434,10 @@ test('work tabs divide evenly, leave a draggable titlebar, and pin New Terminal 
         const strip = running.page.locator(`${VISIBLE_SESSION} .work-tabs`);
         const tab = strip.locator('.work-tab').last();
         const actions = strip.locator('.tab-actions');
-        // The bar drops its "+" chrome entirely while the Workbench holds a single tab, so the geometry this test is
-        // about only exists once a second tab makes the button meaningful.
-        await expect(actions).toHaveCount(0);
+        // The single-tab bar reserves the action's width, but keeps its + quiet until the pointer or keyboard reaches
+        // the bar. A second tab makes it visible at rest.
+        await expect(actions).toHaveCount(1);
+        await expect(actions.locator(':scope > div')).toHaveCSS('opacity', '0');
         await pressNewTerminal(running.page);
         await expect(strip.locator('.work-tab')).toHaveCount(2);
         const metrics = await Promise.all([
@@ -533,15 +534,12 @@ test('work tabs divide evenly, leave a draggable titlebar, and pin New Terminal 
         await expect(terminalTab).not.toHaveAttribute('data-base-ui-tooltip-trigger');
         await running.page.mouse.move(0, 300);
 
-        // E2E runs with no `session.defaultAgent`, so New Terminal collapses to the single button that asks which
-        // Agent to start. It advertises no ⌘T there: the shortcut falls back to a plain shell instead of asking.
+        // The tab-strip + always asks which Agent to start. E2E has no `session.defaultAgent`, so advertising ⌘T
+        // here would misstate the shortcut, which falls back to a plain shell rather than asking.
         const newTerminal = running.page.getByRole('button', { name: 'New Terminal' });
         await newTerminal.hover();
         await expect(newTerminal).not.toHaveAttribute('data-base-ui-tooltip-trigger');
-        await newTerminal.click();
-        // Named after the button that opened it: Base UI points the popup's `aria-labelledby` at its active trigger,
-        // which outranks any `aria-label` the popup carries. `Select a different agent` names the split button's
-        // chevron, and that half only exists once `session.defaultAgent` is configured.
+        // Named after the hovered button: Base UI points the popup's `aria-labelledby` at its active trigger.
         const agentMenu = running.page.getByRole('menu', { name: 'New Terminal' });
         await expect(agentMenu).toBeVisible();
         await expect(agentMenu.getByRole('menuitem')).toHaveText([
@@ -550,6 +548,10 @@ test('work tabs divide evenly, leave a draggable titlebar, and pin New Terminal 
             'Grok Build',
             'Shell',
         ]);
+        await running.page.keyboard.press('Escape');
+        await newTerminal.focus();
+        await newTerminal.press('Enter');
+        await expect(agentMenu).toBeVisible();
         await running.page.keyboard.press('Escape');
     } finally {
         await closeAppQuietly(running.app);

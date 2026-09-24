@@ -514,18 +514,21 @@ Tabs fill the full 44px rail height. Document tabs fit their full labels; Termin
 remaining width with their full displayed content as the minimum. Crowded bars scroll rather than
 truncating Terminal labels or imposing a fixed filename cap.
 While the whole workbench holds exactly one tab across every
-pane, that tab drops both the accent top border and the New Terminal button: an "active" marker
-distinguishes nothing when there is nothing to distinguish it from, and the pane ring still
-carries focus. The command stays reachable through `cmd+t` and the application menu, iTerm2 style.
-Both return as soon as a second tab exists anywhere in the window. A clean preview Editor owns one
-transient, Session-scoped motion identity: replacing its path updates the same DOM tab instantly,
-pinning preserves that identity, and only the next real tab receives the existing enter animation.
+pane, that tab drops the accent top border: an "active" marker distinguishes nothing when there is
+nothing to distinguish it from, and the pane ring still carries focus. The New Terminal + keeps a
+stable slot at the bar's trailing edge, revealed on bar hover or keyboard focus. Hovering + opens
+the Agent list; pressing it opens the same list for pointer and keyboard users. The chosen Agent
+starts as another Terminal in the same Session. With two or more tabs, + stays visible and keeps
+the same menu behavior. An empty pane uses its own labelled New Terminal action.
+A clean preview Editor owns one transient, Session-scoped motion identity: replacing its path
+updates the same DOM tab instantly, pinning preserves that identity, and only the next real tab
+receives the existing enter animation.
 An active ordinary file with committed history keeps two fixed ghost icon actions at the right of
 its pane's tab rail: `Open Last Commit Changes` shows the latest commit that touched that file, and
 `Open Pull Request Changes` shows the file's committed current-branch PR diff. They use distinct
 commit and pull-request glyphs, remain keyboard reachable and outside the scroll rail, and hide for
 Terminal, external, transcript, and Git diff tabs. These file actions remain when the Editor is the
-only Workbench tab; the single-tab rule above still hides only New Terminal and the active accent.
+only Workbench tab; the single-tab rule above still hides only the active accent at rest.
 Single-file Git diff tabs use the same action slot for `Previous Change`, `Next Change`, and
 `Open Current File`. Navigation targets that pane's mounted diff and stays disabled until changes
 are ready. Every Git diff tab, single-file or multi-file, ends that slot with a `Diff View Options`

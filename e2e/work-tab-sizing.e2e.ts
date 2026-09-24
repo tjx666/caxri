@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { execFileAsync } from '@caxri/system';
 import type { Page } from 'playwright';
 
+import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import { publishFullScreenState } from './support/full-screen-state.ts';
 import {
@@ -276,42 +277,66 @@ test('Terminal tabs anchor at the leading edge, Document tabs size to content an
     }
 });
 
-test('the tab bar hides the "+" button only at a single Workbench-wide tab and accents only the focused pane', async () => {
+test('the tab bar reveals the Agent menu on hover with one tab and accents only the focused pane', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-work-tabs-sole-tab-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const rootInput = join(testDirectory, 'project');
     await execFileAsync('mkdir', ['-p', rootInput]);
     const root = await realpath(rootInput);
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: { codex: {} },
+    });
 
-    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
     try {
         await createProjectSession(running.page);
         const tabs = running.page.locator('.work-tabs .work-tab');
         const newTerminal = running.page.getByRole('button', { name: 'New Terminal' });
+        const newTerminalSlot = running.page.locator('.work-tabs .tab-actions > div');
         await expect(tabs).toHaveCount(1);
         await waitForTabMotionToSettle(running.page);
 
         /**
-         * Nothing to switch between: neither affordance has anything to say, and the active pane's own accent ring
-         * still marks focus. iTerm2 hides both at one tab for the same reason.
+         * Nothing to switch between: the active accent stays absent, while the reserved creation slot reveals its
+         * action only when the user reaches the tab bar.
          */
         const accentHeight = (element: Element) =>
             // eslint-disable-next-line unicorn/prefer-number-coercion -- the computed height carries a "px" suffix, which `Number()` cannot parse
             Number.parseFloat(getComputedStyle(element, '::before').height) || 0;
         expect(await tabs.first().evaluate(accentHeight)).toBe(0);
-        await expect(newTerminal).toHaveCount(0);
+        await expect(newTerminal).toHaveCount(1);
+        await expect(newTerminalSlot).toHaveCSS('opacity', '0');
+        await tabs.first().hover();
+        await expect(newTerminalSlot).toHaveCSS('opacity', '1');
+        await newTerminal.hover();
+        const agentMenu = running.page.getByRole('menu', { name: 'New Terminal' });
+        await expect(agentMenu).toBeVisible();
+        await running.page.keyboard.press('Meta+t');
+        await expect(tabs).toHaveCount(1);
+        await expect(agentMenu).toBeVisible();
+        await agentMenu.getByRole('menuitem', { name: 'Codex' }).hover();
+        await expect(agentMenu).toBeVisible();
+        await running.page.mouse.move(0, 300);
+        await expect(agentMenu).toBeHidden();
+        await newTerminal.hover();
+        await expect(agentMenu).toBeVisible();
         // A lone pane still says which of how many it is, so the label stays parseable once a split arrives.
         await expect(
             running.page.getByRole('tablist', { name: 'Open tabs in pane 1 of 1', exact: true }),
         ).toBeVisible();
 
-        // A second tab restores both. `cmd+t` rather than the button, which is exactly what is missing right now.
+        // Choosing Codex creates another Terminal in this Session without replacing the original Shell.
         const existingTerminalIds = await running.page
             .locator('.work-tab[data-terminal-id]')
             .evaluateAll((elements) => elements.map((element) => element.dataset.terminalId ?? ''));
-        await pressNewTerminal(running.page);
+        await agentMenu.getByRole('menuitem', { name: 'Codex' }).click();
         const secondTerminalId = await waitForNewTerminalId(running.page, existingTerminalIds);
         await expect(tabs).toHaveCount(2);
+        await expect(running.page.getByRole('tab', { name: 'Codex', exact: true })).toBeVisible();
+        await expect(
+            running.page.locator(`.work-tab[data-terminal-id="${existingTerminalIds[0]}"]`),
+        ).toBeVisible();
         await waitForTabMotionToSettle(running.page);
         await expect(newTerminal).toBeVisible();
         const activeAccent = await running.page
@@ -682,10 +707,11 @@ test('the bar hides "+" with no tabs at all and reserves its drag corner only wi
         // `primary-sidebar-title` is a drag region of its own, so while the sidebar is open the window already moves
         // from there and a second reserved strip would only wedge dead space beside the tabs.
         await expect(dragCorner).toHaveCount(0);
-        await expect(actions).toHaveCount(0);
+        await expect(actions).toHaveCount(1);
+        await expect(actions.locator(':scope > div')).toHaveCSS('opacity', '0');
 
-        // Hidden, the bar becomes the whole titlebar: evenly divided tabs would reach the window's right edge and
-        // leave nothing to grab, so the corner appears exactly there.
+        // The hidden-at-rest + still reserves its slot. With the sidebar closed the corner remains the draggable
+        // handle beside that slot.
         await running.page.keyboard.press('Meta+BracketLeft');
         await expect(running.page.locator('.primary-sidebar-title')).toHaveCount(0);
         await expect(dragCorner).toHaveCount(1);
@@ -707,12 +733,10 @@ test('the bar hides "+" with no tabs at all and reserves its drag corner only wi
         await running.page.keyboard.press('Meta+BracketLeft');
         await expect(dragCorner).toHaveCount(0);
 
-        // Closing the last Terminal used to bring "+" back, because the rule keyed off "exactly one tab" and an empty
-        // Workbench is not one tab. The empty pane offers its own New Terminal button, so the bar stays bare.
+        // The empty pane offers its own New Terminal button, so the tab bar loses the reserved + slot.
         const onlyTab = running.page.locator('.work-tabs .work-tab').first();
-        // With nothing to switch to, the close button is the same noise as "+" and the active accent: closing the lone
-        // tab only swaps it for the empty pane's own New Terminal button. Terminal > Close Terminal keeps the command
-        // reachable; `cmd+w` on a Session's last tab archives the Session instead.
+        // With one tab, the close button and active accent stay absent; closing it reveals the empty pane's own New
+        // Terminal action. Terminal > Close Terminal remains available, while `cmd+w` archives the Session.
         await onlyTab.hover();
         await expect(onlyTab.getByRole('button', { name: 'Close Terminal' })).toHaveCount(0);
         await running.app.evaluate(({ Menu }) => {
