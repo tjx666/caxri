@@ -431,14 +431,14 @@ export function firstActiveSession(
 }
 
 /**
- * Picks the Project a fallback selection may land on. An auto-registered worktree Project (`ownerProjectId` set) is
- * deliberately skipped: the PrimarySidebar never renders it, so selecting one would leave the user with no highlighted
- * Project row and no obvious way back.
+ * Picks the Project a fallback selection may land on. An auto-registered worktree Project (`ownerProjectId` set) and a
+ * hidden Project are deliberately skipped: the PrimarySidebar never renders either, so selecting one would leave the
+ * user with no highlighted Project row and no obvious way back.
  */
 export function firstSelectableProject(
     records: readonly ProjectRecord[],
 ): ProjectRecord | undefined {
-    return records.find((project) => isTopLevelProject(project));
+    return records.find((project) => isTopLevelProject(project) && project.hiddenAt === undefined);
 }
 
 /**

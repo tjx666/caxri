@@ -22,6 +22,7 @@ import { DiagnosticsService } from './diagnostics';
 import type { DomainDependencies, DomainHandlers, DomainServices } from './domain-services';
 import { createIntrospectionServices } from './introspection';
 import { createOrderingHandlers } from './ordering-handlers';
+import { createProjectHidingHandlers } from './project-hiding-handlers';
 import { ProjectStatusService } from './project-status';
 import { VercelDeploymentStore } from './project-status-vercel-store';
 import { createRootServices } from './root-services';
@@ -216,7 +217,7 @@ export async function createDomainServices(
         github: externalStatus.github,
         listWatchedSessions: () =>
             database
-                .listSessions()
+                .listVisibleSessions()
                 .filter((session) => session.archivedAt === undefined)
                 .map((session) => session.id),
         sessionContext: (sessionId) => sessionContext.readSession(sessionId),
@@ -262,19 +263,30 @@ export async function createDomainServices(
         transcripts.forgetSession(sessionId);
         terminals.terminateSession(sessionId);
     };
+    const evictSessionCaches = (sessionIds: readonly string[]): void => {
+        git.evictSessions(sessionIds);
+        projectStatus.evictSessions(sessionIds);
+    };
     function bootstrapState(): BootstrapState {
         const settings = configuration.getSettings();
         const keybindings = configuration.getKeybindings();
         const theme = configuration.getTheme();
-        const terminalRecords = database.listTerminals();
+        const sessions = database.listVisibleSessions();
+        const visibleSessionIds = new Set(sessions.map((session) => session.id));
+        // A hidden Project's Sessions keep their Terminal and layout rows, but none reaches the Workbench.
+        const terminalRecords = database
+            .listTerminals()
+            .filter((terminal) => visibleSessionIds.has(terminal.sessionId));
         const notices = agentRuntime.automaticNaming.automaticNamingNotices();
         return {
-            projects: database.listProjects(),
-            sessions: database.listSessions(),
+            projects: database.listVisibleProjects(),
+            sessions,
             terminals: terminalRecords.map(liveTerminalRecord),
             selectedProjectId: database.getAppState('lastSelectedProjectId') ?? undefined,
             selectedSessionId: database.getAppState('lastSelectedSessionId') ?? undefined,
-            sessionStates: database.listSessionStates(terminalRecords),
+            sessionStates: database
+                .listSessionStates(terminalRecords)
+                .filter((state) => visibleSessionIds.has(state.sessionId)),
             settings: settings.value,
             keybindings: keybindings.value,
             keybindingConflicts: keybindings.conflicts,
@@ -555,11 +567,20 @@ export async function createDomainServices(
                 'Project creation cancellation is owned by the Main process',
             );
         },
-        'project.list': () => ({ view: 'desktop', projects: database.listProjects() }),
+        'project.list': () => ({ view: 'desktop', projects: database.listVisibleProjects() }),
         'project.query': () => mainOwned('project.query'),
         'project.queryForPrincipal': ({ principal, query }) =>
             introspection.records.project(query, principal),
         ...createOrderingHandlers({ database, sendFullStateChange }),
+        ...createProjectHidingHandlers({
+            database,
+            bootstrapState,
+            evictSessions: evictSessionCaches,
+            restoreSelection: () => observeSelectedSession(selectedSessionId(), true),
+            sendFullStateChange,
+            terminalRestores,
+            terminalSuspension,
+        }),
         'session.create': async ({ projectId, defaultAgent }) => {
             const project = database.getProject(projectId);
             if (!project) throw new CaxriError('NOT_FOUND', 'Project not found');
@@ -653,10 +674,7 @@ export async function createDomainServices(
             delegations: agentCommands.delegationService,
             bootstrapState,
             forgetSessionRuntime,
-            evictSessions: (ids) => {
-                git.evictSessions(ids);
-                projectStatus.evictSessions(ids);
-            },
+            evictSessions: evictSessionCaches,
             projectDeleted: (ids) => workbenchRoots.projectDeleted(ids),
             restoreSelection: () => observeSelectedSession(selectedSessionId(), true),
             send,

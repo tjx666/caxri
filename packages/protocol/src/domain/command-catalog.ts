@@ -73,6 +73,14 @@ export const commandDefinitions: CommandDefinition[] = [
         nativeMenu: { menu: 'project', group: 0, order: 1 },
     },
     {
+        id: 'project.hide',
+        title: 'Hide Project',
+        category: 'Project',
+        description:
+            'Hide the selected Project and keep its Sessions; adding the same folder again restores them',
+        nativeMenu: { menu: 'project', group: 0, order: 2 },
+    },
+    {
         id: 'project.openInEditor',
         title: 'Open Project in External Editor',
         category: 'Project',

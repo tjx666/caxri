@@ -49,6 +49,7 @@ export const coreForwardedMethods = [
     'keybindings.get',
     'keybindings.update',
     'logs.query',
+    'project.hide',
     'project.list',
     'project.reorder',
     'project.setIcon',

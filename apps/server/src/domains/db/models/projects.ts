@@ -9,7 +9,7 @@ import type { CaxriDrizzleDatabase } from '../connection';
 import { projects } from '../schema';
 
 function projectRecord(row: typeof projects.$inferSelect): ProjectRecord {
-    const { iconColor, iconName, ownerProjectId, ...project } = row;
+    const { hiddenAt, iconColor, iconName, ownerProjectId, ...project } = row;
     const icon = iconName
         ? projectIconSchema.parse({ name: iconName, ...(iconColor && { color: iconColor }) })
         : undefined;
@@ -17,6 +17,7 @@ function projectRecord(row: typeof projects.$inferSelect): ProjectRecord {
         ...project,
         ...(icon && { icon }),
         ...(ownerProjectId && { ownerProjectId }),
+        ...(hiddenAt !== null && { hiddenAt }),
     };
 }
 
@@ -71,6 +72,9 @@ export class ProjectsModel {
      * Ownership is written once and only the user can clear it. An automatic registration therefore never re-owns or
      * re-points an existing row, while a manual add of a root that is currently an owned worktree clears the mark so
      * the user's explicit choice wins and the Project surfaces at the PrimarySidebar's top level.
+     *
+     * A manual add is also what un-hides a hidden Project: the existing row, with its order, icon, and Sessions, comes
+     * back instead of a fresh one. An automatic worktree registration leaves the hidden mark alone.
      */
     create(rootPath: string, ownerProjectId?: string): ProjectRecord {
         // Ownership is one level deep by construction: registering a worktree on behalf of a Project that is itself
@@ -83,11 +87,22 @@ export class ProjectsModel {
         }
         const existing = this.findByRootPath(rootPath);
         if (existing) {
-            if (ownerProjectId !== undefined || isTopLevelProject(existing)) return existing;
+            if (
+                ownerProjectId !== undefined ||
+                (isTopLevelProject(existing) && existing.hiddenAt === undefined)
+            )
+                return existing;
             this.database
                 .update(projects)
-                .set({ ownerProjectId: null })
+                .set({ ownerProjectId: null, hiddenAt: null })
                 .where(eq(projects.id, existing.id))
+                .run();
+            // Hiding cascades to owned worktree Projects, so un-hiding must too: nothing else ever clears their mark,
+            // and a Session whose Workbench root is one of them would stay unresolvable for file links.
+            this.database
+                .update(projects)
+                .set({ hiddenAt: null })
+                .where(eq(projects.ownerProjectId, existing.id))
                 .run();
             return this.get(existing.id)!;
         }
@@ -115,6 +130,16 @@ export class ProjectsModel {
     reorder(projectIds: readonly string[]): void {
         for (const [orderIndex, id] of projectIds.entries())
             this.database.update(projects).set({ orderIndex }).where(eq(projects.id, id)).run();
+    }
+
+    /**
+     * Returns true when a row existed and was touched. `null` un-hides.
+     */
+    setHidden(id: string, hiddenAt: number | null): boolean {
+        return (
+            this.database.update(projects).set({ hiddenAt }).where(eq(projects.id, id)).run()
+                .changes === 1
+        );
     }
 
     setIcon(id: string, icon: ProjectIcon | null): boolean {

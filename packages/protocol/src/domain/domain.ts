@@ -103,6 +103,11 @@ export const projectRecordSchema = z.object({
      * never carries it.
      */
     ownerProjectId: identifierSchema.optional(),
+    /**
+     * Set while the user has hidden the Project. A hidden Project keeps its Sessions and Terminal records but is absent
+     * from `app.bootstrap` and `project.list`; adding the same root again clears it and restores those Sessions.
+     */
+    hiddenAt: z.number().optional(),
 });
 
 /**

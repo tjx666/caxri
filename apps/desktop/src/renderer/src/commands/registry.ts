@@ -15,6 +15,7 @@ export interface CommandContext {
     project: {
         create(): void;
         customizeIcon(projectId?: string): void;
+        hideSelected(): void;
         openInExternalEditor(): void;
         removeSelected(): void;
     };

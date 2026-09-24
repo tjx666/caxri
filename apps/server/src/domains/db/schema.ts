@@ -31,6 +31,11 @@ export const projects = sqliteTable(
          * explicitly instead.
          */
         ownerProjectId: text('owner_project_id').references((): AnySQLiteColumn => projects.id),
+        /**
+         * Non-null while the user has hidden the Project. The row and everything it owns stay intact so a later manual
+         * add of the same root restores its Sessions instead of starting an empty Project.
+         */
+        hiddenAt: integer('hidden_at'),
     },
     (table) => [
         unique().on(table.rootPath),

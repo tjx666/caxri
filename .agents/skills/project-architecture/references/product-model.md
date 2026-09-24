@@ -14,6 +14,16 @@ Archiving a Session hides it from active navigation without stopping or deleting
 Project and Session deletion removes Caxri metadata only. It never removes the authorized Project
 folder or user files.
 
+Hiding a Project (`project.hide`) is the reversible alternative to deletion. It marks the Project and
+the worktree Projects registered on its behalf with `hiddenAt`, parks their live Terminals through the
+archive suspension path, and moves selection off them, but keeps every Project, Session, Terminal, and
+layout row. `app.bootstrap`, `project.list`, CLI record queries, Terminal file links, Session content
+search, Project Status background polling, and Session pull-request lookup all skip hidden Projects
+and their Sessions. The root stays registered, so a later manual `project.create` of the same root
+clears `hiddenAt` and returns the original Project with its order, icon, and Sessions; an automatic
+worktree registration never un-hides. There is no hidden-Project list: re-adding the folder is the
+only way back.
+
 Every Session deletion path, including bulk and owning-Project deletion, retires Session runtime
 state before deleting metadata. Retirement aborts automatic naming, clears naming retry and manual
 revision bookkeeping, and releases Terminal view-size and input-epoch state. Late naming results
