@@ -3,11 +3,13 @@ import { resolve } from 'node:path';
 
 /**
  * How long a Project root is remembered as structurally not a repository. Matches `SUMMARY_FAILURE_CACHE_TTL_MS` in
- * `project-status.ts` so both polling paths stop re-deriving the same failed Project on the same cadence. It is only a
- * backstop: {@link MissingRepoRootCache.lookup} re-probes `.git` on every hit, so a restored repository clears the entry
+ * `project-status.ts` so both polling paths stop re-deriving the same failed Project on the same cadence. It must
+ * outlast the background poll interval, or every poll lands after expiry and spawns `git` again: production (#1184) saw
+ * a non-repository root re-probed every ~71s against the former 30s. It is only a backstop:
+ * {@link MissingRepoRootCache.lookup} re-probes `.git` on every hit, so a restored repository clears the entry
  * immediately rather than waiting for expiry.
  */
-const MISSING_REPO_ROOT_TTL_MS = 30_000;
+const MISSING_REPO_ROOT_TTL_MS = 5 * 60_000;
 
 interface CachedFailure {
     error: string;

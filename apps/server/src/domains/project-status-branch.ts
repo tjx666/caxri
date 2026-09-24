@@ -115,34 +115,82 @@ export async function loadBranchPublication(
     return { ...base, state: 'published' };
 }
 
+type OptionalGit = (cwd: string, arguments_: readonly string[]) => Promise<string>;
+
+/**
+ * `git status --porcelain=v2 --branch` reports a detached HEAD as this branch name; `git.summary` passes it through.
+ */
+const DETACHED_BRANCH = '(detached)';
+/**
+ * How long `origin`'s URL and default branch are reused for one repository root.
+ */
+const REPO_REMOTE_TTL_MS = 5 * 60_000;
+
+interface RepoRemote {
+    defaultBranch: string;
+    remote: string;
+}
+
+/**
+ * `origin`'s URL and default branch change only when the user edits remotes, yet every overview and every
+ * delivery-watch round spawned two `git` processes per repository to read them again. Production (#1184): with ~35
+ * watched Sessions, `remote.get-url` and `default-branch.get` together ran ~22,000 times in one log window. A forced
+ * refresh reads them again, so a newly added remote shows up as soon as the user asks for it.
+ */
+export class RepoRemoteCache {
+    private readonly entries = new Map<string, { expiresAt: number; value: Promise<RepoRemote> }>();
+
+    constructor(private readonly now: () => number = Date.now) {}
+
+    read(rootPath: string, git: OptionalGit, isForced = false): Promise<RepoRemote> {
+        const now = this.now();
+        const cached = this.entries.get(rootPath);
+        if (!isForced && cached && cached.expiresAt > now) return cached.value;
+        const value = (async () => {
+            const [remote, defaultBranch] = await Promise.all([
+                git(rootPath, ['remote', 'get-url', 'origin']),
+                git(rootPath, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']),
+            ]);
+            return { remote, defaultBranch };
+        })();
+        this.entries.set(rootPath, { expiresAt: now + REPO_REMOTE_TTL_MS, value });
+        return value;
+    }
+}
+
 /**
  * Reads local identity immediately; remote publication is checked later by the background refresh.
+ *
+ * HEAD and the branch come from the same `git.summary` snapshot the caller already holds, instead of two more `git`
+ * processes per repository; only the tracking ref, which moves on every push or fetch, is read each time.
  */
 export async function prepareStatusRepo(
     repo: GitRepositorySummary,
-    git: (cwd: string, arguments_: readonly string[]) => Promise<string>,
+    git: OptionalGit,
+    remotes: RepoRemoteCache = new RepoRemoteCache(),
+    isForced = false,
 ): Promise<{ context: BranchPublicationContext; repository: ProjectStatusRepository }> {
-    const [remote, defaultBranch, head, symbolicHead, trackingHead] = await Promise.all([
-        git(repo.rootPath, ['remote', 'get-url', 'origin']),
-        git(repo.rootPath, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']),
-        git(repo.rootPath, ['rev-parse', 'HEAD']),
-        git(repo.rootPath, ['symbolic-ref', '--quiet', '--short', 'HEAD']),
-        git(repo.rootPath, [
-            'rev-parse',
-            '--verify',
-            '--quiet',
-            `refs/remotes/origin/${repo.branch}`,
-        ]),
+    const isDetached = repo.branch === DETACHED_BRANCH;
+    const [{ remote, defaultBranch }, trackingHead] = await Promise.all([
+        remotes.read(repo.rootPath, git, isForced),
+        isDetached
+            ? Promise.resolve('')
+            : git(repo.rootPath, [
+                  'rev-parse',
+                  '--verify',
+                  '--quiet',
+                  `refs/remotes/origin/${repo.branch}`,
+              ]),
     ]);
     const github = parseGitHubRemote(remote);
     const context: BranchPublicationContext = {
         branch: repo.branch,
         defaultBranch: defaultBranch.replace(/^origin\//, '') || undefined,
-        head: head || undefined,
+        head: repo.head,
         owner: github?.owner,
         repo: github?.repo,
         hasOrigin: Boolean(remote),
-        detached: Boolean(head) && !symbolicHead,
+        detached: Boolean(repo.head) && isDetached,
         trackingHead: trackingHead || undefined,
     };
     const githubUrl = github ? `https://github.com/${github.owner}/${github.repo}` : undefined;

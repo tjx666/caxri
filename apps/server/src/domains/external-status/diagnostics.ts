@@ -182,6 +182,24 @@ export class ExternalStatusCommandTelemetry {
     }
 
     /**
+     * Runs a read whose failure the caller turns into an empty value, such as a missing tracking ref or `origin`
+     * remote.
+     */
+    async readOptional(
+        command: ExternalStatusSource,
+        arguments_: readonly string[],
+        run: () => Promise<string>,
+    ): Promise<string> {
+        try {
+            return (
+                await this.observe({ command, arguments: arguments_, run, isOptional: true })
+            ).trim();
+        } catch {
+            return '';
+        }
+    }
+
+    /**
      * A command that succeeded but whose output failed validation. The command record has no parse outcome, so this
      * keeps its own failure record with a safe reason and no CLI output.
      */
