@@ -4,6 +4,7 @@ import type { AgentTranscriptLocation } from './transcript-security';
 import { openSafeAgentTranscript } from './transcript-security';
 
 const MAX_TRANSCRIPT_SCAN_BYTES_PER_READ = 4 * 1024 * 1024;
+const MAX_TRANSCRIPT_CATCHUP_PASSES = 16;
 const TRANSCRIPT_READ_CHUNK_BYTES = 64 * 1024;
 
 export interface TranscriptScanCursor {
@@ -11,6 +12,10 @@ export interface TranscriptScanCursor {
      * Byte offset of the first unconsumed transcript byte; scans resume here on the next poll.
      */
     offset: number;
+    /**
+     * A record exceeded the per-pass limit; discard its remainder before scanning later records.
+     */
+    skippingOversizedLine?: boolean;
 }
 
 export interface TranscriptScanOptions {
@@ -32,7 +37,7 @@ export async function scanTranscriptLines(
     cursor: TranscriptScanCursor,
     scanLine: (line: string) => void,
     options: TranscriptScanOptions = {},
-): Promise<void> {
+): Promise<number | undefined> {
     try {
         const opened = await openSafeAgentTranscript(location);
         if (!opened) return;
@@ -40,6 +45,7 @@ export async function scanTranscriptLines(
         try {
             if (stats.size < cursor.offset) {
                 cursor.offset = 0;
+                cursor.skippingOversizedLine = false;
                 options.onReset?.();
             }
             const chunk = Buffer.allocUnsafe(TRANSCRIPT_READ_CHUNK_BYTES);
@@ -58,7 +64,18 @@ export async function scanTranscriptLines(
                 );
                 if (bytesRead <= 0) break;
                 scanned += bytesRead;
-                const combined = Buffer.concat([remainder, chunk.subarray(0, bytesRead)]);
+                let next = chunk.subarray(0, bytesRead);
+                if (cursor.skippingOversizedLine) {
+                    const firstNewline = next.indexOf(0x0a);
+                    if (firstNewline === -1) {
+                        cursor.offset += bytesRead;
+                        continue;
+                    }
+                    cursor.offset += firstNewline + 1;
+                    cursor.skippingOversizedLine = false;
+                    next = next.subarray(firstNewline + 1);
+                }
+                const combined = Buffer.concat([remainder, next]);
                 const lastNewline = combined.lastIndexOf(0x0a);
                 if (lastNewline === -1) {
                     remainder = combined;
@@ -69,7 +86,14 @@ export async function scanTranscriptLines(
                 remainder = combined.subarray(lastNewline + 1);
                 cursor.offset += lastNewline + 1;
             }
+            if (remainder.length >= MAX_TRANSCRIPT_SCAN_BYTES_PER_READ) {
+                // A single unbounded JSONL record must not pin the cursor before every later record.
+                cursor.offset += remainder.length;
+                cursor.skippingOversizedLine = true;
+                return stats.size;
+            }
             scanLine(remainder.toString('utf8'));
+            return stats.size;
         } finally {
             await handle.close();
         }
@@ -77,5 +101,36 @@ export async function scanTranscriptLines(
         /**
          * A missing or unreadable transcript is a normal capability miss; keep any previously scanned state.
          */
+        return undefined;
+    }
+}
+
+/**
+ * Catches an existing transcript up to its size at the start of this read, with a 64 MiB total read budget. Yielding
+ * between 4 MiB passes keeps a long first visit from monopolizing Server Core. Waiting for the next UI poll after each
+ * pass would make a report near the end of a long conversation appear minutes late.
+ */
+export async function scanTranscriptToEnd(
+    location: AgentTranscriptLocation,
+    cursor: TranscriptScanCursor,
+    scanLine: (line: string) => void,
+    options: TranscriptScanOptions = {},
+): Promise<void> {
+    let targetSize: number | undefined;
+    for (let pass = 0; pass < MAX_TRANSCRIPT_CATCHUP_PASSES; pass++) {
+        const previousOffset = cursor.offset;
+        // eslint-disable-next-line no-await-in-loop -- each pass resumes at the cursor advanced by the previous pass
+        const size = await scanTranscriptLines(location, cursor, scanLine, options);
+        if (size === undefined) return;
+        if (size < previousOffset) {
+            // A rewritten transcript reset the cursor during this pass; its new tail still belongs to this read.
+            targetSize = size;
+        } else if (cursor.offset <= previousOffset) {
+            return;
+        }
+        targetSize ??= size;
+        if (cursor.offset >= targetSize) return;
+        // eslint-disable-next-line no-await-in-loop -- yield between bounded passes without waiting for the next UI poll
+        await new Promise<void>((resolve) => setImmediate(resolve));
     }
 }
