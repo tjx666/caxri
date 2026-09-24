@@ -37,7 +37,10 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [-
 - `--knip` runs the repository-wide dead-code and unused-export gate for Renderer or shared-contract
   changes.
 - `--e2e` requires one or more explicit `e2e/*.e2e.ts` files, rebuilds Caxri, and runs only those
-  Playwright specs. It never infers E2E specs from Git changes or launches the full suite. The
+  Playwright specs. It acquires the repository desktop lease before the build and keeps it through
+  every spec; a live owner fails fast with its worktree, PID, and lease age. Add `--e2e-wait <seconds>`
+  for a bounded atomic retry (1–300 seconds), otherwise contention fails immediately. It never
+  infers E2E specs from Git changes or launches the full suite. The
   check summary lists related consumer specs for explicit selection. The real-Agent and intentional
   failure-isolation specs retain their dedicated guarded entrypoints.
 - `--e2e-grep '<pattern>'` narrows `--e2e` to one Playwright test-title pattern.

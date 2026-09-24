@@ -7,6 +7,12 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
 import {
+    acquireDesktopLease,
+    inspectDesktopLease,
+    releaseDesktopLease,
+} from '../../switch-worktree/scripts/desktop-lease';
+import { CommandError } from '../../switch-worktree/scripts/process';
+import {
     directImportTestCandidates,
     relatedE2ESpecs,
     TEST_EXTENSIONS,
@@ -34,6 +40,7 @@ const FORMAT_EXTENSIONS = new Set(['.css', '.html', '.json', '.jsonc', '.md', '.
 export interface CheckOptions {
     e2e: boolean;
     e2eGrep?: string;
+    e2eWaitSeconds?: number;
     files: string[];
     isStaged: boolean;
     knip: boolean;
@@ -189,7 +196,7 @@ interface ProcessFailure extends Error {
     stdout?: Buffer | string;
 }
 
-const usage = `Usage: bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [--e2e-grep <pattern>] [--staged]
+const usage = `Usage: bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [--e2e-grep <pattern>] [--e2e-wait <seconds>] [--staged]
 
 Selectors:
   --lint     Autofix supported changed files with ESLint and Prettier
@@ -198,6 +205,7 @@ Selectors:
   --knip     Run the repository-wide dead code/export check (CI blocking)
   --e2e      Build and run explicitly named e2e/*.e2e.ts Playwright specs
   --e2e-grep Narrow --e2e to a Playwright test-title pattern
+  --e2e-wait Wait up to 300 seconds for the repository desktop lease (default: fail immediately)
   --staged   Discover only staged files when no file arguments are supplied
 
 With no selector, --lint and --test are enabled.`;
@@ -229,6 +237,13 @@ function didConsumeNextCheckArgument(
             options.e2eGrep = nextArgument;
             return true;
         }
+        case '--e2e-wait': {
+            const seconds = Number(nextArgument);
+            if (!nextArgument || !Number.isSafeInteger(seconds) || seconds < 1 || seconds > 300)
+                throw new CheckError('--e2e-wait requires an integer from 1 to 300 seconds', 2);
+            options.e2eWaitSeconds = seconds;
+            return true;
+        }
         case '--lint':
             options.lint = true;
             return false;
@@ -254,6 +269,7 @@ export function parseCheckArguments(arguments_: string[]): CheckOptions {
     const options: CheckOptions = {
         e2e: false,
         e2eGrep: undefined,
+        e2eWaitSeconds: undefined,
         files: [],
         isStaged: false,
         knip: false,
@@ -274,6 +290,8 @@ export function parseCheckArguments(arguments_: string[]): CheckOptions {
     if (options.e2eGrep && !options.e2e) {
         throw new CheckError('--e2e-grep requires --e2e', 2);
     }
+    if (options.e2eWaitSeconds && !options.e2e)
+        throw new CheckError('--e2e-wait requires --e2e', 2);
 
     if (!options.e2e && !options.knip && !options.lint && !options.test && !options.type) {
         options.lint = true;
@@ -405,12 +423,18 @@ export function testCandidatesForFile(file: string): string[] {
     return [...new Set([...harnessCandidates, ...candidates])];
 }
 
-async function runCapture(command: string, arguments_: string[], cwd: string): Promise<string> {
+async function runCapture(
+    command: string,
+    arguments_: string[],
+    cwd: string,
+    environment?: NodeJS.ProcessEnv,
+): Promise<string> {
     try {
         const { stdout } = await execFileAsync(command, arguments_, {
             cwd,
             encoding: 'utf8',
             maxBuffer: MAX_OUTPUT_BYTES,
+            ...(environment && { env: environment }),
         });
         return stdout;
     } catch (error) {
@@ -475,8 +499,13 @@ async function existingFiles(root: string, files: string[]): Promise<string[]> {
     );
 }
 
-async function runTool(root: string, executable: string, arguments_: string[]): Promise<void> {
-    await runCapture(join(root, 'node_modules', '.bin', executable), arguments_, root);
+async function runTool(
+    root: string,
+    executable: string,
+    arguments_: string[],
+    environment?: NodeJS.ProcessEnv,
+): Promise<void> {
+    await runCapture(join(root, 'node_modules', '.bin', executable), arguments_, root, environment);
 }
 
 /**
@@ -603,14 +632,48 @@ async function runTests(root: string, files: string[]): Promise<number> {
     return tests.length;
 }
 
-async function runE2E(root: string, specs: string[], grep?: string): Promise<number> {
+async function runE2E(
+    root: string,
+    specs: string[],
+    grep?: string,
+    waitSeconds = 0,
+): Promise<number> {
     /**
      * A focused Electron run must never exercise stale output. Capturing both successful commands keeps the standard
      * check result compact while runCapture still exposes complete failures.
      */
-    await runCapture('bun', ['run', 'build'], root);
-    await runTool(root, 'playwright', playwrightArguments(specs, grep));
-    return specs.length;
+    const parentToken = process.env.CAXRI_DESKTOP_COORDINATOR_TOKEN;
+    if (parentToken) {
+        const coordinator = await inspectDesktopLease(root);
+        if (
+            coordinator.state !== 'active' ||
+            coordinator.lease.token !== parentToken ||
+            coordinator.lease.worktreePath !== root
+        )
+            throw new CheckError('The inherited desktop coordinator is no longer active');
+    }
+    let lease: Awaited<ReturnType<typeof acquireDesktopLease>> | undefined;
+    if (!parentToken) {
+        try {
+            lease = await acquireDesktopLease(root, 'check --e2e', process.pid, {
+                waitMs: waitSeconds * 1000,
+            });
+        } catch (error) {
+            if (error instanceof CommandError) throw new CheckError(error.message, error.exitCode);
+            throw error;
+        }
+    }
+    const environment = {
+        ...process.env,
+        CAXRI_DESKTOP_COORDINATOR_TOKEN: parentToken ?? lease!.token,
+    };
+    try {
+        await runCapture('bun', ['run', 'build'], root, environment);
+        await runTool(root, 'playwright', playwrightArguments(specs, grep), environment);
+        return specs.length;
+    } finally {
+        if (lease) await releaseDesktopLease(lease);
+    }
 }
 
 async function main(): Promise<void> {
@@ -636,7 +699,9 @@ async function main(): Promise<void> {
         summaries.push('knip');
     }
     if (options.e2e) {
-        summaries.push(`e2e ${await runE2E(root, e2eSpecs, options.e2eGrep)}`);
+        summaries.push(
+            `e2e ${await runE2E(root, e2eSpecs, options.e2eGrep, options.e2eWaitSeconds)}`,
+        );
     }
 
     const dirtyLayerReport = dirtyLayerReportForFiles(files, options.files.length > 0);

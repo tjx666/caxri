@@ -186,6 +186,7 @@ describe('parseCheckArguments', () => {
         expect(parseCheckArguments(['apps/desktop/src/main/index.ts'])).toEqual({
             e2e: false,
             e2eGrep: undefined,
+            e2eWaitSeconds: undefined,
             files: ['apps/desktop/src/main/index.ts'],
             isStaged: false,
             knip: false,
@@ -199,6 +200,7 @@ describe('parseCheckArguments', () => {
         expect(parseCheckArguments(['--staged', '--type'])).toEqual({
             e2e: false,
             e2eGrep: undefined,
+            e2eWaitSeconds: undefined,
             files: [],
             isStaged: true,
             knip: false,
@@ -212,6 +214,7 @@ describe('parseCheckArguments', () => {
         expect(parseCheckArguments(['--knip'])).toEqual({
             e2e: false,
             e2eGrep: undefined,
+            e2eWaitSeconds: undefined,
             files: [],
             isStaged: false,
             knip: true,
@@ -232,6 +235,7 @@ describe('parseCheckArguments', () => {
         ).toEqual({
             e2e: true,
             e2eGrep: 'launches the workbench',
+            e2eWaitSeconds: undefined,
             files: ['e2e/smoke.e2e.ts'],
             isStaged: false,
             knip: false,
@@ -244,6 +248,18 @@ describe('parseCheckArguments', () => {
     it('rejects an e2e grep without the e2e selector', () => {
         expect(() => parseCheckArguments(['--e2e-grep', 'launches'])).toThrow(
             '--e2e-grep requires --e2e',
+        );
+    });
+
+    it('accepts only a bounded desktop lease wait for e2e', () => {
+        expect(
+            parseCheckArguments(['e2e/smoke.e2e.ts', '--e2e', '--e2e-wait', '30']),
+        ).toMatchObject({ e2eWaitSeconds: 30 });
+        expect(() => parseCheckArguments(['--e2e-wait', '30'])).toThrow(
+            '--e2e-wait requires --e2e',
+        );
+        expect(() => parseCheckArguments(['--e2e', '--e2e-wait', '301'])).toThrow(
+            '--e2e-wait requires an integer from 1 to 300 seconds',
         );
     });
 });
