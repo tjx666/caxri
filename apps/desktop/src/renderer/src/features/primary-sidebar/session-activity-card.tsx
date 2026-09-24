@@ -187,14 +187,15 @@ export function SessionActivityCard({
     ]
         .filter(Boolean)
         .join(' ');
+    const visible = open && !suppressed;
 
     useEffect(() => {
-        if (!open) return;
+        if (!visible) return;
         return sidebarDetailCardDismissal(() => setOpen(false));
-    }, [open]);
+    }, [visible]);
 
     return (
-        <HoverCard open={open && !suppressed} onOpenChange={(nextOpen) => setOpen(nextOpen)}>
+        <HoverCard open={visible} onOpenChange={(nextOpen) => setOpen(nextOpen)}>
             <HoverCardTrigger
                 aria-describedby={accessibleDescriptionId}
                 closeDelay={80}
