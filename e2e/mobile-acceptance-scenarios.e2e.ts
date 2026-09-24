@@ -93,6 +93,8 @@ async function tapTerminalKey(serial: string, key: 'down' | 'enter'): Promise<vo
     for (let attempt = 0; attempt < 4; attempt += 1) {
         // eslint-disable-next-line no-await-in-loop -- every swipe needs a fresh sanitized device view.
         const nodes = await mobileSemantics(serial);
+        if (nodes.every(({ checkId }) => checkId !== 'session-detail'))
+            throw new Error('Android left Session detail while locating a Terminal key');
         const target = nodes.find((node) => node.checkId === checkId);
         if (target?.clickable && target.enabled) {
             const targetBounds = androidBounds(target.bounds);
@@ -112,11 +114,37 @@ async function tapTerminalKey(serial: string, key: 'down' | 'enter'): Promise<vo
             )
             .toSorted((left, right) => left.left - right.left);
         const first = visibleKeys.at(0);
-        if (!first) throw new Error('Android Terminal has no visible key to locate its row');
+        if (!first)
+            throw new Error(
+                `Android Terminal has no visible key to locate its row: ${JSON.stringify(
+                    {
+                        frame,
+                        keys: nodes
+                            .filter(({ checkId: id }) => id.startsWith('terminal-key-'))
+                            .map(({ bounds, checkId, clickable, enabled }) => ({
+                                bounds,
+                                checkId,
+                                clickable,
+                                enabled,
+                            })),
+                    },
+                    null,
+                    2,
+                )}`,
+            );
         const last = visibleKeys.at(-1) ?? first;
         const y = Math.floor((first.top + first.bottom) / 2);
-        const startX = Math.min(frame.width - 20, Math.max(last.right - 8, first.right + 80));
-        const endX = Math.max(20, first.left + 8);
+        /**
+         * Android Back swipes begin at either edge, so keep the key-row gesture inside the screen.
+         *
+         * @see https://developer.android.com/develop/ui/views/touch-and-input/gestures/gesturenav
+         */
+        const edgeInset = Math.floor(frame.width / 5);
+        const startX = Math.min(
+            frame.width - edgeInset,
+            Math.max(last.right - 8, first.right + 80),
+        );
+        const endX = Math.max(edgeInset, first.left + 8);
         if (startX <= endX) throw new Error('Android Terminal key row cannot be scrolled');
         // eslint-disable-next-line no-await-in-loop -- the next semantic inspection must observe this gesture.
         await adbShell(serial, [
