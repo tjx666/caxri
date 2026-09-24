@@ -67,6 +67,8 @@ underlying tool output needed to act.
 or shared-contract changes. CI runs `doctor` through `bun run doctor:changed` (scoped to the diff
 against `origin/main`, full-repo only on an initial push); `doctor` is slower and normally remains
 a CI validator.
+For mobile or Renderer React changes, run `bun run doctor:changed` after new files are staged or
+committed and before pushing. Its Git diff scope omits untracked files.
 
 ## Repository-wide gates
 

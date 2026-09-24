@@ -8,7 +8,13 @@ export interface MobileSessionRefreshSource {
 }
 
 export type MobileSessionRefreshResult =
-    { sections: MobileSessionSections; status: 'success' } | { status: 'error' };
+    | {
+          hostDisplayName: string;
+          projects: MethodResult<'mobile.dashboard'>['projects'];
+          sections: MobileSessionSections;
+          status: 'success';
+      }
+    | { status: 'error' };
 
 /**
  * Keeps the last valid screen when any part of a refresh fails. The connection provider separately transitions a failed
@@ -21,6 +27,8 @@ export const loadMobileSessionSections = async (
     try {
         const dashboard = await source.dashboard();
         return {
+            hostDisplayName: dashboard.hostDisplayName,
+            projects: dashboard.projects,
             sections: buildMobileSessionSections({
                 sessions: dashboard.sessions,
                 total: dashboard.total,
