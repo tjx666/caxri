@@ -53,6 +53,17 @@ describe('Project hiding', () => {
         expect(database.listSessions(project.id)).toHaveLength(2);
     });
 
+    it('restores only a hidden Project that still has an unarchived Session', async () => {
+        const { database, hiddenRoot, project, sessions } = await fixture();
+        expect(database.isRestorableProjectRoot(hiddenRoot)).toBe(false);
+
+        database.hideProject(project.id);
+        expect(database.isRestorableProjectRoot(hiddenRoot)).toBe(true);
+
+        for (const session of sessions) database.archiveSession(session.id);
+        expect(database.isRestorableProjectRoot(hiddenRoot)).toBe(false);
+    });
+
     it('moves the selection off a hidden Project', async () => {
         const { database, keeper, keeperSession, project } = await fixture();
         expect(database.getAppState('lastSelectedProjectId')).toBe(project.id);

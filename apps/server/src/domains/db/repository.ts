@@ -47,6 +47,7 @@ import type { AppStateKey, AppStateValue } from './models/app-state';
 import type { SessionWorkbenchBinding } from './models/sessions';
 import {
     hideProject,
+    isRestorableProjectRoot,
     listVisibleProjects,
     listVisibleSessions,
     moveSelectionOffProjects,
@@ -257,6 +258,10 @@ export class CaxriDatabase {
 
     listVisibleProjects(): ProjectRecord[] {
         return listVisibleProjects(this.db);
+    }
+
+    isRestorableProjectRoot(rootPath: string): boolean {
+        return isRestorableProjectRoot(this.db, rootPath);
     }
 
     listVisibleSessions(): SessionRecord[] {

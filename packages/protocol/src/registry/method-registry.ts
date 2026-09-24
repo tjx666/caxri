@@ -377,6 +377,15 @@ export const methods = {
         params: z.object({ projectId: identifierSchema }),
         result: bootstrapStateSchema,
     },
+    /**
+     * Whether adding this folder would bring back a hidden Project that still has unarchived Sessions. The Add Project
+     * flow asks before choosing a Terminal, so a restore selects the old Sessions instead of creating another one.
+     */
+    'project.restorable': {
+        ...serverRead,
+        params: z.object({ rootPath: pathSchema }),
+        result: z.boolean(),
+    },
     'project.reorder': {
         ...serverWrite,
         params: z.object({
