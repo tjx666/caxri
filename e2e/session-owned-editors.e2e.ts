@@ -46,6 +46,7 @@ test('kept-alive Git diff editors keep their own Session across Project switches
         await expect(page.locator(`${VISIBLE_SESSION} .git-file-diff`)).toBeVisible();
 
         const betaSession = await createProjectSession(page);
+        await page.getByRole('tab', { name: 'Git', exact: true }).click();
         await waitForSourceControlReady(page);
         await page
             .locator('.git-repository-section')
@@ -58,17 +59,22 @@ test('kept-alive Git diff editors keep their own Session across Project switches
         await sessionCard(page, betaSession).click();
         await expect(page.locator(`${VISIBLE_SESSION} .git-file-diff`)).toBeVisible();
 
-        await page.getByRole('tab', { name: 'Files', exact: true }).click();
-        await page.getByRole('treeitem', { name: 'tracked.txt', exact: true }).dblclick();
-        await expect(page.locator(`${VISIBLE_SESSION} .monaco-editor .view-lines`)).toContainText(
-            'beta change',
-        );
+        await waitForSourceControlReady(page);
+        await page
+            .locator('.git-repository-section')
+            .getByRole('treeitem', { name: 'tracked.txt', exact: true })
+            .click({ modifiers: ['Alt'] });
+        await expect(page.locator(`${VISIBLE_SESSION} .git-file-diff`)).toHaveCount(0);
+        await expect(
+            page.locator(`${VISIBLE_SESSION} .monaco-editor:visible .view-lines`),
+        ).toContainText('beta change');
         await sessionCard(page, alphaSession).click();
         await expect(page.locator(`${VISIBLE_SESSION} .git-file-diff`)).toBeVisible();
         await sessionCard(page, betaSession).click();
-        await expect(page.locator(`${VISIBLE_SESSION} .monaco-editor .view-lines`)).toContainText(
-            'beta change',
-        );
+        await expect(page.locator(`${VISIBLE_SESSION} .git-file-diff`)).toHaveCount(0);
+        await expect(
+            page.locator(`${VISIBLE_SESSION} .monaco-editor:visible .view-lines`),
+        ).toContainText('beta change');
         await expect(page.locator('[data-sonner-toast][data-type="error"]')).toHaveCount(0);
         await page.screenshot({
             path: test.info().outputPath('session-owned-editor.png'),
