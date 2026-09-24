@@ -70,6 +70,9 @@ overrides:
 
 patchedDependencies:
   app-builder-lib: patches/app-builder-lib.patch
+  # Keep the embedded Terminal WebView offline before page configuration or content loading.
+  # https://developer.android.com/reference/android/webkit/WebSettings#setBlockNetworkLoads(boolean)
+  react-native-webview@13.16.1: patches/react-native-webview.patch
   # Preserve timer pause accounting across an open reminder menu's Infinity duration, and let the
   # host refuse the Toaster's focus restoration while a dialog opened from a toast action owns focus.
   # https://github.com/emilkowalski/sonner/pull/533

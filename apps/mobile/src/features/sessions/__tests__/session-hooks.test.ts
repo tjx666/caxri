@@ -18,11 +18,6 @@ import {
     isDeliveredReplyCurrent,
     shortReplyByteLength,
 } from '../hooks/use-short-reply';
-import {
-    failedTerminalPreviewState,
-    loadingTerminalPreviewState,
-    shouldPollTerminalPreview,
-} from '../hooks/use-terminal-preview';
 import type { MobileSession } from '../session-model';
 import { buildMobileSessionSections } from '../session-model';
 
@@ -103,66 +98,6 @@ describe('mobile Session hooks', () => {
         expect(released.sections).toBe(latest.sections);
         expect(released.selectedId).toBeNull();
         expect(released.hasLoaded).toBe(true);
-    });
-
-    it('starts preview polling only for a visible connected Terminal', () => {
-        expect(
-            shouldPollTerminalPreview({
-                isForeground: true,
-                status: 'connected',
-                terminalId: 'terminal-1',
-                visible: true,
-            }),
-        ).toBe(true);
-        expect(
-            shouldPollTerminalPreview({
-                isForeground: true,
-                status: 'stale',
-                terminalId: 'terminal-1',
-                visible: true,
-            }),
-        ).toBe(false);
-        expect(
-            shouldPollTerminalPreview({
-                isForeground: true,
-                status: 'connected',
-                terminalId: null,
-                visible: true,
-            }),
-        ).toBe(false);
-        expect(
-            shouldPollTerminalPreview({
-                isForeground: false,
-                status: 'connected',
-                terminalId: 'terminal-1',
-                visible: true,
-            }),
-        ).toBe(false);
-    });
-
-    it('keeps the last successful preview while exposing a later refresh failure', () => {
-        const preview = {
-            availability: 'live' as const,
-            content: 'Last known output',
-            terminalId: 'terminal-1',
-            truncated: false,
-            updatedAt: 100,
-        };
-        const loading = loadingTerminalPreviewState(
-            {
-                error: null,
-                isLoading: false,
-                preview,
-                terminalId: 'terminal-1',
-            },
-            'terminal-1',
-        );
-        expect(failedTerminalPreviewState(loading, 'terminal-1')).toEqual({
-            error: 'Unable to load the latest output.',
-            isLoading: false,
-            preview,
-            terminalId: 'terminal-1',
-        });
     });
 
     it('enforces the short-reply limit by UTF-8 bytes without discarding the current draft', () => {

@@ -5,7 +5,6 @@ import { usePathname } from 'expo-router';
 
 import { isDashboardRouteVisible } from '../dashboard-query';
 import { useSessionPolling } from '../hooks/use-session-polling';
-import type { SessionPreviewPosition } from '../session-preview-scroll';
 import type { HostSessionUiState, SessionSegment } from '../session-ui-state';
 import {
     emptyHostSessionUiState,
@@ -17,7 +16,6 @@ import {
 interface HostSessionsContextValue {
     hostId: string;
     listScrollOffsetRef: RefObject<number>;
-    previewScrollBySessionRef: RefObject<Partial<Record<string, SessionPreviewPosition>>>;
     sessions: ReturnType<typeof useSessionPolling>;
     ui: HostSessionUiState;
     setDraft: (sessionId: string, draft: string) => void;
@@ -37,9 +35,6 @@ export const HostSessionsProvider = ({
     const pathname = usePathname();
     const sessions = useSessionPolling(isDashboardRouteVisible(pathname, hostId));
     const listScrollOffsetReference = useRef(0);
-    const previewScrollBySessionReference = useRef<Partial<Record<string, SessionPreviewPosition>>>(
-        {},
-    );
     const [ui, setUi] = useState(emptyHostSessionUiState);
     const setDraft = useCallback((sessionId: string, draft: string): void => {
         setUi((current) => rememberSessionDraft(current, sessionId, draft));
@@ -55,7 +50,6 @@ export const HostSessionsProvider = ({
         () => ({
             hostId,
             listScrollOffsetRef: listScrollOffsetReference,
-            previewScrollBySessionRef: previewScrollBySessionReference,
             sessions,
             ui,
             setDraft,

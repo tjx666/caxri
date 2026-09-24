@@ -1,0 +1,11 @@
+diff --git a/android/src/main/java/com/reactnativecommunity/webview/RNCWebViewManagerImpl.kt b/android/src/main/java/com/reactnativecommunity/webview/RNCWebViewManagerImpl.kt
+--- a/android/src/main/java/com/reactnativecommunity/webview/RNCWebViewManagerImpl.kt
++++ b/android/src/main/java/com/reactnativecommunity/webview/RNCWebViewManagerImpl.kt
+@@ -73,4 +73,7 @@ class RNCWebViewManagerImpl(private val newArch: Boolean = false) {
+     fun createViewInstance(context: ThemedReactContext, webView: RNCWebView): RNCWebViewWrapper {
++        // Block subresource requests before configuration callbacks can load content.
++        webView.settings.setBlockNetworkLoads(true)
++
+         setupWebChromeClient(webView)
+         context.addLifecycleEventListener(webView)
+         mWebViewConfig.configWebView(webView)

@@ -61,6 +61,12 @@ const androidCases = {
         recordingOwner: 'adapter',
         scenario: 'session-reconnect',
     },
+    'MOB-TERM-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot', 'video'],
+        recordingOwner: 'adapter',
+        scenario: 'terminal-observe-control',
+    },
 } as const satisfies Record<
     string,
     {
