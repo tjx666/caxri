@@ -88,7 +88,7 @@ describe('external editor documents', () => {
             readOnly: true,
         });
 
-        changeDocument(path, 'changed');
+        changeDocument('session-1', 'project-1', path, 'changed');
         await saveActiveEditor();
         expect(getSessionDocuments('session-1', 'project-1')?.[path]?.content).toBe(
             '{ "readOnly": true }',

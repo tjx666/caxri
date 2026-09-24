@@ -131,6 +131,7 @@ describe('Session document cache', () => {
             'session-1',
             'caxri-external-file://external-1/outside.ts',
             'changed',
+            'project-1',
         );
 
         expect(
@@ -166,7 +167,7 @@ describe('Session document cache', () => {
         const store = useSessionViewStore.getState();
         store.cacheDocument('session-1', document('/shared.ts'));
         store.cacheDocument('session-2', document('/shared.ts'));
-        store.updateDocumentContent('session-1', '/shared.ts', 'first Session buffer');
+        store.updateDocumentContent('session-1', '/shared.ts', 'first Session buffer', 'project-1');
 
         expect(useSessionViewStore.getState().documents['session-2']['/shared.ts'].content).toBe(
             '/shared.ts',

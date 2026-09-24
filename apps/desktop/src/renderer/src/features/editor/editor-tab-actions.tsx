@@ -10,9 +10,9 @@ import { Button } from '../../components/ui/button';
 import { Tooltip } from '../../components/ui/tooltip';
 import { resolveRepositoryFilePath as resolveRepoFilePath } from '../../lib/repository-file-path';
 import { useCaxriQuery } from '../../queries/client';
-import { useSelectedSession } from '../../stores/selectors';
 import { previewSourcePath } from '../preview/preview-commands';
 import { PreviewTabAction } from '../preview/preview-tab-action';
+import { usePaneViewSession } from '../workbench/pane-view-session';
 import { openEditorTab, openFileForSession } from './document-commands';
 import {
     didNavigateDiffEditor,
@@ -47,7 +47,7 @@ export function EditorTabActions({ path, paneId }: { paneId?: string; path: stri
 }
 
 function FileEditorTabActions({ path }: { path: string }) {
-    const session = useSelectedSession();
+    const session = usePaneViewSession();
     const headQuery = useCaxriQuery(
         'git.fileHead',
         { sessionId: session?.id ?? '', path },
@@ -100,7 +100,7 @@ function GitDiffTabActions({
     tab: Extract<GitDiffTab, { kind: 'commit-file' | 'file' }>;
     tabPath: string;
 }) {
-    const session = useSelectedSession();
+    const session = usePaneViewSession();
     const actionState = useDiffEditorActionState(tabPath, paneId);
     const summary = useCaxriQuery(
         'git.summary',
