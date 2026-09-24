@@ -7,6 +7,7 @@ import process from 'node:process';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { acquireMutationLease } from '../mutation-lease';
+import { PLATFORM_NEUTRAL_CI_COMMANDS } from '../platform-neutral-gates';
 import { createReviewPolicy, recordReviewDecision } from '../review-gate';
 import type * as reviewHeadReconciliationModule from '../review-head-reconciliation';
 import { runStateCli, stateCliHelp } from '../state-cli';
@@ -123,6 +124,48 @@ function reviewArguments(statePath: string, headSha: string, reviewedRange: stri
 }
 
 describe('Go state CLI exact-head receipts', () => {
+    it('records a fake exact-head CI source for a full review without local gate receipts', async () => {
+        const { headSha, statePath } = await fixture();
+        const state = await readState(statePath);
+        transitionState(state, 'planning');
+        transitionState(state, 'issue_execution');
+        transitionState(state, 'deep_review');
+        await writeState(statePath, state);
+
+        await runStateCli(
+            [
+                'review',
+                '--state',
+                statePath,
+                '--head-sha',
+                headSha,
+                '--mode',
+                'full',
+                '--p0',
+                '0',
+                '--p1',
+                '0',
+                '--scope',
+                'CI receipt fixture',
+                '--reviewed-range',
+                `origin/main...${headSha}`,
+            ],
+            {
+                readCiPlatformReceipt: (requestedHead) =>
+                    Promise.resolve({
+                        commands: [...PLATFORM_NEUTRAL_CI_COMMANDS],
+                        headSha: requestedHead,
+                        runId: 42,
+                        runUrl: 'https://github.com/tjx666/caxri/actions/runs/42',
+                    }),
+            },
+        );
+
+        expect((await readState(statePath)).reviewGate.rounds[0].platformGateReceipt).toMatchObject(
+            { source: 'ci', ciRunId: 42, ciCommands: PLATFORM_NEUTRAL_CI_COMMANDS },
+        );
+    });
+
     it('reserves round changes for publication or explicit reconciliation', () => {
         expect(stateCliHelp('acceptance')).not.toContain('--round');
         expect(stateCliHelp('acceptance-reconcile-round')).toContain('--round');
