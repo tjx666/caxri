@@ -16,16 +16,16 @@ const acceptanceLoopReference = readFileSync(
 
 describe('Go Acceptance planning contract', () => {
     it('files new issues as Next unless work is already underway', () => {
-        expect(fileIssueSkill).toContain('--field Status --value "Next"');
+        expect(fileIssueSkill).toContain('--status "Next"');
         expect(fileIssueSkill).toContain(
             'Use `In Progress` instead of `Next` only when implementation or verification is already underway',
         );
-        expect(fileIssueSkill).not.toContain('--field Status --value "Backlog"');
-        expect(fileIssueSkill).not.toContain('--field Status --value "Todo"');
+        expect(fileIssueSkill).not.toContain('--status "Backlog"');
+        expect(fileIssueSkill).not.toContain('--status "Todo"');
     });
 
     it('keeps every filed issue on the owner Project and honours a `Backlog` hold', () => {
-        expect(fileIssueSkill).toContain('gh project item-add 2 --owner tjx666');
+        expect(fileIssueSkill).toContain('scripts/track-project-item.ts --url "$issue_url"');
         expect(fileIssueSkill).toContain(
             '**`Backlog` means the owner does not want this done yet.**',
         );

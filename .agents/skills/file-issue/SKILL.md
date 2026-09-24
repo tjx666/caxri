@@ -212,17 +212,22 @@ an issue that is not on it is invisible. **Every** issue this skill creates is a
 exceptions for small, obvious, or follow-up issues — and its fields are set explicitly:
 
 ```bash
-gh project item-add 2 --owner tjx666 --url "$issue_url"
-gh project item-edit 2 --owner tjx666 --url "$issue_url" --field Priority --value "<P0 Critical | P1 High | P2 Normal, matching the label>"
-gh project item-edit 2 --owner tjx666 --url "$issue_url" --field Size --value "<assessed>"
-gh project item-edit 2 --owner tjx666 --url "$issue_url" --field Status --value "Next"
+bun run .agents/skills/file-issue/scripts/track-project-item.ts --url "$issue_url" \
+  --status "Next" --priority "<P0 Critical | P1 High | P2 Normal, matching the label>" --size "<assessed>"
 ```
+
+The script adds the item when it is missing, sets every given field in one mutation, and prints the
+Status, Priority, and Size read back from GitHub — that output is the verification. Use it for every
+later Status change too (`--url "$issue_url" --status "In Progress"`). Do not use
+`gh project item-edit --url --field` or `gh project item-list`: each re-reads the Project's whole
+field catalog or every item's field values and costs ~100 or ~800 points of the account-wide
+GitHub GraphQL budget, which the owner's shell, every Agent, and the Caxri app share; one batch of
+13 issues filed that way exhausted the hourly budget. The script costs ~5 points per issue.
 
 - Do not assign the sole maintainer or invent a milestone merely to fill metadata.
 - If a Project mutation fails, retry it once. Keep the successfully created issue, report the
   tracking failure, and never delete or recreate the issue to recover.
-- Fetch the Project item once and verify its URL, Status, Priority, and Size before reporting
-  success.
+- Verify the URL and the printed Status, Priority, and Size before reporting success.
 
 ### Status lifecycle — keep it current, and honor `Backlog`
 

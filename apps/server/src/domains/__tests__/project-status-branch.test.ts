@@ -12,6 +12,7 @@ import { ProjectStatusService } from '../project-status';
 import {
     loadBranchPublication,
     prepareStatusRepo,
+    RemoteHeadCache,
     RepoRemoteCache as RepoRemoteCache,
 } from '../project-status-branch';
 
@@ -275,6 +276,57 @@ describe('branch publication', () => {
             await loadBranchPublication({ ...context, ...patch }, runner, '/project', () => 123),
         ).toMatchObject({ state });
         expect(runner).not.toHaveBeenCalled();
+    });
+
+    it('reuses the remote branch commit until the tracking ref moves, the TTL expires, or a refresh is forced', async () => {
+        let now = 0;
+        const cache = new RemoteHeadCache(() => now);
+        const runner = runnerFor({ target: { oid: head } });
+        const graphqlCalls = () =>
+            vi.mocked(runner).mock.calls.filter(([source]) => source === 'gh').length;
+        const load = (
+            patch: Partial<typeof context & { trackingHead: string }> = {},
+            isForced = false,
+        ) =>
+            loadBranchPublication({ ...context, ...patch }, runner, '/project', () => now, {
+                cache,
+                isForced,
+            });
+
+        await expect(load()).resolves.toMatchObject({ state: 'synced' });
+        await load();
+        await load({ owner: 'acme', repo: 'project', branch: 'feature/status' });
+        expect(graphqlCalls()).toBe(1);
+
+        await load({ trackingHead: head });
+        expect(graphqlCalls()).toBe(2);
+
+        await load({ trackingHead: head }, true);
+        expect(graphqlCalls()).toBe(3);
+
+        await load({ branch: 'feature/other', trackingHead: head });
+        expect(graphqlCalls()).toBe(4);
+
+        now = 5 * 60_000;
+        await load({ trackingHead: head });
+        expect(graphqlCalls()).toBe(5);
+    });
+
+    it('asks GitHub again after a failed remote branch lookup', async () => {
+        const cache = new RemoteHeadCache(() => 0);
+        let isOffline = true;
+        const runner = vi.fn<ExternalStatusRunner>((source) =>
+            source === 'gh' && isOffline
+                ? Promise.reject(new ExternalStatusCliError('gh', 'timeout', 'offline'))
+                : Promise.resolve(JSON.stringify({ data: { repository: { ref: null } } })),
+        );
+        const load = () =>
+            loadBranchPublication(context, runner, '/project', () => 0, { cache, isForced: false });
+
+        await expect(load()).rejects.toThrow('offline');
+        isOffline = false;
+        await expect(load()).resolves.toMatchObject({ state: 'unpublished' });
+        expect(runner).toHaveBeenCalledTimes(2);
     });
 
     it('reuses origin and its default branch across rounds until the TTL or a forced refresh', async () => {

@@ -26,10 +26,15 @@ the same account, so the app's recovery behaviour was what kept the account limi
 
 The branch row compares the local branch with the **same-named branch on origin**. It does not
 claim to describe a differently named upstream, another remote, or the configured push destination.
-Server reads the branch ref through one quota-governed GitHub GraphQL query per repository per
-summary refresh. Local tracking refs are only cache invalidation inputs: a stale ref never proves
-that a remote branch exists. Git changes invalidate the tree, including a local push that leaves
-HEAD unchanged. The Status Bar overview does not make this extra query.
+Server reads the branch ref through a quota-governed GitHub GraphQL query and caches the remote
+commit per owner, repository, and branch for five minutes (`RemoteHeadCache` in
+`project-status-branch.ts`). Before the cache, this query ran on every summary refresh — every 20
+seconds while a pull request's checks run — and was ~900 of the ~1,100 `gh` calls Caxri made per
+hour. Local tracking refs are only cache invalidation inputs: a stale ref never proves that a remote
+branch exists, but a moved ref (a local push or fetch) misses the cache immediately. A manual
+refresh always queries again, and a failed lookup is never cached. Only a push from another clone or
+a branch deleted on GitHub waits out the TTL. Git changes invalidate the tree, including a local push
+that leaves HEAD unchanged. The Status Bar overview does not make this extra query.
 
 The row shows `Not on origin`, `Synced`, or `↑N` / `↓N` commit differences. Counts compare captured
 immutable commit IDs only when the remote commit and complete history are locally available.
