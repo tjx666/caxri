@@ -130,3 +130,38 @@ export function terminalKeyboardInput(
     if (event.key === 'ArrowRight') return '\u{5}';
     return undefined;
 }
+
+/**
+ * Who handles a Command chord that reached the focused Terminal.
+ *
+ * - `caxri`: xterm never sees the key, so native menu roles (`Cmd+V` paste) and accelerators still fire.
+ * - `select-all`: Caxri selects the Terminal buffer itself.
+ * - `xterm`: xterm encodes the key as usual.
+ */
+export type TerminalCommandKeyOwner = 'caxri' | 'select-all' | 'xterm';
+
+/**
+ * Keeps Command chords with Caxri once an app enables the kitty keyboard protocol. Under that protocol xterm encodes
+ * `Cmd+<character>` for the app and calls `preventDefault`, which would stop Electron's menu from pasting on `Cmd+V` or
+ * running the other Command accelerators; a lone `Cmd` press would also be stopped before the link-hint modifier
+ * listener sees it. The one exception follows Ghostty: `Cmd+C` without an xterm selection goes to the app, so a TUI
+ * with its own selection (Codex's transcript) can copy it. `Cmd+A` keeps selecting the Terminal buffer, which xterm's
+ * legacy encoding did and kitty encoding would forward instead. Command chords on non-character keys (Enter, Backspace,
+ * arrows) keep their existing xterm handling.
+ */
+export function terminalCommandKeyOwner(
+    event: Pick<KeyboardEvent, 'altKey' | 'ctrlKey' | 'key' | 'metaKey' | 'shiftKey' | 'type'>,
+    hasSelection: boolean,
+): TerminalCommandKeyOwner {
+    if (!event.metaKey) return 'xterm';
+    if (event.key === 'Meta') return 'caxri';
+    if (event.key.length !== 1) return 'xterm';
+    const isPlainCommand = !event.altKey && !event.ctrlKey && !event.shiftKey;
+    /**
+     * Caps Lock reports the plain chord with an upper-case key.
+     */
+    const key = event.key.toLowerCase();
+    if (!hasSelection && isPlainCommand && key === 'c') return 'xterm';
+    if (isPlainCommand && key === 'a' && event.type === 'keydown') return 'select-all';
+    return 'caxri';
+}

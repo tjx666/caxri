@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
     isClipboardContainingImage,
     registerTerminalClipboardHandlers,
+    terminalCommandKeyOwner,
     terminalImagePasteInput,
     terminalKeyboardInput,
     writeTerminalSelectionToCopyEvent,
@@ -52,6 +53,42 @@ describe('terminalKeyboardInput', () => {
         expect(
             terminalKeyboardInput(keyEvent({ key: 'Enter', shiftKey: true, type: 'keyup' }), true),
         ).toBeUndefined();
+    });
+});
+
+describe('terminalCommandKeyOwner', () => {
+    it('forwards Cmd+C to the app only without a Terminal selection', () => {
+        const event = keyEvent({ key: 'c', metaKey: true });
+        expect(terminalCommandKeyOwner(event, false)).toBe('xterm');
+        expect(terminalCommandKeyOwner(event, true)).toBe('caxri');
+        expect(terminalCommandKeyOwner({ ...event, type: 'keyup' }, false)).toBe('xterm');
+        expect(
+            terminalCommandKeyOwner(keyEvent({ key: 'C', metaKey: true, shiftKey: true }), false),
+        ).toBe('caxri');
+    });
+
+    it('keeps other Command character chords and a lone Command press with Caxri', () => {
+        expect(terminalCommandKeyOwner(keyEvent({ key: 'v', metaKey: true }), false)).toBe('caxri');
+        expect(terminalCommandKeyOwner(keyEvent({ key: 't', metaKey: true }), false)).toBe('caxri');
+        expect(terminalCommandKeyOwner(keyEvent({ key: 'Meta', metaKey: true }), false)).toBe(
+            'caxri',
+        );
+    });
+
+    it('selects the Terminal buffer on Cmd+A keydown', () => {
+        expect(terminalCommandKeyOwner(keyEvent({ key: 'a', metaKey: true }), false)).toBe(
+            'select-all',
+        );
+        expect(
+            terminalCommandKeyOwner(keyEvent({ key: 'a', metaKey: true, type: 'keyup' }), false),
+        ).toBe('caxri');
+    });
+
+    it('leaves non-Command keys and Command chords on non-character keys to xterm', () => {
+        expect(terminalCommandKeyOwner(keyEvent({ key: 'c', ctrlKey: true }), false)).toBe('xterm');
+        expect(terminalCommandKeyOwner(keyEvent({ key: 'Enter', metaKey: true }), false)).toBe(
+            'xterm',
+        );
     });
 });
 

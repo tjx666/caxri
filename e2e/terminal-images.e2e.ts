@@ -244,9 +244,13 @@ test('inline images render real pixels, enforce budgets, and restore as content-
             RECOVERY_PLACEHOLDER,
         );
 
-        // The lone remaining tab renders no close button — there is nothing to switch to — so close it the way the
-        // tab bar leaves available, with the `workbench.closeActiveTab` chord.
-        await running.page.keyboard.press('Meta+w');
+        // A lone tab renders no close button, and `Cmd+W` on a Session's last tab archives the Session instead, so close
+        // the Terminal through the Terminal > Close Terminal menu command.
+        await running.app.evaluate(({ Menu }) => {
+            Menu.getApplicationMenu()
+                ?.getMenuItemById('command.terminal.close')
+                ?.click({ triggeredByAccelerator: false });
+        });
         await expect
             .poll(async () => {
                 const state = await pageRequest<{ terminals: Array<{ id: string }> }>(
