@@ -428,10 +428,14 @@ export class TerminalHostSupervisor extends EventTarget {
             );
             timer.unref();
             /**
-             * Agent input becomes irreversible once sent to the Host. Its signal fences admission before `child.send`,
-             * while the Host reply decides whether the attention claim can be released or must stay consumed.
+             * Agent and mobile input become irreversible once sent to the Host. Their signals fence admission before
+             * `child.send`; the Host reply decides whether input was accepted after that point.
              */
-            if (signal && request.method !== 'terminal.agent.input') {
+            if (
+                signal &&
+                request.method !== 'terminal.agent.input' &&
+                request.method !== 'terminal.observer.input'
+            ) {
                 signal.addEventListener('abort', settleAbort, { once: true });
                 removeAbortListener = () => signal.removeEventListener('abort', settleAbort);
             }

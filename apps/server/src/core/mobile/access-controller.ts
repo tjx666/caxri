@@ -13,6 +13,7 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError, MOBILE_SHORT_REPLY_MAX_BYTES } from '@caxri/protocol';
 
+import type { TerminalExecutionPort } from '../../domains/terminal';
 import type { ServerDomainService } from '../domain-service';
 import { buildMobileDashboard } from './dashboard';
 import { MobileDeviceRegistry } from './device-registry';
@@ -28,6 +29,9 @@ const mobileGatewayMethodsByRole = {
         'session.markRead',
         'terminal.send',
         'mobile.session.create',
+        'mobile.terminal.takeOver',
+        'mobile.terminal.release',
+        'mobile.terminal.input',
     ],
 } as const satisfies Record<MobileDeviceRole, readonly string[]>;
 
@@ -52,6 +56,9 @@ type MobileControlRequest = Extract<
             | 'mobile.device.list'
             | 'mobile.dashboard'
             | 'mobile.session.create'
+            | 'mobile.terminal.takeOver'
+            | 'mobile.terminal.release'
+            | 'mobile.terminal.input'
             | 'mobile.pairing.create';
     }
 >;
@@ -69,6 +76,7 @@ export interface MobileAccessController {
         bootId: string,
         protocolIdentity: { serverId: string; stateEpoch: string },
         domainService: ServerDomainService,
+        terminalExecution: TerminalExecutionPort,
     ) => void;
     close: () => Promise<void>;
     publish: (event: ServerEvent) => void;
@@ -229,13 +237,14 @@ export const openMobileAccessController = async (options: {
         authorizePairedDeviceMethod: (principal, method) => {
             currentPairedPrincipal(principal, method);
         },
-        attach: (adapter, bootId, protocolIdentity, domainService) => {
+        attach: (adapter, bootId, protocolIdentity, domainService, terminalExecution) => {
             assertOpen();
             gateway = new MobileGateway({
                 adapters: { server: adapter },
                 bootId,
                 protocolIdentity,
                 registry,
+                terminalExecution,
                 authorizePairedDeviceMethod: (principal, method) => {
                     currentPairedPrincipal(principal, method);
                 },
@@ -286,8 +295,10 @@ export const openMobileAccessController = async (options: {
                 case 'mobile.device.list':
                     return { devices: activeGateway.devices() };
                 case 'mobile.dashboard': {
-                    if (context.principal.kind === 'paired-device')
-                        currentPairedPrincipal(context.principal, request.method);
+                    const paired =
+                        context.principal.kind === 'paired-device'
+                            ? currentPairedPrincipal(context.principal, request.method)
+                            : undefined;
                     const [projects, sessions, terminals] = await Promise.all([
                         domainService.request('project.queryForPrincipal', {
                             principal: context.principal,
@@ -311,6 +322,7 @@ export const openMobileAccessController = async (options: {
                         : projects.projects;
                     return buildMobileDashboard({
                         hostDisplayName,
+                        deviceRole: paired?.role ?? null,
                         projects: visibleProjects,
                         sessions: sessions.sessions,
                         terminals: terminals.terminals,
@@ -348,6 +360,30 @@ export const openMobileAccessController = async (options: {
                     } finally {
                         await withAuthority(() => unregisterOperation(principal, cancellation));
                     }
+                }
+                case 'mobile.terminal.takeOver':
+                case 'mobile.terminal.release':
+                case 'mobile.terminal.input': {
+                    const principal = currentPairedPrincipal(context.principal, request.method);
+                    await terminalForPrincipal(domainService, principal, request.params.terminalId);
+                    const current = currentPairedPrincipal(principal, request.method);
+                    await terminalForPrincipal(domainService, current, request.params.terminalId);
+                    const observer = activeGateway.terminalSubscription(
+                        context,
+                        request.params.subscriptionId,
+                        request.params.terminalId,
+                    );
+                    if (request.method === 'mobile.terminal.takeOver')
+                        return observer.takeOver(request.params.expectedGeneration, {
+                            cols: request.params.cols,
+                            rows: request.params.rows,
+                        });
+                    if (request.method === 'mobile.terminal.release') {
+                        await observer.releaseTakeOver(request.params.expectedGeneration);
+                        return null;
+                    }
+                    await observer.input(request.params.expectedGeneration, request.params.data);
+                    return null;
                 }
                 case 'mobile.pairing.create': {
                     return withAuthority(async () => {

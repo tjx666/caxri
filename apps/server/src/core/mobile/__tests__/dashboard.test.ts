@@ -19,6 +19,7 @@ describe('buildMobileDashboard', () => {
         }));
         const result = buildMobileDashboard({
             hostDisplayName: 'Caxri Host',
+            deviceRole: 'view',
             projects: [{ id: 'project-1', displayTitle: longTitle }],
             sessions,
             terminals: sessions.map((session, index) => ({
@@ -42,6 +43,7 @@ describe('buildMobileDashboard', () => {
     it('includes empty granted Projects in order and excludes Sessions without a visible Project', () => {
         const result = buildMobileDashboard({
             hostDisplayName: 'Workstation',
+            deviceRole: 'control',
             projects: [
                 { id: 'project-2', displayTitle: 'Empty' },
                 { id: 'project-1', displayTitle: 'Active' },

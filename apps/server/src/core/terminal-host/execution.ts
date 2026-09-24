@@ -19,6 +19,7 @@ import type {
     TerminalExecutionExit,
     TerminalExecutionLaunch,
     TerminalExecutionPort,
+    TerminalObserverEvent,
 } from '../../domains/terminal';
 import { canSendAgentInput, deliverAgentInput, sendAgentInput } from './agent-input';
 import {
@@ -27,6 +28,7 @@ import {
     forgetAttachment,
     restoreRequestedView,
 } from './attach-failure';
+import { observeBackgroundFailure } from './background-failure';
 import type {
     RemoteResizeQueue,
     RemoteTerminalIdentity,
@@ -34,10 +36,13 @@ import type {
     TerminalHostControl,
     TerminalHostEvent,
 } from './execution-contract';
+import { listenExecutionEvent } from './execution-events';
 import { currentIdentity, terminalScope } from './execution-scope';
+import { projectLiveTerminalHostEvent } from './host-event-projection';
 import { hotPathCompletions, settleHotPaths } from './hot-paths';
 import type { TerminalInputReceipt } from './input-queue';
 import { TerminalInputQueue } from './input-queue';
+import { RemoteMobileTerminalControl } from './mobile-observation';
 import { buildShutdownCaptures } from './shutdown-captures';
 
 /**
@@ -49,12 +54,14 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
     private readonly inputQueues = new Map<string, TerminalInputQueue<RemoteTerminalIdentity>>();
     private readonly resizeQueues = new Map<string, RemoteResizeQueue>();
     private readonly views = new Map<string, RemoteView>();
+    private readonly mobileControl: RemoteMobileTerminalControl;
 
     constructor(
         private readonly supervisor: TerminalHostControl,
         private readonly logger: StructuredLogger,
     ) {
         super();
+        this.mobileControl = new RemoteMobileTerminalControl(this.identities, supervisor);
         supervisor.onEvent((event) => this.projectHostEvent(event));
         supervisor.onExit(() => this.handleHostExit());
     }
@@ -62,91 +69,45 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
     private projectHostEvent(event: TerminalHostEvent): void {
         const identity = currentIdentity(this.identities, event);
         if (!identity) return;
-        switch (event.event) {
-            case 'terminal.output': {
-                // Gate on the requested view, not identity.attachmentId: the reattachment snapshot replays those bytes.
-                // See `attach` and `references/persistence.md`.
-                const attached = this.views.get(identity.record.id)?.attachmentId;
-                if (!attached || event.identity.attachmentId !== attached) return;
-                this.emitExecution({
-                    type: 'output',
-                    terminalId: identity.record.id,
-                    data: event.data,
-                    ...(event.droppedBytes !== undefined && { droppedBytes: event.droppedBytes }),
-                });
-                return;
-            }
-            case 'terminal.activity':
-                this.emitExecution({
-                    type: 'activity',
-                    terminalId: identity.record.id,
-                    processId: event.processId,
-                });
-                return;
-            case 'terminal.title':
-                this.emitExecution({
-                    type: 'title',
-                    terminalId: identity.record.id,
-                    title: event.title,
-                });
-                return;
-            case 'terminal.outputRecovery':
-                this.emitExecution({
-                    type: 'outputRecovery',
-                    terminalId: identity.record.id,
-                    provider: event.provider,
-                    status: event.status,
-                });
-                return;
-            case 'terminal.agent.started':
-                if (identity.agent?.launchId !== event.launchId) return;
-                identity.agent.processId = event.processId;
-                this.emitExecution({
-                    type: 'agentStarted',
-                    terminalId: identity.record.id,
-                    launchId: event.launchId,
-                    processId: event.processId,
-                });
-                return;
-            case 'terminal.agent.exit':
-                if (identity.agent?.launchId !== event.launchId) return;
-                delete identity.agent;
-                this.emitExecution({
-                    type: 'agentExit',
-                    terminalId: identity.record.id,
-                    launchId: event.launchId,
-                    exitCode: event.exitCode,
-                    ...(event.signal !== undefined && { signal: event.signal }),
-                });
-                return;
-            case 'terminal.exit': {
-                this.identities.delete(identity.record.id);
-                this.retireInputQueue(
-                    identity.record.id,
-                    new CaxriError('UNAVAILABLE', 'Terminal exited before input completed'),
-                    true,
-                );
-                this.resizeQueues.delete(identity.record.id);
-                this.views.delete(identity.record.id);
-                const capture = event.snapshot
-                    ? Promise.resolve(event.snapshot)
-                    : Promise.reject(new Error('Terminal Host exit omitted the final snapshot'));
-                this.dispatchEvent(
-                    new CustomEvent<TerminalExecutionExit>('exit', {
-                        detail: {
-                            capture,
-                            exitCode: event.exitCode,
-                            record: identity.record,
-                            ...(event.signal !== undefined && { signal: event.signal }),
-                        },
-                    }),
-                );
-            }
+        if (event.event !== 'terminal.exit') {
+            projectLiveTerminalHostEvent(
+                event,
+                identity,
+                this.views.get(identity.record.id)?.attachmentId,
+                (projected) => this.emitExecution(projected),
+                (projected) => this.emitObserver(projected),
+            );
+            return;
         }
+        this.identities.delete(identity.record.id);
+        this.retireInputQueue(
+            identity.record.id,
+            new CaxriError('UNAVAILABLE', 'Terminal exited before input completed'),
+            true,
+        );
+        this.resizeQueues.delete(identity.record.id);
+        this.views.delete(identity.record.id);
+        const capture = event.snapshot
+            ? Promise.resolve(event.snapshot)
+            : Promise.reject(new Error('Terminal Host exit omitted the final snapshot'));
+        this.dispatchEvent(
+            new CustomEvent<TerminalExecutionExit>('exit', {
+                detail: {
+                    capture,
+                    exitCode: event.exitCode,
+                    record: identity.record,
+                    ...(event.signal !== undefined && { signal: event.signal }),
+                },
+            }),
+        );
     }
 
     private emitExecution(event: TerminalExecutionEvent): void {
         this.dispatchEvent(new CustomEvent<TerminalExecutionEvent>('event', { detail: event }));
+    }
+
+    private emitObserver(event: TerminalObserverEvent): void {
+        this.dispatchEvent(new CustomEvent<TerminalObserverEvent>('observer', { detail: event }));
     }
 
     private handleHostExit(): void {
@@ -166,7 +127,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
 
     private background(promise: Promise<unknown>, method: string, terminalId?: string): void {
         // eslint-disable-next-line no-void -- Synchronous hot paths preserve acceptance while this observer records failure.
-        void this.observeBackground(promise, method, terminalId);
+        void observeBackgroundFailure(this.logger, promise, method, terminalId);
     }
 
     private async drainInput(queue: TerminalInputQueue<RemoteTerminalIdentity>): Promise<void> {
@@ -226,24 +187,6 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
             }
         } finally {
             if (this.resizeQueues.get(terminalId) === queue) this.resizeQueues.delete(terminalId);
-        }
-    }
-
-    private async observeBackground(
-        promise: Promise<unknown>,
-        method: string,
-        terminalId?: string,
-    ): Promise<void> {
-        try {
-            await promise;
-        } catch (error) {
-            this.logger.write('warn', logEventCatalog.terminalHost.error, {
-                fields: {
-                    method,
-                    ...(terminalId && { terminalId }),
-                    errorType: error instanceof Error ? error.name : typeof error,
-                },
-            });
         }
     }
 
@@ -610,6 +553,64 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         return result.snapshot;
     }
 
+    observe(
+        terminalId: string,
+        observerId: string,
+    ): Promise<{ snapshot: TerminalSnapshot | null; nextSequence: number; generation: number }> {
+        return this.mobileControl.observe(terminalId, observerId);
+    }
+
+    unobserve(terminalId: string, observerId: string): Promise<void> {
+        return this.mobileControl.unobserve(terminalId, observerId);
+    }
+
+    takeOver(
+        terminalId: string,
+        holderId: string,
+        expectedGeneration: number,
+        size: { cols: number; rows: number },
+        timeoutMs: number,
+    ): Promise<{ expiresAt: number }> {
+        return this.mobileControl.takeOver(
+            terminalId,
+            holderId,
+            expectedGeneration,
+            size,
+            timeoutMs,
+        );
+    }
+
+    renewTakeOver(
+        terminalId: string,
+        holderId: string,
+        expectedGeneration: number,
+        timeoutMs: number,
+    ): Promise<{ expiresAt: number }> {
+        return this.mobileControl.renewTakeOver(
+            terminalId,
+            holderId,
+            expectedGeneration,
+            timeoutMs,
+        );
+    }
+
+    releaseTakeOver(
+        terminalId: string,
+        holderId: string,
+        expectedGeneration: number,
+    ): Promise<void> {
+        return this.mobileControl.releaseTakeOver(terminalId, holderId, expectedGeneration);
+    }
+
+    inputForGeneration(
+        terminalId: string,
+        expectedGeneration: number,
+        data: string,
+        signal?: AbortSignal,
+    ): Promise<boolean> {
+        return this.mobileControl.inputForGeneration(terminalId, expectedGeneration, data, signal);
+    }
+
     async textTail(terminalId: string, maximumCharacters: number): Promise<string | null> {
         const identity = this.identities.get(terminalId);
         if (!identity?.processId) return null;
@@ -778,23 +779,18 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
     }
 
     onEvent(listener: (event: TerminalExecutionEvent) => void): () => void {
-        const handler = (event: Event): void =>
-            listener((event as CustomEvent<TerminalExecutionEvent>).detail);
-        this.addEventListener('event', handler);
-        return () => this.removeEventListener('event', handler);
+        return listenExecutionEvent(this, 'event', listener);
+    }
+
+    onObserverEvent(listener: (event: TerminalObserverEvent) => void): () => void {
+        return listenExecutionEvent(this, 'observer', listener);
     }
 
     onExit(listener: (event: TerminalExecutionExit) => void): () => void {
-        const handler = (event: Event): void =>
-            listener((event as CustomEvent<TerminalExecutionExit>).detail);
-        this.addEventListener('exit', handler);
-        return () => this.removeEventListener('exit', handler);
+        return listenExecutionEvent(this, 'exit', listener);
     }
 
     onHostExit(listener: (terminalIds: readonly string[]) => void): () => void {
-        const handler = (event: Event): void =>
-            listener((event as CustomEvent<readonly string[]>).detail);
-        this.addEventListener('host-exit', handler);
-        return () => this.removeEventListener('host-exit', handler);
+        return listenExecutionEvent(this, 'host-exit', listener);
     }
 }

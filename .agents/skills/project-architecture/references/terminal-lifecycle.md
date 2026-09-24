@@ -27,6 +27,16 @@ The serialized screen patch clips hidden alternate-buffer columns after a shrink
 full-width cursor, including genuine pending wrap. Keep the screen and engine-output regressions when
 upgrading xterm; see the patched dependency notes in `stack-baseline.md`.
 
+Mobile Terminal observers use a Host-owned stream separate from the Desktop attachment and its output
+queue. Registering an observer flushes the previous stream batch, records the next sequence, then crosses
+the parsed-screen snapshot barrier. Later framed and image-filtered output can arrive before the snapshot
+reply; the mobile subscription holds it until snapshot chunks finish and checks the Host sequence before
+delivery. Desktop attach, reattach, and detach never remove observers or resize on their behalf. Host
+observer overflow and screen-parser reset emit a content-free gap and restart the observer stream; each
+mobile subscription has its own bounded outbound queue, so one slow phone cannot stall a PTY or Desktop.
+An observer and its size lease retire with the PTY generation, and a replacement PTY requires a fresh
+snapshot rather than continuing an old byte stream.
+
 When at least one provider lifecycle integration is enabled, every Shell PTY receives its own observation-only
 hook generation, socket path, and token before spawn. A managed Agent child overrides that context with an
 independently revocable hook generation. Its exit restores Shell observation for manual CLI relaunches while

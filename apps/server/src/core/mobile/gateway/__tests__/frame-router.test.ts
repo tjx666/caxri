@@ -23,7 +23,17 @@ describe('MobileGatewayFrameRouter heartbeat', () => {
         const app = new MobileGatewayFrameRouter({
             authorizeMethod: () => {},
             authorizeSubscription: () => Promise.resolve(),
-            context: () => ({ capabilities: [], principal }),
+            context: () => ({
+                capabilities: [],
+                principal,
+                connection: {
+                    serverId: 'server-1',
+                    bootId: 'boot-1',
+                    stateEpoch: 'epoch-1',
+                    clientId: 'mobile:device-1',
+                    connectionId: 'connection-1',
+                },
+            }),
             dispatch: createCommandDispatcher({
                 server: {
                     invoke: () => {

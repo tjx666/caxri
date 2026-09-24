@@ -103,6 +103,63 @@ describe('architecture-a3b-terminal-host: private protocol', () => {
         ).toBe(false);
     });
 
+    it('requires exact generation and unattached capabilities for mobile observer control', () => {
+        const base = startEnvelope();
+        const observe = terminalHostRequestEnvelopeSchema.parse({
+            ...base,
+            id: 'observe-1',
+            scope: { ...base.scope, capability: 'terminal.observe' },
+            request: { method: 'terminal.observe', params: { observerId: 'observer-1' } },
+        });
+        expect(authorizeTerminalHostRequest(observe, liveAuthority)).toEqual({ ok: true });
+        expect(
+            authorizeTerminalHostRequest(
+                terminalHostRequestEnvelopeSchema.parse({
+                    ...observe,
+                    scope: { ...observe.scope, attachmentId: 'attachment-1' },
+                }),
+                liveAuthority,
+            ),
+        ).toEqual({ ok: false, reason: 'attachment' });
+        expect(
+            authorizeTerminalHostRequest(
+                terminalHostRequestEnvelopeSchema.parse({
+                    ...observe,
+                    scope: { ...observe.scope, ptyGeneration: 2 },
+                }),
+                liveAuthority,
+            ),
+        ).toEqual({ ok: false, reason: 'generation' });
+
+        const takeOver = terminalHostRequestEnvelopeSchema.parse({
+            ...base,
+            id: 'lease-1',
+            scope: { ...base.scope, capability: 'terminal.lease' },
+            request: {
+                method: 'terminal.takeOver',
+                params: {
+                    holderId: 'connection:subscription',
+                    size: { cols: 42, rows: 20 },
+                    timeoutMs: 12_000,
+                },
+            },
+        });
+        expect(authorizeTerminalHostRequest(takeOver, liveAuthority)).toEqual({ ok: true });
+        expect(
+            authorizeTerminalHostRequest(
+                { ...takeOver, scope: { ...takeOver.scope, capability: 'terminal.view' } },
+                liveAuthority,
+            ),
+        ).toEqual({ ok: false, reason: 'capability' });
+        const input = terminalHostRequestEnvelopeSchema.parse({
+            ...base,
+            id: 'input-1',
+            scope: { ...base.scope, capability: 'terminal.mobile.input' },
+            request: { method: 'terminal.observer.input', params: { data: '\u{1B}' } },
+        });
+        expect(authorizeTerminalHostRequest(input, liveAuthority)).toEqual({ ok: true });
+    });
+
     it('accepts only a strict structured Agent sub-plan', () => {
         const envelope = startEnvelope();
         expect(

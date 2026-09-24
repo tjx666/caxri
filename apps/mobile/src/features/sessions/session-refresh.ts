@@ -8,6 +8,7 @@ export interface MobileSessionRefreshSource {
 }
 
 export interface MobileDashboardSnapshot {
+    deviceRole: MethodResult<'mobile.dashboard'>['deviceRole'];
     hostDisplayName: string;
     projects: MethodResult<'mobile.dashboard'>['projects'];
     sections: MobileSessionSections;
@@ -18,6 +19,7 @@ export const fetchMobileSessionDashboard = async (
 ): Promise<MobileDashboardSnapshot> => {
     const dashboard = await source.dashboard();
     return {
+        deviceRole: dashboard.deviceRole,
         hostDisplayName: dashboard.hostDisplayName,
         projects: dashboard.projects,
         sections: buildMobileSessionSections({

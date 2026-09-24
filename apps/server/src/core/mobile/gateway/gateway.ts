@@ -47,9 +47,9 @@ import type {
 } from '@caxri/protocol';
 import { CaxriError, createCommandDispatcher } from '@caxri/protocol';
 import type WebSocket from 'ws';
-import type { RawData } from 'ws';
 import { WebSocketServer } from 'ws';
 
+import type { TerminalExecutionPort } from '../../../domains/terminal';
 import type {
     MobileDeviceRecord,
     MobileDeviceRegistry,
@@ -57,8 +57,11 @@ import type {
 } from '../device-registry';
 import { selectMobileGatewayAddresses } from './address-selection';
 import { MobileGatewayFrameRouter } from './frame-router';
+import { dummyCandidate } from './handshake-candidate';
+import { isAllowedMobileOrigin } from './origin';
 import { mobileCapabilitiesByRole } from './role-capabilities';
 import { createServerSealedPayload, sendFinalSealedPayload } from './sealed-payload';
+import { messageByteLength, messageText } from './socket-message';
 import { MobileSocketQueueBudget } from './socket-queue-budget';
 import { SourceAttemptLimiter } from './source-attempt-limiter';
 
@@ -72,14 +75,6 @@ const MAXIMUM_CONNECTIONS = 32;
 const MAXIMUM_HANDSHAKES = 8;
 const MAXIMUM_PENDING_PAIRINGS = 8;
 
-/**
- * React Native adds the WebSocket endpoint as its default Origin. Accept that same-origin native request while
- * continuing to reject browser pages hosted elsewhere on the LAN.
- *
- * @see https://github.com/facebook/react-native/blob/v0.86.3/packages/react-native/ReactAndroid/src/main/java/com/facebook/react/modules/websocket/WebSocketModule.kt
- */
-const isAllowedMobileOrigin = (origin: string | undefined, host: string | undefined): boolean =>
-    origin === undefined || (host !== undefined && origin === `http://${host}`);
 interface PendingPairing {
     expiresAt: number;
     pairingId: string;
@@ -120,6 +115,7 @@ export interface MobileGatewayOptions {
         resource: MobileSubscriptionResource,
         event: ServerEvent,
     ) => Promise<boolean>;
+    terminalExecution?: TerminalExecutionPort;
     /**
      * Peer address override for loopback tests.
      */
@@ -133,36 +129,6 @@ export interface MobileGatewayOptions {
 const isAllowedLanAddress = (address: string | undefined): boolean =>
     address !== undefined && isPrivateMobileIpv4Address(address);
 
-function messageText(data: RawData): string {
-    if (Array.isArray(data)) return Buffer.concat(data).toString('utf8');
-    if (data instanceof ArrayBuffer) return Buffer.from(new Uint8Array(data)).toString('utf8');
-    return data.toString('utf8');
-}
-
-const messageByteLength = (data: RawData): number => {
-    if (Array.isArray(data)) return data.reduce((total, value) => total + value.byteLength, 0);
-    return data.byteLength;
-};
-
-/**
- * Preserves one challenge shape for invalid IDs without disclosing whether a pairing exists.
- */
-function dummyCandidate(
-    hello: Extract<MobileClientHello, { mode: 'pair' }>,
-    now: number,
-    random: (bytes: number) => Uint8Array,
-): MobileDeviceRecord {
-    return {
-        deviceId: `device_${Buffer.from(random(16)).toString('hex')}`,
-        displayName: hello.displayName,
-        platform: hello.platform,
-        credential: Buffer.from(random(PAIRING_SECRET_BYTES)).toString('hex'),
-        generation: 1,
-        role: 'control',
-        projectIds: ['invalid-pairing'],
-        createdAt: now,
-    };
-}
 /**
  * Default-off LAN transport for one Server profile. The loopback control transport is never reused.
  */
@@ -178,6 +144,8 @@ export class MobileGateway {
     readonly #sourceAttempts: SourceAttemptLimiter;
     readonly #tcpSockets = new Set<Socket>();
     readonly #terminators = new Map<WebSocket, () => void>();
+    readonly #stopObserverEvents?: () => void;
+    readonly #stopHostExit?: () => void;
     #addresses?: string[];
     #handshakes = 0;
     #port?: number;
@@ -189,6 +157,17 @@ export class MobileGateway {
         this.#now = options.now ?? Date.now;
         this.#sourceAttempts = new SourceAttemptLimiter({ now: this.#now });
         this.#random = options.random ?? randomBytes;
+        this.#stopObserverEvents = options.terminalExecution?.onObserverEvent((event) => {
+            for (const sockets of this.#activeByDevice.values())
+                for (const session of sockets.values())
+                    session.application?.publishObserverEvent(event);
+        });
+        this.#stopHostExit = options.terminalExecution?.onHostExit((terminalIds) => {
+            for (const sockets of this.#activeByDevice.values())
+                for (const session of sockets.values())
+                    for (const terminalId of terminalIds)
+                        session.application?.invalidateTerminal(terminalId);
+        });
         const adapter: CommandAdapter = {
             invoke: (request, context, invocation) => {
                 if (context.principal.kind !== 'paired-device')
@@ -227,6 +206,30 @@ export class MobileGateway {
     publish(event: ServerEvent): void {
         for (const sockets of this.#activeByDevice.values())
             for (const session of sockets.values()) session.application?.publish(event);
+    }
+
+    terminalSubscription(
+        context: CommandExecutionContext,
+        subscriptionId: string,
+        terminalId: string,
+    ) {
+        if (context.principal.kind !== 'paired-device')
+            throw new CaxriError('FORBIDDEN', 'Paired device principal is required');
+        const principal = context.principal;
+        const connectionId = context.connection?.connectionId;
+        if (!connectionId) throw new CaxriError('FORBIDDEN', 'Mobile connection is required');
+        const sessions = this.#activeByDevice.get(principal.deviceId);
+        const session = [...(sessions?.values() ?? [])].find(
+            (item) =>
+                item.connection.connectionId === connectionId &&
+                item.generation === principal.generation &&
+                !item.revoking,
+        );
+        if (!session) throw new CaxriError('NOT_FOUND', 'Mobile connection not found');
+        this.#context(session);
+        if (!session.application)
+            throw new CaxriError('NOT_FOUND', 'Terminal subscription not found');
+        return session.application.terminalSubscription(subscriptionId, terminalId);
     }
 
     async enable(): Promise<MobileAccessStatus> {
@@ -356,7 +359,11 @@ export class MobileGateway {
 
     async revoke(deviceId: string, expectedGeneration: number): Promise<MobileDeviceSummary> {
         const activeSessions = this.#activeByDevice.get(deviceId);
-        if (activeSessions) for (const session of activeSessions.values()) session.revoking = true;
+        if (activeSessions)
+            for (const session of activeSessions.values()) {
+                session.revoking = true;
+                session.application?.abortPendingTerminalInputs();
+            }
         let revoked: MobileDeviceSummary;
         try {
             revoked = await this.#options.registry.revoke(deviceId, expectedGeneration);
@@ -365,6 +372,8 @@ export class MobileGateway {
                 for (const session of activeSessions.values()) session.revoking = false;
             throw error;
         }
+        if (activeSessions)
+            for (const session of activeSessions.values()) session.application?.close();
         if (activeSessions)
             await Promise.all(
                 [...activeSessions].map(([socket, session]) =>
@@ -378,7 +387,9 @@ export class MobileGateway {
     async disable(): Promise<MobileAccessStatus> {
         this.#pairings.clear();
         this.#sourceAttempts.clear();
-        for (const socket of this.#sockets) this.#terminate(socket);
+        for (const sockets of this.#activeByDevice.values())
+            for (const session of sockets.values()) session.application?.close();
+        for (const socket of this.#sockets) socket.terminate();
         for (const socket of this.#tcpSockets) socket.destroy();
         this.#sockets.clear();
         this.#tcpSockets.clear();
@@ -394,6 +405,8 @@ export class MobileGateway {
     }
 
     close(): Promise<MobileAccessStatus> {
+        this.#stopObserverEvents?.();
+        this.#stopHostExit?.();
         return this.disable();
     }
 
@@ -418,6 +431,7 @@ export class MobileGateway {
         const terminate = (): void => {
             if (session?.revoking) return;
             isAcceptingMessages = false;
+            session?.application?.close();
             socket.terminate();
         };
         this.#terminators.set(socket, terminate);
@@ -563,6 +577,7 @@ export class MobileGateway {
                                 });
                             }),
                         terminate,
+                        terminalExecution: this.#options.terminalExecution,
                     });
                     isReady = true;
                     this.#handshakes = Math.max(0, this.#handshakes - 1);
