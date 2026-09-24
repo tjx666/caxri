@@ -426,6 +426,36 @@ function activateLink(match: TerminalLinkMatch, context: TerminalLinkContext): v
     context.openFile(match.target, match.location);
 }
 
+/**
+ * Keeps a Cmd+click on a link from also reaching a foreground app that enabled mouse tracking. xterm's mouse report
+ * drops `metaKey`, so an app such as Codex's fullscreen transcript sees a plain left click on the same link and opens
+ * it a second time. Like iTerm2 and Ghostty, Caxri owns that click: xterm's Linkifier listens on `.xterm-screen` and
+ * still activates the link, while stopping the bubble there keeps the event from xterm's mouse service on the enclosing
+ * `.xterm` element, which never sends the press or arms its release listener. Every other click is still forwarded.
+ */
+function registerMouseTrackingLinkClickGuard(
+    terminal: Terminal,
+    hint: TerminalLinkHintController,
+): () => void {
+    const screen = terminal.screenElement;
+    if (!screen) return () => {};
+    const onMouseDown = (event: MouseEvent) => {
+        if (
+            event.button !== 0 ||
+            !hasLinkActivationModifier(event) ||
+            terminal.modes.mouseTrackingMode === 'none' ||
+            !hint.isLinkHovered()
+        )
+            return;
+        event.stopPropagation();
+        // The skipped mouse service would have suppressed native selection and focused the Terminal.
+        event.preventDefault();
+        terminal.focus();
+    };
+    screen.addEventListener('mousedown', onMouseDown);
+    return () => screen.removeEventListener('mousedown', onMouseDown);
+}
+
 function activateLinkFromPointer(
     event: MouseEvent,
     match: TerminalLinkMatch,
@@ -702,6 +732,7 @@ export function registerTerminalLinks(
     context: TerminalLinkContext,
 ): TerminalLinkRegistration {
     const hint = createTerminalLinkHintController(terminal);
+    const disposeMouseTrackingGuard = registerMouseTrackingLinkClickGuard(terminal, hint);
     const disposable = terminal.registerLinkProvider({
         provideLinks(bufferLineNumber, callback) {
             const logicalLine = readLogicalLine(terminal, bufferLineNumber, context.wordSeparators);
@@ -759,6 +790,7 @@ export function registerTerminalLinks(
         },
         restoreOscLinks: (snapshots) => oscTracker.restoreOscLinks(snapshots),
         dispose() {
+            disposeMouseTrackingGuard();
             hint.dispose();
             terminal.options.linkHandler = null;
             disposable.dispose();
