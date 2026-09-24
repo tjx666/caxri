@@ -105,6 +105,7 @@ export async function createMobileAcceptanceFixture(
             testRootPath: allowedRoot,
             env: {
                 ...(input.mode === 'waiting' && { CAXRI_E2E_AGENT_HOOKS: '1' }),
+                CAXRI_MOBILE_TEST_HOST_DISPLAY_NAME: 'Caxri Test Host',
                 CAXRI_TEST_ROOT_PATHS: JSON.stringify([allowedRoot, deniedRoot]),
             },
         });

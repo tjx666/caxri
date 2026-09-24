@@ -119,6 +119,7 @@ describe('createCommandDispatcher paired-device generations', () => {
                 id: 'paired-device:device-1',
                 deviceId: 'device-1',
                 generation,
+                role: 'control',
                 projectIds: ['project-1'],
             },
         });
@@ -154,6 +155,7 @@ describe('createCommandDispatcher paired-device generations', () => {
                         id: 'paired-device:device-1',
                         deviceId: 'device-1',
                         generation: 1,
+                        role: 'control',
                         projectIds: ['project-1'],
                     },
                 },

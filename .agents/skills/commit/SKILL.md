@@ -45,6 +45,9 @@ Stage explicit paths or hunks with `git add -- <paths...>` or `git add -p`. Neve
 command when it could capture unrelated work. After interactive staging, verify the intended hunk
 actually entered the index; a wrapper may exit successfully without presenting a prompt. If it did
 not, apply a reviewed patch with `git apply --cached`. Inspect `git diff --cached` before every commit.
+For partially staged files, pause concurrent writers and isolate unstaged changes before running
+commit hooks, which may restage whole files. Verify the committed tree before restoring those changes;
+resolve any restore conflicts without discarding work.
 
 ## Write messages
 

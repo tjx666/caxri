@@ -3,11 +3,18 @@ import { z } from 'zod';
 import {
     canceledResultSchema,
     identifierSchema,
+    scopedProjectSchema,
     sessionRecordSchema,
+    terminalKindSchema,
     terminalRecordSchema,
 } from '../domain/domain.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
+import { principalSchema } from '../transport/principal.js';
+import { mobileDeviceRoleSchema } from './device-role.js';
+
+export type { MobileDeviceRole } from './device-role.js';
+export { mobileDeviceRoleSchema } from './device-role.js';
 
 const noParameters = z.strictObject({}).default({});
 export const mobileDeviceIdSchema = z.string().regex(/^device_[0-9a-f]{32}$/u);
@@ -27,6 +34,7 @@ export const mobileDeviceSummarySchema = z.strictObject({
     displayName: z.string().trim().min(1).max(100),
     platform: z.enum(['android', 'ios']),
     generation: z.number().int().positive(),
+    role: mobileDeviceRoleSchema,
     projectIds: mobileProjectIdsSchema,
     createdAt: z.number().int().positive(),
     lastConnectedAt: z.number().int().positive().optional(),
@@ -64,9 +72,22 @@ export const mobileDashboardSessionSchema = z.strictObject({
 });
 
 export const mobileDashboardResultSchema = z.strictObject({
+    hostDisplayName: z.string().trim().min(1).max(100),
+    projects: z.array(scopedProjectSchema).max(MOBILE_MAX_PROJECT_GRANTS),
     sessions: z.array(mobileDashboardSessionSchema).max(64),
     total: z.number().int().nonnegative().max(4_096),
     truncated: z.boolean(),
+});
+
+export const mobileSessionCreateResultSchema = z.strictObject({
+    sessionId: identifierSchema,
+    terminalId: identifierSchema.optional(),
+    launchError: z
+        .strictObject({
+            code: z.literal('TERMINAL_START_FAILED'),
+            message: z.string().min(1).max(256),
+        })
+        .optional(),
 });
 
 export const mobileMethods = {
@@ -103,6 +124,14 @@ export const mobileMethods = {
         params: noParameters,
         result: mobileDashboardResultSchema,
     },
+    'mobile.session.create': {
+        ...commandPolicy('server', 'write', ['sessions.write']),
+        params: z.strictObject({
+            projectId: identifierSchema,
+            defaultAgent: terminalKindSchema,
+        }),
+        result: mobileSessionCreateResultSchema,
+    },
     'mobile.device.revoke': {
         ...commandPolicy('desktop', 'control'),
         params: z.strictObject({ deviceId: mobileDeviceIdSchema }),
@@ -115,6 +144,15 @@ export const mobileMethods = {
  * changed while the dialog was open from inheriting stale approval.
  */
 export const mobileInternalMethods = {
+    'mobile.session.createForPrincipal': {
+        ...commandPolicy('server', 'write'),
+        params: z.strictObject({
+            projectId: identifierSchema,
+            defaultAgent: terminalKindSchema,
+            principal: principalSchema,
+        }),
+        result: mobileSessionCreateResultSchema,
+    },
     'mobile.device.revoke.apply': {
         ...commandPolicy('server', 'control'),
         params: z.strictObject({

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { delegationProviderSchema } from '../agent/agent-delegation-settings.js';
+import { mobileDeviceRoleSchema } from '../mobile/device-role.js';
 import type { ProtocolConnectionIdentity } from './identity.js';
 
 export const capabilityIds = [
@@ -75,6 +76,7 @@ export const principalSchema = z.discriminatedUnion('kind', [
         id: principalIdSchema,
         deviceId: principalIdSchema,
         generation: z.number().int().positive(),
+        role: mobileDeviceRoleSchema,
         projectIds: projectIdsSchema,
     }),
 ]);

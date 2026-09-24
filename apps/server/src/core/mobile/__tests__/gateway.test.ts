@@ -1,4 +1,3 @@
-import { Buffer } from 'node:buffer';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { createConnection } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -23,19 +22,14 @@ import {
     parseMobilePairingLink,
     sealMobileFrame,
 } from '@caxri/mobile-transport';
-import type { CommandAdapter } from '@caxri/protocol';
-import { CAXRI_PROTOCOL_VERSION, methods } from '@caxri/protocol';
+import type { CommandAdapter, Principal } from '@caxri/protocol';
+import { CAXRI_PROTOCOL_VERSION, CaxriError } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ClientOptions } from 'ws';
-import WebSocket from 'ws';
 
+import { isMobileGatewayMethodAllowedForRole } from '../access-controller';
 import { MobileDeviceRegistry } from '../device-registry';
-import {
-    isMobileGatewayMethodAllowed,
-    MOBILE_GATEWAY_ALLOWED_METHODS,
-    MobileGateway,
-    selectMobileGatewayAddress,
-} from '../gateway';
+import { MobileGateway, selectMobileGatewayAddress } from '../gateway';
+import { connectDevice, nextMessage, openSocket } from './gateway-client.fixture';
 
 const temporaryDirectories: string[] = [];
 
@@ -51,25 +45,12 @@ async function registryFixture() {
     });
 }
 
-function nextMessage(socket: WebSocket): Promise<unknown> {
-    return new Promise((resolve, reject) => {
-        socket.once('error', reject);
-        socket.once('message', (data) => {
-            if (!Buffer.isBuffer(data)) {
-                reject(new TypeError('Expected a buffered WebSocket message'));
-                return;
-            }
-            resolve(JSON.parse(data.toString('utf8')) as unknown);
-        });
-    });
-}
-
-function openSocket(url: string, options?: ClientOptions) {
-    const socket = new WebSocket(url, options);
-    return new Promise<WebSocket>((resolve, reject) => {
-        socket.once('open', () => resolve(socket));
-        socket.once('error', reject);
-    });
+function authorizeMethod(principal: Principal, method: string): void {
+    if (
+        principal.kind !== 'paired-device' ||
+        !isMobileGatewayMethodAllowedForRole(principal.role, method)
+    )
+        throw new CaxriError('FORBIDDEN', 'Paired device role does not allow this method');
 }
 
 afterEach(async () => {
@@ -79,20 +60,104 @@ afterEach(async () => {
 });
 
 describe('MobileGateway', () => {
-    it('keeps a closed default allowlist when the public method registry grows', () => {
-        expect(MOBILE_GATEWAY_ALLOWED_METHODS).toEqual([
-            'mobile.dashboard',
-            'session.markRead',
-            'terminal.preview',
-            'terminal.send',
-        ]);
-        for (const method of Object.keys(methods) as Array<keyof typeof methods>)
-            expect(isMobileGatewayMethodAllowed(method)).toBe(
-                MOBILE_GATEWAY_ALLOWED_METHODS.includes(
-                    method as (typeof MOBILE_GATEWAY_ALLOWED_METHODS)[number],
-                ),
-            );
-    });
+    it.each(['view', 'reply', 'control'] as const)(
+        'enforces the %s role on each encrypted request and rejects a revoked generation',
+        async (role) => {
+            const registry = await registryFixture();
+            const record = {
+                ...registry.preparePair({
+                    displayName: 'Test tablet',
+                    platform: 'android',
+                    projectIds: ['project-1'],
+                }),
+                role,
+            };
+            await registry.commitPair(record);
+            const invoke = vi.fn<CommandAdapter['invoke']>((request) => {
+                switch (request.method) {
+                    case 'mobile.dashboard':
+                        return {
+                            hostDisplayName: 'Test computer',
+                            projects: [{ id: 'project-1', displayTitle: 'Test Project' }],
+                            sessions: [],
+                            total: 0,
+                            truncated: false,
+                        };
+                    case 'terminal.send':
+                        return {
+                            terminalId: 'terminal-1',
+                            accepted: true,
+                            byteLength: 2,
+                            enter: true,
+                        };
+                    case 'mobile.session.create':
+                        return { sessionId: 'session-new' };
+                    default:
+                        throw new Error('Unexpected gateway method');
+                }
+            });
+            const gateway = new MobileGateway({
+                adapters: { server: { invoke } },
+                authorizePairedDeviceMethod: authorizeMethod,
+                bootId: 'b'.repeat(32),
+                protocolIdentity: { serverId: 'a'.repeat(32), stateEpoch: 'c'.repeat(32) },
+                registry,
+                selectAddress: () => '127.0.0.1',
+            });
+            const client = await connectDevice(gateway, record);
+            const request = (id: string, method: string, parameters: unknown) => ({
+                protocolVersion: CAXRI_PROTOCOL_VERSION,
+                id,
+                method,
+                params: parameters,
+            });
+            try {
+                await expect(
+                    client.request(request('dashboard', 'mobile.dashboard', {})),
+                ).resolves.toMatchObject({ ok: true });
+                await expect(
+                    client.request(
+                        request('reply', 'terminal.send', {
+                            terminalId: 'terminal-1',
+                            text: 'Hi',
+                            enter: true,
+                            attentionEpoch: 1,
+                        }),
+                    ),
+                ).resolves.toMatchObject({
+                    ok: role !== 'view',
+                    ...(role === 'view' && { error: { code: 'FORBIDDEN' } }),
+                });
+                await expect(
+                    client.request(
+                        request('create', 'mobile.session.create', {
+                            projectId: 'project-1',
+                            defaultAgent: 'codex',
+                        }),
+                    ),
+                ).resolves.toMatchObject({
+                    ok: role === 'control',
+                    ...(role !== 'control' && { error: { code: 'FORBIDDEN' } }),
+                });
+                expect(invoke).toHaveBeenCalledTimes(
+                    role === 'view' ? 1 : role === 'reply' ? 2 : 3,
+                );
+
+                const closed = new Promise<number>((resolve) =>
+                    client.socket.once('close', resolve),
+                );
+                await registry.revoke(record.deviceId, record.generation);
+                client.send(request('after-revoke', 'mobile.dashboard', {}));
+                await expect(closed).resolves.toBe(1_006);
+                expect(invoke).toHaveBeenCalledTimes(
+                    role === 'view' ? 1 : role === 'reply' ? 2 : 3,
+                );
+            } finally {
+                client.socket.close();
+                await gateway.close();
+            }
+        },
+    );
 
     it('selects only a private non-loopback IPv4 interface', () => {
         expect(
@@ -195,6 +260,7 @@ describe('MobileGateway', () => {
             const registry = await registryFixture();
             const gateway = new MobileGateway({
                 adapters: { server: { invoke: vi.fn() } },
+                authorizePairedDeviceMethod: authorizeMethod,
                 bootId: 'b'.repeat(32),
                 protocolIdentity: { serverId: 'a'.repeat(32), stateEpoch: 'c'.repeat(32) },
                 registry,
@@ -232,6 +298,7 @@ describe('MobileGateway', () => {
         const registry = await registryFixture();
         const gateway = new MobileGateway({
             adapters: { server: { invoke: vi.fn() } },
+            authorizePairedDeviceMethod: authorizeMethod,
             bootId: 'b'.repeat(32),
             protocolIdentity: { serverId: 'a'.repeat(32), stateEpoch: 'c'.repeat(32) },
             registry,
@@ -294,6 +361,7 @@ describe('MobileGateway', () => {
         const registry = await registryFixture();
         const gateway = new MobileGateway({
             adapters: { server: { invoke: vi.fn() } },
+            authorizePairedDeviceMethod: authorizeMethod,
             bootId: 'b'.repeat(32),
             protocolIdentity: { serverId: 'a'.repeat(32), stateEpoch: 'c'.repeat(32) },
             registry,
@@ -310,6 +378,7 @@ describe('MobileGateway', () => {
         const registry = await registryFixture();
         const gateway = new MobileGateway({
             adapters: { server: { invoke: vi.fn() } },
+            authorizePairedDeviceMethod: authorizeMethod,
             bootId: 'b'.repeat(32),
             protocolIdentity: { serverId: 'a'.repeat(32), stateEpoch: 'c'.repeat(32) },
             registry,
@@ -346,6 +415,7 @@ describe('MobileGateway', () => {
             let gatewayByte = 100;
             const gateway = new MobileGateway({
                 adapters: { server: { invoke: vi.fn() } },
+                authorizePairedDeviceMethod: authorizeMethod,
                 bootId: 'b'.repeat(32),
                 protocolIdentity: { serverId: 'a'.repeat(32), stateEpoch: 'c'.repeat(32) },
                 random: (bytes) => new Uint8Array(bytes).fill(gatewayByte++),
@@ -435,6 +505,8 @@ describe('MobileGateway', () => {
             if (request.method !== 'mobile.dashboard')
                 throw new Error('Unexpected allowed request');
             return {
+                hostDisplayName: 'Test computer',
+                projects: [{ id: 'project-1', displayTitle: 'Test Project' }],
                 sessions: [],
                 total: 0,
                 truncated: false,
@@ -443,6 +515,7 @@ describe('MobileGateway', () => {
         let gatewayByte = 100;
         const gateway = new MobileGateway({
             adapters: { server: { invoke } },
+            authorizePairedDeviceMethod: authorizeMethod,
             bootId: 'b'.repeat(32),
             protocolIdentity: { serverId: 'a'.repeat(32), stateEpoch: 'c'.repeat(32) },
             random: (bytes) => new Uint8Array(bytes).fill(gatewayByte++),
@@ -575,7 +648,13 @@ describe('MobileGateway', () => {
             }),
         ).resolves.toMatchObject({
             ok: true,
-            result: { sessions: [], total: 0, truncated: false },
+            result: {
+                hostDisplayName: 'Test computer',
+                projects: [{ id: 'project-1', displayTitle: 'Test Project' }],
+                sessions: [],
+                total: 0,
+                truncated: false,
+            },
         });
         expect(invoke).toHaveBeenCalledOnce();
 

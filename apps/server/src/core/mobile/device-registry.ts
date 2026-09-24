@@ -3,7 +3,12 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 
 import { PAIRING_SECRET_BYTES } from '@caxri/mobile-transport';
 import type { Principal } from '@caxri/protocol';
-import { CaxriError, mobileDeviceIdSchema, mobileProjectIdsSchema } from '@caxri/protocol';
+import {
+    CaxriError,
+    mobileDeviceIdSchema,
+    mobileDeviceRoleSchema,
+    mobileProjectIdsSchema,
+} from '@caxri/protocol';
 import { z } from 'zod';
 
 import { fileSystemCode, readPrivateJsonFile, replacePrivateJsonFile } from '../private-json-store';
@@ -18,6 +23,7 @@ const mobileDeviceRecordSchema = z.strictObject({
     platform: z.enum(['android', 'ios']),
     credential: credentialSchema,
     generation: z.number().int().positive(),
+    role: mobileDeviceRoleSchema,
     projectIds: mobileProjectIdsSchema,
     createdAt: z.number().int().positive(),
     lastConnectedAt: z.number().int().positive().optional(),
@@ -25,10 +31,19 @@ const mobileDeviceRecordSchema = z.strictObject({
 });
 
 const mobileDeviceStoreSchema = z.strictObject({
-    version: z.literal(1),
+    version: z.literal(2),
     preferredPort: z.number().int().min(1).max(65_535).optional(),
     devices: z.array(mobileDeviceRecordSchema).max(128),
 });
+const legacyMobileDeviceStoreSchema = z.strictObject({
+    version: z.literal(1),
+    preferredPort: z.number().int().min(1).max(65_535).optional(),
+    devices: z.array(mobileDeviceRecordSchema.omit({ role: true })).max(128),
+});
+const readableMobileDeviceStoreSchema = z.discriminatedUnion('version', [
+    legacyMobileDeviceStoreSchema,
+    mobileDeviceStoreSchema,
+]);
 
 export type MobileDeviceRecord = z.infer<typeof mobileDeviceRecordSchema>;
 export type MobileDeviceSummary = Omit<MobileDeviceRecord, 'credential'>;
@@ -46,6 +61,7 @@ function publicRecord(record: MobileDeviceRecord): MobileDeviceSummary {
         displayName: record.displayName,
         platform: record.platform,
         generation: record.generation,
+        role: record.role,
         projectIds: [...record.projectIds],
         createdAt: record.createdAt,
         ...(record.lastConnectedAt && { lastConnectedAt: record.lastConnectedAt }),
@@ -53,7 +69,9 @@ function publicRecord(record: MobileDeviceRecord): MobileDeviceSummary {
     };
 }
 
-async function readPrivateStore(path: string): Promise<z.infer<typeof mobileDeviceStoreSchema>> {
+async function readPrivateStore(
+    path: string,
+): Promise<z.infer<typeof readableMobileDeviceStoreSchema>> {
     const source = await readPrivateJsonFile({
         path,
         maxBytes: MAXIMUM_REGISTRY_BYTES,
@@ -65,7 +83,7 @@ async function readPrivateStore(path: string): Promise<z.infer<typeof mobileDevi
         },
     });
     try {
-        return mobileDeviceStoreSchema.parse(source);
+        return readableMobileDeviceStoreSchema.parse(source);
     } catch (error) {
         if (error instanceof CaxriError) throw error;
         throw new CaxriError('VALIDATION', 'Mobile device registry is malformed');
@@ -80,7 +98,7 @@ async function writePrivateStore(
     random: (bytes: number) => Uint8Array,
 ): Promise<void> {
     const value = mobileDeviceStoreSchema.parse({
-        version: 1,
+        version: 2,
         ...(preferredPort && { preferredPort }),
         devices: [...devices],
     });
@@ -102,10 +120,18 @@ export class MobileDeviceRegistry {
     static async open(options: MobileDeviceRegistryOptions): Promise<MobileDeviceRegistry> {
         try {
             const store = await readPrivateStore(options.path);
-            return new MobileDeviceRegistry(options, store.devices, store.preferredPort);
+            /**
+             * Legacy grants have no role and cannot authenticate until the owner explicitly pairs again.
+             */
+            return new MobileDeviceRegistry(
+                options,
+                store.version === 2 ? store.devices : [],
+                store.preferredPort,
+                store.version === 1,
+            );
         } catch (error) {
             if (fileSystemCode(error) === 'ENOENT')
-                return new MobileDeviceRegistry(options, [], undefined);
+                return new MobileDeviceRegistry(options, [], undefined, false);
             throw error;
         }
     }
@@ -114,6 +140,7 @@ export class MobileDeviceRegistry {
     readonly #options: MobileDeviceRegistryOptions;
     readonly #random: (bytes: number) => Uint8Array;
     #preferredPort: number | undefined;
+    #isLegacyStore: boolean;
     #records: Map<string, MobileDeviceRecord>;
     #writeTail = Promise.resolve();
 
@@ -121,11 +148,13 @@ export class MobileDeviceRegistry {
         options: MobileDeviceRegistryOptions,
         records: MobileDeviceRecord[],
         preferredPort: number | undefined,
+        isLegacyStore: boolean,
     ) {
         this.#options = options;
         this.#now = options.now ?? Date.now;
         this.#random = options.random ?? randomBytes;
         this.#preferredPort = preferredPort;
+        this.#isLegacyStore = isLegacyStore;
         this.#records = new Map(records.map((record) => [record.deviceId, record]));
         if (this.#records.size !== records.length)
             throw new CaxriError('VALIDATION', 'Mobile device registry contains duplicate devices');
@@ -137,6 +166,7 @@ export class MobileDeviceRegistry {
             id: `paired-device:${record.deviceId}`,
             deviceId: record.deviceId,
             generation: record.generation,
+            role: record.role,
             projectIds: [...record.projectIds],
         };
     }
@@ -155,6 +185,7 @@ export class MobileDeviceRegistry {
                 this.#random,
             );
             this.#records = records;
+            this.#isLegacyStore = false;
             return result;
         })();
         this.#writeTail = (async (): Promise<void> => {
@@ -185,6 +216,10 @@ export class MobileDeviceRegistry {
         const previousWrite = this.#writeTail;
         const operation = (async (): Promise<void> => {
             await previousWrite;
+            if (this.#isLegacyStore) {
+                this.#preferredPort = nextPort;
+                return;
+            }
             await writePrivateStore(
                 this.#options.directory,
                 this.#options.path,
@@ -231,6 +266,7 @@ export class MobileDeviceRegistry {
             deviceId: `device_${Buffer.from(this.#random(16)).toString('hex')}`,
             credential: Buffer.from(this.#random(PAIRING_SECRET_BYTES)).toString('hex'),
             generation: 1,
+            role: 'control',
             createdAt: this.#now(),
         });
     }

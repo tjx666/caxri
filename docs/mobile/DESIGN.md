@@ -66,6 +66,9 @@ On a healthy network, returning to the foreground shows a fresh (non-stale) Sess
 
 ## Authority
 
+The implemented device grants, method matrix, and cancellation behavior are documented in
+[Mobile authorization](AUTHORIZATION.md).
+
 - A device grant carries a role: `view`, `reply`, or `control`. Each role maps to an explicit method
   set on the Server; every method additionally checks Project scope, Session ownership, and the
   current Agent or Terminal generation.

@@ -104,6 +104,7 @@ describe('projectListForPrincipal', () => {
             kind: 'paired-device',
             id: 'device-1',
             deviceId: 'device-1',
+            role: 'control',
             generation: 1,
             projectIds: ['project-1', 'project-2'],
         };

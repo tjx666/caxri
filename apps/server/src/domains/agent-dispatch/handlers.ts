@@ -98,7 +98,8 @@ export function createAgentCommandHandlers(
         }),
         'agent.control.interruptInternal': ({ endpoint }) => signalAgent(endpoint, 'SIGINT'),
         'agent.control.stopInternal': ({ endpoint }) => signalAgent(endpoint, 'SIGHUP'),
-        'terminal.sendInternal': async ({ attentionEpoch, enter, terminalId, text }) => {
+        'terminal.sendInternal': async ({ attentionEpoch, enter, terminalId, text }, signal) => {
+            if (signal?.aborted) throw new CaxriError('CANCELLED', 'Terminal input was canceled');
             let claimedSessionId: string | undefined;
             let claimedActivityAt: number | undefined;
             if (attentionEpoch !== undefined) {
@@ -136,10 +137,12 @@ export function createAgentCommandHandlers(
             const isRunning = options.terminals.processId(terminalId) !== undefined;
             let didWrite: boolean;
             try {
+                if (signal?.aborted)
+                    throw new CaxriError('CANCELLED', 'Terminal input was canceled');
                 didWrite =
                     attentionEpoch === undefined
                         ? options.terminals.write(terminalId, data)
-                        : await options.terminals.writeAgent(terminalId, data);
+                        : await options.terminals.writeAgent(terminalId, data, signal);
             } catch (error) {
                 if (claimedSessionId && attentionEpoch !== undefined)
                     options.database.releaseSessionAttentionReply(

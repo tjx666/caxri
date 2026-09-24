@@ -28,6 +28,7 @@ import { ProjectStatusService } from './project-status';
 import { VercelDeploymentStore } from './project-status-vercel-store';
 import { createRootServices } from './root-services';
 import { createServiceHandlers, mainOwned } from './service-handlers';
+import { createMobileSessionHandler, createSessionCreator } from './session-creation';
 import { SessionSelectionQueue } from './session-selection';
 import {
     ShellIntegrationService,
@@ -376,6 +377,19 @@ export async function createDomainServices(
     const sendFullStateChange = (reason: FullStateChangeReason): void => {
         send({ event: 'state.changed', payload: { kind: 'full', reason } });
     };
+    const createSessionForProject = createSessionCreator({
+        coordinator,
+        database,
+        observeSelectedSession,
+        sendFullStateChange: () => sendFullStateChange('session.create'),
+        terminalSuspension,
+        terminalWorkingDirectory,
+        terminals,
+    });
+    const createMobileSessionForPrincipal = createMobileSessionHandler(
+        database,
+        createSessionForProject,
+    );
     const unarchiveSessions = (
         sessionIds: readonly string[],
         placement: SessionRestorePlacement,
@@ -583,35 +597,12 @@ export async function createDomainServices(
             terminalRestores,
             terminalSuspension,
         }),
-        'session.create': async ({ projectId, defaultAgent }) => {
-            const project = database.getProject(projectId);
-            if (!project) throw new CaxriError('NOT_FOUND', 'Project not found');
-            const cwd = defaultAgent
-                ? await terminalWorkingDirectory({
-                      authorizedRoots: [project.rootPath],
-                      defaultRoot: project.rootPath,
-                  })
-                : undefined;
-            const created = database.createSession(projectId, defaultAgent, cwd);
-            if (created.terminal) {
-                const expectedWorkingDirectory = await terminalDirectoryIdentity(cwd!);
-                coordinator.prepareTerminalStart(created.terminal.id);
-                try {
-                    await terminals.start(created.terminal, { expectedWorkingDirectory });
-                } catch {
-                    // The failed durable terminal remains visible and restartable; Session creation still succeeds.
-                }
-            }
-            database.selectSession(created.session.id);
-            terminalSuspension.observeSelection();
-            observeSelectedSession(created.session.id);
-            if (created.terminal?.provider) coordinator.probeTerminal(created.terminal.id);
-            sendFullStateChange('session.create');
-            return {
-                session: database.getSession(created.session.id)!,
-                terminal: created.terminal ? database.getTerminal(created.terminal.id)! : null,
-            };
+        'session.create': ({ projectId, defaultAgent }) =>
+            createSessionForProject(projectId, defaultAgent, 'select'),
+        'mobile.session.create': () => {
+            throw new CaxriError('FORBIDDEN', 'Mobile Session creation requires a paired device');
         },
+        'mobile.session.createForPrincipal': createMobileSessionForPrincipal,
         'session.select': ({ sessionId }) =>
             sessionSelections.run(async () => {
                 await workbenchRoots.validateSession(sessionId);

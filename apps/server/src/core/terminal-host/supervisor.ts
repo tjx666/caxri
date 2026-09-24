@@ -427,7 +427,11 @@ export class TerminalHostSupervisor extends EventTarget {
                 timeoutOverrideMs ?? requestTimeout(request),
             );
             timer.unref();
-            if (signal) {
+            /**
+             * Agent input becomes irreversible once sent to the Host. Its signal fences admission before `child.send`,
+             * while the Host reply decides whether the attention claim can be released or must stay consumed.
+             */
+            if (signal && request.method !== 'terminal.agent.input') {
                 signal.addEventListener('abort', settleAbort, { once: true });
                 removeAbortListener = () => signal.removeEventListener('abort', settleAbort);
             }

@@ -22,6 +22,10 @@ export interface ServerCoreOptions {
     includeTestExtensions?: boolean;
     launchDesktop?: () => Promise<void>;
     logger?: StructuredLogger;
+    /**
+     * Test-only label for isolated mobile Acceptance captures.
+     */
+    mobileHostDisplayName?: string;
     projectSearch?: { executablePath: string; workerPath: string };
     /**
      * Test seam; production creates the process-backed Terminal execution owner.

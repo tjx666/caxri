@@ -444,16 +444,14 @@ export class CaxriDatabase {
     }
 
     /**
-     * A `null` kind creates a Terminal-less Session — the same shape as one whose Terminals were all closed.
-     *
-     * An auto-registered worktree Project (`ownerProjectId` set) never owns a Session: the PrimarySidebar hides that
-     * row, so a Session created inside it would exist without a row, a highlight, or any rename/archive/delete
-     * affordance. Such a worktree is reached only as a Workbench Root of a Session in its owning Project.
+     * Remote creation may preserve Desktop selection. Auto-registered worktree Projects cannot own Sessions: their
+     * hidden rows offer no management UI; they can only be Workbench Roots of Sessions in the owning Project.
      */
     createSession(
         projectId: string,
         kind: TerminalKind | null,
         cwd?: string,
+        options: { selection?: 'select' | 'preserve' } = {},
     ): { session: SessionRecord; terminal: TerminalRecord | null } {
         return this.db.transaction(() => {
             const project = this.db.projects.get(projectId);
@@ -480,8 +478,10 @@ export class CaxriDatabase {
                 if (assignment) this.db.sessions.setPrimaryAgent(session.id, assignment);
             }
             this.db.sessions.insertInitialState(session.id, terminal?.id);
-            this.db.appState.set('lastSelectedSessionId', session.id);
-            this.db.appState.set('lastSelectedProjectId', projectId);
+            if (options.selection !== 'preserve') {
+                this.db.appState.set('lastSelectedSessionId', session.id);
+                this.db.appState.set('lastSelectedProjectId', projectId);
+            }
             this.db.projects.touchLastOpened(projectId);
             return {
                 session: this.db.sessions.get(session.id)!,

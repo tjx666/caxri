@@ -108,6 +108,7 @@ export const effectfulCommandRecovery = {
     'mobile.access.disable': 'memory',
     'mobile.pairing.create': 'memory',
     'mobile.device.revoke': 'memory',
+    'mobile.session.create': 'durable',
     'desktop.focus': 'durable',
     'desktop.openPath': 'durable',
     'desktop.openProject': 'durable',
