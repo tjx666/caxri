@@ -169,3 +169,51 @@ test('Archived Sessions manager deletes only after native confirmation', async (
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
+
+test('Cmd+W on a Session’s last Terminal tab archives the Session instead of closing the Terminal', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-archive-close-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', root]);
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        await createProjectSession(running.page);
+        const firstSessionId = await selectedSessionId(running.page);
+        await createAdditionalShellSession(running.page);
+        const secondSessionId = await selectedSessionId(running.page);
+        const bootstrap = () =>
+            pageRequest<{ terminals: Array<{ id: string; sessionId: string }> }>(
+                running.page,
+                'app.bootstrap',
+            );
+        const secondTerminalIds = (await bootstrap()).terminals
+            .filter((terminal) => terminal.sessionId === secondSessionId)
+            .map((terminal) => terminal.id);
+        expect(secondTerminalIds).toHaveLength(1);
+        /**
+         * The pane attaches its PTY asynchronously; waiting for it keeps the keypress from racing that attach, as in
+         * `terminal-shortcuts.e2e.ts`.
+         */
+        await expect(
+            running.page.locator(
+                `.terminal-pane[data-terminal-id="${secondTerminalIds[0]}"] .terminal-surface[data-terminal-attached="true"]`,
+            ),
+        ).toBeVisible();
+
+        await running.page.keyboard.press('Meta+W');
+
+        await expect(sessionCard(running.page, secondSessionId)).toHaveCount(0);
+        await expect(sessionCard(running.page, firstSessionId)).toHaveClass(/active/);
+        await expect(running.page.locator('aside .archived-sessions-entry')).toHaveAccessibleName(
+            'Archived Sessions (1)',
+        );
+        // Archiving parks the Terminal instead of closing it.
+        expect((await bootstrap()).terminals.map((terminal) => terminal.id)).toContain(
+            secondTerminalIds[0],
+        );
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});

@@ -26,6 +26,7 @@ import {
 } from '../features/session/project-removal-commands';
 import {
     archiveSelectedSession,
+    archiveSession,
     beginSessionCreation,
     canNavigateSessionHistory,
     chooseProjectFolder,
@@ -41,6 +42,7 @@ import {
     selectAdjacentSession,
     switchMruSession,
 } from '../features/session/session-commands';
+import { lastTabTerminalSessionId } from '../features/session/session-last-tab';
 import {
     canSelectWorkbenchRoot,
     canSwitchBranch,
@@ -232,7 +234,16 @@ const commandContext: CommandContext = {
     workbench: {
         closeActiveTab: () => {
             const tab = getActivePaneTab();
-            if (tab?.resource.kind === 'terminal') closeTerminal(tab.resource.terminalId);
+            if (tab?.resource.kind === 'terminal') {
+                const { terminalId } = tab.resource;
+                const sessionId = lastTabTerminalSessionId(
+                    getBootstrap()?.terminals ?? [],
+                    getPaneLayout(),
+                    terminalId,
+                );
+                if (sessionId) archiveSession(sessionId);
+                else closeTerminal(terminalId);
+            }
             // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             else if (tab) void closeDocumentTabs([tab.id]);
         },
