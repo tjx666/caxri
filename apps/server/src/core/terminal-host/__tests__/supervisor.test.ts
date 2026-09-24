@@ -203,6 +203,60 @@ describe('architecture-a3b-terminal-host: TerminalHostSupervisor', () => {
         await expect(request).resolves.toEqual({ count: 0 });
     });
 
+    it('uses the Host result after an Agent input was sent even when admission is revoked', async () => {
+        const { child, supervisor } = createSupervisor();
+        await becomeReady(child, supervisor);
+        const cancellation = new AbortController();
+        const request = supervisor.request(
+            {
+                method: 'terminal.agent.input',
+                params: { data: 'Continue\r', launchId: 'launch-1' },
+            },
+            {
+                scope: 'terminal',
+                capability: 'terminal.agent.input',
+                sessionId: 'session-1',
+                terminalId: 'terminal-1',
+                ptyGeneration: 1,
+            },
+            cancellation.signal,
+        );
+        await vi.waitFor(() => expect(child.sent).toHaveLength(2));
+        cancellation.abort();
+        child.emit('message', {
+            type: 'reply',
+            id: child.sent[1].id,
+            ok: true,
+            result: { accepted: true },
+        });
+
+        await expect(request).resolves.toEqual({ accepted: true });
+    });
+
+    it('does not send Agent input revoked while the Host starts', async () => {
+        const { child, supervisor } = createSupervisor();
+        const cancellation = new AbortController();
+        const request = supervisor.request(
+            {
+                method: 'terminal.agent.input',
+                params: { data: 'Continue\r', launchId: 'launch-1' },
+            },
+            {
+                scope: 'terminal',
+                capability: 'terminal.agent.input',
+                sessionId: 'session-1',
+                terminalId: 'terminal-1',
+                ptyGeneration: 1,
+            },
+            cancellation.signal,
+        );
+        cancellation.abort();
+        await becomeReady(child, supervisor);
+
+        await expect(request).rejects.toMatchObject({ code: 'CANCELLED' });
+        expect(child.sent.map(({ request: sent }) => sent.method)).toEqual(['host.initialize']);
+    });
+
     it('fences pending requests when the owned child exits', async () => {
         const { child, supervisor } = createSupervisor();
         await becomeReady(child, supervisor);

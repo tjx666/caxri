@@ -79,6 +79,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
     });
     const mobileAccess = await openMobileAccessController({
         directory: lease.paths.directory,
+        ...(options.mobileHostDisplayName && { hostDisplayName: options.mobileHostDisplayName }),
         registryPath: lease.paths.mobileDevices,
         onOpenError: async () => {
             eventLoopMonitor.stop();
@@ -373,11 +374,11 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                     });
                 }
                 case 'terminal.send': {
-                    const invoke = () =>
-                        forwardDomainOperation({
-                            method: 'terminal.sendInternal',
-                            params: request.params,
-                        });
+                    const invoke = (signal?: AbortSignal) =>
+                        forwardDomainOperation(
+                            { method: 'terminal.sendInternal', params: request.params },
+                            signal,
+                        );
                     return invokeTerminalSend({
                         invoke,
                         invokePairedDevice: () =>

@@ -200,7 +200,8 @@ const MobilePairedDevicesSection = ({
                             {device.displayName}
                         </p>
                         <p className="m-0 mt-0.5 truncate text-[11px] text-muted">
-                            {device.platform === 'ios' ? 'iOS' : 'Android'} · {deviceStatus(device)}
+                            {device.platform === 'ios' ? 'iOS' : 'Android'} · {device.role} ·{' '}
+                            {deviceStatus(device)}
                         </p>
                         <p
                             className="m-0 mt-0.5 truncate text-[11px] text-muted"

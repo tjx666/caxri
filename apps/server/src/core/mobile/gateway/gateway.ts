@@ -36,8 +36,6 @@ import {
     X25519_KEY_BYTES,
 } from '@caxri/mobile-transport';
 import type {
-    Capability,
-    CaxriMethod,
     CommandAdapter,
     CommandDispatcher,
     CommandDispatcherOptions,
@@ -64,6 +62,7 @@ import type {
     MobileDeviceSummary,
 } from '../device-registry';
 import { selectMobileGatewayAddresses } from './address-selection';
+import { mobileCapabilitiesByRole } from './role-capabilities';
 import { createServerSealedPayload, sendFinalSealedPayload } from './sealed-payload';
 import { MobileSocketQueueBudget } from './socket-queue-budget';
 import { SourceAttemptLimiter } from './source-attempt-limiter';
@@ -85,25 +84,6 @@ const MAXIMUM_PENDING_PAIRINGS = 8;
  */
 const isAllowedMobileOrigin = (origin: string | undefined, host: string | undefined): boolean =>
     origin === undefined || (host !== undefined && origin === `http://${host}`);
-export const MOBILE_GATEWAY_ALLOWED_METHODS = [
-    'mobile.dashboard',
-    'session.markRead',
-    'terminal.preview',
-    'terminal.send',
-] as const satisfies readonly CaxriMethod[];
-
-const allowedMethods = new Set<CaxriMethod>(MOBILE_GATEWAY_ALLOWED_METHODS);
-export const isMobileGatewayMethodAllowed = (method: CaxriMethod): boolean =>
-    allowedMethods.has(method);
-const mobileCapabilities = [
-    'projects.read',
-    'sessions.read',
-    'sessions.write',
-    'terminals.read',
-    'terminals.preview',
-    'terminals.steer',
-] as const satisfies readonly Capability[];
-
 interface PendingPairing {
     expiresAt: number;
     pairingId: string;
@@ -127,6 +107,7 @@ interface GatewaySession {
 
 export interface MobileGatewayOptions {
     adapters: CommandDispatcherOptions;
+    authorizePairedDeviceMethod: (principal: Principal, method: string) => void;
     bootId: string;
     now?: () => number;
     protocolIdentity: { serverId: string; stateEpoch: string };
@@ -193,6 +174,7 @@ function dummyCandidate(
         platform: hello.platform,
         credential: Buffer.from(random(PAIRING_SECRET_BYTES)).toString('hex'),
         generation: 1,
+        role: 'control',
         projectIds: ['invalid-pairing'],
         createdAt: now,
     };
@@ -682,10 +664,19 @@ export class MobileGateway {
             typeof request === 'object' && request !== null && 'method' in request
                 ? Reflect.get(request, 'method')
                 : undefined;
-        const reply =
-            typeof method === 'string' && isMobileGatewayMethodAllowed(method as CaxriMethod)
-                ? await this.#dispatch(request, this.#context(session))
-                : forbiddenReply(request);
+        const context = this.#context(session);
+        let isAuthorized = false;
+        if (typeof method === 'string') {
+            try {
+                this.#options.authorizePairedDeviceMethod(context.principal, method);
+                isAuthorized = true;
+            } catch (error) {
+                if (!(error instanceof CaxriError && error.code === 'FORBIDDEN')) throw error;
+            }
+        }
+        const reply = isAuthorized
+            ? await this.#dispatch(request, context)
+            : forbiddenReply(request);
         this.#sendSealed(socket, session, boundedMobileReply(request, reply));
     }
 
@@ -694,7 +685,13 @@ export class MobileGateway {
             session.deviceId,
             session.generation,
         );
-        return { capabilities: mobileCapabilities, connection: session.connection, principal };
+        if (principal.kind !== 'paired-device')
+            throw new CaxriError('FORBIDDEN', 'Paired device principal is required');
+        return {
+            capabilities: mobileCapabilitiesByRole[principal.role],
+            connection: session.connection,
+            principal,
+        };
     }
 
     #sendSealed(socket: WebSocket, session: GatewaySession, payload: unknown): void {
@@ -755,5 +752,4 @@ export class MobileGateway {
         else socket.terminate();
     }
 }
-
 /* eslint-enable unicorn/consistent-class-member-order */

@@ -492,8 +492,9 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
             .accepted;
     }
 
-    async writeAgent(terminalId: string, data: string): Promise<boolean> {
-        return (await sendAgentInput(this.supervisor, this.identities, terminalId, data)).accepted;
+    async writeAgent(terminalId: string, data: string, signal?: AbortSignal): Promise<boolean> {
+        return (await sendAgentInput(this.supervisor, this.identities, terminalId, data, signal))
+            .accepted;
     }
 
     configureOutputRecovery(

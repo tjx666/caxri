@@ -538,9 +538,9 @@ export class TerminalManager {
      * Mobile attention replies can target a waiting background Session, while ordinary desktop input remains bound to
      * the current attachment.
      */
-    writeAgent(terminalId: string, data: string): Promise<boolean> {
+    writeAgent(terminalId: string, data: string, signal?: AbortSignal): Promise<boolean> {
         this.observeUserInput(terminalId, data);
-        return this.execution.writeAgent(terminalId, data);
+        return this.execution.writeAgent(terminalId, data, signal);
     }
 
     reconcileOutputRecoverySettings(): void {
