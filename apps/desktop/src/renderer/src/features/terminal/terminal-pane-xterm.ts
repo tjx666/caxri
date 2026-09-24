@@ -84,6 +84,14 @@ export function createTerminalPaneXterm({
         scrollbar: { width: 8 },
         scrollback: initial.scrollback,
         theme: xtermThemeWithoutOverviewRulerBorder(initial.terminalTheme),
+        /**
+         * Lets apps opt into the kitty keyboard protocol, as Ghostty and kitty do, so a TUI can tell `Cmd+C` apart from
+         * `Ctrl+C` (Codex copies its own transcript selection on `Cmd+C`). Only apps that push protocol flags change
+         * encoding; `terminalCommandKeyOwner` keeps Caxri's Command shortcuts out of it.
+         *
+         * @see https://sw.kovidgoyal.net/kitty/keyboard-protocol/
+         */
+        vtExtensions: { kittyKeyboard: true },
         wordSeparator: initial.wordSeparators,
     });
     const fit = new FitAddon();
