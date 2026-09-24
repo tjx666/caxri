@@ -19,7 +19,15 @@ import { clearPendingSession, requestSessionRename, useDialogStore } from '../..
 import { getBootstrap, getSelectedSession, selectSelectedProject } from '../../stores/selectors';
 import { useSessionViewStore } from '../../stores/session-view';
 import { pushToast, tryCommand } from '../../stores/toasts';
-import { refreshWorkbench, registerSessionCommandConvergence } from '../../stores/workbench';
+import {
+    refreshWorkbench,
+    registerSessionCommandConvergence,
+    showSessionTitle,
+} from '../../stores/workbench';
+import {
+    beginPendingSessionTitle,
+    settlePendingSessionTitle,
+} from '../../stores/workbench-session-titles';
 import { beginRendererPerformanceRequest } from '../renderer-performance/controller';
 import { activeSessionsInSidebarOrder } from './session-activity-order';
 import type { PendingSessionMruSelection } from './session-mru-switcher-state';
@@ -579,12 +587,24 @@ export function unarchiveSessions(sessionIds: readonly string[]): void {
     void unarchiveSessionsWithNotice(sessionIds);
 }
 
+/**
+ * The new name shows at once: a Claude rename waits seconds for the provider CLI before the Server commits it. When the
+ * newest rename fails, the previous name comes back alongside the failure toast.
+ */
 export async function didRenameSession(sessionId: string, displayTitle: string): Promise<boolean> {
+    const currentTitle = getBootstrap()?.sessions.find(({ id }) => id === sessionId)?.displayTitle;
+    const attempt = beginPendingSessionTitle(sessionId, displayTitle, currentTitle ?? displayTitle);
+    showSessionTitle(sessionId, displayTitle);
     const renamed = await tryCommand(
         'Session rename failed',
         () => caxri.request('session.rename', { sessionId, displayTitle }),
         { refresh: refreshWorkbench },
     );
+    const restoredTitle = settlePendingSessionTitle(sessionId, attempt, renamed !== undefined);
+    if (restoredTitle !== undefined) {
+        showSessionTitle(sessionId, restoredTitle);
+        await refreshWorkbench();
+    }
     return renamed !== undefined;
 }
 
