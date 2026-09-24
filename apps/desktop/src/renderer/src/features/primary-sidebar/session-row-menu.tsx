@@ -37,11 +37,11 @@ import {
  * show their sidebar key hints as literals: they are tree-local keys, not catalog keybindings.
  *
  * Rename is never disabled. A Session title belongs to Caxri, so the Server always commits it and only synchronizes it
- * to the Agent when that provider can accept one; greying the entry out here made the menu disagree with the row's own
- * Enter key, which always opened the input.
+ * to the Agent when that provider can accept one; greying the entry out here made the menu disagree with the Project
+ * tree row's Enter key, which always opened the input.
  *
- * This menu, the row's double-click, and Enter all open the same inline rename editor. A list with no inline editor —
- * the Activity queue — omits `onBeginRename`, and the menu drops the entry rather than offering one that does nothing.
+ * This menu and the row's own gestures open the same inline rename editor. A list without an editor omits
+ * `onBeginRename`, so the menu never offers an action that does nothing.
  */
 export function SessionRowMenu({
     children,
