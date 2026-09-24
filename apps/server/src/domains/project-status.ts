@@ -31,6 +31,7 @@ import type { BranchPublicationContext } from './project-status-branch';
 import {
     prepareStatusRepo,
     readBranchPublication,
+    RemoteHeadCache,
     RepoRemoteCache as RepoRemoteCache,
 } from './project-status-branch';
 import type { PreparedRepo, PreparedSummary, SummaryCacheEntry } from './project-status-carry-over';
@@ -134,6 +135,7 @@ export class ProjectStatusService {
     private readonly watch?: DeliveryWatch;
     private readonly commandTelemetry: ExternalStatusCommandTelemetry;
     private readonly remotes = new RepoRemoteCache(() => this.now());
+    private readonly remoteHeads = new RemoteHeadCache(() => this.now());
     private readonly readGit = (cwd: string, arguments_: readonly string[]) =>
         this.commandTelemetry.readOptional('git', arguments_, () =>
             this.runner('git', arguments_, cwd),
@@ -386,6 +388,7 @@ export class ProjectStatusService {
                 prepared.repository.rootPath,
                 () => this.now(),
                 prepared.repository.githubUrl,
+                { cache: this.remoteHeads, isForced },
             ),
         ]);
         return {

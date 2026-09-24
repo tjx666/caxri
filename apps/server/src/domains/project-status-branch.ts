@@ -46,17 +46,81 @@ function initialBranchPublication(context: BranchPublicationContext): Publicatio
 }
 
 /**
- * Query through the existing quota-governed GitHub runner, never network Git or fetch. A tracking ref can be stale
- * after a push in another clone or a deleted remote branch, so it is only a cache invalidation input in the caller.
+ * How long a remote branch's commit is reused while the local tracking ref stays put.
  */
-export async function loadBranchPublication(
+const REMOTE_HEAD_TTL_MS = 5 * 60_000;
+const REMOTE_HEAD_CACHE_LIMIT = 256;
+
+/**
+ * Remembers which commit each GitHub branch points at, so the delivery watch stops re-asking GitHub on every round.
+ *
+ * Every Project Status refresh used to query the remote branch again, and a Session whose pull request has running
+ * checks refreshes every 20 seconds. That query was the largest single consumer of the account-wide GitHub GraphQL
+ * budget Caxri shares with the user's shell and Agents: ~900 of the ~1,100 `gh` calls Caxri made per hour. The remote
+ * branch moves far less often than that, and when this machine moves it — a push or a fetch — the local tracking ref
+ * moves too, which misses the cache immediately. Only a push from another clone or a branch deleted on GitHub waits out
+ * the TTL; a forced refresh always asks GitHub again.
+ */
+interface RemoteHeadEntry {
+    expiresAt: number;
+    trackingHead?: string;
+    value?: Promise<string | undefined>;
+}
+
+export class RemoteHeadCache {
+    private readonly entries = new Map<string, RemoteHeadEntry>();
+
+    constructor(private readonly now: () => number = Date.now) {}
+
+    private async lookup(
+        key: string,
+        entry: RemoteHeadEntry,
+        query: () => Promise<string | undefined>,
+    ): Promise<string | undefined> {
+        try {
+            return await query();
+        } catch (error) {
+            // A failed lookup must not be served from the cache; the next round asks again.
+            if (this.entries.get(key) === entry) this.entries.delete(key);
+            throw error;
+        }
+    }
+
+    read(
+        context: BranchPublicationContext,
+        query: () => Promise<string | undefined>,
+        isForced = false,
+    ): Promise<string | undefined> {
+        const key = JSON.stringify([context.owner, context.repo, context.branch]);
+        const cached = this.entries.get(key);
+        if (
+            !isForced &&
+            cached?.value &&
+            cached.expiresAt > this.now() &&
+            cached.trackingHead === context.trackingHead
+        )
+            return cached.value;
+        const entry: RemoteHeadEntry = {
+            expiresAt: this.now() + REMOTE_HEAD_TTL_MS,
+            trackingHead: context.trackingHead,
+        };
+        this.entries.delete(key);
+        this.entries.set(key, entry);
+        while (this.entries.size > REMOTE_HEAD_CACHE_LIMIT) {
+            const oldest = this.entries.keys().next().value;
+            if (oldest === undefined) break;
+            this.entries.delete(oldest);
+        }
+        entry.value = this.lookup(key, entry, query);
+        return entry.value;
+    }
+}
+
+async function queryRemoteHead(
     context: BranchPublicationContext,
     runner: ExternalStatusRunner,
     cwd: string,
-    now: () => number,
-): Promise<Publication> {
-    const initial = initialBranchPublication(context);
-    if (initial.state !== 'checking') return initial;
+): Promise<string | undefined> {
     const response = parseExternalJson(
         await runner(
             'gh',
@@ -79,8 +143,27 @@ export async function loadBranchPublication(
         responseSchema,
         'branch publication',
     );
+    return response.data.repository.ref?.target.oid;
+}
+
+/**
+ * Query through the existing quota-governed GitHub runner, never network Git or fetch. A tracking ref can be stale
+ * after a push in another clone or a deleted remote branch, so it is only a cache invalidation input in the caller.
+ */
+export async function loadBranchPublication(
+    context: BranchPublicationContext,
+    runner: ExternalStatusRunner,
+    cwd: string,
+    now: () => number,
+    remoteHeads?: { cache: RemoteHeadCache; isForced: boolean },
+): Promise<Publication> {
+    const initial = initialBranchPublication(context);
+    if (initial.state !== 'checking') return initial;
+    const query = () => queryRemoteHead(context, runner, cwd);
+    const remoteHead = await (remoteHeads
+        ? remoteHeads.cache.read(context, query, remoteHeads.isForced)
+        : query());
     const base = { remoteBranch: initial.remoteBranch, checkedAt: now() };
-    const remoteHead = response.data.repository.ref?.target.oid;
     if (!remoteHead) return { ...base, state: 'unpublished' };
     if (remoteHead === context.head) return { ...base, state: 'synced' };
     try {
@@ -221,13 +304,14 @@ export async function readBranchPublication(
     cwd: string,
     now: () => number,
     githubUrl?: string,
+    remoteHeads?: { cache: RemoteHeadCache; isForced: boolean },
 ): Promise<{
     publication: Publication;
     branchUrl?: string;
     error?: ProjectStatusRepository['errors'][number];
 }> {
     try {
-        const publication = await loadBranchPublication(context, runner, cwd, now);
+        const publication = await loadBranchPublication(context, runner, cwd, now, remoteHeads);
         const isExists = ['published', 'synced', 'ahead', 'behind', 'diverged'].includes(
             publication.state,
         );
