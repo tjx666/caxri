@@ -189,6 +189,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             const envelope = persistedEnvelope ?? recoveryJournal.publish(event);
             if (envelope) server?.broadcast(envelope);
         }
+        mobileAccess.publish(event);
     };
     domainService.onEvent(deliver);
     const stop = (reason = 'requested'): Promise<void> => {
@@ -637,7 +638,12 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         await domainService.start();
         const protocolRecovery = await domainService.recoveryState();
         const protocolIdentity = protocolRecovery.identity();
-        mobileAccess.attach(serverAdapter, lease.identity.processIdentity, protocolIdentity);
+        mobileAccess.attach(
+            serverAdapter,
+            lease.identity.processIdentity,
+            protocolIdentity,
+            domainService,
+        );
         logger.updateBaseContext({ serverId: protocolIdentity.serverId });
         recoveryJournal.initialize(protocolIdentity, protocolRecovery);
         logger.write('info', logEventCatalog.serverCore.recoveryReady, {

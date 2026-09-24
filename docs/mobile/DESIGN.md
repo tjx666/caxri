@@ -40,6 +40,9 @@ system push and Live Activities, multiple hosts, file browsing, image attachment
 
 ## Connectivity
 
+The implemented encrypted frame, subscription, and heartbeat contract is documented in
+[Mobile transport](TRANSPORT.md).
+
 - Accepted gateway addresses are private IPv4 (RFC1918), loopback, and Tailscale IPv4
   (`100.64.0.0/10`). The Server, pairing link, and client apply the same classifier. Tailscale IPv6
   and MagicDNS hostnames are deferred.

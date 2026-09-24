@@ -32,6 +32,32 @@ describe('Desktop Server attachment and build identity', () => {
         });
     });
 
+    it('forwards the synthetic mobile host label only to an E2E Server', async () => {
+        vi.stubEnv('CAXRI_E2E', '1');
+        vi.stubEnv('CAXRI_MOBILE_TEST_HOST_DISPLAY_NAME', 'Caxri Test Host');
+        mockServerRound({ serverBuildId: 'build-a', serverVersion: '0.0.9' });
+        const { connection } = createConnection({ buildId: 'build-a', version: '0.0.9' });
+
+        await connection.start();
+
+        expect(vi.mocked(ensureServer).mock.calls[0]?.[1]?.environment).toMatchObject({
+            CAXRI_MOBILE_TEST_HOST_DISPLAY_NAME: 'Caxri Test Host',
+        });
+    });
+
+    it('does not forward the synthetic mobile host label outside E2E', async () => {
+        vi.stubEnv('CAXRI_E2E', '0');
+        vi.stubEnv('CAXRI_MOBILE_TEST_HOST_DISPLAY_NAME', 'Caxri Test Host');
+        mockServerRound({ serverBuildId: 'build-a', serverVersion: '0.0.9' });
+        const { connection } = createConnection({ buildId: 'build-a', version: '0.0.9' });
+
+        await connection.start();
+
+        expect(vi.mocked(ensureServer).mock.calls[0]?.[1]?.environment).not.toHaveProperty(
+            'CAXRI_MOBILE_TEST_HOST_DISPLAY_NAME',
+        );
+    });
+
     it('returns a classified rejected Promise before Server attachment instead of throwing', async () => {
         const { connection } = createConnection();
         let request: Promise<unknown> | undefined;

@@ -11,8 +11,7 @@ import { sessionReadKey } from '../hooks/use-session-attention';
 import {
     flattenMobileSessionSections,
     nextSelectedSessionId,
-    shouldPollSessionDashboard,
-    startSessionDashboardPolling,
+    projectSessionList,
 } from '../hooks/use-session-polling';
 import {
     acceptedShortReplyDraft,
@@ -86,6 +85,25 @@ describe('mobile Session hooks', () => {
         ]);
     });
 
+    it('holds the rendered order during touch and shows the latest snapshot on release', () => {
+        const latest = {
+            hostDisplayName: 'Test computer',
+            projects: [],
+            sections: buildMobileSessionSections({
+                sessions: [session({ id: 'session-3', hasUnread: false })],
+                total: 1,
+                truncated: false,
+            }),
+        };
+        const frozen = projectSessionList(latest, sections, 'session-1');
+        expect(frozen.sections).toBe(sections);
+        expect(frozen.selectedId).toBe('session-1');
+        const released = projectSessionList(latest, null, 'session-1');
+        expect(released.sections).toBe(latest.sections);
+        expect(released.selectedId).toBeNull();
+        expect(released.hasLoaded).toBe(true);
+    });
+
     it('starts preview polling only for a visible connected Terminal', () => {
         expect(
             shouldPollTerminalPreview({
@@ -119,31 +137,6 @@ describe('mobile Session hooks', () => {
                 visible: true,
             }),
         ).toBe(false);
-    });
-
-    it('stops dashboard polling while backgrounded even if the socket is still connected', () => {
-        expect(shouldPollSessionDashboard('connected', true)).toBe(true);
-        expect(shouldPollSessionDashboard('connected', false)).toBe(false);
-        expect(shouldPollSessionDashboard('stale', true)).toBe(false);
-    });
-
-    it('polls immediately on foreground entry and stops its interval on background cleanup', () => {
-        vi.useFakeTimers();
-        try {
-            const poll = vi.fn();
-            const stop = startSessionDashboardPolling(poll);
-            expect(poll).toHaveBeenCalledOnce();
-            vi.advanceTimersByTime(2_500);
-            expect(poll).toHaveBeenCalledTimes(2);
-            stop();
-            vi.advanceTimersByTime(5_000);
-            expect(poll).toHaveBeenCalledTimes(2);
-            const stopAfterForegroundReturn = startSessionDashboardPolling(poll);
-            expect(poll).toHaveBeenCalledTimes(3);
-            stopAfterForegroundReturn();
-        } finally {
-            vi.useRealTimers();
-        }
     });
 
     it('keeps the last successful preview while exposing a later refresh failure', () => {

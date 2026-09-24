@@ -3,14 +3,15 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import { writeJsonAtomic } from '../scripts/atomic-json.ts';
-import { parseAndroidDisplayState } from '../scripts/mobile-android-cases.ts';
 import { test } from './support/fixtures.ts';
 import { pageRequest } from './support/helpers.ts';
 import { createMobileAcceptanceFixture } from './support/mobile-acceptance-fixture.ts';
 import {
     adbShell,
     captureMobileFramebuffer,
+    mobileDisplayState,
     mobileSemantics,
+    restoreMobileDisplayState,
     setMobileNetworkAvailable,
     tapMobileCheck,
     waitForMobile,
@@ -64,38 +65,6 @@ async function finish(
             'utf8',
         ),
     ]);
-}
-
-async function displayState(deviceSerial: string) {
-    const [density, fontScale, rotation, size] = await Promise.all([
-        adbShell(deviceSerial, ['wm', 'density']),
-        adbShell(deviceSerial, ['settings', 'get', 'system', 'font_scale']),
-        adbShell(deviceSerial, ['dumpsys', 'input']),
-        adbShell(deviceSerial, ['wm', 'size']),
-    ]);
-    return parseAndroidDisplayState({ density, fontScale, rotation, size });
-}
-
-async function restoreDisplay(
-    deviceSerial: string,
-    original: Awaited<ReturnType<typeof displayState>>,
-): Promise<void> {
-    await adbShell(deviceSerial, [
-        'wm',
-        'size',
-        original.size.override
-            ? `${original.size.override.width}x${original.size.override.height}`
-            : 'reset',
-    ]);
-    await adbShell(deviceSerial, [
-        'wm',
-        'density',
-        original.density.override ? String(original.density.override) : 'reset',
-    ]);
-    const restored = await displayState(deviceSerial);
-    if (JSON.stringify(restored) !== JSON.stringify(original)) {
-        throw new Error('Android display state was not restored exactly');
-    }
 }
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires the fixture argument.
@@ -210,7 +179,7 @@ test('executes one report-bound Android product scenario', async ({}) => {
             break;
         }
         case 'MOB-SESSION-01': {
-            const originalDisplay = await displayState(environment.serial);
+            const originalDisplay = await mobileDisplayState(environment.serial);
             const fixture = await createMobileAcceptanceFixture({
                 mode: 'waiting',
                 serial: environment.serial,
@@ -256,7 +225,7 @@ test('executes one report-bound Android product scenario', async ({}) => {
                         nodes.some(({ checkId }) => checkId === 'terminal-preview-populated'),
                 );
                 await capture(environment, 'tablet-split', artifacts);
-                await restoreDisplay(environment.serial, originalDisplay);
+                await restoreMobileDisplayState(environment.serial, originalDisplay);
                 await adbShell(environment.serial, ['am', 'force-stop', 'com.caxri.mobile']);
                 await adbShell(environment.serial, [
                     'am',
@@ -285,14 +254,14 @@ test('executes one report-bound Android product scenario', async ({}) => {
                 );
                 await capture(environment, 'stale-error', artifacts);
                 await finish(environment, artifacts, {
-                    displayAfter: await displayState(environment.serial),
+                    displayAfter: await mobileDisplayState(environment.serial),
                     displayBefore: originalDisplay,
                     states: ['phone-list', 'phone-detail', 'tablet-split', 'empty', 'stale-error'],
                     terminalPreview: 'synthetic-non-empty',
                     status: 'passed',
                 });
             } finally {
-                await restoreDisplay(environment.serial, originalDisplay);
+                await restoreMobileDisplayState(environment.serial, originalDisplay);
                 await fixture.stop();
             }
             break;

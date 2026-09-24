@@ -53,6 +53,11 @@ function authorizeMethod(principal: Principal, method: string): void {
         throw new CaxriError('FORBIDDEN', 'Paired device role does not allow this method');
 }
 
+const subscriptionOptions = {
+    authorizeSubscription: () => Promise.resolve(),
+    matchesSubscriptionEvent: () => Promise.resolve(true),
+};
+
 afterEach(async () => {
     const paths = [...temporaryDirectories];
     temporaryDirectories.length = 0;
@@ -97,6 +102,7 @@ describe('MobileGateway', () => {
                 }
             });
             const gateway = new MobileGateway({
+                ...subscriptionOptions,
                 adapters: { server: { invoke } },
                 authorizePairedDeviceMethod: authorizeMethod,
                 bootId: 'b'.repeat(32),
@@ -147,7 +153,10 @@ describe('MobileGateway', () => {
                     client.socket.once('close', resolve),
                 );
                 await registry.revoke(record.deviceId, record.generation);
-                client.send(request('after-revoke', 'mobile.dashboard', {}));
+                client.send({
+                    type: 'request',
+                    request: request('after-revoke', 'mobile.dashboard', {}),
+                });
                 await expect(closed).resolves.toBe(1_006);
                 expect(invoke).toHaveBeenCalledTimes(
                     role === 'view' ? 1 : role === 'reply' ? 2 : 3,
@@ -259,6 +268,7 @@ describe('MobileGateway', () => {
         async (mode) => {
             const registry = await registryFixture();
             const gateway = new MobileGateway({
+                ...subscriptionOptions,
                 adapters: { server: { invoke: vi.fn() } },
                 authorizePairedDeviceMethod: authorizeMethod,
                 bootId: 'b'.repeat(32),
@@ -297,6 +307,7 @@ describe('MobileGateway', () => {
     it('consumes a pairing ID on the first hello and rejects a second handshake', async () => {
         const registry = await registryFixture();
         const gateway = new MobileGateway({
+            ...subscriptionOptions,
             adapters: { server: { invoke: vi.fn() } },
             authorizePairedDeviceMethod: authorizeMethod,
             bootId: 'b'.repeat(32),
@@ -360,6 +371,7 @@ describe('MobileGateway', () => {
     it('reuses the persisted endpoint port after mobile access is toggled', async () => {
         const registry = await registryFixture();
         const gateway = new MobileGateway({
+            ...subscriptionOptions,
             adapters: { server: { invoke: vi.fn() } },
             authorizePairedDeviceMethod: authorizeMethod,
             bootId: 'b'.repeat(32),
@@ -377,6 +389,7 @@ describe('MobileGateway', () => {
     it('owns and closes a pre-upgrade TCP connection when mobile access is disabled', async () => {
         const registry = await registryFixture();
         const gateway = new MobileGateway({
+            ...subscriptionOptions,
             adapters: { server: { invoke: vi.fn() } },
             authorizePairedDeviceMethod: authorizeMethod,
             bootId: 'b'.repeat(32),
@@ -414,6 +427,7 @@ describe('MobileGateway', () => {
                 await registry.revoke(paired.device.deviceId, paired.device.generation);
             let gatewayByte = 100;
             const gateway = new MobileGateway({
+                ...subscriptionOptions,
                 adapters: { server: { invoke: vi.fn() } },
                 authorizePairedDeviceMethod: authorizeMethod,
                 bootId: 'b'.repeat(32),
@@ -514,6 +528,7 @@ describe('MobileGateway', () => {
         });
         let gatewayByte = 100;
         const gateway = new MobileGateway({
+            ...subscriptionOptions,
             adapters: { server: { invoke } },
             authorizePairedDeviceMethod: authorizeMethod,
             bootId: 'b'.repeat(32),
@@ -596,7 +611,7 @@ describe('MobileGateway', () => {
 
         const sendRequest = async (counter: number, request: unknown) => {
             const replyMessage = nextMessage(socket);
-            const requestSource = JSON.stringify(request);
+            const requestSource = JSON.stringify({ type: 'request', request });
             const requestPlaintext = new TextEncoder().encode(requestSource);
             const requestCiphertext = sealMobileFrame(
                 keys.clientToServer,
@@ -628,7 +643,9 @@ describe('MobileGateway', () => {
                 decodeHex(frame.ciphertext),
             );
             const replySource = new TextDecoder().decode(replyPlaintext);
-            return JSON.parse(replySource) as unknown;
+            const payload = JSON.parse(replySource) as { type: string; reply: unknown };
+            expect(payload.type).toBe('reply');
+            return payload.reply;
         };
 
         await expect(

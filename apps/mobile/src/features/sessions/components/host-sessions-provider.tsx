@@ -1,6 +1,9 @@
 import type { ReactNode, RefObject } from 'react';
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 
+import { usePathname } from 'expo-router';
+
+import { isDashboardRouteVisible } from '../dashboard-query';
 import { useSessionPolling } from '../hooks/use-session-polling';
 import type { SessionPreviewPosition } from '../session-preview-scroll';
 import type { HostSessionUiState, SessionSegment } from '../session-ui-state';
@@ -31,7 +34,8 @@ export const HostSessionsProvider = ({
     children: ReactNode;
     hostId: string;
 }) => {
-    const sessions = useSessionPolling();
+    const pathname = usePathname();
+    const sessions = useSessionPolling(isDashboardRouteVisible(pathname, hostId));
     const listScrollOffsetReference = useRef(0);
     const previewScrollBySessionReference = useRef<Partial<Record<string, SessionPreviewPosition>>>(
         {},

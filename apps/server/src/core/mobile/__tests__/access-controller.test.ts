@@ -38,10 +38,15 @@ describe('MobileAccessController role and resource authority', () => {
             generation: paired.device.generation,
         });
         const controller = await openMobileAccessController({ directory, registryPath });
-        controller.attach({ invoke: vi.fn() }, 'b'.repeat(32), {
-            serverId: 'a'.repeat(32),
-            stateEpoch: 'c'.repeat(32),
-        });
+        controller.attach(
+            { invoke: vi.fn() },
+            'b'.repeat(32),
+            {
+                serverId: 'a'.repeat(32),
+                stateEpoch: 'c'.repeat(32),
+            },
+            {} as ServerDomainService,
+        );
         const started = Promise.withResolvers<void>();
         const release = Promise.withResolvers<{ sessionId: string }>();
         let signal: AbortSignal | undefined;
@@ -142,10 +147,15 @@ describe('MobileAccessController role and resource authority', () => {
             registryPath,
             hostDisplayName: 'Caxri Test Host',
         });
-        controller.attach({ invoke: vi.fn() }, 'b'.repeat(32), {
-            serverId: 'a'.repeat(32),
-            stateEpoch: 'c'.repeat(32),
-        });
+        controller.attach(
+            { invoke: vi.fn() },
+            'b'.repeat(32),
+            {
+                serverId: 'a'.repeat(32),
+                stateEpoch: 'c'.repeat(32),
+            },
+            {} as ServerDomainService,
+        );
         const context: CommandExecutionContext = { capabilities: [], principal };
         const request = vi.fn((method: string, parameters?: { query?: { mode: string } }) => {
             if (method === 'project.queryForPrincipal')
@@ -267,10 +277,15 @@ describe('MobileAccessController short replies', () => {
             registryPath,
             selectAddress: () => '127.0.0.1',
         });
-        controller.attach({ invoke: vi.fn() }, 'b'.repeat(32), {
-            serverId: 'a'.repeat(32),
-            stateEpoch: 'c'.repeat(32),
-        });
+        controller.attach(
+            { invoke: vi.fn() },
+            'b'.repeat(32),
+            {
+                serverId: 'a'.repeat(32),
+                stateEpoch: 'c'.repeat(32),
+            },
+            {} as ServerDomainService,
+        );
 
         const terminal = {
             id: 'terminal-agent',
