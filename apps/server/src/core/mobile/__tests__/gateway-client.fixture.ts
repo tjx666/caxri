@@ -1,0 +1,148 @@
+import { Buffer } from 'node:buffer';
+
+import type { HandshakeTranscript } from '@caxri/mobile-transport';
+import {
+    decodeHex,
+    deriveMobileSessionKeys,
+    encodeHex,
+    handshakeConfirmation,
+    isHandshakeConfirmationValid,
+    MOBILE_TRANSPORT_VERSION,
+    mobileClientConfirmationSchema,
+    mobilePublicKey,
+    mobileSealedFrameSchema,
+    mobileServerHelloSchema,
+    openMobileFrame,
+    sealMobileFrame,
+} from '@caxri/mobile-transport';
+import { expect } from 'vitest';
+import type { ClientOptions } from 'ws';
+import WebSocket from 'ws';
+
+import type { MobileDeviceRecord } from '../device-registry';
+import type { MobileGateway } from '../gateway';
+
+export function nextMessage(socket: WebSocket): Promise<unknown> {
+    return new Promise((resolve, reject) => {
+        socket.once('error', reject);
+        socket.once('message', (data) => {
+            if (!Buffer.isBuffer(data)) {
+                reject(new TypeError('Expected a buffered WebSocket message'));
+                return;
+            }
+            resolve(JSON.parse(data.toString('utf8')) as unknown);
+        });
+    });
+}
+
+export function openSocket(url: string, options?: ClientOptions) {
+    const socket = new WebSocket(url, options);
+    return new Promise<WebSocket>((resolve, reject) => {
+        socket.once('open', () => resolve(socket));
+        socket.once('error', reject);
+    });
+}
+
+export async function connectDevice(gateway: MobileGateway, record: MobileDeviceRecord) {
+    const enabled = await gateway.enable();
+    const socket = await openSocket(`ws://${enabled.address}:${enabled.port}/mobile`);
+    const clientSecret = decodeHex('21'.repeat(32));
+    const clientPublicKey = mobilePublicKey(clientSecret);
+    const clientNonce = decodeHex('31'.repeat(32));
+    const challengeMessage = nextMessage(socket);
+    socket.send(
+        JSON.stringify({
+            type: 'hello',
+            version: MOBILE_TRANSPORT_VERSION,
+            mode: 'connect',
+            deviceId: record.deviceId,
+            generation: record.generation,
+            clientPublicKey: encodeHex(clientPublicKey),
+            clientNonce: encodeHex(clientNonce),
+        }),
+    );
+    const challenge = mobileServerHelloSchema.parse(await challengeMessage);
+    const transcript: HandshakeTranscript = {
+        mode: 'connect',
+        serverId: 'a'.repeat(32),
+        principalId: `paired-device:${record.deviceId}`,
+        connectionId: decodeHex(challenge.connectionId, 16),
+        clientPublicKey,
+        serverPublicKey: decodeHex(challenge.serverPublicKey, 32),
+        clientNonce,
+        serverNonce: decodeHex(challenge.serverNonce, 32),
+    };
+    const keys = deriveMobileSessionKeys({
+        localSecretKey: clientSecret,
+        peerPublicKey: transcript.serverPublicKey,
+        presharedKey: decodeHex(record.credential, 32),
+        transcript,
+    });
+    expect(
+        isHandshakeConfirmationValid(decodeHex(challenge.confirmation, 32), keys, 'server'),
+    ).toBe(true);
+    const readyMessage = nextMessage(socket);
+    const confirmation = encodeHex(handshakeConfirmation(keys, 'client'));
+    socket.send(
+        JSON.stringify(
+            mobileClientConfirmationSchema.parse({
+                type: 'confirm',
+                version: MOBILE_TRANSPORT_VERSION,
+                connectionId: challenge.connectionId,
+                confirmation,
+            }),
+        ),
+    );
+    mobileSealedFrameSchema.parse(await readyMessage);
+    let counter = 0;
+    const send = (request: unknown): void => {
+        const ciphertext = sealMobileFrame(
+            keys.clientToServer,
+            {
+                connectionId: transcript.connectionId,
+                counter: counter++,
+                deviceId: record.deviceId,
+                direction: 'client-to-server',
+            },
+            new TextEncoder().encode(JSON.stringify(request)),
+        );
+        socket.send(
+            JSON.stringify({
+                type: 'sealed',
+                version: MOBILE_TRANSPORT_VERSION,
+                connectionId: challenge.connectionId,
+                counter: counter - 1,
+                ciphertext: encodeHex(ciphertext),
+            }),
+        );
+    };
+    const read = async (): Promise<unknown> => {
+        const frame = mobileSealedFrameSchema.parse(await nextMessage(socket));
+        const plaintext = openMobileFrame(
+            keys.serverToClient,
+            {
+                connectionId: transcript.connectionId,
+                counter: frame.counter,
+                deviceId: record.deviceId,
+                direction: 'server-to-client',
+            },
+            decodeHex(frame.ciphertext),
+        );
+        return JSON.parse(new TextDecoder().decode(plaintext)) as unknown;
+    };
+    return {
+        socket,
+        request: async (request: unknown): Promise<unknown> => {
+            const replyMessage = read();
+            send({ type: 'request', request });
+            const payload = (await replyMessage) as {
+                type: string;
+                reply: unknown;
+            };
+            expect(payload.type).toBe('reply');
+            return payload.reply;
+        },
+        read,
+        send,
+    };
+}

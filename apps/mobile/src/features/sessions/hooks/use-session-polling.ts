@@ -1,10 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { useMobileClient } from '../../connection/mobile-client-provider';
-import type { MobileSessionItem, MobileSessionSections } from '../session-model';
-import { loadMobileSessionSections } from '../session-refresh';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
-const POLL_INTERVAL_MS = 2_500;
+import { useMobileClient } from '../../connection/mobile-client-provider';
+import type { DashboardSubscriptionMode } from '../dashboard-query';
+import {
+    dashboardPollInterval,
+    dashboardQueryKey,
+    readDashboardSnapshot,
+    shouldObserveDashboard,
+    startDashboardSubscription,
+} from '../dashboard-query';
+import type { MobileSessionItem, MobileSessionSections } from '../session-model';
+import type { MobileDashboardSnapshot } from '../session-refresh';
+import { fetchMobileSessionDashboard } from '../session-refresh';
+
 const emptySections: MobileSessionSections = {
     needsAttention: [],
     running: [],
@@ -49,76 +59,156 @@ export const nextSelectedSessionId = (
     return null;
 };
 
-export const useSessionPolling = () => {
-    const { request, status } = useMobileClient();
-    const [sections, setSections] = useState<MobileSessionSections>(emptySections);
-    const [selectedId, setSelectedId] = useState<string | null>(null);
-    const [error, setError] = useState<string | null>(null);
-    const [hasLoaded, setHasLoaded] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
-    const loading = useRef(false);
-    const pendingSections = useRef<MobileSessionSections | null>(null);
-    const touchingList = useRef(false);
+export const projectSessionList = (
+    snapshot: MobileDashboardSnapshot | undefined,
+    frozenSections: MobileSessionSections | null,
+    requestedSelectedId: string | null,
+): { hasLoaded: boolean; sections: MobileSessionSections; selectedId: string | null } => {
+    const sections = frozenSections ?? snapshot?.sections ?? emptySections;
+    return {
+        hasLoaded: snapshot !== undefined,
+        sections,
+        selectedId: nextSelectedSessionId(requestedSelectedId, sections),
+    };
+};
 
-    const commitSections = useCallback((next: MobileSessionSections): void => {
-        setSections(next);
-        setSelectedId((current) => nextSelectedSessionId(current, next));
-    }, []);
+export const useSessionPolling = (isVisible = true) => {
+    const {
+        connectionEpoch,
+        connectionScopeKey,
+        isForeground,
+        request,
+        status,
+        subscribe,
+        subscriptionAvailable,
+    } = useMobileClient();
+    const queryClient = useQueryClient();
+    const queryKey = useMemo(
+        () => dashboardQueryKey(connectionScopeKey ?? 'unpaired'),
+        [connectionScopeKey],
+    );
+    const isObservable = shouldObserveDashboard({
+        connectionScopeKey,
+        isForeground,
+        status,
+        visible: isVisible,
+    });
+    const subscriptionIdentity = `${connectionScopeKey ?? 'unpaired'}:${connectionEpoch}`;
+    const [subscriptionState, setSubscriptionState] = useState<{
+        identity: string;
+        mode: DashboardSubscriptionMode;
+    }>({ identity: subscriptionIdentity, mode: 'pending' });
+    const [subscriptionRetry, setSubscriptionRetry] = useState(0);
+    const mode: DashboardSubscriptionMode = !isObservable
+        ? 'pending'
+        : !subscriptionAvailable
+          ? 'fallback'
+          : subscriptionState.identity === subscriptionIdentity
+            ? subscriptionState.mode
+            : 'pending';
+    const eventVersion = useRef(0);
+    const invalidationTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const resubscribeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [frozenSections, setFrozenSections] = useState<MobileSessionSections | null>(null);
+    const [requestedSelectedId, setRequestedSelectedId] = useState<string | null>(null);
 
-    const refresh = useCallback(async (): Promise<void> => {
-        if (status !== 'connected' || loading.current) return;
-        loading.current = true;
-        setIsLoading(true);
-        try {
-            const result = await loadMobileSessionSections({
-                dashboard: () => request('mobile.dashboard'),
-            });
-            if (result.status === 'error') {
-                setError('Unable to load Sessions.');
-                return;
-            }
-            setError(null);
-            setHasLoaded(true);
-            if (touchingList.current) pendingSections.current = result.sections;
-            else commitSections(result.sections);
-        } finally {
-            loading.current = false;
-            setIsLoading(false);
-        }
-    }, [commitSections, request, status]);
+    const scheduleInvalidation = useCallback((): void => {
+        if (invalidationTimer.current !== null) clearTimeout(invalidationTimer.current);
+        invalidationTimer.current = setTimeout(() => {
+            invalidationTimer.current = null;
+            // eslint-disable-next-line no-void -- The query observer owns the resulting read and error state.
+            void queryClient.invalidateQueries({ queryKey, exact: true });
+        }, 0);
+    }, [queryClient, queryKey]);
 
     useEffect(() => {
-        if (status !== 'connected') return;
-        const poll = (): void => {
-            // eslint-disable-next-line no-void -- The polling lifecycle is owned by this effect.
-            void refresh();
+        if (!isObservable || !subscriptionAvailable) return;
+        const stop = startDashboardSubscription(
+            (onEvent) => subscribe({ kind: 'dashboard' }, onEvent),
+            () => {
+                eventVersion.current += 1;
+                scheduleInvalidation();
+            },
+            (nextMode) => setSubscriptionState({ identity: subscriptionIdentity, mode: nextMode }),
+            () => {
+                if (resubscribeTimer.current !== null) clearTimeout(resubscribeTimer.current);
+                resubscribeTimer.current = setTimeout(() => {
+                    resubscribeTimer.current = null;
+                    setSubscriptionRetry((current) => current + 1);
+                }, 2_500);
+            },
+        );
+        return () => {
+            stop();
+            setSubscriptionState({ identity: subscriptionIdentity, mode: 'pending' });
+            if (invalidationTimer.current !== null) clearTimeout(invalidationTimer.current);
+            invalidationTimer.current = null;
+            if (resubscribeTimer.current !== null) clearTimeout(resubscribeTimer.current);
+            resubscribeTimer.current = null;
+            // eslint-disable-next-line no-void -- Disabled queries retain the last authenticated snapshot.
+            void queryClient.cancelQueries({ queryKey, exact: true });
         };
-        poll();
-        const interval = setInterval(poll, POLL_INTERVAL_MS);
-        return () => clearInterval(interval);
-    }, [refresh, status]);
+    }, [
+        isObservable,
+        queryClient,
+        queryKey,
+        scheduleInvalidation,
+        subscribe,
+        subscriptionAvailable,
+        subscriptionIdentity,
+        subscriptionRetry,
+    ]);
+
+    const query = useQuery({
+        enabled: isObservable && mode !== 'pending',
+        gcTime: 0,
+        networkMode: 'always',
+        queryFn: () =>
+            readDashboardSnapshot(
+                () => fetchMobileSessionDashboard({ dashboard: () => request('mobile.dashboard') }),
+                () => eventVersion.current,
+                scheduleInvalidation,
+            ),
+        queryKey,
+        refetchInterval: dashboardPollInterval(isObservable, mode),
+        refetchIntervalInBackground: false,
+        refetchOnReconnect: false,
+        refetchOnWindowFocus: false,
+        retry: false,
+        staleTime: 0,
+    });
+
+    const { hasLoaded, sections, selectedId } = projectSessionList(
+        query.data,
+        frozenSections,
+        requestedSelectedId,
+    );
+
+    const refresh = useCallback(async (): Promise<void> => {
+        if (!isObservable || mode === 'pending') return;
+        await queryClient.invalidateQueries({ queryKey, exact: true });
+    }, [isObservable, mode, queryClient, queryKey]);
 
     const finishListInteraction = (): void => {
-        touchingList.current = false;
-        const pending = pendingSections.current;
-        pendingSections.current = null;
-        if (pending) commitSections(pending);
+        setFrozenSections(null);
     };
 
     const sessions = useMemo(() => allMobileSessions(sections), [sections]);
     return {
         beginListInteraction: (): void => {
-            touchingList.current = true;
+            setFrozenSections((current) => current ?? sections);
         },
         entries: useMemo(() => flattenMobileSessionSections(sections), [sections]),
-        error,
+        error: query.isError ? 'Unable to load Sessions.' : null,
         finishListInteraction,
         hasLoaded,
-        isLoading,
+        hostDisplayName: query.data?.hostDisplayName ?? 'Caxri',
+        isLoading: isObservable && query.isFetching,
+        projects: query.data?.projects ?? [],
         refresh,
         sections,
         selected: sessions.find((session) => session.id === selectedId) ?? null,
         selectedId,
-        selectSession: setSelectedId,
+        selectSession: setRequestedSelectedId,
     };
 };

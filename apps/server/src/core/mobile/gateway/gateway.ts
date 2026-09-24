@@ -3,13 +3,12 @@ import { randomBytes } from 'node:crypto';
 import type { Server } from 'node:http';
 import { createServer } from 'node:http';
 import type { Socket } from 'node:net';
-import type { NetworkInterfaceInfo, NetworkInterfaceInfoIPv4 } from 'node:os';
-import { networkInterfaces } from 'node:os';
 
 import type {
     HandshakeTranscript,
     MobileClientHello,
     MobileSessionKeys,
+    MobileSubscriptionResource,
 } from '@caxri/mobile-transport';
 import {
     decodeHex,
@@ -19,7 +18,6 @@ import {
     handshakeConfirmation,
     isHandshakeConfirmationValid,
     isPrivateMobileIpv4Address,
-    MOBILE_GATEWAY_MAX_PLAINTEXT_BYTES,
     MOBILE_GATEWAY_MAX_WIRE_BYTES,
     MOBILE_TRANSPORT_VERSION,
     mobileClientConfirmationSchema,
@@ -31,30 +29,23 @@ import {
     mobileRevokedSchema,
     mobileSealedFrameSchema,
     mobileServerHelloSchema,
+    mobileVersionMismatchSchema,
     openMobileFrame,
     PAIRING_SECRET_BYTES,
     serializeMobilePairingLink,
     X25519_KEY_BYTES,
 } from '@caxri/mobile-transport';
 import type {
-    Capability,
-    CaxriMethod,
     CommandAdapter,
     CommandDispatcher,
     CommandDispatcherOptions,
     CommandExecutionContext,
-    CommandReplyEnvelope,
     MobileAccessStatus,
     Principal,
     ProtocolConnectionIdentity,
+    ServerEvent,
 } from '@caxri/protocol';
-import {
-    CAXRI_PROTOCOL_VERSION,
-    CaxriError,
-    createCommandDispatcher,
-    requestIdFromEnvelope,
-    toWireError,
-} from '@caxri/protocol';
+import { CaxriError, createCommandDispatcher } from '@caxri/protocol';
 import type WebSocket from 'ws';
 import type { RawData } from 'ws';
 import { WebSocketServer } from 'ws';
@@ -64,9 +55,15 @@ import type {
     MobileDeviceRegistry,
     MobileDeviceSummary,
 } from '../device-registry';
+import { selectMobileGatewayAddresses } from './address-selection';
+import { MobileGatewayFrameRouter } from './frame-router';
+import { mobileCapabilitiesByRole } from './role-capabilities';
 import { createServerSealedPayload, sendFinalSealedPayload } from './sealed-payload';
 import { MobileSocketQueueBudget } from './socket-queue-budget';
 import { SourceAttemptLimiter } from './source-attempt-limiter';
+
+export { selectMobileGatewayAddress } from './address-selection';
+export { boundedMobileReply } from './reply';
 
 const MOBILE_PATH = '/mobile';
 const HANDSHAKE_TIMEOUT_MS = 10_000;
@@ -83,25 +80,6 @@ const MAXIMUM_PENDING_PAIRINGS = 8;
  */
 const isAllowedMobileOrigin = (origin: string | undefined, host: string | undefined): boolean =>
     origin === undefined || (host !== undefined && origin === `http://${host}`);
-export const MOBILE_GATEWAY_ALLOWED_METHODS = [
-    'mobile.dashboard',
-    'session.markRead',
-    'terminal.preview',
-    'terminal.send',
-] as const satisfies readonly CaxriMethod[];
-
-const allowedMethods = new Set<CaxriMethod>(MOBILE_GATEWAY_ALLOWED_METHODS);
-export const isMobileGatewayMethodAllowed = (method: CaxriMethod): boolean =>
-    allowedMethods.has(method);
-const mobileCapabilities = [
-    'projects.read',
-    'sessions.read',
-    'sessions.write',
-    'terminals.read',
-    'terminals.preview',
-    'terminals.steer',
-] as const satisfies readonly Capability[];
-
 interface PendingPairing {
     expiresAt: number;
     pairingId: string;
@@ -110,6 +88,7 @@ interface PendingPairing {
 }
 
 interface GatewaySession {
+    application?: MobileGatewayFrameRouter;
     candidate?: MobileDeviceRecord;
     connection: ProtocolConnectionIdentity;
     deviceId: string;
@@ -119,64 +98,36 @@ interface GatewaySession {
     mode: 'connect' | 'pair';
     outbound: MobileFrameCounter;
     principal?: Principal;
+    revoking?: boolean;
     transcript: HandshakeTranscript;
     valid: boolean;
 }
 
 export interface MobileGatewayOptions {
     adapters: CommandDispatcherOptions;
+    authorizePairedDeviceMethod: (principal: Principal, method: string) => void;
+    authorizeSubscription: (
+        principal: Principal,
+        resource: MobileSubscriptionResource,
+    ) => Promise<void>;
     bootId: string;
     now?: () => number;
     protocolIdentity: { serverId: string; stateEpoch: string };
     random?: (bytes: number) => Uint8Array;
     registry: MobileDeviceRegistry;
+    matchesSubscriptionEvent: (
+        principal: Principal,
+        resource: MobileSubscriptionResource,
+        event: ServerEvent,
+    ) => Promise<boolean>;
+    /**
+     * Peer address override for loopback tests.
+     */
+    sourceAddress?: (socket: Socket) => string | undefined;
     /**
      * Test seam; production always selects one private IPv4 interface.
      */
     selectAddress?: () => string;
-}
-
-export function selectMobileGatewayAddress(
-    interfaces: NodeJS.Dict<NetworkInterfaceInfo[]> = networkInterfaces(),
-): string {
-    return selectMobileGatewayAddresses(interfaces)[0];
-}
-
-function selectMobileGatewayAddresses(
-    interfaces: NodeJS.Dict<NetworkInterfaceInfo[]> = networkInterfaces(),
-): string[] {
-    const candidates: Array<{ entry: NetworkInterfaceInfoIPv4; name: string }> = [];
-    for (const [name, entries] of Object.entries(interfaces)) {
-        const networkEntries = entries ?? [];
-        for (const entry of networkEntries)
-            if (
-                entry.family === 'IPv4' &&
-                !entry.internal &&
-                isPrivateMobileIpv4Address(entry.address)
-            )
-                candidates.push({ entry, name });
-    }
-    candidates.sort((left, right) => {
-        /**
-         * MacOS physical Wi-Fi and Ethernet interfaces use `enN`; VPNs and virtual machines commonly expose `utunN`,
-         * `bridgeN`, or `vmnetN`. Prefer an active physical interface before using address ordering so a phone does not
-         * receive an otherwise valid but unreachable VPN endpoint.
-         */
-        const physical = (name: string): number => (/^en\d+$/u.test(name) ? 0 : 1);
-        return (
-            physical(left.name) - physical(right.name) ||
-            left.name.localeCompare(right.name, 'en', { numeric: true }) ||
-            left.entry.address.localeCompare(right.entry.address, 'en', { numeric: true })
-        );
-    });
-    const addresses = candidates.map(({ entry }) => entry.address);
-    const address = addresses[0];
-    if (!address)
-        throw new CaxriError(
-            'UNAVAILABLE',
-            'No private IPv4 network is available for mobile access',
-        );
-    return addresses.slice(0, 8);
 }
 
 const isAllowedLanAddress = (address: string | undefined): boolean =>
@@ -193,29 +144,6 @@ const messageByteLength = (data: RawData): number => {
     return data.byteLength;
 };
 
-function forbiddenReply(raw: unknown): CommandReplyEnvelope {
-    return {
-        protocolVersion: CAXRI_PROTOCOL_VERSION,
-        id: requestIdFromEnvelope(raw),
-        ok: false,
-        error: toWireError(new CaxriError('FORBIDDEN', 'Method is unavailable to paired devices')),
-    };
-}
-
-export function boundedMobileReply(
-    raw: unknown,
-    reply: CommandReplyEnvelope,
-): CommandReplyEnvelope {
-    if (Buffer.byteLength(JSON.stringify(reply), 'utf8') <= MOBILE_GATEWAY_MAX_PLAINTEXT_BYTES)
-        return reply;
-    return {
-        protocolVersion: CAXRI_PROTOCOL_VERSION,
-        id: requestIdFromEnvelope(raw),
-        ok: false,
-        error: toWireError(new CaxriError('CAPACITY', 'Mobile reply exceeds the frame limit')),
-    };
-}
-
 /**
  * Preserves one challenge shape for invalid IDs without disclosing whether a pairing exists.
  */
@@ -230,6 +158,7 @@ function dummyCandidate(
         platform: hello.platform,
         credential: Buffer.from(random(PAIRING_SECRET_BYTES)).toString('hex'),
         generation: 1,
+        role: 'control',
         projectIds: ['invalid-pairing'],
         createdAt: now,
     };
@@ -295,11 +224,18 @@ export class MobileGateway {
         return this.#options.registry.list();
     }
 
+    publish(event: ServerEvent): void {
+        for (const sockets of this.#activeByDevice.values())
+            for (const session of sockets.values()) session.application?.publish(event);
+    }
+
     async enable(): Promise<MobileAccessStatus> {
         if (this.#server?.listening) return this.status();
         const addresses = this.#options.selectAddress
             ? [this.#options.selectAddress()]
             : selectMobileGatewayAddresses();
+        const sourceAddress =
+            this.#options.sourceAddress ?? ((socket: Socket) => socket.remoteAddress);
         const webSocketServer = new WebSocketServer({
             maxPayload: MOBILE_GATEWAY_MAX_WIRE_BYTES,
             noServer: true,
@@ -307,7 +243,7 @@ export class MobileGateway {
         });
         const server = createServer({ maxHeaderSize: 8 * 1_024 }, (request, response) => {
             if (
-                !isAllowedLanAddress(request.socket.remoteAddress) ||
+                !isAllowedLanAddress(sourceAddress(request.socket)) ||
                 !isAllowedLanAddress(request.socket.localAddress)
             ) {
                 request.socket.destroy();
@@ -320,11 +256,12 @@ export class MobileGateway {
         server.keepAliveTimeout = 1_000;
         server.maxConnections = MAXIMUM_CONNECTIONS;
         server.on('connection', (socket) => {
+            const remoteAddress = sourceAddress(socket);
             if (
-                !isAllowedLanAddress(socket.remoteAddress) ||
+                !isAllowedLanAddress(remoteAddress) ||
                 !isAllowedLanAddress(socket.localAddress) ||
                 this.#tcpSockets.size >= MAXIMUM_CONNECTIONS ||
-                !this.#admitSource(socket.remoteAddress ?? 'unknown')
+                !this.#admitSource(remoteAddress ?? 'unknown')
             ) {
                 socket.destroy();
                 return;
@@ -336,7 +273,7 @@ export class MobileGateway {
         server.on('upgrade', (request, socket, head) => {
             if (
                 request.url !== MOBILE_PATH ||
-                !isAllowedLanAddress(request.socket.remoteAddress) ||
+                !isAllowedLanAddress(sourceAddress(request.socket)) ||
                 !isAllowedLanAddress(request.socket.localAddress) ||
                 !isAllowedMobileOrigin(request.headers.origin, request.headers.host) ||
                 this.#sockets.size >= MAXIMUM_CONNECTIONS ||
@@ -418,8 +355,16 @@ export class MobileGateway {
     }
 
     async revoke(deviceId: string, expectedGeneration: number): Promise<MobileDeviceSummary> {
-        const revoked = await this.#options.registry.revoke(deviceId, expectedGeneration);
         const activeSessions = this.#activeByDevice.get(deviceId);
+        if (activeSessions) for (const session of activeSessions.values()) session.revoking = true;
+        let revoked: MobileDeviceSummary;
+        try {
+            revoked = await this.#options.registry.revoke(deviceId, expectedGeneration);
+        } catch (error) {
+            if (activeSessions)
+                for (const session of activeSessions.values()) session.revoking = false;
+            throw error;
+        }
         if (activeSessions)
             await Promise.all(
                 [...activeSessions].map(([socket, session]) =>
@@ -471,6 +416,7 @@ export class MobileGateway {
         let queue = Promise.resolve();
         const queueBudget = new MobileSocketQueueBudget();
         const terminate = (): void => {
+            if (session?.revoking) return;
             isAcceptingMessages = false;
             socket.terminate();
         };
@@ -484,6 +430,7 @@ export class MobileGateway {
             this.#sockets.delete(socket);
             if (!isReady) this.#handshakes = Math.max(0, this.#handshakes - 1);
             if (!session) return;
+            session.application?.close();
             const active = this.#activeByDevice.get(session.deviceId);
             active?.delete(socket);
             if (active?.size === 0) this.#activeByDevice.delete(session.deviceId);
@@ -508,6 +455,27 @@ export class MobileGateway {
                 if (!isAcceptingMessages) return;
                 const raw = JSON.parse(messageText(data)) as unknown;
                 if (!session) {
+                    if (
+                        typeof raw === 'object' &&
+                        raw !== null &&
+                        'type' in raw &&
+                        raw.type === 'hello' &&
+                        'version' in raw &&
+                        typeof raw.version === 'number' &&
+                        Number.isSafeInteger(raw.version) &&
+                        raw.version !== MOBILE_TRANSPORT_VERSION
+                    ) {
+                        const mismatch = mobileVersionMismatchSchema.parse({
+                            type: 'version-mismatch',
+                            supportedVersion: MOBILE_TRANSPORT_VERSION,
+                        });
+                        isAcceptingMessages = false;
+                        socket.send(JSON.stringify(mismatch), (error) => {
+                            if (error) terminate();
+                            else socket.close(1_000, 'Version mismatch');
+                        });
+                        return;
+                    }
                     session = this.#beginHandshake(mobileClientHelloSchema.parse(raw));
                     const confirmation = handshakeConfirmation(session.keys, 'server');
                     const challenge = mobileServerHelloSchema.parse({
@@ -569,6 +537,33 @@ export class MobileGateway {
                         });
                     }
                     session.principal = principal;
+                    const authenticatedSession = session;
+                    session.application = new MobileGatewayFrameRouter({
+                        authorizeMethod: this.#options.authorizePairedDeviceMethod,
+                        authorizeSubscription: this.#options.authorizeSubscription,
+                        context: () => this.#context(authenticatedSession),
+                        dispatch: this.#dispatch,
+                        isActive: () =>
+                            isAcceptingMessages &&
+                            !authenticatedSession.revoking &&
+                            socket.readyState === 1,
+                        matchesSubscriptionEvent: this.#options.matchesSubscriptionEvent,
+                        now: this.#now,
+                        randomSubscriptionId: () => Buffer.from(this.#random(16)).toString('hex'),
+                        send: (payload) =>
+                            new Promise<void>((resolve, reject) => {
+                                if (!isAcceptingMessages || authenticatedSession.revoking) {
+                                    reject(new Error('Mobile session is no longer active'));
+                                    return;
+                                }
+                                this.#context(authenticatedSession);
+                                this.#sendSealed(socket, authenticatedSession, payload, (error) => {
+                                    if (error) reject(error);
+                                    else resolve();
+                                });
+                            }),
+                        terminate,
+                    });
                     isReady = true;
                     this.#handshakes = Math.max(0, this.#handshakes - 1);
                     clearTimeout(timer);
@@ -579,7 +574,7 @@ export class MobileGateway {
                     this.#activeByDevice.set(session.deviceId, active);
                     return;
                 }
-                await this.#handleSealed(socket, session, raw);
+                this.#handleSealed(session, raw);
             })();
             queue = (async (): Promise<void> => {
                 try {
@@ -674,7 +669,7 @@ export class MobileGateway {
         };
     }
 
-    async #handleSealed(socket: WebSocket, session: GatewaySession, raw: unknown): Promise<void> {
+    #handleSealed(session: GatewaySession, raw: unknown): void {
         const frame = mobileSealedFrameSchema.parse(raw);
         if (frame.connectionId !== session.connection.connectionId)
             throw new Error('Encrypted frame connection identity changed');
@@ -690,27 +685,37 @@ export class MobileGateway {
             decodeHex(frame.ciphertext),
         );
         const source = new TextDecoder().decode(plaintext);
-        const request = JSON.parse(source) as unknown;
-        const method =
-            typeof request === 'object' && request !== null && 'method' in request
-                ? Reflect.get(request, 'method')
-                : undefined;
-        const reply =
-            typeof method === 'string' && isMobileGatewayMethodAllowed(method as CaxriMethod)
-                ? await this.#dispatch(request, this.#context(session))
-                : forbiddenReply(request);
-        this.#sendSealed(socket, session, boundedMobileReply(request, reply));
+        session.application?.accept(JSON.parse(source) as unknown);
     }
 
     #context(session: GatewaySession): CommandExecutionContext {
-        const principal = this.#options.registry.currentPrincipal(
+        const current = this.#options.registry.currentPrincipal(
             session.deviceId,
             session.generation,
         );
-        return { capabilities: mobileCapabilities, connection: session.connection, principal };
+        const principal = session.principal;
+        if (
+            principal?.kind !== 'paired-device' ||
+            current.kind !== 'paired-device' ||
+            current.id !== principal.id ||
+            current.role !== principal.role ||
+            current.projectIds.length !== principal.projectIds.length ||
+            current.projectIds.some((id, index) => id !== principal.projectIds[index])
+        )
+            throw new CaxriError('FORBIDDEN', 'Paired device authorization changed');
+        return {
+            capabilities: mobileCapabilitiesByRole[principal.role],
+            connection: session.connection,
+            principal,
+        };
     }
 
-    #sendSealed(socket: WebSocket, session: GatewaySession, payload: unknown): void {
+    #sendSealed(
+        socket: WebSocket,
+        session: GatewaySession,
+        payload: unknown,
+        onSent?: (error?: Error) => void,
+    ): void {
         const counter = session.outbound.take();
         const sourceFrame = createServerSealedPayload(
             {
@@ -728,9 +733,13 @@ export class MobileGateway {
                 MOBILE_GATEWAY_MAX_WIRE_BYTES * 2
         ) {
             this.#terminate(socket);
+            onSent?.(new Error('Mobile socket cannot accept another frame'));
             return;
         }
-        socket.send(sourceFrame);
+        socket.send(sourceFrame, (error) => {
+            if (error) this.#terminate(socket);
+            onSent?.(error);
+        });
     }
 
     /**
@@ -759,7 +768,10 @@ export class MobileGateway {
             sourceFrame,
             MOBILE_GATEWAY_MAX_WIRE_BYTES * 2,
         );
-        if (closeResult === 'failed') this.#terminate(socket);
+        if (closeResult === 'failed') {
+            session.application?.close();
+            socket.terminate();
+        }
     }
 
     #terminate(socket: WebSocket): void {
@@ -768,5 +780,4 @@ export class MobileGateway {
         else socket.terminate();
     }
 }
-
 /* eslint-enable unicorn/consistent-class-member-order */

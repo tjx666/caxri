@@ -15,7 +15,12 @@ Extension API and Host protocol. Repository build tooling may compose extension 
 
 `packages/mobile-transport` is the browser-safe cryptographic and wire-format boundary shared by
 native mobile clients and the Server gateway. It cannot import Node.js, Electron, native Desktop
-packages, or application source. Its public package root is the only supported entrypoint.
+packages, `@caxri/protocol`, or application source. Its public package root is the only supported
+entrypoint. Version 2 sealed application frames separate correlated replies, subscription events,
+terminal streams, and heartbeats. The transport package validates the outer frame and resource
+shape; nested command requests and replies remain `unknown` there and are validated immediately by
+`@caxri/protocol` at each Server or mobile application boundary. The client owns one authenticated
+reader and routes replies by request ID, while only foreground visible views hold subscriptions.
 Device revocation first fences the stored Server generation, then sends a generation-bound `revoked`
 control payload only through each already authenticated encrypted session before disconnecting it. The
 mobile client clears its credential only after that sealed payload authenticates. A reconnect whose

@@ -9,6 +9,8 @@ import {
     interruptAndroidScreenrecord,
     startMobileAcceptanceRecording,
 } from '../../scripts/mobile-acceptance-runtime.ts';
+import type { AndroidDisplayState } from '../../scripts/mobile-android-cases.ts';
+import { parseAndroidDisplayState } from '../../scripts/mobile-android-cases.ts';
 
 const execFileAsync = promisify(execFile);
 const projectRoot = resolve(import.meta.dirname, '../..');
@@ -16,6 +18,7 @@ const androidDeviceScript = join(projectRoot, 'apps/mobile/scripts/android-devic
 const adb = join(homedir(), 'Library', 'Android', 'sdk', 'platform-tools', 'adb');
 
 export interface MobileSemanticNode {
+    bounds: string;
     checkId: string;
     clickable: boolean;
     enabled: boolean;
@@ -46,6 +49,36 @@ export async function runMobileDeviceCommand(
 
 export const adbShell = (serial: string, arguments_: string[]): Promise<string> =>
     runMobileDeviceCommand(adb, ['-s', serial, 'shell', ...arguments_], 'capture');
+
+export async function mobileDisplayState(serial: string): Promise<AndroidDisplayState> {
+    const [density, fontScale, rotation, size] = await Promise.all([
+        adbShell(serial, ['wm', 'density']),
+        adbShell(serial, ['settings', 'get', 'system', 'font_scale']),
+        adbShell(serial, ['dumpsys', 'input']),
+        adbShell(serial, ['wm', 'size']),
+    ]);
+    return parseAndroidDisplayState({ density, fontScale, rotation, size });
+}
+
+export async function restoreMobileDisplayState(
+    serial: string,
+    original: AndroidDisplayState,
+): Promise<void> {
+    await adbShell(serial, [
+        'wm',
+        'size',
+        original.size.override
+            ? `${original.size.override.width}x${original.size.override.height}`
+            : 'reset',
+    ]);
+    await adbShell(serial, [
+        'wm',
+        'density',
+        original.density.override ? String(original.density.override) : 'reset',
+    ]);
+    if (JSON.stringify(await mobileDisplayState(serial)) !== JSON.stringify(original))
+        throw new Error('Android display state was not restored exactly');
+}
 
 /**
  * Toggles every emulator network transport used by the Android Acceptance fixture. Disabling Wi-Fi alone leaves the
@@ -97,6 +130,19 @@ export const startMobileFramebufferRecording = (serial: string, remotePath: stri
             });
         },
     });
+
+export async function pullMobileFramebufferRecording(
+    serial: string,
+    remotePath: string,
+    localPath: string,
+): Promise<void> {
+    await mkdir(dirname(localPath), { recursive: true });
+    try {
+        await runMobileDeviceCommand(adb, ['-s', serial, 'pull', remotePath, localPath]);
+    } finally {
+        await adbShell(serial, ['rm', '-f', remotePath]);
+    }
+}
 
 export async function mobileSemantics(serial: string): Promise<MobileSemanticNode[]> {
     const source = await runMobileDeviceCommand(

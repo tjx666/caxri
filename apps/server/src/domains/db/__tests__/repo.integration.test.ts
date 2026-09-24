@@ -81,6 +81,24 @@ describe('CaxriDatabase', () => {
         database.close();
     });
 
+    it('creates a remote Session without changing the desktop selection', async () => {
+        const directory = await temporaryDirectory('caxri-db-remote-session-');
+        const database = new CaxriDatabase(join(directory, 'state.db'));
+        const selectedProject = database.createProject(join(directory, 'selected'));
+        const remoteProject = database.createProject(join(directory, 'remote'));
+        const selected = database.createSession(selectedProject.id, 'shell');
+
+        const remote = database.createSession(remoteProject.id, 'codex', undefined, {
+            selection: 'preserve',
+        });
+
+        expect(remote.session.projectId).toBe(remoteProject.id);
+        expect(remote.terminal?.kind).toBe('codex');
+        expect(database.getAppState('lastSelectedSessionId')).toBe(selected.session.id);
+        expect(database.getAppState('lastSelectedProjectId')).toBe(selectedProject.id);
+        database.close();
+    });
+
     it('reuses already loaded Terminal records when listing all Session states', async () => {
         const directory = await temporaryDirectory('caxri-db-session-state-ownership-');
         const database = new CaxriDatabase(join(directory, 'state.db'));

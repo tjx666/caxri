@@ -8,7 +8,11 @@ vi.mock('../../connection/mobile-client-provider', () => ({
 }));
 
 import { sessionReadKey } from '../hooks/use-session-attention';
-import { flattenMobileSessionSections, nextSelectedSessionId } from '../hooks/use-session-polling';
+import {
+    flattenMobileSessionSections,
+    nextSelectedSessionId,
+    projectSessionList,
+} from '../hooks/use-session-polling';
 import {
     acceptedShortReplyDraft,
     isDeliveredReplyCurrent,
@@ -81,9 +85,29 @@ describe('mobile Session hooks', () => {
         ]);
     });
 
+    it('holds the rendered order during touch and shows the latest snapshot on release', () => {
+        const latest = {
+            hostDisplayName: 'Test computer',
+            projects: [],
+            sections: buildMobileSessionSections({
+                sessions: [session({ id: 'session-3', hasUnread: false })],
+                total: 1,
+                truncated: false,
+            }),
+        };
+        const frozen = projectSessionList(latest, sections, 'session-1');
+        expect(frozen.sections).toBe(sections);
+        expect(frozen.selectedId).toBe('session-1');
+        const released = projectSessionList(latest, null, 'session-1');
+        expect(released.sections).toBe(latest.sections);
+        expect(released.selectedId).toBeNull();
+        expect(released.hasLoaded).toBe(true);
+    });
+
     it('starts preview polling only for a visible connected Terminal', () => {
         expect(
             shouldPollTerminalPreview({
+                isForeground: true,
                 status: 'connected',
                 terminalId: 'terminal-1',
                 visible: true,
@@ -91,6 +115,7 @@ describe('mobile Session hooks', () => {
         ).toBe(true);
         expect(
             shouldPollTerminalPreview({
+                isForeground: true,
                 status: 'stale',
                 terminalId: 'terminal-1',
                 visible: true,
@@ -98,8 +123,17 @@ describe('mobile Session hooks', () => {
         ).toBe(false);
         expect(
             shouldPollTerminalPreview({
+                isForeground: true,
                 status: 'connected',
                 terminalId: null,
+                visible: true,
+            }),
+        ).toBe(false);
+        expect(
+            shouldPollTerminalPreview({
+                isForeground: false,
+                status: 'connected',
+                terminalId: 'terminal-1',
                 visible: true,
             }),
         ).toBe(false);

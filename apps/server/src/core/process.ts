@@ -74,6 +74,9 @@ const app = await startServerCore({
             process.resourcesPath && { resourcesPath: process.resourcesPath }),
     }),
     includeTestExtensions: process.env.CAXRI_E2E === '1',
+    ...(process.env.CAXRI_E2E === '1' && {
+        mobileHostDisplayName: process.env.CAXRI_MOBILE_TEST_HOST_DISPLAY_NAME,
+    }),
     logger,
     projectSearch: {
         executablePath: join(serverBundleDirectory, '../runtime/bin/rg'),

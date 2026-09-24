@@ -7,6 +7,6 @@ import { PairingEntryScreen } from '../src/features/pairing/components/pairing-e
 export default function IndexRoute() {
     const client = useMobileClient();
     if (client.status === 'booting') return <LoadingScreen label="Opening Caxri…" />;
-    if (client.paired) return <Redirect href="/sessions" />;
+    if (client.hostId) return <Redirect href={`/h/${encodeURIComponent(client.hostId)}`} />;
     return <PairingEntryScreen />;
 }

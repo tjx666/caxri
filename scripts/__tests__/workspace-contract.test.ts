@@ -167,6 +167,7 @@ describe('pnpm workspace contract', () => {
          * teaches the next reader to edit the expectation rather than read it.
          */
         expect(Object.keys(workspace.catalog ?? {})).toEqual([
+            '@tanstack/react-query',
             '@types/semver',
             '@types/ws',
             '@yutengjing/eslint-config-typescript',

@@ -1,3 +1,4 @@
+import { isPrivateMobileIpv4Address } from '@caxri/mobile-transport';
 import { mobileDeviceIdSchema } from '@caxri/protocol';
 import { z } from 'zod';
 
@@ -6,7 +7,7 @@ const MOBILE_CREDENTIAL_KEY = 'caxri.mobile-credential.v1';
 
 const mobileCredentialSchema = z.strictObject({
     version: z.literal(1),
-    addresses: z.array(z.ipv4()).min(1).max(8),
+    addresses: z.array(z.ipv4().refine(isPrivateMobileIpv4Address)).min(1).max(8),
     port: z.number().int().min(1).max(65_535),
     serverId: z.string().min(1).max(200),
     deviceId: mobileDeviceIdSchema,

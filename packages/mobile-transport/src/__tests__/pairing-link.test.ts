@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import type { MobilePairingLink } from '../contract';
+import { MOBILE_TRANSPORT_VERSION } from '../contract';
 import { parseMobilePairingLink, serializeMobilePairingLink } from '../pairing-link';
 
 const pairing: MobilePairingLink = {
-    version: 1,
+    version: MOBILE_TRANSPORT_VERSION,
     addresses: ['192.168.1.3', '10.0.0.3'],
     port: 43_341,
     serverId: 'server_test',
