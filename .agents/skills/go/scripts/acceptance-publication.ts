@@ -70,7 +70,6 @@ interface PublicationState {
 }
 
 type CommandRunner = (command: string, arguments_: string[], timeoutMs?: number) => Promise<string>;
-
 const checkIdSchema = z.object({ id: z.string().min(1) });
 const evidenceTypeSchema = z.enum([
     'dom_snapshot',
@@ -89,6 +88,7 @@ const mobileDeviceSchema = z.object({
 });
 const localCaseSchema = checkIdSchema.extend({
     evidence: z.array(evidenceReferenceSchema).min(1),
+    status: z.enum(['pass', 'fail', 'blocked']).optional(),
     surface: productSurfaceSchema,
 });
 const requiredEvidenceSchema = z.union([
@@ -184,11 +184,9 @@ export function createEmptyAcceptancePublication(): AcceptancePublication {
 function stableAcceptanceUrl(acceptanceId: string): string {
     return `${ACCEPTANCE_URL_ROOT}/${acceptanceId}`;
 }
-
 function sorted(values: string[]): string[] {
     return values.toSorted((a, b) => a.localeCompare(b));
 }
-
 function haveEqualValues(left: string[], right: string[]): boolean {
     return JSON.stringify(sorted(left)) === JSON.stringify(sorted(right));
 }
@@ -231,14 +229,16 @@ function assertRemoteEvidenceIntegrity(
         const expectedTypes = acceptanceCase.evidence.map((reference) =>
             evidenceTypeForPath(evidencePath(reference)),
         );
-        const requiredEvidence = planById.get(acceptanceCase.id)?.requiredEvidence ?? [];
-        for (const requirement of requiredEvidence) {
-            const type = requiredEvidenceType(requirement);
-            if (!expectedTypes.includes(type)) {
-                throw new Error(
-                    `Acceptance local evidence for ${acceptanceCase.id} does not satisfy required ${type} evidence`,
-                );
-            }
+        /**
+         * Blocked cases cite the blocker instead of unavailable planned media.
+         */
+        const missingType = (planById.get(acceptanceCase.id)?.requiredEvidence ?? [])
+            .map(requiredEvidenceType)
+            .find((type) => !expectedTypes.includes(type));
+        if (missingType && acceptanceCase.status !== 'blocked') {
+            throw new Error(
+                `Acceptance local evidence for ${acceptanceCase.id} does not satisfy required ${missingType} evidence`,
+            );
         }
 
         const remote = remoteById.get(acceptanceCase.id);
