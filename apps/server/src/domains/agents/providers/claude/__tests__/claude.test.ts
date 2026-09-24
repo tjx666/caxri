@@ -208,7 +208,7 @@ process.stdin.on('end', () => {
             cwd: '/workspace/project',
             maxBuffer: 64 * 1024,
             signal: undefined,
-            timeout: 10_000,
+            timeout: 60_000,
         });
         expect(options.env).toMatchObject({
             CLAUDE_CONFIG_DIR: '/tmp/claude-test-config',
