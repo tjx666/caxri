@@ -14,12 +14,21 @@ describe('loadMobileSessionSections', () => {
         expect(unavailable).toHaveBeenCalledOnce();
     });
 
-    it('reports a successful empty dashboard explicitly', async () => {
+    it('keeps an authorized Project with no Sessions in the dashboard view', async () => {
         await expect(
             loadMobileSessionSections({
-                dashboard: () => Promise.resolve({ sessions: [], total: 0, truncated: false }),
+                dashboard: () =>
+                    Promise.resolve({
+                        hostDisplayName: 'Test computer',
+                        projects: [{ id: 'project-one', displayTitle: 'Empty Project' }],
+                        sessions: [],
+                        total: 0,
+                        truncated: false,
+                    }),
             }),
         ).resolves.toEqual({
+            hostDisplayName: 'Test computer',
+            projects: [{ id: 'project-one', displayTitle: 'Empty Project' }],
             sections: { needsAttention: [], recent: [], running: [], total: 0, truncated: false },
             status: 'success',
         });

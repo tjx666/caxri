@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import type { MethodResult } from '@caxri/protocol';
+
 import type { MobileConnectionStatus } from '../../connection/connection-state';
 import { useMobileClient } from '../../connection/mobile-client-provider';
 import type { MobileSessionItem, MobileSessionSections } from '../session-model';
@@ -64,6 +66,8 @@ export const nextSelectedSessionId = (
 export const useSessionPolling = () => {
     const { isForeground, request, status } = useMobileClient();
     const [sections, setSections] = useState<MobileSessionSections>(emptySections);
+    const [projects, setProjects] = useState<MethodResult<'mobile.dashboard'>['projects']>([]);
+    const [hostDisplayName, setHostDisplayName] = useState('Caxri');
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [hasLoaded, setHasLoaded] = useState(false);
@@ -94,6 +98,8 @@ export const useSessionPolling = () => {
             }
             setError(null);
             setHasLoaded(true);
+            setProjects(result.projects);
+            setHostDisplayName(result.hostDisplayName);
             if (touchingList.current) pendingSections.current = result.sections;
             else commitSections(result.sections);
         } finally {
@@ -137,7 +143,9 @@ export const useSessionPolling = () => {
         error,
         finishListInteraction,
         hasLoaded,
+        hostDisplayName,
         isLoading: shouldPollSessionDashboard(status, isForeground) && isLoading,
+        projects,
         refresh,
         sections,
         selected: sessions.find((session) => session.id === selectedId) ?? null,
