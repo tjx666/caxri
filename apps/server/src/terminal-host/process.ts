@@ -12,6 +12,7 @@ import {
     logEventCatalog,
     observationProcessManifestDirectory,
     ObservationProcessManifestPublisher,
+    startEventLoopMonitor,
     startProcessObservationSampler,
     StructuredLogger,
 } from '@caxri/system';
@@ -55,6 +56,11 @@ const processManifest = new ObservationProcessManifestPublisher({
     owner: 'terminal-host',
 });
 processManifest.publish('starting');
+/**
+ * Server Core and Desktop Main already watch their loops; without this, a block here surfaced only as a slow request in
+ * another process's log, with no record of which process stalled.
+ */
+const eventLoopMonitor = startEventLoopMonitor(logger);
 const processSampler = startProcessObservationSampler({
     logger,
     owner: 'terminal-host',
@@ -105,6 +111,7 @@ runtimeReference.current = runtime;
 async function stop(exitCode: number): Promise<void> {
     if (lifecycle.isStopping) return;
     lifecycle.isStopping = true;
+    eventLoopMonitor.stop();
     processSampler.stop();
     processManifest.publish('stopping');
     try {

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { inspectExecArgv, logLevelEnvironment, resolveLogLevel } from '../debug-launch';
+import {
+    inheritedExecArgv,
+    inspectExecArgv,
+    logLevelEnvironment,
+    resolveLogLevel,
+} from '../debug-launch';
 
 describe('resolveLogLevel', () => {
     it('records debug unless a process is told otherwise', () => {
@@ -68,5 +73,20 @@ describe('inspectExecArgv', () => {
 
     it('never pauses a Host before it can answer its supervisor', () => {
         expect(inspectExecArgv('extension-host', {}).join(' ')).not.toContain('brk');
+    });
+});
+
+describe('inheritedExecArgv', () => {
+    it('drops only the parent inspector flags', () => {
+        expect(
+            inheritedExecArgv([
+                '--inspect=9229',
+                '--inspect',
+                '--inspect-brk=9300',
+                '--inspect-port=9400',
+                '--enable-source-maps',
+                '--max-old-space-size=4096',
+            ]),
+        ).toEqual(['--enable-source-maps', '--max-old-space-size=4096']);
     });
 });

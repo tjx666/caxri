@@ -353,7 +353,15 @@ export class ProjectStatusService {
 
     private async optionalGit(cwd: string, arguments_: readonly string[]): Promise<string> {
         try {
-            return (await this.runCommand('git', arguments_, cwd)).trim();
+            const run = () => this.runner('git', arguments_, cwd);
+            return (
+                await this.commandTelemetry.observe({
+                    command: 'git',
+                    arguments: arguments_,
+                    run,
+                    isOptional: true,
+                })
+            ).trim();
         } catch {
             return '';
         }

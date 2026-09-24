@@ -1,6 +1,7 @@
-import { chmod, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import process from 'node:process';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -102,6 +103,30 @@ describe('observation process manifests', () => {
         expect((await stat(path)).mode & 0o777).toBe(0o600);
         expect(await readFile(path, 'utf8')).not.toContain('/private/project');
         expect(publisher.failureCount()).toBe(0);
+    });
+
+    it('removes temporary manifests left by a dead writer of the same owner only', async () => {
+        const directory = observationProcessManifestDirectory(await temporaryDirectory());
+        await mkdir(directory, { recursive: true, mode: 0o700 });
+        const deadPid = 2_147_483_646;
+        const orphan = `.terminal-host.${deadPid}.orphan.tmp`;
+        const liveSibling = `.terminal-host.${process.ppid}.in-flight.tmp`;
+        const otherOwner = `.server-core.${deadPid}.orphan.tmp`;
+        await Promise.all(
+            [orphan, liveSibling, otherOwner].map((name) => writeFile(join(directory, name), '{}')),
+        );
+        const publisher = new ObservationProcessManifestPublisher({
+            directory,
+            owner: 'terminal-host',
+        });
+
+        publisher.publish('starting');
+        await publisher.flush();
+
+        const byName = (left: string, right: string) => left.localeCompare(right);
+        expect((await readdir(directory)).toSorted(byName)).toEqual(
+            [liveSibling, otherOwner, 'terminal-host.json'].toSorted(byName),
+        );
     });
 
     it('rejects unknown fields and content-shaped correlation', () => {

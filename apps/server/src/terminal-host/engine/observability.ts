@@ -227,7 +227,7 @@ export function createPtyThroughputTally(startedAt: number): PtyThroughputTally 
  * integration test now wait on `pty.first_input`, so the per-window record can be omitted without timing out the
  * release benchmark. See #590 and #605.
  */
-export const PTY_DROP_LOG_INTERVAL_MS = 60_000;
+const PTY_DROP_LOG_INTERVAL_MS = 60_000;
 
 export function recordPtyThroughputWindow(
     logger: StructuredLogger,

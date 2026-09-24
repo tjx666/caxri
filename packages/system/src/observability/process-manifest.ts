@@ -1,7 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
-import { chmod, lstat, mkdir, open, readFile, rename, rm } from 'node:fs/promises';
+import { chmod, lstat, mkdir, open, readdir, readFile, rename, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import process from 'node:process';
 
@@ -281,6 +281,38 @@ async function writePrivateManifest(
     }
 }
 
+function isProcessAlive(pid: number): boolean {
+    try {
+        process.kill(pid, 0);
+        return true;
+    } catch (error) {
+        // EPERM means the pid exists but belongs to someone else, so it is not ours to reclaim.
+        return fileSystemCode(error) === 'EPERM';
+    }
+}
+
+/**
+ * Removes this owner's temporary manifests whose writing process no longer exists. `writePrivateManifest` removes its
+ * own temporary file in `finally`, but a process killed between `open` and `rename` never reaches it; production held
+ * five such Terminal Host files. The writer's pid is part of the name, so a live sibling's in-flight write is never
+ * touched.
+ */
+async function removeOrphanedManifestTemporaries(directory: string, owner: string): Promise<void> {
+    let names: string[];
+    try {
+        names = await readdir(directory);
+    } catch {
+        return;
+    }
+    const prefix = `.${owner}.`;
+    const orphans = names.filter((name) => {
+        if (!name.startsWith(prefix) || !name.endsWith('.tmp')) return false;
+        const pid = Number(name.slice(prefix.length).split('.', 1)[0]);
+        return Number.isSafeInteger(pid) && pid > 0 && pid !== process.pid && !isProcessAlive(pid);
+    });
+    await Promise.allSettled(orphans.map((name) => rm(join(directory, name), { force: true })));
+}
+
 function fileSystemCode(error: unknown): string | undefined {
     return isRecord(error) && typeof error.code === 'string' ? error.code : undefined;
 }
@@ -354,6 +386,7 @@ export class ObservationProcessManifestPublisher {
     private readonly startedAt: number;
     private state?: ObservationProcessState;
     private writeFailures = 0;
+    private hasSweptOrphans = false;
 
     constructor(private readonly options: ObservationProcessManifestPublisherOptions) {
         this.pid = options.pid ?? process.pid;
@@ -377,6 +410,10 @@ export class ObservationProcessManifestPublisher {
     }
 
     private async drain(): Promise<void> {
+        if (!this.hasSweptOrphans) {
+            this.hasSweptOrphans = true;
+            await removeOrphanedManifestTemporaries(this.options.directory, this.options.owner);
+        }
         while (this.pending) {
             const next = this.pending;
             this.pending = undefined;
