@@ -45,14 +45,19 @@ const pairingLink = serializeMobilePairingLink({
 class FakeGatewaySocket extends EventTarget {
     #keys?: MobileSessionKeys;
     #shouldFailNextSealedSend = false;
+    readonly #shouldDropRequests: boolean;
     readonly #shouldRevokeAfterPair: boolean;
     #serverCounter = 0;
     #transcript?: HandshakeTranscript;
+    helloCount = 0;
+    isClosed = false;
 
-    constructor(shouldRevokeAfterPair = false) {
+    constructor(shouldRevokeAfterPair = false, openDelayMs = 0, shouldDropRequests = false) {
         super();
         this.#shouldRevokeAfterPair = shouldRevokeAfterPair;
-        queueMicrotask(() => this.dispatchEvent(new Event('open')));
+        this.#shouldDropRequests = shouldDropRequests;
+        if (openDelayMs === 0) queueMicrotask(() => this.dispatchEvent(new Event('open')));
+        else setTimeout(() => this.dispatchEvent(new Event('open')), openDelayMs);
     }
 
     #message(value: unknown): void {
@@ -86,6 +91,7 @@ class FakeGatewaySocket extends EventTarget {
     }
 
     close(): void {
+        this.isClosed = true;
         this.dispatchEvent(new Event('close'));
     }
 
@@ -97,6 +103,7 @@ class FakeGatewaySocket extends EventTarget {
         const raw = JSON.parse(source) as unknown;
         const hello = mobileClientHelloSchema.safeParse(raw);
         if (hello.success) {
+            this.helloCount += 1;
             if (hello.data.mode !== 'pair') throw new Error('Expected pair hello');
             const serverPublicKey = mobilePublicKey(serverSecret);
             this.#transcript = {
@@ -158,6 +165,7 @@ class FakeGatewaySocket extends EventTarget {
             this.#shouldFailNextSealedSend = false;
             throw new Error('Fixture send failed');
         }
+        if (this.#shouldDropRequests) return;
         const frame = mobileSealedFrameSchema.parse(raw);
         const plaintext = openMobileFrame(
             this.#keys.clientToServer,
@@ -188,6 +196,36 @@ class FakeGatewaySocket extends EventTarget {
             { type: 'revoked', deviceId, generation: 1 },
             isAuthenticated ? undefined : decodeHex('ff'.repeat(32)),
         );
+    }
+}
+
+class VersionMismatchSocket extends EventTarget {
+    constructor() {
+        super();
+        queueMicrotask(() => this.dispatchEvent(new Event('open')));
+    }
+
+    close(): void {
+        this.dispatchEvent(new Event('close'));
+    }
+
+    send(): void {
+        queueMicrotask(() =>
+            this.dispatchEvent(
+                new MessageEvent('message', {
+                    data: JSON.stringify({ type: 'version-mismatch', supportedVersion: 2 }),
+                }),
+            ),
+        );
+    }
+}
+
+class NeverOpenSocket extends EventTarget {
+    isClosed = false;
+
+    close(): void {
+        this.isClosed = true;
+        this.dispatchEvent(new Event('close'));
     }
 }
 
@@ -264,7 +302,265 @@ const memoryStore = () => {
     };
 };
 
+const observeSettlement = async (
+    operation: Promise<unknown>,
+    onSettled: () => void,
+): Promise<void> => {
+    try {
+        await operation;
+    } catch {
+        // Timeout and connection failure are both settled outcomes for deadline tests.
+    } finally {
+        onSettled();
+    }
+};
+
 describe('mobile gateway client', () => {
+    it('stops waiting for a socket to open after four seconds', async () => {
+        const socket = new NeverOpenSocket();
+        const runtime: MobileGatewayRuntime = {
+            openWebSocket: () => socket as unknown as WebSocket,
+            platform: 'android',
+            randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
+        };
+        const { store } = memoryStore();
+        vi.useFakeTimers();
+        try {
+            let isSettled = false;
+            const attempt = observeSettlement(
+                pairMobileGateway({
+                    displayName: 'Pixel fixture',
+                    pairingLink,
+                    runtime,
+                    store,
+                }),
+                () => {
+                    isSettled = true;
+                },
+            );
+            await vi.advanceTimersByTimeAsync(4_000);
+            expect(isSettled).toBe(true);
+            expect(socket.isClosed).toBe(true);
+            await attempt;
+        } finally {
+            socket.close();
+            await vi.advanceTimersByTimeAsync(10_000);
+            vi.useRealTimers();
+        }
+    });
+
+    it('races eligible sockets but sends the one-time pairing handshake only to the winner', async () => {
+        const sockets: FakeGatewaySocket[] = [];
+        const runtime: MobileGatewayRuntime = {
+            openWebSocket: (url) => {
+                const socket = new FakeGatewaySocket(false, url.includes('192.168.1.5') ? 20 : 0);
+                sockets.push(socket);
+                return socket as unknown as WebSocket;
+            },
+            platform: 'android',
+            randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
+        };
+        const { store } = memoryStore();
+        const link = serializeMobilePairingLink({
+            version: MOBILE_TRANSPORT_VERSION,
+            addresses: ['192.168.1.5', '192.168.1.6'],
+            port: 41_337,
+            serverId,
+            pairingId: '11'.repeat(16),
+            secret: pairingSecret,
+            expiresAt: Date.now() + 60_000,
+        });
+
+        const paired = await pairMobileGateway({
+            displayName: 'Pixel fixture',
+            pairingLink: link,
+            runtime,
+            store,
+        });
+
+        expect(sockets).toHaveLength(2);
+        expect(sockets[0]?.helloCount).toBe(0);
+        expect(sockets[0]?.isClosed).toBe(true);
+        expect(sockets[1]?.helloCount).toBe(1);
+        paired.connection.close();
+    });
+
+    it('classifies a version-mismatch response as terminal during reconnect', async () => {
+        const runtime: MobileGatewayRuntime = {
+            openWebSocket: () => new VersionMismatchSocket() as unknown as WebSocket,
+            platform: 'android',
+            randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
+        };
+        const { store } = memoryStore();
+        await store.save(mobileCredential);
+
+        await expect(reconnectMobileGateway(mobileCredential, runtime, store)).rejects.toEqual(
+            expect.objectContaining({ code: 'version-mismatch' }),
+        );
+        await expect(store.load()).resolves.toEqual(mobileCredential);
+    });
+
+    it('classifies a version-mismatch response as terminal during pairing', async () => {
+        const runtime: MobileGatewayRuntime = {
+            openWebSocket: () => new VersionMismatchSocket() as unknown as WebSocket,
+            platform: 'android',
+            randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
+        };
+        const { store } = memoryStore();
+
+        await expect(
+            pairMobileGateway({
+                displayName: 'Pixel fixture',
+                pairingLink,
+                runtime,
+                store,
+            }),
+        ).rejects.toEqual(expect.objectContaining({ code: 'version-mismatch' }));
+        await expect(store.load()).resolves.toBeNull();
+    });
+
+    it('reports an incompatible pairing link as an update requirement before opening a socket', async () => {
+        const openWebSocket = vi.fn();
+        const runtime: MobileGatewayRuntime = {
+            openWebSocket,
+            platform: 'android',
+            randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
+        };
+        const { store } = memoryStore();
+        const incompatibleLink = pairingLink.replace('v=1', 'v=2');
+
+        await expect(
+            pairMobileGateway({
+                displayName: 'Pixel fixture',
+                pairingLink: incompatibleLink,
+                runtime,
+                store,
+            }),
+        ).rejects.toEqual(expect.objectContaining({ code: 'version-mismatch' }));
+        expect(openWebSocket).not.toHaveBeenCalled();
+    });
+
+    it('disconnects a half-open socket when an ordinary request times out', async () => {
+        const runtime: MobileGatewayRuntime = {
+            openWebSocket: () => new FakeGatewaySocket(false, 0, true) as unknown as WebSocket,
+            platform: 'android',
+            randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
+        };
+        const { store } = memoryStore();
+        const paired = await pairMobileGateway({
+            displayName: 'Pixel fixture',
+            pairingLink,
+            runtime,
+            store,
+        });
+        const termination = new Promise((resolve) => paired.connection.onTermination(resolve));
+        vi.useFakeTimers();
+        try {
+            const request = paired.connection.request('project.query', { mode: 'list' });
+            const rejected = expect(request).rejects.toThrow('Caxri did not respond in time.');
+            await vi.advanceTimersByTimeAsync(15_000);
+            await rejected;
+            await expect(termination).resolves.toBe('disconnected');
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('times out an idempotent dashboard read after three seconds', async () => {
+        const runtime: MobileGatewayRuntime = {
+            openWebSocket: () => new FakeGatewaySocket(false, 0, true) as unknown as WebSocket,
+            platform: 'android',
+            randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
+        };
+        const { store } = memoryStore();
+        const paired = await pairMobileGateway({
+            displayName: 'Pixel fixture',
+            pairingLink,
+            runtime,
+            store,
+        });
+        vi.useFakeTimers();
+        try {
+            let isSettled = false;
+            const outcome = observeSettlement(paired.connection.request('mobile.dashboard'), () => {
+                isSettled = true;
+            });
+            expect(paired.connection.hasOutstandingMutation()).toBe(false);
+            await vi.advanceTimersByTimeAsync(3_000);
+            expect(isSettled).toBe(true);
+            await outcome;
+        } finally {
+            paired.connection.close();
+            vi.useRealTimers();
+        }
+    });
+
+    it('keeps the longer deadline for a write while a network is slow', async () => {
+        const runtime: MobileGatewayRuntime = {
+            openWebSocket: () => new FakeGatewaySocket(false, 0, true) as unknown as WebSocket,
+            platform: 'android',
+            randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
+        };
+        const { store } = memoryStore();
+        const paired = await pairMobileGateway({
+            displayName: 'Pixel fixture',
+            pairingLink,
+            runtime,
+            store,
+        });
+        vi.useFakeTimers();
+        try {
+            let isSettled = false;
+            const outcome = observeSettlement(
+                paired.connection.request('session.markRead', {
+                    sessionId: 'session-1',
+                    attentionEpoch: 1,
+                }),
+                () => {
+                    isSettled = true;
+                },
+            );
+            expect(paired.connection.hasOutstandingMutation()).toBe(true);
+            await vi.advanceTimersByTimeAsync(3_000);
+            expect(isSettled).toBe(false);
+            await vi.advanceTimersByTimeAsync(12_000);
+            expect(isSettled).toBe(true);
+            await outcome;
+            expect(paired.connection.hasOutstandingMutation()).toBe(false);
+        } finally {
+            paired.connection.close();
+            vi.useRealTimers();
+        }
+    });
+
+    it('bounds the foreground probe independently from the ordinary request timeout', async () => {
+        const runtime: MobileGatewayRuntime = {
+            openWebSocket: () => new FakeGatewaySocket(false, 0, true) as unknown as WebSocket,
+            platform: 'android',
+            randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
+        };
+        const { store } = memoryStore();
+        const paired = await pairMobileGateway({
+            displayName: 'Pixel fixture',
+            pairingLink,
+            runtime,
+            store,
+        });
+        const termination = new Promise((resolve) => paired.connection.onTermination(resolve));
+        vi.useFakeTimers();
+        try {
+            const probe = paired.connection.probe();
+            const rejected = expect(probe).rejects.toThrow(
+                'Caxri did not respond to the foreground probe.',
+            );
+            await vi.advanceTimersByTimeAsync(1_500);
+            await rejected;
+            await expect(termination).resolves.toBe('disconnected');
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
     it('pairs, persists only the durable credential, and sends a typed encrypted request', async () => {
         let randomByte = 128;
         const runtime: MobileGatewayRuntime = {

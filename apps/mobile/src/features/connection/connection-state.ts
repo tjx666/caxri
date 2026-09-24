@@ -3,7 +3,14 @@ export const MAXIMUM_RECONNECT_DELAY_MS = 30_000;
 
 export type ConnectionFreshness = 'fresh' | 'stale';
 export type MobileConnectionStatus =
-    'booting' | 'connected' | 'connecting' | 'revoked' | 'stale' | 'unpaired' | 'unverified';
+    | 'booting'
+    | 'connected'
+    | 'connecting'
+    | 'revoked'
+    | 'stale'
+    | 'unpaired'
+    | 'unverified'
+    | 'version-mismatch';
 
 export const connectionFreshness = (lastSeenAt: number, now: number): ConnectionFreshness =>
     now - lastSeenAt >= CONNECTION_STALE_AFTER_MS ? 'stale' : 'fresh';

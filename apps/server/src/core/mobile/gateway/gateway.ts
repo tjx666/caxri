@@ -3,8 +3,6 @@ import { randomBytes } from 'node:crypto';
 import type { Server } from 'node:http';
 import { createServer } from 'node:http';
 import type { Socket } from 'node:net';
-import type { NetworkInterfaceInfo, NetworkInterfaceInfoIPv4 } from 'node:os';
-import { networkInterfaces } from 'node:os';
 
 import type {
     HandshakeTranscript,
@@ -31,6 +29,7 @@ import {
     mobileRevokedSchema,
     mobileSealedFrameSchema,
     mobileServerHelloSchema,
+    mobileVersionMismatchSchema,
     openMobileFrame,
     PAIRING_SECRET_BYTES,
     serializeMobilePairingLink,
@@ -64,9 +63,12 @@ import type {
     MobileDeviceRegistry,
     MobileDeviceSummary,
 } from '../device-registry';
+import { selectMobileGatewayAddresses } from './address-selection';
 import { createServerSealedPayload, sendFinalSealedPayload } from './sealed-payload';
 import { MobileSocketQueueBudget } from './socket-queue-budget';
 import { SourceAttemptLimiter } from './source-attempt-limiter';
+
+export { selectMobileGatewayAddress } from './address-selection';
 
 const MOBILE_PATH = '/mobile';
 const HANDSHAKE_TIMEOUT_MS = 10_000;
@@ -131,52 +133,13 @@ export interface MobileGatewayOptions {
     random?: (bytes: number) => Uint8Array;
     registry: MobileDeviceRegistry;
     /**
+     * Peer address override for loopback tests.
+     */
+    sourceAddress?: (socket: Socket) => string | undefined;
+    /**
      * Test seam; production always selects one private IPv4 interface.
      */
     selectAddress?: () => string;
-}
-
-export function selectMobileGatewayAddress(
-    interfaces: NodeJS.Dict<NetworkInterfaceInfo[]> = networkInterfaces(),
-): string {
-    return selectMobileGatewayAddresses(interfaces)[0];
-}
-
-function selectMobileGatewayAddresses(
-    interfaces: NodeJS.Dict<NetworkInterfaceInfo[]> = networkInterfaces(),
-): string[] {
-    const candidates: Array<{ entry: NetworkInterfaceInfoIPv4; name: string }> = [];
-    for (const [name, entries] of Object.entries(interfaces)) {
-        const networkEntries = entries ?? [];
-        for (const entry of networkEntries)
-            if (
-                entry.family === 'IPv4' &&
-                !entry.internal &&
-                isPrivateMobileIpv4Address(entry.address)
-            )
-                candidates.push({ entry, name });
-    }
-    candidates.sort((left, right) => {
-        /**
-         * MacOS physical Wi-Fi and Ethernet interfaces use `enN`; VPNs and virtual machines commonly expose `utunN`,
-         * `bridgeN`, or `vmnetN`. Prefer an active physical interface before using address ordering so a phone does not
-         * receive an otherwise valid but unreachable VPN endpoint.
-         */
-        const physical = (name: string): number => (/^en\d+$/u.test(name) ? 0 : 1);
-        return (
-            physical(left.name) - physical(right.name) ||
-            left.name.localeCompare(right.name, 'en', { numeric: true }) ||
-            left.entry.address.localeCompare(right.entry.address, 'en', { numeric: true })
-        );
-    });
-    const addresses = candidates.map(({ entry }) => entry.address);
-    const address = addresses[0];
-    if (!address)
-        throw new CaxriError(
-            'UNAVAILABLE',
-            'No private IPv4 network is available for mobile access',
-        );
-    return addresses.slice(0, 8);
 }
 
 const isAllowedLanAddress = (address: string | undefined): boolean =>
@@ -300,6 +263,8 @@ export class MobileGateway {
         const addresses = this.#options.selectAddress
             ? [this.#options.selectAddress()]
             : selectMobileGatewayAddresses();
+        const sourceAddress =
+            this.#options.sourceAddress ?? ((socket: Socket) => socket.remoteAddress);
         const webSocketServer = new WebSocketServer({
             maxPayload: MOBILE_GATEWAY_MAX_WIRE_BYTES,
             noServer: true,
@@ -307,7 +272,7 @@ export class MobileGateway {
         });
         const server = createServer({ maxHeaderSize: 8 * 1_024 }, (request, response) => {
             if (
-                !isAllowedLanAddress(request.socket.remoteAddress) ||
+                !isAllowedLanAddress(sourceAddress(request.socket)) ||
                 !isAllowedLanAddress(request.socket.localAddress)
             ) {
                 request.socket.destroy();
@@ -320,11 +285,12 @@ export class MobileGateway {
         server.keepAliveTimeout = 1_000;
         server.maxConnections = MAXIMUM_CONNECTIONS;
         server.on('connection', (socket) => {
+            const remoteAddress = sourceAddress(socket);
             if (
-                !isAllowedLanAddress(socket.remoteAddress) ||
+                !isAllowedLanAddress(remoteAddress) ||
                 !isAllowedLanAddress(socket.localAddress) ||
                 this.#tcpSockets.size >= MAXIMUM_CONNECTIONS ||
-                !this.#admitSource(socket.remoteAddress ?? 'unknown')
+                !this.#admitSource(remoteAddress ?? 'unknown')
             ) {
                 socket.destroy();
                 return;
@@ -336,7 +302,7 @@ export class MobileGateway {
         server.on('upgrade', (request, socket, head) => {
             if (
                 request.url !== MOBILE_PATH ||
-                !isAllowedLanAddress(request.socket.remoteAddress) ||
+                !isAllowedLanAddress(sourceAddress(request.socket)) ||
                 !isAllowedLanAddress(request.socket.localAddress) ||
                 !isAllowedMobileOrigin(request.headers.origin, request.headers.host) ||
                 this.#sockets.size >= MAXIMUM_CONNECTIONS ||
@@ -508,6 +474,27 @@ export class MobileGateway {
                 if (!isAcceptingMessages) return;
                 const raw = JSON.parse(messageText(data)) as unknown;
                 if (!session) {
+                    if (
+                        typeof raw === 'object' &&
+                        raw !== null &&
+                        'type' in raw &&
+                        raw.type === 'hello' &&
+                        'version' in raw &&
+                        typeof raw.version === 'number' &&
+                        Number.isSafeInteger(raw.version) &&
+                        raw.version !== MOBILE_TRANSPORT_VERSION
+                    ) {
+                        const mismatch = mobileVersionMismatchSchema.parse({
+                            type: 'version-mismatch',
+                            supportedVersion: MOBILE_TRANSPORT_VERSION,
+                        });
+                        isAcceptingMessages = false;
+                        socket.send(JSON.stringify(mismatch), (error) => {
+                            if (error) terminate();
+                            else socket.close(1_000, 'Version mismatch');
+                        });
+                        return;
+                    }
                     session = this.#beginHandshake(mobileClientHelloSchema.parse(raw));
                     const confirmation = handshakeConfirmation(session.keys, 'server');
                     const challenge = mobileServerHelloSchema.parse({

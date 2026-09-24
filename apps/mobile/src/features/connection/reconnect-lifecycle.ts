@@ -27,6 +27,19 @@ export const reconnectWaitForAttempt = (
     delay: (attempt: number) => number,
 ) => (retryAttempt === 0 ? 0 : delay(retryAttempt - 1));
 
+export const foregroundRecoveryAction = ({
+    backgroundedAt,
+    hasConnection,
+    now,
+}: {
+    backgroundedAt: number | null;
+    hasConnection: boolean;
+    now: number;
+}): 'probe' | 'reconnect' =>
+    hasConnection && (backgroundedAt === null || now - backgroundedAt <= 10_000)
+        ? 'probe'
+        : 'reconnect';
+
 /**
  * Resolves one reconnect attempt without depending on React. A connection that arrives after effect cleanup is closed
  * immediately, preventing an obsolete screen lifecycle from leaking or adopting a live socket.

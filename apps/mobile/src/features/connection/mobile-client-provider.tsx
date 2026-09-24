@@ -8,9 +8,11 @@ import {
     useRef,
     useState,
 } from 'react';
+import { AppState } from 'react-native';
 
 import type { CaxriMethod, MethodResult, ParametersArgument } from '@caxri/protocol';
 import * as Device from 'expo-device';
+import * as Network from 'expo-network';
 
 import type { MobileConnectionStatus } from './connection-state';
 import type { MobileCredential } from './credential-store';
@@ -20,14 +22,21 @@ import type { MobileGatewayConnection } from './mobile-gateway-client';
 import {
     MobileGatewayRequestError,
     MobileReconnectError,
+    MobileVersionMismatchError,
     pairMobileGateway,
     reconnectMobileGateway,
 } from './mobile-gateway-client';
-import { observeMobileConnectionTermination } from './reconnect-lifecycle';
+import { watchMobileNetwork } from './network-recovery';
+import {
+    foregroundRecoveryAction,
+    observeMobileConnectionTermination,
+} from './reconnect-lifecycle';
 import { useMobileReconnect } from './use-mobile-reconnect';
 
 interface MobileClientContextValue {
     forgetDevice: () => Promise<void>;
+    hostId: string | null;
+    isForeground: boolean;
     lastSeenAt: number | null;
     pair: (pairingLink: string) => Promise<void>;
     paired: boolean;
@@ -45,16 +54,54 @@ export const MobileClientProvider = ({ children }: { children: ReactNode }) => {
     const [credential, setCredential] = useState<MobileCredential | null>(null);
     const [lastSeenAt, setLastSeenAt] = useState<number | null>(null);
     const [retryAttempt, setRetryAttempt] = useState(0);
+    const [retryToken, setRetryToken] = useState(0);
     const [status, setStatus] = useState<MobileConnectionStatus>('booting');
+    const [isForeground, setIsForeground] = useState(AppState.currentState === 'active');
     const connection = useRef<MobileGatewayConnection | null>(null);
+    const backgroundedAt = useRef<number | null>(null);
+    const appState = useRef(AppState.currentState);
+    const activeProbe = useRef<MobileGatewayConnection | null>(null);
+    const deferredNetworkWake = useRef(false);
     const removeTerminationListener = useRef<() => void>(() => {});
 
     const replaceConnection = useCallback((next: MobileGatewayConnection | null): void => {
         removeTerminationListener.current();
         removeTerminationListener.current = () => {};
-        if (connection.current !== next) connection.current?.close();
+        if (connection.current !== next) {
+            connection.current?.close();
+            activeProbe.current = null;
+            deferredNetworkWake.current = false;
+        }
         connection.current = next;
     }, []);
+
+    const probeCurrentConnection = useCallback(
+        (current: MobileGatewayConnection): void => {
+            if (activeProbe.current === current) return;
+            if (current.hasOutstandingMutation()) {
+                deferredNetworkWake.current = true;
+                return;
+            }
+            activeProbe.current = current;
+            // eslint-disable-next-line no-void -- A single bounded probe belongs to the current connection.
+            void current
+                .probe()
+                .then(() => {
+                    if (connection.current === current) setLastSeenAt(Date.now());
+                })
+                .catch(() => {
+                    if (connection.current !== current) return;
+                    replaceConnection(null);
+                    setLastSeenAt(null);
+                    setRetryAttempt(0);
+                    setStatus('stale');
+                })
+                .finally(() => {
+                    if (activeProbe.current === current) activeProbe.current = null;
+                });
+        },
+        [replaceConnection],
+    );
 
     const adoptConnection = useCallback(
         (next: MobileGatewayConnection): boolean => {
@@ -114,6 +161,11 @@ export const MobileClientProvider = ({ children }: { children: ReactNode }) => {
         [adoptConnection],
     );
     const rejectReconnection = useCallback((error: unknown): void => {
+        if (error instanceof MobileVersionMismatchError) {
+            setRetryAttempt(0);
+            setStatus('version-mismatch');
+            return;
+        }
         if (error instanceof MobileReconnectError) {
             setRetryAttempt(0);
             setStatus('unverified');
@@ -125,11 +177,79 @@ export const MobileClientProvider = ({ children }: { children: ReactNode }) => {
     useMobileReconnect({
         connect: reconnect,
         credential,
+        isForeground,
         onConnected: acceptReconnection,
         onFailed: rejectReconnection,
+        retryToken,
         retryAttempt,
         status,
     });
+
+    useEffect(() => {
+        const listener = AppState.addEventListener('change', (nextState) => {
+            const wasForeground = appState.current === 'active';
+            appState.current = nextState;
+            if (nextState !== 'active') {
+                if (wasForeground) backgroundedAt.current = Date.now();
+                setIsForeground(false);
+                return;
+            }
+            if (wasForeground) return;
+            setIsForeground(true);
+            if (!credential || status === 'version-mismatch' || status === 'unverified') return;
+            const current = connection.current;
+            if (current?.hasOutstandingMutation()) {
+                deferredNetworkWake.current = true;
+                return;
+            }
+            const action = foregroundRecoveryAction({
+                backgroundedAt: backgroundedAt.current,
+                hasConnection: current !== null,
+                now: Date.now(),
+            });
+            backgroundedAt.current = null;
+            if (action === 'reconnect') {
+                replaceConnection(null);
+                setLastSeenAt(null);
+                setRetryAttempt(0);
+                setRetryToken((token) => token + 1);
+                setStatus('stale');
+                return;
+            }
+            if (current) probeCurrentConnection(current);
+        });
+        return () => listener.remove();
+    }, [credential, probeCurrentConnection, replaceConnection, status]);
+
+    useEffect(
+        () =>
+            watchMobileNetwork({
+                subscribe: (listener) => Network.addNetworkStateListener(listener),
+                context: () => ({
+                    hasOutstandingMutation: connection.current?.hasOutstandingMutation() ?? false,
+                    isForeground,
+                    status,
+                }),
+                onAction: (action) => {
+                    if (action === 'defer') {
+                        deferredNetworkWake.current = true;
+                        return;
+                    }
+                    if (action === 'reconnect') {
+                        if (!credential) return;
+                        replaceConnection(null);
+                        setLastSeenAt(null);
+                        setRetryAttempt(0);
+                        setRetryToken((token) => token + 1);
+                        setStatus('stale');
+                        return;
+                    }
+                    const current = connection.current;
+                    if (current) probeCurrentConnection(current);
+                },
+            }),
+        [credential, isForeground, probeCurrentConnection, replaceConnection, status],
+    );
 
     const pair = useCallback(
         async (pairingLink: string): Promise<void> => {
@@ -148,7 +268,13 @@ export const MobileClientProvider = ({ children }: { children: ReactNode }) => {
                 setRetryAttempt(0);
                 setStatus('connected');
             } catch (error) {
-                setStatus(credential ? 'stale' : 'unpaired');
+                setStatus(
+                    error instanceof MobileVersionMismatchError
+                        ? 'version-mismatch'
+                        : credential
+                          ? 'stale'
+                          : 'unpaired',
+                );
                 throw error;
             }
         },
@@ -165,10 +291,10 @@ export const MobileClientProvider = ({ children }: { children: ReactNode }) => {
     }, [replaceConnection]);
 
     const retryConnection = useCallback((): void => {
-        if (!credential) return;
+        if (!credential || status === 'version-mismatch') return;
         setRetryAttempt(0);
         setStatus('stale');
-    }, [credential]);
+    }, [credential, status]);
 
     const request = useCallback(
         async <M extends CaxriMethod>(
@@ -190,14 +316,26 @@ export const MobileClientProvider = ({ children }: { children: ReactNode }) => {
                     setStatus('stale');
                 }
                 throw error;
+            } finally {
+                if (
+                    isForeground &&
+                    deferredNetworkWake.current &&
+                    connection.current === current &&
+                    !current.hasOutstandingMutation()
+                ) {
+                    deferredNetworkWake.current = false;
+                    probeCurrentConnection(current);
+                }
             }
         },
-        [replaceConnection],
+        [isForeground, probeCurrentConnection, replaceConnection],
     );
 
     const value = useMemo<MobileClientContextValue>(
         () => ({
             forgetDevice,
+            hostId: credential?.serverId ?? null,
+            isForeground,
             lastSeenAt,
             pair,
             paired: credential !== null,
@@ -205,7 +343,16 @@ export const MobileClientProvider = ({ children }: { children: ReactNode }) => {
             retryConnection,
             status,
         }),
-        [credential, forgetDevice, lastSeenAt, pair, request, retryConnection, status],
+        [
+            credential,
+            forgetDevice,
+            isForeground,
+            lastSeenAt,
+            pair,
+            request,
+            retryConnection,
+            status,
+        ],
     );
 
     return <MobileClientContext.Provider value={value}>{children}</MobileClientContext.Provider>;
