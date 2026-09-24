@@ -17,10 +17,10 @@ import type { ExternalStatusRunner, ExternalStatusSource } from './external-stat
 import {
     AcceptanceStore,
     ExternalStatusCliError,
+    ExternalStatusCommandTelemetry,
     GitHubPullRequestStore,
     isNoPullRequest,
     LinearIssueStore,
-    observeExternalStatusCommand,
     pullRequestUnavailable as describePullRequestUnavailable,
     runExternalStatusCommand,
 } from './external-status';
@@ -128,6 +128,7 @@ export class ProjectStatusService {
     private pollTimer?: NodeJS.Timeout;
     private isPollScheduled = false;
     private readonly watch?: DeliveryWatch;
+    private readonly commandTelemetry: ExternalStatusCommandTelemetry;
 
     constructor(
         private readonly git: Pick<GitService, 'summary'>,
@@ -136,6 +137,8 @@ export class ProjectStatusService {
         private readonly options: ProjectStatusServiceOptions = {},
     ) {
         this.alerts = new ProjectStatusAlertTracker({ now: () => this.now() });
+        const { cli } = logEventCatalog.projectStatus;
+        this.commandTelemetry = new ExternalStatusCommandTelemetry(logger, cli, () => this.now());
         const { listWatchedSessions } = options;
         if (listWatchedSessions) {
             this.watch = new DeliveryWatch({
@@ -185,9 +188,7 @@ export class ProjectStatusService {
         cwd: string,
         subject?: string,
     ): Promise<string> {
-        return observeExternalStatusCommand({
-            logger: this.logger,
-            event: logEventCatalog.projectStatus.cli,
+        return this.commandTelemetry.observe({
             command,
             arguments: arguments_,
             subject,
@@ -196,18 +197,7 @@ export class ProjectStatusService {
     }
 
     private logExternalParseFailure(command: ExternalStatusSource, error: unknown): void {
-        if (!(error instanceof CaxriError) || error.code !== 'VALIDATION') return;
-        // The successful command log has no parse outcome; record a safe reason without CLI output.
-        this.logger.write('warn', logEventCatalog.projectStatus.cli, {
-            fields: {
-                command,
-                operation: 'response.parse',
-                result: 'failure',
-                failureKind: 'other',
-                failureReason: 'invalid-response',
-                exitCode: null,
-            },
-        });
+        this.commandTelemetry.recordParseFailure(command, error);
     }
 
     /**
@@ -762,6 +752,7 @@ export class ProjectStatusService {
 
     dispose(): void {
         this.watch?.dispose();
+        this.commandTelemetry.flush();
         this.polledSessionId = undefined;
         if (!this.pollTimer) return;
         this.clearTimer(this.pollTimer);

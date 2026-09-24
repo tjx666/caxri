@@ -14,7 +14,14 @@ Failure paths keep their full `info`/`warn` records and timings.
 Expected Extension Host request cancellation and generation turnover are counted by the fixed
 `extension_host.request` metric outcomes without writing `extension_host.error`; provider failures and uncorroborated
 extension-thrown codes remain durable warnings. Normal PTY throughput uses the fixed `pty.throughput` aggregate and a
-single lifetime summary. Only dropped-byte windows retain a per-window `pty.throughput` warning.
+single lifetime summary. Dropped bytes keep a `pty.throughput` warning: the first drop in a lifetime is written at once,
+later drops fold into at most one warning per minute carrying `droppedBytes` and `droppedWindows` since the previous
+one, and the lifetime summary totals both.
+
+External status commands (`gh`, `vc`, `linear`) write no per-call record on success. Each failure keeps its own
+`project_status.cli` or `session_pull_requests.cli` record with a closed `failureReason`, and one
+`<event>_summary` record per command operation per minute carries call, success, and failure counts, the
+failure-reason distribution, and total and maximum durations.
 
 Successful `logs.query` reads are not written to either Server Core request-log boundary. A cursor-following reader
 consumes those same files, so recording its own success would continuously advance the cursor and turn the configured

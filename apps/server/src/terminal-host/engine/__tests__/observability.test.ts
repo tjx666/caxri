@@ -113,7 +113,13 @@ describe('PTY observability', () => {
         recordPtyThroughputSummary(logger, 'terminal-1', tally, 'exited', 9_000);
 
         expect(write).toHaveBeenNthCalledWith(1, 'warn', 'pty.throughput', {
-            fields: { terminalId: 'terminal-1', inputBytes: 0, outputBytes: 300, droppedBytes: 5 },
+            fields: {
+                terminalId: 'terminal-1',
+                inputBytes: 0,
+                outputBytes: 300,
+                droppedBytes: 5,
+                droppedWindows: 1,
+            },
         });
         expect(write).toHaveBeenNthCalledWith(2, 'info', 'pty.throughput_summary', {
             durationMs: 8_000,
@@ -123,6 +129,7 @@ describe('PTY observability', () => {
                 inputBytes: 0,
                 outputBytes: 300,
                 droppedBytes: 5,
+                droppedWindows: 1,
                 peakWindowBytes: 300,
                 windows: 1,
             },
@@ -132,6 +139,38 @@ describe('PTY observability', () => {
             owner: 'terminal-host',
             phase: 'transfer',
             outcome: 'overflow',
+        });
+    });
+
+    it('folds repeated drops into one warn record per interval', () => {
+        const recordMetric = vi.fn<StructuredLogger['recordMetric']>();
+        const write = vi.fn<StructuredLogger['write']>();
+        const logger = { recordMetric, write } as unknown as StructuredLogger;
+        const tally = createPtyThroughputTally(0);
+        const drop = (droppedBytes: number, now: number) =>
+            recordPtyThroughputWindow(
+                logger,
+                'terminal-1',
+                tally,
+                { droppedBytes, inputBytes: 0, outputBytes: 10 },
+                now,
+            );
+
+        drop(4, 1_000);
+        for (let second = 2; second < 61; second += 1) drop(1, second * 1_000);
+        drop(3, 61_000);
+        recordPtyThroughputSummary(logger, 'terminal-1', tally, 'exited', 62_000);
+
+        const drops = write.mock.calls.filter((call) => call[1] === 'pty.throughput');
+        expect(
+            drops.map((call) => [call[2]?.fields?.droppedBytes, call[2]?.fields?.droppedWindows]),
+        ).toEqual([
+            [4, 1],
+            [62, 60],
+        ]);
+        expect(write.mock.lastCall?.[2]?.fields).toMatchObject({
+            droppedBytes: 66,
+            droppedWindows: 61,
         });
     });
 
