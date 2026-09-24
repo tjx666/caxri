@@ -73,41 +73,58 @@ function androidBounds(source: string): {
     top: number;
     right: number;
     bottom: number;
-} {
+} | null {
     const match = /^\[(\d+),(\d+)\]\[(\d+),(\d+)\]$/u.exec(source);
-    if (!match) throw new Error('Android Terminal key bar bounds are unavailable');
+    if (!match) return null;
     const [, left, top, right, bottom] = match.map(Number);
-    if (right <= left || bottom <= top)
-        throw new Error('Android Terminal key bar bounds are invalid');
+    if (right <= left || bottom <= top) return null;
     return { left, top, right, bottom };
 }
 
 async function tapTerminalKey(serial: string, key: 'down' | 'enter'): Promise<void> {
     const checkId = `terminal-key-${key}`;
-    for (let attempt = 0; attempt < 3; attempt += 1) {
+    const display = await mobileDisplayState(serial);
+    const frame = display.size.override ?? display.size.physical;
+    const isOnFrame = (bounds: NonNullable<ReturnType<typeof androidBounds>>): boolean =>
+        bounds.left >= 0 &&
+        bounds.top >= 0 &&
+        bounds.right <= frame.width &&
+        bounds.bottom <= frame.height;
+    for (let attempt = 0; attempt < 4; attempt += 1) {
         // eslint-disable-next-line no-await-in-loop -- every swipe needs a fresh sanitized device view.
         const nodes = await mobileSemantics(serial);
-        const bar = nodes.find((node) => node.checkId === 'terminal-key-bar');
-        if (!bar) throw new Error('Android Terminal key bar is unavailable');
-        const barBounds = androidBounds(bar.bounds);
         const target = nodes.find((node) => node.checkId === checkId);
         if (target?.clickable && target.enabled) {
             const targetBounds = androidBounds(target.bounds);
-            const centerX = (targetBounds.left + targetBounds.right) / 2;
-            if (centerX > barBounds.left && centerX < barBounds.right) {
+            if (targetBounds && isOnFrame(targetBounds)) {
                 // eslint-disable-next-line no-await-in-loop -- this is the only reachable key after inspection.
                 await tapMobileCheck(serial, checkId);
                 return;
             }
         }
-        const y = Math.floor((barBounds.top + barBounds.bottom) / 2);
+        const visibleKeys = nodes
+            .filter(({ checkId: id }) =>
+                /^terminal-key-(?:escape|tab|ctrl|up|down|left|right|[123]|enter|paste)$/u.test(id),
+            )
+            .map((node) => androidBounds(node.bounds))
+            .filter((bounds): bounds is NonNullable<typeof bounds> =>
+                Boolean(bounds && isOnFrame(bounds)),
+            )
+            .toSorted((left, right) => left.left - right.left);
+        const first = visibleKeys.at(0);
+        if (!first) throw new Error('Android Terminal has no visible key to locate its row');
+        const last = visibleKeys.at(-1) ?? first;
+        const y = Math.floor((first.top + first.bottom) / 2);
+        const startX = Math.min(frame.width - 20, Math.max(last.right - 8, first.right + 80));
+        const endX = Math.max(20, first.left + 8);
+        if (startX <= endX) throw new Error('Android Terminal key row cannot be scrolled');
         // eslint-disable-next-line no-await-in-loop -- the next semantic inspection must observe this gesture.
         await adbShell(serial, [
             'input',
             'swipe',
-            String(barBounds.right - 20),
+            String(startX),
             String(y),
-            String(barBounds.left + 20),
+            String(endX),
             String(y),
             '300',
         ]);
