@@ -47,3 +47,12 @@ Research date: 2026-09-24. Local source reference: `3938a27c` (2026-09-21); inst
   for TUI mouse input; wheel events are unaffected. `macOptionClickForcesSelection` instead keeps
   TUI mouse input as the default and requires Option-drag for terminal selection. These are host
   interaction choices, not transcript parsing fixes.
+
+## Mobile remote control
+
+_Researched 2026-09-24 from OpenAI help and developer docs plus public issues._
+
+- The ChatGPT iOS/Android app's Remote tab controls Codex on a paired Mac or PC (QR pairing from the desktop app) or a headless `codex remote-control start` host, through OpenAI's relay. It requires an account; execution stays on the host.
+- The relay carries JSON-RPC over TLS to OpenAI without end-to-end encryption, unlike Codex's Noise-based `exec-server` channel; a public issue asks for parity. Another asks for re-authentication before destructive actions from a phone.
+- Mobile UX: unified Session list across hosts, live transcript with diffs and approvals, one-screen new Session (host, workspace, branch, optional worktree), explicit Queue vs Steer for follow-ups sent mid-turn, `/side` tangent threads, and a model/effort picker. The Terminal is a read-only stream.
+- Public sentiment (X, Aug–Sept 2026): praised as the most complete remote experience — especially starting work from the phone and voice — and heavily criticized for disconnects, reconnect loops, and desync, with Android behind iOS.
