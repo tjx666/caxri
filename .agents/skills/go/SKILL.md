@@ -136,8 +136,9 @@ Do not capture final Acceptance evidence yet; later cross-issue repairs can make
 After all issue commits:
 
 1. Complete every code-changing gate selected by the dirty layers, then record its exact-head
-   receipt. Before the first ready PR push, run the platform-neutral command list exported by
-   `scripts/ci-fallback.ts`.
+   receipt. Before the first ready PR push, record the platform-neutral commands exported by
+   `.agents/skills/go/scripts/ci-fallback.ts` locally, or use a successful exact-head full CI run
+   that actually executed them. Pull-request synthetic-merge checks do not count as exact-head receipts.
 2. Freeze the review policy. The default is `full-once`: Call the Skill tool with "deep-review" in
    full deep mode exactly once over the whole Goal range.
 3. A review round is adjudicated as one complete set. Repair valid P0/P1 roots in one cohesive
