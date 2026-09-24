@@ -137,8 +137,9 @@ state access.
 - `agent control` interrupts or stops one exact active Endpoint generation.
 - `terminal send` is human-owned simulated input, not a Peer Message.
 
-An Agent needs a bounded `agent:control` grant for dispatch or control. Terminal steer requires
-`terminals.steer` and human owner authority; an Agent Endpoint must not attempt it. Never infer
+An Agent needs a bounded `agent:control` grant for dispatch or control. CLI Terminal steer requires
+`terminals.steer` and human owner authority; a paired device has a separate, narrower short-reply
+path for the selected waiting Agent. An Agent Endpoint must not attempt either path. Never infer
 lifecycle completion from Terminal silence or read output to guess Agent state.
 
 ## Inspect the matching skill offline

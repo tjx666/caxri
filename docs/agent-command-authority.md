@@ -3,12 +3,12 @@
 Caxri exposes separate local command domains. Sharing a PTY implementation does
 not make their authority, origin, retry, or audit semantics interchangeable.
 
-| Domain                 | CLI                                                                           | Required authority                                                                             | Content boundary                                                                                                      |
-| ---------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Peer Message           | `agent message send\|wait\|reply`                                             | Managed Agent Endpoint with `agents.message`                                                   | Bounded peer-origin text stays in Server Core memory and never becomes PTY input.                                     |
-| Visible Delegation     | `agent delegate create\|status\|wait\|result\|stop`                           | Explicit generation-scoped `agent:delegate` grant, or authenticated owner                      | Private task/result storage, exact turn evidence, and a same-Session visible child Terminal.                          |
-| Agent Dispatch/Control | `agent dispatch start\|resume\|status\|wait`, `agent control interrupt\|stop` | Same-Project reads use `agents.read`; mutations require a project-scoped `agent:control` grant | Server Core owns durable receipts, exact provider bindings, and Endpoint generations; Terminal Host owns PTY signals. |
-| Human Terminal Steer   | `terminal send --terminal <id> --text <text> [--enter]`                       | Authenticated Desktop or human CLI owner with `terminals.steer`                                | Bounded simulated user input; never a Peer Message and never available to an Agent credential.                        |
+| Domain                 | CLI                                                                           | Required authority                                                                                               | Content boundary                                                                                                      |
+| ---------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Peer Message           | `agent message send\|wait\|reply`                                             | Managed Agent Endpoint with `agents.message`                                                                     | Bounded peer-origin text stays in Server Core memory and never becomes PTY input.                                     |
+| Visible Delegation     | `agent delegate create\|status\|wait\|result\|stop`                           | Explicit generation-scoped `agent:delegate` grant, or authenticated owner                                        | Private task/result storage, exact turn evidence, and a same-Session visible child Terminal.                          |
+| Agent Dispatch/Control | `agent dispatch start\|resume\|status\|wait`, `agent control interrupt\|stop` | Same-Project reads use `agents.read`; mutations require a project-scoped `agent:control` grant                   | Server Core owns durable receipts, exact provider bindings, and Endpoint generations; Terminal Host owns PTY signals. |
+| Human Terminal Steer   | `terminal send --terminal <id> --text <text> [--enter]`                       | Authenticated Desktop or human CLI owner with `terminals.steer`; paired devices have a separate short-reply path | Bounded simulated user input; never a Peer Message and never available to an Agent credential.                        |
 
 ## Dispatch lifecycle
 
@@ -56,6 +56,8 @@ twice; a failed dispatch never queues the message.
 
 `terminal send` accepts at most 8 KiB of UTF-8 text. It rejects C0 and C1 control characters except
 Tab; Enter is represented only by `--enter`. Human CLI mutations require an explicit profile selector
-and confirmation (`--yes` for non-interactive use). Server Core logs record only the Terminal ID, byte count,
-and Enter flag. Text, Peer Message bodies, Terminal output, provider arguments, credentials, and
+and confirmation (`--yes` for non-interactive use). A paired device may send only a bounded plain-text
+reply to the selected waiting Agent after its pairing generation, Project scope, and attention epoch are
+rechecked. Server Core logs record only the Terminal ID, byte count, Enter flag, and principal kind.
+Text, Peer Message bodies, Terminal output, provider arguments, credentials, and
 provider session IDs are excluded from logs and dispatch receipts.
