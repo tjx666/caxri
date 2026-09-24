@@ -38,6 +38,9 @@ agent-browser --session "$SESSION" --no-pin-tab --cdp "$PORT" snapshot -i
 
 References become stale after navigation, renderer reload, or meaningful DOM
 replacement. Snapshot again before the next interaction.
+`snapshot -i` lists interactive controls and can omit the static explanation of
+an error or empty state. Read the full snapshot or inspect a screenshot before
+concluding that the product did not explain the state.
 
 Use semantic locators when they describe the user path more clearly:
 
