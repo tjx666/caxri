@@ -5,33 +5,9 @@ import type { ServerDomainService } from '../../core/domain-service';
 import type { ExtensionWorkspaceOperation } from '../../extension-host/protocol';
 import type { ServerDesktopRouter } from '../desktop-router';
 
-interface ExtensionBootstrapContext {
-    selectedSessionId?: string;
-    sessions: Array<{
-        id: string;
-        projectId: string;
-        workbenchProjectId: string;
-    }>;
-}
-
 interface ExtensionWorkspaceBridgeOptions {
     desktopRouter(): ServerDesktopRouter | undefined;
     domainService: Pick<ServerDomainService, 'requestInWorkbenchContext'>;
-}
-
-export function extensionActiveContext(bootstrap: ExtensionBootstrapContext): {
-    ownerProjectId?: string;
-    sessionId?: string;
-    workbenchProjectId?: string;
-} {
-    const session = bootstrap.sessions.find(({ id }) => id === bootstrap.selectedSessionId);
-    return session
-        ? {
-              ownerProjectId: session.projectId,
-              sessionId: session.id,
-              workbenchProjectId: session.workbenchProjectId,
-          }
-        : {};
 }
 
 /**

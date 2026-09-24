@@ -11,6 +11,7 @@ import type {
 import { agentProviderCatalog, CaxriError } from '@caxri/protocol';
 import { logEventCatalog } from '@caxri/system';
 
+import { readActiveContext } from './active-context';
 import { createAgentCommandRuntime } from './agent-command-runtime';
 import type { AgentDelegationService } from './agent-delegation';
 import type { AgentDispatchService } from './agent-dispatch';
@@ -452,6 +453,7 @@ export async function createDomainServices(
         'agent.message.approve': () => mainOwned('agent.message.approve'),
         'agent.message.deny': () => mainOwned('agent.message.deny'),
         'app.bootstrap': () => bootstrapState(),
+        'app.activeContext': () => readActiveContext(database),
         'events.recover': () => mainOwned('events.recover'),
         'events.query': () => mainOwned('events.query'),
         'app.records': ({ sessionIds, terminalIds }) => recordState(sessionIds, terminalIds),
