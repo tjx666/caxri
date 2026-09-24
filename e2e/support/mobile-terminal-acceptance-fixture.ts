@@ -23,6 +23,25 @@ interface MenuState {
     submissions: number;
 }
 
+async function readMenuState(statePath: string): Promise<MenuState> {
+    return JSON.parse(await readFile(statePath, 'utf8')) as MenuState;
+}
+
+async function readMenuStateIfReady(statePath: string): Promise<MenuState | null> {
+    try {
+        return await readMenuState(statePath);
+    } catch (error) {
+        if (
+            error !== null &&
+            typeof error === 'object' &&
+            'code' in error &&
+            error.code === 'ENOENT'
+        )
+            return null;
+        throw error;
+    }
+}
+
 export interface MobileTerminalAcceptanceFixture {
     menuState(): Promise<MenuState>;
     pair(): Promise<void>;
@@ -174,12 +193,12 @@ export async function createMobileTerminalAcceptanceFixture(
         }
 
         await waitForMobile(
-            async () => JSON.parse(await readFile(statePath, 'utf8')) as MenuState,
-            ({ selected, submissions }) => selected === 1 && submissions === 0,
+            () => readMenuStateIfReady(statePath),
+            (state) => state?.selected === 1 && state.submissions === 0,
         );
 
         return {
-            menuState: async () => JSON.parse(await readFile(statePath, 'utf8')) as MenuState,
+            menuState: () => readMenuState(statePath),
             pair: async () => {
                 await pageRequest(running.page, 'mobile.access.enable');
                 const dashboard = await pageRequest<{
