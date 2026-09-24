@@ -41,8 +41,7 @@ import { TerminalInputQueue } from './input-queue';
 import { buildShutdownCaptures } from './shutdown-captures';
 
 /**
- * Process-backed execution port. Renderer-owned input and resize preserve synchronous hot-path acceptance from cached
- * identities. Exact managed-Agent input waits for Host authorization before the caller may acknowledge it.
+ * Process-backed port: Renderer input and resize accept from cached identities; managed Agent input awaits Host.
  */
 export class RemoteTerminalExecution extends EventTarget implements TerminalExecutionPort {
     private readonly generations = new Map<string, number>();
@@ -65,9 +64,8 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         if (!identity) return;
         switch (event.event) {
             case 'terminal.output': {
-                // Gated on the view the Renderer asked for, not on `identity.attachmentId`: the two deliberately
-                // disagree for the length of a re-attachment, and a byte forwarded inside that window is a byte the
-                // snapshot is about to replay. See `attach` and `references/persistence.md`.
+                // Gate on the requested view, not identity.attachmentId: the reattachment snapshot replays those bytes.
+                // See `attach` and `references/persistence.md`.
                 const attached = this.views.get(identity.record.id)?.attachmentId;
                 if (!attached || event.identity.attachmentId !== attached) return;
                 this.emitExecution({
@@ -401,7 +399,8 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
                 terminalScope(identity, 'terminal.lifecycle'),
             )) as { processId: number };
             identity.processId = result.processId;
-            this.generations.set(input.record.id, identity.generation);
+            if (this.identities.get(input.record.id) === identity)
+                this.generations.set(input.record.id, identity.generation);
             return result.processId;
         } catch (error) {
             if (identity.agent?.launchId === input.agent?.launchId) identity.agent = previousAgent;
@@ -678,11 +677,12 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         return result.snapshot;
     }
 
-    close(terminalId: string): void {
+    close(terminalId: string, permanence: 'permanent' | 'reusable' = 'permanent'): void {
         const identity = this.identities.get(terminalId);
         const completions = hotPathCompletions(this.inputQueues, this.resizeQueues, [terminalId]);
         this.identities.delete(terminalId);
         this.views.delete(terminalId);
+        if (permanence === 'permanent') this.generations.delete(terminalId);
         if (!identity) return;
         this.background(
             (async () => {
@@ -698,7 +698,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
     }
 
     discard(terminalId: string): void {
-        this.close(terminalId);
+        this.close(terminalId, 'reusable');
     }
 
     markCoreStopping(): void {
@@ -770,6 +770,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         const { failures, snapshots } = await this.supervisor.shutdown(liveIds.length);
         this.retireAllInputQueues('Terminal shut down before input completed');
         this.identities.clear();
+        this.generations.clear();
         this.resizeQueues.clear();
         this.views.clear();
         return buildShutdownCaptures(liveIds, snapshots, failures);
