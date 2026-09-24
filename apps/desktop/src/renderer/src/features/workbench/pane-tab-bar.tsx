@@ -363,24 +363,35 @@ function ScrollFade({ edge, fill }: { edge: 'end' | 'start'; fill: ScrollFadeFil
 }
 
 /**
- * The strip at the trailing end of the bar. It exists only for what it actually holds: the editor actions when the
- * active tab is an editable document, and "New Terminal" once there is more than one tab — below that the empty pane
- * offers its own button, so an always-present strip would only reserve dead space beside the last tab.
+ * The strip at the trailing end of the bar. A pane with tabs reserves a stable New Terminal slot; with only one
+ * Workbench tab, the button appears on hover or keyboard focus instead of adding resting chrome beside that tab. An
+ * empty pane has its own full-width New Terminal action and needs no tab-bar slot.
  */
 function PaneTabActions({
     editorPath,
+    hasPaneTabs,
     hasTabsToSwitch,
     paneId,
 }: {
     editorPath: string | undefined;
+    hasPaneTabs: boolean;
     hasTabsToSwitch: boolean;
     paneId: string;
 }) {
-    if (!editorPath && !hasTabsToSwitch) return null;
+    if (!editorPath && !hasPaneTabs) return null;
     return (
         <div className="tab-actions flex h-11 flex-none items-center px-1 [-webkit-app-region:no-drag]">
             {editorPath && <EditorTabActions paneId={paneId} path={editorPath} />}
-            {hasTabsToSwitch && <NewTerminalButton paneId={paneId} />}
+            {hasPaneTabs && (
+                <div
+                    className={cn(
+                        !hasTabsToSwitch &&
+                            'opacity-0 group-hover/work-tabs:opacity-100 focus-within:opacity-100 has-[[data-popup-open]]:opacity-100',
+                    )}
+                >
+                    <NewTerminalButton paneId={paneId} />
+                </div>
+            )}
         </div>
     );
 }
@@ -691,11 +702,9 @@ export function PaneTabBar({
     spansWindowWidth,
 }: {
     /**
-     * Whether the Workbench holds more than one tab. Every affordance a tab bar adds on top of the tabs themselves —
-     * the active accent, the "New Terminal" button, and each tab's close button — is noise below that: with one tab
-     * there is nothing to switch between, nothing to mark, and closing it only swaps the tab for the empty pane's own
-     * "New Terminal" button. iTerm2 likewise shows no tab chrome until a second tab exists, and `cmd+t` / `cmd+w` plus
-     * the application and context menus keep both commands reachable meanwhile.
+     * Whether the Workbench holds more than one tab. The active accent and close buttons have no choice to express
+     * below that; the New Terminal action remains reachable on hover or keyboard focus so a second Agent can start in
+     * the same Session without a shortcut.
      */
     hasTabsToSwitch: boolean;
     isOnlySessionTerminal: boolean;
@@ -736,7 +745,7 @@ export function PaneTabBar({
     return (
         <div
             className={cn(
-                'work-tabs flex h-11 flex-none bg-surface',
+                'work-tabs group/work-tabs flex h-11 flex-none bg-surface',
                 // Only the Workbench-level bar carries the frameless window's drag region and the windowed traffic-light
                 // inset; a pane bar inside a split is an ordinary surface. Being the drag region is also what earns it
                 // the title-bar fill — a pane bar inside a split is not a title bar and keeps `surface`.
@@ -769,6 +778,7 @@ export function PaneTabBar({
             />
             <PaneTabActions
                 editorPath={editorPath}
+                hasPaneTabs={pane.tabs.length > 0}
                 hasTabsToSwitch={hasTabsToSwitch}
                 paneId={pane.id}
             />
