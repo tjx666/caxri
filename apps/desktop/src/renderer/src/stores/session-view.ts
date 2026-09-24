@@ -38,7 +38,12 @@ interface SessionViewState {
         documents: readonly EditorDocument[],
         workbenchProjectId?: string,
     ): void;
-    updateDocumentContent(sessionId: string, path: string, content: string): void;
+    updateDocumentContent(
+        sessionId: string,
+        path: string,
+        content: string,
+        workbenchProjectId: string,
+    ): void;
     evictDocument(sessionId: string, path: string, workbenchProjectId?: string): void;
     evictDocumentsUnderPath(sessionId: string, path: string, workbenchProjectId?: string): void;
     remapDocuments(
@@ -237,10 +242,10 @@ export const useSessionViewStore = createStore<SessionViewState>('session-view',
         });
     },
 
-    updateDocumentContent(sessionId, path, content) {
-        const existing = getSessionDocuments(sessionId)?.[path];
+    updateDocumentContent(sessionId, path, content, workbenchProjectId) {
+        const existing = getSessionDocuments(sessionId, workbenchProjectId)?.[path];
         if (!existing || existing.readOnly) return;
-        get().cacheDocument(sessionId, { ...existing, content, dirty: true });
+        get().cacheDocument(sessionId, { ...existing, content, dirty: true }, workbenchProjectId);
     },
 
     /**

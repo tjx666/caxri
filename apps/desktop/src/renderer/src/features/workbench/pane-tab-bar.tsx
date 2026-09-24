@@ -22,8 +22,7 @@ import { useChromeLayoutStore } from '../../stores/chrome-layout';
 import { useGitDecoration } from '../../stores/git-decorations';
 import {
     useIsFullScreen,
-    useSelectedSession,
-    useSelectedWorkbenchProject,
+    useProjectById,
     useSessionState,
     useTerminal,
 } from '../../stores/selectors';
@@ -52,7 +51,7 @@ import { selectPaneTab } from './pane-actions';
 import { EDITOR_PATH_DRAG_TYPE, PANE_TAB_DRAG_TYPE } from './pane-drop-zone';
 import { PaneTabMenu } from './pane-tab-menu';
 import { useActiveTabReveal } from './pane-tab-reveal';
-import { usePaneViewSessionId } from './pane-view-session';
+import { usePaneViewSession, usePaneViewSessionId } from './pane-view-session';
 import { useScrollEdges } from './tab-scroll-edges';
 import { usePaneTabDrag } from './use-pane-tab-drag';
 
@@ -195,7 +194,7 @@ function DocumentPaneTab({
     showTrailingSeparator,
     tab,
 }: PaneTabProperties & { path: string }) {
-    const session = useSelectedSession();
+    const session = usePaneViewSession();
     /**
      * Read reactively (not through the imperative `getPaneLayout` other actions use): an on-demand store read inside
      * the `contextMenu` JSX tree does not reliably reflect the latest layout once other tabs open or close around it,
@@ -203,7 +202,7 @@ function DocumentPaneTab({
      */
     const paneLayout = useSessionState(usePaneViewSessionId())?.paneLayout;
     const transcriptTab = parseAgentTranscriptTab(path);
-    const project = useSelectedWorkbenchProject();
+    const project = useProjectById(session?.workbenchProjectId);
     const overviewQuery = useCaxriQuery(
         'git.overview',
         { sessionId: session?.id ?? '' },
@@ -252,7 +251,9 @@ function DocumentPaneTab({
             showTrailingSeparator={showTrailingSeparator}
             tabId={workTabId(tab.id)}
             paneTabId={tab.id}
-            onDoubleClick={() => pinDocumentTab(tab.id)}
+            onDoubleClick={() => {
+                if (session) pinDocumentTab(session.id, tab.id);
+            }}
             onClose={() => {
                 // eslint-disable-next-line no-void -- intentional floating-promise discard, closeDocumentTabs() reports its own errors
                 void closeDocumentTabs([tab.id]);

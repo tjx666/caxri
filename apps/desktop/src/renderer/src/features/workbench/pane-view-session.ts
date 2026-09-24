@@ -1,5 +1,7 @@
 import { createContext, use } from 'react';
 
+import { useSessionById } from '../../stores/selectors';
+
 /**
  * Which Session the surrounding `PaneView` belongs to.
  *
@@ -15,4 +17,8 @@ export const PaneViewSessionProvider = PaneViewSessionContext.Provider;
 
 export function usePaneViewSessionId(): string | undefined {
     return use(PaneViewSessionContext);
+}
+
+export function usePaneViewSession() {
+    return useSessionById(usePaneViewSessionId());
 }

@@ -4,10 +4,11 @@ import type { FilePreviewTab } from '@caxri/protocol';
 
 import { useResourceLoad } from '../../hooks/use-resource-load';
 import { describeDocumentReadFailure } from '../../lib/document-read-failure';
-import { useSelectedSession, useSelectedWorkbenchProject, useTheme } from '../../stores/selectors';
+import { useProjectById, useTheme } from '../../stores/selectors';
 import { sessionViewScope, useDocument } from '../../stores/session-view';
 import { cacheDocument } from '../editor/document-commands';
 import { EditorLoadFailure } from '../editor/editor-load-failure';
+import { usePaneViewSession } from '../workbench/pane-view-session';
 import { ImagePreview } from './image-preview';
 import { MarkdownPreview } from './markdown-preview';
 import { previewerForPath } from './preview-registry';
@@ -69,8 +70,8 @@ function MarkdownPreviewSurface({
  * entry plus its view — no branch in the editor surface, the tab bar, or the commands.
  */
 export function PreviewSurface({ tab }: { tab: FilePreviewTab }) {
-    const session = useSelectedSession();
-    const project = useSelectedWorkbenchProject();
+    const session = usePaneViewSession();
+    const project = useProjectById(session?.workbenchProjectId);
     if (!session || !project) return null;
     const previewer = previewerForPath(tab.path);
     if (!previewer)

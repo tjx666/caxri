@@ -321,28 +321,37 @@ export async function openFileForSession(
     }
 }
 
-export function changeDocument(path: string, content: string): void {
-    const session = getSelectedSession();
-    if (!session) return;
-    const document = getSessionDocuments(session.id, session.workbenchProjectId)?.[path];
+/**
+ * Applies an edit to the pane's Session and Workbench Root, even when another kept-alive Session is selected.
+ */
+export function changeDocument(
+    sessionId: string,
+    workbenchProjectId: string,
+    path: string,
+    content: string,
+): void {
+    const current = sessionStateOf(sessionId);
+    if (current?.workbenchProjectId !== workbenchProjectId) return;
+    const document = getSessionDocuments(sessionId, workbenchProjectId)?.[path];
     if (document?.readOnly) return;
-    useSessionViewStore.getState().updateDocumentContent(session.id, path, content);
+    useSessionViewStore
+        .getState()
+        .updateDocumentContent(sessionId, path, content, workbenchProjectId);
     /**
      * An edit pins the preview it was typed into. Only the edited occurrence is pinned: the same document previewed in
      * another pane is a separate tab and keeps its own preview state.
      */
-    const layout = getPaneLayout();
-    const previewTab = layout
-        ? findResourceTabs(layout, { kind: 'file', path }).find(({ tab }) => tab.preview)
-        : undefined;
-    if (previewTab) pinDocumentTab(previewTab.tab.id);
+    const previewTab = findResourceTabs(current.paneLayout, { kind: 'file', path }).find(
+        ({ tab }) => tab.preview,
+    );
+    if (previewTab) pinDocumentTab(sessionId, previewTab.tab.id);
 }
 
 /**
  * Turns a preview tab into a durable one, keyed by the tab occurrence rather than by its path.
  */
-export function pinDocumentTab(tabId: string): void {
-    const current = getSessionState();
+export function pinDocumentTab(sessionId: string, tabId: string): void {
+    const current = sessionStateOf(sessionId);
     if (!current) return;
     const next = pinPaneTab(current.paneLayout, tabId);
     if (next !== current.paneLayout) patchSessionState({ ...current, paneLayout: next });
