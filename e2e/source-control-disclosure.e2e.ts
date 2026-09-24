@@ -137,8 +137,46 @@ test('Source Control reports a Git failure without calling the Project a non-rep
             panel.getByText('Source Control is unavailable right now.', { exact: false }),
         ).toBeVisible();
         await expect(panel.getByText('No Git repository')).toHaveCount(0);
-        await panel.getByRole('button', { name: 'Refresh', exact: true }).click();
+        await panel.getByRole('button', { name: 'Retry', exact: true }).click();
         await expect(panel.getByText('Git is not available')).toBeVisible();
+    } finally {
+        await running.app.close();
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('Source Control explains an Xcode license block and recovers after Retry', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-source-control-license-e2e-'));
+    const root = join(testDirectory, 'project');
+    const bin = join(testDirectory, 'bin');
+    await mkdir(root);
+    await mkdir(bin);
+    await execFileAsync('git', ['init', '-b', 'main'], { cwd: root });
+    const git = join(bin, 'git');
+    await writeFile(
+        git,
+        '#!/bin/sh\n# 用于模拟 Xcode 许可阻塞，仅修改临时测试目录。\nprintf "You have not agreed to the Xcode license agreements. Please run sudo xcodebuild -license\\n" >&2\nexit 69\n',
+    );
+    await chmod(git, 0o755);
+    const running = await launchCaxri({
+        userDataDir: join(testDirectory, 'user-data'),
+        testRootPath: root,
+        env: { PATH: `${bin}:${process.env.PATH}` },
+    });
+    try {
+        await createShellSession(running.page);
+        await running.page.getByRole('tab', { name: 'Git', exact: true }).click();
+        const panel = running.page.locator('.git-panel');
+        await expect(panel.getByText('Git is not available')).toBeVisible();
+        await expect(
+            panel.getByText('Run sudo xcodebuild -license in Terminal', { exact: false }),
+        ).toBeVisible();
+        await expect(panel.getByText('No Git repository')).toHaveCount(0);
+
+        await rm(git);
+        await panel.getByRole('button', { name: 'Retry', exact: true }).click();
+        await expect(panel.locator('.git-repository-section')).toBeVisible();
+        await expect(panel.getByText('Git is not available')).toHaveCount(0);
     } finally {
         await running.app.close();
         await rm(testDirectory, { recursive: true, force: true });

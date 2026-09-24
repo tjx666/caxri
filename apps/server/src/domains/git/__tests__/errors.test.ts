@@ -68,3 +68,14 @@ describe('describeGitFailure sync mappings', () => {
         expect(message).not.toContain('git push');
     });
 });
+
+describe('describeGitFailure local Git setup', () => {
+    it('explains an unaccepted Xcode license without exposing command stderr', () => {
+        const error = failureWithStderr(
+            "You have not agreed to the Xcode license agreements. Please run 'sudo xcodebuild -license' from within a Terminal window to review and agree to the Xcode license agreements.",
+        );
+        expect(describeGitFailure(error)).toBe(
+            'Git is blocked by the Xcode license agreement. Run sudo xcodebuild -license in Terminal, then retry.',
+        );
+    });
+});
