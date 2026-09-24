@@ -27,6 +27,7 @@ export const clipboardCapabilitySpecs = [
     'e2e/process-explorer-recovery.e2e.ts',
     'e2e/project-path-actions.e2e.ts',
     'e2e/settings.e2e.ts',
+    'e2e/terminal-kitty-keyboard.e2e.ts',
     'e2e/terminal-long-paste.e2e.ts',
     'e2e/terminal-osc52-clipboard.e2e.ts',
     'e2e/terminal-search.e2e.ts',
