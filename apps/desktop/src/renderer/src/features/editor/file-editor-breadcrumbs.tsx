@@ -1,4 +1,5 @@
-import { useSelectedSession, useSelectedWorkbenchProject } from '../../stores/selectors';
+import { useProjectById } from '../../stores/selectors';
+import { usePaneViewSession } from '../workbench/pane-view-session';
 import { EditorBreadcrumbs } from './editor-breadcrumbs';
 import { EditorPathBreadcrumbs } from './editor-path-breadcrumbs';
 
@@ -18,8 +19,8 @@ export function FileEditorBreadcrumbs({
     isExternal: boolean;
     readOnly?: boolean;
 }) {
-    const session = useSelectedSession();
-    const project = useSelectedWorkbenchProject();
+    const session = usePaneViewSession();
+    const project = useProjectById(session?.workbenchProjectId);
     if (!session || (isExternal && !displayPath)) return null;
     return (
         <div className="flex h-6 shrink-0 items-center overflow-hidden border-b border-border bg-surface">

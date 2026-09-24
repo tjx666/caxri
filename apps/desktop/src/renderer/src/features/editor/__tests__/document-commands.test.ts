@@ -184,7 +184,7 @@ it('does not edit or send a save request for a read-only dependency document', a
         size: 10,
         readOnly: true,
     });
-    changeDocument(path, 'changed');
+    changeDocument('session-1', 'project-1', path, 'changed');
     await saveActiveEditor();
     expect(getSessionDocuments('session-1')?.[path]).toMatchObject({
         content: 'export {};',
@@ -192,6 +192,22 @@ it('does not edit or send a save request for a read-only dependency document', a
         readOnly: true,
     });
     expect(mocks.request).not.toHaveBeenCalledWith('files.write', expect.anything());
+});
+
+it('keeps edits in the pane Session when another Session is selected', () => {
+    const path = '/project/shared.ts';
+    installSessions(path, 'session-2', path);
+
+    changeDocument('session-1', 'project-1', path, 'owner edit');
+
+    expect(getSessionDocuments('session-1')?.[path]).toMatchObject({
+        content: 'owner edit',
+        dirty: true,
+    });
+    expect(getSessionDocuments('session-2')?.[path]).toMatchObject({
+        content: 'other unsaved',
+        dirty: true,
+    });
 });
 
 /**
@@ -483,7 +499,7 @@ describe('session-scoped file mutation completion', () => {
 
         const saving = saveActiveEditor();
         remapOpenEditors('session-1', '/project/source.ts', '/project/renamed.ts');
-        changeDocument('/project/renamed.ts', 'newer unsaved');
+        changeDocument('session-1', 'project-1', '/project/renamed.ts', 'newer unsaved');
         write.resolve({ content: 'unsaved', mtimeMs: 2, path: '/project/source.ts', size: 7 });
         await saving;
 

@@ -128,6 +128,14 @@ export function useSessionById(sessionId: string | undefined): SessionRecord | u
     );
 }
 
+export function useProjectById(projectId: string | undefined): ProjectRecord | undefined {
+    return useWorkbenchStore((state) =>
+        projectId
+            ? state.bootstrap?.projects.find((project) => project.id === projectId)
+            : undefined,
+    );
+}
+
 export function useSelectedProject(): ProjectRecord | undefined {
     return useWorkbenchStore((state) => selectSelectedProject(state.bootstrap));
 }
