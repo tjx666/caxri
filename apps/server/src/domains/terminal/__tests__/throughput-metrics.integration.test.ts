@@ -142,6 +142,7 @@ describe('PTY throughput metrics', () => {
                 inputBytes: 24,
                 outputBytes: 3 * 4 + 300 * 1024,
                 droppedBytes,
+                droppedWindows: 1,
                 peakWindowBytes: 300 * 1024,
                 windows: 4,
             });

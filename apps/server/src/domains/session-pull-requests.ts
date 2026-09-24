@@ -31,9 +31,9 @@ import {
 import type { CaxriDatabase } from './db';
 import type { ExternalStatusRunner } from './external-status';
 import {
+    ExternalStatusCommandTelemetry,
     GitHubPullRequestStore,
     isNoPullRequest,
-    observeExternalStatusCommand,
     pullRequestUnavailable,
     runExternalStatusCommand,
 } from './external-status';
@@ -223,6 +223,7 @@ export class SessionPullRequestService {
      * depend on configuration being loaded, which it is not obliged to be at that point.
      */
     private ignoredChecksSignature?: string;
+    private readonly commandTelemetry: ExternalStatusCommandTelemetry;
 
     constructor(
         private readonly database: SessionPullRequestDatabase,
@@ -233,6 +234,8 @@ export class SessionPullRequestService {
     ) {
         this.environment = options.agentEnvironment ?? defaultAgentEnvironment();
         this.now = options.now ?? Date.now;
+        const { cli } = logEventCatalog.sessionPullRequests;
+        this.commandTelemetry = new ExternalStatusCommandTelemetry(logger, cli, () => this.now());
         this.github =
             options.github ?? new GitHubPullRequestStore(this.runner, { now: () => this.now() });
         this.vercel =
@@ -709,9 +712,7 @@ export class SessionPullRequestService {
     }
 
     private async runCommand(arguments_: readonly string[], cwd: string): Promise<string> {
-        return observeExternalStatusCommand({
-            logger: this.logger,
-            event: logEventCatalog.sessionPullRequests.cli,
+        return this.commandTelemetry.observe({
             command: 'gh',
             arguments: arguments_,
             run: () => this.runner('gh', arguments_, cwd),

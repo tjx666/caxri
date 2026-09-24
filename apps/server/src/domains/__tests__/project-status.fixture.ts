@@ -41,6 +41,9 @@ export function githubOnlyRunner(
         if (command === 'git' && arguments_[0] === 'remote')
             return Promise.resolve('git@github.com:example/project.git\n');
         if (command === 'git') return Promise.resolve('');
+        // The branch publication probe; an unpublished branch keeps it off the pull request path under test.
+        if (command === 'gh' && arguments_[0] === 'api')
+            return Promise.resolve(JSON.stringify({ data: { repository: { ref: null } } }));
         if (command === 'gh') return Promise.resolve(JSON.stringify(pullRequest()));
         if (hasLinkedVercel && command === 'vc') {
             if (arguments_[0] === 'teams')

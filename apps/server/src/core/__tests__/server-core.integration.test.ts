@@ -743,7 +743,7 @@ describe('Server Core application', () => {
                 return Promise.resolve({
                     close: () => Promise.resolve(dependencies.send(stateChanged)),
                     handlers: fixtureHandlers({
-                        'app.bootstrap': () => {
+                        'app.activeContext': () => {
                             throw refreshError;
                         },
                     }),

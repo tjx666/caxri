@@ -88,3 +88,12 @@ export function inspectExecArgv(
     const base = resolveInspectBasePort(environment);
     return base === undefined ? [] : [`--inspect=${base + INSPECT_PORT_OFFSETS[host]}`];
 }
+
+/**
+ * The parent's `execArgv` minus its own inspector flags, for a child that inherits the rest of the parent's Node
+ * options. Server Core runs with `--inspect=9229`; forwarding that next to the child's own `--inspect=9230` hands one
+ * process two inspector ports and makes which one it binds depend on Node's flag precedence.
+ */
+export function inheritedExecArgv(execArgv: readonly string[]): string[] {
+    return execArgv.filter((argument) => !/^--inspect(?:-brk|-port|-wait)?(?:=|$)/.test(argument));
+}

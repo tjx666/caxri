@@ -12,6 +12,7 @@ import {
     observationProcessManifestDirectory,
     ObservationProcessManifestPublisher,
     runWithObservationContext,
+    startEventLoopMonitor,
     startProcessObservationSampler,
     StructuredLogger,
 } from '@caxri/system';
@@ -79,6 +80,11 @@ const processManifest = new ObservationProcessManifestPublisher({
     owner: 'extension-host',
 });
 processManifest.publish('starting');
+/**
+ * Server Core and Desktop Main already watch their loops; without this, a block here surfaced only as a slow request in
+ * another process's log, with no record of which process stalled.
+ */
+const eventLoopMonitor = startEventLoopMonitor(logger);
 const processSampler = startProcessObservationSampler({
     logger,
     owner: 'extension-host',
@@ -95,7 +101,10 @@ const processLifecycle = createExtensionHostProcessLifecycle({
     flushManifest: () => processManifest.flush(),
     publish: (state) => processManifest.publish(state),
     schedule: setImmediate,
-    stopSampler: () => processSampler.stop(),
+    stopSampler: () => {
+        eventLoopMonitor.stop();
+        processSampler.stop();
+    },
 });
 
 function send(message: ExtensionHostMessage): void {

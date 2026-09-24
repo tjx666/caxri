@@ -21,8 +21,10 @@ layout row. `app.bootstrap`, `project.list`, CLI record queries, Terminal file l
 search, Project Status background polling, and Session pull-request lookup all skip hidden Projects
 and their Sessions. The root stays registered, so a later manual `project.create` of the same root
 clears `hiddenAt` and returns the original Project with its order, icon, and Sessions; an automatic
-worktree registration never un-hides. There is no hidden-Project list: re-adding the folder is the
-only way back.
+worktree registration never un-hides. Un-hiding also clears the owned worktree Projects. There is no
+hidden-Project list: re-adding the folder is the only way back. The Add Project flow asks
+`project.restorable` first; when the hidden Project still has an unarchived Session it skips the
+Terminal choice and selects a restored Session instead of creating another one.
 
 Every Session deletion path, including bulk and owning-Project deletion, retires Session runtime
 state before deleting metadata. Retirement aborts automatic naming, clears naming retry and manual

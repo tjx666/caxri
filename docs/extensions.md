@@ -230,6 +230,13 @@ target view and active context, and the Host still validates the provider regist
 The four snapshot/history reads remain cancellable; `source.action` retains its authoritative
 completion and non-expiring request lifetime.
 
+Core reads the active context through the internal `app.activeContext` method, which returns only
+the selected Session's identities and the visible Project IDs. Every view operation and routed
+domain event needs that slice, so reading the whole `app.bootstrap` there made the bridge the source
+of almost every bootstrap read. Record-level `state.changed` events never reach this read: only a
+full change that can move the selection (`session.select`, `session.create`, `session.delete`,
+`session.workbenchRoot`) notifies the Host of a new active context.
+
 Private protocol rejection logs use `extension_host.invalid_message` with one closed `reason`:
 `parent-envelope`, `child-envelope`, or `reply-result`. These distinguish the receiving boundary
 and validation stage without recording the rejected message, provider output, or error text.

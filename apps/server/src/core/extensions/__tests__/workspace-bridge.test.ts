@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { ServerDomainService } from '../../../core/domain-service';
 import type { ServerDesktopRouter } from '../../desktop-router';
-import { createExtensionWorkspaceRequest, extensionActiveContext } from '../workspace-bridge';
+import { createExtensionWorkspaceRequest } from '../workspace-bridge';
 
 function fixture() {
     const discard = vi.fn(() => Promise.resolve(null));
@@ -23,25 +23,6 @@ function fixture() {
 }
 
 describe('Extension workspace bridge', () => {
-    it('projects the owner and selected Workbench Root as distinct identities', () => {
-        expect(
-            extensionActiveContext({
-                selectedSessionId: 'session-1',
-                sessions: [
-                    {
-                        id: 'session-1',
-                        projectId: 'project-owner',
-                        workbenchProjectId: 'project-worktree',
-                    },
-                ],
-            }),
-        ).toEqual({
-            ownerProjectId: 'project-owner',
-            sessionId: 'session-1',
-            workbenchProjectId: 'project-worktree',
-        });
-    });
-
     it('routes allowlisted workspace reads to Runtime authority', async () => {
         const harness = fixture();
         const parameters = { refresh: 0, sessionId: 'session-1' };

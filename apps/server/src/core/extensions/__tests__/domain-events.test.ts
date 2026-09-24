@@ -6,9 +6,7 @@ import type { ExtensionService } from '../service';
 
 describe('generic extension runtime event routing', () => {
     it('delivers no-session context changes without fabricating a Session scope', async () => {
-        const activeContext = vi
-            .fn()
-            .mockResolvedValue({ sessions: [], selectedSessionId: undefined });
+        const activeContext = vi.fn().mockResolvedValue({ projectIds: [] });
         const activeContextChanged = vi.fn();
         const service = { activeContextChanged } as unknown as ExtensionService;
         const event = {
@@ -23,14 +21,10 @@ describe('generic extension runtime event routing', () => {
 
     it('does not refresh the active Git or Status view for an unrelated Session', async () => {
         const activeContext = vi.fn().mockResolvedValue({
-            selectedSessionId: 'session-current',
-            sessions: [
-                {
-                    id: 'session-current',
-                    projectId: 'project-1',
-                    workbenchProjectId: 'root-1',
-                },
-            ],
+            ownerProjectId: 'project-1',
+            projectIds: ['project-1'],
+            sessionId: 'session-current',
+            workbenchProjectId: 'root-1',
         });
         const gitChanged = vi.fn();
         const projectStatusChanged = vi.fn();
@@ -72,5 +66,29 @@ describe('generic extension runtime event routing', () => {
         );
 
         expect(activeContext).not.toHaveBeenCalled();
+    });
+
+    it('reads active context only for a full change that can move the selection', async () => {
+        const activeContext = vi.fn().mockResolvedValue({ projectIds: [] });
+        const activeContextChanged = vi.fn();
+        const service = { activeContextChanged } as unknown as ExtensionService;
+
+        await Promise.all(
+            (
+                [
+                    {
+                        event: 'state.changed',
+                        payload: { kind: 'records', sessionIds: ['session-1'], terminalIds: [] },
+                    },
+                    {
+                        event: 'state.changed',
+                        payload: { kind: 'full', reason: 'terminal.create' },
+                    },
+                ] satisfies ServerEvent[]
+            ).map((event) => routeExtensionDomainEvent(service, { request: activeContext }, event)),
+        );
+
+        expect(activeContext).not.toHaveBeenCalled();
+        expect(activeContextChanged).not.toHaveBeenCalled();
     });
 });

@@ -7,6 +7,7 @@ import {
     closeAppQuietly,
     createProjectSession,
     launchCaxri,
+    openAddProjectDialog,
     pageRequest,
 } from './support/helpers.ts';
 
@@ -14,9 +15,10 @@ interface BootstrapFixture {
     projects: Array<{ id: string; rootPath: string }>;
     sessions: Array<{ id: string; projectId: string }>;
     selectedProjectId?: string;
+    selectedSessionId?: string;
 }
 
-test('Hide Project removes it from the sidebar and re-adding the folder restores its Sessions', async () => {
+test('Hide Project removes it from the sidebar and re-adding the folder restores only its Sessions', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-project-hiding-e2e-'));
     const keeperRoot = join(testDirectory, 'keeper');
     const hiddenRoot = join(testDirectory, 'hidden-project');
@@ -52,16 +54,26 @@ test('Hide Project removes it from the sidebar and re-adding the folder restores
         expect(hidden.sessions.map(({ id }) => id)).not.toContain(hiddenSessionId);
         expect(hidden.selectedProjectId).not.toBe(hiddenProject.id);
 
-        await createProjectSession(page);
+        // A restore skips the Terminal choice and selects the old Session instead of creating another one.
+        await openAddProjectDialog(page);
 
         await expect(hiddenHeading).toBeVisible();
+        await expect
+            .poll(
+                async () =>
+                    (await pageRequest<BootstrapFixture>(page, 'app.bootstrap')).selectedSessionId,
+            )
+            .toBe(hiddenSessionId);
         const restored = await pageRequest<BootstrapFixture>(page, 'app.bootstrap');
         expect(restored.projects.map(({ id }) => id)).toContain(hiddenProject.id);
         expect(
             restored.sessions
                 .filter(({ projectId }) => projectId === hiddenProject.id)
                 .map(({ id }) => id),
-        ).toContain(hiddenSessionId);
+        ).toEqual([hiddenSessionId]);
+        await expect(
+            page.getByRole('heading', { name: 'Choose the default Terminal' }),
+        ).toHaveCount(0);
     } finally {
         await closeAppQuietly(running.app);
         await rm(testDirectory, { recursive: true, force: true });

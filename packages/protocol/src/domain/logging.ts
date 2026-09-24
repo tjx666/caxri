@@ -163,6 +163,7 @@ export const logEventCatalog = {
     projectStatus: {
         alert: 'project_status.alert',
         cli: 'project_status.cli',
+        cliSummary: 'project_status.cli_summary',
         local: 'project_status.local',
         notifyFailed: 'project_status.notify_failed',
         overviewGithubUnavailable: 'project_status.overview_github_unavailable',
@@ -178,6 +179,7 @@ export const logEventCatalog = {
     },
     sessionPullRequests: {
         cli: 'session_pull_requests.cli',
+        cliSummary: 'session_pull_requests.cli_summary',
         lookupUnavailable: 'session_pull_requests.lookup_unavailable',
         refresh: 'session_pull_requests.refresh',
         refreshFailed: 'session_pull_requests.refresh_failed',
