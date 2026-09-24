@@ -21,3 +21,11 @@ _Researched 2026-08-06._
 - Extension marketplace/SDK; the same extension runs on iOS/Android companions.
 - `muxy` CLI drives the whole workspace (open projects, split panes, send keys, read pane output) over a Unix socket — packaged as an installable "skill" for coding agents.
 - Rich input panel with image attachments and voice input; 490+ themes; quick-terminal "dynamic island" overlay.
+
+## Mobile companion
+
+_Researched 2026-09-24 from `muxy-mobile` source `59c11e9` (2026-08-26)._
+
+- Expo 54 / React Native 0.81 app mirroring the Mac workspace (Projects → worktrees → tabs and panes) in an xterm WebView over plain `ws://`, with Bonjour discovery or a QR code and Mac-side approval of each pairing.
+- `takeOverPane` resizes the Mac PTY to the phone and releases it afterwards, with a short grace window (`src/state/usePaneSession.ts`). KeyBar with sticky modifiers and an arrow joystick.
+- Git screens (commit, branches, worktree, PR, diff) and a file manager; no Agent chat or approval UI.

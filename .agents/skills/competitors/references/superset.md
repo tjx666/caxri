@@ -30,3 +30,12 @@ Codex hook follow-up, 2026-09-13: [current wrapper](https://github.com/superset-
 - Named alongside Codex, Conductor, T3 Code, Orca, Synara, Jean, Trevize, Cloudflare OS, and Paseo/Omnara in a 2026-08-05 X poll of agent workbenches by @T_Zahil (<https://x.com/T_Zahil/status/2085024540355166472>), signaling it's viewed as a top-of-mind entrant in this category.
 - Co-founder @FlyaKiet used the same thread to pitch it directly to a developer considering building their own tool: "Don't build your own lol, but @superset_sh" (<https://x.com/FlyaKiet/status/2085094807777759317>) — an unprompted founder-led plug rather than organic third-party endorsement.
 - HN Launch thread (2026-05-23, ~135 comments) shows interest driven by the worktree-per-agent pattern and review-bottleneck framing; prior HN post (a few months earlier) covered its "open-source terminal for managing git worktrees" origin before it grew into a full IDE.
+
+## Mobile companion
+
+_Researched 2026-09-24 from source `fd85637d` (2026-09-20)._
+
+- Expo 57 / React Native 0.86 app reaching the Desktop host service through a cloud relay tunnel (JWT auth), with host presence and last-seen offline state.
+- Structurally closest to Caxri: the Agent runs in a Terminal shown in a WebView, and a native `TerminalComposer` submits text into it, routing the submit key through the host's Enter path so the TUI does not treat it as a paste (`apps/mobile/screens/(authenticated)/workspace/[id]/WorkspaceScreen/WorkspaceScreen.tsx`).
+- New Session picks Project, environment, branch, Agent, and model. Diff review with line comments; a finish-review sheet turns the comments into one Agent prompt. Commits, PRs, checks.
+- Lock Screen Live Activity lists up to four Agents. No structured approval UI.

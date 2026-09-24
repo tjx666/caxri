@@ -28,3 +28,14 @@ _Researched 2026-08-06._
 - X thread, 2026-08-05, [@T_Zahil](https://x.com/T_Zahil/status/2085024540355166472): after trying all the major agent workbenches, the OP said he'd settle on Paseo, praising its server/workspaces model and developer experience, and specifically calling out self-hosting on Mac/VPS with iPhone/iPad control.
 - Top-liked reply in the same thread, [@nikuscs](https://x.com/nikuscs/status/2085102963287085190) (also a top-10 GitHub contributor to the repo): picked the combination of Orca + Paseo rather than a single tool.
 - paseo.sh's own testimonials wall (developer quotes, not independently verified) repeats similar themes: "most slept on orchestrator," praise for cross-platform parity (Mac/phone/web) and the relay/Tailscale self-hosting story, and comparisons naming it the best of "100s of agent orchestrators" tried.
+
+## Mobile companion
+
+_Researched 2026-09-24 from source `ee7949a` (2026-09-21)._
+
+- One Expo 54 / React Native 0.81 app is the phone, web, and (wrapped by Electron) desktop client. Phones use three swipe panels (Session list ← Agent → files); native tablets get sidebars but no pane splits; the app is portrait-locked.
+- Terminal: the daemon streams screen grids and the app draws them natively, with an xterm WebView fallback and a two-row virtual key bar (Esc, Tab, sticky Ctrl/Shift/Alt, arrows, Enter, Paste).
+- Agent timeline and permission requests come from structured provider adapters, not Terminal scraping, so approvals are typed responses.
+- Composer: model/mode selectors, provider slash commands, image attach, streamed dictation, and a full realtime voice mode.
+- Direct host:port (optional TLS/password) or an opt-in relay with Curve25519 E2EE; Tailscale recommended outside the LAN. Push through Expo; SQLite replica cache for timeline catch-up.
+- Public sentiment (X, Sept 2026): most praised for a native GUI that is far nicer on a phone than SSH or a TUI; criticized for mobile sessions freezing, weaker connection reliability than Orca, and contending with the official Codex app-server.
