@@ -18,8 +18,10 @@ import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { WorktreeIcon } from '../../icons/codicons/worktree-icon';
 import { cn } from '../../lib/utilities';
 import { useSessionPullRequest } from '../primary-sidebar/hooks/use-session-pull-request';
+import type { SessionRenameController } from '../primary-sidebar/hooks/use-session-rename';
 import { SessionActivityCard } from '../primary-sidebar/session-activity-card';
 import { SessionPullRequestIndicator } from '../primary-sidebar/session-pull-request-indicator';
+import { SessionRenameInput } from '../primary-sidebar/session-rename-input';
 import { sessionRowActionButton } from '../primary-sidebar/session-row-actions';
 import { SessionRowMenu } from '../primary-sidebar/session-row-menu';
 import { didSelectSession } from '../session/session-commands';
@@ -50,7 +52,7 @@ const GLYPH_COMPONENTS: Record<AgentActivityGlyphId, ComponentType<{ size?: numb
  * column. `agent-activity-glyph.ts` owns which shape, which words, and the tone rule behind them.
  *
  * The row wears the same hover card and context menu as a Project tree row, so a Session reads and acts the same in
- * either body of the side bar; only Rename is missing, because this list has no inline editor to open.
+ * either body of the side bar, including the inline rename editor.
  */
 export function AgentActivityRowItem({
     onMarkRead,
@@ -58,6 +60,7 @@ export function AgentActivityRowItem({
     roving,
     row,
     selected,
+    sessionRename,
     terminals,
     worktreeProject,
     onFocusChange,
@@ -68,6 +71,7 @@ export function AgentActivityRowItem({
     roving: boolean;
     row: AgentActivityRow;
     selected: boolean;
+    sessionRename: SessionRenameController;
     terminals: TerminalRecord[];
     /**
      * Workbench Root Project when this Session works in a linked worktree instead of its own Project root.
@@ -75,6 +79,9 @@ export function AgentActivityRowItem({
     worktreeProject: ProjectRecord | undefined;
 }) {
     const { project, session, terminal } = row;
+    const isRenaming = sessionRename.renamingRowId === session.id;
+    const beginRename = () =>
+        sessionRename.beginRename(session.id, session.displayTitle, session.id);
     const canMarkRead = session.hasUnread;
     const glyph = agentActivityGlyph(row);
     const GlyphIcon = GLYPH_COMPONENTS[glyph.id];
@@ -107,15 +114,17 @@ export function AgentActivityRowItem({
                 !canMarkRead && row.groupId === 'attention' ? 'Viewed and read' : undefined
             }
             aria-selected={selected}
-            aria-keyshortcuts={canMarkRead ? 'Delete Backspace' : undefined}
-            tabIndex={roving ? 0 : -1}
+            aria-keyshortcuts={canMarkRead && !isRenaming ? 'Delete Backspace' : undefined}
+            tabIndex={isRenaming ? undefined : roving ? 0 : -1}
             onFocus={() => onFocusChange(session.id)}
             onClick={() => {
                 // Fire-and-forget: the selection reports its own failures through a toast.
                 // eslint-disable-next-line no-void -- intentional floating-promise discard
-                if (!selected) void didSelectSession(session.id);
+                if (!isRenaming && !selected) void didSelectSession(session.id);
             }}
+            onDoubleClick={beginRename}
             onKeyDown={(event) => {
+                if (isRenaming) return;
                 if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
                     // Fire-and-forget: the selection reports its own failures through a toast.
@@ -157,8 +166,27 @@ export function AgentActivityRowItem({
                  * — so at the Primary Side Bar's 230px default it was the one truncating while a Project name and a
                  * time sat beside it with room to spare.
                  */}
-                <span className="min-w-0 truncate text-xs text-foreground">
-                    {session.displayTitle}
+                <span
+                    className={cn(
+                        'min-w-0 text-xs text-foreground',
+                        isRenaming ? 'flex' : 'truncate',
+                    )}
+                >
+                    {isRenaming ? (
+                        <SessionRenameInput
+                            sessionId={session.id}
+                            title={session.displayTitle}
+                            error={sessionRename.renameError}
+                            value={sessionRename.renameValue}
+                            focusInput={sessionRename.focusRenameInput}
+                            onBlur={sessionRename.blurRename}
+                            onChange={sessionRename.onRenameValueChange}
+                            onCommit={sessionRename.commitRename}
+                            onCancel={sessionRename.cancelRename}
+                        />
+                    ) : (
+                        session.displayTitle
+                    )}
                 </span>
                 <span className="agent-activity-metadata flex h-4 min-w-0 flex-wrap items-start gap-x-1.5 overflow-hidden text-[11px] leading-4 text-muted">
                     {/*
@@ -201,6 +229,7 @@ export function AgentActivityRowItem({
     );
     return (
         <SessionRowMenu
+            onBeginRename={beginRename}
             onMarkRead={canMarkRead ? onMarkRead : undefined}
             onOpenChange={setMenuOpen}
             project={project}
@@ -214,12 +243,12 @@ export function AgentActivityRowItem({
                     pullRequest={pullRequest}
                     pullRequestUnavailable={pullRequestUnavailable}
                     session={session}
-                    suppressed={menuOpen}
+                    suppressed={menuOpen || isRenaming}
                     terminal={terminal}
                     trigger={trigger}
                     worktreeProject={worktreeProject}
                 />
-                {canMarkRead && (
+                {canMarkRead && !isRenaming && (
                     <AgentActivityMarkReadButton
                         sessionTitle={session.displayTitle}
                         onMarkRead={onMarkRead}

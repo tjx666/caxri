@@ -8,6 +8,7 @@ import { useRelativeTimes } from '@/hooks/use-relative-time';
 import { useProjects, useSelectedSession, useSessions, useTerminals } from '../../stores/selectors';
 import { tryCommand } from '../../stores/toasts';
 import { useSessionPullRequestPoll } from '../primary-sidebar/hooks/use-session-pull-request';
+import { useSessionRename } from '../primary-sidebar/hooks/use-session-rename';
 import { sessionWorktreeProject, topLevelProjects } from '../primary-sidebar/project-visibility';
 import { sessionAgentTerminal } from '../session/session-agent-terminal';
 import { markSessionRead } from '../session/session-commands';
@@ -151,6 +152,8 @@ export function AgentActivityView() {
     const rows = useMemo(() => flattenAgentActivityRows(groups), [groups]);
     const rovingRowId = rovingAgentActivityRowId(rows, focusedRowId, selectedSessionId);
     const sessionRows = useMemo(() => groups.flatMap((group) => group.rows), [groups]);
+    const visibleSessions = useMemo(() => sessionRows.map((row) => row.session), [sessionRows]);
+    const sessionRename = useSessionRename(visibleSessions, (session) => session.id);
     /**
      * Headings and Session rows are rendered as one keyed sequence under a single parent rather than one fragment per
      * group. A Session that changes state moves between groups constantly, and a per-group fragment makes that a change
@@ -244,6 +247,7 @@ export function AgentActivityView() {
                 className="flex flex-col gap-0.5"
                 role="tree"
                 onKeyDown={(event) => {
+                    if (event.target instanceof HTMLInputElement) return;
                     // Same guard as `handlePrimarySidebarTreeKey`: an unbound chord such as macOS's Cmd+Down ("scroll to
                     // bottom") must keep its native meaning rather than being eaten as a row move.
                     if (event.altKey || event.metaKey || event.ctrlKey) return;
@@ -289,6 +293,7 @@ export function AgentActivityView() {
                             roving={rovingRowId === entry.row.session.id}
                             row={entry.row}
                             selected={selectedSessionId === entry.row.session.id}
+                            sessionRename={sessionRename}
                             terminals={terminals}
                             worktreeProject={worktreeProjectBySessionId.get(entry.row.session.id)}
                             onFocusChange={setFocusedRowId}
