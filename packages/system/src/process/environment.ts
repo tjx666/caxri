@@ -18,6 +18,10 @@ const INHERITED_ENVIRONMENT_KEYS = [
     'USER',
     'LOGNAME',
     'PATH',
+    /**
+     * Keeps the selected Xcode toolchain available to Git and other launched tools.
+     */
+    'DEVELOPER_DIR',
     'SHELL',
     'ZDOTDIR',
     'LANG',
