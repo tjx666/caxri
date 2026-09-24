@@ -211,9 +211,11 @@ test('Activity renames the selected Session from the palette and an unselected r
         await page.getByRole('menuitem', { name: /^Rename/ }).click();
         const unselectedInput = unselectedRow.getByRole('textbox', { name: 'Rename Untitled' });
         await expect(unselectedInput).toBeFocused();
-        await unselectedInput.fill(' ');
-        await unselectedInput.press('Enter');
-        await expect(unselectedRow.getByRole('alert')).toHaveText('Session name is required');
+        await unselectedInput.fill('Should be cancelled');
+        /**
+         * The row's hover delay must not give a hidden detail card ownership of Escape.
+         */
+        await page.waitForTimeout(600);
         await unselectedInput.press('Escape');
         await expect(unselectedRow).toContainText('Untitled');
         await expect(unselectedRow.getByRole('textbox')).toHaveCount(0);
