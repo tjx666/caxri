@@ -28,3 +28,15 @@ Codex hook follow-up, 2026-09-13: [current hook script](https://github.com/stabl
 ## Theming
 
 - Arbitrary VS Code/iTerm2 theme import scoped to terminal colors; DEC 2031/CSI 997 theme push to TUIs.
+
+## Mobile companion
+
+_Researched 2026-09-24 from source `963da57c` (2026-09-21)._
+
+- Separate Expo 55 / React Native 0.83 app under `mobile/`. Terminal is xterm 6 in a WebView with an accessory key row (modifier builder, key repeat), a "Live" mode that forwards each keystroke, pinch zoom, and tappable paths/URLs.
+- Desktop keeps a per-PTY `mobileSubscribers` map (`src/main/runtime/orca-runtime-on-client-disconnected.ts`) and hydrates a newly attached mobile subscriber with the serialized buffer, so Desktop and phone observe the same PTY concurrently.
+- Native chat view parses the provider's own JSONL transcript (Claude, Codex, Grok). Permission cards are detected heuristically from transcript text and answered by writing `y`/`1` to the PTY.
+- Pairing via QR or `orca://pair` link; NaCl box E2EE also on direct LAN sockets. Paths are labeled `lan` / `tailscale` / `relay`; the vendor relay requires an account. Multi-host routes `app/h/[hostId]/…`.
+- Wide layout requires width ≥ 700 and short side ≥ 600, so landscape phones stay in the phone layout; the host list is a resizable sidebar and Source Control / Files / PR dock beside the Terminal.
+- Also: worktree creation and Agent launch, source control with commit, diff review with comments sent to the Agent, PR screen, push via a vendor gateway, dictation transcribed on Desktop, cached home snapshot for cold start, protocol version gate.
+- Public sentiment (X, Sept 2026): most praised for connection reliability and multi-device pairing over Tailscale; criticized for a less complete, less native-feeling mobile UI than Paseo.

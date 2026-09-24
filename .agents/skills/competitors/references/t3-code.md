@@ -27,3 +27,16 @@ _Researched 2026-08-06._
 - X thread by Thomas Sanlis (2026-08-05, <https://x.com/T_Zahil/status/2085024540355166472>) asking devs to compare agent-harness GUIs (Codex, Conductor, T3 Code, Orca, Synara, etc.) drew largely positive replies for T3 Code specifically: JoshuaRileyDev (<https://x.com/JoshuaRileyDev/status/2085267002386444721>) said its remote integration is good enough that he moved all iOS/web development to a spare Mac mini and works "fully remotely, it's magical"; VincentBuilds (<https://x.com/VincentBuilds/status/2085054948329337147>) rated Orca best "right now" but flagged T3 Code as a likely favorite "once they implement sub agent view."
 - elan_chezhian94 (<https://x.com/elan_chezhian94/status/2085258196487459084>) called T3 Code and Clodex "the most polished ones" — Clodex for GPT models, T3 Code "for everything," praising update cadence and clean integration ("Codex copies the best ideas. T3 Code usually ships them first.").
 - The OP (Thomas Sanlis) pushed back on that praise in a follow-up (same thread), saying he likes T3 Code's direction but finds "almost all of them are more polished (and mature) than T3 code," and elsewhere in the thread noted it "lacks a lot of features and has a poor UX sometimes" — consistent with the project's own "very early, expect bugs" framing.
+
+## Mobile companion
+
+_Researched 2026-09-24 from source `1de563c1` (2026-09-21). The README still says the app is not distributed; build from source._
+
+- Native Expo 57 / React Native 0.86 app sharing `packages/client-runtime` (connection manager and RPC client) with web and desktop. Custom native modules for the Terminal (libghostty), diff review, composer editor, Markdown, notifications, and widgets.
+- Connection: LAN/tailnet pairing with the secret in the URL fragment, Tailscale HTTPS, or a hosted relay that only brokers a DPoP-bound bootstrap credential. Plain http on LAN IPs.
+- Reconnect (`apps/mobile/src/connection/app-state-wakeups.ts`): one retry owner per environment; on foreground probe the socket, and after more than 10 s in background force a new connection. Durable outbox for offline sends with capped retry.
+- Timeline: turn folds, grouped tool activity, subagents, Markdown with highlighting, auto-follow only while at the bottom. Approval cards (allow once / allow for session / decline) and question cards come from structured provider events.
+- New task picks environment, Project, branch, and worktree on one screen. Diff review sections by working tree, branch, and per turn; long-press comments append to the composer draft. Git rows show their own facts (files changed beside Commit, commits ahead beside Push).
+- Voice uses on-device transcription into the draft with a revision guard so late results never overwrite edits. Live Activities and Android ongoing cards; push requires the hosted relay.
+- Tablet: adaptive split with a clamped sidebar, resizable inspector, hardware keyboard shortcuts, and a command palette.
+- Public sentiment (X, Aug–Sept 2026): most praised for near-zero-latency sync and Live Activities; criticized for reconnect loops on cellular networks and slow reconnect after Android process death.
