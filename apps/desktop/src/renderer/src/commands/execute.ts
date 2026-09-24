@@ -20,10 +20,7 @@ import {
 } from '../features/preview/preview-commands';
 import { focusPrimarySidebar } from '../features/primary-sidebar/primary-sidebar-focus';
 import { toggleScreencastMode } from '../features/screencast/screencast';
-import {
-    deleteSelectedProject,
-    hideSelectedProject,
-} from '../features/session/project-removal-commands';
+import { deleteProject, hideSelectedProject } from '../features/session/project-removal-commands';
 import {
     archiveSelectedSession,
     archiveSession,
@@ -160,7 +157,7 @@ const commandContext: CommandContext = {
         },
         openInExternalEditor: openSelectedProjectInExternalEditor,
         hideSelected: hideSelectedProject,
-        removeSelected: deleteSelectedProject,
+        remove: deleteProject,
     },
     session: {
         create: () => {

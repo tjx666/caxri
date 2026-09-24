@@ -198,7 +198,8 @@ export function ProjectGroup({
                                 aria-expanded={expanded}
                                 aria-level={1}
                                 aria-selected={active}
-                                aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+                                aria-description="Press Shift+F10 for Project actions"
+                                aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown Shift+F10"
                                 // The count moved into the detail card visually but stays in the treeitem's name so
                                 // collapsed Projects remain equally informative to assistive technology.
                                 aria-label={describeProjectSessionCount(
@@ -209,6 +210,30 @@ export function ProjectGroup({
                                 tabIndex={project.id === rovingRowId ? 0 : -1}
                                 onClick={onToggle}
                                 onKeyDown={(event) => {
+                                    if (
+                                        event.key === 'ContextMenu' ||
+                                        (event.key === 'F10' && event.shiftKey)
+                                    ) {
+                                        event.preventDefault();
+                                        /**
+                                         * Base UI anchors its context menu from the contextmenu event. Opening it by
+                                         * state alone puts the keyboard menu at the viewport origin.
+                                         */
+                                        const heading = headingReference.current;
+                                        if (heading) {
+                                            const bounds = heading.getBoundingClientRect();
+                                            heading.dispatchEvent(
+                                                new MouseEvent('contextmenu', {
+                                                    bubbles: true,
+                                                    cancelable: true,
+                                                    button: 2,
+                                                    clientX: bounds.left + 16,
+                                                    clientY: bounds.bottom,
+                                                }),
+                                            );
+                                        }
+                                        return;
+                                    }
                                     if (!event.altKey) return;
                                     if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
                                         event.preventDefault();

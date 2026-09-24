@@ -93,7 +93,7 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 customizeIcon: record('project.customizeIcon'),
                 hideSelected: record('project.hide'),
                 openInExternalEditor: record('project.openInEditor'),
-                removeSelected: record('project.remove'),
+                remove: record('project.remove'),
             },
             session: {
                 archiveSelected: record('session.archive'),
@@ -228,6 +228,14 @@ describe('executeCommand', () => {
         context.agentActions.canOpen = () => true;
         executeCommand('agentActions.open', undefined, context);
         expect(calls).toEqual(['agentActions.open']);
+    });
+
+    it('passes a Project row target through the delete command', () => {
+        const { calls, context } = recordingContext();
+
+        executeCommand('project.delete', { projectId: 'project-right-clicked' }, context);
+
+        expect(calls).toEqual(['project.remove(project-right-clicked)']);
     });
 
     it.each([

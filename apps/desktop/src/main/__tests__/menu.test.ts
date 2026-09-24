@@ -14,6 +14,18 @@ function submenu(
 }
 
 describe('application menu', () => {
+    it('keeps target-dependent Project deletion out of the native menu', () => {
+        const template = buildAppMenuTemplate({
+            keybindings: [],
+            dispatchCommand: vi.fn(),
+            openProcessExplorer: vi.fn(),
+        });
+
+        expect(submenu(template, 'Project').map((item) => item.id)).not.toContain(
+            'command.project.delete',
+        );
+    });
+
     it('derives every command-backed item and label from the shared catalog', () => {
         const template = buildAppMenuTemplate({
             keybindings: [],

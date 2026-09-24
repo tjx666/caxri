@@ -69,7 +69,7 @@ export const commandDefinitions: CommandDefinition[] = [
     }),
     fromCatalog(
         'project.delete',
-        (context) => context.project.removeSelected(),
+        (context, arguments_) => context.project.remove(projectIdArgument(arguments_)),
         /**
          * The native confirm dialog (naming the Project, "files on disk are not touched") already runs in Main before
          * `project.delete` resolves; this flag only documents that contract.
