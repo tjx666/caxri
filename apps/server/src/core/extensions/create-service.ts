@@ -5,7 +5,7 @@ import type { ServerDesktopRouter } from '../desktop-router';
 import type { ServerDomainService } from '../domain-service';
 import { ExtensionService } from './service';
 import { publishExtensionViewEvents } from './view-events';
-import { createExtensionWorkspaceRequest, extensionActiveContext } from './workspace-bridge';
+import { createExtensionWorkspaceRequest } from './workspace-bridge';
 
 export interface CreateExtensionServiceOptions {
     appVersion: string;
@@ -44,12 +44,16 @@ export async function createExtensionService(
         logger: options.logger,
         serverId: options.serverId,
         userDataPath: options.userDataPath,
-        activeContext: async () =>
-            extensionActiveContext(await options.domainService.request('app.bootstrap')),
-        projectIds: async () => {
-            const bootstrap = await options.domainService.request('app.bootstrap');
-            return bootstrap.projects.map(({ id }) => id);
+        activeContext: async () => {
+            const context = await options.domainService.request('app.activeContext');
+            return {
+                ownerProjectId: context.ownerProjectId,
+                sessionId: context.sessionId,
+                workbenchProjectId: context.workbenchProjectId,
+            };
         },
+        projectIds: async () =>
+            (await options.domainService.request('app.activeContext')).projectIds,
         projectStatus: (sessionId, refreshToken) =>
             options.domainService.request('projectStatus.summary', {
                 sessionId,
