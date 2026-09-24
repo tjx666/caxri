@@ -201,6 +201,29 @@ export class SessionAutoNamingService {
             try {
                 await this.executions.run(async () => {
                     if (!isEligible()) return;
+                    if (!state) {
+                        const native = await this.agents.snapshot(target.provider, {
+                            rootPath: target.cwd,
+                            agentSessionId: target.agentSessionId,
+                        });
+                        if (!isEligible()) return;
+                        if (
+                            native.sessionId === target.agentSessionId &&
+                            native.title &&
+                            native.titleSource !== 'automatic'
+                        ) {
+                            await this.renames.renameAutomatically(
+                                session.id,
+                                target,
+                                native.title,
+                                isEligible,
+                                controller.signal,
+                                native.title,
+                            );
+                            reason = 'declined';
+                            return;
+                        }
+                    }
                     let title = state?.title;
                     if (!title) {
                         const location = await locateAgentTranscript(

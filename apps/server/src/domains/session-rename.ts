@@ -142,7 +142,6 @@ export class SessionRenameService {
     ): Promise<SessionRecord> {
         if (signal?.aborted)
             throw new CaxriError('CANCELLED', 'Session rename was cancelled before it started');
-        let appliedTitle = displayTitle;
         const renamedTerminalIds = new Set<string>();
         let target = await this.primaryAgentTarget(sessionId);
         for (let attempt = 0; target; attempt += 1) {
@@ -153,7 +152,10 @@ export class SessionRenameService {
                 displayTitle,
                 signal,
             });
-            appliedTitle = renamed.displayTitle;
+            if (renamed.displayTitle !== displayTitle)
+                this.logger.write('warn', logEventCatalog.sessionRename.providerTitleMismatch, {
+                    fields: { provider: target.provider, sessionId },
+                });
             renamedTerminalIds.add(target.terminalId);
             // eslint-disable-next-line no-await-in-loop -- each result must be checked against current Agent identity
             const currentTarget = await this.primaryAgentTarget(sessionId);
@@ -166,7 +168,11 @@ export class SessionRenameService {
             target = currentTarget;
         }
         const commit = (): SessionRecord => {
-            const renamed = this.database.renameSession(sessionId, appliedTitle);
+            /**
+             * The Session name is the user's exact request. A provider may choose a unique native fallback when the
+             * requested name is already held by another live session; that fallback must not become Caxri's title.
+             */
+            const renamed = this.database.renameSession(sessionId, displayTitle);
             this.emit({
                 event: 'state.changed',
                 payload: {
@@ -210,6 +216,7 @@ export class SessionRenameService {
         displayTitle: string,
         canApply: () => boolean,
         signal: AbortSignal,
+        expectedNativeTitle?: string,
     ): Promise<boolean> {
         return this.queue.run(sessionId, async () => {
             const isEligible = async (): Promise<boolean> => {
@@ -233,10 +240,46 @@ export class SessionRenameService {
                 agentSessionId: target.agentSessionId,
             });
             if (!(await isEligible()) || snapshot.sessionId !== target.agentSessionId) return false;
+            /**
+             * A pre-generation read may be stale by the time this queued read completes. Never turn its old title into
+             * a native write if the provider changed the name or established automatic provenance in between.
+             */
+            if (
+                expectedNativeTitle !== undefined &&
+                (snapshot.title !== expectedNativeTitle || snapshot.titleSource === 'automatic')
+            )
+                return false;
             let state = this.database.automaticSessionNaming(sessionId);
             if (state?.status === 'complete' || state?.status === 'stopped') return false;
-            if (!state && snapshot.titleSource === 'explicit') {
-                if (snapshot.title) this.database.renameSession(sessionId, snapshot.title);
+            if (!state && snapshot.title && snapshot.titleSource !== 'automatic') {
+                if (snapshot.titleSource === 'explicit') {
+                    this.database.renameSession(sessionId, snapshot.title);
+                } else {
+                    /**
+                     * Codex cannot identify who named its thread. Keep the native title authoritative without claiming
+                     * manual ownership, so later native renames can still flow into Caxri.
+                     */
+                    this.database.setAutomaticSessionNaming(
+                        sessionId,
+                        {
+                            ...target,
+                            title: snapshot.title,
+                            previousTitle: snapshot.title,
+                            status: 'stopped',
+                            updatedAt: Date.now(),
+                        },
+                        snapshot.title,
+                    );
+                    this.coordinator.probeTerminal(target.terminalId);
+                }
+                this.emit({
+                    event: 'state.changed',
+                    payload: {
+                        kind: 'records',
+                        sessionIds: [sessionId],
+                        terminalIds: [target.terminalId],
+                    },
+                });
                 return false;
             }
             if (

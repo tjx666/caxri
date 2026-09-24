@@ -58,6 +58,7 @@ async function fixture() {
         observedAt: Date.now() + 100,
         sessionId: 'test-agent',
         title: nativeTitle,
+        titleSource: nativeTitle === 'Analyze image' ? 'automatic' : undefined,
     });
     const rename = vi.fn(({ displayTitle }: { displayTitle: string }) => {
         nativeTitle = displayTitle;
@@ -128,6 +129,39 @@ async function fixture() {
 }
 
 describe('Automatic Session rename synchronization', () => {
+    it('does not generate a title for an already named Codex thread', async () => {
+        const f = await fixture();
+        f.setNativeTitle('Fix streaming 404');
+        const generate = vi.spyOn(f.agents, 'generateTitle');
+        const service = new SessionAutoNamingService(
+            f.database,
+            f.agents,
+            f.renames,
+            { homeDirectory: f.directory, variables: {} },
+            () => true,
+            createLogger(join(f.directory, 'logs')),
+        );
+        try {
+            service.observe({
+                provider: 'codex',
+                terminalId: f.terminalId,
+                launchId: 'test-launch',
+                phase: 'turnFinished',
+                agentSessionId: f.target.agentSessionId,
+            });
+            await vi.waitFor(() =>
+                expect(f.database.automaticSessionNaming(f.sessionId)?.status).toBe('stopped'),
+            );
+            expect(f.database.getSession(f.sessionId)?.displayTitle).toBe('Fix streaming 404');
+            expect(generate).not.toHaveBeenCalled();
+            f.setNativeTitle('Fix 404 retry');
+            f.database.updateAgentMetadata(f.terminalId, f.snapshot());
+            expect(f.database.getSession(f.sessionId)?.displayTitle).toBe('Fix 404 retry');
+        } finally {
+            await service.close();
+        }
+    });
+
     it('reports a sandbox conflict once and retries only after a new launch', async () => {
         const f = await fixture();
         vi.useFakeTimers();
