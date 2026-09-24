@@ -173,12 +173,19 @@ function parseJson<T>(source: string, schema: z.ZodType<T>, label: string): T {
     }
 }
 
+/**
+ * `gh api graphql --paginate --jq` prints one compact JSON array per page, one page per line.
+ */
 function parseProjectItems(source: string): ProjectItem[] {
-    return parseJson(source, z.array(projectItemSchema), 'GitHub Project').map((item) => ({
-        ...item,
-        priority: item.priority ?? null,
-        status: item.status ?? null,
-    }));
+    return source
+        .split('\n')
+        .filter((line) => line.trim())
+        .flatMap((line) => parseJson(line, z.array(projectItemSchema), 'GitHub Project'))
+        .map((item) => ({
+            ...item,
+            priority: item.priority ?? null,
+            status: item.status ?? null,
+        }));
 }
 
 function parseStatus(source: string) {
@@ -194,13 +201,34 @@ function parseStatus(source: string) {
     };
 }
 
-function projectItemQuery(): string {
-    return (
-        '[.items[] | select(.content.type == "Issue") | {' +
-        'id, number: .content.number, repository: .content.repository, ' +
-        'status: (.status // null), priority: (.priority // null)}]'
-    );
-}
+/**
+ * Reads only the two single-select values intake needs. `gh project item-list` requests every field value of every item
+ * (`fieldValues(first: 100)`), which GitHub bills as 100 nodes per item: ~820 GraphQL points for a 744-item Project, a
+ * sixth of the hourly budget the user's shell, Agents, and the Caxri app all share. Named field lookups are not
+ * connections, so the same read costs about one point per 100 items.
+ *
+ * https://docs.github.com/en/graphql/overview/rate-limits-and-node-limits-for-the-graphql-api
+ */
+const PROJECT_ITEMS_QUERY = [
+    'query($owner: String!, $number: Int!, $endCursor: String) {',
+    '  repositoryOwner(login: $owner) { ... on ProjectV2Owner { projectV2(number: $number) {',
+    '    items(first: 100, after: $endCursor) {',
+    '      pageInfo { hasNextPage endCursor }',
+    '      nodes {',
+    '        id',
+    '        status: fieldValueByName(name: "Status") { ... on ProjectV2ItemFieldSingleSelectValue { name } }',
+    '        priority: fieldValueByName(name: "Priority") { ... on ProjectV2ItemFieldSingleSelectValue { name } }',
+    '        content { __typename ... on Issue { number repository { nameWithOwner } } }',
+    '      }',
+    '    }',
+    '  } } }',
+    '}',
+].join('\n');
+
+const PROJECT_ITEMS_JQ =
+    '[.data.repositoryOwner.projectV2.items.nodes[] | select(.content.__typename == "Issue") | {' +
+    'id, number: .content.number, repository: .content.repository.nameWithOwner, ' +
+    'status: (.status.name // null), priority: (.priority.name // null)}]';
 
 function closingRepoName(repo: z.infer<typeof closingRepoSchema>): string {
     return 'nameWithOwner' in repo ? repo.nameWithOwner : `${repo.owner.login}/${repo.name}`;
@@ -296,17 +324,17 @@ export async function createIntakeSnapshot(
         captureReadOnlyGitHub(
             runner,
             [
-                'project',
-                'item-list',
-                String(options.projectNumber),
-                '--owner',
-                projectOwner,
-                '--format',
-                'json',
-                '--limit',
-                String(MAX_GITHUB_ITEMS),
+                'api',
+                'graphql',
+                '--paginate',
+                '-f',
+                `query=${PROJECT_ITEMS_QUERY}`,
+                '-F',
+                `owner=${projectOwner}`,
+                '-F',
+                `number=${options.projectNumber}`,
                 '--jq',
-                projectItemQuery(),
+                PROJECT_ITEMS_JQ,
             ],
             cwd,
         ),

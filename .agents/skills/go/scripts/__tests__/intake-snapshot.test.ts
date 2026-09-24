@@ -11,7 +11,7 @@ function fixtureRunner(overrides: Record<string, FixtureResponse | FixtureRespon
     // present in this fixture map, so the value genuinely can be `undefined`.
     const defaults: Partial<Record<string, string>> = {
         'gh api user --jq .login': 'builder\n',
-        'gh project item-list 2 --owner tjx666 --format json --limit 1000 --jq': JSON.stringify([
+        'gh api graphql --paginate': JSON.stringify([
             {
                 id: 'project-item-65',
                 number: 65,
@@ -35,8 +35,7 @@ function fixtureRunner(overrides: Record<string, FixtureResponse | FixtureRespon
         capture(command, arguments_) {
             const exact = `${command} ${arguments_.join(' ')}`;
             calls.push(exact);
-            const projectPrefix =
-                'gh project item-list 2 --owner tjx666 --format json --limit 1000 --jq ';
+            const projectPrefix = 'gh api graphql --paginate ';
             const key = exact.startsWith(projectPrefix) ? projectPrefix.trimEnd() : exact;
             const configured = overrides[key];
             const value = Array.isArray(configured) ? configured.shift() : configured;
@@ -153,8 +152,47 @@ describe('Go intake snapshot', () => {
         });
         expect(calls).toContain(issueCommand);
         expect(calls).toContain('lh whoami --json');
+        const projectCall = calls.find((call) => call.startsWith('gh api graphql --paginate '));
+        expect(projectCall).toContain('owner=tjx666');
+        expect(projectCall).toContain('number=2');
+        // `gh project item-list` bills every item's full field catalog; intake must stay on the named-field query.
+        expect(calls.some((call) => call.startsWith('gh project'))).toBe(false);
         expect(calls.some((call) => call.includes('.content.body'))).toBe(false);
         expect(snapshot.pullRequests.map(({ number }) => number)).toEqual([74]);
+    });
+
+    it('joins Project items from every paginated page', async () => {
+        const item = (number: number, status: string) => ({
+            id: `project-item-${number}`,
+            number,
+            priority: null,
+            repository: 'tjx666/caxri',
+            status,
+        });
+        const { runner } = fixtureRunner({
+            'gh api graphql --paginate': `${JSON.stringify([item(1, 'Done')])}\n${JSON.stringify([item(65, 'Next')])}\n`,
+            'gh issue list --repo tjx666/caxri --state all --limit 1000 --json number,title,state,url,labels,updatedAt':
+                issues,
+            'gh pr list --repo tjx666/caxri --state all --limit 1000 --json number,title,state,url,isDraft,headRefName,headRefOid,baseRefName,updatedAt,closingIssuesReferences':
+                pullRequests,
+        });
+
+        const snapshot = await createIntakeSnapshot(
+            {
+                cwd: '/repo',
+                fetch: false,
+                issueNumbers: [65],
+                projectNumber: 2,
+                repository: 'tjx666/caxri',
+            },
+            runner,
+        );
+
+        expect(snapshot.issues[0]).toMatchObject({
+            number: 65,
+            projectItemId: 'project-item-65',
+            projectStatus: 'Next',
+        });
     });
 
     it('defaults to open issues and fails when a requested issue is absent', async () => {
