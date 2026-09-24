@@ -208,7 +208,7 @@ directories.
 | Focused lint / type / test / knip; formatting             | `quality-check`         |
 | Vitest unit/integration regressions                       | `unit-testing`          |
 | Playwright Electron workflows                             | `e2e-testing`           |
-| Live inspection, CDP, stopping owned processes            | `debug`                 |
+| Terminal interaction reports, CDP, owned process stop     | `debug`                 |
 | Fixtures, sample data, or anything a public reader sees   | `open-source-readiness` |
 | Isolated worktrees and desktop lease                      | `switch-worktree`       |
 | GitHub issues                                             | `file-issue`            |
