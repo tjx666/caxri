@@ -52,6 +52,12 @@ export interface ExternalStatusCommandOptions {
      * argv, a URL, or CLI output — so this stays inside the no-prose rule below.
      */
     subject?: string;
+    /**
+     * A failure the caller expects and turns into an empty value, such as a missing tracking ref or `origin` remote.
+     * Its record drops to `debug`: production logged ~2,100 `head.get` warnings in a few hours for branches that merely
+     * had no upstream. The window aggregate still counts it.
+     */
+    isOptional?: boolean;
     run: () => Promise<string>;
 }
 
@@ -134,7 +140,8 @@ export class ExternalStatusCommandTelemetry {
                 const durationMs = performance.now() - startedAt;
                 const reason = failureReason(error);
                 this.record(fields.command, fields.operation, durationMs, reason);
-                this.logger.write(isNoPullRequest(error) ? 'debug' : 'warn', this.event, {
+                const isExpected = options.isOptional === true || isNoPullRequest(error);
+                this.logger.write(isExpected ? 'debug' : 'warn', this.event, {
                     durationMs,
                     fields: {
                         ...fields,

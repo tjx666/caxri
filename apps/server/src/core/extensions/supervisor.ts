@@ -13,6 +13,7 @@ import {
     extensionViewChangeSchema,
     extensionViewEventContextSchema,
     extensionViewEventIdSchema,
+    inheritedExecArgv,
     inspectExecArgv,
     isNonExpiringViewOperation,
     logLevelEnvironment,
@@ -514,7 +515,10 @@ export class ExtensionHostSupervisor extends EventTarget {
             };
         });
         const child = fork(this.options.extensionHostPath, [], {
-            execArgv: [...process.execArgv, ...inspectExecArgv('extension-host', process.env)],
+            execArgv: [
+                ...inheritedExecArgv(process.execArgv),
+                ...inspectExecArgv('extension-host', process.env),
+            ],
             execPath: this.options.executable ?? process.execPath,
             env: {
                 ...safeProcessEnvironment(),
