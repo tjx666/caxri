@@ -39,7 +39,11 @@ import {
 } from '../terminal-commands';
 import { loadTerminalFonts } from '../terminal-fonts';
 import { createTerminalImageAddon, registerTerminalImageAddon } from '../terminal-images';
-import { registerTerminalClipboardHandlers, terminalKeyboardInput } from '../terminal-keyboard';
+import {
+    registerTerminalClipboardHandlers,
+    terminalCommandKeyOwner,
+    terminalKeyboardInput,
+} from '../terminal-keyboard';
 import { createTerminalLongPasteRuntime, longPasteFailureMessage } from '../terminal-long-paste';
 import {
     onError,
@@ -321,6 +325,9 @@ export function useTerminalPaneRuntime({
              * suppresses the `focus()` xterm performs on `keyup`, which would otherwise pull focus back again.
              */
             if (useDialogStore.getState().isModalOpen()) return false;
+            const commandKeyOwner = terminalCommandKeyOwner(event, xterm.hasSelection());
+            if (commandKeyOwner === 'select-all') xterm.selectAll();
+            if (commandKeyOwner !== 'xterm') return false;
             const input = terminalKeyboardInput(
                 event,
                 latestReference.current.canAcceptAgentInput && !longPaste.isPending(),
