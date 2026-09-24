@@ -91,6 +91,10 @@ export interface TerminalLinkHintPreview {
 export interface TerminalLinkHintController {
     dispose(): void;
     hide(): void;
+    /**
+     * Whether xterm currently reports a Caxri-detected link under the pointer, independent of the delayed popup.
+     */
+    isLinkHovered(): boolean;
     leave(): void;
     show(
         event: MouseEvent,
@@ -325,6 +329,7 @@ export function createTerminalLinkHintController(terminal: Terminal): TerminalLi
             }, TERMINAL_LINK_HINT_DELAY_MS);
         },
         hide,
+        isLinkHovered: () => isLinkHovered,
         leave() {
             isLinkHovered = false;
             applyModifier();
