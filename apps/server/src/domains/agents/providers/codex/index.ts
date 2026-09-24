@@ -652,12 +652,11 @@ async function readCodexState(
      * `token_count`, and `turn_aborted` — none of them a rename. Both writers go through the same app-server
      * `thread/name/set` this provider itself calls for {@link renameCodexSession}.
      *
-     * Leaving the field undefined is the conservative reading, not an oversight: `session-rename.ts` only adopts a
-     * pre-existing native title when it is declared `explicit`, and only mirrors a later native rename back into Caxri
-     * under the same declaration, so an ambiguous Codex title neither claims a Session name nor suppresses one. The
-     * cost is the case #671 reported — a title the user set in the CLI before Caxri's first automatic naming is
-     * overwritten. Closing that needs an upstream provenance field; inferring it from title text is explicitly out,
-     * since a generated title and a typed one are indistinguishable strings.
+     * An unknown title source does not grant Caxri authority to overwrite the native name. The Session naming service
+     * only generates when this provider reports no name (including the filtered provisional first-prompt prefix). It
+     * keeps a pre-existing name under automatic ownership so later Codex renames still appear in Caxri. This also
+     * preserves some generic Codex-generated names; distinguishing those from typed names requires upstream
+     * provenance.
      */
     return {
         ...turnState,

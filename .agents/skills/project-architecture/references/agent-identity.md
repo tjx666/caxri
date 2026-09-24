@@ -17,8 +17,10 @@ probe reads process and open-file metadata only, never rollout contents; ambiguo
 expired Terminal generations leave the binding unchanged. Lifecycle hooks remain authoritative, and another
 Terminal's claimed identity or a discarded fresh-start identity cannot be reclaimed through this fallback.
 
-Codex and Claude Sessions receive one Caxri-generated title after an authenticated main-turn completion supplies
-useful conversation context. The naming service reads a bounded, provider-authorized transcript tail in Server memory,
+Codex and Claude Sessions can receive one Caxri-generated title after an authenticated main-turn completion supplies
+useful conversation context. An existing native title with unknown provenance is preserved: only an explicitly
+AI-generated title may be replaced. The naming service checks native ownership before generation, then reads a
+bounded, provider-authorized transcript tail in Server memory,
 selects visible user and assistant messages, and excludes instructions and tool records. It never uses Git branch
 names. Unclear tasks defer naming; generation uses the existing isolated, tool-disabled provider text runner.
 `sessions.automatic_naming` persists the exact provider binding and pending title before native rename, then records
@@ -30,15 +32,17 @@ Completion ends generation for that Caxri Session, including after restart. Late
 name but never triggers another write. Claude's transcript `custom-title` outranks `ai-title` and stale live metadata;
 only `nameSource: user` is an explicit metadata fallback. Newer explicit external renames acquire manual ownership,
 while AI titles and pre-write snapshots cannot undo Caxri's completed rename. Codex does not persist title provenance:
-its later native name is synchronized without guessing who changed it. A first-turn native manual rename cannot be
-distinguished from an automatic title; a manual rename through Caxri is always protected. Codex's provisional
-first-prompt prefix remains filtered inside the native SQLite query, so raw prompts never become displayed names.
+an existing non-provisional native name stops Caxri generation while keeping native-to-Caxri synchronization active.
+This protects a first-turn native manual rename without guessing from text, and also retains generic native AI titles.
+A manual rename through Caxri is always protected. Codex's provisional first-prompt prefix remains filtered inside
+the native SQLite query, so raw prompts never become displayed names.
 
-Manual rename remains user-owned. `session.rename` resolves the exact
-primary Agent identity, sends the new name through the provider's public rename boundary, and commits the
-provider-authoritative result to SQLite inside a per-Session queue so a slower earlier request cannot overwrite a newer
-one. It sets `title_mode` to `manual`, which stops the metadata probe from replacing the user's title with a later
-provider-native one.
+Manual rename remains user-owned. `session.rename` resolves the exact primary Agent identity, sends the requested
+name through the provider's public rename boundary, and commits that exact request to SQLite inside a per-Session
+queue so a slower earlier request cannot overwrite a newer one. A provider may choose a different native title when
+the name is already held by another live session; Caxri records the mismatch without displaying that fallback as the
+user's Session name. Manual rename sets `title_mode` to `manual`, which stops the metadata probe from replacing the
+user's title with a later provider-native one.
 
 Automatic titles use a macOS `sandbox-exec` profile that
 denies reads of the Project root and of the global instruction files the CLI offers no switch for (`AGENTS.md` and
