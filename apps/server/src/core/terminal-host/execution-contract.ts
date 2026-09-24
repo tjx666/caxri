@@ -61,6 +61,9 @@ export type TerminalHostCapability =
     | 'terminal.input'
     | 'terminal.inspect'
     | 'terminal.lifecycle'
+    | 'terminal.lease'
+    | 'terminal.mobile.input'
+    | 'terminal.observe'
     | 'terminal.view';
 
 export interface TerminalHostControl {

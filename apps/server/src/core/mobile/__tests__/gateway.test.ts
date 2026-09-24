@@ -83,6 +83,7 @@ describe('MobileGateway', () => {
                     case 'mobile.dashboard':
                         return {
                             hostDisplayName: 'Test computer',
+                            deviceRole: role,
                             projects: [{ id: 'project-1', displayTitle: 'Test Project' }],
                             sessions: [],
                             total: 0,
@@ -520,6 +521,7 @@ describe('MobileGateway', () => {
                 throw new Error('Unexpected allowed request');
             return {
                 hostDisplayName: 'Test computer',
+                deviceRole: 'control',
                 projects: [{ id: 'project-1', displayTitle: 'Test Project' }],
                 sessions: [],
                 total: 0,

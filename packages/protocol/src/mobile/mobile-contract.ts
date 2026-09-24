@@ -73,6 +73,7 @@ export const mobileDashboardSessionSchema = z.strictObject({
 
 export const mobileDashboardResultSchema = z.strictObject({
     hostDisplayName: z.string().trim().min(1).max(100),
+    deviceRole: z.enum(['view', 'reply', 'control']).nullable(),
     projects: z.array(scopedProjectSchema).max(MOBILE_MAX_PROJECT_GRANTS),
     sessions: z.array(mobileDashboardSessionSchema).max(64),
     total: z.number().int().nonnegative().max(4_096),
@@ -131,6 +132,42 @@ export const mobileMethods = {
             defaultAgent: terminalKindSchema,
         }),
         result: mobileSessionCreateResultSchema,
+    },
+    'mobile.terminal.takeOver': {
+        ...commandPolicy('server', 'control', ['terminals.steer']),
+        params: z.strictObject({
+            terminalId: identifierSchema,
+            subscriptionId: identifierSchema,
+            expectedGeneration: z.number().int().positive(),
+            cols: z.number().int().min(2).max(1_000),
+            rows: z.number().int().min(1).max(1_000),
+        }),
+        result: z.strictObject({ expiresAt: z.number().int().positive() }),
+    },
+    'mobile.terminal.release': {
+        ...commandPolicy('server', 'control', ['terminals.steer']),
+        params: z.strictObject({
+            terminalId: identifierSchema,
+            subscriptionId: identifierSchema,
+            expectedGeneration: z.number().int().positive(),
+        }),
+        result: z.null(),
+    },
+    'mobile.terminal.input': {
+        ...commandPolicy('server', 'control', ['terminals.steer']),
+        params: z.strictObject({
+            terminalId: identifierSchema,
+            subscriptionId: identifierSchema,
+            expectedGeneration: z.number().int().positive(),
+            data: z
+                .string()
+                .min(1)
+                .refine(
+                    (data) => new TextEncoder().encode(data).length <= 8 * 1_024,
+                    'Mobile Terminal input must be at most 8 KiB',
+                ),
+        }),
+        result: z.null(),
     },
     'mobile.device.revoke': {
         ...commandPolicy('desktop', 'control'),

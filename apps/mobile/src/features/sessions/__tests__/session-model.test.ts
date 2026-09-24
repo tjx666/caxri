@@ -3,9 +3,9 @@ import { describe, expect, it } from 'vitest';
 import type { MobileSession, MobileTerminal } from '../session-model';
 import {
     buildMobileSessionSections,
+    isMobileTerminalStopped,
     mobileSessionDraftKey,
     shortReplyDisabledReason,
-    terminalPreviewFallback,
 } from '../session-model';
 
 const terminal: MobileTerminal = {
@@ -74,21 +74,20 @@ describe('mobile session model', () => {
         );
     });
 
-    it('distinguishes an empty preview from a stopped Agent', () => {
+    it('recognizes a stopped Agent Terminal', () => {
         const item = buildMobileSessionSections({
             total: 1,
             truncated: false,
             sessions: [session()],
         }).needsAttention[0];
 
-        expect(terminalPreviewFallback(item)).toBe('No output yet.');
-        expect(terminalPreviewFallback(item, 'stopped')).toBe('The Agent is stopped.');
+        expect(isMobileTerminalStopped(item)).toBe(false);
         expect(
-            terminalPreviewFallback({
+            isMobileTerminalStopped({
                 ...item,
                 primaryTerminal: { ...terminal, lastProcessState: 'stopped' },
             }),
-        ).toBe('The Agent is stopped.');
+        ).toBe(true);
     });
 
     it('invalidates a draft when the Session attention generation changes', () => {

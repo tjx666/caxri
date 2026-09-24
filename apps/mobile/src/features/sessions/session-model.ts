@@ -1,4 +1,4 @@
-import type { MethodResult, TerminalPreview } from '@caxri/protocol';
+import type { MethodResult } from '@caxri/protocol';
 
 export type MobileSession = MethodResult<'mobile.dashboard'>['sessions'][number];
 export type MobileTerminal = NonNullable<MobileSession['primaryTerminal']>;
@@ -96,11 +96,7 @@ export const shortReplyDisabledReason = (
     return null;
 };
 
-export const terminalPreviewFallback = (
-    session: MobileSessionItem,
-    availability: TerminalPreview['availability'] = 'live',
-): string => {
-    if (availability === 'stopped') return 'The Agent is stopped.';
+export const isMobileTerminalStopped = (session: MobileSessionItem): boolean => {
     switch (session.primaryTerminal?.lastProcessState) {
         case 'stopped':
         case 'dead':
@@ -108,11 +104,11 @@ export const terminalPreviewFallback = (
         case 'interrupted':
         case 'suspended':
         case 'detached':
-            return 'The Agent is stopped.';
+            return true;
         case 'running':
         case 'starting':
         case undefined:
-            return 'No output yet.';
+            return false;
     }
 };
 

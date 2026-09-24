@@ -128,12 +128,13 @@ describe('mobile gateway client', () => {
             randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
         };
         const { store } = memoryStore();
-        const incompatibleLink = pairingLink.replace('v=2', 'v=1');
+        const incompatibleLink = new URL(pairingLink);
+        incompatibleLink.searchParams.set('v', String(MOBILE_TRANSPORT_VERSION + 1));
 
         await expect(
             pairMobileGateway({
                 displayName: 'Pixel fixture',
-                pairingLink: incompatibleLink,
+                pairingLink: incompatibleLink.href,
                 runtime,
                 store,
             }),

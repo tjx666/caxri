@@ -16,18 +16,23 @@ import { z } from 'zod';
 
 import { observationContextSchema } from '../observability/context-schema';
 
-export const TERMINAL_HOST_PROTOCOL_VERSION = 3 as const;
+export const TERMINAL_HOST_PROTOCOL_VERSION = 4 as const;
 export const MAX_TERMINAL_HOST_MESSAGE_BYTES = 32 * 1024 * 1024;
 const MAX_TERMINAL_HOST_OUTPUT_CHARACTERS = 256 * 1024;
 
 const ptyGenerationSchema = z.number().int().positive();
 const attachmentIdSchema = identifierSchema;
+const observerIdSchema = identifierSchema;
+const leaseHolderIdSchema = z.string().min(1).max(400);
 const terminalHostCapabilitySchema = z.enum([
     'host.lifecycle',
     'terminal.agent.input',
     'terminal.input',
     'terminal.inspect',
     'terminal.lifecycle',
+    'terminal.lease',
+    'terminal.mobile.input',
+    'terminal.observe',
     'terminal.view',
 ]);
 
@@ -190,6 +195,53 @@ const terminalRequestSchemas = [
         })
         .strict(),
     z.object({ method: z.literal('terminal.detach'), params: z.object({}).strict() }).strict(),
+    z
+        .object({
+            method: z.literal('terminal.observe'),
+            params: z.object({ observerId: observerIdSchema }).strict(),
+        })
+        .strict(),
+    z
+        .object({
+            method: z.literal('terminal.unobserve'),
+            params: z.object({ observerId: observerIdSchema }).strict(),
+        })
+        .strict(),
+    z
+        .object({
+            method: z.literal('terminal.takeOver'),
+            params: z
+                .object({
+                    holderId: leaseHolderIdSchema,
+                    size: terminalGridSizeSchema,
+                    timeoutMs: z.number().int().min(1_000).max(60_000),
+                })
+                .strict(),
+        })
+        .strict(),
+    z
+        .object({
+            method: z.literal('terminal.renewTakeOver'),
+            params: z
+                .object({
+                    holderId: leaseHolderIdSchema,
+                    timeoutMs: z.number().int().min(1_000).max(60_000),
+                })
+                .strict(),
+        })
+        .strict(),
+    z
+        .object({
+            method: z.literal('terminal.releaseTakeOver'),
+            params: z.object({ holderId: leaseHolderIdSchema }).strict(),
+        })
+        .strict(),
+    z
+        .object({
+            method: z.literal('terminal.observer.input'),
+            params: z.object({ data: z.string().max(MAX_TERMINAL_INPUT_LENGTH) }).strict(),
+        })
+        .strict(),
     z.object({ method: z.literal('terminal.snapshot'), params: z.object({}).strict() }).strict(),
     z
         .object({
@@ -345,6 +397,23 @@ const terminalHostEventEnvelopeSchema = z.discriminatedUnion('event', [
     z
         .object({
             type: z.literal('event'),
+            event: z.literal('terminal.observer.output'),
+            identity: terminalEventIdentitySchema,
+            sequence: z.number().int().nonnegative(),
+            data: z.string().max(MAX_TERMINAL_HOST_OUTPUT_CHARACTERS),
+        })
+        .strict(),
+    z
+        .object({
+            type: z.literal('event'),
+            event: z.literal('terminal.observer.gap'),
+            identity: terminalEventIdentitySchema,
+            sequence: z.number().int().nonnegative(),
+        })
+        .strict(),
+    z
+        .object({
+            type: z.literal('event'),
             event: z.literal('terminal.exit'),
             identity: terminalEventIdentitySchema,
             exitCode: z.number().int(),
@@ -440,6 +509,17 @@ const terminalHostResultSchemas = {
         .object({ snapshot: terminalSnapshotSchema.nullable(), wasAttached: z.boolean() })
         .strict(),
     'terminal.detach': z.object({ detached: z.literal(true) }).strict(),
+    'terminal.observe': z
+        .object({
+            snapshot: terminalSnapshotSchema.nullable(),
+            nextSequence: z.number().int().nonnegative(),
+        })
+        .strict(),
+    'terminal.unobserve': z.object({ detached: z.literal(true) }).strict(),
+    'terminal.takeOver': z.object({ expiresAt: z.number().int().positive() }).strict(),
+    'terminal.renewTakeOver': z.object({ expiresAt: z.number().int().positive() }).strict(),
+    'terminal.releaseTakeOver': z.object({ released: z.literal(true) }).strict(),
+    'terminal.observer.input': z.object({ accepted: z.boolean() }).strict(),
     'terminal.snapshot': z.object({ snapshot: terminalSnapshotSchema.nullable() }).strict(),
     'terminal.textTail': z.object({ tail: z.string().max(65_536).nullable() }).strict(),
     'terminal.waitForAttachedSize': z.object({ attached: z.literal(true) }).strict(),
@@ -472,6 +552,12 @@ const requiredCapabilities = {
     'terminal.resize': 'terminal.view',
     'terminal.attach': 'terminal.view',
     'terminal.detach': 'terminal.view',
+    'terminal.observe': 'terminal.observe',
+    'terminal.unobserve': 'terminal.observe',
+    'terminal.takeOver': 'terminal.lease',
+    'terminal.renewTakeOver': 'terminal.lease',
+    'terminal.releaseTakeOver': 'terminal.lease',
+    'terminal.observer.input': 'terminal.mobile.input',
     'terminal.snapshot': 'terminal.view',
     'terminal.textTail': 'terminal.inspect',
     'terminal.waitForAttachedSize': 'terminal.view',
@@ -580,6 +666,19 @@ export function authorizeTerminalHostRequest(
             ? { ok: true }
             : { ok: false, reason: 'agent' };
     }
+    if (
+        [
+            'terminal.observe',
+            'terminal.unobserve',
+            'terminal.takeOver',
+            'terminal.renewTakeOver',
+            'terminal.releaseTakeOver',
+            'terminal.observer.input',
+        ].includes(envelope.request.method)
+    )
+        return envelope.scope.attachmentId === undefined && current.running
+            ? { ok: true }
+            : { ok: false, reason: 'attachment' };
     if (
         ['terminal.input', 'terminal.resize', 'terminal.detach'].includes(envelope.request.method)
     ) {

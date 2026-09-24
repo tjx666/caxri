@@ -35,6 +35,7 @@ const priority = (session: SessionQueryResult['sessions'][number]): number => {
  */
 export const buildMobileDashboard = (input: {
     hostDisplayName: string;
+    deviceRole: MobileDashboardResult['deviceRole'];
     projects: ProjectQueryResult['projects'];
     sessions: SessionQueryResult['sessions'];
     terminals: TerminalQueryResult['terminals'];
@@ -89,6 +90,7 @@ export const buildMobileDashboard = (input: {
         const next = [...sessions, candidate];
         const projected = {
             hostDisplayName: input.hostDisplayName,
+            deviceRole: input.deviceRole,
             projects: visibleProjects,
             sessions: next,
             total: active.length,
@@ -100,6 +102,7 @@ export const buildMobileDashboard = (input: {
     }
     return {
         hostDisplayName: input.hostDisplayName,
+        deviceRole: input.deviceRole,
         projects: visibleProjects,
         sessions,
         total: active.length,

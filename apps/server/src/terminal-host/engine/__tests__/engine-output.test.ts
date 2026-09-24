@@ -8,22 +8,46 @@ import { TerminalExecutionEngine } from '../engine';
 import { TERMINAL_IMAGE_OUTPUT_TRUNCATED_PLACEHOLDER } from '../image-recovery';
 import { TerminalScreenState } from '../screen';
 
-function fixture() {
+function fixture(
+    options: {
+        observerOutputMaximumBytes?: number;
+        outputFlushMs?: number;
+        screenMaximumQueuedBytes?: number;
+    } = {},
+) {
     let send: (data: string) => void = () => {};
     const events: TerminalExecutionEvent[] = [];
+    let cols = 20;
+    let rows = 4;
+    const resize = vi.fn((nextCols: number, nextRows: number) => {
+        cols = nextCols;
+        rows = nextRows;
+    });
     const engine = new TerminalExecutionEngine({
         emit: (event) => events.push(event),
         logger: { write: vi.fn(), recordMetric: vi.fn() } as unknown as StructuredLogger,
         onExit: vi.fn(),
-        outputFlushMs: 1,
+        outputFlushMs: options.outputFlushMs ?? 1,
+        ...(options.observerOutputMaximumBytes && {
+            observerOutputMaximumBytes: options.observerOutputMaximumBytes,
+        }),
+        ...(options.screenMaximumQueuedBytes && {
+            screenMaximumQueuedBytes: options.screenMaximumQueuedBytes,
+        }),
         spawn: () =>
             ({
                 pid: 999_999,
+                get cols() {
+                    return cols;
+                },
+                get rows() {
+                    return rows;
+                },
                 onData: (handler: (data: string) => void) => {
                     send = handler;
                 },
                 onExit: vi.fn(),
-                resize: vi.fn(),
+                resize,
                 write: vi.fn(),
                 kill: vi.fn(),
             }) as unknown as IPty,
@@ -48,10 +72,198 @@ function fixture() {
         initialSnapshot: '',
         initialSize: { cols: 20, rows: 4 },
     });
-    return { engine, events, send: (data: string) => send(data) };
+    return {
+        engine,
+        events,
+        resize,
+        size: () => ({ cols, rows }),
+        send: (data: string) => send(data),
+    };
 }
 
 describe('Terminal execution output boundaries', () => {
+    it('rejects a new observer after the PTY has retired', async () => {
+        const { engine } = fixture();
+        engine.discard('terminal');
+        await expect(engine.observe('terminal', 'observer-1')).rejects.toMatchObject({
+            code: 'UNAVAILABLE',
+        });
+    });
+
+    it('lets a mobile observer receive a snapshot and live output without taking the desktop attachment', async () => {
+        const { engine, events, send } = fixture();
+        try {
+            send('before\r\n');
+            const observed = await engine.observe('terminal', 'observer-1');
+            expect(observed.snapshot?.payload).toContain('before');
+            send('after\r\n');
+            await expect
+                .poll(() => events.filter((event) => event.type === 'observerOutput').length)
+                .toBe(1);
+            expect(events.filter((event) => event.type === 'output')).toEqual([]);
+            expect(events.find((event) => event.type === 'observerOutput')).toMatchObject({
+                terminalId: 'terminal',
+                data: 'after\r\n',
+                sequence: observed.nextSequence,
+            });
+            const desktop = await engine.attach('terminal', { cols: 20, rows: 4 });
+            expect(desktop.wasAttached).toBe(false);
+            engine.detachView('terminal');
+            send('still-observed\r\n');
+            await expect
+                .poll(() => events.filter((event) => event.type === 'observerOutput').length)
+                .toBe(2);
+        } finally {
+            await Promise.all(engine.shutdown().map(({ capture }) => capture));
+        }
+    });
+    it('preserves framed observer output across a desktop reattach and detach', async () => {
+        const { engine, events, send } = fixture({ outputFlushMs: 50 });
+        try {
+            await engine.attach('terminal');
+            const observed = await engine.observe('terminal', 'observer-1');
+            send('before\u{1B}[2;');
+            await engine.attach('terminal');
+            engine.detachView('terminal');
+            send('1Hafter');
+            await expect
+                .poll(() => events.filter((event) => event.type === 'observerOutput').length)
+                .toBe(2);
+            const output = events.filter((event) => event.type === 'observerOutput');
+            expect(output.map((event) => event.data).join('')).toBe('before\u{1B}[2;1Hafter');
+            expect(output.map((event) => event.sequence)).toEqual([
+                observed.nextSequence,
+                observed.nextSequence + 1,
+            ]);
+        } finally {
+            await Promise.all(engine.shutdown().map(({ capture }) => capture));
+        }
+    });
+    it.each(['reattach', 'detach'] as const)(
+        'flushes the last pending observer batch when desktop performs %s',
+        async (action) => {
+            const { engine, events, send } = fixture({ outputFlushMs: 50 });
+            try {
+                await engine.attach('terminal');
+                await engine.observe('terminal', 'observer-1');
+                send('pending-with-no-follow-up');
+                if (action === 'reattach') await engine.attach('terminal');
+                else engine.detachView('terminal');
+                expect(events.filter((event) => event.type === 'observerOutput')).toMatchObject([
+                    { data: 'pending-with-no-follow-up' },
+                ]);
+            } finally {
+                await Promise.all(engine.shutdown().map(({ capture }) => capture));
+            }
+        },
+    );
+    it('does not replay a pending output batch into an observer that joined after its snapshot waterline', async () => {
+        const { engine, events, send } = fixture({ outputFlushMs: 50 });
+        try {
+            await engine.observe('terminal', 'observer-1');
+            send('before\r\n');
+            const second = await engine.observe('terminal', 'observer-2');
+            expect(second.snapshot?.payload).toContain('before');
+            send('after\r\n');
+            await expect
+                .poll(() => events.filter((event) => event.type === 'observerOutput').length)
+                .toBe(2);
+            expect(events.filter((event) => event.type === 'observerOutput')).toMatchObject([
+                { sequence: second.nextSequence - 1, data: 'before\r\n' },
+                { sequence: second.nextSequence, data: 'after\r\n' },
+            ]);
+        } finally {
+            await Promise.all(engine.shutdown().map(({ capture }) => capture));
+        }
+    });
+    it('isolates observer queue overflow from the desktop output queue', async () => {
+        const { engine, events, send } = fixture({ observerOutputMaximumBytes: 8 });
+        try {
+            await engine.attach('terminal');
+            await engine.observe('terminal', 'observer-1');
+            send('desktop-still-sees-this');
+            await expect
+                .poll(() => events.filter((event) => event.type === 'observerGap').length)
+                .toBe(1);
+            await expect
+                .poll(() => events.filter((event) => event.type === 'output').length)
+                .toBe(1);
+            expect(events.find((event) => event.type === 'output')).toMatchObject({
+                data: 'desktop-still-sees-this',
+            });
+        } finally {
+            await Promise.all(engine.shutdown().map(({ capture }) => capture));
+        }
+    });
+    it('lets a new observer resume after a gap while the stale observer remains registered', async () => {
+        const { engine, events, send } = fixture({ observerOutputMaximumBytes: 8 });
+        try {
+            await engine.observe('terminal', 'stale-observer');
+            send('far-too-long');
+            await expect
+                .poll(() => events.filter((event) => event.type === 'observerGap').length)
+                .toBe(1);
+            const fresh = await engine.observe('terminal', 'fresh-observer');
+            send('ok');
+            await expect
+                .poll(() => events.filter((event) => event.type === 'observerOutput').length)
+                .toBe(1);
+            expect(events.find((event) => event.type === 'observerOutput')).toMatchObject({
+                sequence: fresh.nextSequence,
+                data: 'ok',
+            });
+        } finally {
+            await Promise.all(engine.shutdown().map(({ capture }) => capture));
+        }
+    });
+    it('emits an observer gap when screen parser backpressure resets recovery', async () => {
+        const { engine, events, send } = fixture({ screenMaximumQueuedBytes: 16 });
+        try {
+            const observed = await engine.observe('terminal', 'observer-1');
+            send('a'.repeat(32));
+            await expect
+                .poll(() => events.filter((event) => event.type === 'observerGap').length)
+                .toBe(1);
+            expect(events.find((event) => event.type === 'observerGap')).toMatchObject({
+                sequence: observed.nextSequence,
+            });
+        } finally {
+            await Promise.all(engine.shutdown().map(({ capture }) => capture));
+        }
+    });
+    it('restores the latest desktop size after an exclusive mobile size lease', async () => {
+        const { engine, resize, size } = fixture();
+        try {
+            await engine.attach('terminal', { cols: 80, rows: 24 });
+            engine.takeOver('terminal', 'connection:subscription', { cols: 42, rows: 20 }, 12_000);
+            expect(size()).toEqual({ cols: 42, rows: 20 });
+            expect(() =>
+                engine.takeOver('terminal', 'other:subscription', { cols: 30, rows: 15 }, 12_000),
+            ).toThrow();
+            engine.resize('terminal', 100, 30);
+            await engine.attach('terminal', { cols: 110, rows: 32 });
+            expect(size()).toEqual({ cols: 42, rows: 20 });
+            engine.releaseTakeOver('terminal', 'connection:subscription');
+            expect(size()).toEqual({ cols: 110, rows: 32 });
+            expect(resize).toHaveBeenCalledTimes(3);
+        } finally {
+            await Promise.all(engine.shutdown().map(({ capture }) => capture));
+        }
+    });
+    it('restores the pre-lease size when desktop detaches and the lease expires', async () => {
+        vi.useFakeTimers();
+        const { engine, size } = fixture();
+        try {
+            await engine.attach('terminal', { cols: 80, rows: 24 });
+            engine.takeOver('terminal', 'connection:subscription', { cols: 42, rows: 20 }, 1_000);
+            engine.detachView('terminal');
+            await vi.advanceTimersByTimeAsync(1_000);
+            expect(size()).toEqual({ cols: 80, rows: 24 });
+        } finally {
+            await Promise.all(engine.shutdown().map(({ capture }) => capture));
+            vi.useRealTimers();
+        }
+    });
     it.each([32, 70 * 1024])(
         'finishes an attached incomplete image of %i bytes once on exit',
         async (size) => {

@@ -198,6 +198,7 @@ export const useSessionPolling = (isVisible = true) => {
         beginListInteraction: (): void => {
             setFrozenSections((current) => current ?? sections);
         },
+        deviceRole: query.data?.deviceRole ?? null,
         entries: useMemo(() => flattenMobileSessionSections(sections), [sections]),
         error: query.isError ? 'Unable to load Sessions.' : null,
         finishListInteraction,
