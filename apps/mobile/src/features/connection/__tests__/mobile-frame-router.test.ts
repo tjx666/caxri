@@ -43,6 +43,10 @@ describe('mobile frame router', () => {
             subscriptionId: 'terminal-sub',
             sequence: 0,
             kind: 'terminal.output',
+            generation: 1,
+            hostSequence: 0,
+            chunkIndex: 0,
+            chunkCount: 1,
             chunkHex: '6162',
         });
         router.receiveReply(reply('read', { result: true }));
@@ -101,6 +105,49 @@ describe('mobile frame router', () => {
             expect.objectContaining({ kind: 'resync-required', sequence: 0 }),
         );
         expect(router.hasSubscription('early-subscription')).toBe(false);
+    });
+
+    it('accepts the first Terminal snapshot after subscription ACK before output', () => {
+        const router = new MobileFrameRouter();
+        const onMessage = vi.fn();
+        router.beginSubscriptionRequest('subscribe-terminal');
+        router.addSubscription(
+            'terminal-sub',
+            { kind: 'terminal', terminalId: 'terminal-1' },
+            onMessage,
+        );
+        router.endSubscriptionRequest('subscribe-terminal');
+        router.receiveSubscriptionMessage({
+            type: 'stream',
+            subscriptionId: 'terminal-sub',
+            sequence: 0,
+            kind: 'terminal.snapshot',
+            generation: 2,
+            nextHostSequence: 7,
+            chunkIndex: 0,
+            chunkCount: 1,
+            chunkHex: '6e756c6c',
+        });
+        router.receiveSubscriptionMessage({
+            type: 'stream',
+            subscriptionId: 'terminal-sub',
+            sequence: 1,
+            kind: 'terminal.output',
+            generation: 2,
+            hostSequence: 7,
+            chunkIndex: 0,
+            chunkCount: 1,
+            chunkHex: '41',
+        });
+        expect(onMessage).toHaveBeenCalledTimes(2);
+        expect(onMessage).toHaveBeenNthCalledWith(
+            1,
+            expect.objectContaining({ kind: 'terminal.snapshot' }),
+        );
+        expect(onMessage).toHaveBeenNthCalledWith(
+            2,
+            expect.objectContaining({ kind: 'terminal.output' }),
+        );
     });
 
     it('rejects unknown push floods instead of accumulating unbounded pre-ACK frames', () => {

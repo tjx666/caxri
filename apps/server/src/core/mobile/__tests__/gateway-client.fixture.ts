@@ -94,6 +94,26 @@ export async function connectDevice(gateway: MobileGateway, record: MobileDevice
         ),
     );
     mobileSealedFrameSchema.parse(await readyMessage);
+    const received: unknown[] = [];
+    const waiting: Array<(payload: unknown) => void> = [];
+    socket.on('message', (data) => {
+        if (!Buffer.isBuffer(data)) return;
+        const frame = mobileSealedFrameSchema.parse(JSON.parse(data.toString('utf8')) as unknown);
+        const plaintext = openMobileFrame(
+            keys.serverToClient,
+            {
+                connectionId: transcript.connectionId,
+                counter: frame.counter,
+                deviceId: record.deviceId,
+                direction: 'server-to-client',
+            },
+            decodeHex(frame.ciphertext),
+        );
+        const payload = JSON.parse(new TextDecoder().decode(plaintext)) as unknown;
+        const reader = waiting.shift();
+        if (reader) reader(payload);
+        else received.push(payload);
+    });
     let counter = 0;
     const send = (request: unknown): void => {
         const ciphertext = sealMobileFrame(
@@ -116,22 +136,13 @@ export async function connectDevice(gateway: MobileGateway, record: MobileDevice
             }),
         );
     };
-    const read = async (): Promise<unknown> => {
-        const frame = mobileSealedFrameSchema.parse(await nextMessage(socket));
-        const plaintext = openMobileFrame(
-            keys.serverToClient,
-            {
-                connectionId: transcript.connectionId,
-                counter: frame.counter,
-                deviceId: record.deviceId,
-                direction: 'server-to-client',
-            },
-            decodeHex(frame.ciphertext),
-        );
-        return JSON.parse(new TextDecoder().decode(plaintext)) as unknown;
+    const read = (): Promise<unknown> => {
+        if (received.length > 0) return Promise.resolve(received.shift());
+        return new Promise((resolve) => waiting.push(resolve));
     };
     return {
         socket,
+        connectionId: challenge.connectionId,
         request: async (request: unknown): Promise<unknown> => {
             const replyMessage = read();
             send({ type: 'request', request });

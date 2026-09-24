@@ -643,6 +643,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             lease.identity.processIdentity,
             protocolIdentity,
             domainService,
+            terminalExecution,
         );
         logger.updateBaseContext({ serverId: protocolIdentity.serverId });
         recoveryJournal.initialize(protocolIdentity, protocolRecovery);

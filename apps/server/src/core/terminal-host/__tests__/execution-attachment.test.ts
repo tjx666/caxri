@@ -17,6 +17,98 @@ afterEach(cleanupExecutionFixtures);
  * `./execution.test.ts`, which owns input delivery and PTY generations, when that file passed the 800-line cap.
  */
 describe('architecture-a3b-terminal-host: RemoteTerminalExecution view attachment', () => {
+    it('rejects a Host observation that has no live snapshot', async () => {
+        const { control, execution } = createExecution();
+        await execution.reserve(terminal);
+        await execution.start({
+            args: [],
+            environment: {},
+            executable: '/bin/zsh',
+            initialSnapshot: null,
+            record: terminal,
+        });
+        control.observeReturnsNull = true;
+        await expect(execution.observe(terminal.id, 'observer-1')).rejects.toMatchObject({
+            code: 'UNAVAILABLE',
+        });
+    });
+
+    it('passes mobile input cancellation to the Host request', async () => {
+        const { control, execution } = createExecution();
+        await execution.reserve(terminal);
+        await execution.start({
+            args: [],
+            environment: {},
+            executable: '/bin/zsh',
+            initialSnapshot: null,
+            record: terminal,
+        });
+        const request = vi.spyOn(control, 'request');
+        const cancellation = new AbortController();
+        await expect(
+            execution.inputForGeneration(terminal.id, 1, '\u{1B}[A', cancellation.signal),
+        ).resolves.toBe(true);
+        expect(request).toHaveBeenLastCalledWith(
+            { method: 'terminal.observer.input', params: { data: '\u{1B}[A' } },
+            expect.objectContaining({ capability: 'terminal.mobile.input' }),
+            cancellation.signal,
+        );
+    });
+
+    it('projects observer output without a desktop attachment and fences old generations', async () => {
+        const { control, execution } = createExecution();
+        const observer = vi.fn();
+        const desktop = vi.fn();
+        execution.onObserverEvent(observer);
+        execution.onEvent(desktop);
+        await execution.reserve(terminal);
+        await execution.start({
+            args: [],
+            environment: {},
+            executable: '/bin/zsh',
+            initialSnapshot: null,
+            record: terminal,
+        });
+        await expect(execution.observe(terminal.id, 'observer-1')).resolves.toEqual({
+            snapshot,
+            nextSequence: 4,
+            generation: 1,
+        });
+        const identity = {
+            scope: 'terminal' as const,
+            sessionId: terminal.sessionId,
+            terminalId: terminal.id,
+            ptyGeneration: 1,
+        };
+        control.emit({
+            type: 'event',
+            event: 'terminal.observer.output',
+            identity: { ...identity, ptyGeneration: 0 },
+            sequence: 4,
+            data: 'stale',
+        });
+        control.emit({
+            type: 'event',
+            event: 'terminal.observer.output',
+            identity,
+            sequence: 4,
+            data: 'live',
+        });
+        expect(observer).toHaveBeenCalledOnce();
+        expect(observer).toHaveBeenCalledWith({
+            type: 'output',
+            terminalId: terminal.id,
+            generation: 1,
+            sequence: 4,
+            data: 'live',
+        });
+        expect(desktop).not.toHaveBeenCalled();
+        expect(control.requests.at(-1)).toMatchObject({
+            request: { method: 'terminal.observe' },
+            scope: { capability: 'terminal.observe', ptyGeneration: 1 },
+        });
+        await execution.unobserve(terminal.id, 'observer-1');
+    });
     it('replays a pre-launch view reservation and preserves synchronous input acceptance', async () => {
         const { control, execution } = createExecution();
         const output = vi.fn();

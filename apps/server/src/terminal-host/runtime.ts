@@ -51,6 +51,25 @@ export interface TerminalExecutionOwner {
     close(terminalId: string): void;
     detachAllViews(): void;
     detachView(terminalId: string): void;
+    observe(
+        terminalId: string,
+        observerId: string,
+    ): Promise<{ snapshot: TerminalSnapshot | null; nextSequence: number }>;
+    unobserve(terminalId: string, observerId: string): void;
+    takeOver(
+        terminalId: string,
+        holderId: string,
+        size: { cols: number; rows: number },
+        timeoutMs: number,
+    ): { expiresAt: number };
+    renewTakeOver(
+        terminalId: string,
+        holderId: string,
+        timeoutMs: number,
+    ): {
+        expiresAt: number;
+    };
+    releaseTakeOver(terminalId: string, holderId: string): void;
     processId(terminalId: string): number | undefined;
     reassignSession(terminalId: string, sessionId: string): void;
     reconcileOutputRecoverySettings(): void;
@@ -207,6 +226,23 @@ export class TerminalHostRuntime {
                     identity: { ...wireIdentity, attachmentId: identity.attachmentId },
                     data: event.data,
                     ...(event.droppedBytes !== undefined && { droppedBytes: event.droppedBytes }),
+                });
+                return;
+            case 'observerOutput':
+                this.options.send({
+                    type: 'event',
+                    event: 'terminal.observer.output',
+                    identity: wireIdentity,
+                    sequence: event.sequence,
+                    data: event.data,
+                });
+                return;
+            case 'observerGap':
+                this.options.send({
+                    type: 'event',
+                    event: 'terminal.observer.gap',
+                    identity: wireIdentity,
+                    sequence: event.sequence,
                 });
                 return;
             case 'activity':
@@ -461,6 +497,41 @@ export class TerminalHostRuntime {
                 if (identity) delete identity.attachmentId;
                 return { detached: true };
             }
+            case 'terminal.observe': {
+                const scope = this.requireTerminalScope(envelope);
+                return this.engine.observe(scope.terminalId, request.params.observerId);
+            }
+            case 'terminal.unobserve': {
+                const scope = this.requireTerminalScope(envelope);
+                this.engine.unobserve(scope.terminalId, request.params.observerId);
+                return { detached: true };
+            }
+            case 'terminal.takeOver': {
+                const scope = this.requireTerminalScope(envelope);
+                return this.engine.takeOver(
+                    scope.terminalId,
+                    request.params.holderId,
+                    request.params.size,
+                    request.params.timeoutMs,
+                );
+            }
+            case 'terminal.renewTakeOver': {
+                const scope = this.requireTerminalScope(envelope);
+                return this.engine.renewTakeOver(
+                    scope.terminalId,
+                    request.params.holderId,
+                    request.params.timeoutMs,
+                );
+            }
+            case 'terminal.releaseTakeOver': {
+                const scope = this.requireTerminalScope(envelope);
+                this.engine.releaseTakeOver(scope.terminalId, request.params.holderId);
+                return { released: true };
+            }
+            case 'terminal.observer.input': {
+                const scope = this.requireTerminalScope(envelope);
+                return { accepted: this.engine.write(scope.terminalId, request.params.data) };
+            }
             case 'terminal.snapshot': {
                 const scope = this.requireTerminalScope(envelope);
                 return { snapshot: await this.engine.snapshot(scope.terminalId) };
@@ -514,8 +585,8 @@ export class TerminalHostRuntime {
                     ? this.engine.restartBarrier(scope.terminalId)
                     : undefined;
                 if (!request.params.persistSnapshot) this.engine.close(scope.terminalId);
-                const snapshot = capture ? await capture : null;
                 if (identity) identity.running = false;
+                const snapshot = capture ? await capture : null;
                 if (!request.params.persistSnapshot) {
                     this.identities.delete(scope.terminalId);
                     this.colors.delete(scope.terminalId);

@@ -87,6 +87,7 @@ describe('mobile Session hooks', () => {
 
     it('holds the rendered order during touch and shows the latest snapshot on release', () => {
         const latest = {
+            deviceRole: 'control' as const,
             hostDisplayName: 'Test computer',
             projects: [],
             sections: buildMobileSessionSections({

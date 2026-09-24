@@ -12,6 +12,15 @@ separately from that bounded burst. A concurrent resize or small input can queue
 paste without consuming its allowance; a second large payload is rejected until the first settles.
 WebSocket callback backpressure and the socket high-water mark still apply to every chunk.
 
+A mobile Terminal size change is explicit and leased by Terminal Host under a separate generation-bound
+capability. While the lease is active, Desktop attach and resize update the latest desired Desktop grid
+without changing the PTY. Release, disconnect, unsubscribe, device revocation, timeout, or Terminal
+retirement ends the lease; a running PTY returns to the current Desktop grid, or to its pre-lease grid
+when no Desktop view remains. Only one exact connection and subscription holder can own the lease.
+Mobile control input crosses a separate Host request fenced to the current PTY generation; it never
+borrows the Desktop attachment capability. Revocation cancels input awaiting Host startup before
+send; once sent, the Host result remains authoritative because PTY input cannot be recalled.
+
 Terminal attachment recovery belongs to the Client binary-stream boundary: `TIMEOUT` and
 `UNAVAILABLE` can leave both Host ownership ambiguous and the output socket closed. Retry with fresh
 tickets and streams at most twice, after 250 ms and 1 s, under the same cancellable Terminal operation

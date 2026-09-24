@@ -14,6 +14,12 @@ export interface LiveTerminal {
     imageRecovery: TerminalImageRecoveryFilter;
     outputFramer: TerminalOutputFramer;
     imageOutput: TerminalImageOutputFilter;
+    observerImageOutput: TerminalImageOutputFilter;
+    observerOutputQueue: TerminalOutputQueue;
+    observerDroppedBytes: number;
+    observerNeedsResync: boolean;
+    observerSequence: number;
+    observers: Set<string>;
     process: pty.IPty;
     record: TerminalRecord;
     screen: TerminalScreenState;

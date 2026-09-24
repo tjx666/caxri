@@ -1,4 +1,10 @@
-import type { AgentOutputRecoverySettings, AgentProvider, TerminalSnapshot } from '@caxri/protocol';
+import type {
+    AgentOutputRecoverySettings,
+    AgentProvider,
+    TerminalRecord,
+    TerminalSnapshot,
+} from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import type * as pty from 'node-pty';
 
@@ -6,6 +12,7 @@ import type {
     TerminalExecutionEvent as DomainExecutionEvent,
     TerminalExecutionExit as DomainExecutionExit,
     TerminalExecutionPort,
+    TerminalObserverEvent,
 } from '../../domains/terminal';
 import { TerminalExecutionEngine } from '../../terminal-host/engine';
 
@@ -29,16 +36,39 @@ export interface LocalTerminalExecutionOptions {
 export class LocalTerminalExecution extends EventTarget implements TerminalExecutionPort {
     private readonly agents = new Map<string, { launchId: string; processId: number }>();
     private readonly engine: TerminalExecutionEngine;
+    private readonly generations = new Map<string, number>();
 
     constructor(options: LocalTerminalExecutionOptions) {
         super();
         this.engine = new TerminalExecutionEngine({
             agentOutputRecoverySettings: options.agentOutputRecoverySettings,
             currentProvider: options.currentProvider,
-            emit: (event) =>
+            emit: (event) => {
+                if (event.type === 'observerOutput' || event.type === 'observerGap') {
+                    const detail: TerminalObserverEvent =
+                        event.type === 'observerOutput'
+                            ? {
+                                  type: 'output',
+                                  terminalId: event.terminalId,
+                                  generation: this.generations.get(event.terminalId) ?? 1,
+                                  sequence: event.sequence,
+                                  data: event.data,
+                              }
+                            : {
+                                  type: 'gap',
+                                  terminalId: event.terminalId,
+                                  generation: this.generations.get(event.terminalId) ?? 1,
+                                  sequence: event.sequence,
+                              };
+                    this.dispatchEvent(
+                        new CustomEvent<TerminalObserverEvent>('observer', { detail }),
+                    );
+                    return;
+                }
                 this.dispatchEvent(
                     new CustomEvent<DomainExecutionEvent>('event', { detail: event }),
-                ),
+                );
+            },
             logger: options.logger,
             onExit: (event) => {
                 const agent = this.agents.get(event.record.id);
@@ -64,8 +94,74 @@ export class LocalTerminalExecution extends EventTarget implements TerminalExecu
         });
     }
 
-    reserve(): Promise<void> {
+    private requireGeneration(terminalId: string, expectedGeneration: number): void {
+        if ((this.generations.get(terminalId) ?? 1) !== expectedGeneration)
+            throw new CaxriError('CONFLICT', 'Terminal generation changed');
+    }
+
+    reserve(record: TerminalRecord): Promise<void> {
+        this.generations.set(record.id, (this.generations.get(record.id) ?? 0) + 1);
         return Promise.resolve();
+    }
+
+    async observe(
+        terminalId: string,
+        observerId: string,
+    ): Promise<{
+        snapshot: TerminalSnapshot | null;
+        nextSequence: number;
+        generation: number;
+    }> {
+        const result = await this.engine.observe(terminalId, observerId);
+        return { ...result, generation: this.generations.get(terminalId) ?? 1 };
+    }
+
+    unobserve(terminalId: string, observerId: string): Promise<void> {
+        this.engine.unobserve(terminalId, observerId);
+        return Promise.resolve();
+    }
+
+    takeOver(
+        terminalId: string,
+        holderId: string,
+        expectedGeneration: number,
+        size: { cols: number; rows: number },
+        timeoutMs: number,
+    ): Promise<{ expiresAt: number }> {
+        this.requireGeneration(terminalId, expectedGeneration);
+        return Promise.resolve(this.engine.takeOver(terminalId, holderId, size, timeoutMs));
+    }
+
+    renewTakeOver(
+        terminalId: string,
+        holderId: string,
+        expectedGeneration: number,
+        timeoutMs: number,
+    ): Promise<{ expiresAt: number }> {
+        this.requireGeneration(terminalId, expectedGeneration);
+        return Promise.resolve(this.engine.renewTakeOver(terminalId, holderId, timeoutMs));
+    }
+
+    releaseTakeOver(
+        terminalId: string,
+        holderId: string,
+        expectedGeneration: number,
+    ): Promise<void> {
+        if ((this.generations.get(terminalId) ?? 1) === expectedGeneration)
+            this.engine.releaseTakeOver(terminalId, holderId);
+        return Promise.resolve();
+    }
+
+    inputForGeneration(
+        terminalId: string,
+        expectedGeneration: number,
+        data: string,
+        signal?: AbortSignal,
+    ): Promise<boolean> {
+        if (signal?.aborted)
+            throw new CaxriError('CANCELLED', 'Terminal input was cancelled before admission');
+        this.requireGeneration(terminalId, expectedGeneration);
+        return Promise.resolve(this.engine.write(terminalId, data));
     }
 
     emitAgentExit(terminalId: string, exitCode: number | null, signal?: NodeJS.Signals): boolean {
@@ -243,6 +339,13 @@ export class LocalTerminalExecution extends EventTarget implements TerminalExecu
             listener((event as CustomEvent<DomainExecutionEvent>).detail);
         this.addEventListener('event', handler);
         return () => this.removeEventListener('event', handler);
+    }
+
+    onObserverEvent(listener: (event: TerminalObserverEvent) => void): () => void {
+        const handler = (event: Event): void =>
+            listener((event as CustomEvent<TerminalObserverEvent>).detail);
+        this.addEventListener('observer', handler);
+        return () => this.removeEventListener('observer', handler);
     }
 
     onExit(listener: (event: DomainExecutionExit) => void): () => void {

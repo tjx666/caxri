@@ -66,6 +66,7 @@ export class FakeTerminalHostControl implements TerminalHostControl {
      * output under the old `attachmentId`.
      */
     failNextAttach?: Error;
+    observeReturnsNull = false;
     readonly requests: Array<{ request: TerminalHostRequest; scope: TerminalHostScope }> = [];
     holdAttachRequests = false;
     holdInputRequests = false;
@@ -116,6 +117,20 @@ export class FakeTerminalHostControl implements TerminalHostControl {
             }
             case 'terminal.start':
                 return Promise.resolve({ processId: 4243 });
+            case 'terminal.observe':
+                return Promise.resolve({
+                    snapshot: this.observeReturnsNull ? null : snapshot,
+                    nextSequence: 4,
+                });
+            case 'terminal.unobserve':
+                return Promise.resolve({ detached: true });
+            case 'terminal.takeOver':
+            case 'terminal.renewTakeOver':
+                return Promise.resolve({ expiresAt: Date.now() + request.params.timeoutMs });
+            case 'terminal.releaseTakeOver':
+                return Promise.resolve({ released: true });
+            case 'terminal.observer.input':
+                return Promise.resolve({ accepted: true });
             case 'terminal.stop':
                 return Promise.resolve({ snapshot, stopped: true });
             case 'terminal.input':
