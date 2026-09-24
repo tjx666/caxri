@@ -43,7 +43,12 @@ it('hides a Project from bootstrap and restores its Sessions when the root is ad
             defaultAgent: 'shell',
         });
 
+        expect(await runtime.handlers['project.restorable']({ rootPath: hiddenRoot })).toBe(false);
         const hidden = await runtime.handlers['project.hide']({ projectId: project.id });
+        expect(await runtime.handlers['project.restorable']({ rootPath: hiddenRoot })).toBe(true);
+        expect(
+            await runtime.handlers['project.restorable']({ rootPath: join(directory, 'missing') }),
+        ).toBe(false);
 
         expect(hidden.projects.map(({ id }) => id)).toEqual([keeper.id]);
         expect(hidden.sessions.some(({ projectId }) => projectId === project.id)).toBe(false);
@@ -66,6 +71,7 @@ it('hides a Project from bootstrap and restores its Sessions when the root is ad
         const restored = await runtime.handlers['project.create']({ rootPath: hiddenRoot });
 
         expect(restored.id).toBe(project.id);
+        expect(await runtime.handlers['project.restorable']({ rootPath: hiddenRoot })).toBe(false);
         const bootstrap = await runtime.handlers['app.bootstrap']({});
         expect(bootstrap.sessions.map(({ id }) => id)).toContain(created.session.id);
         expect(bootstrap.terminals.map(({ id }) => id)).toContain(created.terminal!.id);

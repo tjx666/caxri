@@ -177,10 +177,24 @@ export function chooseSessionTerminalKind(projectId: string, kind: TerminalKind 
     void createSession(projectId, kind);
 }
 
+/**
+ * Adding a hidden Project's folder again brings its Sessions back, so the flow selects one of them instead of asking
+ * for a Terminal and creating yet another Session next to the restored ones.
+ */
+async function restoreHiddenProject(rootPath: string): Promise<void> {
+    const project = await caxri.request('project.create', { rootPath });
+    await refreshWorkbench();
+    selectProject(project.id);
+}
+
 export async function chooseProjectFolder(): Promise<void> {
     await tryCommand('Project folder selection failed', async () => {
         const rootPath = await caxri.request('dialog.selectDirectory');
         if (!rootPath) return;
+        if (await caxri.request('project.restorable', { rootPath })) {
+            await restoreHiddenProject(rootPath);
+            return;
+        }
         const defaultAgent = getBootstrap()?.settings['session.defaultAgent'];
         if (defaultAgent) await createProjectSession(rootPath, defaultAgent);
         else useDialogStore.getState().askAgentForRoot(rootPath);

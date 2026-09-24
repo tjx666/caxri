@@ -32,6 +32,21 @@ export function hideProject(
 }
 
 /**
+ * True when adding `rootPath` again would un-hide a Project whose Sessions, including those of its owned worktree
+ * Projects, still include an unarchived one. A hidden Project with nothing left to restore takes the first-add path.
+ */
+export function isRestorableProjectRoot(
+    database: CaxriDatabaseConnection,
+    rootPath: string,
+): boolean {
+    const project = database.projects.findByRootPath(rootPath);
+    if (!project || !isTopLevelProject(project) || project.hiddenAt === undefined) return false;
+    return [project, ...database.projects.listOwnedBy(project.id)].some(({ id }) =>
+        database.sessions.list(id).some((session) => session.archivedAt === undefined),
+    );
+}
+
+/**
  * Projects the Workbench presents. Authorization and root identity still read the full Project list, because a hidden
  * row keeps its root registered for the moment it is added back.
  */
