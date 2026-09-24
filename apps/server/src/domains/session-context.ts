@@ -12,8 +12,8 @@ import {
     defaultAgentEnvironment,
     locateAgentTranscript,
     resetTranscriptSessionContextScan,
-    scanTranscriptLines,
     scanTranscriptSessionContextLine,
+    scanTranscriptToEnd,
 } from './agents';
 import type { CaxriDatabase } from './db';
 import { SingleFlight } from './single-flight';
@@ -45,8 +45,8 @@ const EMPTY_CONTEXT: SessionTranscriptContext = {
  * defaults.
  *
  * Scanning is incremental and shared: one cursor per transcript file reads only the bytes appended since the previous
- * visit, and both consumers join the same in-flight read. A first visit to a long transcript therefore pays once, and
- * the status bar's minute poll costs a `stat` plus whatever the Agent wrote in the last minute.
+ * visit, and both consumers join the same in-flight read. The first visit catches up in bounded, yielding passes rather
+ * than making each pass wait for another status-bar poll.
  *
  * Nothing from the transcript is retained beyond the bounded clue lists — no prompts, no Agent output, no command
  * results — so diagnostics and crash dumps cannot leak conversation content through this service.
@@ -85,7 +85,7 @@ export class SessionContextService {
             // polled right now, resetting its cursor and re-reading the whole file on the next poll.
             const current = this.scans.get(location.path) ?? createTranscriptSessionContextScan();
             rememberBounded(this.scans, location.path, current, MAX_TRANSCRIPT_SCANS);
-            await scanTranscriptLines(
+            await scanTranscriptToEnd(
                 location,
                 current,
                 (line) => scanTranscriptSessionContextLine(line, current),
