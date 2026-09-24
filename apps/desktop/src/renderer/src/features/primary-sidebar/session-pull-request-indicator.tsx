@@ -2,9 +2,9 @@ import type { SessionPullRequest } from '@caxri/protocol';
 import type { LucideIcon } from 'lucide-react';
 import {
     GitMerge,
+    GitPullRequest,
     GitPullRequestArrow,
     GitPullRequestClosed,
-    GitPullRequestDraft,
     Rocket,
 } from 'lucide-react';
 
@@ -19,7 +19,8 @@ const ICONS: Record<SessionPullRequestIcon, LucideIcon> = {
     closed: GitPullRequestClosed,
     // The same rocket the Status panel gives a production deployment, so one delivery reads the same in both surfaces.
     deployed: Rocket,
-    draft: GitPullRequestDraft,
+    // The draft icon's dotted branch becomes two stray dots at 13px; the muted tone already distinguishes Draft.
+    draft: GitPullRequest,
     merged: GitMerge,
     open: GitPullRequestArrow,
 };
