@@ -37,11 +37,12 @@ This protects a first-turn native manual rename without guessing from text, and 
 A manual rename through Caxri is always protected. Codex's provisional first-prompt prefix remains filtered inside
 the native SQLite query, so raw prompts never become displayed names.
 
-Manual rename remains user-owned. `session.rename` resolves the exact
-primary Agent identity, sends the new name through the provider's public rename boundary, and commits the
-provider-authoritative result to SQLite inside a per-Session queue so a slower earlier request cannot overwrite a newer
-one. It sets `title_mode` to `manual`, which stops the metadata probe from replacing the user's title with a later
-provider-native one.
+Manual rename remains user-owned. `session.rename` resolves the exact primary Agent identity, sends the requested
+name through the provider's public rename boundary, and commits that exact request to SQLite inside a per-Session
+queue so a slower earlier request cannot overwrite a newer one. A provider may choose a different native title when
+the name is already held by another live session; Caxri records the mismatch without displaying that fallback as the
+user's Session name. Manual rename sets `title_mode` to `manual`, which stops the metadata probe from replacing the
+user's title with a later provider-native one.
 
 Automatic titles use a macOS `sandbox-exec` profile that
 denies reads of the Project root and of the global instruction files the CLI offers no switch for (`AGENTS.md` and

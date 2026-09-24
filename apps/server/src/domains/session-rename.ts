@@ -142,7 +142,6 @@ export class SessionRenameService {
     ): Promise<SessionRecord> {
         if (signal?.aborted)
             throw new CaxriError('CANCELLED', 'Session rename was cancelled before it started');
-        let appliedTitle = displayTitle;
         const renamedTerminalIds = new Set<string>();
         let target = await this.primaryAgentTarget(sessionId);
         for (let attempt = 0; target; attempt += 1) {
@@ -153,7 +152,10 @@ export class SessionRenameService {
                 displayTitle,
                 signal,
             });
-            appliedTitle = renamed.displayTitle;
+            if (renamed.displayTitle !== displayTitle)
+                this.logger.write('warn', logEventCatalog.sessionRename.providerTitleMismatch, {
+                    fields: { provider: target.provider, sessionId },
+                });
             renamedTerminalIds.add(target.terminalId);
             // eslint-disable-next-line no-await-in-loop -- each result must be checked against current Agent identity
             const currentTarget = await this.primaryAgentTarget(sessionId);
@@ -166,7 +168,11 @@ export class SessionRenameService {
             target = currentTarget;
         }
         const commit = (): SessionRecord => {
-            const renamed = this.database.renameSession(sessionId, appliedTitle);
+            /**
+             * The Session name is the user's exact request. A provider may choose a unique native fallback when the
+             * requested name is already held by another live session; that fallback must not become Caxri's title.
+             */
+            const renamed = this.database.renameSession(sessionId, displayTitle);
             this.emit({
                 event: 'state.changed',
                 payload: {

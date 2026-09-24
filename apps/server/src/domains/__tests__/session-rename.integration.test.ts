@@ -144,7 +144,7 @@ describe('Session rename', () => {
         }
     });
 
-    it('persists the Agent-native Session name only after the provider accepts it', async () => {
+    it('keeps the requested Session name when the provider chooses a different native title', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-runtime-agent-session-rename-'));
         temporaryDirectories.push(directory);
         const projectRoot = join(directory, 'project');
@@ -154,24 +154,26 @@ describe('Session rename', () => {
         const renameSession = vi
             .fn()
             .mockImplementationOnce(() => providerAcceptance.promise)
-            .mockRejectedValueOnce(new CaxriError('UNAVAILABLE', 'Codex rename failed'));
+            .mockRejectedValueOnce(new CaxriError('UNAVAILABLE', 'Claude rename failed'));
+        const logger = createLogger(join(directory, 'logs'));
+        const log = vi.spyOn(logger, 'write');
         const runtime = await createTestDomainServices({
             userDataPath: join(directory, 'user-data'),
-            logger: createLogger(join(directory, 'logs')),
+            logger,
             send: (event) => events.push(event),
             terminal: {
                 resolveExecutable: () => Promise.resolve('/bin/zsh'),
                 spawn: () => createFakePty(),
             },
             agentAdapters: createPendingAgentAdapters({
-                codex: {
-                    provider: 'codex',
+                claude: {
+                    provider: 'claude',
                     renameSession,
                     snapshot: () =>
                         Promise.resolve({
                             available: true,
                             observedAt: Date.now(),
-                            provider: 'codex',
+                            provider: 'claude',
                             sessionId: 'agent-session-1',
                             status: 'unknown',
                         }),
@@ -183,7 +185,7 @@ describe('Session rename', () => {
             const project = await runtime.handlers['project.create']({ rootPath: projectRoot });
             const created = await runtime.handlers['session.create']({
                 projectId: project.id,
-                defaultAgent: 'codex',
+                defaultAgent: 'claude',
             });
 
             const pendingRename = runtime.handlers['session.rename']({
@@ -196,11 +198,21 @@ describe('Session rename', () => {
                 pendingState.sessions.find((session) => session.id === created.session.id),
             ).toMatchObject({ displayTitle: 'Untitled', titleMode: 'automatic' });
 
-            providerAcceptance.resolve({ displayTitle: 'Focused investigation (2)' });
+            providerAcceptance.resolve({
+                displayTitle:
+                    'Focused investigation-tingly-tide ("Focused investigation" is held by another live session on this machine)',
+            });
             await expect(pendingRename).resolves.toMatchObject({
-                displayTitle: 'Focused investigation (2)',
+                displayTitle: 'Focused investigation',
                 titleMode: 'manual',
             });
+            expect(log).toHaveBeenCalledWith(
+                'warn',
+                logEventCatalog.sessionRename.providerTitleMismatch,
+                expect.objectContaining({
+                    fields: { provider: 'claude', sessionId: created.session.id },
+                }),
+            );
             expect(renameSession).toHaveBeenNthCalledWith(
                 1,
                 expect.objectContaining({
@@ -226,7 +238,7 @@ describe('Session rename', () => {
             expect(
                 state.sessions.find((session) => session.id === created.session.id),
             ).toMatchObject({
-                displayTitle: 'Focused investigation (2)',
+                displayTitle: 'Focused investigation',
                 titleMode: 'manual',
             });
             expect(
@@ -298,7 +310,7 @@ describe('Session rename', () => {
             firstProviderResult.resolve({ displayTitle: 'Applied to old Session' });
 
             await expect(pendingRename).resolves.toMatchObject({
-                displayTitle: 'Applied to resumed Session',
+                displayTitle: 'Requested title',
                 titleMode: 'manual',
             });
             expect(renameSession).toHaveBeenNthCalledWith(
