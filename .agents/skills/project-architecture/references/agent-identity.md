@@ -42,7 +42,11 @@ name through the provider's public rename boundary, and commits that exact reque
 queue so a slower earlier request cannot overwrite a newer one. A provider may choose a different native title when
 the name is already held by another live session; Caxri records the mismatch without displaying that fallback as the
 user's Session name. Manual rename sets `title_mode` to `manual`, which stops the metadata probe from replacing the
-user's title with a later provider-native one.
+user's title with a later provider-native one. The Renderer shows the requested name as soon as the user commits it
+and keeps it over snapshot reads until the request settles, because a Claude rename waits seconds for the provider
+CLI; if the newest rename fails, the previous name returns with the failure toast. The Server fences automatic naming
+when the request arrives, not when it commits, so an automatic title cannot land in that window. The Claude CLI call
+is capped at 60 seconds only to keep a hung process from holding the Session's rename queue.
 
 Automatic titles use a macOS `sandbox-exec` profile that
 denies reads of the Project root and of the global instruction files the CLI offers no switch for (`AGENTS.md` and

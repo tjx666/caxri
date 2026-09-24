@@ -41,6 +41,7 @@ import {
     sessionStateWrites,
     settledSessionState,
 } from './workbench-session-patches';
+import { withPendingSessionTitles } from './workbench-session-titles';
 import {
     acceptTerminalReads,
     applyFullTerminalSnapshot,
@@ -313,6 +314,7 @@ function applySnapshot(
     const patched = applyPendingSessionPatches(state, sessionReadStamp);
     const current = {
         ...patched,
+        sessions: withPendingSessionTitles(patched.sessions),
         sessionStates: patched.sessionStates.map(mergeExternalEditorTabs),
     };
     syncNotificationSettings(current.settings);
@@ -353,7 +355,7 @@ function applyRecordSnapshot(
             sessions: replaceRequestedRecords(
                 current.bootstrap.sessions,
                 sessionIds,
-                records.sessions,
+                withPendingSessionTitles(records.sessions),
             ),
             terminals: replaceRequestedRecords(
                 current.bootstrap.terminals,
@@ -387,6 +389,23 @@ async function runRecordRefresh(
             // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void scheduleRecordRefresh();
     }
+}
+
+/**
+ * Shows a Session title before the Server confirms it; see `workbench-session-titles.ts` for how snapshots keep it.
+ */
+export function showSessionTitle(sessionId: string, displayTitle: string): void {
+    useWorkbenchStore.setState((current) => {
+        if (!current.bootstrap) return current;
+        return {
+            bootstrap: {
+                ...current.bootstrap,
+                sessions: current.bootstrap.sessions.map((session) =>
+                    session.id === sessionId ? { ...session, displayTitle } : session,
+                ),
+            },
+        };
+    });
 }
 
 function scheduleRecordRefresh(): Promise<void> {

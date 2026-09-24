@@ -41,7 +41,11 @@ const MAX_TRANSCRIPT_TITLE_CACHES = 64;
  */
 const CLAUDE_RENAME_MINIMUM_VERSION = '2.1.232';
 const CLAUDE_RENAME_OUTPUT_BYTES = 64 * 1024;
-const CLAUDE_RENAME_TIMEOUT_MS = 10_000;
+/**
+ * The Renderer shows a manual rename before this call returns, so the limit only guards a hung CLI holding the
+ * Session's rename queue, which also carries automatic naming. A cold `claude --resume` routinely takes ~5s.
+ */
+const CLAUDE_RENAME_TIMEOUT_MS = 60_000;
 const CLAUDE_RENAME_RESULT_PREFIX = 'Session renamed to:';
 
 interface TranscriptTitleCache extends TranscriptScanCursor {
