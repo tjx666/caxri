@@ -69,6 +69,8 @@ bun run --cwd apps/mobile android:device tap \
 Never upload `uiautomator dump` XML. Raw trees can contain pairing data, visible text, Session names,
 Terminal output, and accessibility descriptions. Prefer semantic identifiers over coordinates; use
 coordinates only after a sanitized inspection proves one unambiguous target.
+Before diagnosing a missing `testID`, verify the expected screen with a stable route marker. Start
+swipes inside the content area, away from Android's Back gesture edges, and check the route again.
 
 ## Capture and judge
 
