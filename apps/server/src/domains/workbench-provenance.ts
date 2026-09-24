@@ -57,9 +57,9 @@ interface AgentWorktreeAttributionOptions {
 }
 
 /**
- * Detects a binding that moved on across every asynchronous phase of worktree attribution and following. Usually that
- * is a manual root change; it is also a validation sweep re-anchoring the recorded device after a reboot. Both must
- * make the older in-flight decision stand down, so the device stays part of the equality.
+ * Detects a root selection change across asynchronous worktree attribution and following. Validation can re-anchor the
+ * device number after a reboot without changing the selected root, so only Project and inode identity cancel an
+ * in-flight decision.
  */
 export function isSameWorkbenchBinding(
     left: ReturnType<CaxriDatabase['getSessionWorkbenchBinding']>,
@@ -68,7 +68,6 @@ export function isSameWorkbenchBinding(
     return (
         left?.projectId === right?.projectId &&
         left?.workbenchProjectId === right?.workbenchProjectId &&
-        left?.rootDevice === right?.rootDevice &&
         left?.rootInode === right?.rootInode
     );
 }
