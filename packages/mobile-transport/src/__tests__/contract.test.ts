@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     isPrivateMobileIpv4Address,
+    MOBILE_TRANSPORT_VERSION,
     mobileClientHelloSchema,
     mobileRevokedSchema,
     mobileVersionMismatchSchema,
@@ -9,7 +10,7 @@ import {
 
 const pairHello = {
     type: 'hello',
-    version: 1,
+    version: MOBILE_TRANSPORT_VERSION,
     mode: 'pair',
     pairingId: '11'.repeat(16),
     displayName: 'Test tablet',

@@ -23,7 +23,7 @@ describe('sealed mobile frames', () => {
     it('round-trips a deterministic AES-256-GCM frame', () => {
         const ciphertext = sealMobileFrame(key, context, plaintext);
         expect(encodeHex(ciphertext)).toBe(
-            'c0b5d5e55e2e19722af76979a26000a03a7150b884131d2d6833bf130bd0f1f0310bf7567cc5dafbfb',
+            'c0b5d5e55e2e19722af76979a26000a03a7150b884131d2d68642dd731cc2616ceedc2780a931edfa5',
         );
         expect(openMobileFrame(key, context, ciphertext)).toEqual(plaintext);
     });

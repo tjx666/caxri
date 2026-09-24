@@ -8,6 +8,7 @@ import type {
     HandshakeTranscript,
     MobileClientHello,
     MobileSessionKeys,
+    MobileSubscriptionResource,
 } from '@caxri/mobile-transport';
 import {
     decodeHex,
@@ -17,7 +18,6 @@ import {
     handshakeConfirmation,
     isHandshakeConfirmationValid,
     isPrivateMobileIpv4Address,
-    MOBILE_GATEWAY_MAX_PLAINTEXT_BYTES,
     MOBILE_GATEWAY_MAX_WIRE_BYTES,
     MOBILE_TRANSPORT_VERSION,
     mobileClientConfirmationSchema,
@@ -40,18 +40,12 @@ import type {
     CommandDispatcher,
     CommandDispatcherOptions,
     CommandExecutionContext,
-    CommandReplyEnvelope,
     MobileAccessStatus,
     Principal,
     ProtocolConnectionIdentity,
+    ServerEvent,
 } from '@caxri/protocol';
-import {
-    CAXRI_PROTOCOL_VERSION,
-    CaxriError,
-    createCommandDispatcher,
-    requestIdFromEnvelope,
-    toWireError,
-} from '@caxri/protocol';
+import { CaxriError, createCommandDispatcher } from '@caxri/protocol';
 import type WebSocket from 'ws';
 import type { RawData } from 'ws';
 import { WebSocketServer } from 'ws';
@@ -62,12 +56,14 @@ import type {
     MobileDeviceSummary,
 } from '../device-registry';
 import { selectMobileGatewayAddresses } from './address-selection';
+import { MobileGatewayFrameRouter } from './frame-router';
 import { mobileCapabilitiesByRole } from './role-capabilities';
 import { createServerSealedPayload, sendFinalSealedPayload } from './sealed-payload';
 import { MobileSocketQueueBudget } from './socket-queue-budget';
 import { SourceAttemptLimiter } from './source-attempt-limiter';
 
 export { selectMobileGatewayAddress } from './address-selection';
+export { boundedMobileReply } from './reply';
 
 const MOBILE_PATH = '/mobile';
 const HANDSHAKE_TIMEOUT_MS = 10_000;
@@ -92,6 +88,7 @@ interface PendingPairing {
 }
 
 interface GatewaySession {
+    application?: MobileGatewayFrameRouter;
     candidate?: MobileDeviceRecord;
     connection: ProtocolConnectionIdentity;
     deviceId: string;
@@ -101,6 +98,7 @@ interface GatewaySession {
     mode: 'connect' | 'pair';
     outbound: MobileFrameCounter;
     principal?: Principal;
+    revoking?: boolean;
     transcript: HandshakeTranscript;
     valid: boolean;
 }
@@ -108,11 +106,20 @@ interface GatewaySession {
 export interface MobileGatewayOptions {
     adapters: CommandDispatcherOptions;
     authorizePairedDeviceMethod: (principal: Principal, method: string) => void;
+    authorizeSubscription: (
+        principal: Principal,
+        resource: MobileSubscriptionResource,
+    ) => Promise<void>;
     bootId: string;
     now?: () => number;
     protocolIdentity: { serverId: string; stateEpoch: string };
     random?: (bytes: number) => Uint8Array;
     registry: MobileDeviceRegistry;
+    matchesSubscriptionEvent: (
+        principal: Principal,
+        resource: MobileSubscriptionResource,
+        event: ServerEvent,
+    ) => Promise<boolean>;
     /**
      * Peer address override for loopback tests.
      */
@@ -136,29 +143,6 @@ const messageByteLength = (data: RawData): number => {
     if (Array.isArray(data)) return data.reduce((total, value) => total + value.byteLength, 0);
     return data.byteLength;
 };
-
-function forbiddenReply(raw: unknown): CommandReplyEnvelope {
-    return {
-        protocolVersion: CAXRI_PROTOCOL_VERSION,
-        id: requestIdFromEnvelope(raw),
-        ok: false,
-        error: toWireError(new CaxriError('FORBIDDEN', 'Method is unavailable to paired devices')),
-    };
-}
-
-export function boundedMobileReply(
-    raw: unknown,
-    reply: CommandReplyEnvelope,
-): CommandReplyEnvelope {
-    if (Buffer.byteLength(JSON.stringify(reply), 'utf8') <= MOBILE_GATEWAY_MAX_PLAINTEXT_BYTES)
-        return reply;
-    return {
-        protocolVersion: CAXRI_PROTOCOL_VERSION,
-        id: requestIdFromEnvelope(raw),
-        ok: false,
-        error: toWireError(new CaxriError('CAPACITY', 'Mobile reply exceeds the frame limit')),
-    };
-}
 
 /**
  * Preserves one challenge shape for invalid IDs without disclosing whether a pairing exists.
@@ -238,6 +222,11 @@ export class MobileGateway {
 
     devices(): MobileDeviceSummary[] {
         return this.#options.registry.list();
+    }
+
+    publish(event: ServerEvent): void {
+        for (const sockets of this.#activeByDevice.values())
+            for (const session of sockets.values()) session.application?.publish(event);
     }
 
     async enable(): Promise<MobileAccessStatus> {
@@ -366,8 +355,16 @@ export class MobileGateway {
     }
 
     async revoke(deviceId: string, expectedGeneration: number): Promise<MobileDeviceSummary> {
-        const revoked = await this.#options.registry.revoke(deviceId, expectedGeneration);
         const activeSessions = this.#activeByDevice.get(deviceId);
+        if (activeSessions) for (const session of activeSessions.values()) session.revoking = true;
+        let revoked: MobileDeviceSummary;
+        try {
+            revoked = await this.#options.registry.revoke(deviceId, expectedGeneration);
+        } catch (error) {
+            if (activeSessions)
+                for (const session of activeSessions.values()) session.revoking = false;
+            throw error;
+        }
         if (activeSessions)
             await Promise.all(
                 [...activeSessions].map(([socket, session]) =>
@@ -419,6 +416,7 @@ export class MobileGateway {
         let queue = Promise.resolve();
         const queueBudget = new MobileSocketQueueBudget();
         const terminate = (): void => {
+            if (session?.revoking) return;
             isAcceptingMessages = false;
             socket.terminate();
         };
@@ -432,6 +430,7 @@ export class MobileGateway {
             this.#sockets.delete(socket);
             if (!isReady) this.#handshakes = Math.max(0, this.#handshakes - 1);
             if (!session) return;
+            session.application?.close();
             const active = this.#activeByDevice.get(session.deviceId);
             active?.delete(socket);
             if (active?.size === 0) this.#activeByDevice.delete(session.deviceId);
@@ -538,6 +537,33 @@ export class MobileGateway {
                         });
                     }
                     session.principal = principal;
+                    const authenticatedSession = session;
+                    session.application = new MobileGatewayFrameRouter({
+                        authorizeMethod: this.#options.authorizePairedDeviceMethod,
+                        authorizeSubscription: this.#options.authorizeSubscription,
+                        context: () => this.#context(authenticatedSession),
+                        dispatch: this.#dispatch,
+                        isActive: () =>
+                            isAcceptingMessages &&
+                            !authenticatedSession.revoking &&
+                            socket.readyState === 1,
+                        matchesSubscriptionEvent: this.#options.matchesSubscriptionEvent,
+                        now: this.#now,
+                        randomSubscriptionId: () => Buffer.from(this.#random(16)).toString('hex'),
+                        send: (payload) =>
+                            new Promise<void>((resolve, reject) => {
+                                if (!isAcceptingMessages || authenticatedSession.revoking) {
+                                    reject(new Error('Mobile session is no longer active'));
+                                    return;
+                                }
+                                this.#context(authenticatedSession);
+                                this.#sendSealed(socket, authenticatedSession, payload, (error) => {
+                                    if (error) reject(error);
+                                    else resolve();
+                                });
+                            }),
+                        terminate,
+                    });
                     isReady = true;
                     this.#handshakes = Math.max(0, this.#handshakes - 1);
                     clearTimeout(timer);
@@ -548,7 +574,7 @@ export class MobileGateway {
                     this.#activeByDevice.set(session.deviceId, active);
                     return;
                 }
-                await this.#handleSealed(socket, session, raw);
+                this.#handleSealed(session, raw);
             })();
             queue = (async (): Promise<void> => {
                 try {
@@ -643,7 +669,7 @@ export class MobileGateway {
         };
     }
 
-    async #handleSealed(socket: WebSocket, session: GatewaySession, raw: unknown): Promise<void> {
+    #handleSealed(session: GatewaySession, raw: unknown): void {
         const frame = mobileSealedFrameSchema.parse(raw);
         if (frame.connectionId !== session.connection.connectionId)
             throw new Error('Encrypted frame connection identity changed');
@@ -659,34 +685,24 @@ export class MobileGateway {
             decodeHex(frame.ciphertext),
         );
         const source = new TextDecoder().decode(plaintext);
-        const request = JSON.parse(source) as unknown;
-        const method =
-            typeof request === 'object' && request !== null && 'method' in request
-                ? Reflect.get(request, 'method')
-                : undefined;
-        const context = this.#context(session);
-        let isAuthorized = false;
-        if (typeof method === 'string') {
-            try {
-                this.#options.authorizePairedDeviceMethod(context.principal, method);
-                isAuthorized = true;
-            } catch (error) {
-                if (!(error instanceof CaxriError && error.code === 'FORBIDDEN')) throw error;
-            }
-        }
-        const reply = isAuthorized
-            ? await this.#dispatch(request, context)
-            : forbiddenReply(request);
-        this.#sendSealed(socket, session, boundedMobileReply(request, reply));
+        session.application?.accept(JSON.parse(source) as unknown);
     }
 
     #context(session: GatewaySession): CommandExecutionContext {
-        const principal = this.#options.registry.currentPrincipal(
+        const current = this.#options.registry.currentPrincipal(
             session.deviceId,
             session.generation,
         );
-        if (principal.kind !== 'paired-device')
-            throw new CaxriError('FORBIDDEN', 'Paired device principal is required');
+        const principal = session.principal;
+        if (
+            principal?.kind !== 'paired-device' ||
+            current.kind !== 'paired-device' ||
+            current.id !== principal.id ||
+            current.role !== principal.role ||
+            current.projectIds.length !== principal.projectIds.length ||
+            current.projectIds.some((id, index) => id !== principal.projectIds[index])
+        )
+            throw new CaxriError('FORBIDDEN', 'Paired device authorization changed');
         return {
             capabilities: mobileCapabilitiesByRole[principal.role],
             connection: session.connection,
@@ -694,7 +710,12 @@ export class MobileGateway {
         };
     }
 
-    #sendSealed(socket: WebSocket, session: GatewaySession, payload: unknown): void {
+    #sendSealed(
+        socket: WebSocket,
+        session: GatewaySession,
+        payload: unknown,
+        onSent?: (error?: Error) => void,
+    ): void {
         const counter = session.outbound.take();
         const sourceFrame = createServerSealedPayload(
             {
@@ -712,9 +733,13 @@ export class MobileGateway {
                 MOBILE_GATEWAY_MAX_WIRE_BYTES * 2
         ) {
             this.#terminate(socket);
+            onSent?.(new Error('Mobile socket cannot accept another frame'));
             return;
         }
-        socket.send(sourceFrame);
+        socket.send(sourceFrame, (error) => {
+            if (error) this.#terminate(socket);
+            onSent?.(error);
+        });
     }
 
     /**
@@ -743,7 +768,10 @@ export class MobileGateway {
             sourceFrame,
             MOBILE_GATEWAY_MAX_WIRE_BYTES * 2,
         );
-        if (closeResult === 'failed') this.#terminate(socket);
+        if (closeResult === 'failed') {
+            session.application?.close();
+            socket.terminate();
+        }
     }
 
     #terminate(socket: WebSocket): void {

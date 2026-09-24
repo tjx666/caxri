@@ -1,4 +1,4 @@
-import { serializeMobilePairingLink } from '@caxri/mobile-transport';
+import { MOBILE_TRANSPORT_VERSION, serializeMobilePairingLink } from '@caxri/mobile-transport';
 import { describe, expect, it } from 'vitest';
 
 import { pairingLinkFromRouteParameters } from '../pairing-link-route';
@@ -10,7 +10,7 @@ const pairingLink = serializeMobilePairingLink({
     port: 4_321,
     secret: '34'.repeat(32),
     serverId: 'server_test',
-    version: 1,
+    version: MOBILE_TRANSPORT_VERSION,
 });
 
 const routeParameters = Object.fromEntries(new URL(pairingLink).searchParams);

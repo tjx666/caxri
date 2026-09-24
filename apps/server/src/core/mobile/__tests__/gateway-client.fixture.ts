@@ -116,24 +116,33 @@ export async function connectDevice(gateway: MobileGateway, record: MobileDevice
             }),
         );
     };
+    const read = async (): Promise<unknown> => {
+        const frame = mobileSealedFrameSchema.parse(await nextMessage(socket));
+        const plaintext = openMobileFrame(
+            keys.serverToClient,
+            {
+                connectionId: transcript.connectionId,
+                counter: frame.counter,
+                deviceId: record.deviceId,
+                direction: 'server-to-client',
+            },
+            decodeHex(frame.ciphertext),
+        );
+        return JSON.parse(new TextDecoder().decode(plaintext)) as unknown;
+    };
     return {
         socket,
         request: async (request: unknown): Promise<unknown> => {
-            const replyMessage = nextMessage(socket);
-            send(request);
-            const frame = mobileSealedFrameSchema.parse(await replyMessage);
-            const plaintext = openMobileFrame(
-                keys.serverToClient,
-                {
-                    connectionId: transcript.connectionId,
-                    counter: frame.counter,
-                    deviceId: record.deviceId,
-                    direction: 'server-to-client',
-                },
-                decodeHex(frame.ciphertext),
-            );
-            return JSON.parse(new TextDecoder().decode(plaintext)) as unknown;
+            const replyMessage = read();
+            send({ type: 'request', request });
+            const payload = (await replyMessage) as {
+                type: string;
+                reply: unknown;
+            };
+            expect(payload.type).toBe('reply');
+            return payload.reply;
         },
+        read,
         send,
     };
 }

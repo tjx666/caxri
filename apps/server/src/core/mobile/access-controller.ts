@@ -1,11 +1,13 @@
 import { Buffer } from 'node:buffer';
 import { hostname } from 'node:os';
 
+import type { MobileSubscriptionResource } from '@caxri/mobile-transport';
 import type {
     CommandAdapter,
     CommandExecutionContext,
     MobileDeviceRole,
     Principal,
+    ServerEvent,
     ServerOperationRequest,
     ServerRequest,
 } from '@caxri/protocol';
@@ -66,8 +68,10 @@ export interface MobileAccessController {
         adapter: CommandAdapter,
         bootId: string,
         protocolIdentity: { serverId: string; stateEpoch: string },
+        domainService: ServerDomainService,
     ) => void;
     close: () => Promise<void>;
+    publish: (event: ServerEvent) => void;
     invokeControl: (
         request: MobileControlRequest,
         context: CommandExecutionContext,
@@ -98,11 +102,11 @@ const requiredGateway = (gateway: MobileGateway | undefined): MobileGateway => {
 
 const terminalForPrincipal = async (
     domainService: ServerDomainService,
-    context: CommandExecutionContext,
+    principal: Principal,
     terminalId: string,
 ) => {
     const result = await domainService.request('terminal.queryForPrincipal', {
-        principal: context.principal,
+        principal,
         query: { mode: 'show', selector: terminalId },
     });
     const terminal = result.terminals.at(0);
@@ -112,11 +116,11 @@ const terminalForPrincipal = async (
 
 const sessionForPrincipal = async (
     domainService: ServerDomainService,
-    context: CommandExecutionContext,
+    principal: Principal,
     sessionId: string,
 ) => {
     const result = await domainService.request('session.queryForPrincipal', {
-        principal: context.principal,
+        principal,
         query: { mode: 'show', selector: sessionId },
     });
     const session = result.sessions.at(0);
@@ -181,6 +185,20 @@ export const openMobileAccessController = async (options: {
             throw new CaxriError('FORBIDDEN', 'Paired device role does not allow this method');
         return current;
     };
+    const authorizeSubscription = async (
+        principal: Principal,
+        resource: MobileSubscriptionResource,
+        domainService: ServerDomainService,
+    ): Promise<void> => {
+        const current = currentPairedPrincipal(
+            principal,
+            resource.kind === 'terminal' ? 'terminal.preview' : 'mobile.dashboard',
+        );
+        if (resource.kind === 'terminal')
+            await terminalForPrincipal(domainService, current, resource.terminalId);
+        else if (resource.kind === 'conversation')
+            await sessionForPrincipal(domainService, current, resource.sessionId);
+    };
     const operationKey = (deviceId: string, generation: number): string =>
         `${deviceId}:${generation}`;
     const registerOperation = (principal: Extract<Principal, { kind: 'paired-device' }>) => {
@@ -211,7 +229,7 @@ export const openMobileAccessController = async (options: {
         authorizePairedDeviceMethod: (principal, method) => {
             currentPairedPrincipal(principal, method);
         },
-        attach: (adapter, bootId, protocolIdentity) => {
+        attach: (adapter, bootId, protocolIdentity, domainService) => {
             assertOpen();
             gateway = new MobileGateway({
                 adapters: { server: adapter },
@@ -220,6 +238,24 @@ export const openMobileAccessController = async (options: {
                 registry,
                 authorizePairedDeviceMethod: (principal, method) => {
                     currentPairedPrincipal(principal, method);
+                },
+                authorizeSubscription: (principal, resource) =>
+                    authorizeSubscription(principal, resource, domainService),
+                matchesSubscriptionEvent: async (principal, resource, event) => {
+                    await authorizeSubscription(principal, resource, domainService);
+                    if (resource.kind === 'dashboard') return event.event === 'state.changed';
+                    if (resource.kind === 'terminal')
+                        return (
+                            event.event === 'terminal.output' &&
+                            event.payload.terminalId === resource.terminalId
+                        );
+                    if (event.event !== 'agentTranscript.changed') return false;
+                    const terminal = await terminalForPrincipal(
+                        domainService,
+                        principal,
+                        event.payload.terminalId,
+                    );
+                    return terminal.sessionId === resource.sessionId;
                 },
                 ...(options.selectAddress && { selectAddress: options.selectAddress }),
             });
@@ -230,6 +266,7 @@ export const openMobileAccessController = async (options: {
                 abortOperations();
                 await gateway?.close();
             }),
+        publish: (event) => gateway?.publish(event),
         invokeControl: async (request, context, domainService) => {
             const activeGateway = requiredGateway(gateway);
             switch (request.method) {
@@ -358,10 +395,14 @@ export const openMobileAccessController = async (options: {
                 return;
             }
             if (request.method === 'terminal.preview') {
-                await terminalForPrincipal(domainService, context, request.params.terminalId);
+                await terminalForPrincipal(
+                    domainService,
+                    context.principal,
+                    request.params.terminalId,
+                );
                 return;
             }
-            await sessionForPrincipal(domainService, context, request.params.sessionId);
+            await sessionForPrincipal(domainService, context.principal, request.params.sessionId);
         },
         invokeShortReply: async (context, parameters, domainService, invoke) => {
             await withAuthority(() => {
@@ -388,10 +429,14 @@ export const openMobileAccessController = async (options: {
                 );
             const terminal = await terminalForPrincipal(
                 domainService,
-                context,
+                context.principal,
                 parameters.terminalId,
             );
-            const session = await sessionForPrincipal(domainService, context, terminal.sessionId);
+            const session = await sessionForPrincipal(
+                domainService,
+                context.principal,
+                terminal.sessionId,
+            );
             if (
                 terminal.kind === 'shell' ||
                 session.primaryAgentTerminalId !== terminal.id ||

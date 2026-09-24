@@ -12,7 +12,7 @@ export default function HostLayout() {
     if (hostId !== client.hostId)
         return <Redirect href={`/h/${encodeURIComponent(client.hostId)}`} />;
     return (
-        <HostSessionsProvider hostId={hostId}>
+        <HostSessionsProvider hostId={hostId} key={client.connectionScopeKey}>
             <Slot />
         </HostSessionsProvider>
     );

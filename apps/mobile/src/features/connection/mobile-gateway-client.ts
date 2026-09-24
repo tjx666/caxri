@@ -1,4 +1,9 @@
-import type { HandshakeTranscript, MobileSessionKeys } from '@caxri/mobile-transport';
+import type {
+    HandshakeTranscript,
+    MobileClientPayload,
+    MobileSessionKeys,
+    MobileSubscriptionResource,
+} from '@caxri/mobile-transport';
 import {
     decodeHex,
     deriveMobileSessionKeys,
@@ -13,9 +18,11 @@ import {
     mobilePairingResultSchema,
     mobilePublicKey,
     MobileReplayGuard,
-    mobileRevokedSchema,
     mobileSealedFrameSchema,
     mobileServerHelloSchema,
+    mobileServerPayloadSchema,
+    mobileSubscribeResultSchema,
+    mobileUnsubscribeResultSchema,
     mobileVersionMismatchSchema,
     openMobileFrame,
     PAIRING_SECRET_BYTES,
@@ -31,13 +38,16 @@ import type {
 } from '@caxri/protocol';
 import {
     CAXRI_PROTOCOL_VERSION,
-    commandReplyEnvelopeSchema,
     mobileDeviceIdSchema,
     parseCaxriResult,
+    requestEnvelopeSchema,
 } from '@caxri/protocol';
 import { z } from 'zod';
 
 import type { MobileCredential, MobileCredentialStore } from './credential-store';
+import type { MobileSubscriptionListener } from './mobile-frame-router';
+import { MobileFrameRouter } from './mobile-frame-router';
+import { MobileHeartbeat } from './mobile-heartbeat';
 import { MobileSocketReaderBudget } from './socket-reader-budget';
 
 const HANDSHAKE_TIMEOUT_MS = 10_000;
@@ -58,6 +68,13 @@ export class MobileGatewayRequestError extends Error {
         super(message);
         this.name = 'MobileGatewayRequestError';
         this.code = code;
+    }
+}
+
+export class MobileGatewayTimeoutError extends Error {
+    constructor() {
+        super('Caxri did not respond in time.');
+        this.name = 'MobileGatewayTimeoutError';
     }
 }
 
@@ -383,25 +400,41 @@ const establish = async (input: {
 
 export type MobileGatewayTermination = 'disconnected' | 'revoked';
 
-interface PendingMobileReply {
-    id: string;
-    reject(error: Error): void;
-    resolve(reply: CommandReplyEnvelope): void;
+export interface MobileGatewaySubscriptionHandle {
+    subscriptionId: string;
+    unsubscribe(): Promise<void>;
 }
 
 export class MobileGatewayConnection {
     readonly #clearCredential: () => Promise<void>;
+    readonly #heartbeat: MobileHeartbeat;
     readonly #listeners = new Set<(reason: MobileGatewayTermination) => void>();
+    readonly #observationListeners = new Set<() => void>();
+    readonly #router = new MobileFrameRouter();
     readonly #session: EstablishedSession;
     #closedByOwner = false;
-    #pending?: PendingMobileReply;
+    #deferredLivenessError?: Error;
+    /**
+     * A timed-out mutation may have reached the server; later traffic cannot make retry safe.
+     */
+    #deferredMutationError?: Error;
+    #isForeground = false;
     #outstandingMutations = 0;
-    #requestSequence = Promise.resolve();
+    #subscriptionQueue = Promise.resolve();
     #termination?: MobileGatewayTermination;
 
     constructor(session: EstablishedSession, clearCredential: () => Promise<void>) {
         this.#session = session;
         this.#clearCredential = clearCredential;
+        this.#heartbeat = new MobileHeartbeat({
+            onTimeout: () => {
+                const error = new Error('Caxri did not acknowledge the heartbeat.');
+                if (this.hasOutstandingMutation()) this.#deferredLivenessError = error;
+                else this.#finish('disconnected', error);
+            },
+            randomBytes: (size) => session.runtime.randomBytes(size),
+            send: (payload) => sendSealed(session, payload),
+        });
         // eslint-disable-next-line no-void -- The connection lifetime owns its single inbound frame pump.
         void this.#readLoop();
     }
@@ -409,7 +442,8 @@ export class MobileGatewayConnection {
     #finish(reason: MobileGatewayTermination, error: Error): void {
         if (this.#termination || this.#closedByOwner) return;
         this.#termination = reason;
-        this.#rejectPending(error);
+        this.#heartbeat.stop();
+        this.#router.rejectAll(error);
         this.#session.reader.close();
         this.#session.socket.close();
         for (const listener of this.#listeners) listener(reason);
@@ -423,12 +457,11 @@ export class MobileGatewayConnection {
         try {
             while (!this.#termination && !this.#closedByOwner) {
                 // eslint-disable-next-line no-await-in-loop -- one reader serializes and authenticates every server frame.
-                const payload = await receiveSealed(this.#session);
-                const revoked = mobileRevokedSchema.safeParse(payload);
-                if (revoked.success) {
+                const payload = mobileServerPayloadSchema.parse(await receiveSealed(this.#session));
+                if (payload.type === 'revoked') {
                     if (
-                        revoked.data.deviceId !== this.#session.deviceId ||
-                        revoked.data.generation !== this.#session.generation
+                        payload.deviceId !== this.#session.deviceId ||
+                        payload.generation !== this.#session.generation
                     )
                         throw new Error('Caxri returned an unexpected revoked identity.');
                     // A credential is cleared only after the control payload has passed authenticated frame opening.
@@ -437,12 +470,13 @@ export class MobileGatewayConnection {
                     this.#finish('revoked', new Error('This device was revoked.'));
                     return;
                 }
-                const reply = commandReplyEnvelopeSchema.parse(payload);
-                const pending = this.#pending;
-                if (!pending || reply.id !== pending.id)
-                    throw new Error('Caxri returned an unexpected reply.');
-                this.#pending = undefined;
-                pending.resolve(reply);
+                if (payload.type === 'reply') this.#router.receiveReply(payload.reply);
+                else if (payload.type === 'heartbeat-ack')
+                    this.#heartbeat.acknowledge(payload.nonce);
+                else this.#router.receiveSubscriptionMessage(payload);
+                this.#deferredLivenessError = undefined;
+                if (this.#isForeground) this.#heartbeat.start();
+                for (const listener of this.#observationListeners) listener();
             }
         } catch (error) {
             this.#finish(
@@ -452,18 +486,44 @@ export class MobileGatewayConnection {
         }
     }
 
-    #rejectPending(error: Error): void {
-        const pending = this.#pending;
-        this.#pending = undefined;
-        pending?.reject(error);
+    async #sendWithReply(
+        id: string,
+        payload: MobileClientPayload,
+        timeoutMs: number,
+        isMutation = false,
+    ): Promise<CommandReplyEnvelope> {
+        if (this.#termination || this.#closedByOwner) throw eventError();
+        if (this.#deferredMutationError) throw this.#deferredMutationError;
+        const timeoutError = new MobileGatewayTimeoutError();
+        const response = this.#router.waitForReply(
+            id,
+            timeoutMs,
+            () => {
+                if (isMutation) this.#deferredMutationError = timeoutError;
+                else if (this.hasOutstandingMutation()) this.#deferredLivenessError = timeoutError;
+                else this.#finish('disconnected', timeoutError);
+            },
+            timeoutError,
+        );
+        try {
+            sendSealed(this.#session, payload);
+        } catch (error) {
+            this.#finish(
+                'disconnected',
+                error instanceof Error ? error : new Error('The Caxri connection closed.'),
+            );
+        }
+        return response;
     }
 
     close(): void {
         this.#closedByOwner = true;
-        this.#rejectPending(eventError());
+        this.#heartbeat.stop();
+        this.#router.rejectAll(eventError());
         this.#session.reader.close();
         this.#session.socket.close();
         this.#listeners.clear();
+        this.#observationListeners.clear();
     }
 
     onTermination(listener: (reason: MobileGatewayTermination) => void): () => void {
@@ -473,6 +533,17 @@ export class MobileGatewayConnection {
         }
         this.#listeners.add(listener);
         return () => this.#listeners.delete(listener);
+    }
+
+    onObservation(listener: () => void): () => void {
+        this.#observationListeners.add(listener);
+        return () => this.#observationListeners.delete(listener);
+    }
+
+    setForeground(isForeground: boolean): void {
+        this.#isForeground = isForeground;
+        if (isForeground && !this.#closedByOwner && !this.#termination) this.#heartbeat.start();
+        else this.#heartbeat.stop();
     }
 
     hasOutstandingMutation(): boolean {
@@ -485,64 +556,88 @@ export class MobileGatewayConnection {
     ): Promise<MethodResult<M>> {
         const isFastRead = isFastMobileRead(method);
         if (!isFastRead) this.#outstandingMutations += 1;
-        const previousRequest = this.#requestSequence;
-        const currentRequest = (async (): Promise<MethodResult<M>> => {
-            try {
-                await previousRequest;
-                if (this.#termination) throw eventError();
-                const id = `mobile_${encodeHex(this.#session.runtime.randomBytes(16))}`;
-                const replyPromise = new Promise<CommandReplyEnvelope>((resolve, reject) => {
-                    const timeout = setTimeout(
-                        () => {
-                            if (this.#pending?.id !== id) return;
-                            const error = new Error('Caxri did not respond in time.');
-                            this.#pending = undefined;
-                            reject(error);
-                            this.#finish('disconnected', error);
-                        },
-                        isFastRead ? READ_REQUEST_TIMEOUT_MS : REQUEST_TIMEOUT_MS,
-                    );
-                    this.#pending = {
-                        id,
-                        reject: (error) => {
-                            clearTimeout(timeout);
-                            reject(error);
-                        },
-                        resolve: (reply) => {
-                            clearTimeout(timeout);
-                            resolve(reply);
-                        },
-                    };
-                });
-                try {
-                    sendSealed(this.#session, {
+        try {
+            const id = `mobile_${encodeHex(this.#session.runtime.randomBytes(16))}`;
+            const reply = await this.#sendWithReply(
+                id,
+                {
+                    type: 'request',
+                    request: requestEnvelopeSchema.parse({
                         protocolVersion: CAXRI_PROTOCOL_VERSION,
                         id,
                         method,
                         params: arguments_[0] ?? {},
-                    });
-                } catch (error) {
-                    this.#finish(
-                        'disconnected',
-                        error instanceof Error ? error : new Error('The Caxri connection closed.'),
-                    );
+                    }),
+                },
+                isFastRead ? READ_REQUEST_TIMEOUT_MS : REQUEST_TIMEOUT_MS,
+                !isFastRead,
+            );
+            if (!reply.ok)
+                throw new MobileGatewayRequestError(reply.error.code, reply.error.message);
+            return parseCaxriResult(method, reply.result);
+        } finally {
+            if (!isFastRead) {
+                this.#outstandingMutations -= 1;
+                if (!this.hasOutstandingMutation()) {
+                    const error = this.#deferredMutationError ?? this.#deferredLivenessError;
+                    if (error) this.#finish('disconnected', error);
                 }
-                const reply = await replyPromise;
-                if (!reply.ok)
-                    throw new MobileGatewayRequestError(reply.error.code, reply.error.message);
-                return parseCaxriResult(method, reply.result);
-            } finally {
-                if (!isFastRead) this.#outstandingMutations -= 1;
             }
-        })();
-        this.#requestSequence = (async (): Promise<void> => {
-            try {
-                await currentRequest;
-            } catch {
-                // A failed request releases the queue; the caller still receives the original error.
-            }
-        })();
-        return currentRequest;
+        }
+    }
+
+    async subscribe(
+        resource: MobileSubscriptionResource,
+        listener: MobileSubscriptionListener,
+    ): Promise<MobileGatewaySubscriptionHandle> {
+        const previousSubscription = this.#subscriptionQueue;
+        let releaseSubscription!: () => void;
+        // eslint-disable-next-line unicorn/prefer-promise-with-resolvers -- React Native does not provide Promise.withResolvers.
+        this.#subscriptionQueue = new Promise<void>((resolve) => {
+            releaseSubscription = resolve;
+        });
+        await previousSubscription;
+        let id: string | undefined;
+        try {
+            id = `mobile_${encodeHex(this.#session.runtime.randomBytes(16))}`;
+            this.#router.beginSubscriptionRequest(id);
+            const reply = await this.#sendWithReply(
+                id,
+                { type: 'subscribe', id, resource },
+                READ_REQUEST_TIMEOUT_MS,
+            );
+            if (!reply.ok)
+                throw new MobileGatewayRequestError(reply.error.code, reply.error.message);
+            const { subscriptionId } = mobileSubscribeResultSchema.parse(reply.result);
+            if (this.#termination || this.#closedByOwner) throw eventError();
+            this.#router.addSubscription(subscriptionId, resource, listener);
+            let didUnsubscribe = false;
+            return {
+                subscriptionId,
+                unsubscribe: async () => {
+                    if (didUnsubscribe) return;
+                    didUnsubscribe = true;
+                    const isActive = this.#router.hasSubscription(subscriptionId);
+                    this.#router.removeSubscription(subscriptionId);
+                    if (!isActive || this.#termination || this.#closedByOwner) return;
+                    const unsubscribeId = `mobile_${encodeHex(this.#session.runtime.randomBytes(16))}`;
+                    const unsubscribeReply = await this.#sendWithReply(
+                        unsubscribeId,
+                        { type: 'unsubscribe', id: unsubscribeId, subscriptionId },
+                        READ_REQUEST_TIMEOUT_MS,
+                    );
+                    if (!unsubscribeReply.ok)
+                        throw new MobileGatewayRequestError(
+                            unsubscribeReply.error.code,
+                            unsubscribeReply.error.message,
+                        );
+                    mobileUnsubscribeResultSchema.parse(unsubscribeReply.result);
+                },
+            };
+        } finally {
+            if (id) this.#router.endSubscriptionRequest(id);
+            releaseSubscription();
+        }
     }
 
     async probe(): Promise<void> {
@@ -553,7 +648,8 @@ export class MobileGatewayConnection {
                 new Promise<never>((_resolve, reject) => {
                     timeout = setTimeout(() => {
                         const error = new Error('Caxri did not respond to the foreground probe.');
-                        this.#finish('disconnected', error);
+                        if (this.hasOutstandingMutation()) this.#deferredLivenessError = error;
+                        else this.#finish('disconnected', error);
                         reject(error);
                     }, FOREGROUND_PROBE_TIMEOUT_MS);
                 }),
