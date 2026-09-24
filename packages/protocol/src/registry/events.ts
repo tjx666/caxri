@@ -41,6 +41,7 @@ export const MAX_FILE_CHANGES_PER_EVENT = 512;
 const fullStateChangeReasonSchema = z.enum([
     'project.create',
     'project.delete',
+    'project.hide',
     'project.reorder',
     'project.setIcon',
     'session.create',

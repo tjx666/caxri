@@ -372,6 +372,11 @@ export const methods = {
         params: z.object({ projectId: identifierSchema }),
         result: z.union([canceledResultSchema, bootstrapStateSchema]),
     },
+    'project.hide': {
+        ...serverWrite,
+        params: z.object({ projectId: identifierSchema }),
+        result: bootstrapStateSchema,
+    },
     'project.reorder': {
         ...serverWrite,
         params: z.object({

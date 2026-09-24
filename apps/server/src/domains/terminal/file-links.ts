@@ -119,11 +119,12 @@ async function resolveRegularFile(rootPath: string, candidate: string) {
 /**
  * Projects a Terminal link may open through. An auto-registered worktree Project (`ownerProjectId` set) can never own a
  * Session, so it is a target only while a live Session uses it as its Workbench Root; otherwise a link into it is
- * treated as external and Main opens a read-only snapshot instead of creating a Session nobody could see.
+ * treated as external and Main opens a read-only snapshot instead of creating a Session nobody could see. A hidden
+ * Project is excluded for the same reason.
  */
 function fileLinkProjects(database: CaxriDatabase) {
     return database
-        .listProjects()
+        .listVisibleProjects()
         .filter(
             (project) =>
                 isTopLevelProject(project) ||

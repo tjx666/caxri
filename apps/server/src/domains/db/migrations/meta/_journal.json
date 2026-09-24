@@ -218,6 +218,13 @@
             "when": 1790045288333,
             "tag": "0030_clear-shutdown-stamped-session-failure",
             "breakpoints": true
+        },
+        {
+            "idx": 31,
+            "version": "6",
+            "when": 1790219546181,
+            "tag": "0031_project-hiding",
+            "breakpoints": true
         }
     ]
 }

@@ -602,35 +602,6 @@ export function confirmPendingSession(kind: TerminalKind | null): void {
     }
 }
 
-export function deleteSelectedProject(): void {
-    const bootstrap = getBootstrap();
-    const project = selectSelectedProject(bootstrap);
-    if (!bootstrap || !project) return;
-    // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
-    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-    void tryCommand('Project deletion failed', async () => {
-        const result = await caxri.request('project.delete', { projectId: project.id });
-        if ('canceled' in result) return;
-        /**
-         * The Server deletes the worktree Projects auto-registered on this Project's behalf in the same transaction, so
-         * their Sessions disappear too. `refreshWorkbench` only replaces bootstrap state; per-Session view state and
-         * cached queries need this explicit cleanup or they would outlive the rows they describe.
-         */
-        const deletedProjectIds = new Set([
-            project.id,
-            ...bootstrap.projects.flatMap((candidate) =>
-                candidate.ownerProjectId === project.id ? [candidate.id] : [],
-            ),
-        ]);
-        const removedSessionIds: string[] = [];
-        for (const session of bootstrap.sessions)
-            if (deletedProjectIds.has(session.projectId)) removedSessionIds.push(session.id);
-        useSessionViewStore.getState().dropSessions(removedSessionIds);
-        removeSessionQueries(queryClient, removedSessionIds);
-        await refreshWorkbench();
-    });
-}
-
 export function openSelectedProjectInExternalEditor(): void {
     const bootstrap = getBootstrap();
     const project = selectSelectedProject(bootstrap);

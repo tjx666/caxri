@@ -7,6 +7,7 @@ import { z } from 'zod';
 export const commandIds = [
     'project.create',
     'project.delete',
+    'project.hide',
     'project.openInEditor',
     'project.customizeIcon',
     'session.create',

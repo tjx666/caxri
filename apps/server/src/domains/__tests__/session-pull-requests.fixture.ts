@@ -143,7 +143,7 @@ export async function harness(options: {
                 return sessions.find((candidate) => candidate.id === id);
             },
             getTerminal: (id) => (id === terminal.id ? terminal : undefined),
-            listSessions: () => sessions,
+            listVisibleSessions: () => sessions,
         },
         {
             summary:

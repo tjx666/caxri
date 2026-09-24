@@ -140,7 +140,7 @@ export interface SessionPullRequestServiceOptions {
 
 type SessionPullRequestDatabase = Pick<
     CaxriDatabase,
-    'getSession' | 'getTerminal' | 'listSessions'
+    'getSession' | 'getTerminal' | 'listVisibleSessions'
 >;
 
 function pullRequestKey(reference: PullRequestReference): string {
@@ -282,7 +282,9 @@ export class SessionPullRequestService {
      * that is not currently active.
      */
     private activeSessions(): SessionRecord[] {
-        return this.database.listSessions().filter((session) => session.archivedAt === undefined);
+        return this.database
+            .listVisibleSessions()
+            .filter((session) => session.archivedAt === undefined);
     }
 
     private async runSweep(): Promise<boolean> {
