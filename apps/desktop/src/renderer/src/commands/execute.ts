@@ -21,11 +21,14 @@ import {
 import { focusPrimarySidebar } from '../features/primary-sidebar/primary-sidebar-focus';
 import { toggleScreencastMode } from '../features/screencast/screencast';
 import {
+    deleteSelectedProject,
+    hideSelectedProject,
+} from '../features/session/project-removal-commands';
+import {
     archiveSelectedSession,
     beginSessionCreation,
     canNavigateSessionHistory,
     chooseProjectFolder,
-    deleteSelectedProject,
     deleteSelectedSession,
     detachSelectedSession,
     moveTerminalToNewSession,
@@ -154,6 +157,7 @@ const commandContext: CommandContext = {
             if (target) useDialogStore.getState().openProjectIcon(target.id);
         },
         openInExternalEditor: openSelectedProjectInExternalEditor,
+        hideSelected: hideSelectedProject,
         removeSelected: deleteSelectedProject,
     },
     session: {

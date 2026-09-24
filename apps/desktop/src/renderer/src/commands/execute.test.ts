@@ -91,6 +91,7 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
             project: {
                 create: record('project.create'),
                 customizeIcon: record('project.customizeIcon'),
+                hideSelected: record('project.hide'),
                 openInExternalEditor: record('project.openInEditor'),
                 removeSelected: record('project.remove'),
             },

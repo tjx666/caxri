@@ -29,7 +29,6 @@ import {
     DEFAULT_SESSION_TITLE,
     defaultTerminalTitle,
     firstActiveSession,
-    firstSelectableProject,
     processExitActivityState,
     selectFallbackAfterDeletion,
     sessionActivityReasonForAgentState,
@@ -46,6 +45,12 @@ import type {
 } from './models/agent-dispatch-receipts';
 import type { AppStateKey, AppStateValue } from './models/app-state';
 import type { SessionWorkbenchBinding } from './models/sessions';
+import {
+    hideProject,
+    listVisibleProjects,
+    listVisibleSessions,
+    moveSelectionOffProjects,
+} from './project-visibility';
 import { archiveOneSession, restoreArchivedSessions } from './session-archive';
 import {
     reorderPinnedSession,
@@ -239,27 +244,23 @@ export class CaxriDatabase {
                 if (cascadedProjectId !== projectId) this.removeProjectRow(cascadedProjectId);
             if (!this.removeProjectRow(projectId))
                 throw new CaxriError('NOT_FOUND', 'Project not found');
-            /**
-             * Today the selection can only name the deleted Project itself: every writer of `lastSelectedProjectId`
-             * derives it from a Session's own `projectId`, and `createSession` refuses owned Projects, so no Session
-             * ever lives in a worktree row. The check still covers the whole cascaded set because comparing a handful
-             * of ids is free, while the failure it prevents — the Renderer left pointing at a row this transaction
-             * removed — is one the caller cannot detect. Anything that later makes an owned Project selectable is
-             * correct here by construction rather than by remembering to revisit this fallback.
-             */
-            const selectedProjectId = this.db.appState.get('lastSelectedProjectId');
-            if (!selectedProjectId || !cascadedProjectIds.includes(selectedProjectId)) return;
-            const fallbackProject = firstSelectableProject(this.db.projects.list());
-            const fallbackSession = fallbackProject
-                ? firstActiveSession(this.db.sessions.list(fallbackProject.id))
-                : undefined;
-            const selection = selectFallbackAfterDeletion(
-                fallbackSession,
-                fallbackProject?.id ?? null,
-            );
-            this.db.appState.set('lastSelectedProjectId', selection.projectId);
-            this.db.appState.set('lastSelectedSessionId', selection.sessionId);
+            moveSelectionOffProjects(this.db, cascadedProjectIds);
         });
+    }
+
+    /**
+     * Keeps every row; a later manual {@link createProject} of the same root un-hides.
+     */
+    hideProject(projectId: string, now = Date.now()): SessionRecord[] {
+        return this.db.transaction(() => hideProject(this.db, projectId, now));
+    }
+
+    listVisibleProjects(): ProjectRecord[] {
+        return listVisibleProjects(this.db);
+    }
+
+    listVisibleSessions(): SessionRecord[] {
+        return listVisibleSessions(this.db);
     }
 
     listSessions(projectId?: string): SessionRecord[] {

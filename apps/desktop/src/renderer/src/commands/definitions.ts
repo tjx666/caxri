@@ -76,6 +76,7 @@ export const commandDefinitions: CommandDefinition[] = [
          */
         { confirm: true },
     ),
+    fromCatalog('project.hide', (context) => context.project.hideSelected()),
     fromCatalog('project.openInEditor', (context) => context.project.openInExternalEditor()),
     fromCatalog('project.customizeIcon', (context, arguments_) =>
         context.project.customizeIcon(projectIdArgument(arguments_)),

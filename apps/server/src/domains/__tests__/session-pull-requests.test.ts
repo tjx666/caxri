@@ -319,7 +319,7 @@ describe('SessionPullRequestService', () => {
             {
                 getSession: () => session({ primaryAgentTerminalId: terminal.id }),
                 getTerminal: (id) => (id === terminal.id ? terminal : undefined),
-                listSessions: () => [session({ primaryAgentTerminalId: terminal.id })],
+                listVisibleSessions: () => [session({ primaryAgentTerminalId: terminal.id })],
             },
             { summary: () => Promise.resolve(gitSummary('main')) },
             await testLogger(),

@@ -20,8 +20,9 @@ export function createIntrospectionServices(database: CaxriDatabase, logger: Str
             {
                 currentProjectId: () => database.getAppState('lastSelectedProjectId') ?? undefined,
                 currentSessionId: () => database.getAppState('lastSelectedSessionId') ?? undefined,
-                projects: () => database.listProjects(),
-                sessions: () => database.listSessions(),
+                // Hidden Projects stay out of CLI queries exactly as they stay out of the Workbench.
+                projects: () => database.listVisibleProjects(),
+                sessions: () => database.listVisibleSessions(),
                 terminals: () => database.listTerminals(),
             },
             homedir(),
