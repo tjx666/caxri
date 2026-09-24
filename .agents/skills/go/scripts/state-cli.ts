@@ -10,6 +10,7 @@ import {
     ciFallbackResultSchema,
     recordCiFallbackResult,
 } from './ci-fallback';
+import { readCiPlatformReceipt } from './ci-platform-receipt';
 import {
     formatFinalizationSummary,
     generateFinalization,
@@ -27,6 +28,7 @@ import {
     mutationLeaseKindSchema,
     releaseMutationLease,
 } from './mutation-lease';
+import { missingCanonicalPlatformNeutralGates } from './platform-neutral-gates';
 import { resourceCleanupKindSchema } from './resource-cleanup';
 import { runResourceAudit } from './resource-cleanup-run';
 import { createResumeCheckpoint, formatResumeCheckpoint } from './resume';
@@ -285,7 +287,10 @@ function parseFinalIssues(values: string[]) {
     });
 }
 
-export async function runStateCli(argv: string[]): Promise<number | void> {
+export async function runStateCli(
+    argv: string[],
+    dependencies: { readCiPlatformReceipt?: typeof readCiPlatformReceipt } = {},
+): Promise<number | void> {
     if (argv[0] === 'help') {
         if (argv.length > 2) throw new Error('Usage: state.ts help <command>');
         console.log(stateCliHelp(argv[1]));
@@ -325,6 +330,18 @@ export async function runStateCli(argv: string[]): Promise<number | void> {
         });
     }
     if (passthrough.length > 0) throw new Error(`${command} does not accept arguments after --`);
+    const requestedReviewHead = command === 'review' ? one(options, 'head-sha') : undefined;
+    const isNeedsCiReceipt = command === 'review' && one(options, 'mode') === 'full';
+    const preflightState = isNeedsCiReceipt ? await readState(path) : null;
+    const ciReceipt =
+        isNeedsCiReceipt &&
+        requestedReviewHead &&
+        preflightState &&
+        missingCanonicalPlatformNeutralGates(preflightState, requestedReviewHead).length > 0
+            ? await (dependencies.readCiPlatformReceipt ?? readCiPlatformReceipt)(
+                  requestedReviewHead,
+              )
+            : null;
     return withStateLock(path, async () => {
         const requiresFullArtifactAudit = requiresFullValidationArtifactAudit(command, options);
         const state = await readState(path, {
@@ -506,6 +523,7 @@ export async function runStateCli(argv: string[]): Promise<number | void> {
                 recordReviewDecision(state, {
                     baselineHeadSha: one(options, 'baseline-head-sha'),
                     baselineReviewId: one(options, 'baseline-review-id'),
+                    ciReceipt,
                     freeze: options.freeze === true,
                     headSha: reviewHeadValidation.canonicalHeadSha,
                     mode: reviewModeSchema.parse(one(options, 'mode', true)),

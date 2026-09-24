@@ -19,6 +19,7 @@ import {
     lintPipelineForFile,
     parseCheckArguments,
     playwrightArguments,
+    relatedE2ESpecs,
     selectE2ESpecs,
     selectedTestCandidates,
     testCandidatesForFile,
@@ -185,6 +186,7 @@ describe('parseCheckArguments', () => {
         expect(parseCheckArguments(['apps/desktop/src/main/index.ts'])).toEqual({
             e2e: false,
             e2eGrep: undefined,
+            e2eWaitSeconds: undefined,
             files: ['apps/desktop/src/main/index.ts'],
             isStaged: false,
             knip: false,
@@ -198,6 +200,7 @@ describe('parseCheckArguments', () => {
         expect(parseCheckArguments(['--staged', '--type'])).toEqual({
             e2e: false,
             e2eGrep: undefined,
+            e2eWaitSeconds: undefined,
             files: [],
             isStaged: true,
             knip: false,
@@ -211,6 +214,7 @@ describe('parseCheckArguments', () => {
         expect(parseCheckArguments(['--knip'])).toEqual({
             e2e: false,
             e2eGrep: undefined,
+            e2eWaitSeconds: undefined,
             files: [],
             isStaged: false,
             knip: true,
@@ -231,6 +235,7 @@ describe('parseCheckArguments', () => {
         ).toEqual({
             e2e: true,
             e2eGrep: 'launches the workbench',
+            e2eWaitSeconds: undefined,
             files: ['e2e/smoke.e2e.ts'],
             isStaged: false,
             knip: false,
@@ -243,6 +248,18 @@ describe('parseCheckArguments', () => {
     it('rejects an e2e grep without the e2e selector', () => {
         expect(() => parseCheckArguments(['--e2e-grep', 'launches'])).toThrow(
             '--e2e-grep requires --e2e',
+        );
+    });
+
+    it('accepts only a bounded desktop lease wait for e2e', () => {
+        expect(
+            parseCheckArguments(['e2e/smoke.e2e.ts', '--e2e', '--e2e-wait', '30']),
+        ).toMatchObject({ e2eWaitSeconds: 30 });
+        expect(() => parseCheckArguments(['--e2e-wait', '30'])).toThrow(
+            '--e2e-wait requires --e2e',
+        );
+        expect(() => parseCheckArguments(['--e2e', '--e2e-wait', '301'])).toThrow(
+            '--e2e-wait requires an integer from 1 to 300 seconds',
         );
     });
 });
@@ -552,6 +569,52 @@ describe('direct import test selection', () => {
         expect(selected).toContain('apps/desktop/src/renderer/src/stores/session-view.test.ts');
     });
 
+    it('selects workspace package consumers through bounded re-export barrels', async () => {
+        const selected = await directImportTestCandidates(process.cwd(), [
+            'packages/protocol/src/domain/session.ts',
+        ]);
+        expect(selected).toContain('packages/protocol/src/__tests__/contracts.test.ts');
+        expect(selected).toContain('apps/server/src/domains/db/__tests__/repo.integration.test.ts');
+        expect(
+            await relatedE2ESpecs(process.cwd(), ['packages/protocol/src/domain/session.ts']),
+        ).toContain('e2e/terminal-shortcuts.e2e.ts');
+    });
+
+    it('follows pure barrels for at most two hops without traversing ordinary imports', () => {
+        const testFile = 'apps/server/src/example.test.ts';
+        const source = 'packages/example/src/source.ts';
+        const workspaceEntries = new Map([['@caxri/example', 'packages/example/src/index.ts']]);
+        const barrelContents = new Map([
+            ['packages/example/src/index', "export * from './middle.js';"],
+            ['packages/example/src/middle', "export * from './source.js';"],
+        ]);
+        const testContents = "import { source } from '@caxri/example';";
+        expect(
+            hasDirectSourceImport(testFile, testContents, source, {
+                barrelContents,
+                workspaceEntries,
+            }),
+        ).toBe(true);
+        barrelContents.set(
+            'packages/example/src/middle',
+            "import './source.js';\nexport * from './other.js';",
+        );
+        expect(
+            hasDirectSourceImport(testFile, testContents, source, {
+                barrelContents,
+                workspaceEntries,
+            }),
+        ).toBe(false);
+        barrelContents.set('packages/example/src/middle', "export * from './third.js';");
+        barrelContents.set('packages/example/src/third', "export * from './source.js';");
+        expect(
+            hasDirectSourceImport(testFile, testContents, source, {
+                barrelContents,
+                workspaceEntries,
+            }),
+        ).toBe(false);
+    });
+
     it('runs a skill\u{2019}s own contract tests when its SKILL.md changes', async () => {
         const selected = await selectedTestCandidates(process.cwd(), [
             '.agents/skills/e2e-testing/SKILL.md',
@@ -586,12 +649,14 @@ describe('direct import test selection', () => {
         ]);
     });
 
-    it('selects only direct FileService suites with the existing narrow heuristic', async () => {
+    it('selects direct FileService suites and bounded barrel consumers', async () => {
         const source = 'apps/server/src/domains/files/service.ts';
         const direct = await directImportTestCandidates(process.cwd(), [source]);
         const selected = await selectedTestCandidates(process.cwd(), [source]);
 
-        expect(direct).toEqual([
+        const expected = [
+            'apps/server/src/domains/__tests__/root-services.test.ts',
+            'apps/server/src/domains/__tests__/service-handlers.test.ts',
             'apps/server/src/domains/files/__tests__/external-links.integration.test.ts',
             'apps/server/src/domains/files/__tests__/files.browse.integration.test.ts',
             'apps/server/src/domains/files/__tests__/files.imports.integration.test.ts',
@@ -603,20 +668,10 @@ describe('direct import test selection', () => {
             'apps/server/src/domains/files/__tests__/search.integration.test.ts',
             'apps/server/src/domains/files/__tests__/watcher.scope.integration.test.ts',
             'apps/server/src/domains/files/__tests__/workbench-mutations.integration.test.ts',
-        ]);
-        expect(selected).toEqual([
-            'apps/server/src/domains/files/__tests__/external-links.integration.test.ts',
-            'apps/server/src/domains/files/__tests__/files.browse.integration.test.ts',
-            'apps/server/src/domains/files/__tests__/files.imports.integration.test.ts',
-            'apps/server/src/domains/files/__tests__/files.integration.test.ts',
-            'apps/server/src/domains/files/__tests__/files.watching.integration.test.ts',
-            'apps/server/src/domains/files/__tests__/git-ignore.integration.test.ts',
-            'apps/server/src/domains/files/__tests__/mutations-move-replace.integration.test.ts',
-            'apps/server/src/domains/files/__tests__/mutations.integration.test.ts',
-            'apps/server/src/domains/files/__tests__/search.integration.test.ts',
-            'apps/server/src/domains/files/__tests__/watcher.scope.integration.test.ts',
-            'apps/server/src/domains/files/__tests__/workbench-mutations.integration.test.ts',
-        ]);
+            'apps/server/src/domains/terminal/__tests__/file-links.test.ts',
+        ];
+        expect(direct).toEqual(expected);
+        expect(selected).toEqual(expected);
         expect(selected).not.toContain(
             'apps/server/src/domains/__tests__/runtime.integration.test.ts',
         );

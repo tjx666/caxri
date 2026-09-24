@@ -1,12 +1,31 @@
 import type { Buffer } from 'node:buffer';
 import { execFile } from 'node:child_process';
-import { lstat, readdir, readFile } from 'node:fs/promises';
+import { lstat } from 'node:fs/promises';
 import { extname, isAbsolute, join, posix, relative, resolve, sep } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
-import ts from 'typescript';
+import {
+    acquireDesktopLease,
+    inspectDesktopLease,
+    releaseDesktopLease,
+} from '../../switch-worktree/scripts/desktop-lease';
+import { CommandError } from '../../switch-worktree/scripts/process';
+import {
+    directImportTestCandidates,
+    relatedE2ESpecs,
+    TEST_EXTENSIONS,
+    walkVitestTestFiles,
+} from './source-imports';
+
+export {
+    directImportTestCandidates,
+    hasDirectSourceImport,
+    IMPORT_PATH_ALIASES,
+    relatedE2ESpecs,
+    VITEST_SOURCE_ROOTS,
+} from './source-imports';
 
 const MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
 const execFileAsync = promisify(execFile);
@@ -17,12 +36,11 @@ const CODE_EXTENSIONS = new Set(['.cjs', '.cts', '.js', '.jsx', '.mjs', '.mts', 
  */
 const TYPE_AWARE_EXTENSIONS = new Set(['.ts', '.tsx', '.mts', '.cts']);
 const FORMAT_EXTENSIONS = new Set(['.css', '.html', '.json', '.jsonc', '.md', '.yaml', '.yml']);
-const TEST_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts'] as const;
-const VITEST_TEST_FILE = /\.test\.(?:cts|mts|ts|tsx)$/;
 
 export interface CheckOptions {
     e2e: boolean;
     e2eGrep?: string;
+    e2eWaitSeconds?: number;
     files: string[];
     isStaged: boolean;
     knip: boolean;
@@ -178,7 +196,7 @@ interface ProcessFailure extends Error {
     stdout?: Buffer | string;
 }
 
-const usage = `Usage: bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [--e2e-grep <pattern>] [--staged]
+const usage = `Usage: bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [--e2e-grep <pattern>] [--e2e-wait <seconds>] [--staged]
 
 Selectors:
   --lint     Autofix supported changed files with ESLint and Prettier
@@ -187,6 +205,7 @@ Selectors:
   --knip     Run the repository-wide dead code/export check (CI blocking)
   --e2e      Build and run explicitly named e2e/*.e2e.ts Playwright specs
   --e2e-grep Narrow --e2e to a Playwright test-title pattern
+  --e2e-wait Wait up to 300 seconds for the repository desktop lease (default: fail immediately)
   --staged   Discover only staged files when no file arguments are supplied
 
 With no selector, --lint and --test are enabled.`;
@@ -218,6 +237,13 @@ function didConsumeNextCheckArgument(
             options.e2eGrep = nextArgument;
             return true;
         }
+        case '--e2e-wait': {
+            const seconds = Number(nextArgument);
+            if (!nextArgument || !Number.isSafeInteger(seconds) || seconds < 1 || seconds > 300)
+                throw new CheckError('--e2e-wait requires an integer from 1 to 300 seconds', 2);
+            options.e2eWaitSeconds = seconds;
+            return true;
+        }
         case '--lint':
             options.lint = true;
             return false;
@@ -243,6 +269,7 @@ export function parseCheckArguments(arguments_: string[]): CheckOptions {
     const options: CheckOptions = {
         e2e: false,
         e2eGrep: undefined,
+        e2eWaitSeconds: undefined,
         files: [],
         isStaged: false,
         knip: false,
@@ -263,6 +290,8 @@ export function parseCheckArguments(arguments_: string[]): CheckOptions {
     if (options.e2eGrep && !options.e2e) {
         throw new CheckError('--e2e-grep requires --e2e', 2);
     }
+    if (options.e2eWaitSeconds && !options.e2e)
+        throw new CheckError('--e2e-wait requires --e2e', 2);
 
     if (!options.e2e && !options.knip && !options.lint && !options.test && !options.type) {
         options.lint = true;
@@ -394,146 +423,18 @@ export function testCandidatesForFile(file: string): string[] {
     return [...new Set([...harnessCandidates, ...candidates])];
 }
 
-/**
- * Mirrors the `paths` aliases of the root `tsconfig.json` so alias imports resolve to repository paths during direct
- * import discovery. The colocated contract test asserts this map stays in sync with `tsconfig.json`.
- */
-export const IMPORT_PATH_ALIASES: ReadonlyArray<{ prefix: string; target: string }> = [
-    { prefix: '@/', target: 'apps/desktop/src/renderer/src/' },
-    { prefix: '@desktop-shared/', target: 'apps/desktop/src/shared/' },
-];
-
-export const VITEST_SOURCE_ROOTS = [
-    'apps',
-    'extensions',
-    '.agents/skills',
-    'scripts',
-    'packages',
-] as const;
-
-/**
- * Returns whether a test directly imports or re-exports a source file through a relative or tsconfig-alias static
- * specifier. This intentionally does not walk transitive imports: broad runtime suites are much less useful than the
- * tests that name the changed module at their boundary.
- */
-export function hasDirectSourceImport(
-    testFile: string,
-    testContents: string,
-    sourceFile: string,
-): boolean {
-    const normalizedTest = testFile.replaceAll('\\', '/');
-    const normalizedSource = sourceFile.replaceAll('\\', '/');
-    const sourceWithoutExtension = normalizedSource.slice(0, -extname(normalizedSource).length);
-
-    const syntax = testFile.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
-    const parsedTest = ts.createSourceFile(
-        testFile,
-        testContents,
-        ts.ScriptTarget.Latest,
-        false,
-        syntax,
-    );
-    for (const statement of parsedTest.statements) {
-        const moduleSpecifier =
-            ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)
-                ? statement.moduleSpecifier
-                : undefined;
-        if (!moduleSpecifier || !ts.isStringLiteral(moduleSpecifier)) continue;
-        const specifier = moduleSpecifier.text;
-        let importedCandidates: string[];
-        if (specifier.startsWith('./') || specifier.startsWith('../')) {
-            importedCandidates = [
-                posix.normalize(posix.join(posix.dirname(normalizedTest), specifier)),
-            ];
-        } else {
-            const aliases = IMPORT_PATH_ALIASES.filter(({ prefix }) =>
-                specifier.startsWith(prefix),
-            );
-            if (aliases.length === 0) continue;
-            importedCandidates = aliases.map((alias) =>
-                posix.normalize(alias.target + specifier.slice(alias.prefix.length)),
-            );
-        }
-        const isDirectImport = importedCandidates.some((imported) => {
-            const importedExtension = extname(imported);
-            const importedWithoutExtension = importedExtension
-                ? imported.slice(0, -importedExtension.length)
-                : imported;
-            return (
-                imported === normalizedSource ||
-                importedWithoutExtension === sourceWithoutExtension ||
-                importedWithoutExtension === `${sourceWithoutExtension}/index`
-            );
-        });
-        if (isDirectImport) {
-            return true;
-        }
-    }
-    return false;
-}
-
-async function walkVitestTestFiles(root: string, directory: string): Promise<string[]> {
-    const absoluteDirectory = join(root, directory);
-    try {
-        const entries = await readdir(absoluteDirectory, { encoding: 'utf8', withFileTypes: true });
-        const nested = await Promise.all(
-            entries.map(async (entry) => {
-                const path = posix.join(directory, entry.name);
-                if (entry.isDirectory()) {
-                    // Workspace packages vendor their own `node_modules` and build output; only
-                    // repository test sources belong in the discovery walk.
-                    if (entry.name === 'node_modules' || entry.name === 'dist') return [];
-                    return walkVitestTestFiles(root, path);
-                }
-                return entry.isFile() && VITEST_TEST_FILE.test(path) ? [path] : [];
-            }),
-        );
-        return nested.flat();
-    } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
-        throw error;
-    }
-}
-
-/**
- * Finds only direct static-import tests covered by Vitest's repository include patterns. Dynamic imports and transitive
- * dependency graphs are deliberately excluded so a focused source edit cannot fan out into unrelated integration
- * suites.
- */
-export async function directImportTestCandidates(
-    root: string,
-    sourceFiles: string[],
-): Promise<string[]> {
-    const sources = sourceFiles.filter(
-        (file) =>
-            !VITEST_TEST_FILE.test(file) &&
-            TEST_EXTENSIONS.some((extension) => file.endsWith(extension)) &&
-            !file.endsWith('.d.ts'),
-    );
-    if (sources.length === 0) return [];
-
-    const tests = (
-        await Promise.all(
-            VITEST_SOURCE_ROOTS.map((directory) => walkVitestTestFiles(root, directory)),
-        )
-    ).flat();
-    const contents = await Promise.all(
-        tests.map(async (test) => ({ test, contents: await readFile(join(root, test), 'utf8') })),
-    );
-    return contents
-        .filter(({ test, contents }) =>
-            sources.some((source) => hasDirectSourceImport(test, contents, source)),
-        )
-        .map(({ test }) => test)
-        .toSorted((a, b) => a.localeCompare(b));
-}
-
-async function runCapture(command: string, arguments_: string[], cwd: string): Promise<string> {
+async function runCapture(
+    command: string,
+    arguments_: string[],
+    cwd: string,
+    environment?: NodeJS.ProcessEnv,
+): Promise<string> {
     try {
         const { stdout } = await execFileAsync(command, arguments_, {
             cwd,
             encoding: 'utf8',
             maxBuffer: MAX_OUTPUT_BYTES,
+            ...(environment && { env: environment }),
         });
         return stdout;
     } catch (error) {
@@ -598,8 +499,13 @@ async function existingFiles(root: string, files: string[]): Promise<string[]> {
     );
 }
 
-async function runTool(root: string, executable: string, arguments_: string[]): Promise<void> {
-    await runCapture(join(root, 'node_modules', '.bin', executable), arguments_, root);
+async function runTool(
+    root: string,
+    executable: string,
+    arguments_: string[],
+    environment?: NodeJS.ProcessEnv,
+): Promise<void> {
+    await runCapture(join(root, 'node_modules', '.bin', executable), arguments_, root, environment);
 }
 
 /**
@@ -726,14 +632,48 @@ async function runTests(root: string, files: string[]): Promise<number> {
     return tests.length;
 }
 
-async function runE2E(root: string, specs: string[], grep?: string): Promise<number> {
+async function runE2E(
+    root: string,
+    specs: string[],
+    grep?: string,
+    waitSeconds = 0,
+): Promise<number> {
     /**
      * A focused Electron run must never exercise stale output. Capturing both successful commands keeps the standard
      * check result compact while runCapture still exposes complete failures.
      */
-    await runCapture('bun', ['run', 'build'], root);
-    await runTool(root, 'playwright', playwrightArguments(specs, grep));
-    return specs.length;
+    const parentToken = process.env.CAXRI_DESKTOP_COORDINATOR_TOKEN;
+    if (parentToken) {
+        const coordinator = await inspectDesktopLease(root);
+        if (
+            coordinator.state !== 'active' ||
+            coordinator.lease.token !== parentToken ||
+            coordinator.lease.worktreePath !== root
+        )
+            throw new CheckError('The inherited desktop coordinator is no longer active');
+    }
+    let lease: Awaited<ReturnType<typeof acquireDesktopLease>> | undefined;
+    if (!parentToken) {
+        try {
+            lease = await acquireDesktopLease(root, 'check --e2e', process.pid, {
+                waitMs: waitSeconds * 1000,
+            });
+        } catch (error) {
+            if (error instanceof CommandError) throw new CheckError(error.message, error.exitCode);
+            throw error;
+        }
+    }
+    const environment = {
+        ...process.env,
+        CAXRI_DESKTOP_COORDINATOR_TOKEN: parentToken ?? lease!.token,
+    };
+    try {
+        await runCapture('bun', ['run', 'build'], root, environment);
+        await runTool(root, 'playwright', playwrightArguments(specs, grep), environment);
+        return specs.length;
+    } finally {
+        if (lease) await releaseDesktopLease(lease);
+    }
 }
 
 async function main(): Promise<void> {
@@ -759,10 +699,13 @@ async function main(): Promise<void> {
         summaries.push('knip');
     }
     if (options.e2e) {
-        summaries.push(`e2e ${await runE2E(root, e2eSpecs, options.e2eGrep)}`);
+        summaries.push(
+            `e2e ${await runE2E(root, e2eSpecs, options.e2eGrep, options.e2eWaitSeconds)}`,
+        );
     }
 
     const dirtyLayerReport = dirtyLayerReportForFiles(files, options.files.length > 0);
+    const consumerE2ESpecs = await relatedE2ESpecs(root, files);
     console.log(
         formatCheckSummary({
             changedFileCount: files.length,
@@ -771,6 +714,8 @@ async function main(): Promise<void> {
             suggestedGates: dirtyLayerReport.suggestedGates,
         }),
     );
+    if (consumerE2ESpecs.length > 0)
+        console.log(`Related E2E specs (run explicitly): ${consumerE2ESpecs.join(', ')}`);
 }
 
 const currentFile = fileURLToPath(import.meta.url);

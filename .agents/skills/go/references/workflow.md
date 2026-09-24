@@ -90,6 +90,10 @@ code-changing gates → one aggregate baseline → repair P0/P1 → light delta 
 
 Use `state.ts review` only for review decisions. CI, fixtures, evidence, gates,
 and remote-state checks use `validation-run`, with the executable and argument vector after `--`.
+For a full baseline, `review` may also reuse a successful full platform-check job from an exact-head
+`push` or `workflow_dispatch` CI run. It records the run URL and per-command source in the review
+round. Current pull-request checks run on a synthetic merge and cannot substitute for exact-head
+receipts.
 Each validation automatically stores the exact head, secret-free command identity, argument count, session id, private log path,
 failure lineage, attempt, duration, final exit code or signal, log size and SHA-256, and effective
 result. The runner streams output while it executes outside the short ledger locks, launches with a

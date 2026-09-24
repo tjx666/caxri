@@ -1,4 +1,3 @@
-import { Buffer } from 'node:buffer';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -57,6 +56,7 @@ import {
 } from './request-cancellation';
 import type { ServerCore, ServerCoreOptions } from './server-core-contract';
 import { createTerminalExecution } from './terminal-host/create-execution';
+import { invokeTerminalSend } from './terminal-send';
 
 export type { ServerCore, ServerCoreOptions } from './server-core-contract';
 /**
@@ -378,33 +378,19 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                             method: 'terminal.sendInternal',
                             params: request.params,
                         });
-                    let result: unknown;
-                    if (context.principal.kind === 'paired-device')
-                        result = await mobileAccess.invokeShortReply(
-                            context,
-                            request.params,
-                            domainService,
-                            invoke,
-                        );
-                    else {
-                        if (
-                            context.principal.kind !== 'human-cli' &&
-                            context.principal.kind !== 'desktop'
-                        )
-                            throw new CaxriError(
-                                'FORBIDDEN',
-                                'Terminal steer requires a human owner principal',
-                            );
-                        result = await invoke();
-                    }
-                    logger.write('info', logEventCatalog.terminal.humanSteer, {
-                        fields: {
-                            terminalId: request.params.terminalId,
-                            byteLength: Buffer.byteLength(request.params.text, 'utf8'),
-                            enter: request.params.enter,
-                        },
+                    return invokeTerminalSend({
+                        invoke,
+                        invokePairedDevice: () =>
+                            mobileAccess.invokeShortReply(
+                                context,
+                                request.params,
+                                domainService,
+                                invoke,
+                            ),
+                        logger,
+                        parameters: request.params,
+                        principalKind: context.principal.kind,
                     });
-                    return result;
                 }
                 case 'agent.message.send': {
                     if (!request.params.wake)

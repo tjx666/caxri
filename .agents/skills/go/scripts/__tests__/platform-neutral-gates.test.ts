@@ -43,6 +43,39 @@ describe('canonical platform-neutral gates', () => {
         ).not.toThrow();
     });
 
+    it('prefers complete local receipts and attributes missing commands to a valid CI run', () => {
+        const local = {
+            validations: PLATFORM_NEUTRAL_CI_COMMANDS.map((command) => ({
+                command,
+                headSha: 'review-head',
+                kind: 'gates',
+                result: 'passed',
+            })),
+        };
+        const ciReceipt = {
+            commands: [...PLATFORM_NEUTRAL_CI_COMMANDS],
+            headSha: 'review-head',
+            runId: 42,
+            runUrl: 'https://github.com/tjx666/caxri/actions/runs/42',
+        };
+        expect(assertCanonicalPlatformNeutralGate(local, 'review-head', ciReceipt)).toMatchObject({
+            source: 'local',
+            ciCommands: [],
+        });
+        local.validations.pop();
+        expect(assertCanonicalPlatformNeutralGate(local, 'review-head', ciReceipt)).toMatchObject({
+            source: 'ci',
+            ciCommands: [PLATFORM_NEUTRAL_CI_COMMANDS.at(-1)],
+            ciRunId: 42,
+        });
+        expect(() =>
+            assertCanonicalPlatformNeutralGate(local, 'review-head', {
+                ...ciReceipt,
+                headSha: 'old-head',
+            }),
+        ).toThrow('Wait for a successful exact-head full CI run');
+    });
+
     it('rejects missing, failed, wrong-kind, and stale-head receipts', () => {
         const validations = PLATFORM_NEUTRAL_CI_COMMANDS.map((command) => ({
             command,

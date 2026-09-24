@@ -28,16 +28,14 @@ function treeRow(rowId: string): HTMLElement | null {
 }
 
 /**
- * Session-rename state machine extracted from `PrimarySidebar` (react-doctor's giant-component threshold) so the
- * roving-tabindex tree layout stays the only concern left in that component. Owns the renaming Session id, the draft
+ * Session-rename state machine shared by the Project tree and Activity view. Owns the renaming Session id, the draft
  * value/error, and the focus-restore behavior after rename ends.
  */
 export function useSessionRename(
     sessions: SessionRecord[],
     /**
-     * Puts the Session's row on screen and returns the row id that now holds it. Supplied by `PrimarySidebar` because
-     * only it knows which of the two groups owns a given Session: pinning moves a Session out of its Project group, so
-     * the group to expand and the row id to rename both depend on the pin state.
+     * Puts the Session's row on screen and returns the row id that now holds it. The Project tree may expand its
+     * Project or Pinned group; Activity already shows every row it can rename.
      */
     revealSessionRow: (session: SessionRecord) => string,
 ): SessionRenameController {
@@ -128,7 +126,7 @@ export function useSessionRename(
     };
 
     /**
-     * The `session.rename` command's only way in. Renaming is React state owned by this hook, so a command — which runs
+     * The `session.rename` command's way in. Renaming is React state owned by this hook, so a command — which runs
      * outside React entirely — asks through a bumped revision on the dialog store rather than reaching into the row.
      * Bumped rather than set to a boolean so asking twice for the same Session re-opens the editor the second time.
      */

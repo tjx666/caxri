@@ -1,6 +1,15 @@
 import { z } from 'zod';
 
+import type { CiPlatformReceipt } from './ci-platform-receipt';
 import { assertCanonicalPlatformNeutralGate } from './platform-neutral-gates';
+
+const platformGateReceiptSchema = z.object({
+    ciCommands: z.array(z.string()),
+    ciRunId: z.number().int().positive().nullable(),
+    ciRunUrl: z.url().nullable(),
+    localCommands: z.array(z.string()),
+    source: z.enum(['ci', 'local']),
+});
 
 export const reviewPolicyModeSchema = z.enum(['full-once', 'quick', 'light']);
 export const reviewModeSchema = z.enum(['full', 'quick', 'light']);
@@ -22,6 +31,7 @@ const reviewDecisionSchema = z.object({
     mode: reviewModeSchema,
     parentReviewId: z.string().min(1).nullable(),
     phase: reviewPhaseSchema,
+    platformGateReceipt: platformGateReceiptSchema.nullable().default(null),
     productP0: z.number().int().nonnegative(),
     productP1: z.number().int().nonnegative(),
     reviewedRange: z.string().min(1),
@@ -91,6 +101,7 @@ export interface ReviewHeadReconciliation {
 interface ReviewDecisionInput {
     baselineHeadSha?: string;
     baselineReviewId?: string;
+    ciReceipt?: CiPlatformReceipt | null;
     freeze: boolean;
     headSha: string;
     mode: ReviewMode;
@@ -305,6 +316,7 @@ export function recordReviewDecision(
         : undefined;
     const parent = state.reviewGate.rounds.at(-1);
     const isBaseline = !baseline;
+    let platformGateReceipt: z.infer<typeof platformGateReceiptSchema> | null = null;
     if (isBaseline) {
         const requiredMode = baselineModeByPolicy[state.reviewPolicy.mode];
         if (input.mode !== requiredMode) {
@@ -315,7 +327,13 @@ export function recordReviewDecision(
         if (input.baselineHeadSha || input.baselineReviewId || input.parentReviewId) {
             throw new Error('The aggregate review baseline cannot declare parent lineage');
         }
-        if (input.mode === 'full') assertCanonicalPlatformNeutralGate(state, input.headSha);
+        if (input.mode === 'full') {
+            platformGateReceipt = assertCanonicalPlatformNeutralGate(
+                state,
+                input.headSha,
+                input.ciReceipt,
+            );
+        }
     } else {
         if (!parent) throw new Error('Review lineage is missing its parent decision');
         if (input.mode === 'full') {
@@ -347,6 +365,7 @@ export function recordReviewDecision(
         mode: input.mode,
         parentReviewId: isBaseline ? null : parent?.id,
         phase: state.phase,
+        platformGateReceipt,
         productP0: input.p0,
         productP1: input.p1,
         reviewedRange: input.reviewedRange,

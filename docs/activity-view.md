@@ -141,9 +141,9 @@ glyph hides while the button shows.
 
 Rows wear the Project tree's Session hover card and context menu, so a Session reads and acts the
 same in either body of the side bar. Neither the glyph nor the Project name carries a tooltip of its
-own, because a second hover popup on one row would compete with the card. The menu differs in two
-entries: an unread row leads with **Mark as Read** (Delete's pointer twin, so Archive loses its
-`delete` hint here), and **Rename** is absent because this list has no inline editor to open.
+own, because a second hover popup on one row would compete with the card. An unread row's menu
+leads with **Mark as Read** (Delete's pointer twin, so Archive loses its `delete` hint here).
+**Rename** opens the same inline editor as the Project tree, including on an unselected row.
 
 ## Interaction
 
@@ -158,6 +158,8 @@ over them.
 | `Home` / `End`          | First / last Session row                                       |
 | `Delete` / `Backspace`  | Mark the row read, clearing its reminder without opening it    |
 | Row's check button      | The pointer equivalent of Delete                               |
+| Double-click, Rename    | Edit that Session's title inline                               |
+| `session.rename`        | Edit the selected Session's title inline                       |
 | Right-click             | The Session context menu, led by Mark as Read when unread      |
 | `Cmd+Shift+N`           | Select the next Session needing attention, wrapping at the end |
 | `Cmd+Alt+U`             | Switch the side bar between the Project tree and this queue    |

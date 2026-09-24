@@ -429,10 +429,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: e2e-parallel-safe-failure-artifacts
-          path: |
-            test-results/parallel-safe/
-            test-results/receipts/parallel-safe.json
-            logs/
+          path: test-results/receipts/parallel-safe.json
           if-no-files-found: error
           retention-days: 7
       - name: Upload desktop-exclusive failure artifacts
@@ -444,10 +441,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: e2e-desktop-exclusive-failure-artifacts
-          path: |
-            test-results/desktop-exclusive/
-            test-results/receipts/desktop-exclusive.json
-            logs/
+          path: test-results/receipts/desktop-exclusive.json
           if-no-files-found: error
           retention-days: 7
       - name: Upload control failure artifacts
@@ -455,10 +449,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: e2e-control-failure-artifacts
-          path: |
-            test-results/control/
-            test-results/receipts/control.json
-            logs/
+          path: test-results/receipts/control.json
           if-no-files-found: error
           retention-days: 7
       - name: Upload auxiliary E2E failure artifacts
@@ -478,8 +469,8 @@ jobs:
         with:
           name: e2e-auxiliary-failure-artifacts
           path: |
-            test-results/
-            logs/
+            test-results/receipts/*.json
+            test-results/receipts/census-fixture/*.json
           if-no-files-found: error
           retention-days: 7
       - name: Remove synthetic-merge checks worktree

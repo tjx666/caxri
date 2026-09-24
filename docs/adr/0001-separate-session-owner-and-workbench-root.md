@@ -54,4 +54,6 @@ the durable half of the identity — a worktree removed and re-added, or a direc
 same path, gets a new one — and the callers that compare it have already proved through Git topology
 and `realpath` that the path is the owning repository's linked worktree and not a symbolic link. A
 binding whose device drifted alone is re-anchored onto the current device and logged as
-`workbench_root.rebound`, without publishing a root change the user did not cause.
+`workbench_root.rebound`, without publishing a root change the user did not cause. An in-flight
+Agent worktree follow therefore compares the selected Project and inode across asynchronous checks;
+the device re-anchor does not cancel a follow that still belongs to the same root.

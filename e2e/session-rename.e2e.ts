@@ -168,3 +168,59 @@ test('The Session context menu renames a selected and an unselected row', async 
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
+
+test('Activity renames the selected Session from the palette and an unselected row from its menu', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-activity-rename-e2e-'));
+    const root = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', root]);
+    const running = await launchCaxri({
+        userDataDir: join(testDirectory, 'user-data'),
+        testRootPath: root,
+    });
+    try {
+        const { page } = running;
+        await createProjectSession(page);
+        const firstSessionId = await selectedSessionId(page);
+        await createAdditionalShellSession(page);
+        const secondSessionId = await selectedSessionId(page);
+        await page.getByRole('button', { name: 'Show Activity' }).click();
+        const activity = page.getByRole('tree', { name: 'Activity' });
+        const selectedRow = activity.locator(`[data-session-id="${secondSessionId}"]`);
+        const unselectedRow = activity.locator(`[data-session-id="${firstSessionId}"]`);
+
+        await page.keyboard.press('Meta+Shift+P');
+        const palette = page.getByRole('dialog', { name: 'Command Palette' });
+        await palette
+            .getByPlaceholder('Search projects, sessions, and commands…')
+            .fill('Rename Session');
+        await palette.getByRole('option', { name: /Rename Session/ }).click();
+        const selectedInput = selectedRow.getByRole('textbox', { name: 'Rename Untitled' });
+        await expect(selectedInput).toBeFocused();
+        await expect(unselectedRow.getByRole('textbox')).toHaveCount(0);
+        expect(
+            await selectedInput.evaluate((element) => ({
+                end: (element as HTMLInputElement).selectionEnd,
+                start: (element as HTMLInputElement).selectionStart,
+            })),
+        ).toEqual({ end: 8, start: 0 });
+        await selectedInput.fill('Activity renamed');
+        await selectedInput.press('Enter');
+        await expect(selectedRow).toContainText('Activity renamed');
+
+        await unselectedRow.click({ button: 'right' });
+        await page.getByRole('menuitem', { name: /^Rename/ }).click();
+        const unselectedInput = unselectedRow.getByRole('textbox', { name: 'Rename Untitled' });
+        await expect(unselectedInput).toBeFocused();
+        await unselectedInput.fill('Should be cancelled');
+        /**
+         * The row's hover delay must not give a hidden detail card ownership of Escape.
+         */
+        await page.waitForTimeout(600);
+        await unselectedInput.press('Escape');
+        await expect(unselectedRow).toContainText('Untitled');
+        await expect(unselectedRow.getByRole('textbox')).toHaveCount(0);
+    } finally {
+        await closeAppQuietly(running.app);
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});
