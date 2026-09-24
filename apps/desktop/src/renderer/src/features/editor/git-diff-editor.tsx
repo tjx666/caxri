@@ -11,8 +11,9 @@ import { FileTypeIcon } from '../../icons/files/file-type-icon';
 import { gitDecorationForFile } from '../../lib/git-decorations';
 import { resolveRepositoryFilePath as resolveRepoFilePath } from '../../lib/repository-file-path';
 import { useCaxriQuery, useToastOnQueryError } from '../../queries/client';
-import { useSelectedSession } from '../../stores/selectors';
+import { useSessionById } from '../../stores/selectors';
 import { describeFailure } from '../../stores/toasts';
+import { usePaneViewSessionId } from '../workbench/pane-view-session';
 import { openFile } from './document-commands';
 import { EditorBreadcrumbs } from './editor-breadcrumbs';
 import { EditorLoadFailure } from './editor-load-failure';
@@ -59,7 +60,7 @@ function FileDiffResult({
     sessionId?: string;
     tab: Extract<GitDiffTab, { kind: 'commit-file' | 'file' }>;
 }) {
-    const selectedSession = useSelectedSession();
+    const paneSession = useSessionById(sessionId);
     const { data: summary } = useCaxriQuery(
         'git.summary',
         { sessionId: sessionId ?? '' },
@@ -90,14 +91,11 @@ function FileDiffResult({
         : undefined;
     const absolutePath = resolveRepoFilePath(repo?.rootPath, document.path);
     const browseContext =
-        repo &&
-        absolutePath &&
-        selectedSession?.id === sessionId &&
-        selectedSession.workbenchProjectId
+        repo && absolutePath && paneSession?.id === sessionId && paneSession.workbenchProjectId
             ? {
                   absolutePath,
                   projectRoot: repo.rootPath,
-                  workbenchProjectId: selectedSession.workbenchProjectId,
+                  workbenchProjectId: paneSession.workbenchProjectId,
               }
             : undefined;
     return (
@@ -147,7 +145,7 @@ function WorkingFileDiffEditor({
     navigationKey: string;
     tab: Extract<GitDiffTab, { kind: 'file' }>;
 }) {
-    const sessionId = useSelectedSession()?.id;
+    const sessionId = usePaneViewSessionId();
     const {
         data: document,
         isFetchedAfterMount,
@@ -212,7 +210,7 @@ function PullRequestFileDiffEditor({
     navigationKey: string;
     tab: Extract<GitDiffTab, { kind: 'file' }>;
 }) {
-    const sessionId = useSelectedSession()?.id;
+    const sessionId = usePaneViewSessionId();
     const {
         data: document,
         isError,
@@ -251,7 +249,7 @@ function CommitFileDiffEditor({
     navigationKey: string;
     tab: Extract<GitDiffTab, { kind: 'commit-file' }>;
 }) {
-    const sessionId = useSelectedSession()?.id;
+    const sessionId = usePaneViewSessionId();
     const {
         data: document,
         isError,
@@ -546,7 +544,7 @@ function WorkingChangesDiffEditor({
     tab: Extract<GitDiffTab, { kind: 'changes' }>;
     tabPath: string;
 }) {
-    const sessionId = useSelectedSession()?.id;
+    const sessionId = usePaneViewSessionId();
     const {
         data: summary,
         isError,
@@ -592,7 +590,7 @@ function PullRequestChangesDiffEditor({
     tab: Extract<GitDiffTab, { kind: 'changes' }>;
     tabPath: string;
 }) {
-    const sessionId = useSelectedSession()?.id;
+    const sessionId = usePaneViewSessionId();
     const {
         data: pullRequest,
         isError,

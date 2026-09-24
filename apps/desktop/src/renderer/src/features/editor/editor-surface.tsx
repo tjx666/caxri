@@ -18,8 +18,9 @@ import { editorModelPath } from '@desktop-shared/editor-state';
 
 import { useResourceLoad } from '../../hooks/use-resource-load';
 import { describeDocumentReadFailure } from '../../lib/document-read-failure';
-import { useSelectedSession, useTheme } from '../../stores/selectors';
+import { useTheme } from '../../stores/selectors';
 import { sessionViewScope, useDocument } from '../../stores/session-view';
+import { usePaneViewSession } from '../workbench/pane-view-session';
 import type { CodeEditorProperties } from './code-editor';
 import { cacheDocument, changeDocument } from './document-commands';
 import { EditorLoadFailure } from './editor-load-failure';
@@ -105,7 +106,7 @@ function LoadedCodeEditor(properties: CodeEditorProperties) {
  * document cache cap — reads it on demand instead of being closed.
  */
 function FileEditorSurface({ paneId, path }: { paneId: string; path: string }) {
-    const session = useSelectedSession();
+    const session = usePaneViewSession();
     const sessionId = session?.id;
     const scope = session ? sessionViewScope(session.id, session.workbenchProjectId) : undefined;
     const theme = useTheme();
@@ -121,7 +122,7 @@ function FileEditorSurface({ paneId, path }: { paneId: string; path: string }) {
         load,
     });
 
-    if (!sessionId || !scope || !theme) return null;
+    if (!session || !scope || !theme) return null;
     if (!document) {
         if (isExternal)
             return <div className={emptyWorkClassName}>External file is no longer available.</div>;
@@ -152,7 +153,9 @@ function FileEditorSurface({ paneId, path }: { paneId: string; path: string }) {
                     value={document.content}
                     theme={theme}
                     readOnly={document.readOnly}
-                    onChange={(content) => changeDocument(path, content ?? '')}
+                    onChange={(content) =>
+                        changeDocument(session.id, session.workbenchProjectId, path, content ?? '')
+                    }
                 />
             </div>
         </div>
