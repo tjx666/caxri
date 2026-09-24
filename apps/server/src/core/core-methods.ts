@@ -50,6 +50,7 @@ export const coreForwardedMethods = [
     'keybindings.update',
     'logs.query',
     'project.hide',
+    'project.restorable',
     'project.list',
     'project.reorder',
     'project.setIcon',

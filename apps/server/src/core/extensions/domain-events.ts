@@ -1,18 +1,29 @@
-import type { ExtensionViewEventContext, ServerEvent } from '@caxri/protocol';
+import type {
+    ExtensionViewEventContext,
+    FullStateChangeReason,
+    ServerEvent,
+} from '@caxri/protocol';
 
 import type { ServerDomainService } from '../../core/domain-service';
 import type { ExtensionService } from './service';
 import { toExtensionViewEventContext } from './service-events';
-import { extensionActiveContext } from './workspace-bridge';
 
-type DomainBootstrapReader = Pick<ServerDomainService, 'request'>;
+type DomainContextReader = Pick<ServerDomainService, 'request'>;
+
+/**
+ * Full state changes that can move the selected Session or its Workbench Root.
+ */
+const ACTIVE_CONTEXT_REASONS: ReadonlySet<FullStateChangeReason> = new Set([
+    'session.select',
+    'session.create',
+    'session.delete',
+    'session.workbenchRoot',
+]);
 
 export async function readActiveExtensionContext(
-    domainService: DomainBootstrapReader,
+    domainService: DomainContextReader,
 ): Promise<ExtensionViewEventContext> {
-    return toExtensionViewEventContext(
-        extensionActiveContext(await domainService.request('app.bootstrap')),
-    );
+    return toExtensionViewEventContext(await domainService.request('app.activeContext'));
 }
 
 /**
@@ -22,33 +33,29 @@ export async function readActiveExtensionContext(
  */
 export async function routeExtensionDomainEvent(
     extensionService: ExtensionService | undefined,
-    domainService: DomainBootstrapReader,
+    domainService: DomainContextReader,
     event: ServerEvent,
 ): Promise<void> {
     if (!extensionService) return;
-    if (
-        event.event !== 'projectStatus.changed' &&
-        event.event !== 'git.changed' &&
-        event.event !== 'state.changed'
-    )
+    if (event.event !== 'projectStatus.changed' && event.event !== 'git.changed') {
+        // Record updates stream with every Terminal and Agent state change and never move the active context.
+        if (
+            event.event !== 'state.changed' ||
+            event.payload.kind !== 'full' ||
+            !ACTIVE_CONTEXT_REASONS.has(event.payload.reason)
+        )
+            return;
+        await extensionService.activeContextChanged(
+            await readActiveExtensionContext(domainService),
+        );
         return;
+    }
     const context = await readActiveExtensionContext(domainService);
     if (event.event === 'projectStatus.changed') {
         if (context.kind !== 'session' || context.sessionId !== event.payload.sessionId) return;
         await extensionService.projectStatusChanged(context);
         return;
     }
-    if (event.event === 'git.changed') {
-        if (context.kind !== 'session' || !event.payload.sessionIds.includes(context.sessionId))
-            return;
-        await extensionService.gitChanged(context);
-        return;
-    }
-    if (
-        event.payload.kind === 'full' &&
-        ['session.select', 'session.create', 'session.delete', 'session.workbenchRoot'].includes(
-            event.payload.reason,
-        )
-    )
-        await extensionService.activeContextChanged(context);
+    if (context.kind !== 'session' || !event.payload.sessionIds.includes(context.sessionId)) return;
+    await extensionService.gitChanged(context);
 }

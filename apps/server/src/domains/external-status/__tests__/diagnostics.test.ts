@@ -7,7 +7,8 @@ import { runWithObservationContext, StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { ExternalStatusCliError } from '../command';
-import { observeExternalStatusCommand } from '../diagnostics';
+import type { ExternalStatusCommandOptions } from '../diagnostics';
+import { ExternalStatusCommandTelemetry } from '../diagnostics';
 
 const fixtures: Array<{ directory: string; logger: StructuredLogger }> = [];
 
@@ -27,6 +28,15 @@ async function createLogger() {
     const logger = new StructuredLogger(directory);
     fixtures.push({ directory, logger });
     return logger;
+}
+
+function observeExternalStatusCommand(
+    options: ExternalStatusCommandOptions & {
+        logger: StructuredLogger;
+        event: 'project_status.cli' | 'session_pull_requests.cli';
+    },
+): Promise<string> {
+    return new ExternalStatusCommandTelemetry(options.logger, options.event).observe(options);
 }
 
 async function records(logger: StructuredLogger): Promise<LogRecord[]> {
@@ -75,45 +85,100 @@ describe('observeExternalStatusCommand', () => {
                 },
             });
             expect(JSON.stringify(logs)).not.toContain('PRIVATE_');
-            expect(logs[0].context?.operationId).toBe(logs[1].context?.operationId);
+            expect(logs).toHaveLength(1);
+            expect(logs[0].context?.operationId).toBeDefined();
         },
     );
 
     it('preserves parent identity and isolates concurrent command identities', async () => {
         const logger = await createLogger();
+        const failure = new ExternalStatusCliError('gh', 'network', 'PRIVATE_STDERR_SENTINEL');
         await runWithObservationContext(
             { requestId: 'request-fixture', sessionId: 'session-fixture' },
             () =>
                 Promise.all(
                     [0, 1].map(() =>
-                        observeExternalStatusCommand({
-                            logger,
-                            event: 'session_pull_requests.cli',
-                            command: 'gh',
-                            arguments: ['pr', 'list'],
-                            run: () => Promise.resolve('PRIVATE_STDOUT_SENTINEL'),
-                        }),
+                        expect(
+                            observeExternalStatusCommand({
+                                logger,
+                                event: 'session_pull_requests.cli',
+                                command: 'gh',
+                                arguments: ['pr', 'list'],
+                                run: () => Promise.reject(failure),
+                            }),
+                        ).rejects.toBe(failure),
                     ),
                 ),
         );
         const logs = await records(logger);
-        expect(logs).toHaveLength(4);
+        expect(logs).toHaveLength(2);
         const identities = new Set(logs.map((record) => record.context?.operationId));
         expect(identities.size).toBe(2);
         expect(identities.has(undefined)).toBe(false);
-        for (const operationId of identities) {
-            expect(
-                logs
-                    .filter((record) => record.context?.operationId === operationId)
-                    .map((record) => record.fields?.result),
-            ).toEqual(['started', 'success']);
-        }
         for (const record of logs)
             expect(record.context).toMatchObject({
                 requestId: 'request-fixture',
                 sessionId: 'session-fixture',
             });
         expect(JSON.stringify(logs)).not.toContain('PRIVATE_');
+    });
+
+    it('folds successes into one summary per operation per window', async () => {
+        const logger = await createLogger();
+        let now = 0;
+        const telemetry = new ExternalStatusCommandTelemetry(
+            logger,
+            'project_status.cli',
+            () => now,
+            60_000,
+        );
+        const run = async (arguments_: readonly string[], result: Promise<string>) => {
+            try {
+                await telemetry.observe({
+                    command: 'gh',
+                    arguments: arguments_,
+                    run: () => result,
+                });
+            } catch {
+                // Failures are asserted through the log below.
+            }
+        };
+        await run(['pr', 'list'], Promise.resolve('PRIVATE_STDOUT_SENTINEL'));
+        now = 1000;
+        await run(['pr', 'list'], Promise.resolve('PRIVATE_STDOUT_SENTINEL'));
+        await run(
+            ['pr', 'list'],
+            Promise.reject(new ExternalStatusCliError('gh', 'other', 'no pull requests found')),
+        );
+        await run(['run', 'list'], Promise.resolve('[]'));
+        expect(await records(logger)).toHaveLength(1);
+
+        now = 60_000;
+        await run(['pr', 'list'], Promise.resolve('PRIVATE_STDOUT_SENTINEL'));
+        const summaries = (await records(logger)).filter(
+            (record) => record.event === 'project_status.cli_summary',
+        );
+        expect(summaries).toHaveLength(2);
+        expect(summaries[0]).toMatchObject({
+            level: 'info',
+            durationMs: 1000,
+            fields: {
+                command: 'gh',
+                calls: 3,
+                successes: 2,
+                failures: 1,
+                failureNoPullRequest: 1,
+            },
+        });
+        expect(summaries[1].fields).toMatchObject({ calls: 1, successes: 1, failures: 0 });
+
+        telemetry.flush();
+        expect(
+            (await records(logger)).filter(
+                (record) => record.event === 'project_status.cli_summary',
+            ),
+        ).toHaveLength(3);
+        expect(JSON.stringify(await records(logger))).not.toContain('PRIVATE_');
     });
 
     it('keeps expected PR absence quiet and does not invent an exit code', async () => {
@@ -131,6 +196,25 @@ describe('observeExternalStatusCommand', () => {
         expect((await records(logger)).at(-1)).toMatchObject({
             level: 'debug',
             fields: { failureReason: 'no-pull-request', exitCode: null },
+        });
+    });
+
+    it('keeps an optional command failure at debug', async () => {
+        const logger = await createLogger();
+        const error = new ExternalStatusCliError('git', 'other', 'no upstream configured', 1);
+        await expect(
+            observeExternalStatusCommand({
+                logger,
+                event: 'project_status.cli',
+                command: 'git',
+                arguments: ['rev-parse', '@{upstream}'],
+                isOptional: true,
+                run: () => Promise.reject(error),
+            }),
+        ).rejects.toBe(error);
+        expect((await records(logger)).at(-1)).toMatchObject({
+            level: 'debug',
+            fields: { operation: 'head.get', result: 'failure', exitCode: 1 },
         });
     });
 

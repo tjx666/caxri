@@ -9,7 +9,11 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ExternalStatusRunner } from '../external-status';
 import { ExternalStatusCliError } from '../external-status';
 import { ProjectStatusService } from '../project-status';
-import { loadBranchPublication, prepareStatusRepo } from '../project-status-branch';
+import {
+    loadBranchPublication,
+    prepareStatusRepo,
+    RepoRemoteCache as RepoRemoteCache,
+} from '../project-status-branch';
 
 const head = 'a'.repeat(40);
 const remoteHead = 'b'.repeat(40);
@@ -91,9 +95,10 @@ describe('branch publication', () => {
                 'no-origin',
             );
             await git(['checkout', '--detach', local]);
-            expect((await prepareStatusRepo(repo, optionalGit)).repository.publication?.state).toBe(
-                'detached',
-            );
+            expect(
+                (await prepareStatusRepo({ ...repo, branch: '(detached)' }, optionalGit)).repository
+                    .publication?.state,
+            ).toBe('detached');
         } finally {
             await rm(root, { recursive: true, force: true });
         }
@@ -270,5 +275,30 @@ describe('branch publication', () => {
             await loadBranchPublication({ ...context, ...patch }, runner, '/project', () => 123),
         ).toMatchObject({ state });
         expect(runner).not.toHaveBeenCalled();
+    });
+
+    it('reuses origin and its default branch across rounds until the TTL or a forced refresh', async () => {
+        let now = 0;
+        const remotes = new RepoRemoteCache(() => now);
+        const git = vi.fn((_cwd: string, arguments_: readonly string[]) =>
+            Promise.resolve(
+                arguments_[0] === 'remote' ? 'git@github.com:acme/project.git' : 'origin/main',
+            ),
+        );
+        const reads = () => git.mock.calls.length;
+
+        await remotes.read('/project', git);
+        await remotes.read('/project', git);
+        expect(reads()).toBe(2);
+
+        await remotes.read('/project', git, true);
+        expect(reads()).toBe(4);
+
+        now = 5 * 60_000;
+        await expect(remotes.read('/project', git)).resolves.toEqual({
+            remote: 'git@github.com:acme/project.git',
+            defaultBranch: 'origin/main',
+        });
+        expect(reads()).toBe(6);
     });
 });

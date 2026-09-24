@@ -240,7 +240,7 @@ export function projectStatusCliError(
         message: subject ? `${displayName}: ${subject} failed` : `${displayName} failed`,
         hint: `Something went wrong while loading ${provider.resource}. Open Logs for details.`,
         /*
-         * The record this branch is about is the `project_status.cli` failure `observeExternalStatusCommand` writes at
+         * The record this branch is about is the `project_status.cli` failure `ExternalStatusCommandTelemetry` writes at
          * `warn`. `error` rides along because the same lookup can also fail further up, outside that observer, and an
          * error the user went looking for should not be the one level the panel hid.
          */

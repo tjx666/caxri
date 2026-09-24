@@ -1,7 +1,7 @@
 export { AcceptanceStore } from './acceptance';
 export type { CliFailureKind, ExternalStatusRunner, ExternalStatusSource } from './command';
 export { ExternalStatusCliError, isNoPullRequest, runExternalStatusCommand } from './command';
-export { observeExternalStatusCommand } from './diagnostics';
+export { ExternalStatusCommandTelemetry } from './diagnostics';
 export { GitHubPullRequestStore } from './github';
 export { GitHubReferenceStore } from './github-reference';
 export { ExternalStatusHub } from './hub';

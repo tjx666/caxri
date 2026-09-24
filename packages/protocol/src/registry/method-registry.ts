@@ -377,6 +377,15 @@ export const methods = {
         params: z.object({ projectId: identifierSchema }),
         result: bootstrapStateSchema,
     },
+    /**
+     * Whether adding this folder would bring back a hidden Project that still has unarchived Sessions. The Add Project
+     * flow asks before choosing a Terminal, so a restore selects the old Sessions instead of creating another one.
+     */
+    'project.restorable': {
+        ...serverRead,
+        params: z.object({ rootPath: pathSchema }),
+        result: z.boolean(),
+    },
     'project.reorder': {
         ...serverWrite,
         params: z.object({
@@ -715,6 +724,21 @@ export const internalMethods = {
     ...gitInternalMethods,
     ...mobileInternalMethods,
     ...workbenchInternalMethods,
+    /**
+     * The selected Session's identities and the visible Project IDs — the slice of `app.bootstrap` the Extension bridge
+     * needs on every view operation and domain event. Reading the whole bootstrap there accounted for ~98% of
+     * production `app.bootstrap` calls (#1185).
+     */
+    'app.activeContext': {
+        ...serverRead,
+        params: noParameters,
+        result: z.object({
+            ownerProjectId: identifierSchema.optional(),
+            projectIds: z.array(identifierSchema),
+            sessionId: identifierSchema.optional(),
+            workbenchProjectId: identifierSchema.optional(),
+        }),
+    },
     'app.windowState.get': {
         ...serverRead,
         params: noParameters,

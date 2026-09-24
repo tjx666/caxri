@@ -1,3 +1,5 @@
+import { realpath } from 'node:fs/promises';
+
 import type { BootstrapState, FullStateChangeReason } from '@caxri/protocol';
 
 import type { CaxriDatabase } from './db';
@@ -21,7 +23,7 @@ interface ProjectHidingHandlerOptions {
  */
 export function createProjectHidingHandlers(
     options: ProjectHidingHandlerOptions,
-): Pick<DomainHandlers, 'project.hide'> {
+): Pick<DomainHandlers, 'project.hide' | 'project.restorable'> {
     return {
         'project.hide': async ({ projectId }) => {
             const sessionIds = options.database.hideProject(projectId).map((session) => session.id);
@@ -33,6 +35,19 @@ export function createProjectHidingHandlers(
             options.restoreSelection();
             options.sendFullStateChange('project.hide');
             return options.bootstrapState();
+        },
+        /**
+         * Rows store canonical roots, so the picked folder is resolved the way `project.create` resolves it. A folder
+         * that no longer resolves cannot restore anything.
+         */
+        'project.restorable': async ({ rootPath }) => {
+            let canonicalRoot: string;
+            try {
+                canonicalRoot = await realpath(rootPath);
+            } catch {
+                return false;
+            }
+            return options.database.isRestorableProjectRoot(canonicalRoot);
         },
     };
 }

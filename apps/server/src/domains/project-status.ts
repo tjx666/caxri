@@ -17,10 +17,10 @@ import type { ExternalStatusRunner, ExternalStatusSource } from './external-stat
 import {
     AcceptanceStore,
     ExternalStatusCliError,
+    ExternalStatusCommandTelemetry,
     GitHubPullRequestStore,
     isNoPullRequest,
     LinearIssueStore,
-    observeExternalStatusCommand,
     pullRequestUnavailable as describePullRequestUnavailable,
     runExternalStatusCommand,
 } from './external-status';
@@ -28,7 +28,11 @@ import type { GitService } from './git';
 import { loadOverviewAcceptances, loadPullRequestAcceptances } from './project-status-acceptance';
 import { ProjectStatusAlertTracker } from './project-status-alerts';
 import type { BranchPublicationContext } from './project-status-branch';
-import { prepareStatusRepo, readBranchPublication } from './project-status-branch';
+import {
+    prepareStatusRepo,
+    readBranchPublication,
+    RepoRemoteCache as RepoRemoteCache,
+} from './project-status-branch';
 import type { PreparedRepo, PreparedSummary, SummaryCacheEntry } from './project-status-carry-over';
 import { pendingSummaryEntry } from './project-status-carry-over';
 import { projectStatusCliError } from './project-status-external';
@@ -128,6 +132,12 @@ export class ProjectStatusService {
     private pollTimer?: NodeJS.Timeout;
     private isPollScheduled = false;
     private readonly watch?: DeliveryWatch;
+    private readonly commandTelemetry: ExternalStatusCommandTelemetry;
+    private readonly remotes = new RepoRemoteCache(() => this.now());
+    private readonly readGit = (cwd: string, arguments_: readonly string[]) =>
+        this.commandTelemetry.readOptional('git', arguments_, () =>
+            this.runner('git', arguments_, cwd),
+        );
 
     constructor(
         private readonly git: Pick<GitService, 'summary'>,
@@ -136,6 +146,8 @@ export class ProjectStatusService {
         private readonly options: ProjectStatusServiceOptions = {},
     ) {
         this.alerts = new ProjectStatusAlertTracker({ now: () => this.now() });
+        const { cli } = logEventCatalog.projectStatus;
+        this.commandTelemetry = new ExternalStatusCommandTelemetry(logger, cli, () => this.now());
         const { listWatchedSessions } = options;
         if (listWatchedSessions) {
             this.watch = new DeliveryWatch({
@@ -185,9 +197,7 @@ export class ProjectStatusService {
         cwd: string,
         subject?: string,
     ): Promise<string> {
-        return observeExternalStatusCommand({
-            logger: this.logger,
-            event: logEventCatalog.projectStatus.cli,
+        return this.commandTelemetry.observe({
             command,
             arguments: arguments_,
             subject,
@@ -196,18 +206,7 @@ export class ProjectStatusService {
     }
 
     private logExternalParseFailure(command: ExternalStatusSource, error: unknown): void {
-        if (!(error instanceof CaxriError) || error.code !== 'VALIDATION') return;
-        // The successful command log has no parse outcome; record a safe reason without CLI output.
-        this.logger.write('warn', logEventCatalog.projectStatus.cli, {
-            fields: {
-                command,
-                operation: 'response.parse',
-                result: 'failure',
-                failureKind: 'other',
-                failureReason: 'invalid-response',
-                exitCode: null,
-            },
-        });
+        this.commandTelemetry.recordParseFailure(command, error);
     }
 
     /**
@@ -234,7 +233,7 @@ export class ProjectStatusService {
         }
         const repo = gitSummary.repositories.find((candidate) => candidate.kind === 'primary');
         if (!repo) return { refreshedAt: this.now(), error: statusError.missingPrimaryRepository };
-        const remote = await this.optionalGit(repo.rootPath, ['remote', 'get-url', 'origin']);
+        const { remote } = await this.remotes.read(repo.rootPath, this.readGit);
         const github = parseGitHubRemote(remote);
         const githubUrl = github ? `https://github.com/${github.owner}/${github.repo}` : undefined;
         let pullRequest: NonNullable<ProjectStatusOverview['repository']>['pullRequest'];
@@ -312,7 +311,7 @@ export class ProjectStatusService {
         };
     }
 
-    private async prepareSummary(sessionId: string): Promise<PreparedSummary> {
+    private async prepareSummary(sessionId: string, isForced = false): Promise<PreparedSummary> {
         const startedAt = performance.now();
         const gitSummary = await this.git.summary(sessionId, 0, 'projectStatus');
         if (!gitSummary.isRepository) {
@@ -326,7 +325,7 @@ export class ProjectStatusService {
             if (repo.kind !== 'worktree') visibleRepositories.push(repo);
         const repositories = await Promise.all(
             visibleRepositories.map((repo) =>
-                prepareStatusRepo(repo, (cwd, arguments_) => this.optionalGit(cwd, arguments_)),
+                prepareStatusRepo(repo, this.readGit, this.remotes, isForced),
             ),
         );
         const summary = {
@@ -359,14 +358,6 @@ export class ProjectStatusService {
             fields: { repositories: repositories.length },
         });
         return { fingerprint, repositories, summary };
-    }
-
-    private async optionalGit(cwd: string, arguments_: readonly string[]): Promise<string> {
-        try {
-            return (await this.runCommand('git', arguments_, cwd)).trim();
-        } catch {
-            return '';
-        }
     }
 
     private async refreshRepository(
@@ -701,7 +692,7 @@ export class ProjectStatusService {
         refreshToken?: string,
     ): Promise<ProjectStatusSummary> {
         const startedAt = performance.now();
-        const prepared = await this.prepareSummary(sessionId);
+        const prepared = await this.prepareSummary(sessionId, refreshToken !== undefined);
         if (this.sessionGenerations.get(sessionId) !== sessionGeneration) return prepared.summary;
         if (!prepared.fingerprint) {
             this.sessionGenerations.delete(sessionId);
@@ -762,6 +753,7 @@ export class ProjectStatusService {
 
     dispose(): void {
         this.watch?.dispose();
+        this.commandTelemetry.flush();
         this.polledSessionId = undefined;
         if (!this.pollTimer) return;
         this.clearTimer(this.pollTimer);
