@@ -17,7 +17,7 @@ export interface CommandContext {
         customizeIcon(projectId?: string): void;
         hideSelected(): void;
         openInExternalEditor(): void;
-        removeSelected(): void;
+        remove(projectId?: string): void;
     };
     session: {
         archiveSelected(): void;

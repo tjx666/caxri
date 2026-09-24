@@ -70,7 +70,6 @@ export const commandDefinitions: CommandDefinition[] = [
         title: 'Delete Project',
         category: 'Project',
         description: 'Delete the selected Project from Caxri without touching its files',
-        nativeMenu: { menu: 'project', group: 0, order: 1 },
     },
     {
         id: 'project.hide',

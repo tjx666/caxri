@@ -8,9 +8,12 @@ import { useSessionViewStore } from '../../stores/session-view';
 import { tryCommand } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
 
-export function deleteSelectedProject(): void {
+export function deleteProject(projectId?: string): void {
     const bootstrap = getBootstrap();
-    const project = selectSelectedProject(bootstrap);
+    const project =
+        projectId === undefined
+            ? selectSelectedProject(bootstrap)
+            : bootstrap?.projects.find((candidate) => candidate.id === projectId);
     if (!bootstrap || !project) return;
     // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
