@@ -55,6 +55,8 @@ editor-adjacent surfaces. Both are shallow-cloned into `competitors/` by `script
 - For native Agent contracts, trace the event producer, persistence writer, and consuming reader.
   A declared field or live event does not prove its success semantics or that it reaches disk.
   Ground fixtures in emitted records, and state when the installed binary differs from public source.
+- Before recommending a CLI command or modifier, verify it against the installed version or current
+  upstream source. Treat commands in older issue discussions as version-specific advice.
 - Closed-source products (Otty, Conductor, Trevize) can only be analyzed via their packaged app
   (extract `app.asar` for Electron apps) or public materials.
 - When research reveals a durable architectural insight, record it in the matching per-product
