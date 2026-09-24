@@ -107,20 +107,20 @@ jobs:
           CAXRI_BENCHMARK_EXECUTABLE: ${{ github.workspace }}/release.noindex/mac-arm64/Caxri.app/Contents/MacOS/Caxri
           CAXRI_BENCHMARK_PROJECT_ROOT: ${{ github.workspace }}
           CAXRI_PACKAGED_EXECUTABLE: ${{ github.workspace }}/release.noindex/mac-arm64/Caxri.app/Contents/MacOS/Caxri
+          CAXRI_E2E_POOL: release-packaged
+          CAXRI_E2E_RECEIPT_PATH: test-results/receipts/release-packaged.json
         run: |
           file "$CAXRI_BENCHMARK_EXECUTABLE" | grep -q 'arm64'
-          bunx playwright test e2e/startup.performance.e2e.ts e2e/agent-login-path.e2e.ts --reporter=line
+          bunx playwright test e2e/startup.performance.e2e.ts e2e/agent-login-path.e2e.ts --reporter=line,./scripts/reporters/e2e-receipt-reporter.ts
 
-      # The packaged-app probe only runs here, so a failure on the self-hosted runner leaves no
-      # Playwright trace or process log anywhere else. Mirror the CI failure-artifact upload.
+      # The packaged-app probe only runs here. Keep its failure receipt without uploading raw
+      # traces, screenshots, or logs from the self-hosted runner.
       - name: Upload packaged verification failure artifacts
         if: always() && steps.verify-packaged.outcome == 'failure'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: release-packaged-verification-failure-artifacts
-          path: |
-            test-results/
-            logs/
+          path: test-results/receipts/release-packaged.json
           if-no-files-found: error
           retention-days: 7
 
