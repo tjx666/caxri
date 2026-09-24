@@ -165,7 +165,7 @@ export async function loadVercelDeployments(
                 ],
             };
         const baseMeta = { githubOrg: context.owner, githubRepo: context.repo };
-        const results = await Promise.all([
+        const [branchListOutput, productionListOutput] = await Promise.all([
             dependencies.run(
                 vcListArguments(link.team, { ...baseMeta, githubCommitRef: context.branch }),
                 homedir(),
@@ -187,14 +187,27 @@ export async function loadVercelDeployments(
                 ),
                 homedir(),
             ),
-            context.head
-                ? dependencies.run(
+        ]);
+        const branchList = parseVercelList(branchListOutput);
+        /**
+         * HEAD's preview is almost always the newest build of its own branch, which the branch list already carries.
+         * Only a head that list does not cover pays for a third `vc` call (#1184: three per repository per round).
+         */
+        const headPreview = context.head
+            ? (branchList.find(
+                  (deployment) =>
+                      deployment.target !== 'production' &&
+                      deployment.target !== 'staging' &&
+                      deployment.meta?.githubCommitSha === context.head,
+              ) ??
+              parseVercelList(
+                  await dependencies.run(
                       vcListArguments(link.team, { githubCommitSha: context.head }, 'preview'),
                       homedir(),
-                  )
-                : Promise.resolve('[]'),
-        ]);
-        const branchDeployments = parseVercelList(results[0])
+                  ),
+              )[0])
+            : undefined;
+        const branchDeployments = branchList
             .slice(0, MAX_BRANCH_DEPLOYMENTS)
             .flatMap((deployment) => {
                 const mapped = mapProjectStatusDeployment(deployment, undefined, link);
@@ -205,15 +218,11 @@ export async function loadVercelDeployments(
                 url: `https://vercel.com/${link.team}/${link.project}/deployments?filterBranch=${encodeURIComponent(context.branch)}`,
                 branchDeployments,
                 production: mapProjectStatusDeployment(
-                    parseVercelList(results[1])[0] ?? {},
+                    parseVercelList(productionListOutput)[0] ?? {},
                     'production',
                     link,
                 ),
-                preview: mapProjectStatusDeployment(
-                    parseVercelList(results[2])[0] ?? {},
-                    'preview',
-                    link,
-                ),
+                preview: mapProjectStatusDeployment(headPreview ?? {}, 'preview', link),
             },
             errors: [],
         };

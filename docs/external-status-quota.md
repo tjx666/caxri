@@ -37,6 +37,13 @@ Otherwise `On origin` confirms existence without claiming that every local commi
 No fetch, network Git command, or repository mutation is performed. The tooltip names the compared
 branch and check time; results are snapshots governed by the existing summary TTL and manual refresh.
 
+Local identity costs one `git` process per repository per round. HEAD and the branch come from the
+`git.summary` snapshot the refresh already holds, and origin's URL and default branch are cached per
+repository root for five minutes (`RepoRemoteCache` in `project-status-branch.ts`); a manual
+refresh reads them again. Only the same-named tracking ref is read every round, because a push or
+fetch moves it. Vercel costs two `vc api` calls per repository: HEAD's preview is taken from the
+branch deployment list, and only a HEAD that list does not carry gets its own query.
+
 An inaccessible repository, malformed response, authentication failure, or offline refresh shows
 `Unknown` and suppresses the branch link. Only an accessible repository with a null ref proves
 absence. Publication and PR errors share one GitHub error presentation. Detached HEAD, no commits,

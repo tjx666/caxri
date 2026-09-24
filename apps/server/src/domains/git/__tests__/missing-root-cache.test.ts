@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MissingRepoRootCache } from '../missing-root-cache';
 
-const MISSING_REPO_ROOT_TTL_MS = 30_000;
+const MISSING_REPO_ROOT_TTL_MS = 5 * 60_000;
 
 const temporaryDirectories: string[] = [];
 
@@ -22,7 +22,7 @@ async function createMissingRoot(name: string): Promise<string> {
 }
 
 beforeEach(() => {
-    // The TTL is the whole subject here, and real time cannot reach 30s inside a unit test.
+    // The TTL is the whole subject here, and real time cannot reach five minutes inside a unit test.
     vi.useFakeTimers();
 });
 

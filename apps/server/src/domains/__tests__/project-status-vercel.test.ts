@@ -110,6 +110,27 @@ describe('Vercel deployments', () => {
         expect(deployments?.branchDeployments).toHaveLength(1);
     });
 
+    it("reads HEAD's preview from the branch list and queries it only when the list lacks it", async () => {
+        const covered = dependencies();
+        const { deployments } = await loadVercelDeployments(
+            covered,
+            contextFor('feat/panel', featureHead),
+            '/project',
+        );
+        expect(deployments?.preview?.commit?.sha).toBe(featureHead);
+        expect(covered.run).toHaveBeenCalledTimes(2);
+
+        // A head the branch list does not carry, such as a commit deployed under another ref, still gets its own query.
+        const uncovered = dependencies();
+        const { deployments: fallback } = await loadVercelDeployments(
+            uncovered,
+            contextFor('main', featureHead),
+            '/project',
+        );
+        expect(fallback?.preview?.commit?.sha).toBe(featureHead);
+        expect(uncovered.run).toHaveBeenCalledTimes(3);
+    });
+
     it('does not substitute another production build for a missing merge commit', async () => {
         const { deployments } = await loadVercelDeployments(
             dependencies(),

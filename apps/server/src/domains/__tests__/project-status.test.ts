@@ -421,6 +421,8 @@ describe('ProjectStatusService', () => {
                 return Promise.resolve('git@github.com:example/project.git\n');
             }
             if (command === 'git') return Promise.resolve('');
+            if (command === 'gh' && arguments_[0] === 'api')
+                return Promise.resolve(JSON.stringify({ data: { repository: { ref: null } } }));
             if (command === 'gh') {
                 if (isLimited) {
                     return Promise.reject(
@@ -648,7 +650,11 @@ describe('ProjectStatusService', () => {
         const state = async (): Promise<string | undefined> =>
             (await service.summary('session-1')).repositories[0]?.pullRequest?.state;
         const ghCalls = (): number =>
-            vi.mocked(runner).mock.calls.filter(([command]) => command === 'gh').length;
+            vi
+                .mocked(runner)
+                .mock.calls.filter(
+                    ([command, arguments_]) => command === 'gh' && arguments_[0] === 'pr',
+                ).length;
 
         await vi.waitFor(async () => expect(await state()).toBe('failure'));
         const queried = ghCalls();
