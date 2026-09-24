@@ -257,6 +257,54 @@ describe('architecture-a3b-terminal-host: TerminalHostSupervisor', () => {
         expect(child.sent.map(({ request: sent }) => sent.method)).toEqual(['host.initialize']);
     });
 
+    it('does not send mobile input revoked while the Host starts', async () => {
+        const { child, supervisor } = createSupervisor();
+        const cancellation = new AbortController();
+        const request = supervisor.request(
+            { method: 'terminal.observer.input', params: { data: '\u{1B}[A' } },
+            {
+                scope: 'terminal',
+                capability: 'terminal.mobile.input',
+                sessionId: 'session-1',
+                terminalId: 'terminal-1',
+                ptyGeneration: 1,
+            },
+            cancellation.signal,
+        );
+        cancellation.abort();
+        await becomeReady(child, supervisor);
+
+        await expect(request).rejects.toMatchObject({ code: 'CANCELLED' });
+        expect(child.sent.map(({ request: sent }) => sent.method)).toEqual(['host.initialize']);
+    });
+
+    it('uses the Host result after mobile input was sent even when admission is revoked', async () => {
+        const { child, supervisor } = createSupervisor();
+        await becomeReady(child, supervisor);
+        const cancellation = new AbortController();
+        const request = supervisor.request(
+            { method: 'terminal.observer.input', params: { data: '\u{1B}[A' } },
+            {
+                scope: 'terminal',
+                capability: 'terminal.mobile.input',
+                sessionId: 'session-1',
+                terminalId: 'terminal-1',
+                ptyGeneration: 1,
+            },
+            cancellation.signal,
+        );
+        await vi.waitFor(() => expect(child.sent).toHaveLength(2));
+        cancellation.abort();
+        child.emit('message', {
+            type: 'reply',
+            id: child.sent[1].id,
+            ok: true,
+            result: { accepted: true },
+        });
+
+        await expect(request).resolves.toEqual({ accepted: true });
+    });
+
     it('fences pending requests when the owned child exits', async () => {
         const { child, supervisor } = createSupervisor();
         await becomeReady(child, supervisor);

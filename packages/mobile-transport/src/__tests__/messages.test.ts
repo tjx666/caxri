@@ -17,6 +17,47 @@ import {
 import { sealMobileFrame } from '../sealed-frame';
 
 describe('mobile application messages', () => {
+    it('validates a generation-fenced Terminal snapshot, ordered output, and source-gap recovery', () => {
+        const snapshot = {
+            type: 'stream',
+            subscriptionId: 'subscription-1',
+            sequence: 0,
+            kind: 'terminal.snapshot',
+            generation: 3,
+            nextHostSequence: 7,
+            chunkIndex: 0,
+            chunkCount: 1,
+            chunkHex: '6e756c6c',
+        };
+        const output = {
+            type: 'stream',
+            subscriptionId: 'subscription-1',
+            sequence: 1,
+            kind: 'terminal.output',
+            generation: 3,
+            hostSequence: 7,
+            chunkIndex: 0,
+            chunkCount: 1,
+            chunkHex: '6162',
+        };
+        expect(mobileServerPayloadSchema.safeParse(snapshot).success).toBe(true);
+        expect(mobileServerPayloadSchema.safeParse(output).success).toBe(true);
+        expect(
+            mobileServerPayloadSchema.safeParse({
+                type: 'event',
+                subscriptionId: 'subscription-1',
+                sequence: 2,
+                kind: 'resync-required',
+                reason: 'source-gap',
+            }).success,
+        ).toBe(true);
+        expect(mobileServerPayloadSchema.safeParse({ ...output, generation: 0 }).success).toBe(
+            false,
+        );
+        expect(mobileServerPayloadSchema.safeParse({ ...output, chunkIndex: 1 }).success).toBe(
+            false,
+        );
+    });
     it('validates subscription controls and acknowledgements without importing command protocol', () => {
         expect(
             mobileClientPayloadSchema.parse({
@@ -51,6 +92,10 @@ describe('mobile application messages', () => {
                 subscriptionId: 'subscription-2',
                 sequence: 1,
                 kind: 'terminal.output',
+                generation: 1,
+                hostSequence: 0,
+                chunkIndex: 0,
+                chunkCount: 1,
                 chunkHex: '6162',
             },
             { type: 'heartbeat-ack', nonce: 'aa'.repeat(16) },
@@ -75,6 +120,10 @@ describe('mobile application messages', () => {
             subscriptionId: 's'.repeat(200),
             sequence: Number.MAX_SAFE_INTEGER,
             kind: 'terminal.output',
+            generation: Number.MAX_SAFE_INTEGER,
+            hostSequence: Number.MAX_SAFE_INTEGER,
+            chunkIndex: 0,
+            chunkCount: 1,
             chunkHex: 'ab'.repeat(MOBILE_STREAM_CHUNK_MAX_BYTES),
         });
         expect(new TextEncoder().encode(JSON.stringify(payload)).length).toBeLessThanOrEqual(

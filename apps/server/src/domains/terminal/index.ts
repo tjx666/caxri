@@ -3,6 +3,7 @@ export type {
     TerminalExecutionExit,
     TerminalExecutionLaunch,
     TerminalExecutionPort,
+    TerminalObserverEvent,
 } from './execution-port';
 export { resolveTerminalFileLink } from './file-links';
 export { terminalDirectoryIdentity } from './launch';

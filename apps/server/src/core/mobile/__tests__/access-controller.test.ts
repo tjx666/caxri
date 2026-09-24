@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import type { CommandExecutionContext } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { TerminalExecutionPort } from '../../../domains/terminal';
 import type { ServerDomainService } from '../../domain-service';
 import {
     isMobileGatewayMethodAllowedForRole,
@@ -14,6 +15,10 @@ import {
 import { MobileDeviceRegistry } from '../device-registry';
 
 const temporaryDirectories: string[] = [];
+const terminalExecution = {
+    onObserverEvent: () => () => {},
+    onHostExit: () => () => {},
+} as unknown as TerminalExecutionPort;
 
 afterEach(async () => {
     const paths = [...temporaryDirectories];
@@ -46,6 +51,7 @@ describe('MobileAccessController role and resource authority', () => {
                 stateEpoch: 'c'.repeat(32),
             },
             {} as ServerDomainService,
+            terminalExecution,
         );
         const started = Promise.withResolvers<void>();
         const release = Promise.withResolvers<{ sessionId: string }>();
@@ -119,10 +125,20 @@ describe('MobileAccessController role and resource authority', () => {
         expect(isMobileGatewayMethodAllowedForRole('view', 'terminal.preview')).toBe(true);
         expect(isMobileGatewayMethodAllowedForRole('view', 'terminal.send')).toBe(false);
         expect(isMobileGatewayMethodAllowedForRole('view', 'mobile.session.create')).toBe(false);
+        expect(isMobileGatewayMethodAllowedForRole('view', 'mobile.terminal.input')).toBe(false);
         expect(isMobileGatewayMethodAllowedForRole('reply', 'terminal.send')).toBe(true);
         expect(isMobileGatewayMethodAllowedForRole('reply', 'session.markRead')).toBe(true);
         expect(isMobileGatewayMethodAllowedForRole('reply', 'mobile.session.create')).toBe(false);
+        expect(isMobileGatewayMethodAllowedForRole('reply', 'mobile.terminal.takeOver')).toBe(
+            false,
+        );
         expect(isMobileGatewayMethodAllowedForRole('control', 'mobile.session.create')).toBe(true);
+        for (const method of [
+            'mobile.terminal.takeOver',
+            'mobile.terminal.release',
+            'mobile.terminal.input',
+        ])
+            expect(isMobileGatewayMethodAllowedForRole('control', method)).toBe(true);
         expect(isMobileGatewayMethodAllowedForRole('control', 'session.create')).toBe(false);
     });
 
@@ -155,6 +171,7 @@ describe('MobileAccessController role and resource authority', () => {
                 stateEpoch: 'c'.repeat(32),
             },
             {} as ServerDomainService,
+            terminalExecution,
         );
         const context: CommandExecutionContext = { capabilities: [], principal };
         const request = vi.fn((method: string, parameters?: { query?: { mode: string } }) => {
@@ -230,6 +247,7 @@ describe('MobileAccessController role and resource authority', () => {
             );
             expect(dashboard).toMatchObject({
                 hostDisplayName: 'Caxri Test Host',
+                deviceRole: 'control',
                 projects: [{ id: 'project-1', displayTitle: 'Granted empty' }],
                 sessions: [],
             });
@@ -285,6 +303,7 @@ describe('MobileAccessController short replies', () => {
                 stateEpoch: 'c'.repeat(32),
             },
             {} as ServerDomainService,
+            terminalExecution,
         );
 
         const terminal = {

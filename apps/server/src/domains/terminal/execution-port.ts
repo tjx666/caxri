@@ -41,6 +41,10 @@ export interface TerminalExecutionExit {
     signal?: number;
 }
 
+export type TerminalObserverEvent =
+    | { type: 'output'; terminalId: string; generation: number; sequence: number; data: string }
+    | { type: 'gap'; terminalId: string; generation: number; sequence: number };
+
 export interface TerminalExecutionLaunch {
     agent?: {
         args: string[];
@@ -82,6 +86,36 @@ export interface TerminalExecutionPort {
     discard(terminalId: string): void;
     detachAllViews(): void;
     detachView(terminalId: string): void;
+    observe(
+        terminalId: string,
+        observerId: string,
+    ): Promise<{ snapshot: TerminalSnapshot | null; nextSequence: number; generation: number }>;
+    unobserve(terminalId: string, observerId: string): Promise<void>;
+    onObserverEvent(listener: (event: TerminalObserverEvent) => void): () => void;
+    takeOver(
+        terminalId: string,
+        holderId: string,
+        expectedGeneration: number,
+        size: { cols: number; rows: number },
+        timeoutMs: number,
+    ): Promise<{ expiresAt: number }>;
+    renewTakeOver(
+        terminalId: string,
+        holderId: string,
+        expectedGeneration: number,
+        timeoutMs: number,
+    ): Promise<{ expiresAt: number }>;
+    releaseTakeOver(
+        terminalId: string,
+        holderId: string,
+        expectedGeneration: number,
+    ): Promise<void>;
+    inputForGeneration(
+        terminalId: string,
+        expectedGeneration: number,
+        data: string,
+        signal?: AbortSignal,
+    ): Promise<boolean>;
     onEvent(listener: (event: TerminalExecutionEvent) => void): () => void;
     onExit(listener: (event: TerminalExecutionExit) => void): () => void;
     onHostExit(listener: (terminalIds: readonly string[]) => void): () => void;

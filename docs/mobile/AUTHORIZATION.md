@@ -7,11 +7,11 @@ dispatcher also grants only the capabilities for that role.
 
 ## Current method grants
 
-| Role      | Allowed methods                                                                                      |
-| --------- | ---------------------------------------------------------------------------------------------------- |
-| `view`    | `mobile.dashboard`, `terminal.preview`                                                               |
-| `reply`   | `mobile.dashboard`, `terminal.preview`, `session.markRead`, `terminal.send`                          |
-| `control` | `mobile.dashboard`, `terminal.preview`, `session.markRead`, `terminal.send`, `mobile.session.create` |
+| Role      | Allowed methods                                                                                                                                                                      |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `view`    | `mobile.dashboard`, `terminal.preview`                                                                                                                                               |
+| `reply`   | `mobile.dashboard`, `terminal.preview`, `session.markRead`, `terminal.send`                                                                                                          |
+| `control` | `mobile.dashboard`, `terminal.preview`, `session.markRead`, `terminal.send`, `mobile.session.create`, `mobile.terminal.takeOver`, `mobile.terminal.release`, `mobile.terminal.input` |
 
 The method set is explicit. A role grant alone never authorizes a resource: dashboard, Session, and
 Terminal reads use principal-scoped queries; a short reply also checks the current Primary Agent
@@ -24,6 +24,15 @@ active grants; its old credentials cannot authenticate. The old store remains un
 explicit new pairing replaces it. Revocation rotates the credential and generation, sends a sealed
 revocation notice to authenticated connections, and closes them. An old generation cannot resume or
 submit another request.
+
+The dashboard returns the current paired device role so the mobile UI can gate Terminal controls.
+Desktop queries return a null role. Server authorization remains authoritative: the three
+`mobile.terminal.*` methods require `control`, the exact active connection and Terminal subscription,
+the subscription's Terminal generation, and a fresh principal-scoped Terminal query. A `reply` device
+may use the existing short `terminal.send` path but cannot take over size or send raw Terminal keys.
+Size leases use the exact connection and subscription as holder; closing that holder cannot release
+a newer connection's lease. Terminal observation requires only `view` and never changes Desktop
+attachment or size.
 
 ## Mobile Session creation
 

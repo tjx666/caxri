@@ -65,6 +65,25 @@ function fakeEngine() {
             close: vi.fn(),
             detachAllViews: vi.fn(),
             detachView: vi.fn(),
+            observe: vi.fn(() =>
+                Promise.resolve({
+                    snapshot: {
+                        terminalId: terminal.id,
+                        encodingVersion: 1,
+                        cols: 80,
+                        rows: 24,
+                        lineCount: 0,
+                        byteCount: 0,
+                        payload: '',
+                        updatedAt: 1,
+                    },
+                    nextSequence: 0,
+                }),
+            ),
+            unobserve: vi.fn(),
+            takeOver: vi.fn(() => ({ expiresAt: Date.now() + 12_000 })),
+            renewTakeOver: vi.fn(() => ({ expiresAt: Date.now() + 12_000 })),
+            releaseTakeOver: vi.fn(),
             processId: vi.fn(() => 42),
             reassignSession: vi.fn(),
             reconcileOutputRecoverySettings: vi.fn(),
@@ -128,6 +147,61 @@ afterEach(async () => {
 });
 
 describe('architecture-a3b-terminal-host: TerminalHostRuntime', () => {
+    it('keeps a mobile observer and size lease separate from the desktop attachment', async () => {
+        const engine = fakeEngine();
+        const { messages, runtime } = createRuntime(engine.owner);
+        const scope = {
+            scope: 'terminal' as const,
+            sessionId: terminal.sessionId,
+            terminalId: terminal.id,
+            ptyGeneration: 1,
+        };
+        await runtime.accept(
+            privateRequest(
+                {
+                    method: 'terminal.start',
+                    params: {
+                        record: terminal,
+                        executable: '/bin/zsh',
+                        args: [],
+                        environment: {},
+                    },
+                },
+                { ...scope, capability: 'terminal.lifecycle' },
+                'start-mobile-terminal',
+            ),
+        );
+        await runtime.accept(
+            privateRequest(
+                { method: 'terminal.observe', params: { observerId: 'observer-1' } },
+                { ...scope, capability: 'terminal.observe' },
+                'observe-mobile-terminal',
+            ),
+        );
+        await runtime.accept(
+            privateRequest(
+                {
+                    method: 'terminal.takeOver',
+                    params: {
+                        holderId: 'connection:subscription',
+                        size: { cols: 42, rows: 20 },
+                        timeoutMs: 12_000,
+                    },
+                },
+                { ...scope, capability: 'terminal.lease' },
+                'lease-mobile-terminal',
+            ),
+        );
+        expect(engine.owner.observe).toHaveBeenCalledWith(terminal.id, 'observer-1');
+        expect(engine.owner.takeOver).toHaveBeenCalledWith(
+            terminal.id,
+            'connection:subscription',
+            { cols: 42, rows: 20 },
+            12_000,
+        );
+        expect(messages.filter((message) => message.type === 'reply')).toHaveLength(3);
+        expect(engine.owner.attach).not.toHaveBeenCalled();
+    });
     it('keeps Agent credentials in the one-time child plan and projects child exit separately', async () => {
         const engine = fakeEngine();
         const prepare = vi.fn(() => ({
@@ -335,6 +409,55 @@ describe('architecture-a3b-terminal-host: TerminalHostRuntime', () => {
             total: 1,
         });
         expect(JSON.stringify(logger.metricSnapshot())).not.toContain(terminal.id);
+    });
+
+    it('rejects observation while a stopped PTY is still capturing its restart snapshot', async () => {
+        const engine = fakeEngine();
+        const capture = Promise.withResolvers<null>();
+        engine.owner.restartBarrier.mockReturnValue(capture.promise);
+        const { messages, runtime } = createRuntime(engine.owner);
+        const scope = {
+            scope: 'terminal' as const,
+            sessionId: terminal.sessionId,
+            terminalId: terminal.id,
+            ptyGeneration: 1,
+        };
+        await runtime.accept(
+            privateRequest(
+                {
+                    method: 'terminal.start',
+                    params: { record: terminal, executable: '/bin/zsh', args: [], environment: {} },
+                },
+                { ...scope, capability: 'terminal.lifecycle' },
+                'start-before-restart',
+            ),
+        );
+
+        const stopping = runtime.accept(
+            privateRequest(
+                { method: 'terminal.stop', params: { persistSnapshot: true } },
+                { ...scope, capability: 'terminal.lifecycle' },
+                'stop-for-restart',
+            ),
+        );
+        await vi.waitFor(() => expect(engine.owner.restartBarrier).toHaveBeenCalledOnce());
+        await runtime.accept(
+            privateRequest(
+                { method: 'terminal.observe', params: { observerId: 'during-restart' } },
+                { ...scope, capability: 'terminal.observe' },
+                'observe-during-restart',
+            ),
+        );
+        expect(engine.owner.observe).not.toHaveBeenCalled();
+        expect(messages).toContainEqual(
+            expect.objectContaining({
+                type: 'reply',
+                id: 'observe-during-restart',
+                ok: false,
+            }),
+        );
+        capture.resolve(null);
+        await stopping;
     });
 
     it('fences a reserved generation and dispatches the authorized execution sequence', async () => {

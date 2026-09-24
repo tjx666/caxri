@@ -1,18 +1,17 @@
-import { Buffer } from 'node:buffer';
-
 import type {
     MobileEventPayload,
     MobileStreamPayload,
     MobileSubscriptionResource,
 } from '@caxri/mobile-transport';
-import {
-    MOBILE_GATEWAY_MAX_WIRE_BYTES,
-    MOBILE_STREAM_CHUNK_MAX_BYTES,
-} from '@caxri/mobile-transport';
+import { MOBILE_GATEWAY_MAX_WIRE_BYTES } from '@caxri/mobile-transport';
 import type { Principal, ServerEvent } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
+import type { TerminalExecutionPort, TerminalObserverEvent } from '../../../domains/terminal';
+import { MobileTerminalObserver } from './terminal-observer';
+
 const MAXIMUM_SUBSCRIPTIONS = 32;
+const MAXIMUM_TERMINAL_SUBSCRIPTIONS = 4;
 const MAXIMUM_PENDING_FRAMES = 32;
 const MAXIMUM_PENDING_BYTES = MOBILE_GATEWAY_MAX_WIRE_BYTES * 8;
 const MAXIMUM_CONNECTION_PENDING_BYTES = MOBILE_GATEWAY_MAX_WIRE_BYTES * 16;
@@ -25,9 +24,10 @@ interface Subscription {
     resource: MobileSubscriptionResource;
     sequence: number;
     tail: Promise<void>;
+    terminal?: MobileTerminalObserver;
 }
 
-type PushPayload = MobileEventPayload | MobileStreamPayload;
+type PushPayload = MobileEventPayload;
 
 export interface MobileSubscriptionOptions {
     authorize: (principal: Principal, resource: MobileSubscriptionResource) => Promise<void>;
@@ -38,8 +38,10 @@ export interface MobileSubscriptionOptions {
         event: ServerEvent,
     ) => Promise<boolean>;
     randomId: () => string;
-    send: (payload: PushPayload) => Promise<void>;
+    send: (payload: MobileEventPayload | MobileStreamPayload) => Promise<void>;
     terminate: () => void;
+    connectionId: string;
+    terminalExecution?: TerminalExecutionPort;
 }
 
 /**
@@ -64,10 +66,24 @@ export class MobileGatewaySubscriptions {
         this.#assertOpen();
         if (this.#subscriptions.size >= MAXIMUM_SUBSCRIPTIONS)
             throw new CaxriError('CAPACITY', 'Too many mobile subscriptions');
+        if (resource.kind === 'terminal') {
+            let terminalCount = 0;
+            for (const item of this.#subscriptions.values()) {
+                if (item.resource.kind !== 'terminal') continue;
+                terminalCount += 1;
+                if (item.resource.terminalId === resource.terminalId)
+                    throw new CaxriError(
+                        'CONFLICT',
+                        'Terminal already subscribed on this connection',
+                    );
+            }
+            if (terminalCount >= MAXIMUM_TERMINAL_SUBSCRIPTIONS)
+                throw new CaxriError('CAPACITY', 'Too many Terminal subscriptions');
+        }
         const id = this.#options.randomId();
         if (this.#subscriptions.has(id))
             throw new CaxriError('INTERNAL', 'Mobile subscription identity collided');
-        this.#subscriptions.set(id, {
+        const subscription: Subscription = {
             active: true,
             id,
             pendingBytes: 0,
@@ -75,8 +91,80 @@ export class MobileGatewaySubscriptions {
             resource,
             sequence: 0,
             tail: Promise.resolve(),
-        });
+        };
+        this.#subscriptions.set(id, subscription);
+        if (resource.kind === 'terminal') {
+            const port = this.#options.terminalExecution;
+            if (!port) {
+                this.unsubscribe(id);
+                throw new CaxriError('UNAVAILABLE', 'Terminal observer is unavailable');
+            }
+            subscription.terminal = new MobileTerminalObserver({
+                terminalId: resource.terminalId,
+                subscriptionId: id,
+                holderId: `${this.#options.connectionId}:${id}`,
+                port,
+                authorize: () =>
+                    this.#options.authorize(this.#options.currentPrincipal(), resource),
+                reserve: (bytes) => this.#reserve(subscription, bytes),
+                release: (bytes) => this.#release(subscription, bytes),
+                send: this.#options.send,
+                remove: () => this.unsubscribe(id),
+                terminate: this.#options.terminate,
+            });
+            try {
+                await subscription.terminal.start();
+                await this.#options.authorize(this.#options.currentPrincipal(), resource);
+                if (!subscription.active)
+                    throw new CaxriError('CANCELLED', 'Terminal subscription closed');
+            } catch (error) {
+                this.unsubscribe(id);
+                throw error;
+            }
+        }
         return id;
+    }
+
+    activate(id: string): void {
+        this.#subscriptions.get(id)?.terminal?.activate();
+    }
+
+    publishObserverEvent(event: TerminalObserverEvent): void {
+        if (this.#closed) return;
+        for (const subscription of this.#subscriptions.values())
+            subscription.terminal?.accept(event);
+    }
+
+    invalidateTerminal(terminalId: string): void {
+        for (const subscription of this.#subscriptions.values())
+            if (
+                subscription.resource.kind === 'terminal' &&
+                subscription.resource.terminalId === terminalId
+            )
+                subscription.terminal?.invalidate();
+    }
+
+    terminal(id: string, terminalId: string): MobileTerminalObserver {
+        const subscription = this.#subscriptions.get(id);
+        if (
+            !subscription?.active ||
+            subscription.resource.kind !== 'terminal' ||
+            subscription.resource.terminalId !== terminalId ||
+            !subscription.terminal
+        )
+            throw new CaxriError('NOT_FOUND', 'Terminal subscription not found');
+        return subscription.terminal;
+    }
+
+    renewLeases(): void {
+        for (const subscription of this.#subscriptions.values())
+            // eslint-disable-next-line no-void -- Each Host lease renews independently of heartbeat acknowledgement.
+            if (subscription.terminal) void subscription.terminal.renewLease();
+    }
+
+    abortPendingTerminalInputs(): void {
+        for (const subscription of this.#subscriptions.values())
+            subscription.terminal?.abortPendingInputs();
     }
 
     unsubscribe(id: string): void {
@@ -84,11 +172,17 @@ export class MobileGatewaySubscriptions {
         if (!subscription) return;
         subscription.active = false;
         this.#subscriptions.delete(id);
+        // eslint-disable-next-line no-void -- Observer close catches Host teardown failure internally.
+        if (subscription.terminal) void subscription.terminal.close();
     }
 
     close(): void {
         this.#closed = true;
-        for (const subscription of this.#subscriptions.values()) subscription.active = false;
+        for (const subscription of this.#subscriptions.values()) {
+            subscription.active = false;
+            // eslint-disable-next-line no-void -- Observer close catches Host teardown failure internally.
+            if (subscription.terminal) void subscription.terminal.close();
+        }
         this.#subscriptions.clear();
     }
 
@@ -100,31 +194,24 @@ export class MobileGatewaySubscriptions {
                 this.#queue(subscription, event, 'dashboard.changed');
             else if (resource.kind === 'conversation' && event.event === 'agentTranscript.changed')
                 this.#queue(subscription, event, 'conversation.changed');
-            else if (
-                resource.kind === 'terminal' &&
-                event.event === 'terminal.output' &&
-                event.payload.terminalId === resource.terminalId
-            ) {
-                if (event.payload.droppedBytes) {
-                    this.#overflow(subscription);
-                    continue;
-                }
-                const bytes = Buffer.from(event.payload.data, 'utf8');
-                for (
-                    let offset = 0;
-                    offset < bytes.length && subscription.active;
-                    offset += MOBILE_STREAM_CHUNK_MAX_BYTES
-                ) {
-                    this.#queue(
-                        subscription,
-                        event,
-                        bytes
-                            .subarray(offset, offset + MOBILE_STREAM_CHUNK_MAX_BYTES)
-                            .toString('hex'),
-                    );
-                }
-            }
         }
+    }
+
+    #reserve(subscription: Subscription, bytes: number): boolean {
+        if (
+            !this.#isActive(subscription) ||
+            subscription.pendingBytes + bytes > MAXIMUM_PENDING_BYTES ||
+            this.#pendingBytes + bytes > MAXIMUM_CONNECTION_PENDING_BYTES
+        )
+            return false;
+        subscription.pendingBytes += bytes;
+        this.#pendingBytes += bytes;
+        return true;
+    }
+
+    #release(subscription: Subscription, bytes: number): void {
+        subscription.pendingBytes -= bytes;
+        this.#pendingBytes -= bytes;
     }
 
     #queue(subscription: Subscription, event: ServerEvent, kindOrChunk: string): void {
@@ -164,21 +251,12 @@ export class MobileGatewaySubscriptions {
             if (!(await this.#options.matches(principal, subscription.resource, event))) return;
             if (!this.#isActive(subscription)) return;
             const sequence = subscription.sequence++;
-            const payload: PushPayload =
-                event.event === 'terminal.output'
-                    ? {
-                          type: 'stream',
-                          subscriptionId: subscription.id,
-                          sequence,
-                          kind: 'terminal.output',
-                          chunkHex: kindOrChunk,
-                      }
-                    : {
-                          type: 'event',
-                          subscriptionId: subscription.id,
-                          sequence,
-                          kind: kindOrChunk as 'dashboard.changed' | 'conversation.changed',
-                      };
+            const payload: PushPayload = {
+                type: 'event',
+                subscriptionId: subscription.id,
+                sequence,
+                kind: kindOrChunk as 'dashboard.changed' | 'conversation.changed',
+            };
             await this.#options.send(payload);
         } catch {
             this.#options.terminate();

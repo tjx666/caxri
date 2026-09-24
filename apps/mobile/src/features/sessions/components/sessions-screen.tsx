@@ -13,7 +13,6 @@ import type { MobileLayoutMode } from '../../layout/layout-mode';
 import { mobileLayoutMode } from '../../layout/layout-mode';
 import { useSessionAttention } from '../hooks/use-session-attention';
 import { allMobileSessions } from '../hooks/use-session-polling';
-import { useTerminalPreview } from '../hooks/use-terminal-preview';
 import { preferredSessionSegment } from '../session-ui-state';
 import { ConnectionBanner } from './connection-banner';
 import { useHostSessions } from './host-sessions-provider';
@@ -115,8 +114,7 @@ export const SessionsScreen = ({ routeSessionId }: { routeSessionId: string | nu
     const { height, width } = useWindowDimensions();
     const layout = mobileLayoutMode(width, height);
     const { lastSeenAt, request, retryConnection, status } = useMobileClient();
-    const { hostId, previewScrollBySessionRef, sessions, setDraft, setSegment, ui } =
-        useHostSessions();
+    const { hostId, sessions, setDraft, setSegment, ui } = useHostSessions();
     const { refresh, selectSession } = sessions;
     const [now, setNow] = useState(0);
 
@@ -145,12 +143,6 @@ export const SessionsScreen = ({ routeSessionId }: { routeSessionId: string | nu
     const segment = selected
         ? preferredSessionSegment(ui.segmentBySession[selected.id], false)
         : 'terminal';
-    const preview = useTerminalPreview({
-        terminalId: selected?.primaryAgentTerminalId ?? null,
-        visible:
-            isDetailVisible &&
-            (segment === 'terminal' || (segment === 'changes' && layout === 'tablet-wide')),
-    });
     const fresh = isConnectionFresh(status, lastSeenAt, now);
     useSessionAttention({
         enabled: fresh && isDetailVisible,
@@ -181,15 +173,15 @@ export const SessionsScreen = ({ routeSessionId }: { routeSessionId: string | nu
     }, [refresh, request, selected]);
     const detail = selected ? (
         <SessionDetail
+            deviceRole={sessions.deviceRole}
             draft={ui.draftBySession[selected.id] ?? ''}
             isConnected={fresh}
+            isVisible={isDetailVisible}
             onBack={layout === 'phone' ? goHome : undefined}
             onDraftChange={(draft) => setDraft(selected.id, draft)}
             onMarkRead={markRead}
             onRefresh={sessions.refresh}
             onSegmentChange={(next) => setSegment(selected.id, next)}
-            previewScrollBySessionRef={previewScrollBySessionRef}
-            previewState={preview}
             segment={segment}
             session={selected}
             theme={theme}

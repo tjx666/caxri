@@ -27,6 +27,46 @@ import {
 describe('method table', () => {
     const allMethods = { ...methods, ...internalMethods };
 
+    it('registers mobile-only Terminal control methods', () => {
+        expect(Object.hasOwn(methods, 'mobile.terminal.takeOver')).toBe(true);
+        expect(Object.hasOwn(methods, 'mobile.terminal.release')).toBe(true);
+        expect(Object.hasOwn(methods, 'mobile.terminal.input')).toBe(true);
+        expect(
+            methods['mobile.terminal.takeOver'].params.safeParse({
+                terminalId: 'terminal-1',
+                subscriptionId: 'subscription-1',
+                expectedGeneration: 2,
+                cols: 80,
+                rows: 24,
+            }).success,
+        ).toBe(true);
+        expect(
+            methods['mobile.terminal.takeOver'].params.safeParse({
+                terminalId: 'terminal-1',
+                subscriptionId: 'subscription-1',
+                expectedGeneration: 0,
+                cols: 80,
+                rows: 24,
+            }).success,
+        ).toBe(false);
+        expect(
+            methods['mobile.terminal.input'].params.safeParse({
+                terminalId: 'terminal-1',
+                subscriptionId: 'subscription-1',
+                expectedGeneration: 2,
+                data: '\u{1B}[A',
+            }).success,
+        ).toBe(true);
+        expect(
+            methods['mobile.terminal.input'].params.safeParse({
+                terminalId: 'terminal-1',
+                subscriptionId: 'subscription-1',
+                expectedGeneration: 2,
+                data: 'x'.repeat(9 * 1_024),
+            }).success,
+        ).toBe(false);
+    });
+
     it('gives every method a validated owner, params schema, and result schema', () => {
         for (const [name, spec] of Object.entries(allMethods)) {
             expect(['desktop', 'server'], name).toContain(spec.owner);

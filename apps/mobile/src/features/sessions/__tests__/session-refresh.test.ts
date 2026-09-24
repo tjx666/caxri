@@ -19,6 +19,7 @@ describe('fetchMobileSessionDashboard', () => {
             fetchMobileSessionDashboard({
                 dashboard: () =>
                     Promise.resolve({
+                        deviceRole: 'view',
                         hostDisplayName: 'Test computer',
                         projects: [{ id: 'project-one', displayTitle: 'Empty Project' }],
                         sessions: [],
@@ -27,6 +28,7 @@ describe('fetchMobileSessionDashboard', () => {
                     }),
             }),
         ).resolves.toEqual({
+            deviceRole: 'view',
             hostDisplayName: 'Test computer',
             projects: [{ id: 'project-one', displayTitle: 'Empty Project' }],
             sections: { needsAttention: [], recent: [], running: [], total: 0, truncated: false },

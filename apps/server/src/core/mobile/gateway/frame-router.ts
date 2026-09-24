@@ -19,6 +19,7 @@ import {
     toWireError,
 } from '@caxri/protocol';
 
+import type { TerminalExecutionPort, TerminalObserverEvent } from '../../../domains/terminal';
 import { boundedMobileReply, forbiddenMobileReply } from './reply';
 import { MobileGatewaySubscriptions } from './subscriptions';
 
@@ -44,6 +45,7 @@ interface MobileAppOptions {
     randomSubscriptionId: () => string;
     send: (payload: MobileServerPayload) => Promise<void>;
     terminate: () => void;
+    terminalExecution?: TerminalExecutionPort;
 }
 
 /**
@@ -61,6 +63,8 @@ export class MobileGatewayFrameRouter {
     constructor(options: MobileAppOptions) {
         this.#options = options;
         this.#lastClientFrameAt = options.now();
+        const connectionId = options.context().connection?.connectionId;
+        if (!connectionId) throw new CaxriError('FORBIDDEN', 'Mobile connection is required');
         this.#subscriptions = new MobileGatewaySubscriptions({
             authorize: options.authorizeSubscription,
             currentPrincipal: () => options.context().principal,
@@ -68,6 +72,8 @@ export class MobileGatewayFrameRouter {
             randomId: options.randomSubscriptionId,
             send: options.send,
             terminate: options.terminate,
+            terminalExecution: options.terminalExecution,
+            connectionId,
         });
         this.#timer = setInterval(() => {
             if (this.#options.now() - this.#lastClientFrameAt >= HEARTBEAT_IDLE_MS)
@@ -86,12 +92,30 @@ export class MobileGatewayFrameRouter {
         if (!this.#closed) this.#subscriptions.publish(event);
     }
 
+    publishObserverEvent(event: TerminalObserverEvent): void {
+        if (!this.#closed) this.#subscriptions.publishObserverEvent(event);
+    }
+
+    invalidateTerminal(terminalId: string): void {
+        if (!this.#closed) this.#subscriptions.invalidateTerminal(terminalId);
+    }
+
+    abortPendingTerminalInputs(): void {
+        this.#subscriptions.abortPendingTerminalInputs();
+    }
+
+    terminalSubscription(id: string, terminalId: string) {
+        if (this.#closed) throw new CaxriError('UNAVAILABLE', 'Mobile connection is closed');
+        return this.#subscriptions.terminal(id, terminalId);
+    }
+
     accept(raw: unknown): void {
         if (this.#closed || !this.#options.isActive()) return;
         const payload = mobileClientPayloadSchema.parse(raw);
         this.#lastClientFrameAt = this.#options.now();
         switch (payload.type) {
             case 'heartbeat': {
+                this.#subscriptions.renewLeases();
                 // eslint-disable-next-line no-void -- An acknowledgement must not block the inbound frame reader.
                 void this.#acknowledgeHeartbeat(payload.nonce);
                 return;
@@ -117,22 +141,29 @@ export class MobileGatewayFrameRouter {
                 return;
             }
             case 'subscribe': {
-                this.#run(payload.id, async () => {
-                    const subscriptionId = await this.#subscriptions.subscribe(payload.resource);
-                    try {
-                        await this.#options.authorizeSubscription(
-                            this.#options.context().principal,
-                            payload.resource,
+                let subscriptionId: string | undefined;
+                this.#run(
+                    payload.id,
+                    async () => {
+                        subscriptionId = await this.#subscriptions.subscribe(payload.resource);
+                        try {
+                            await this.#options.authorizeSubscription(
+                                this.#options.context().principal,
+                                payload.resource,
+                            );
+                        } catch (error) {
+                            this.#subscriptions.unsubscribe(subscriptionId);
+                            throw error;
+                        }
+                        return successReply(
+                            payload.id,
+                            mobileSubscribeResultSchema.parse({ subscriptionId }),
                         );
-                    } catch (error) {
-                        this.#subscriptions.unsubscribe(subscriptionId);
-                        throw error;
-                    }
-                    return successReply(
-                        payload.id,
-                        mobileSubscribeResultSchema.parse({ subscriptionId }),
-                    );
-                });
+                    },
+                    () => {
+                        if (subscriptionId) this.#subscriptions.activate(subscriptionId);
+                    },
+                );
                 return;
             }
             case 'unsubscribe': {
@@ -145,7 +176,11 @@ export class MobileGatewayFrameRouter {
         }
     }
 
-    #run(id: string, action: () => Promise<CommandReplyEnvelope> | CommandReplyEnvelope): void {
+    #run(
+        id: string,
+        action: () => Promise<CommandReplyEnvelope> | CommandReplyEnvelope,
+        afterReply?: () => void,
+    ): void {
         if (this.#activeIds.has(id)) {
             this.#options.terminate();
             return;
@@ -171,7 +206,8 @@ export class MobileGatewayFrameRouter {
                 if (!this.#closed && this.#options.isActive()) {
                     try {
                         this.#options.context();
-                        await this.#reply(reply);
+                        const sent = await this.#reply(reply);
+                        if (sent && reply.ok) afterReply?.();
                     } catch {
                         this.#options.terminate();
                     }
@@ -190,11 +226,13 @@ export class MobileGatewayFrameRouter {
         }
     }
 
-    async #reply(reply: CommandReplyEnvelope): Promise<void> {
+    async #reply(reply: CommandReplyEnvelope): Promise<boolean> {
         try {
             await this.#options.send({ type: 'reply', reply });
+            return true;
         } catch {
             this.#options.terminate();
+            return false;
         }
     }
 }

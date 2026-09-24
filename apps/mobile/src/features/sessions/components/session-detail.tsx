@@ -1,15 +1,13 @@
-import type { RefObject } from 'react';
 import { KeyboardAvoidingView, Platform, Text, View } from 'react-native';
 
 import type { MobileTheme } from '../../../theme/tokens';
-import type { TerminalPreviewViewState } from '../hooks/use-terminal-preview';
+import { TerminalLiveView } from '../../terminal/terminal-live-view';
 import type { MobileSessionItem } from '../session-model';
-import type { SessionPreviewPosition } from '../session-preview-scroll';
+import { isMobileTerminalStopped } from '../session-model';
 import type { SessionSegment } from '../session-ui-state';
 import { SessionDetailComposer } from './session-detail-composer';
 import { SessionDetailHeader } from './session-detail-header';
 import { sessionDetailStyles as styles } from './session-detail-styles';
-import { SessionTerminalPreview } from './session-terminal-preview';
 
 const segmentLabels: Record<SessionSegment, string> = {
     conversation: 'Conversation',
@@ -37,41 +35,49 @@ const SessionSegmentPlaceholder = ({
 );
 
 export const SessionDetail = ({
+    deviceRole,
     draft,
     isConnected,
+    isVisible,
     onBack,
     onDraftChange,
     onMarkRead,
     onRefresh,
     onSegmentChange,
-    previewScrollBySessionRef,
-    previewState,
     segment,
     session,
     theme,
     wideChanges,
 }: {
+    deviceRole: 'view' | 'reply' | 'control' | null;
     draft: string;
     isConnected: boolean;
+    isVisible: boolean;
     onBack?: () => void;
     onDraftChange: (draft: string) => void;
     onMarkRead: () => Promise<void>;
     onRefresh: () => Promise<void>;
     onSegmentChange: (segment: SessionSegment) => void;
-    previewScrollBySessionRef: RefObject<Partial<Record<string, SessionPreviewPosition>>>;
-    previewState: TerminalPreviewViewState;
     segment: SessionSegment;
     session: MobileSessionItem;
     theme: MobileTheme;
     wideChanges: boolean;
 }) => {
-    const terminal = (
-        <SessionTerminalPreview
-            previewScrollBySessionRef={previewScrollBySessionRef}
-            previewState={previewState}
-            session={session}
+    const showTerminal = segment === 'terminal' || (segment === 'changes' && wideChanges);
+    const terminal = session.primaryAgentTerminalId ? (
+        <TerminalLiveView
+            key={session.primaryAgentTerminalId}
+            isConnected={isConnected}
+            isStopped={isMobileTerminalStopped(session)}
+            role={deviceRole}
+            terminalId={session.primaryAgentTerminalId}
             theme={theme}
+            visible={isVisible && showTerminal}
         />
+    ) : (
+        <View style={styles.placeholder} testID="terminal-unavailable">
+            <Text style={{ color: theme.muted }}>No active Terminal for this Session.</Text>
+        </View>
     );
     const body =
         segment === 'terminal' ? (
@@ -107,14 +113,16 @@ export const SessionDetail = ({
             ) : (
                 <View style={styles.body}>{body}</View>
             )}
-            <SessionDetailComposer
-                draft={draft}
-                isConnected={isConnected}
-                onDraftChange={onDraftChange}
-                onRefresh={onRefresh}
-                session={session}
-                theme={theme}
-            />
+            {segment !== 'terminal' ? (
+                <SessionDetailComposer
+                    draft={draft}
+                    isConnected={isConnected}
+                    onDraftChange={onDraftChange}
+                    onRefresh={onRefresh}
+                    session={session}
+                    theme={theme}
+                />
+            ) : null}
         </KeyboardAvoidingView>
     );
 };

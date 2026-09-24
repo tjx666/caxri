@@ -7,7 +7,7 @@ import type {
     TerminalResourceUsage,
     TerminalSnapshot,
 } from '@caxri/protocol';
-import { CURRENT_TERMINAL_SNAPSHOT_ENCODING_VERSION } from '@caxri/protocol';
+import { CaxriError, CURRENT_TERMINAL_SNAPSHOT_ENCODING_VERSION } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import {
     assertE2EAgentInput,
@@ -48,6 +48,8 @@ export type TerminalExecutionEvent =
           data: string;
           droppedBytes?: number;
       }
+    | { type: 'observerOutput'; terminalId: string; data: string; sequence: number }
+    | { type: 'observerGap'; terminalId: string; sequence: number }
     | {
           type: 'outputRecovery';
           terminalId: string;
@@ -80,7 +82,9 @@ export interface TerminalExecutionEngineOptions {
     logger: StructuredLogger;
     onExit: (event: TerminalExecutionExit) => void | Promise<void>;
     outputFlushMs?: number;
+    observerOutputMaximumBytes?: number;
     sampleResources?: (pid: number) => Promise<TerminalResourceUsage | null>;
+    screenMaximumQueuedBytes?: number;
     spawn: typeof pty.spawn;
     terminalColors?: (terminalId: string) => { background: string; foreground: string } | undefined;
 }
@@ -92,6 +96,17 @@ export interface TerminalExecutionEngineOptions {
 export class TerminalExecutionEngine {
     private readonly terminals = new Map<string, LiveTerminal>();
     private readonly attachments = new TerminalAttachments();
+    private readonly sizeLeases = new Map<
+        string,
+        {
+            holderId: string;
+            live: LiveTerminal;
+            previousSize: { cols: number; rows: number };
+            desktopSize?: { cols: number; rows: number };
+            expiresAt: number;
+            timer?: ReturnType<typeof setTimeout>;
+        }
+    >();
     private readonly outputFlushMs: number;
     private readonly resizeObserver: PtyResizeBurstObserver;
     private readonly sampleResources: (pid: number) => Promise<TerminalResourceUsage | null>;
@@ -127,19 +142,39 @@ export class TerminalExecutionEngine {
         const frames = live.outputFramer.push(filtered);
         live.screen.write(frames.map((frame) => live.imageRecovery.push(frame.data)).join(''));
         if (this.hasConfiguredOutputRecovery) this.ensureOutputRecovery(live)?.observeOutput();
-        if (this.attachments.has(live.record.id)) {
+        if (this.attachments.has(live.record.id) || live.observers.size > 0) {
             let droppedBytes = 0;
             for (const frame of frames) {
-                const destination = frame.isControl
-                    ? {
-                          appendAtomic: (data: string) => live.outputQueue.appendAtomic(data),
-                          appendBounded: (data: string) => live.outputQueue.appendAtomic(data),
-                      }
-                    : live.outputQueue;
-                droppedBytes += live.imageOutput.push(frame.data, destination);
+                if (this.attachments.has(live.record.id)) {
+                    const destination = frame.isControl
+                        ? {
+                              appendAtomic: (data: string) => live.outputQueue.appendAtomic(data),
+                              appendBounded: (data: string) => live.outputQueue.appendAtomic(data),
+                          }
+                        : live.outputQueue;
+                    droppedBytes += live.imageOutput.push(frame.data, destination);
+                }
+                if (live.observers.size > 0 && !live.observerNeedsResync) {
+                    const destination = frame.isControl
+                        ? {
+                              appendAtomic: (data: string) =>
+                                  live.observerOutputQueue.appendAtomic(data),
+                              appendBounded: (data: string) =>
+                                  live.observerOutputQueue.appendAtomic(data),
+                          }
+                        : live.observerOutputQueue;
+                    live.observerDroppedBytes += live.observerImageOutput.push(
+                        frame.data,
+                        destination,
+                    );
+                }
             }
             live.droppedBytes += droppedBytes;
             live.metricDroppedBytes += droppedBytes;
+            if (live.observerDroppedBytes > 0) {
+                live.observerOutputQueue.clear();
+                live.observerNeedsResync = true;
+            }
             live.outputTimer ??= setTimeout(() => this.flushOutput(live), this.outputFlushMs);
         }
         live.metricTimer ??= setTimeout(() => this.flushMetrics(live), 1_000);
@@ -161,6 +196,7 @@ export class TerminalExecutionEngine {
 
     private flushOutput(live: LiveTerminal): void {
         live.outputTimer = undefined;
+        this.flushObserverOutput(live);
         if (live.outputQueue.byteCount === 0 && live.droppedBytes === 0) return;
         this.options.emit({
             type: 'output',
@@ -169,6 +205,29 @@ export class TerminalExecutionEngine {
             ...(live.droppedBytes > 0 && { droppedBytes: live.droppedBytes }),
         });
         live.droppedBytes = 0;
+    }
+
+    private flushObserverOutput(live: LiveTerminal): void {
+        if (live.observers.size === 0) return;
+        if (live.observerNeedsResync) {
+            live.observerDroppedBytes = 0;
+            this.options.emit({
+                type: 'observerGap',
+                terminalId: live.record.id,
+                sequence: live.observerSequence++,
+            });
+            live.observerOutputQueue.clear();
+            live.observerImageOutput = new TerminalImageOutputFilter();
+            live.observerNeedsResync = false;
+            return;
+        }
+        if (live.observerOutputQueue.byteCount === 0) return;
+        this.options.emit({
+            type: 'observerOutput',
+            terminalId: live.record.id,
+            sequence: live.observerSequence++,
+            data: live.observerOutputQueue.drain(),
+        });
     }
 
     private flushMetrics(live: LiveTerminal): void {
@@ -214,22 +273,48 @@ export class TerminalExecutionEngine {
     ): Promise<TerminalSnapshot> | undefined {
         if (this.terminals.get(live.record.id) !== live) return;
         this.clearTimers(live);
+        this.clearSizeLease(live.record.id);
         live.outputRecovery?.dispose();
         const tail = live.outputFramer.finish();
-        if (this.attachments.has(live.record.id)) {
+        if (this.attachments.has(live.record.id) || live.observers.size > 0) {
             /**
              * Let image teardown emit its bounded placeholder, but discard any raw unfinished control. Recovery below
              * still consumes the original tail, and an oversized control has already become a safe text notice.
              */
-            live.droppedBytes += tail.isControl
-                ? live.imageOutput.push(tail.data, {
-                      appendAtomic: (data) => live.outputQueue.appendAtomic(data),
-                      appendBounded: () => 0,
-                  })
-                : live.outputQueue.appendAtomic(tail.data);
-            live.droppedBytes += live.imageOutput.finish(live.outputQueue);
-        } else live.imageOutput.finish();
+            if (this.attachments.has(live.record.id)) {
+                live.droppedBytes += tail.isControl
+                    ? live.imageOutput.push(tail.data, {
+                          appendAtomic: (data) => live.outputQueue.appendAtomic(data),
+                          appendBounded: () => 0,
+                      })
+                    : live.outputQueue.appendAtomic(tail.data);
+                live.droppedBytes += live.imageOutput.finish(live.outputQueue);
+            } else live.imageOutput.finish();
+            if (live.observers.size > 0) {
+                live.observerDroppedBytes += tail.isControl
+                    ? live.observerImageOutput.push(tail.data, {
+                          appendAtomic: (data) => live.observerOutputQueue.appendAtomic(data),
+                          appendBounded: () => 0,
+                      })
+                    : live.observerOutputQueue.appendAtomic(tail.data);
+                live.observerDroppedBytes += live.observerImageOutput.finish(
+                    live.observerOutputQueue,
+                );
+                if (live.observerDroppedBytes > 0) live.observerNeedsResync = true;
+            } else live.observerImageOutput.finish();
+        } else {
+            live.imageOutput.finish();
+            live.observerImageOutput.finish();
+        }
         this.flushOutput(live);
+        if (live.observers.size > 0) {
+            this.options.emit({
+                type: 'observerGap',
+                terminalId: live.record.id,
+                sequence: live.observerSequence++,
+            });
+            live.observers.clear();
+        }
         this.flushMetrics(live);
         recordPtyThroughputSummary(this.options.logger, live.record.id, live.throughput, reason);
         this.resizeObserver.disposeTerminal(live.record.id);
@@ -263,6 +348,34 @@ export class TerminalExecutionEngine {
         live.metricTimer ??= setTimeout(() => this.flushMetrics(live), 1_000);
         live.process.write(data);
         return true;
+    }
+
+    private applySize(live: LiveTerminal, cols: number, rows: number): boolean {
+        if (live.process.cols === cols && live.process.rows === rows) return true;
+        live.screen.resize(cols, rows);
+        live.process.resize(cols, rows);
+        this.resizeObserver.recordApplied(live.record.id, { cols, rows });
+        return true;
+    }
+
+    private clearSizeLease(terminalId: string): void {
+        const lease = this.sizeLeases.get(terminalId);
+        if (!lease) return;
+        clearTimeout(lease.timer);
+        this.sizeLeases.delete(terminalId);
+    }
+
+    private scheduleSizeLease(
+        terminalId: string,
+        holderId: string,
+        timeoutMs: number,
+    ): { expiresAt: number } {
+        const lease = this.sizeLeases.get(terminalId)!;
+        clearTimeout(lease.timer);
+        lease.expiresAt = Date.now() + timeoutMs;
+        lease.timer = setTimeout(() => this.releaseTakeOver(terminalId, holderId), timeoutMs);
+        lease.timer.unref();
+        return { expiresAt: lease.expiresAt };
     }
 
     waitForAttachedSize(
@@ -303,6 +416,14 @@ export class TerminalExecutionEngine {
             imageRecovery: new TerminalImageRecoveryFilter(),
             outputFramer: new TerminalOutputFramer(),
             imageOutput: new TerminalImageOutputFilter(),
+            observerImageOutput: new TerminalImageOutputFilter(),
+            observerOutputQueue: new TerminalOutputQueue(
+                this.options.observerOutputMaximumBytes ?? MAX_OUTPUT_BATCH_BYTES,
+            ),
+            observerDroppedBytes: 0,
+            observerNeedsResync: false,
+            observerSequence: 0,
+            observers: new Set(),
             process: child,
             record: input.record,
             screen: new TerminalScreenState(
@@ -310,11 +431,19 @@ export class TerminalExecutionEngine {
                 initialSize.cols,
                 initialSize.rows,
                 {
+                    ...(this.options.screenMaximumQueuedBytes && {
+                        maximumQueuedBytes: this.options.screenMaximumQueuedBytes,
+                    }),
                     onOverflow: (droppedBytes) => {
                         recordPtyDroppedBytes(this.options.logger, droppedBytes);
                         this.options.logger.write('warn', ptyLogEvents.screenBackpressure, {
                             fields: { terminalId: input.record.id, droppedBytes },
                         });
+                        if (live.observers.size > 0) {
+                            live.observerOutputQueue.clear();
+                            live.observerNeedsResync = true;
+                            this.flushObserverOutput(live);
+                        }
                     },
                     onTitleChange: Object.assign(
                         (title: string) =>
@@ -391,11 +520,105 @@ export class TerminalExecutionEngine {
     resize(terminalId: string, cols: number, rows: number): boolean {
         const live = this.terminals.get(terminalId);
         if (!live) return false;
-        if (live.process.cols === cols && live.process.rows === rows) return true;
-        live.screen.resize(cols, rows);
-        live.process.resize(cols, rows);
-        this.resizeObserver.recordApplied(terminalId, { cols, rows });
-        return true;
+        const lease = this.sizeLeases.get(terminalId);
+        if (lease) {
+            lease.desktopSize = { cols, rows };
+            return true;
+        }
+        return this.applySize(live, cols, rows);
+    }
+
+    takeOver(
+        terminalId: string,
+        holderId: string,
+        size: { cols: number; rows: number },
+        timeoutMs: number,
+    ): { expiresAt: number } {
+        const live = this.terminals.get(terminalId);
+        if (!live) throw new CaxriError('UNAVAILABLE', 'Terminal is not running');
+        const current = this.sizeLeases.get(terminalId);
+        if (current && current.holderId !== holderId)
+            throw new CaxriError('CONFLICT', 'Terminal size is controlled by another observer');
+        if (!current) {
+            this.sizeLeases.set(terminalId, {
+                holderId,
+                live,
+                previousSize: { cols: live.process.cols, rows: live.process.rows },
+                ...(this.attachments.size(terminalId) && {
+                    desktopSize: this.attachments.size(terminalId),
+                }),
+                expiresAt: 0,
+            });
+        }
+        this.applySize(live, size.cols, size.rows);
+        return this.scheduleSizeLease(terminalId, holderId, timeoutMs);
+    }
+
+    renewTakeOver(
+        terminalId: string,
+        holderId: string,
+        timeoutMs: number,
+    ): {
+        expiresAt: number;
+    } {
+        const lease = this.sizeLeases.get(terminalId);
+        if (!lease || lease.holderId !== holderId)
+            throw new CaxriError('CONFLICT', 'Terminal size lease is no longer held');
+        return this.scheduleSizeLease(terminalId, holderId, timeoutMs);
+    }
+
+    releaseTakeOver(terminalId: string, holderId: string): void {
+        const lease = this.sizeLeases.get(terminalId);
+        if (!lease || lease.holderId !== holderId) return;
+        this.clearSizeLease(terminalId);
+        if (this.terminals.get(terminalId) !== lease.live) return;
+        const size = this.attachments.has(terminalId)
+            ? (lease.desktopSize ?? this.attachments.size(terminalId) ?? lease.previousSize)
+            : lease.previousSize;
+        this.applySize(lease.live, size.cols, size.rows);
+    }
+
+    async observe(
+        terminalId: string,
+        observerId: string,
+    ): Promise<{ snapshot: TerminalSnapshot | null; nextSequence: number }> {
+        const live = this.terminals.get(terminalId);
+        if (!live) throw new CaxriError('UNAVAILABLE', 'Terminal is not running');
+        if (live.observers.has(observerId))
+            throw new CaxriError('CONFLICT', 'Terminal observer is already attached');
+        this.flushObserverOutput(live);
+        if (live.observers.size === 0) {
+            live.observerImageOutput = new TerminalImageOutputFilter();
+            live.observerOutputQueue.clear();
+            live.observerNeedsResync = false;
+        }
+        live.observers.add(observerId);
+        const nextSequence = live.observerSequence;
+        try {
+            return {
+                snapshot: {
+                    terminalId,
+                    encodingVersion: CURRENT_TERMINAL_SNAPSHOT_ENCODING_VERSION,
+                    ...(await live.screen.snapshot()),
+                    updatedAt: Date.now(),
+                },
+                nextSequence,
+            };
+        } catch (error) {
+            this.unobserve(terminalId, observerId);
+            throw error;
+        }
+    }
+
+    unobserve(terminalId: string, observerId: string): void {
+        const live = this.terminals.get(terminalId);
+        if (!live?.observers.delete(observerId)) return;
+        if (live.observers.size === 0) {
+            live.observerOutputQueue.clear();
+            live.observerImageOutput.finish();
+            live.observerNeedsResync = false;
+            live.observerDroppedBytes = 0;
+        }
     }
 
     async attach(
@@ -407,6 +630,7 @@ export class TerminalExecutionEngine {
         if (live && size) this.resize(terminalId, size.cols, size.rows);
         if (!live) return { snapshot: null, wasAttached };
         if (wasAttached) {
+            this.flushObserverOutput(live);
             live.outputTimer = clearScheduledTimer(live.outputTimer);
             live.outputQueue.clear();
             live.droppedBytes = 0;
@@ -441,8 +665,11 @@ export class TerminalExecutionEngine {
 
     detachView(terminalId: string): void {
         this.attachments.detach(terminalId);
+        const lease = this.sizeLeases.get(terminalId);
+        if (lease) lease.desktopSize = undefined;
         const live = this.terminals.get(terminalId);
         if (!live) return;
+        this.flushObserverOutput(live);
         live.outputTimer = clearScheduledTimer(live.outputTimer);
         live.outputQueue.clear();
         live.imageOutput.finish();

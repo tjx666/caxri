@@ -1,4 +1,4 @@
-import { Platform, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 export const sessionDetailStyles = StyleSheet.create({
     root: { flex: 1, minWidth: 0 },
@@ -32,28 +32,7 @@ export const sessionDetailStyles = StyleSheet.create({
     tabText: { fontSize: 13, fontWeight: '600' },
     body: { flex: 1, minWidth: 0 },
     bodyRow: { flex: 1, flexDirection: 'row' },
-    previewPane: { flex: 1, minWidth: 0 },
     wideChanges: { borderLeftWidth: 1, flex: 1, minWidth: 0 },
-    bodyContent: { gap: 16, marginHorizontal: 'auto', maxWidth: 680, padding: 16, width: '100%' },
-    sectionTitle: { fontSize: 11, fontWeight: '800', letterSpacing: 0.8 },
-    preview: { borderRadius: 12, borderWidth: 1, maxHeight: 420, minHeight: 180 },
-    previewContent: { flexGrow: 1, padding: 16 },
-    previewText: {
-        fontFamily: Platform.select({ android: 'monospace', ios: 'Menlo' }),
-        fontSize: 15,
-        lineHeight: 22,
-    },
-    previewError: {
-        alignItems: 'center',
-        borderRadius: 12,
-        borderWidth: 1,
-        flexDirection: 'row',
-        gap: 12,
-        justifyContent: 'space-between',
-        padding: 12,
-    },
-    previewErrorText: { flex: 1, fontSize: 13 },
-    previewRetry: { justifyContent: 'center', minHeight: 48 },
     placeholder: { alignItems: 'center', flex: 1, gap: 8, justifyContent: 'center', padding: 24 },
     placeholderTitle: { fontSize: 17, fontWeight: '700', textAlign: 'center' },
     placeholderBody: { fontSize: 14, lineHeight: 21, textAlign: 'center' },
