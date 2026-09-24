@@ -1,0 +1,24 @@
+import { describe, expect, it } from 'vitest';
+
+import type { MobileSessionItem } from '../session-model';
+import { sessionAgeLabel, sessionAgentLabel } from '../session-row-model';
+
+describe('Session row labels', () => {
+    it('shows human Agent names without provider jargon', () => {
+        expect(
+            sessionAgentLabel({ primaryTerminal: { kind: 'claude' } } as MobileSessionItem),
+        ).toBe('Claude Code');
+        expect(sessionAgentLabel({ primaryTerminal: { kind: 'shell' } } as MobileSessionItem)).toBe(
+            'Shell',
+        );
+        expect(sessionAgentLabel({} as MobileSessionItem)).toBe('No Agent');
+    });
+
+    it('uses short relative time at minute, hour, and day boundaries', () => {
+        const now = 10_000_000;
+        expect(sessionAgeLabel(now, now)).toBe('now');
+        expect(sessionAgeLabel(now - 120_000, now)).toBe('2m');
+        expect(sessionAgeLabel(now - 3_600_000, now)).toBe('1h');
+        expect(sessionAgeLabel(now - 86_400_000, now)).toBe('1d');
+    });
+});

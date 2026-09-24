@@ -72,7 +72,9 @@ describe('Agent command handlers', () => {
     it('accepts a reply only while the exact waiting attention generation is still current', async () => {
         const touchSessionActivity = vi.fn(() => true);
         const write = vi.fn(() => true);
-        const writeAgent = vi.fn(() => Promise.resolve(true));
+        const delivery = Promise.withResolvers<boolean>();
+        const writeAgent = vi.fn(() => delivery.promise);
+        const releaseSessionAttentionReply = vi.fn(() => true);
         const session = {
             id: 'session-1',
             primaryAgentTerminalId: 'terminal-1',
@@ -101,7 +103,7 @@ describe('Agent command handlers', () => {
                 getSession: vi.fn(() => session),
                 consumeSessionAttentionReply,
                 touchSessionActivity,
-                releaseSessionAttentionReply: vi.fn(() => true),
+                releaseSessionAttentionReply,
             } as unknown as CaxriDatabase,
             dispatch: {} as AgentDispatchService,
             emit: vi.fn(),
@@ -115,14 +117,15 @@ describe('Agent command handlers', () => {
             } as unknown as TerminalManager,
         });
 
-        await expect(
-            handlers['terminal.sendInternal']({
-                terminalId: 'terminal-1',
-                text: 'Continue',
-                enter: true,
-                attentionEpoch: 3,
-            }),
-        ).resolves.toMatchObject({ accepted: true, terminalId: 'terminal-1' });
+        const cancellation = new AbortController();
+        const accepted = handlers['terminal.sendInternal'](
+            { terminalId: 'terminal-1', text: 'Continue', enter: true, attentionEpoch: 3 },
+            cancellation.signal,
+        );
+        await vi.waitFor(() => expect(writeAgent).toHaveBeenCalledOnce());
+        cancellation.abort();
+        delivery.resolve(true);
+        await expect(accepted).resolves.toMatchObject({ accepted: true, terminalId: 'terminal-1' });
         await expect(
             handlers['terminal.sendInternal']({
                 terminalId: 'terminal-1',
@@ -134,10 +137,53 @@ describe('Agent command handlers', () => {
         expect(consumeSessionAttentionReply).toHaveBeenCalledOnce();
         expect(write).not.toHaveBeenCalled();
         expect(writeAgent).toHaveBeenCalledOnce();
+        expect(releaseSessionAttentionReply).not.toHaveBeenCalled();
         expect(touchSessionActivity).toHaveBeenCalledExactlyOnceWith(
             'session-1',
             'user_submission',
         );
+    });
+
+    it('does not consume attention or write to the PTY after a pending reply is revoked', async () => {
+        const consumeSessionAttentionReply = vi.fn(() => true);
+        const writeAgent = vi.fn(() => Promise.resolve(true));
+        const handlers = createAgentCommandHandlers({
+            coordinator: { observeInput: vi.fn(() => false) } as unknown as AgentCoordinator,
+            database: {
+                getTerminal: vi.fn(() => ({
+                    id: 'terminal-1',
+                    sessionId: 'session-1',
+                    kind: 'codex',
+                })),
+                getSession: vi.fn(() => ({
+                    id: 'session-1',
+                    primaryAgentTerminalId: 'terminal-1',
+                    lastActivityState: 'waiting',
+                    attentionEpoch: 3,
+                })),
+                consumeSessionAttentionReply,
+            } as unknown as CaxriDatabase,
+            dispatch: {} as AgentDispatchService,
+            emit: vi.fn(),
+            mainOwned: () => {
+                throw new Error('Unexpected public handler call');
+            },
+            terminals: {
+                processId: vi.fn(() => 4_242),
+                writeAgent,
+            } as unknown as TerminalManager,
+        });
+        const cancellation = new AbortController();
+        cancellation.abort();
+
+        await expect(
+            handlers['terminal.sendInternal'](
+                { terminalId: 'terminal-1', text: 'Continue', enter: true, attentionEpoch: 3 },
+                cancellation.signal,
+            ),
+        ).rejects.toMatchObject({ code: 'CANCELLED' });
+        expect(consumeSessionAttentionReply).not.toHaveBeenCalled();
+        expect(writeAgent).not.toHaveBeenCalled();
     });
 
     it.each(['false', 'throw'] as const)(

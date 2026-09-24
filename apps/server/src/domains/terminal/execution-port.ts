@@ -142,5 +142,5 @@ export interface TerminalExecutionPort {
         onDelivered?: (wasAccepted: boolean) => void,
         encoding?: 'binary',
     ): boolean;
-    writeAgent(terminalId: string, data: string): Promise<boolean>;
+    writeAgent(terminalId: string, data: string, signal?: AbortSignal): Promise<boolean>;
 }

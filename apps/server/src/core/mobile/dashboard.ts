@@ -34,14 +34,19 @@ const priority = (session: SessionQueryResult['sessions'][number]): number => {
  * so the bounded companion surface preserves the work that needs action instead of inheriting Desktop-scale lists.
  */
 export const buildMobileDashboard = (input: {
+    hostDisplayName: string;
     projects: ProjectQueryResult['projects'];
     sessions: SessionQueryResult['sessions'];
     terminals: TerminalQueryResult['terminals'];
 }): MobileDashboardResult => {
-    const projects = new Map(input.projects.map((project) => [project.id, project]));
+    const visibleProjects = input.projects.slice(0, 128).map((project) => ({
+        id: project.id,
+        displayTitle: title(project.displayTitle),
+    }));
+    const projects = new Map(visibleProjects.map((project) => [project.id, project]));
     const terminals = new Map(input.terminals.map((terminal) => [terminal.id, terminal]));
     const active = input.sessions
-        .filter((session) => session.archivedAt === undefined)
+        .filter((session) => session.archivedAt === undefined && projects.has(session.projectId))
         .toSorted(
             (left, right) =>
                 priority(left) - priority(right) ||
@@ -82,12 +87,20 @@ export const buildMobileDashboard = (input: {
             ...(mobileTerminal && { primaryTerminal: mobileTerminal }),
         };
         const next = [...sessions, candidate];
-        const projected = { sessions: next, total: active.length, truncated: true };
+        const projected = {
+            hostDisplayName: input.hostDisplayName,
+            projects: visibleProjects,
+            sessions: next,
+            total: active.length,
+            truncated: true,
+        };
         if (Buffer.byteLength(JSON.stringify(projected), 'utf8') > MOBILE_DASHBOARD_MAX_BYTES)
             break;
         sessions.push(candidate);
     }
     return {
+        hostDisplayName: input.hostDisplayName,
+        projects: visibleProjects,
         sessions,
         total: active.length,
         truncated: sessions.length < active.length,

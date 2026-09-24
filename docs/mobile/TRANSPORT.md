@@ -1,0 +1,74 @@
+# Mobile transport
+
+The Mobile gateway is a separate, default-off WebSocket endpoint on a private IPv4 address. Pairing
+and reconnect use the versioned encrypted handshake in `@caxri/mobile-transport`. Version 2 adds
+application subscriptions and heartbeat. A mismatched `hello` receives a plaintext
+`version-mismatch` frame before authentication; all application frames after authentication are
+sealed with the session key and monotonically increasing counters.
+
+## Application frames
+
+The shared transport package validates each outer frame. `request.request` and `reply.reply` are
+then validated by the protocol package at their respective endpoints. They keep the existing
+`CommandRequestEnvelope` and `CommandReplyEnvelope`; `reply.reply.id` is the single correlation key
+for commands, subscribe, and unsubscribe.
+
+| Direction       | Frame                                            | Meaning                                                             |
+| --------------- | ------------------------------------------------ | ------------------------------------------------------------------- |
+| Client → Server | `request {request}`                              | Invoke one authorized command.                                      |
+| Client → Server | `subscribe {id,resource}`                        | Create a subscription; reply result is `{subscriptionId}`.          |
+| Client → Server | `unsubscribe {id,subscriptionId}`                | Remove a subscription; reply result is `{}`.                        |
+| Client → Server | `heartbeat {nonce}`                              | Probe the authenticated connection.                                 |
+| Server → Client | `reply {reply}`                                  | Command or subscription acknowledgement, including protocol errors. |
+| Server → Client | `event {subscriptionId,sequence,kind}`           | Content-free invalidation or resync notice.                         |
+| Server → Client | `stream {subscriptionId,sequence,kind,chunkHex}` | Live Terminal bytes only.                                           |
+| Server → Client | `heartbeat-ack {nonce}`                          | Echo the client's probe nonce.                                      |
+| Server → Client | `revoked`                                        | Final encrypted revocation notice, followed by close.               |
+
+Resources are `{kind:'dashboard'}`, `{kind:'conversation',sessionId}`, and
+`{kind:'terminal',terminalId}`. The Server chooses opaque subscription IDs. `sequence` starts at
+zero for each subscription and increases across both `event` and `stream`. Dashboard and
+conversation events use `dashboard.changed` and `conversation.changed`; they carry no Session,
+Project, transcript, or Terminal content. Clients re-query an authoritative snapshot after a hint.
+Terminal output is UTF-8 encoded and split into at most 24 KiB of raw bytes per `chunkHex` frame.
+
+## Authority and lifecycle
+
+Server Core checks the live device generation, exact role, and Project grant for every command and
+subscription. A dashboard subscription requires `mobile.dashboard`; a Terminal subscription
+requires `terminal.preview` and an authorized Terminal; a conversation subscription requires an
+authorized Session. Every push checks the current grant and resource again. A changed or revoked
+grant cannot turn an old connection into broader access. Revocation closes the socket and removes
+all subscriptions; close and gateway disable also clear them.
+
+The gateway serializes decrypt and replay-counter checks, then dispatches up to eight commands or
+subscription operations per socket concurrently. A slow command cannot block heartbeat or another
+reply. Outbound sealing assigns counters on one synchronous path, preserving replay order even when
+command replies finish out of order. Before sending a completed operation, the gateway rechecks
+that the same authenticated device and generation are still active.
+
+The client sends a heartbeat every three seconds while foregrounded and treats a missing answer
+after five seconds as a connection failure. The Server closes a socket after 12 seconds without a
+valid authenticated client frame. The client considers its view stale after five seconds without a
+valid authenticated Server observation, retains the last snapshot, and disables mutations until
+fresh data arrives. On reconnect, a visible view subscribes first and then queries its snapshot;
+an event arriving during that query triggers another refresh. Background or unmounted views
+unsubscribe. A push can reach the socket before its subscribe reply; the client buffers a bounded
+number of such frames by subscription ID and replays them when the reply installs the listener.
+An early `resync-required` takes precedence over an acknowledgement and restarts subscription and
+snapshot recovery.
+
+## Backpressure and privacy
+
+Each socket has a bounded inbound frame queue and at most 32 subscriptions. Outbound queues have
+both per-subscription and per-socket byte limits, so duplicate subscriptions cannot multiply one
+slow socket's backlog without bound. When a queue overflows or Terminal bytes were dropped, the Server
+sends one `resync-required` event with `reason:'capacity'`, removes that subscription, and expects
+the client to subscribe and query again. One slow subscription does not delay another. If the
+socket itself cannot accept a sealed frame, the Server ends that socket for recovery.
+
+Dashboard and conversation hints must remain content-free. Terminal bytes go only to a currently
+authorized Terminal subscription and never enter the durable recovery journal or diagnostic logs.
+The gateway validates resource scope before each push, including after a same-host re-pair changes
+Project grants. Live Terminal observation and size ownership are governed by the separate Terminal
+observer contract; mobile transport does not resize Desktop's Terminal by subscribing.

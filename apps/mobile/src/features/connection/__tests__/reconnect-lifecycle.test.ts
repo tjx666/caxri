@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { reconnectDelay } from '../connection-state';
 import {
+    foregroundRecoveryAction,
     observeMobileConnectionTermination,
     reconnectWaitForAttempt,
     runReconnectAttempt,
@@ -20,6 +21,7 @@ describe('mobile reconnect lifecycle', () => {
         expect(shouldScheduleMobileReconnect(credential, 'stale')).toBe(true);
         expect(shouldScheduleMobileReconnect(credential, 'connected')).toBe(false);
         expect(shouldScheduleMobileReconnect(null, 'stale')).toBe(false);
+        expect(shouldScheduleMobileReconnect(credential, 'stale', false)).toBe(false);
     });
 
     it('closes a connection that resolves after its owner becomes inactive', async () => {
@@ -61,6 +63,19 @@ describe('mobile reconnect lifecycle', () => {
         const credential = { deviceId: 'device-1' } as never;
         expect(shouldScheduleMobileReconnect(credential, 'revoked')).toBe(false);
         expect(shouldScheduleMobileReconnect(credential, 'unverified')).toBe(false);
+        expect(shouldScheduleMobileReconnect(credential, 'version-mismatch')).toBe(false);
+    });
+
+    it('forces a fresh socket immediately after a long background interval', () => {
+        expect(
+            foregroundRecoveryAction({ backgroundedAt: 1_000, now: 11_001, hasConnection: true }),
+        ).toBe('reconnect');
+        expect(
+            foregroundRecoveryAction({ backgroundedAt: 1_000, now: 10_999, hasConnection: true }),
+        ).toBe('probe');
+        expect(
+            foregroundRecoveryAction({ backgroundedAt: 1_000, now: 2_000, hasConnection: false }),
+        ).toBe('reconnect');
     });
 
     it('reports a connection that terminated before its owner subscribed', () => {

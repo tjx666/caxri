@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { MobileTheme } from '../../../theme/tokens';
 import type { MobileSessionItem } from '../session-model';
+import { sessionAgeLabel, sessionAgentLabel } from '../session-row-model';
 
 const styles = StyleSheet.create({
     sessionCopy: { flex: 1, gap: 4, minWidth: 0 },
@@ -17,17 +18,19 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
     },
     sessionTitle: { fontSize: 15, fontWeight: '600' },
-    stateDot: { borderRadius: 4, height: 7, width: 7 },
+    unreadDot: { borderRadius: 4, height: 7, width: 7 },
     stateGroup: { alignItems: 'center', flexDirection: 'row', gap: 6 },
     stateLabel: { fontSize: 12, fontWeight: '600' },
 });
 
 export const SessionRow = ({
+    now,
     onPress,
     selected,
     session,
     theme,
 }: {
+    now: number;
     onPress: (sessionId: string) => void;
     selected: boolean;
     session: MobileSessionItem;
@@ -36,7 +39,7 @@ export const SessionRow = ({
     const handlePress = useCallback(() => onPress(session.id), [onPress, session.id]);
     return (
         <Pressable
-            accessibilityHint="Opens the latest Agent output and available reply action."
+            accessibilityHint="Opens this Session."
             accessibilityRole="button"
             accessibilityState={{ selected }}
             onPress={handlePress}
@@ -51,27 +54,23 @@ export const SessionRow = ({
             testID={`session-row-${session.id}`}
         >
             <View style={styles.sessionCopy}>
-                <Text numberOfLines={1} style={[styles.sessionTitle, { color: theme.text }]}>
-                    {session.displayTitle}
-                </Text>
+                <View style={styles.stateGroup}>
+                    {session.hasUnread ? (
+                        <View
+                            accessibilityLabel="Unread"
+                            style={[styles.unreadDot, { backgroundColor: theme.primary }]}
+                        />
+                    ) : null}
+                    <Text numberOfLines={1} style={[styles.sessionTitle, { color: theme.text }]}>
+                        {session.displayTitle}
+                    </Text>
+                </View>
                 <Text numberOfLines={1} style={[styles.sessionProject, { color: theme.muted }]}>
-                    {session.projectTitle}
+                    {session.projectTitle} · {sessionAgentLabel(session)} ·{' '}
+                    {sessionAgeLabel(session.lastOpenedAt, now)}
                 </Text>
             </View>
             <View accessible accessibilityLabel={session.stateLabel} style={styles.stateGroup}>
-                <View
-                    style={[
-                        styles.stateDot,
-                        {
-                            backgroundColor:
-                                session.lastActivityState === 'failed'
-                                    ? theme.danger
-                                    : session.hasUnread
-                                      ? theme.primary
-                                      : theme.muted,
-                        },
-                    ]}
-                />
                 <Text style={[styles.stateLabel, { color: theme.muted }]}>
                     {session.stateLabel}
                 </Text>

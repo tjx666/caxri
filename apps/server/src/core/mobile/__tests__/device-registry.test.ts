@@ -42,6 +42,7 @@ describe('MobileDeviceRegistry', () => {
             deviceId: `device_${'01'.repeat(16)}`,
             displayName: 'Pixel 8',
             generation: 1,
+            role: 'control',
         });
         expect(paired).not.toHaveProperty('device.credential');
         expect((await stat(options.path)).mode & 0o777).toBe(0o600);
@@ -52,10 +53,65 @@ describe('MobileDeviceRegistry', () => {
 
         const reopened = await MobileDeviceRegistry.open(options);
         expect(reopened.list()).toEqual([paired.device]);
+        expect(reopened.currentPrincipal(paired.device.deviceId, 1)).toMatchObject({
+            role: 'control',
+            projectIds: ['project-1'],
+        });
 
         await reopened.rememberPort(43_341);
         const withEndpoint = await MobileDeviceRegistry.open(options);
         expect(withEndpoint.preferredPort()).toBe(43_341);
+    });
+
+    it('fences pre-role credentials until an explicit new pairing replaces the old store', async () => {
+        const options = await registryFixture();
+        const oldDeviceId = `device_${'aa'.repeat(16)}`;
+        const oldCredential = 'bb'.repeat(32);
+        const legacy = `${JSON.stringify({
+            version: 1,
+            preferredPort: 43_341,
+            devices: [
+                {
+                    deviceId: oldDeviceId,
+                    displayName: 'Old phone',
+                    platform: 'ios',
+                    credential: oldCredential,
+                    generation: 1,
+                    projectIds: ['project-1'],
+                    createdAt: 1,
+                },
+            ],
+        })}\n`;
+        await writeFile(options.path, legacy, { mode: 0o600 });
+        const registry = await MobileDeviceRegistry.open(options);
+        expect(registry.list()).toEqual([]);
+        expect(registry.preferredPort()).toBe(43_341);
+        expect(() =>
+            registry.authenticate({
+                credential: oldCredential,
+                deviceId: oldDeviceId,
+                generation: 1,
+            }),
+        ).toThrow('Paired device authorization is unavailable');
+        await registry.rememberPort(43_342);
+        expect(await readFile(options.path, 'utf8')).toBe(legacy);
+
+        const paired = await registry.pair({
+            displayName: 'New phone',
+            platform: 'ios',
+            projectIds: ['project-1'],
+        });
+        expect(paired.device.role).toBe('control');
+        const reopened = await MobileDeviceRegistry.open(options);
+        expect(reopened.list()).toEqual([paired.device]);
+        expect(reopened.preferredPort()).toBe(43_342);
+        expect(() =>
+            reopened.authenticate({
+                credential: oldCredential,
+                deviceId: oldDeviceId,
+                generation: 1,
+            }),
+        ).toThrow('Paired device authorization is unavailable');
     });
 
     it('authenticates the exact credential and invalidates both live and stored generations on revoke', async () => {

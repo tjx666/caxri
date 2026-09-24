@@ -98,6 +98,7 @@ access, clears logcat, stops the isolated processes, and removes its temporary p
 depend on an ambient Metro server, a stale generated native project, or a previously installed
 bundle. Pairing links are never attached to the test report.
 
-Phase one reconnects only to the Mac addresses captured during pairing. After the Mac changes Wi-Fi
-networks or receives different local addresses, use **Forget** in the mobile app and pair again from
-Desktop Settings. Automatic local discovery is not part of the first release.
+The mobile app reconnects through the eligible IPv4 addresses captured during pairing. A Tailscale
+address remains usable when the Mac changes Wi-Fi networks. Without Tailscale, if the Mac receives
+new LAN addresses, use **Forget** in the mobile app and pair again from Desktop Settings. Automatic
+local discovery is not supported.

@@ -40,6 +40,9 @@ system push and Live Activities, multiple hosts, file browsing, image attachment
 
 ## Connectivity
 
+The implemented encrypted frame, subscription, and heartbeat contract is documented in
+[Mobile transport](TRANSPORT.md).
+
 - Accepted gateway addresses are private IPv4 (RFC1918), loopback, and Tailscale IPv4
   (`100.64.0.0/10`). The Server, pairing link, and client apply the same classifier. Tailscale IPv6
   and MagicDNS hostnames are deferred.
@@ -65,6 +68,9 @@ On a healthy network, returning to the foreground shows a fresh (non-stale) Sess
 2 seconds, and a Wi-Fi ↔ Tailscale handoff recovers within 5 seconds without user action.
 
 ## Authority
+
+The implemented device grants, method matrix, and cancellation behavior are documented in
+[Mobile authorization](AUTHORIZATION.md).
 
 - A device grant carries a role: `view`, `reply`, or `control`. Each role maps to an explicit method
   set on the Server; every method additionally checks Project scope, Session ownership, and the

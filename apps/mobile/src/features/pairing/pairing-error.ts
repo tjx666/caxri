@@ -1,6 +1,11 @@
-import { MobilePairingError } from '../connection/mobile-gateway-client';
+import {
+    MobilePairingError,
+    MobileVersionMismatchError,
+} from '../connection/mobile-gateway-client';
 
 export const pairingErrorMessage = (error: unknown): string => {
+    if (error instanceof MobileVersionMismatchError)
+        return 'Update required. This app and Caxri on your computer use different versions. Update both to the latest build.';
     if (!(error instanceof MobilePairingError))
         return 'Pairing failed. Create a new code in Caxri Settings and try again.';
     switch (error.code) {

@@ -1,4 +1,4 @@
-import { MAX_TERMINAL_INPUT_LENGTH } from '@caxri/protocol';
+import { CaxriError, MAX_TERMINAL_INPUT_LENGTH } from '@caxri/protocol';
 
 import type { RemoteTerminalIdentity, TerminalHostControl } from './execution-contract';
 import { terminalScope } from './execution-scope';
@@ -20,13 +20,16 @@ export async function sendAgentInput(
     identities: ReadonlyMap<string, RemoteTerminalIdentity>,
     terminalId: string,
     data: string,
+    signal?: AbortSignal,
 ): Promise<{ accepted: boolean }> {
+    if (signal?.aborted) throw new CaxriError('CANCELLED', 'Terminal input was canceled');
     const identity = identities.get(terminalId);
     const agentLaunchId = identity?.agent?.processId ? identity.agent.launchId : undefined;
     if (!agentLaunchId || !identity?.processId) return { accepted: false };
     if (data.length > MAX_TERMINAL_INPUT_LENGTH) return { accepted: false };
     if (data.length === 0) return { accepted: true };
     await identity.ready;
+    if (signal?.aborted) throw new CaxriError('CANCELLED', 'Terminal input was canceled');
     const current = identities.get(terminalId);
     if (
         current !== identity ||
@@ -41,6 +44,7 @@ export async function sendAgentInput(
             params: { data, launchId: agentLaunchId },
         },
         terminalScope(identity, 'terminal.agent.input'),
+        signal,
     )) as { accepted: boolean };
     return result;
 }

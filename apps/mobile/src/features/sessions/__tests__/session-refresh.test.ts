@@ -1,27 +1,35 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { loadMobileSessionSections } from '../session-refresh';
+import { fetchMobileSessionDashboard } from '../session-refresh';
 
-describe('loadMobileSessionSections', () => {
-    it('reports a polling failure without manufacturing an empty dashboard', async () => {
+describe('fetchMobileSessionDashboard', () => {
+    it('rejects a failed read so Query retains its last valid dashboard', async () => {
         const unavailable = vi.fn(() => Promise.reject(new Error('offline')));
 
         await expect(
-            loadMobileSessionSections({
+            fetchMobileSessionDashboard({
                 dashboard: unavailable,
             }),
-        ).resolves.toEqual({ status: 'error' });
+        ).rejects.toThrow('offline');
         expect(unavailable).toHaveBeenCalledOnce();
     });
 
-    it('reports a successful empty dashboard explicitly', async () => {
+    it('keeps an authorized Project with no Sessions in the dashboard view', async () => {
         await expect(
-            loadMobileSessionSections({
-                dashboard: () => Promise.resolve({ sessions: [], total: 0, truncated: false }),
+            fetchMobileSessionDashboard({
+                dashboard: () =>
+                    Promise.resolve({
+                        hostDisplayName: 'Test computer',
+                        projects: [{ id: 'project-one', displayTitle: 'Empty Project' }],
+                        sessions: [],
+                        total: 0,
+                        truncated: false,
+                    }),
             }),
         ).resolves.toEqual({
+            hostDisplayName: 'Test computer',
+            projects: [{ id: 'project-one', displayTitle: 'Empty Project' }],
             sections: { needsAttention: [], recent: [], running: [], total: 0, truncated: false },
-            status: 'success',
         });
     });
 });

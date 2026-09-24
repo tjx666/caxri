@@ -26,16 +26,19 @@ export const isDeliveredReplyCurrent = (
     deliveredReply.attentionEpoch === session.attentionEpoch;
 
 export const useShortReply = ({
+    draft,
     isConnected,
+    onDraftChange,
     onRefresh,
     session,
 }: {
+    draft: string;
     isConnected: boolean;
+    onDraftChange: (draft: string) => void;
     onRefresh: () => Promise<void>;
     session: MobileSessionItem;
 }) => {
     const client = useMobileClient();
-    const [draft, setDraft] = useState('');
     const [deliveredReply, setDeliveredReply] = useState<DeliveredReply | null>(null);
     const [sending, setSending] = useState(false);
     const [sendError, setSendError] = useState<string | null>(null);
@@ -46,7 +49,7 @@ export const useShortReply = ({
 
     const updateDraft = (value: string): void => {
         setDeliveredReply(null);
-        setDraft((current) => acceptedShortReplyDraft(current, value));
+        onDraftChange(acceptedShortReplyDraft(draft, value));
     };
 
     const send = async (): Promise<void> => {
@@ -61,7 +64,7 @@ export const useShortReply = ({
                 text: draft.trim(),
                 enter: true,
             });
-            setDraft('');
+            onDraftChange('');
             setDeliveredReply({
                 attentionEpoch: session.attentionEpoch,
                 sessionId: session.id,

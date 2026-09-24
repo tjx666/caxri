@@ -1,5 +1,8 @@
-import { SessionsScreen } from '../src/features/sessions/components/sessions-screen';
+import { Redirect } from 'expo-router';
+
+import { useMobileClient } from '../src/features/connection/mobile-client-provider';
 
 export default function SessionsRoute() {
-    return <SessionsScreen />;
+    const { hostId } = useMobileClient();
+    return <Redirect href={hostId ? `/h/${encodeURIComponent(hostId)}` : '/'} />;
 }

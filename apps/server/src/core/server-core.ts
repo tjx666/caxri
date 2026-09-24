@@ -79,6 +79,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
     });
     const mobileAccess = await openMobileAccessController({
         directory: lease.paths.directory,
+        ...(options.mobileHostDisplayName && { hostDisplayName: options.mobileHostDisplayName }),
         registryPath: lease.paths.mobileDevices,
         onOpenError: async () => {
             eventLoopMonitor.stop();
@@ -188,6 +189,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             const envelope = persistedEnvelope ?? recoveryJournal.publish(event);
             if (envelope) server?.broadcast(envelope);
         }
+        mobileAccess.publish(event);
     };
     domainService.onEvent(deliver);
     const stop = (reason = 'requested'): Promise<void> => {
@@ -373,11 +375,11 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                     });
                 }
                 case 'terminal.send': {
-                    const invoke = () =>
-                        forwardDomainOperation({
-                            method: 'terminal.sendInternal',
-                            params: request.params,
-                        });
+                    const invoke = (signal?: AbortSignal) =>
+                        forwardDomainOperation(
+                            { method: 'terminal.sendInternal', params: request.params },
+                            signal,
+                        );
                     return invokeTerminalSend({
                         invoke,
                         invokePairedDevice: () =>
@@ -636,7 +638,12 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         await domainService.start();
         const protocolRecovery = await domainService.recoveryState();
         const protocolIdentity = protocolRecovery.identity();
-        mobileAccess.attach(serverAdapter, lease.identity.processIdentity, protocolIdentity);
+        mobileAccess.attach(
+            serverAdapter,
+            lease.identity.processIdentity,
+            protocolIdentity,
+            domainService,
+        );
         logger.updateBaseContext({ serverId: protocolIdentity.serverId });
         recoveryJournal.initialize(protocolIdentity, protocolRecovery);
         logger.write('info', logEventCatalog.serverCore.recoveryReady, {
