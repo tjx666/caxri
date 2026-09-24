@@ -33,7 +33,6 @@ interface MobileTerminalObserverOptions {
 /**
  * One Host observer and one optional size lease belong to an exact socket subscription.
  */
-/* eslint-disable no-await-in-loop -- Each chunk waits for its WebSocket completion callback. */
 /* eslint-disable unicorn/consistent-class-member-order -- Public lifecycle methods precede send internals. */
 export class MobileTerminalObserver {
     readonly #options: MobileTerminalObserverOptions;
@@ -253,77 +252,102 @@ export class MobileTerminalObserver {
                     1,
                     Math.ceil(this.#snapshot.length / MOBILE_STREAM_CHUNK_MAX_BYTES),
                 );
-                for (let index = 0; index < chunks && this.#active; index += 1) {
-                    // oxlint-disable-next-line typescript/no-unnecessary-condition -- Host output may fail this observer during the preceding send callback.
-                    if (this.#failureReason) return await this.#resync(this.#failureReason);
-                    await this.#options.authorize();
-                    await this.#options.send({
-                        type: 'stream',
-                        kind: 'terminal.snapshot',
-                        subscriptionId: this.#options.subscriptionId,
-                        sequence: this.#nextSequence++,
-                        generation,
-                        nextHostSequence: this.#hostSequence,
-                        chunkIndex: index,
-                        chunkCount: chunks,
-                        chunkHex: this.#snapshot
-                            .subarray(
-                                index * MOBILE_STREAM_CHUNK_MAX_BYTES,
-                                (index + 1) * MOBILE_STREAM_CHUNK_MAX_BYTES,
-                            )
-                            .toString('hex'),
-                    });
-                }
+                if (!(await this.#sendSnapshotChunk(generation, 0, chunks))) return;
                 this.#snapshotSent = true;
                 this.#snapshot = Buffer.alloc(0);
             }
-            while (this.#active && this.#pending.length > 0) {
-                // oxlint-disable-next-line typescript/no-unnecessary-condition -- Host may signal a gap while a previous chunk awaits delivery.
-                if (this.#failureReason) return await this.#resync(this.#failureReason);
-                const item = this.#pending.shift()!;
-                try {
-                    const event = item.event;
-                    if (event.sequence < this.#hostSequence) continue;
-                    if (event.generation !== generation)
-                        return await this.#resync('generation-changed');
-                    if (event.type === 'gap' || event.sequence !== this.#hostSequence)
-                        return await this.#resync('source-gap');
-                    this.#hostSequence += 1;
-                    const bytes = Buffer.from(event.data, 'utf8');
-                    const count = Math.max(
-                        1,
-                        Math.ceil(bytes.length / MOBILE_STREAM_CHUNK_MAX_BYTES),
-                    );
-                    // oxlint-disable-next-line typescript/no-unnecessary-condition -- unsubscribe can close this observer between chunk send callbacks.
-                    for (let index = 0; index < count && this.#active; index += 1) {
-                        await this.#options.authorize();
-                        await this.#options.send({
-                            type: 'stream',
-                            kind: 'terminal.output',
-                            subscriptionId: this.#options.subscriptionId,
-                            sequence: this.#nextSequence++,
-                            generation,
-                            hostSequence: event.sequence,
-                            chunkIndex: index,
-                            chunkCount: count,
-                            chunkHex: bytes
-                                .subarray(
-                                    index * MOBILE_STREAM_CHUNK_MAX_BYTES,
-                                    (index + 1) * MOBILE_STREAM_CHUNK_MAX_BYTES,
-                                )
-                                .toString('hex'),
-                        });
-                    }
-                } finally {
-                    this.#options.release(item.bytes);
-                    this.#pendingBytes -= item.bytes;
-                }
-            }
+            await this.#sendNextOutput(generation);
         } catch {
             this.#options.remove();
             this.#options.terminate();
             await this.close();
         }
+    }
+
+    async #sendSnapshotChunk(generation: number, index: number, count: number): Promise<boolean> {
+        if (!this.#active) return false;
+        if (this.#failureReason) {
+            await this.#resync(this.#failureReason);
+            return false;
+        }
+        await this.#options.authorize();
+        await this.#options.send({
+            type: 'stream',
+            kind: 'terminal.snapshot',
+            subscriptionId: this.#options.subscriptionId,
+            sequence: this.#nextSequence++,
+            generation,
+            nextHostSequence: this.#hostSequence,
+            chunkIndex: index,
+            chunkCount: count,
+            chunkHex: this.#snapshot
+                .subarray(
+                    index * MOBILE_STREAM_CHUNK_MAX_BYTES,
+                    (index + 1) * MOBILE_STREAM_CHUNK_MAX_BYTES,
+                )
+                .toString('hex'),
+        });
+        return index + 1 === count || this.#sendSnapshotChunk(generation, index + 1, count);
+    }
+
+    async #sendNextOutput(generation: number): Promise<void> {
+        if (!this.#active) return;
+        if (this.#failureReason) return this.#resync(this.#failureReason);
+        const item = this.#pending.shift();
+        if (!item) return;
+        try {
+            const event = item.event;
+            if (event.sequence >= this.#hostSequence) {
+                if (event.generation !== generation)
+                    return await this.#resync('generation-changed');
+                if (event.type === 'gap' || event.sequence !== this.#hostSequence)
+                    return await this.#resync('source-gap');
+                this.#hostSequence += 1;
+                const bytes = Buffer.from(event.data, 'utf8');
+                const count = Math.max(1, Math.ceil(bytes.length / MOBILE_STREAM_CHUNK_MAX_BYTES));
+                if (!(await this.#sendOutputChunk(generation, event.sequence, bytes, 0, count)))
+                    return;
+            }
+        } finally {
+            this.#options.release(item.bytes);
+            this.#pendingBytes -= item.bytes;
+        }
+        return this.#sendNextOutput(generation);
+    }
+
+    async #sendOutputChunk(
+        generation: number,
+        hostSequence: number,
+        bytes: Buffer,
+        index: number,
+        count: number,
+    ): Promise<boolean> {
+        if (!this.#active) return false;
+        if (this.#failureReason) {
+            await this.#resync(this.#failureReason);
+            return false;
+        }
+        await this.#options.authorize();
+        await this.#options.send({
+            type: 'stream',
+            kind: 'terminal.output',
+            subscriptionId: this.#options.subscriptionId,
+            sequence: this.#nextSequence++,
+            generation,
+            hostSequence,
+            chunkIndex: index,
+            chunkCount: count,
+            chunkHex: bytes
+                .subarray(
+                    index * MOBILE_STREAM_CHUNK_MAX_BYTES,
+                    (index + 1) * MOBILE_STREAM_CHUNK_MAX_BYTES,
+                )
+                .toString('hex'),
+        });
+        return (
+            index + 1 === count ||
+            this.#sendOutputChunk(generation, hostSequence, bytes, index + 1, count)
+        );
     }
 
     async #resync(reason: 'capacity' | 'generation-changed' | 'source-gap'): Promise<void> {
@@ -343,5 +367,4 @@ export class MobileTerminalObserver {
         }
     }
 }
-/* eslint-enable no-await-in-loop */
 /* eslint-enable unicorn/consistent-class-member-order */
