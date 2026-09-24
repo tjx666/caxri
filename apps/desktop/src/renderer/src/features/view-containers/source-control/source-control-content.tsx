@@ -97,7 +97,7 @@ function SourceControlMessage({
                     disabled={controller.isRefreshing}
                     onClick={controller.refresh}
                 >
-                    Refresh
+                    {controller.status === 'unavailable' ? 'Retry' : 'Refresh'}
                 </Button>
             )}
         </Empty>

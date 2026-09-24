@@ -26,6 +26,8 @@ export function describeGitFailure(
         return 'Git output exceeded the safety limit.';
     }
     const stderr = failure.stderr?.toLowerCase() ?? '';
+    if (stderr.includes('you have not agreed to the xcode license agreements'))
+        return 'Git is blocked by the Xcode license agreement. Run sudo xcodebuild -license in Terminal, then retry.';
     if (missingRepoRoot && stderr.includes('not a git repository'))
         return ProjectStatusSummaryErrorMessage.missingGitRepository;
     // Sync (pull/push) failures the user can act on directly; anything else falls through to the

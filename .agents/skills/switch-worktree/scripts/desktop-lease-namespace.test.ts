@@ -54,6 +54,33 @@ afterEach(async () => {
 });
 
 describe('desktop lease worker namespaces', () => {
+    it('waits through atomic attempts and times out without taking an active desktop', async () => {
+        const root = await createRepo();
+        const first = await acquireDesktopLease(root, 'first owner');
+        activeLeases.push(first);
+        await expect(
+            acquireDesktopLease(root, 'short waiter', process.pid, { waitMs: 50 }),
+        ).rejects.toThrow(/first owner.*PID \d+, held for \d+s.*Waited 0\.05s/u);
+
+        const firstAttempt = Promise.withResolvers<void>();
+        const waiting = acquireDesktopLease(root, 'patient waiter', process.pid, {
+            waitMs: 1_000,
+            afterLockAcquired: () => {
+                firstAttempt.resolve();
+                return Promise.resolve();
+            },
+        });
+        await firstAttempt.promise;
+        await new Promise<void>((resolve) => setTimeout(resolve, 50));
+        await releaseDesktopLease(first);
+        activeLeases.splice(activeLeases.indexOf(first), 1);
+
+        const acquired = await waiting;
+        activeLeases.push(acquired);
+        expect(acquired.worktreePath).toBe(first.worktreePath);
+        expect((await readFile(acquired.leasePath, 'utf8')).length).toBeGreaterThan(0);
+    });
+
     it('persists a CI owner and reclaims only its verified-dead leases', async () => {
         const root = await createRepo();
         const previousOwner = process.env.CAXRI_DESKTOP_LEASE_OWNER;

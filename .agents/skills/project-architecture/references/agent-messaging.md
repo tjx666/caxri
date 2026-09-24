@@ -39,9 +39,12 @@ long-lived Shell root. A client disconnect explicitly cancels its dispatch long 
 Managed launch failure, interruption causes, and content-free transition logs are documented in
 [Agent dispatch receipts](../../../../docs/agent-dispatch-receipts.md).
 
-`terminal.send` requires a Desktop or human CLI owner with `terminals.steer`. Its text is bounded by
-UTF-8 bytes, rejects C0/C1 controls except Tab, and adds Enter only through the explicit flag. It
-shares the existing content-free PTY input metrics and logs only target, byte count, and Enter state;
+`terminal.send` requires a Desktop or human CLI owner with `terminals.steer`, or a paired device using
+the narrower `mobileAccess.invokeShortReply` path. The paired-device path rechecks its current pairing,
+Project scope, selected waiting Agent, and attention epoch and accepts only a bounded plain-text reply.
+Owner CLI text is bounded by UTF-8 bytes, rejects C0/C1 controls except Tab, and adds Enter only through
+the explicit flag. Terminal steer shares content-free PTY input metrics and logs only target, byte count,
+Enter state, and principal kind;
 it never claims peer origin. Explicit message `--wake` requires both dispatch and control authority,
 resumes only a bounded tombstone for the exact stopped generation, confirms the replacement Endpoint,
 then admits the message under the same request identity. See `docs/agent-command-authority.md`.

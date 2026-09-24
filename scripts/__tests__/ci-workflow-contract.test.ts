@@ -13,6 +13,10 @@ import { PLATFORM_NEUTRAL_CI_COMMANDS, PLATFORM_NEUTRAL_CI_GATES } from '../ci-p
 import { execFileAsync } from '../exec';
 
 const workflow = await readFile(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
+const releaseWorkflow = await readFile(
+    new URL('../../.github/workflows/release.yml', import.meta.url),
+    'utf8',
+);
 const setupAction = await readFile(
     new URL('../../.github/actions/setup-caxri-job/action.yml', import.meta.url),
     'utf8',
@@ -41,6 +45,44 @@ const setupActionDocument = parse(setupAction) as {
 };
 
 describe('CI workflow contract', () => {
+    it('uploads only bounded receipts for E2E failures in CI and release', () => {
+        const document = parse(workflow) as {
+            jobs: {
+                e2e: {
+                    steps: Array<{ name?: string; uses?: string; with?: Record<string, unknown> }>;
+                };
+            };
+        };
+        const releaseDocument = parse(releaseWorkflow) as {
+            jobs: {
+                release: {
+                    steps: Array<{ name?: string; uses?: string; with?: Record<string, unknown> }>;
+                };
+            };
+        };
+        const uploads = [...document.jobs.e2e.steps, ...releaseDocument.jobs.release.steps].filter(
+            (step) => step.name?.includes('failure artifacts'),
+        );
+        expect(uploads).toHaveLength(5);
+        for (const upload of uploads) {
+            expect(upload.uses).toMatch(/^actions\/upload-artifact@/u);
+            expect(upload.with?.['retention-days']).toBe(7);
+            const paths = String(upload.with?.path)
+                .split('\n')
+                .map((path) => path.trim())
+                .filter(Boolean);
+            expect(
+                paths.every((path) => /^test-results\/receipts\/[\w*./-]+\.json$/u.test(path)),
+            ).toBe(true);
+        }
+        expect(releaseWorkflow).toContain(
+            'CAXRI_E2E_RECEIPT_PATH: test-results/receipts/release-packaged.json',
+        );
+        expect(releaseWorkflow).toContain(
+            '--reporter=line,./scripts/reporters/e2e-receipt-reporter.ts',
+        );
+    });
+
     it('releases cancelled runs without suppressing the gate after validation failures', () => {
         const document = parse(workflow) as { jobs: Record<string, { if: string }> };
         const needs = {

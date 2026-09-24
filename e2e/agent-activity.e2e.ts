@@ -280,13 +280,13 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
         });
         /*
          * The same context menu as a Project tree row, adapted to the queue: an unread row offers Mark as Read, and
-         * Rename is absent because this list has no inline editor for it to open.
+         * Rename opens the Activity row's inline editor.
          */
         await betaRow.click({ button: 'right' });
         const rowMenu = page.getByRole('menu', { name: 'beta work actions' });
         await expect(rowMenu.getByRole('menuitem', { name: /Mark as Read/ })).toBeVisible();
         await expect(rowMenu.getByRole('menuitem', { name: /Archive/ })).toBeVisible();
-        await expect(rowMenu.getByRole('menuitem', { name: /Rename/ })).toHaveCount(0);
+        await expect(rowMenu.getByRole('menuitem', { name: /Rename/ })).toBeVisible();
         await page.screenshot({
             path: test.info().outputPath('activity-row-menu.png'),
             mask: [page.locator('.xterm')],

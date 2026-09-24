@@ -25,7 +25,9 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [-
   to supported files. Always inspect the resulting diff. Appending file paths to `bun run format`
   does not narrow formatting; use `bun run --silent check <files...> --lint` for a focused pass.
 - `--test` runs changed test files, the existing bounded colocated/domain candidates, and Vitest
-  suites that directly import or re-export a changed source through a static relative specifier.
+  suites that statically import a changed source through a relative path, tsconfig alias, or
+  workspace package export. Discovery crosses at most two pure re-export barrels, including
+  package entrypoints, but does not follow ordinary imports.
   Keep the checker's source roots aligned with Vitest's include patterns, including `extensions/`.
   It deliberately ignores dynamic and transitive imports so composition-root suites do not turn a
   focused check into a broad test run. Renderer source changes also run the design and theme
@@ -35,8 +37,12 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [-
 - `--knip` runs the repository-wide dead-code and unused-export gate for Renderer or shared-contract
   changes.
 - `--e2e` requires one or more explicit `e2e/*.e2e.ts` files, rebuilds Caxri, and runs only those
-  Playwright specs. It never infers E2E specs from Git changes or launches the full suite. The
-  real-Agent and intentional failure-isolation specs retain their dedicated guarded entrypoints.
+  Playwright specs. It acquires the repository desktop lease before the build and keeps it through
+  every spec; a live owner fails fast with its worktree, PID, and lease age. Add `--e2e-wait <seconds>`
+  for a bounded atomic retry (1–300 seconds), otherwise contention fails immediately. It never
+  infers E2E specs from Git changes or launches the full suite. The
+  check summary lists related consumer specs for explicit selection. The real-Agent and intentional
+  failure-isolation specs retain their dedicated guarded entrypoints.
 - `--e2e-grep '<pattern>'` narrows `--e2e` to one Playwright test-title pattern.
 - Rebuild before focused Electron E2E whenever relevant `src/` files changed after the previous
   build; the checker's `--e2e` path performs that rebuild automatically.

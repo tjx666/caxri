@@ -2,6 +2,7 @@ import { MAX_TERMINAL_INPUT_LENGTH, MAX_TERMINAL_INPUT_PAYLOAD_LENGTH } from '@c
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { TerminalHostRequest } from '../../../terminal-host/protocol';
+import type { RemoteTerminalExecution } from '../execution';
 import {
     cleanupExecutionFixtures,
     createExecution,
@@ -12,11 +13,95 @@ import {
 
 afterEach(cleanupExecutionFixtures);
 
+function generationCount(execution: RemoteTerminalExecution): number {
+    return (execution as unknown as { generations: Map<string, number> }).generations.size;
+}
+
 /**
  * Input delivery, PTY generations, and shutdown. The view-attachment half of the same class lives in
  * `./execution-attachment.test.ts`; the two were one file until it outgrew the 800-line cap.
  */
 describe('architecture-a3b-terminal-host: RemoteTerminalExecution', () => {
+    it('releases generations after 200 permanently closed Terminals and shutdown', async () => {
+        const { execution } = createExecution();
+        for (let index = 0; index < 200; index += 1) {
+            const record = { ...terminal, id: `terminal-${index}` };
+            // eslint-disable-next-line no-await-in-loop -- each Terminal is fully started before permanent closure
+            await execution.reserve(record);
+            // eslint-disable-next-line no-await-in-loop -- each Terminal is fully started before permanent closure
+            await execution.start({
+                args: [],
+                environment: {},
+                executable: '/bin/zsh',
+                initialSnapshot: null,
+                record,
+            });
+            execution.close(record.id);
+        }
+        expect(generationCount(execution)).toBe(0);
+
+        await execution.reserve(terminal);
+        await execution.start({
+            args: [],
+            environment: {},
+            executable: '/bin/zsh',
+            initialSnapshot: null,
+            record: terminal,
+        });
+        expect(generationCount(execution)).toBe(1);
+        await execution.shutdown();
+        expect(generationCount(execution)).toBe(0);
+    });
+
+    it('keeps the next generation after a failed launch discards a reusable Terminal', async () => {
+        const { control, execution } = createExecution();
+        await execution.reserve(terminal);
+        await execution.start({
+            args: [],
+            environment: {},
+            executable: '/bin/zsh',
+            initialSnapshot: null,
+            record: terminal,
+        });
+        execution.discard(terminal.id);
+        expect(generationCount(execution)).toBe(1);
+        await execution.reserve(terminal);
+        const reserve = control.requests.findLast(
+            ({ request }) => request.method === 'terminal.reserve',
+        )!;
+        expect(reserve.scope).toMatchObject({ ptyGeneration: 2 });
+    });
+
+    it('does not restore a closed generation when an in-flight Host start completes', async () => {
+        const { control, execution } = createExecution();
+        const originalRequest = control.request.bind(control);
+        const pendingStart = Promise.withResolvers<unknown>();
+        const request = vi
+            .spyOn(control, 'request')
+            .mockImplementation((message, scope, signal) =>
+                message.method === 'terminal.start'
+                    ? pendingStart.promise
+                    : originalRequest(message, scope, signal),
+            );
+        await execution.reserve(terminal);
+        const starting = execution.start({
+            args: [],
+            environment: {},
+            executable: '/bin/zsh',
+            initialSnapshot: null,
+            record: terminal,
+        });
+        await vi.waitFor(() =>
+            expect(
+                request.mock.calls.some(([message]) => message.method === 'terminal.start'),
+            ).toBe(true),
+        );
+        execution.close(terminal.id);
+        pendingStart.resolve({ processId: 4243 });
+        await starting;
+        expect(generationCount(execution)).toBe(0);
+    });
+
     it('accepts exact Agent input for a live background Terminal without a Renderer attachment', async () => {
         const { control, execution } = createExecution();
         await execution.reserve(terminal);

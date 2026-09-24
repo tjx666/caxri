@@ -67,12 +67,18 @@ export interface TerminalExecutionPort {
         terminalId: string,
         size?: { cols: number; rows: number },
     ): Promise<{ snapshot: TerminalSnapshot | null; wasAttached: boolean }>;
+    /**
+     * Permanently removes the durable Terminal; its ID will not be reused and its Core generation can be forgotten.
+     */
     close(terminalId: string): void;
     configureOutputRecovery(
         terminalId: string,
         provider: TerminalRecord['provider'],
         settings?: AgentOutputRecoverySettings,
     ): void;
+    /**
+     * Retires a failed launch while preserving its durable record and the generation required by a later restart.
+     */
     discard(terminalId: string): void;
     detachAllViews(): void;
     detachView(terminalId: string): void;

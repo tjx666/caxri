@@ -45,6 +45,23 @@ export interface DesktopLeaseOptions {
      * Explicit sub-lease used only while a repository-wide coordinator owns the desktop.
      */
     namespace?: string;
+    /**
+     * Bounded active-owner wait; every retry reacquires the repository lock before attempting an atomic claim.
+     */
+    waitMs?: number;
+}
+
+class DesktopLeaseBusyError extends CommandError {
+    constructor(current: DesktopLease) {
+        const elapsedSeconds = (Date.now() - Date.parse(current.acquiredAt)) / 1000;
+        const leaseAge = Number.isFinite(elapsedSeconds)
+            ? `${Math.max(0, Math.floor(elapsedSeconds))}s`
+            : 'an unknown duration';
+        super(
+            `Desktop is in use by ${current.label} in ${current.worktreePath} ` +
+                `(PID ${current.pid}, held for ${leaseAge}). Stop that desktop task or retry after it finishes.`,
+        );
+    }
 }
 
 export interface DesktopLeaseReleaseOptions {
@@ -203,62 +220,80 @@ export async function acquireDesktopLease(
         worktreePath: context.root,
     };
 
-    return withRepoLock(
-        context,
-        async () => {
-            await options.afterLockAcquired?.();
-            if (options.namespace) {
-                const coordinator = await readLease(leasePath(context.stateDir));
-                if (
-                    !coordinator ||
-                    coordinator.token !== options.coordinatorToken ||
-                    !(await isProcessIdentityAlive(coordinator.pid, coordinator.identity))
-                ) {
-                    throw new CommandError(
-                        'Namespaced desktop leases require the active repository-wide coordinator',
-                    );
+    const acquireOnce = (): Promise<DesktopLeaseHandle> =>
+        withRepoLock(
+            context,
+            async () => {
+                await options.afterLockAcquired?.();
+                if (options.namespace) {
+                    const coordinator = await readLease(leasePath(context.stateDir));
+                    if (
+                        !coordinator ||
+                        coordinator.token !== options.coordinatorToken ||
+                        !(await isProcessIdentityAlive(coordinator.pid, coordinator.identity))
+                    ) {
+                        throw new CommandError(
+                            'Namespaced desktop leases require the active repository-wide coordinator',
+                        );
+                    }
                 }
-            }
-            if (!options.namespace && !(await readLease(path))) {
-                /**
-                 * A crashed coordinator may leave only worker leases. Reclaim verified-dead workers, but never let a
-                 * new desktop owner overlap a surviving Electron child.
-                 */
-                await cleanWorkerLeases(context.stateDir);
-            }
-            // Each retry attempt depends on the outcome of the previous one (open, then inspect and
-            // possibly clear a stale lease before retrying), so the awaits below cannot run in parallel.
-            /* eslint-disable no-await-in-loop -- sequential retry: each attempt depends on the prior one */
-            for (let attempt = 0; attempt < 2; attempt += 1) {
-                /**
-                 * The lease must appear atomically: `inspectDesktopLease` deliberately polls without the repository
-                 * lock, so an `open('wx')` followed by a separate write would expose a partially written file and fail
-                 * parsing mid-acquisition.
-                 */
-                if (await didWriteJsonExclusive(path, lease)) return { ...lease, leasePath: path };
-                const current = await readLease(path);
-                if (!current) continue;
-                if (await isProcessIdentityAlive(current.pid, current.identity)) {
-                    throw new CommandError(
-                        `Desktop is in use by ${current.label} in ${current.worktreePath} (PID ${current.pid})`,
-                    );
+                if (!options.namespace && !(await readLease(path))) {
+                    /**
+                     * A crashed coordinator may leave only worker leases. Reclaim verified-dead workers, but never let
+                     * a new desktop owner overlap a surviving Electron child.
+                     */
+                    await cleanWorkerLeases(context.stateDir);
                 }
-                if (current.handoffPending)
-                    throw new CommandError(
-                        `Desktop handoff from ${current.label} did not complete; inspect ${path} before continuing`,
-                    );
-                if (!options.namespace) await cleanWorkerLeases(context.stateDir);
-                /**
-                 * The resource-scoped repository lock keeps another contender from replacing this stale path between
-                 * the identity check and unlink.
-                 */
-                await unlinkIfExists(path);
-            }
-            /* eslint-enable no-await-in-loop */
-            throw new CommandError('Could not acquire the repository desktop lease');
-        },
-        { namespace: options.namespace },
-    );
+                // Each retry attempt depends on the outcome of the previous one (open, then inspect and
+                // possibly clear a stale lease before retrying), so the awaits below cannot run in parallel.
+                /* eslint-disable no-await-in-loop -- sequential retry: each attempt depends on the prior one */
+                for (let attempt = 0; attempt < 2; attempt += 1) {
+                    /**
+                     * The lease must appear atomically: `inspectDesktopLease` deliberately polls without the repository
+                     * lock, so an `open('wx')` followed by a separate write would expose a partially written file and
+                     * fail parsing mid-acquisition.
+                     */
+                    const pendingLease = { ...lease, acquiredAt: new Date().toISOString() };
+                    if (await didWriteJsonExclusive(path, pendingLease))
+                        return { ...pendingLease, leasePath: path };
+                    const current = await readLease(path);
+                    if (!current) continue;
+                    if (await isProcessIdentityAlive(current.pid, current.identity)) {
+                        throw new DesktopLeaseBusyError(current);
+                    }
+                    if (current.handoffPending)
+                        throw new CommandError(
+                            `Desktop handoff from ${current.label} did not complete; inspect ${path} before continuing`,
+                        );
+                    if (!options.namespace) await cleanWorkerLeases(context.stateDir);
+                    /**
+                     * The resource-scoped repository lock keeps another contender from replacing this stale path
+                     * between the identity check and unlink.
+                     */
+                    await unlinkIfExists(path);
+                }
+                /* eslint-enable no-await-in-loop */
+                throw new CommandError('Could not acquire the repository desktop lease');
+            },
+            { namespace: options.namespace },
+        );
+    const waitMs = options.waitMs ?? 0;
+    if (!Number.isFinite(waitMs) || waitMs < 0)
+        throw new CommandError('Desktop lease wait must be a nonnegative finite duration');
+    const deadline = Date.now() + waitMs;
+    /* eslint-disable no-await-in-loop -- each retry must acquire the repository lock and attempt atomic creation. */
+    for (;;) {
+        try {
+            return await acquireOnce();
+        } catch (error) {
+            if (waitMs === 0 || !(error instanceof DesktopLeaseBusyError)) throw error;
+            const remaining = deadline - Date.now();
+            if (remaining <= 0)
+                throw new CommandError(`${error.message} Waited ${waitMs / 1000}s.`);
+            await new Promise<void>((resolve) => setTimeout(resolve, Math.min(250, remaining)));
+        }
+    }
+    /* eslint-enable no-await-in-loop */
 }
 
 /**

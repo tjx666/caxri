@@ -191,6 +191,56 @@ describe('WorkbenchRootService reported Agent working directory', () => {
         context.database.close();
     });
 
+    it('continues following when validation re-anchors the same root device', async () => {
+        const context = await fixture();
+        context.setBehavior('continueAutomatically');
+        const nextWorktreeRoot = join(context.directory, 'next-worktree');
+        await mkdir(nextWorktreeRoot);
+        context.setWorktrees([
+            { branch: 'main', rootPath: context.ownerRoot },
+            { branch: 'feature/current', rootPath: context.worktreeRoot },
+            { branch: 'feature/entered', rootPath: nextWorktreeRoot },
+        ]);
+        const sessionId = context.sessions[0].session.id;
+        const selected = await context.service.authorizeSelection(sessionId, context.worktreeRoot);
+        const binding = context.database.getSessionWorkbenchBinding(sessionId)!;
+        context.database.selectWorkbenchProject(sessionId, selected.workbenchProjectId, {
+            device: 'device-from-a-previous-boot',
+            inode: binding.rootInode!,
+        });
+        const internals = context.service as unknown as {
+            rootIdentity(rootPath: string): Promise<{ device: string; inode: string }>;
+        };
+        const originalRootIdentity = internals.rootIdentity.bind(context.service);
+        const pendingIdentity = Promise.withResolvers<{ device: string; inode: string }>();
+        const identity = vi
+            .spyOn(internals, 'rootIdentity')
+            .mockImplementation((rootPath) =>
+                rootPath === nextWorktreeRoot
+                    ? pendingIdentity.promise
+                    : originalRootIdentity(rootPath),
+            );
+
+        context.service.observeAgentCwd(agentCwdSignal(context, nextWorktreeRoot));
+        await vi.waitFor(() => expect(identity).toHaveBeenCalledWith(nextWorktreeRoot));
+        await expect(context.service.validateSession(sessionId)).resolves.toBe(false);
+        expect(context.database.getSessionWorkbenchBinding(sessionId)?.rootDevice).toBe(
+            binding.rootDevice,
+        );
+        pendingIdentity.resolve(await originalRootIdentity(nextWorktreeRoot));
+
+        await vi.waitFor(() =>
+            expect(context.database.getSession(sessionId)?.rootPath).toBe(nextWorktreeRoot),
+        );
+        expect(
+            context.events.findLast((event) => event.event === 'workbench.changed'),
+        ).toMatchObject({
+            payload: { reason: 'followed', sessionId },
+        });
+        await context.service.close();
+        context.database.close();
+    });
+
     it.each(['agentCwd', 'worktreeAdd'] as const)(
         'preserves a manual root selection during the first %s topology read',
         async (source) => {

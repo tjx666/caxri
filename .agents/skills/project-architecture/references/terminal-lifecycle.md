@@ -93,3 +93,9 @@ explicit `session.resume` request (or the Terminal's own Resume action) opts it 
 provider's resume arguments.
 
 Exited Terminals retain their final output and reserve a compact recovery row beneath the xterm viewport, never over it. A zero exit without a signal is neutral; startup failures and signal or non-zero exits use a danger state. Surface actions, the command palette, and `Command+Shift+R` restart the same durable Terminal record, so recovery cannot create a duplicate tab or PTY identity. Restarting a bound Agent Terminal resumes its correlated provider session by default; only the separate `Start New Agent Session` action clears that binding and starts fresh, while Shell restarts always remain fresh.
+
+Server Core retains each reusable Terminal's PTY generation across natural exit, failed launch
+(`discard`), restart barriers, and Terminal Host exit. Host authorization expects the next generation
+for that same ID, so none of those paths may reset it. Only permanent Terminal closure, which deletes
+the durable record and never reuses its ID, releases the Core generation entry; Core shutdown clears
+all entries. A late Host start response must not recreate an entry after permanent closure.

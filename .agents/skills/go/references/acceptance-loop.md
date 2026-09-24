@@ -129,7 +129,9 @@ On rejection:
    and preserve its complete lineage.
 4. Transition `waiting_acceptance → acceptance → issue_execution` (or
    `deep_review` for a cross-issue repair) before changing the PR head.
-5. Repair, validate, review, commit, and push.
+5. Acquire the Go repair mutation lease before source edits and release it after
+   the edit batch, before formal ledger validation (see [state.md](state.md)).
+   Repair, validate, review, commit, and push.
 6. Rerun rejected and regression-affected checks in a new immutable round.
 
 On acceptance, merge only the exact accepted PR head. A conflict resolution or

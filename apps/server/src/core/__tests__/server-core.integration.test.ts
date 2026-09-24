@@ -541,6 +541,12 @@ describe('Server Core application', () => {
                 'utf8',
             );
             expect(contents).toContain('terminal.human_steer');
+            const steerRecord = contents
+                .split('\n')
+                .find((line) => line.includes('terminal.human_steer'));
+            expect(JSON.parse(steerRecord!)).toMatchObject({
+                fields: { principalKind: 'human-cli' },
+            });
         });
         expect(
             await readFile(join(userDataPath, 'logs', 'server-core.jsonl'), 'utf8'),
