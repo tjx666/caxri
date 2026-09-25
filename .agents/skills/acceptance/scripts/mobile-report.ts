@@ -120,7 +120,7 @@ const mobileResultEvidencePath = (caseId: string): string =>
  * `blocked` mobile case proves it never got there — the same rule the launch, preflight, and Agent fixture receipts
  * follow in `report.ts`. Once it exists the case did reach the device and owes the full check.
  */
-export async function hasMobileDeviceReceipt(directory: string, caseId: string): Promise<boolean> {
+async function hasMobileDeviceReceipt(directory: string, caseId: string): Promise<boolean> {
     try {
         await readFile(join(directory, mobileDeviceEvidencePath(caseId)), 'utf8');
         return true;
