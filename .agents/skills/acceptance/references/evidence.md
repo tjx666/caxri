@@ -63,6 +63,10 @@ report artifact; serialize the smallest relevant Renderer subtree by following
 - Pairing links and QR payloads are credentials. Mobile raw accessibility trees can also contain
   Terminal previews, Session names, Project paths, keyboard suggestions, or pairing data; use
   Caxri's sanitized Android semantic/result receipts and review iOS hierarchy text before citing it.
+- Terminal fixture rows can contain private output. Keep the raw preflight input in a temporary
+  directory outside the report and its `assets/` tree, delete it after preflight, and cite only the
+  schema v2 receipt. The receipt may retain grid identity, row widths, border booleans, and error
+  codes; it must not retain rendered row text or any other unreviewed Terminal content.
 - Never include a complete `caxri://` pairing URL, QR image, device credential, X25519 key, AES-GCM
   nonce, token, or secret-like value in evidence paths, files, observations, or `report.md`. Do not
   upload unfiltered ADB `logcat` or Simulator logs. Prefer allowlisted receipts; if private material

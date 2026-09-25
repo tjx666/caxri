@@ -14,10 +14,7 @@ import {
     repairCaseLifecycle,
     stateIsolationSchema,
 } from './case-lifecycle';
-import {
-    createTerminalFixturePreflightReceipt,
-    terminalFixturePreflightReceiptSchema,
-} from './fixture-preflight';
+import { verifyTerminalFixturePreflightReceipt } from './fixture-preflight';
 import { validateReportMediaEvidence } from './media-integrity';
 import { mobileDeviceSchema, validateMobileCaseEvidence } from './mobile-report';
 import { changedPathsBetween } from './rebind-delta';
@@ -396,25 +393,14 @@ async function validateFixturePreflightEvidence(
     );
     if (rawReceiptText === null) return;
     const rawReceipt: unknown = JSON.parse(rawReceiptText);
-    const receipt = terminalFixturePreflightReceiptSchema.parse(rawReceipt);
+    const receipt = verifyTerminalFixturePreflightReceipt(rawReceipt);
+    if (receipt.caseId !== plan.id || receipt.result.status !== 'ready') {
+        throw new Error(`Case ${plan.id} fixture preflight is blocked`);
+    }
     const lifecyclePath = join(directory, lifecycleEvidencePath(plan.id));
     const lifecycleText = await readFile(lifecyclePath, 'utf8');
     const lifecycle: unknown = JSON.parse(lifecycleText);
     const finalLaunchId = caseLifecycleReceiptSchema.parse(lifecycle).launches.at(-1)?.id;
-    const verified = createTerminalFixturePreflightReceipt(
-        receipt.fixture,
-        receipt.caseId,
-        receipt.launchId && receipt.sourceCommit
-            ? { launchId: receipt.launchId, sourceCommit: receipt.sourceCommit }
-            : undefined,
-    );
-    if (
-        receipt.caseId !== plan.id ||
-        receipt.result.status !== 'ready' ||
-        JSON.stringify(receipt) !== JSON.stringify(verified)
-    ) {
-        throw new Error(`Case ${plan.id} fixture preflight is blocked`);
-    }
     if (receipt.sourceCommit !== reportCommit || receipt.launchId !== finalLaunchId) {
         throw new Error(
             `Case ${plan.id} fixture preflight does not match the report commit or final launch`,

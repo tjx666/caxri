@@ -653,6 +653,8 @@ describe('Acceptance mobile report scaffold', () => {
             caseId,
             { launchId: lifecycle.launchId, sourceCommit: reportCommit },
         );
+        expect(preflight.schemaVersion).toBe(2);
+        expect(preflight.fixture).not.toHaveProperty('lines');
         await Promise.all([
             writeFile(resultPath, `${JSON.stringify(result, null, 2)}\n`),
             writeFile(
@@ -681,6 +683,14 @@ describe('Acceptance mobile report scaffold', () => {
         await expect(finalizeReport({ directory, requirement })).resolves.toMatchObject({
             summary: { verdict: 'pass' },
         });
+        await writeFile(
+            join(directory, preflightEvidence),
+            JSON.stringify({
+                ...preflight,
+                fixture: { ...preflight.fixture, lines: ['│12345 │'] },
+            }),
+        );
+        await expect(finalizeReport({ directory, requirement })).rejects.toThrow();
         await writeFile(
             join(directory, preflightEvidence),
             JSON.stringify({ ...preflight, sourceCommit: 'b'.repeat(40) }),

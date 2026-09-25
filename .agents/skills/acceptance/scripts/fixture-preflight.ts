@@ -10,49 +10,72 @@ import { isAcceptanceCaseId } from './runtime-state';
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 
-const gridMarkerSchema = z.object({
+const generationSchema = z.string().regex(/^[\w-]{1,100}$/u);
+
+const gridMarkerSchema = z.strictObject({
     columns: z.number().int().positive(),
-    generation: z.string().min(1),
+    generation: generationSchema,
     rows: z.number().int().positive(),
 });
 
-const terminalFixtureSchema = z.object({
+const terminalFixtureSchema = z.strictObject({
     columns: z.number().int().positive(),
     domRowCount: z.number().int().nonnegative(),
     firstGridMarker: gridMarkerSchema,
-    generation: z.string().min(1),
+    generation: generationSchema,
     lines: z.array(z.string()),
     rows: z.number().int().positive(),
 });
 
 export type TerminalFixture = z.infer<typeof terminalFixtureSchema>;
 
+const terminalFixtureSummarySchema = z.strictObject({
+    columns: z.number().int().positive(),
+    domRowCount: z.number().int().nonnegative(),
+    firstGridMarker: gridMarkerSchema,
+    generation: generationSchema,
+    lineCount: z.number().int().nonnegative(),
+    rows: z.number().int().positive(),
+});
+
+type TerminalFixtureSummary = z.infer<typeof terminalFixtureSummarySchema>;
+
 export interface FixturePreflightResult {
     errors: Array<{ code: string; detail: string }>;
-    lines: Array<{ index: number; width: number }>;
+    lines: Array<{ bordersIntact: boolean; index: number; width: number }>;
     status: 'fixture_blocked' | 'ready';
 }
 
-const preflightErrorSchema = z.object({ code: z.string(), detail: z.string() });
-const preflightLineSchema = z.object({
-    index: z.number().int().nonnegative(),
-    width: z.number(),
+const preflightErrorSchema = z.strictObject({
+    code: z.enum([
+        'fixture-row-count',
+        'fixture-dom-row-count',
+        'fixture-grid-marker',
+        'fixture-border',
+        'fixture-cell-width',
+    ]),
+    detail: z.string(),
 });
-const preflightResultSchema = z.object({
+const preflightLineSchema = z.strictObject({
+    bordersIntact: z.boolean(),
+    index: z.number().int().nonnegative(),
+    width: z.number().int().nonnegative(),
+});
+const preflightResultSchema = z.strictObject({
     errors: z.array(preflightErrorSchema),
     lines: z.array(preflightLineSchema),
     status: z.enum(['fixture_blocked', 'ready']),
 });
 
-export const terminalFixturePreflightReceiptSchema = z.object({
+export const terminalFixturePreflightReceiptSchema = z.strictObject({
     caseId: z.string().refine(isAcceptanceCaseId, {
         message: 'Acceptance case id must use ASCII letters, numbers, and hyphens',
     }),
-    fixture: terminalFixtureSchema,
+    fixture: terminalFixtureSummarySchema,
     kind: z.literal('terminal-fixture-preflight'),
     launchId: z.string().min(1).optional(),
     result: preflightResultSchema,
-    schemaVersion: z.literal(1),
+    schemaVersion: z.literal(2),
     sourceCommit: z
         .string()
         .regex(/^[0-9a-f]{7,64}$/iu)
@@ -61,19 +84,21 @@ export const terminalFixturePreflightReceiptSchema = z.object({
 
 export type TerminalFixturePreflightReceipt = z.infer<typeof terminalFixturePreflightReceiptSchema>;
 
-/**
- * Validates the rendered fixture before recording starts. `string-width` follows terminal cell semantics for CJK,
- * emoji, and combining characters, so UTF-16 length can never certify a grid.
- */
-export function preflightTerminalFixture(input: TerminalFixture): FixturePreflightResult {
-    const fixture = terminalFixtureSchema.parse(input);
-    const errors: FixturePreflightResult['errors'] = [];
-    const measurements = fixture.lines.map((line, index) => ({ index, width: stringWidth(line) }));
+function summarizeTerminalFixture(fixture: TerminalFixture): TerminalFixtureSummary {
+    const { lines, ...summary } = fixture;
+    return { ...summary, lineCount: lines.length };
+}
 
-    if (fixture.lines.length !== fixture.rows) {
+function evaluateTerminalFixtureGrid(
+    fixture: TerminalFixtureSummary,
+    measurements: FixturePreflightResult['lines'],
+): FixturePreflightResult {
+    const errors: FixturePreflightResult['errors'] = [];
+
+    if (fixture.lineCount !== fixture.rows) {
         errors.push({
             code: 'fixture-row-count',
-            detail: `Fixture has ${fixture.lines.length} lines for ${fixture.rows} rows`,
+            detail: `Fixture has ${fixture.lineCount} lines for ${fixture.rows} rows`,
         });
     }
     if (fixture.domRowCount !== fixture.rows) {
@@ -93,9 +118,8 @@ export function preflightTerminalFixture(input: TerminalFixture): FixturePreflig
         });
     }
 
-    for (const { index, width } of measurements) {
-        const line = fixture.lines[index];
-        if (!line.startsWith('│') || !line.endsWith('│')) {
+    for (const { bordersIntact, index, width } of measurements) {
+        if (!bordersIntact) {
             errors.push({
                 code: 'fixture-border',
                 detail: `Line ${index + 1} does not preserve both vertical borders`,
@@ -112,6 +136,40 @@ export function preflightTerminalFixture(input: TerminalFixture): FixturePreflig
     return { errors, lines: measurements, status: errors.length > 0 ? 'fixture_blocked' : 'ready' };
 }
 
+/**
+ * Validates the rendered fixture before recording starts. `string-width` follows terminal cell semantics for CJK,
+ * emoji, and combining characters, so UTF-16 length can never certify a grid.
+ */
+export function preflightTerminalFixture(input: TerminalFixture): FixturePreflightResult {
+    const fixture = terminalFixtureSchema.parse(input);
+    const measurements = fixture.lines.map((line, index) => ({
+        bordersIntact: line.startsWith('│') && line.endsWith('│'),
+        index,
+        width: stringWidth(line),
+    }));
+    return evaluateTerminalFixtureGrid(summarizeTerminalFixture(fixture), measurements);
+}
+
+/**
+ * Rejects raw Terminal rows and inconsistent derived measurements before a receipt can be cited or used for capture.
+ */
+export function verifyTerminalFixturePreflightReceipt(
+    raw: unknown,
+): TerminalFixturePreflightReceipt {
+    const receipt = terminalFixturePreflightReceiptSchema.parse(raw);
+    if (
+        receipt.result.lines.length !== receipt.fixture.lineCount ||
+        receipt.result.lines.some(({ index }, position) => index !== position)
+    ) {
+        throw new Error('Fixture preflight receipt does not match its observed fixture');
+    }
+    const expected = evaluateTerminalFixtureGrid(receipt.fixture, receipt.result.lines);
+    if (JSON.stringify(receipt.result) !== JSON.stringify(expected)) {
+        throw new Error('Fixture preflight receipt does not match its observed fixture');
+    }
+    return receipt;
+}
+
 function help(): string {
     return `Validate a Terminal Acceptance fixture before evidence capture
 
@@ -124,13 +182,14 @@ export function createTerminalFixturePreflightReceipt(
     caseId = 'unscoped',
     identity?: { launchId: string; sourceCommit: string },
 ): TerminalFixturePreflightReceipt {
+    const observed = terminalFixtureSchema.parse(fixture);
     return terminalFixturePreflightReceiptSchema.parse({
         caseId,
-        fixture,
+        fixture: summarizeTerminalFixture(observed),
         kind: 'terminal-fixture-preflight',
         ...identity,
-        result: preflightTerminalFixture(fixture),
-        schemaVersion: 1,
+        result: preflightTerminalFixture(observed),
+        schemaVersion: 2,
     });
 }
 
