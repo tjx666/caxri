@@ -24,6 +24,12 @@ export interface MobileSemanticNode {
     enabled: boolean;
 }
 
+export interface MobileNodeObservation {
+    exists: boolean;
+    focused: boolean;
+    textMatches?: boolean;
+}
+
 export function androidBounds(source: string): {
     bottom: number;
     left: number;
@@ -165,6 +171,34 @@ export async function mobileSemantics(serial: string): Promise<MobileSemanticNod
         'capture',
     );
     return (JSON.parse(source) as { checks: MobileSemanticNode[] }).checks;
+}
+
+/**
+ * Compares native text inside the device helper and returns no text or raw accessibility XML.
+ */
+export async function observeMobileNode(
+    serial: string,
+    checkId: string,
+    expectedText?: { kind: 'equals' | 'includes'; value: string },
+): Promise<MobileNodeObservation> {
+    const arguments_ = [
+        'run',
+        androidDeviceScript,
+        'observe',
+        '--serial',
+        serial,
+        '--check-id',
+        checkId,
+    ];
+    if (expectedText)
+        arguments_.push(
+            '--match',
+            expectedText.kind,
+            '--expected-text-base64',
+            Buffer.from(expectedText.value, 'utf8').toString('base64'),
+        );
+    const source = await runMobileDeviceCommand('bun', arguments_, 'capture');
+    return JSON.parse(source) as MobileNodeObservation;
 }
 
 export const tapMobileCheck = (serial: string, checkId: string): Promise<string> =>

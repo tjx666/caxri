@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     centerOfAndroidBounds,
     isAndroidCheckId,
+    observeAndroidNodeFromUiAutomator,
     resumedPackageFromWindowDump,
     semanticNodesFromUiAutomator,
 } from '../android-receipts';
@@ -42,6 +43,52 @@ describe('Android content-free receipts', () => {
         expect(isAndroidCheckId(checkId)).toBe(true);
         expect(semanticNodesFromUiAutomator(source).map((node) => node.checkId)).toEqual([checkId]);
         expect(isAndroidCheckId('conversation-tool-$(touch /tmp/unsafe)')).toBe(false);
+    });
+
+    it('observes focus and decoded multiline Unicode without returning device text', () => {
+        const source = `<hierarchy>
+          <node resource-id="com.caxri.mobile:id/session-composer-input" package="com.caxri.mobile" focused="true" text="第一行&#10;第二行&#xA;A &amp; B" content-desc="private accessibility description" />
+        </hierarchy>`;
+        const expectedText = '第一行\n第二行\nA & B';
+
+        const exact = observeAndroidNodeFromUiAutomator(source, 'session-composer-input', {
+            kind: 'equals',
+            value: expectedText,
+        });
+        expect(exact).toEqual({ exists: true, focused: true, textMatches: true });
+        expect(
+            observeAndroidNodeFromUiAutomator(source, 'session-composer-input', {
+                kind: 'includes',
+                value: '第二行\nA &',
+            }),
+        ).toEqual(exact);
+        expect(JSON.stringify(exact)).not.toContain('第一行');
+        expect(JSON.stringify(exact)).not.toContain('private');
+        expect(JSON.stringify(exact)).not.toContain('session-composer-input');
+        expect(
+            observeAndroidNodeFromUiAutomator(source, 'session-composer-input', {
+                kind: 'equals',
+                value: 'wrong',
+            }),
+        ).toEqual({ exists: true, focused: true, textMatches: false });
+    });
+
+    it('ignores wrong IDs, foreign packages, and foreign resource namespaces', () => {
+        const source = `<hierarchy>
+          <node resource-id="com.caxri.mobile:id/other-control" package="com.caxri.mobile" focused="true" text="secret" />
+          <node resource-id="com.caxri.mobile:id/session-composer-input" package="com.android.systemui" focused="true" text="secret" />
+          <node resource-id="com.other.app:id/session-composer-input" package="com.caxri.mobile" focused="true" text="secret" />
+        </hierarchy>`;
+        expect(
+            observeAndroidNodeFromUiAutomator(source, 'session-composer-input', {
+                kind: 'includes',
+                value: 'secret',
+            }),
+        ).toEqual({ exists: false, focused: false, textMatches: false });
+        expect(observeAndroidNodeFromUiAutomator(source, 'session-composer-input')).toEqual({
+            exists: false,
+            focused: false,
+        });
     });
 
     it('extracts only the resumed package identity', () => {
