@@ -160,6 +160,19 @@ describe('Session title material', () => {
         expect(normalizeGeneratedAgentTitle('会话标题同步', context)).toBe('会话标题同步');
     });
 
+    it('keeps the opening issue explanation language after an English follow-up command', () => {
+        const context = {
+            opening: [
+                { role: 'user' as const, text: 'TASK-1234' },
+                { role: 'assistant' as const, text: '需要修复会话标题同步。' },
+            ],
+            recent: [{ role: 'user' as const, text: 'commit' }],
+        };
+        expect(buildAgentTitlePrompt(context)).toContain(
+            '<title_language>Chinese</title_language>',
+        );
+    });
+
     it('ignores image placeholders when choosing the conversation language', () => {
         const context = {
             opening: [
