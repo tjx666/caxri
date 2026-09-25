@@ -9,6 +9,10 @@ export interface ProcessEntry {
     identity?: string;
     parentPid: number;
     pid: number;
+    /**
+     * Epoch milliseconds parsed from `ps lstart`, present only when the table carried start times.
+     */
+    startedAt?: number;
 }
 
 export interface StopOperations {
@@ -32,7 +36,7 @@ export function parseProcessTable(stdout: string, hasIdentity = false): ProcessE
     return stdout.split('\n').flatMap((line) => {
         const match = (
             hasIdentity
-                ? /^\s*(?<pid>\d+)\s+(?<parentPid>\d+)\s+(?<identityText>[A-Za-z]{3}\s+[A-Za-z]{3}\s+\d{1,2}\s+\d\d:\d\d:\d\d\s+\d{4}\s+(?<command>\S.*))$/u
+                ? /^\s*(?<pid>\d+)\s+(?<parentPid>\d+)\s+(?<identityText>(?<startedText>[A-Za-z]{3}\s+[A-Za-z]{3}\s+\d{1,2}\s+\d\d:\d\d:\d\d\s+\d{4})\s+(?<command>\S.*))$/u
                 : /^\s*(?<pid>\d+)\s+(?<parentPid>\d+)\s+(?<command>\S.*)$/u
         ).exec(line);
         const groups = match?.groups;
@@ -45,6 +49,7 @@ export function parseProcessTable(stdout: string, hasIdentity = false): ProcessE
                 }),
                 parentPid: Number(groups.parentPid),
                 pid: Number(groups.pid),
+                ...(groups.startedText && { startedAt: Date.parse(groups.startedText) }),
             },
         ];
     });
@@ -148,6 +153,82 @@ export function worktreeProcessesToStop({
 }
 
 /**
+ * The longest registered root wins, so a checkout nested inside another (`<primary>/.claude/worktrees/<name>`) is not
+ * also attributed to its parent.
+ */
+function owningWorktree(command: string, worktreePaths: readonly string[]): string | undefined {
+    return worktreePaths
+        .filter((path) => isWorktreeOwnedCommand(command, path))
+        .toSorted((left, right) => right.length - left.length)[0];
+}
+
+/**
+ * Finds worktree-owned processes that nothing is supervising any more, grouped by owning worktree path.
+ *
+ * A process counts only when the top of its parent chain (the ancestor launchd adopted, PPID 1) is itself
+ * worktree-owned or is an orphaned `Caxri Dev` window. A live `switch-worktree dev` launcher, a Playwright run, or an
+ * agent shell sits at that position for every supervised run, so those subtrees never qualify — including a
+ * backgrounded launcher that launchd has already adopted.
+ *
+ * Server Core is spawned detached (`packages/client/src/supervise/launch.ts`) so a restarted Desktop can adopt it;
+ * after a dev main-process restart it legitimately runs under PPID 1 beside a live window. A worktree that still has
+ * any supervised owned process therefore reports nothing: its detached Server is presumed adopted.
+ *
+ * This is a read-only report: an orphan may still belong to a sibling session, so callers print it and leave
+ * termination to `stop` in the owning worktree.
+ *
+ * @see https://github.com/tjx666/caxri/issues/1231
+ */
+export function findOrphanedProcesses(
+    entries: readonly ProcessEntry[],
+    worktreePaths: readonly string[],
+): Map<string, ProcessEntry[]> {
+    const byPid = new Map(entries.map((entry) => [entry.pid, entry]));
+    const topOfChain = (entry: ProcessEntry): ProcessEntry => {
+        const seen = new Set<number>();
+        let current = entry;
+        while (current.parentPid > 1 && !seen.has(current.pid)) {
+            seen.add(current.pid);
+            const parent = byPid.get(current.parentPid);
+            if (!parent) break;
+            current = parent;
+        }
+        return current;
+    };
+    const orphans = new Map<string, Map<number, ProcessEntry>>();
+    const supervised = new Set<string>();
+    for (const entry of entries) {
+        const worktreePath = owningWorktree(entry.command, worktreePaths);
+        if (!worktreePath) continue;
+        const top = topOfChain(entry);
+        const isOrphanWindow = top.parentPid === 1 && top.command === 'Caxri Dev';
+        const isUnsupervised =
+            top.parentPid === 1 &&
+            (isOrphanWindow || Boolean(owningWorktree(top.command, worktreePaths)));
+        if (!isUnsupervised) {
+            supervised.add(worktreePath);
+            continue;
+        }
+        const group = orphans.get(worktreePath) ?? new Map<number, ProcessEntry>();
+        group.set(entry.pid, entry);
+        if (isOrphanWindow) group.set(top.pid, top);
+        orphans.set(worktreePath, group);
+    }
+    return new Map(
+        orphans
+            .entries()
+            .filter(([path]) => !supervised.has(path))
+            .map(([path, group]) => [
+                path,
+                group
+                    .values()
+                    .toArray()
+                    .toSorted((left, right) => left.pid - right.pid),
+            ]),
+    );
+}
+
+/**
  * Only a worktree-owned child can nominate an orphaned dev window, and its cwd must confirm the exact checkout.
  */
 async function orphanedMainProcesses(
@@ -184,7 +265,7 @@ async function orphanedMainProcesses(
     return { verified, unresolved };
 }
 
-async function listProcesses(): Promise<ProcessEntry[]> {
+export async function listProcesses(): Promise<ProcessEntry[]> {
     return parseProcessTable(
         await runCapture('ps', ['-ww', '-axo', 'pid=,ppid=,lstart=,command='], process.cwd()),
         true,

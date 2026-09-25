@@ -27,7 +27,9 @@ import {
     worktreeIdentity,
     writeJsonAtomic,
 } from './repo';
-import type { StopOperations } from './worktree-processes';
+import type { OrphanProcess } from './worktree-orphans';
+import { describeOrphans, orphansByWorktree, toOrphanProcess } from './worktree-orphans';
+import type { ProcessEntry, StopOperations } from './worktree-processes';
 import {
     defaultStopOperations,
     inspectWorktreeProcesses,
@@ -53,6 +55,10 @@ export interface WorktreeStatus extends WorktreeRecord {
     devProcess: 'active' | 'none' | 'stale';
     dirty: boolean;
     managed: boolean;
+    /**
+     * Processes running from this checkout with no live supervisor; see `findOrphanedProcesses`.
+     */
+    orphanProcesses: OrphanProcess[];
     profile?: string;
     worktreeId?: string;
 }
@@ -398,7 +404,9 @@ async function inspectOne(
     context: RepoContext,
     worktree: WorktreeRecord,
     desktop: Awaited<ReturnType<typeof inspectDesktopLease>>,
+    orphans?: ReadonlyMap<string, readonly ProcessEntry[]>,
 ): Promise<WorktreeStatus> {
+    const orphanMap = orphans ?? (await orphansByWorktree(await listWorktrees(context)));
     const identity = await worktreeIdentity(worktree.path, false);
     const processRecord = await readDevelopmentProcess(context, identity);
     const isProcessActive = processRecord
@@ -429,6 +437,7 @@ async function inspectOne(
             ).trim(),
         ),
         managed: Boolean(identity),
+        orphanProcesses: (orphanMap.get(worktree.path) ?? []).map(toOrphanProcess),
         profile: profile && (await isRealDirectory(profile)) ? profile : undefined,
         worktreeId: identity,
     };
@@ -440,7 +449,10 @@ export async function listWorktreeStatus(cwd: string): Promise<WorktreeStatus[]>
         listWorktrees(context),
         inspectDesktopLease(context.root),
     ]);
-    return Promise.all(worktrees.map((worktree) => inspectOne(context, worktree, desktop)));
+    const orphans = await orphansByWorktree(worktrees);
+    return Promise.all(
+        worktrees.map((worktree) => inspectOne(context, worktree, desktop, orphans)),
+    );
 }
 
 function resolveExistingTarget(
@@ -592,6 +604,8 @@ export async function doctorWorktree(cwd: string, target?: string): Promise<Doct
     if (!status.managed) warnings.push('worktree has no switch-worktree identity');
     if (status.managed && !status.profile) errors.push('isolated Caxri profile is missing');
     if (status.devProcess === 'stale') warnings.push('dev process record is stale');
+    const orphanWarning = describeOrphans(status.orphanProcesses);
+    if (orphanWarning) warnings.push(orphanWarning);
     switch (status.desktopLease) {
         case 'stale': {
             warnings.push('desktop lease is stale and can be reclaimed');

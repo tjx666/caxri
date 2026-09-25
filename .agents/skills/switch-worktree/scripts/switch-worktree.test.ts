@@ -245,6 +245,7 @@ describe('switch-worktree creation and diagnostics', () => {
             devProcess: 'none',
             dirty: true,
             managed: true,
+            orphanProcesses: [],
         });
         expect(Object.keys(status!).toSorted((left, right) => left.localeCompare(right))).toEqual([
             'ahead',
@@ -257,6 +258,7 @@ describe('switch-worktree creation and diagnostics', () => {
             'dirty',
             'head',
             'managed',
+            'orphanProcesses',
             'path',
             'profile',
             'worktreeId',
