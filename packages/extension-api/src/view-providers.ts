@@ -88,6 +88,10 @@ export interface SourceControlGroup {
     hiddenCount?: number;
     expandedByDefault: boolean;
     emptyMessage: string;
+    /**
+     * `emptyMessage` describes work still in progress, so the Workbench pairs it with a progress indicator.
+     */
+    isLoading?: boolean;
     truncationMessage?: string;
     actions: SourceControlAction[];
     resources: SourceControlResource[];

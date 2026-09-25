@@ -7,6 +7,7 @@ import type {
     SourceControlAction,
     SourceControlCommandBinding,
     SourceControlFileHistory,
+    SourceControlGroup,
     SourceControlHistoryDescriptor,
     SourceControlResource,
     SourceControlViewModel,
@@ -321,36 +322,50 @@ function repoFiles(
     return mode === 'commit' ? commitFilesToStatuses(details) : (pullRequest?.files ?? []);
 }
 
-function emptyMessageForMode(
+function loading(emptyMessage: string): Pick<SourceControlGroup, 'emptyMessage' | 'isLoading'> {
+    return { emptyMessage, isLoading: true };
+}
+
+/**
+ * The group body shown when a repository contributes no visible rows. `isLoading` marks the states that will resolve on
+ * their own, so the Workbench can draw a progress glyph instead of a caption that reads like a settled empty result.
+ */
+function emptyStateForMode(
     mode: GitSourceControlMode,
     repo: GitRepositorySummary,
     details: GitCommitDetails | undefined,
     detailError: true | string | undefined,
     pullRequest: GitPullRequestChanges | null | undefined,
     selectedCommitSha?: string,
-): string {
-    if (mode === 'working') return 'Working tree clean.';
+): Pick<SourceControlGroup, 'emptyMessage' | 'isLoading'> {
+    if (mode === 'working') return { emptyMessage: 'Working tree clean.' };
     if (mode === 'commit') {
-        if (!repo.head) return 'No commits yet.';
+        if (!repo.head) return { emptyMessage: 'No commits yet.' };
         if (detailError)
-            return selectedCommitSha
-                ? `Unable to load commit ${selectedCommitSha.slice(0, 7)}.`
-                : 'Unable to load the last commit.';
+            return {
+                emptyMessage: selectedCommitSha
+                    ? `Unable to load commit ${selectedCommitSha.slice(0, 7)}.`
+                    : 'Unable to load the last commit.',
+            };
         if (selectedCommitSha)
             return details
-                ? `Commit ${selectedCommitSha.slice(0, 7)} has no file changes.`
-                : `Loading commit ${selectedCommitSha.slice(0, 7)}…`;
-        return details ? 'Last commit has no file changes.' : 'Loading last commit…';
+                ? { emptyMessage: `Commit ${selectedCommitSha.slice(0, 7)} has no file changes.` }
+                : loading(`Loading commit ${selectedCommitSha.slice(0, 7)}…`);
+        return details
+            ? { emptyMessage: 'Last commit has no file changes.' }
+            : loading('Loading last commit…');
     }
     if (detailError)
-        return typeof detailError === 'string'
-            ? detailError
-            : 'Unable to load pull request changes.';
-    return pullRequest === null
-        ? 'No pull request for this branch.'
-        : pullRequest
-          ? 'Pull request has no file changes.'
-          : 'Loading pull request changes…';
+        return {
+            emptyMessage:
+                typeof detailError === 'string'
+                    ? detailError
+                    : 'Unable to load pull request changes.',
+        };
+    if (pullRequest === null) return { emptyMessage: 'No pull request for this branch.' };
+    return pullRequest
+        ? { emptyMessage: 'Pull request has no file changes.' }
+        : loading('Loading pull request changes…');
 }
 
 function summaryErrorMessage(error: string | undefined): string {
@@ -606,17 +621,16 @@ export function buildSourceControlViewModel({
                         count,
                         ...(hiddenCount > 0 && { hiddenCount }),
                         expandedByDefault: true,
-                        emptyMessage:
-                            visibleFiles.length === 0 && hiddenCount > 0
-                                ? hiddenFilesMessage(hiddenCount)
-                                : emptyMessageForMode(
-                                      mode,
-                                      repo,
-                                      details,
-                                      detailErrorsByRepo.get(repo.id),
-                                      pullRequest,
-                                      selectedCommitSha,
-                                  ),
+                        ...(visibleFiles.length === 0 && hiddenCount > 0
+                            ? { emptyMessage: hiddenFilesMessage(hiddenCount) }
+                            : emptyStateForMode(
+                                  mode,
+                                  repo,
+                                  details,
+                                  detailErrorsByRepo.get(repo.id),
+                                  pullRequest,
+                                  selectedCommitSha,
+                              )),
                         ...(mode === 'working' &&
                             repo.truncated && {
                                 truncationMessage: `Showing the first ${files.length} of ${count} changes`,
