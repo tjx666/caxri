@@ -35,10 +35,19 @@ test('the Project row menu deletes its own Project even when another Session is 
         if (!firstProjectId || !secondProjectId || !secondProject)
             throw new Error('Two Project fixture was not created');
 
-        await running.page.locator(`.session-card[data-session-id="${firstSessionId}"]`).click();
+        const selectedSession = running.page.locator(
+            `.session-card[data-session-id="${firstSessionId}"]`,
+        );
+        await selectedSession.click();
         await expect
             .poll(() => pageRequest<{ selectedSessionId?: string }>(running.page, 'app.bootstrap'))
             .toMatchObject({ selectedSessionId: firstSessionId });
+        await expect(selectedSession).toHaveAttribute('aria-selected', 'true');
+        await expect(
+            running.page.locator(
+                `.workbench-session[data-workbench-session-id="${firstSessionId}"] .xterm-helper-textarea`,
+            ),
+        ).toBeFocused();
 
         const secondGroup = running.page.locator(
             `.project-group[data-project-id="${secondProjectId}"]`,
