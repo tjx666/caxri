@@ -7,6 +7,7 @@ const counters = {
     visibleDraftCalls: 0,
     focusCalls: 0,
     keyCalls: 0,
+    pulseCalls: 0,
     providerGeneration: 0,
 };
 
@@ -30,6 +31,11 @@ export const recordComposerFocus = (): void => {
 export const recordComposerKey = (): void => {
     counters.keyCalls += 1;
     report({ stage: 'onKeyPress', calls: counters.keyCalls });
+};
+
+export const recordComposerPulse = (isActive: boolean): void => {
+    counters.pulseCalls += 1;
+    report({ stage: 'js-pulse', calls: counters.pulseCalls, isActive });
 };
 
 export const recordComposerUpdate = (value: string, isBusy: boolean, isEqual: boolean): void => {
