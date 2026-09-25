@@ -50,6 +50,9 @@ report artifact; serialize the smallest relevant Renderer subtree by following
   [report.md](report.md#structured-visualizations), not a generated PNG. Keep the
   raw CSV/JSON, trace, or profile as `evidence` beside it.
 - Inspect every image, clip, and generated document before citing it.
+- A redacted screenshot must still show the state being claimed. A uniform masked row does not prove
+  which Session is selected, even with a matching state receipt. Preserve a privacy-safe selection
+  marker whose pixels differ for a different selected Session, and inspect both states.
 - Passing video evidence must survive the report finalizer's duration, frame-count,
   and visible-variation checks. A short or static frame sequence is not a recording.
 - Never copy media from a blocked or failed round into a passing case. The finalizer

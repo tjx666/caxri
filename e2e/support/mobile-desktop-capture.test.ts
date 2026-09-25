@@ -8,6 +8,7 @@ import process from 'node:process';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 import { execFileAsync } from '@caxri/system';
+import { chromium } from 'playwright';
 import { describe, expect, it } from 'vitest';
 
 import type { RunningCaxri } from './helpers';
@@ -22,6 +23,7 @@ const COMMIT = '0123456789abcdef0123456789abcdef01234567';
 interface MockDesktop {
     running: RunningCaxri;
     screenshotOptions: Array<{ style?: string }>;
+    setSelectedSessionId(value: string): void;
     setScreenshotDelayMs(value: number): void;
     setTargetId(value: string): void;
 }
@@ -29,6 +31,7 @@ interface MockDesktop {
 function mockDesktop(profileDirectory: string): MockDesktop {
     const canonicalProfileDirectory = realpathSync(profileDirectory);
     let targetId = 'owned-renderer-target';
+    let selectedSessionId = 'session-1';
     let screenshotDelayMs = 0;
     const screenshotOptions: Array<{ style?: string }> = [];
     const row = {
@@ -48,7 +51,7 @@ function mockDesktop(profileDirectory: string): MockDesktop {
                         Promise.resolve({ targetInfo: { targetId, type: 'page' as const } }),
                 }),
         }),
-        evaluate: () => Promise.resolve({ ok: true, result: { selectedSessionId: 'session-1' } }),
+        evaluate: () => Promise.resolve({ ok: true, result: { selectedSessionId } }),
         isClosed: () => false,
         locator: (selector: string) =>
             selector.includes('[role="dialog"]') ? { count: () => Promise.resolve(0) } : row,
@@ -60,6 +63,9 @@ function mockDesktop(profileDirectory: string): MockDesktop {
     return {
         running: { app, page } as unknown as RunningCaxri,
         screenshotOptions,
+        setSelectedSessionId(value) {
+            selectedSessionId = value;
+        },
         setScreenshotDelayMs(value) {
             screenshotDelayMs = value;
         },
@@ -146,9 +152,99 @@ describe('mobile Desktop capture', () => {
             ).toBe(true);
             expect(desktop.screenshotOptions).toHaveLength(2);
             expect(desktop.screenshotOptions[0]?.style).toContain('visibility: hidden');
+            const marker = createHash('sha256')
+                .update('session-1')
+                .digest('hex')
+                .slice(0, 8)
+                .toUpperCase();
+            expect(desktop.screenshotOptions[0]?.style).toContain(
+                `content: "Selected Session · ${marker}"`,
+            );
+            expect(desktop.screenshotOptions[0]?.style).toContain(
+                '.session-card[aria-selected="true"]::after',
+            );
+            expect(desktop.screenshotOptions[0]?.style).toContain('visibility: visible');
+            expect(desktop.screenshotOptions[0]?.style).toContain('inset 3px 0 0');
             expect(await readFile(result.receiptPath, 'utf8')).not.toContain(profileDirectory);
         });
     });
+
+    it('gives different selected Sessions distinguishable anonymous screenshot markers', async () => {
+        await fixture(async ({ assetsDirectory, profileDirectory }) => {
+            const desktop = mockDesktop(profileDirectory);
+            const first = await createMobileDesktopCapture({
+                assetsDirectory,
+                caseId: 'MOB-CROSS-01-A',
+                launchId: 'mobile-launch',
+                profileDirectory,
+                running: desktop.running,
+                serial: 'emulator-5554',
+                sourceCommit: COMMIT,
+            });
+            await first.capture('before');
+            desktop.setSelectedSessionId('session-2');
+            const second = await createMobileDesktopCapture({
+                assetsDirectory,
+                caseId: 'MOB-CROSS-01-B',
+                launchId: 'mobile-launch',
+                profileDirectory,
+                running: desktop.running,
+                serial: 'emulator-5554',
+                sourceCommit: COMMIT,
+            });
+            await second.capture('before');
+            const [firstStyle, secondStyle] = desktop.screenshotOptions.map(
+                ({ style }) => style ?? '',
+            );
+            expect(firstStyle).not.toBe(secondStyle);
+            expect(firstStyle).not.toContain('session-1');
+            expect(secondStyle).not.toContain('session-2');
+            const browser = await chromium.launch({ headless: true });
+            try {
+                const page = await browser.newPage({ deviceScaleFactor: 1 });
+                await page.setContent(`
+                    <style>
+                        :root { --foreground: #fff; }
+                        .session-card { width: 300px; height: 28px; background: #333; display: flex; }
+                    </style>
+                    <div class="session-card" aria-selected="true">
+                        <span>Private Project and Session title</span>
+                    </div>
+                `);
+                const style = await page.addStyleTag({ content: firstStyle });
+                const row = page.locator('.session-card');
+                expect(
+                    await page
+                        .locator('.session-card span')
+                        .evaluate((element) => getComputedStyle(element).visibility),
+                ).toBe('hidden');
+                const firstMarker = await row.evaluate(
+                    (element) => getComputedStyle(element, '::after').content,
+                );
+                expect(firstMarker).toContain('Selected Session');
+                expect(firstMarker).not.toContain('Private Project');
+                expect(
+                    await row.evaluate(
+                        (element) => getComputedStyle(element, '::after').visibility,
+                    ),
+                ).toBe('visible');
+                const firstImage = await row.screenshot();
+                await style.evaluate((element, value) => {
+                    element.textContent = value;
+                }, secondStyle);
+                const secondMarker = await row.evaluate(
+                    (element) => getComputedStyle(element, '::after').content,
+                );
+                expect(secondMarker).not.toBe(firstMarker);
+                const secondImage = await row.screenshot();
+                expect(createHash('sha256').update(secondImage).digest('hex')).not.toBe(
+                    createHash('sha256').update(firstImage).digest('hex'),
+                );
+            } finally {
+                await browser.close();
+            }
+        });
+    }, 15_000);
 
     it('rejects a changed CDP target before the second image and leaves no receipt', async () => {
         await fixture(async ({ assetsDirectory, profileDirectory }) => {
