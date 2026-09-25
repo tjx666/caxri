@@ -126,13 +126,18 @@ describe('MobileAccessController role and resource authority', () => {
         expect(isMobileGatewayMethodAllowedForRole('view', 'terminal.send')).toBe(false);
         expect(isMobileGatewayMethodAllowedForRole('view', 'mobile.session.create')).toBe(false);
         expect(isMobileGatewayMethodAllowedForRole('view', 'mobile.terminal.input')).toBe(false);
-        expect(isMobileGatewayMethodAllowedForRole('reply', 'terminal.send')).toBe(true);
+        expect(isMobileGatewayMethodAllowedForRole('reply', 'terminal.send')).toBe(false);
+        expect(isMobileGatewayMethodAllowedForRole('reply', 'mobile.agent.submit')).toBe(true);
+        expect(isMobileGatewayMethodAllowedForRole('reply', 'agent.control.interrupt')).toBe(false);
         expect(isMobileGatewayMethodAllowedForRole('reply', 'session.markRead')).toBe(true);
         expect(isMobileGatewayMethodAllowedForRole('reply', 'mobile.session.create')).toBe(false);
         expect(isMobileGatewayMethodAllowedForRole('reply', 'mobile.terminal.takeOver')).toBe(
             false,
         );
         expect(isMobileGatewayMethodAllowedForRole('control', 'mobile.session.create')).toBe(true);
+        expect(isMobileGatewayMethodAllowedForRole('control', 'agent.control.interrupt')).toBe(
+            true,
+        );
         for (const method of [
             'mobile.terminal.takeOver',
             'mobile.terminal.release',
@@ -174,21 +179,54 @@ describe('MobileAccessController role and resource authority', () => {
             terminalExecution,
         );
         const context: CommandExecutionContext = { capabilities: [], principal };
-        const request = vi.fn((method: string, parameters?: { query?: { mode: string } }) => {
-            if (method === 'project.queryForPrincipal')
-                return Promise.resolve({
-                    projects:
-                        parameters?.query?.mode === 'list'
-                            ? [
-                                  { id: 'project-1', displayTitle: 'Granted empty' },
-                                  { id: 'project-2', displayTitle: 'Other Project' },
-                              ]
-                            : [{ id: 'project-1', displayTitle: 'Granted empty' }],
-                });
-            if (method === 'session.queryForPrincipal') return Promise.resolve({ sessions: [] });
-            if (method === 'terminal.queryForPrincipal') return Promise.resolve({ terminals: [] });
-            throw new Error(`Unexpected method: ${method}`);
-        });
+        const request = vi.fn(
+            (method: string, parameters?: { query?: { mode: string; selector?: string } }) => {
+                if (method === 'project.queryForPrincipal')
+                    return Promise.resolve({
+                        projects:
+                            parameters?.query?.mode === 'list'
+                                ? [
+                                      { id: 'project-1', displayTitle: 'Granted empty' },
+                                      { id: 'project-2', displayTitle: 'Other Project' },
+                                  ]
+                                : [{ id: 'project-1', displayTitle: 'Granted empty' }],
+                    });
+                if (method === 'session.queryForPrincipal')
+                    return Promise.resolve({
+                        sessions:
+                            parameters?.query?.selector === 'session-deep'
+                                ? [
+                                      {
+                                          id: 'session-deep',
+                                          projectId: 'project-1',
+                                          displayTitle: 'Deep Session',
+                                          lastOpenedAt: 7,
+                                          lastActivityState: 'running',
+                                          primaryAgentTerminalId: 'terminal-deep',
+                                          attentionEpoch: 0,
+                                          hasUnread: false,
+                                      },
+                                  ]
+                                : [],
+                    });
+                if (method === 'terminal.queryForPrincipal')
+                    return Promise.resolve({
+                        terminals:
+                            parameters?.query?.selector === 'terminal-deep'
+                                ? [
+                                      {
+                                          id: 'terminal-deep',
+                                          sessionId: 'session-deep',
+                                          kind: 'codex',
+                                          provider: 'codex',
+                                          lastProcessState: 'running',
+                                      },
+                                  ]
+                                : [],
+                    });
+                throw new Error(`Unexpected method: ${method}`);
+            },
+        );
         const requestWithSignal = vi.fn((...arguments_: [string, unknown, AbortSignal]) => {
             if (arguments_[0] !== 'mobile.session.createForPrincipal')
                 throw new Error(`Unexpected method: ${arguments_[0]}`);
@@ -251,6 +289,33 @@ describe('MobileAccessController role and resource authority', () => {
                 projects: [{ id: 'project-1', displayTitle: 'Granted empty' }],
                 sessions: [],
             });
+            await expect(
+                controller.invokeControl(
+                    { method: 'mobile.session.show', params: { sessionId: 'session-deep' } },
+                    context,
+                    domainService,
+                    (terminalId) =>
+                        terminalId === 'terminal-deep'
+                            ? { hostId: 'host-1', endpointId: 'endpoint-1', generation: 1 }
+                            : undefined,
+                ),
+            ).resolves.toMatchObject({
+                session: {
+                    id: 'session-deep',
+                    primaryAgentEndpoint: {
+                        hostId: 'host-1',
+                        endpointId: 'endpoint-1',
+                        generation: 1,
+                    },
+                },
+            });
+            await expect(
+                controller.invokeControl(
+                    { method: 'mobile.session.show', params: { sessionId: 'session-other' } },
+                    context,
+                    domainService,
+                ),
+            ).rejects.toMatchObject({ code: 'NOT_FOUND' });
             await controller.invokeDesktopOperation({
                 method: 'mobile.device.revoke.apply',
                 params: {
@@ -274,14 +339,14 @@ describe('MobileAccessController role and resource authority', () => {
     });
 });
 
-describe('MobileAccessController short replies', () => {
-    it('accepts only the current attention event on the primary waiting Agent Terminal', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-mobile-access-controller-'));
+describe('MobileAccessController Agent submissions', () => {
+    it('forwards one paired submission and cancels pending work after device revocation', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-mobile-submit-'));
         temporaryDirectories.push(directory);
         const registryPath = join(directory, 'mobile-devices.json');
         const registry = await MobileDeviceRegistry.open({ directory, path: registryPath });
         const paired = await registry.pair({
-            displayName: 'Test tablet',
+            displayName: 'Test phone',
             platform: 'android',
             projectIds: ['project-1'],
         });
@@ -298,163 +363,61 @@ describe('MobileAccessController short replies', () => {
         controller.attach(
             { invoke: vi.fn() },
             'b'.repeat(32),
-            {
-                serverId: 'a'.repeat(32),
-                stateEpoch: 'c'.repeat(32),
-            },
+            { serverId: 'a'.repeat(32), stateEpoch: 'c'.repeat(32) },
             {} as ServerDomainService,
             terminalExecution,
         );
-
-        const terminal = {
-            id: 'terminal-agent',
-            kind: 'agent',
+        const context: CommandExecutionContext = { capabilities: [], principal };
+        const endpoint = { hostId: 'host-1', endpointId: 'endpoint-1', generation: 1 };
+        const parameters = {
             sessionId: 'session-1',
+            terminalId: 'terminal-1',
+            endpoint,
+            clientMutationId: 'mutation-1',
+            text: '你好\ncontinue',
         };
-        const session = {
-            id: 'session-1',
-            attentionEpoch: 7,
-            lastActivityState: 'waiting',
-            primaryAgentTerminalId: terminal.id,
-        };
-        const request = vi.fn((method: string) => {
-            if (method === 'terminal.queryForPrincipal')
-                return Promise.resolve({ terminals: [terminal] });
-            if (method === 'session.queryForPrincipal')
-                return Promise.resolve({ sessions: [session] });
-            throw new Error(`Unexpected method: ${method}`);
-        });
-        const domainService = { request } as unknown as ServerDomainService;
-        const context: CommandExecutionContext = {
-            capabilities: ['projects.read', 'sessions.read', 'terminals.read', 'terminals.steer'],
-            principal,
-        };
-        const valid = {
-            attentionEpoch: 7,
-            enter: true,
-            terminalId: terminal.id,
-            text: 'continue',
-        };
-
+        const started = Promise.withResolvers<void>();
+        const release = Promise.withResolvers<{ terminalId: string; outcome: 'accepted' }>();
+        const requestWithSignal = vi.fn(
+            (method: string, _parameters: unknown, signal: AbortSignal) => {
+                expect(method).toBe('mobile.agent.submitInternal');
+                expect(signal.aborted).toBe(false);
+                started.resolve();
+                return release.promise;
+            },
+        );
+        const domainService = { requestWithSignal } as unknown as ServerDomainService;
         try {
             await controller.invokeControl(
                 { method: 'mobile.access.enable', params: {} },
                 context,
                 domainService,
             );
-            await expect(
-                controller.invokeShortReply(context, valid, domainService, () => Promise.resolve()),
-            ).resolves.toBeUndefined();
-
-            await expect(
-                controller.invokeShortReply(
-                    context,
-                    { ...valid, enter: false },
-                    domainService,
-                    () => Promise.resolve(),
-                ),
-            ).rejects.toMatchObject({ code: 'VALIDATION' });
-            await expect(
-                controller.invokeShortReply(context, { ...valid, text: '\t' }, domainService, () =>
-                    Promise.resolve(),
-                ),
-            ).rejects.toMatchObject({ code: 'VALIDATION' });
-            await expect(
-                controller.invokeShortReply(
-                    context,
-                    { ...valid, text: ' '.repeat(3) },
-                    domainService,
-                    () => Promise.resolve(),
-                ),
-            ).rejects.toMatchObject({ code: 'VALIDATION' });
-            await expect(
-                controller.invokeShortReply(
-                    context,
-                    { ...valid, attentionEpoch: undefined },
-                    domainService,
-                    () => Promise.resolve(),
-                ),
-            ).rejects.toMatchObject({ code: 'VALIDATION' });
-            await expect(
-                controller.invokeShortReply(
-                    context,
-                    { ...valid, text: '🙂'.repeat(257) },
-                    domainService,
-                    () => Promise.resolve(),
-                ),
-            ).rejects.toMatchObject({ code: 'VALIDATION' });
-            await expect(
-                controller.invokeShortReply(
-                    context,
-                    { ...valid, attentionEpoch: 6 },
-                    domainService,
-                    () => Promise.resolve(),
-                ),
-            ).rejects.toMatchObject({ code: 'CONFLICT' });
-
-            terminal.kind = 'shell';
-            await expect(
-                controller.invokeShortReply(context, valid, domainService, () => Promise.resolve()),
-            ).rejects.toMatchObject({ code: 'CONFLICT' });
-            terminal.kind = 'agent';
-            session.primaryAgentTerminalId = 'terminal-secondary';
-            await expect(
-                controller.invokeShortReply(context, valid, domainService, () => Promise.resolve()),
-            ).rejects.toMatchObject({ code: 'CONFLICT' });
-            session.primaryAgentTerminalId = terminal.id;
-            session.lastActivityState = 'running';
-            await expect(
-                controller.invokeShortReply(context, valid, domainService, () => Promise.resolve()),
-            ).rejects.toMatchObject({ code: 'CONFLICT' });
-            session.lastActivityState = 'waiting';
-
-            const delivery = Promise.withResolvers<void>();
-            let isDeliveryStarted = false;
-            let didWriteAfterRevocation = false;
-            const inFlight = controller.invokeShortReply(
+            const pending = controller.invokeControl(
+                { method: 'mobile.agent.submit', params: parameters },
                 context,
-                valid,
                 domainService,
-                async (signal?: AbortSignal) => {
-                    isDeliveryStarted = true;
-                    await delivery.promise;
-                    if (!signal?.aborted) didWriteAfterRevocation = true;
-                },
             );
-            await vi.waitFor(() => expect(isDeliveryStarted).toBe(true));
-            let isRevocationSettled = false;
-            const revocation = controller.invokeDesktopOperation({
+            await started.promise;
+            expect(requestWithSignal.mock.calls[0]?.[1]).toEqual({ ...parameters, principal });
+            await controller.invokeDesktopOperation({
                 method: 'mobile.device.revoke.apply',
                 params: {
                     deviceId: paired.device.deviceId,
                     expectedGeneration: paired.device.generation,
                 },
             });
-            const observeRevocation = async (): Promise<void> => {
-                await revocation;
-                isRevocationSettled = true;
-            };
-            const observedRevocation = observeRevocation();
-            await vi.waitFor(() => expect(isRevocationSettled).toBe(true), { timeout: 1_000 });
-            expect(() =>
-                controller.authorizePairedDeviceMethod(principal, 'terminal.send'),
-            ).toThrow('Paired device authorization is unavailable');
-            delivery.resolve();
-            await expect(inFlight).rejects.toMatchObject({ code: 'CANCELLED' });
-            expect(didWriteAfterRevocation).toBe(false);
-            await observedRevocation;
+            release.resolve({ terminalId: 'terminal-1', outcome: 'accepted' });
+            await expect(pending).rejects.toMatchObject({ code: 'CANCELLED' });
             await expect(
-                controller.invokeShortReply(context, valid, domainService, () => Promise.resolve()),
+                controller.invokeControl(
+                    { method: 'mobile.agent.submit', params: parameters },
+                    context,
+                    domainService,
+                ),
             ).rejects.toMatchObject({ code: 'FORBIDDEN' });
-            const closing = controller.close();
-            const enableAfterClose = controller.invokeControl(
-                { method: 'mobile.access.enable', params: {} },
-                context,
-                domainService,
-            );
-            await closing;
-            await expect(enableAfterClose).rejects.toMatchObject({ code: 'UNAVAILABLE' });
         } finally {
+            release.resolve({ terminalId: 'terminal-1', outcome: 'accepted' });
             await controller.close();
         }
     });

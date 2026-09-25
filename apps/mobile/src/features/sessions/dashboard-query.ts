@@ -15,7 +15,7 @@ export const dashboardQueryKey = (connectionScopeKey: string) =>
 
 export const isDashboardRouteVisible = (pathname: string, hostId: string): boolean => {
     const home = `/h/${encodeURIComponent(hostId)}`;
-    return pathname === home || pathname.startsWith(`${home}/s/`);
+    return pathname === home || pathname === `${home}/new` || pathname.startsWith(`${home}/s/`);
 };
 
 export const shouldObserveDashboard = ({

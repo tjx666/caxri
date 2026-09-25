@@ -21,7 +21,7 @@ describe('mobile dashboard query lifecycle', () => {
     it('observes only the visible foreground host dashboard surface', () => {
         expect(isDashboardRouteVisible('/h/host-1', 'host-1')).toBe(true);
         expect(isDashboardRouteVisible('/h/host-1/s/session-1', 'host-1')).toBe(true);
-        expect(isDashboardRouteVisible('/h/host-1/new', 'host-1')).toBe(false);
+        expect(isDashboardRouteVisible('/h/host-1/new', 'host-1')).toBe(true);
         expect(isDashboardRouteVisible('/h/host-2', 'host-1')).toBe(false);
         const eligible = {
             connectionScopeKey: 'scope-1',

@@ -37,9 +37,12 @@ const SessionSegmentPlaceholder = ({
 export const SessionDetail = ({
     deviceRole,
     draft,
+    focusComposer,
+    hostId,
     isConnected,
     isVisible,
     onBack,
+    onComposerFocused,
     onDraftChange,
     onMarkRead,
     onRefresh,
@@ -51,9 +54,12 @@ export const SessionDetail = ({
 }: {
     deviceRole: 'view' | 'reply' | 'control' | null;
     draft: string;
+    focusComposer?: boolean;
+    hostId: string;
     isConnected: boolean;
     isVisible: boolean;
     onBack?: () => void;
+    onComposerFocused?: () => void;
     onDraftChange: (draft: string) => void;
     onMarkRead: () => Promise<void>;
     onRefresh: () => Promise<void>;
@@ -113,16 +119,19 @@ export const SessionDetail = ({
             ) : (
                 <View style={styles.body}>{body}</View>
             )}
-            {segment !== 'terminal' ? (
-                <SessionDetailComposer
-                    draft={draft}
-                    isConnected={isConnected}
-                    onDraftChange={onDraftChange}
-                    onRefresh={onRefresh}
-                    session={session}
-                    theme={theme}
-                />
-            ) : null}
+            <SessionDetailComposer
+                deviceRole={deviceRole}
+                draft={draft}
+                focusComposer={focusComposer}
+                hostId={hostId}
+                isConnected={isConnected}
+                isVisible={isVisible}
+                onComposerFocused={onComposerFocused}
+                onDraftChange={onDraftChange}
+                onRefresh={onRefresh}
+                session={session}
+                theme={theme}
+            />
         </KeyboardAvoidingView>
     );
 };

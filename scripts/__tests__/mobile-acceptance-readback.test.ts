@@ -7,7 +7,7 @@ const checkpointId = 'verify-round-1';
 const history = [
     {
         acceptanceId: 'acceptance-1',
-        checkIds: ['MOB-PAIR-01', 'MOB-SESSION-02'],
+        checkIds: ['MOB-PAIR-01', 'MOB-COMPOSER-01'],
         headSha,
         roundIndex: 1,
         verdict: 'partial' as const,
@@ -17,7 +17,7 @@ const history = [
 const plan = [
     { id: 'MOB-PAIR-01', surface: 'desktop' as const },
     {
-        id: 'MOB-SESSION-02',
+        id: 'MOB-COMPOSER-01',
         mobileDevice: {
             appId: 'com.caxri.mobile' as const,
             deviceId: 'emulator-5554',
@@ -36,7 +36,7 @@ const view = {
             surface: 'desktop' as const,
         },
         {
-            id: 'MOB-SESSION-02',
+            id: 'MOB-COMPOSER-01',
             planItem: { verifierConfig: { surface: 'mobile' as const } },
             resultRound: 1,
             surface: 'mobile' as const,
@@ -68,12 +68,12 @@ describe('mobile Acceptance publication readback', () => {
             }),
         ).toMatchObject({
             checkpointId,
-            checkIds: ['MOB-PAIR-01', 'MOB-SESSION-02'],
+            checkIds: ['MOB-COMPOSER-01', 'MOB-PAIR-01'],
             exactHead: headSha,
             mobileDevices: [
                 {
                     appId: 'com.caxri.mobile',
-                    caseId: 'MOB-SESSION-02',
+                    caseId: 'MOB-COMPOSER-01',
                     deviceId: 'emulator-5554',
                     platform: 'android',
                 },

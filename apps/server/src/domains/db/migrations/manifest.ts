@@ -34,6 +34,7 @@ import sessionPinningMigrationSql from './0028_session-pinning.sql?raw';
 import sessionStateRevisionMigrationSql from './0029_session-state-revision.sql?raw';
 import clearShutdownStampedSessionFailureMigrationSql from './0030_clear-shutdown-stamped-session-failure.sql?raw';
 import projectHidingMigrationSql from './0031_project-hiding.sql?raw';
+import mobileAgentSubmitReceiptsMigrationSql from './0032_moaning_lake.sql?raw';
 import migrationJournal from './meta/_journal.json';
 
 interface MigrationJournal {
@@ -108,6 +109,7 @@ export const migrationManifest = [
         sql: clearShutdownStampedSessionFailureMigrationSql,
     },
     { tag: '0031_project-hiding', sql: projectHidingMigrationSql },
+    { tag: '0032_moaning_lake', sql: mobileAgentSubmitReceiptsMigrationSql },
 ] as const;
 
 // Intentional: this check must run at module initialization (see the docstring above) so an

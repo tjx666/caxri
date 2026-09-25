@@ -14,7 +14,9 @@ import type {
     TerminalExecutionPort,
     TerminalObserverEvent,
 } from '../../domains/terminal';
+import { submitAgentText } from '../../terminal-host/agent-submission';
 import { TerminalExecutionEngine } from '../../terminal-host/engine';
+import { isValidAgentSubmitText } from '../../terminal-host/protocol';
 
 const unavailableTestPtySpawn: typeof pty.spawn = () => {
     throw new Error('Terminal tests that launch a process must inject a PTY spawn implementation');
@@ -240,6 +242,30 @@ export class LocalTerminalExecution extends EventTarget implements TerminalExecu
     writeAgent(terminalId: string, data: string): Promise<boolean> {
         if (!this.agents.has(terminalId)) return Promise.resolve(false);
         return Promise.resolve(this.engine.write(terminalId, data));
+    }
+
+    async submitAgentExact(
+        terminalId: string,
+        _expectedSessionId: string,
+        expectedAgentLaunchId: string,
+        text: string,
+        signal?: AbortSignal,
+    ): Promise<'accepted' | 'rejected' | 'unknown'> {
+        if (signal?.aborted || !isValidAgentSubmitText(text)) return 'rejected';
+        const agent = this.agents.get(terminalId);
+        const result = await submitAgentText(
+            this.engine,
+            {
+                agentLaunchId: agent?.launchId,
+                agentProcessId: agent?.processId,
+                running: this.engine.processId(terminalId) !== undefined,
+            },
+            terminalId,
+            expectedAgentLaunchId,
+            text,
+            () => this.agents.get(terminalId)?.launchId === expectedAgentLaunchId,
+        );
+        return result.outcome;
     }
 
     configureOutputRecovery(): void {

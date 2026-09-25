@@ -567,24 +567,23 @@ export class AgentDelegationService {
     }
 
     /**
-     * Fences admission and drains in-flight file creation before metadata cascades remove the only ownership index.
-     * Cleanup failure retains the database records so an explicit deletion retry can reclaim the same directories.
+     * Fences creation and cleans private files before deleting metadata; failed cleanup retains the records.
      */
-    async deleteSessions<T>(sessionIds: readonly string[], removeRecords: () => T): Promise<T> {
-        if (sessionIds.some((id) => this.deletingSessions.has(id)))
+    async deleteSessions<T>(ids: readonly string[], remove: () => T | Promise<T>): Promise<T> {
+        if (ids.some((id) => this.deletingSessions.has(id)))
             throw new CaxriError('CONFLICT', 'Delegation Session is already being deleted');
-        for (const id of sessionIds) this.deletingSessions.add(id);
+        for (const id of ids) this.deletingSessions.add(id);
         try {
             await Promise.allSettled(
-                sessionIds.flatMap((id) => [...(this.pendingCreations.get(id) ?? [])]),
+                ids.flatMap((id) => [...(this.pendingCreations.get(id) ?? [])]),
             );
             await removeDelegationFiles(
                 this.options.userDataPath,
-                this.options.database.agentDelegations.storageRootsForSessions(sessionIds),
+                this.options.database.agentDelegations.storageRootsForSessions(ids),
             );
-            return removeRecords();
+            return await remove();
         } finally {
-            for (const id of sessionIds) this.deletingSessions.delete(id);
+            for (const id of ids) this.deletingSessions.delete(id);
         }
     }
 

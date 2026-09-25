@@ -1,99 +1,204 @@
+import { useEffect, useRef } from 'react';
 import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
 
-import { MOBILE_SHORT_REPLY_MAX_BYTES } from '@caxri/protocol';
+import { MOBILE_AGENT_SUBMIT_MAX_BYTES } from '@caxri/protocol';
 
 import type { MobileTheme } from '../../../theme/tokens';
-import { useShortReply } from '../hooks/use-short-reply';
+import { useSessionComposer } from '../hooks/use-session-composer';
+import type { ComposerDelivery } from '../session-composer-state';
+import { composerDeliveryFeedback } from '../session-composer-state';
 import type { MobileSessionItem } from '../session-model';
+import { sessionAgentLabel } from '../session-row-model';
 import { sessionDetailStyles as styles } from './session-detail-styles';
 
-export const SessionDetailComposer = ({
+const SessionComposerInput = ({
+    delivery,
     draft,
+    focusComposer,
+    isVisible,
+    onComposerFocused,
+    session,
+    theme,
+    updateDraft,
+}: {
+    delivery: ComposerDelivery;
+    draft: string;
+    focusComposer?: boolean;
+    isVisible: boolean;
+    onComposerFocused?: () => void;
+    session: MobileSessionItem;
+    theme: MobileTheme;
+    updateDraft: (value: string) => void;
+}) => {
+    const inputReference = useRef<TextInput>(null);
+    useEffect(() => {
+        if (!focusComposer || !isVisible || !inputReference.current) return;
+        inputReference.current.focus();
+        if (inputReference.current.isFocused()) onComposerFocused?.();
+    }, [focusComposer, isVisible, onComposerFocused]);
+
+    const agentName = sessionAgentLabel(session);
+    const placeholder =
+        session.lastActivityState === 'running'
+            ? 'Agent is working — your message will be typed into the Terminal'
+            : `Message ${['No Agent', 'Shell'].includes(agentName) ? 'Agent' : agentName}`;
+
+    return (
+        <TextInput
+            accessibilityLabel="Message Agent"
+            accessibilityHint="Return inserts a new line. Use Send message to submit."
+            editable={delivery.kind !== 'sending' && delivery.kind !== 'stopping'}
+            multiline
+            numberOfLines={6}
+            onChangeText={updateDraft}
+            onFocus={() => {
+                if (focusComposer) onComposerFocused?.();
+            }}
+            placeholder={placeholder}
+            placeholderTextColor={theme.muted}
+            ref={inputReference}
+            scrollEnabled
+            submitBehavior="newline"
+            style={[
+                styles.composer,
+                {
+                    backgroundColor: theme.surface,
+                    borderColor: theme.border,
+                    color: theme.text,
+                },
+            ]}
+            testID="session-composer-input"
+            textAlignVertical="top"
+            value={draft}
+        />
+    );
+};
+
+const SessionComposerActionButton = ({
+    canSubmit,
+    delivery,
+    showStop,
+    submit,
+    theme,
+}: {
+    canSubmit: boolean;
+    delivery: ComposerDelivery;
+    showStop: boolean;
+    submit: () => Promise<void>;
+    theme: MobileTheme;
+}) => {
+    const isBusy = delivery.kind === 'sending' || delivery.kind === 'stopping';
+    return (
+        <Pressable
+            accessibilityLabel={showStop ? 'Stop Agent' : 'Send message'}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: !canSubmit, busy: isBusy }}
+            disabled={!canSubmit}
+            onPress={submit}
+            style={[
+                styles.sendButton,
+                {
+                    backgroundColor: showStop ? theme.danger : theme.primary,
+                    opacity: canSubmit ? 1 : 0.38,
+                },
+            ]}
+            testID={showStop ? 'session-composer-stop' : 'session-composer-send'}
+        >
+            {isBusy ? (
+                <ActivityIndicator color={theme.primaryForeground} />
+            ) : (
+                <Text style={[styles.sendLabel, { color: theme.primaryForeground }]}>
+                    {showStop ? '■ Stop Agent' : '↑'}
+                </Text>
+            )}
+        </Pressable>
+    );
+};
+
+export const SessionDetailComposer = ({
+    deviceRole,
+    draft,
+    focusComposer,
+    hostId,
     isConnected,
+    isVisible,
+    onComposerFocused,
     onDraftChange,
     onRefresh,
     session,
     theme,
 }: {
+    deviceRole: 'view' | 'reply' | 'control' | null;
     draft: string;
+    focusComposer?: boolean;
+    hostId: string;
     isConnected: boolean;
+    isVisible: boolean;
+    onComposerFocused?: () => void;
     onDraftChange: (draft: string) => void;
     onRefresh: () => Promise<void>;
     session: MobileSessionItem;
     theme: MobileTheme;
 }) => {
-    const {
-        byteLength,
-        canSend,
-        disabledReason,
-        replySent,
-        send,
-        sendError,
-        sending,
-        updateDraft,
-    } = useShortReply({ draft, isConnected, onDraftChange, onRefresh, session });
+    const { byteLength, canSubmit, delivery, disabledReason, showStop, submit, updateDraft } =
+        useSessionComposer({
+            deviceRole,
+            draft,
+            hostId,
+            isConnected,
+            onDraftChange,
+            onRefresh,
+            session,
+        });
+    const feedback = composerDeliveryFeedback(delivery);
+
     return (
-        <View style={[styles.composerBlock, { borderColor: theme.border }]}>
-            <TextInput
-                accessibilityHint="Sends plain text followed by Enter to the waiting primary Agent."
-                editable={!sending}
-                onChangeText={updateDraft}
-                onSubmitEditing={send}
-                placeholder="Reply to the waiting Agent"
-                placeholderTextColor={theme.muted}
-                returnKeyType="send"
-                style={[
-                    styles.composer,
-                    {
-                        backgroundColor: theme.surface,
-                        borderColor: theme.border,
-                        color: theme.text,
-                    },
-                ]}
-                testID="short-reply-input"
-                value={draft}
-            />
+        <View
+            style={[styles.composerBlock, { borderColor: theme.border }]}
+            testID="session-composer"
+        >
+            <View style={styles.composerRow}>
+                <SessionComposerInput
+                    delivery={delivery}
+                    draft={draft}
+                    focusComposer={focusComposer}
+                    isVisible={isVisible}
+                    onComposerFocused={onComposerFocused}
+                    session={session}
+                    theme={theme}
+                    updateDraft={updateDraft}
+                />
+                <SessionComposerActionButton
+                    canSubmit={canSubmit}
+                    delivery={delivery}
+                    showStop={showStop}
+                    submit={submit}
+                    theme={theme}
+                />
+            </View>
             <View style={styles.composerMeta}>
-                <Text style={[styles.reason, { color: disabledReason ? theme.muted : theme.text }]}>
-                    {disabledReason ?? 'Sends to the waiting primary Agent and presses Enter.'}
+                <Text style={[styles.reason, { color: theme.muted }]}>
+                    {disabledReason ??
+                        (showStop
+                            ? 'Interrupts the current Agent.'
+                            : 'Send to the primary Agent Terminal.')}
                 </Text>
                 <Text style={[styles.byteCount, { color: theme.muted }]}>
-                    {byteLength}/{MOBILE_SHORT_REPLY_MAX_BYTES} B
+                    {byteLength}/{MOBILE_AGENT_SUBMIT_MAX_BYTES} B
                 </Text>
             </View>
-            {sendError ? (
-                <Text accessibilityRole="alert" style={[styles.sendState, { color: theme.danger }]}>
-                    {sendError}
-                </Text>
-            ) : null}
-            {replySent ? (
+            {feedback ? (
                 <Text
-                    style={[styles.sendState, { color: theme.primary }]}
-                    testID="short-reply-success"
+                    accessibilityRole={feedback.isError ? 'alert' : 'text'}
+                    style={[
+                        styles.sendState,
+                        { color: feedback.isError ? theme.danger : theme.primary },
+                    ]}
+                    testID="session-composer-feedback"
                 >
-                    Reply sent.
+                    {feedback.message}
                 </Text>
             ) : null}
-            <Pressable
-                accessibilityLabel={sending ? 'Sending reply' : 'Send reply'}
-                accessibilityRole="button"
-                accessibilityState={{ disabled: !canSend }}
-                disabled={!canSend}
-                onPress={send}
-                style={[
-                    styles.sendButton,
-                    { backgroundColor: theme.primary, opacity: canSend ? 1 : 0.38 },
-                ]}
-                testID="short-reply-send"
-            >
-                {sending ? (
-                    <ActivityIndicator color={theme.primaryForeground} />
-                ) : (
-                    <Text style={[styles.sendLabel, { color: theme.primaryForeground }]}>
-                        Send reply
-                    </Text>
-                )}
-            </Pressable>
         </View>
     );
 };

@@ -24,12 +24,15 @@ import type {
     ManagedAgentLaunchPlan,
     PreparedManagedAgentLaunch,
 } from './agent-launcher';
+import { submitAgentText } from './agent-submission';
 import type {
     TerminalExecutionEvent,
     TerminalExecutionExit,
     TerminalExecutionStart,
 } from './engine';
 import { TerminalExecutionEngine } from './engine';
+import type { AgentInputHandoff } from './engine/agent-input';
+import { noOpAgentInputHandoff } from './engine/agent-input';
 import type {
     TerminalHostAuthority,
     TerminalHostMessage,
@@ -84,6 +87,8 @@ export interface TerminalExecutionOwner {
     start(input: TerminalExecutionStart): number;
     waitForAttachedSize(terminalId: string, timeoutMs: number): Promise<void>;
     write(terminalId: string, data: string | Buffer): boolean;
+    writeWithCompletion?(terminalId: string, data: string | Buffer): Promise<boolean>;
+    quiesceInput?(terminalId: string): AgentInputHandoff;
 }
 
 export interface ManagedAgentExecutionOwner {
@@ -95,10 +100,12 @@ export interface ManagedAgentExecutionOwner {
         plan: ManagedAgentLaunchPlan;
     }): PreparedManagedAgentLaunch;
     signalExact(terminalId: string, launchId: string, signal: ManagedAgentLauncherSignal): boolean;
+    isRunningExact(terminalId: string, launchId: string): boolean;
 }
 
 interface RuntimeTerminalIdentity {
     agentLaunchId?: string;
+    agentProcessId?: number;
     agentProvider?: AgentProvider;
     attachmentId?: string;
     ptyGeneration: number;
@@ -474,6 +481,21 @@ export class TerminalHostRuntime {
                 const scope = this.requireTerminalScope(envelope);
                 return { accepted: this.engine.write(scope.terminalId, request.params.data) };
             }
+            case 'terminal.agent.submit': {
+                const scope = this.requireTerminalScope(envelope);
+                return submitAgentText(
+                    this.engine,
+                    this.identities.get(scope.terminalId),
+                    scope.terminalId,
+                    request.params.launchId,
+                    request.params.text,
+                    () =>
+                        this.options.agentLauncher?.isRunningExact(
+                            scope.terminalId,
+                            request.params.launchId,
+                        ) === true,
+                );
+            }
             case 'terminal.resize': {
                 const scope = this.requireTerminalScope(envelope);
                 return {
@@ -671,11 +693,16 @@ export class TerminalHostRuntime {
         }
     }
 
+    quiesceManagedAgentInput(terminalId: string): AgentInputHandoff {
+        return this.engine.quiesceInput?.(terminalId) ?? noOpAgentInputHandoff();
+    }
+
     projectManagedAgentEvent(event: ManagedAgentLauncherEvent): void {
         const identity = this.identities.get(event.terminalId);
         if (!identity || identity.agentLaunchId !== event.launchId) return;
         const wireIdentity = this.eventIdentity(identity);
         if (event.type === 'started') {
+            identity.agentProcessId = event.processId;
             this.options.send({
                 type: 'event',
                 event: 'terminal.agent.started',
@@ -686,6 +713,7 @@ export class TerminalHostRuntime {
             return;
         }
         delete identity.agentLaunchId;
+        delete identity.agentProcessId;
         delete identity.agentProvider;
         this.engine.reconcileOutputRecoverySettings();
         this.options.send({

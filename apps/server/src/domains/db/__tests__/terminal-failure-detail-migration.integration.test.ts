@@ -7,7 +7,7 @@ import { expect, it } from 'vitest';
 
 import { CURRENT_SCHEMA_VERSION } from '../connection';
 import { CaxriDatabaseConnection } from '../database-connection';
-import { migrationManifest } from '../migrations/manifest';
+import { migrationManifest, schemaVersionForMigration } from '../migrations/manifest';
 
 it('adds failure detail to an existing Terminal without losing its state', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-db-terminal-detail-upgrade-'));
@@ -15,7 +15,10 @@ it('adds failure detail to an existing Terminal without losing its state', async
         const path = join(directory, 'state.db');
         const previous = new Database(path);
         previous.pragma('foreign_keys = ON');
-        const previousMigrations = migrationManifest.slice(0, -1);
+        const previousMigrations = migrationManifest.slice(
+            0,
+            migrationManifest.findIndex((migration) => migration.tag === '0027_dashing_ego'),
+        );
         for (const migration of previousMigrations)
             previous.exec(migration.sql.replaceAll('--> statement-breakpoint', ''));
         previous
@@ -31,7 +34,9 @@ it('adds failure detail to an existing Terminal without losing its state', async
                 "INSERT INTO terminals (id, session_id, kind, provider, cwd, title, icon, order_index, last_process_state, failure_reason, created_at, updated_at) VALUES ('terminal-1', 'session-1', 'claude', 'claude', ?, 'Claude Code', 'terminal', 0, 'failed', 'executable_not_found', 1, 1)",
             )
             .run(directory);
-        previous.pragma(`user_version = ${CURRENT_SCHEMA_VERSION - 1}`);
+        previous.pragma(
+            `user_version = ${schemaVersionForMigration('0026_delegation_terminal_ownership')}`,
+        );
         previous.close();
 
         const upgraded = new CaxriDatabaseConnection(path);

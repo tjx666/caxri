@@ -13,11 +13,13 @@ import type { MobileLayoutMode } from '../../layout/layout-mode';
 import { mobileLayoutMode } from '../../layout/layout-mode';
 import { useSessionAttention } from '../hooks/use-session-attention';
 import { allMobileSessions } from '../hooks/use-session-polling';
+import { useSessionShow } from '../hooks/use-session-show';
 import { preferredSessionSegment } from '../session-ui-state';
 import { ConnectionBanner } from './connection-banner';
 import { useHostSessions } from './host-sessions-provider';
 import { SessionDetail } from './session-detail';
 import { SessionHome } from './session-home';
+import { SessionRouteStatus } from './session-route-status';
 
 const styles = StyleSheet.create({
     safeArea: { flex: 1 },
@@ -114,7 +116,15 @@ export const SessionsScreen = ({ routeSessionId }: { routeSessionId: string | nu
     const { height, width } = useWindowDimensions();
     const layout = mobileLayoutMode(width, height);
     const { lastSeenAt, request, retryConnection, status } = useMobileClient();
-    const { hostId, sessions, setDraft, setSegment, ui } = useHostSessions();
+    const {
+        consumeComposerFocus,
+        focusComposerSessionId,
+        hostId,
+        sessions,
+        setDraft,
+        setSegment,
+        ui,
+    } = useHostSessions();
     const { refresh, selectSession } = sessions;
     const [now, setNow] = useState(0);
 
@@ -132,13 +142,18 @@ export const SessionsScreen = ({ routeSessionId }: { routeSessionId: string | nu
         if (routeSessionId) selectSession(routeSessionId);
     }, [routeSessionId, selectSession]);
 
-    const selected = useMemo(() => {
+    const dashboardSelected = useMemo(() => {
         if (routeSessionId)
             return (
                 allMobileSessions(sessions.sections).find(({ id }) => id === routeSessionId) ?? null
             );
         return sessions.selected;
     }, [routeSessionId, sessions.sections, sessions.selected]);
+    const shown = useSessionShow(
+        routeSessionId,
+        routeSessionId !== null && dashboardSelected === null,
+    );
+    const selected = dashboardSelected ?? shown.session;
     const isDetailVisible = selected !== null && (layout !== 'phone' || routeSessionId !== null);
     const segment = selected
         ? preferredSessionSegment(ui.segmentBySession[selected.id], false)
@@ -175,10 +190,13 @@ export const SessionsScreen = ({ routeSessionId }: { routeSessionId: string | nu
         <SessionDetail
             deviceRole={sessions.deviceRole}
             draft={ui.draftBySession[selected.id] ?? ''}
+            focusComposer={focusComposerSessionId === selected.id}
+            hostId={hostId}
             isConnected={fresh}
             isVisible={isDetailVisible}
             onBack={layout === 'phone' ? goHome : undefined}
             onDraftChange={(draft) => setDraft(selected.id, draft)}
+            onComposerFocused={() => consumeComposerFocus(selected.id)}
             onMarkRead={markRead}
             onRefresh={sessions.refresh}
             onSegmentChange={(next) => setSegment(selected.id, next)}
@@ -186,6 +204,13 @@ export const SessionsScreen = ({ routeSessionId }: { routeSessionId: string | nu
             session={selected}
             theme={theme}
             wideChanges={layout === 'tablet-wide'}
+        />
+    ) : routeSessionId ? (
+        <SessionRouteStatus
+            error={shown.error}
+            isLoading={shown.isLoading}
+            onRetry={shown.refresh}
+            theme={theme}
         />
     ) : (
         <View style={styles.detailEmpty}>

@@ -84,18 +84,6 @@ export const buildMobileSessionSections = (input: {
     return result;
 };
 
-export const shortReplyDisabledReason = (
-    session: MobileSessionItem,
-    isConnected: boolean,
-): string | null => {
-    if (!isConnected) return 'Reconnect to Caxri before replying.';
-    if (session.lastActivityState !== 'waiting')
-        return 'Replies are available only while the Agent is waiting for you.';
-    if (!session.primaryAgentTerminalId || !session.primaryTerminal)
-        return 'This Session has no available primary Agent.';
-    return null;
-};
-
 export const isMobileTerminalStopped = (session: MobileSessionItem): boolean => {
     switch (session.primaryTerminal?.lastProcessState) {
         case 'stopped':
@@ -111,6 +99,3 @@ export const isMobileTerminalStopped = (session: MobileSessionItem): boolean => 
             return false;
     }
 };
-
-export const mobileSessionDraftKey = (session: MobileSession): string =>
-    `${session.id}:${session.primaryAgentTerminalId ?? 'none'}:${session.attentionEpoch}`;

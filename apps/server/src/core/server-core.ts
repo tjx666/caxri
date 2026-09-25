@@ -39,7 +39,11 @@ import { ServerDesktopRouter } from './desktop-router';
 import { createExtensionService } from './extensions/create-service';
 import { readActiveExtensionContext, routeExtensionDomainEvent } from './extensions/domain-events';
 import type { ExtensionService } from './extensions/service';
-import { isMobileControlRequest, openMobileAccessController } from './mobile';
+import {
+    isMobileControlRequest,
+    openMobileAccessController,
+    resolveMobileAgentEndpoint,
+} from './mobile';
 import { MutationAdmission } from './mutation-admission';
 import { assertProjectScope, projectScope } from './principal-project-scope';
 import { acquireServerProfile } from './profile';
@@ -227,7 +231,9 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                     `Host received a desktop-owned method: ${request.method}`,
                 );
             if (isMobileControlRequest(request))
-                return mobileAccess.invokeControl(request, context, domainService);
+                return mobileAccess.invokeControl(request, context, domainService, (terminalId) =>
+                    resolveMobileAgentEndpoint(agentEndpoints, terminalId),
+                );
             if (isDelegationAccessRequest(request))
                 return invokeDelegationAccess(
                     request,
@@ -364,6 +370,14 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                 }
                 case 'agent.control.interrupt':
                 case 'agent.control.stop': {
+                    if (context.principal.kind === 'paired-device') {
+                        if (request.method !== 'agent.control.interrupt')
+                            throw new CaxriError(
+                                'FORBIDDEN',
+                                'Mobile device cannot stop Agent process',
+                            );
+                        mobileAccess.authorizePairedDeviceMethod(context.principal, request.method);
+                    }
                     const endpoint = agentEndpoints.resolve(request.params.endpoint);
                     assertProjectScope(context, endpoint.projectId);
                     return forwardDomainOperation({
@@ -375,6 +389,11 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                     });
                 }
                 case 'terminal.send': {
+                    if (context.principal.kind === 'paired-device')
+                        throw new CaxriError(
+                            'FORBIDDEN',
+                            'Use mobile.agent.submit for mobile input',
+                        );
                     const invoke = (signal?: AbortSignal) =>
                         forwardDomainOperation(
                             { method: 'terminal.sendInternal', params: request.params },
@@ -382,13 +401,6 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                         );
                     return invokeTerminalSend({
                         invoke,
-                        invokePairedDevice: () =>
-                            mobileAccess.invokeShortReply(
-                                context,
-                                request.params,
-                                domainService,
-                                invoke,
-                            ),
                         logger,
                         parameters: request.params,
                         principalKind: context.principal.kind,

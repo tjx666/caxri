@@ -1,3 +1,5 @@
+import process from 'node:process';
+
 import type { MobileServerPayload, MobileSubscriptionResource } from '@caxri/mobile-transport';
 import {
     mobileClientPayloadSchema,
@@ -26,6 +28,20 @@ import { MobileGatewaySubscriptions } from './subscriptions';
 const MAXIMUM_ACTIVE_OPERATIONS = 8;
 const HEARTBEAT_CHECK_MS = 3_000;
 const HEARTBEAT_IDLE_MS = 12_000;
+const e2eAckDropState = { didDrop: false };
+
+function shouldDropE2ESubmitAcknowledgement(method: string, isSucceeded: boolean): boolean {
+    if (
+        method !== 'mobile.agent.submit' ||
+        !isSucceeded ||
+        e2eAckDropState.didDrop ||
+        process.env.CAXRI_E2E !== '1' ||
+        process.env.CAXRI_E2E_MOBILE_DROP_SUBMIT_ACK_ONCE !== '1'
+    )
+        return false;
+    e2eAckDropState.didDrop = true;
+    return true;
+}
 
 interface MobileAppOptions {
     authorizeMethod: (principal: Principal, method: string) => void;
@@ -136,7 +152,18 @@ export class MobileGatewayFrameRouter {
                         this.#options.context().principal,
                         request.method,
                     );
-                    return boundedMobileReply(request, commandReplyEnvelopeSchema.parse(reply));
+                    const bounded = boundedMobileReply(
+                        request,
+                        commandReplyEnvelopeSchema.parse(reply),
+                    );
+                    /**
+                     * Fixture-only loss after durable Host acceptance, before any reply reaches the device.
+                     */
+                    if (shouldDropE2ESubmitAcknowledgement(request.method, bounded.ok)) {
+                        this.#options.terminate();
+                        return;
+                    }
+                    return bounded;
                 });
                 return;
             }
@@ -178,7 +205,7 @@ export class MobileGatewayFrameRouter {
 
     #run(
         id: string,
-        action: () => Promise<CommandReplyEnvelope> | CommandReplyEnvelope,
+        action: () => Promise<CommandReplyEnvelope | undefined> | CommandReplyEnvelope | undefined,
         afterReply?: () => void,
     ): void {
         if (this.#activeIds.has(id)) {
@@ -197,13 +224,13 @@ export class MobileGatewayFrameRouter {
         // eslint-disable-next-line no-void -- Operations complete independently so one slow command cannot block another frame.
         void (async (): Promise<void> => {
             try {
-                let reply: CommandReplyEnvelope;
+                let reply: CommandReplyEnvelope | undefined;
                 try {
                     reply = await action();
                 } catch (error) {
                     reply = errorReply(id, error);
                 }
-                if (!this.#closed && this.#options.isActive()) {
+                if (reply && !this.#closed && this.#options.isActive()) {
                     try {
                         this.#options.context();
                         const sent = await this.#reply(reply);

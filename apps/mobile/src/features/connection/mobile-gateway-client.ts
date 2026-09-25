@@ -48,6 +48,7 @@ import type { MobileCredential, MobileCredentialStore } from './credential-store
 import type { MobileSubscriptionListener } from './mobile-frame-router';
 import { MobileFrameRouter } from './mobile-frame-router';
 import { MobileHeartbeat } from './mobile-heartbeat';
+import { isFastMobileRead } from './mobile-read-timeouts';
 import { MobileSocketReaderBudget } from './socket-reader-budget';
 
 const HANDSHAKE_TIMEOUT_MS = 10_000;
@@ -57,9 +58,6 @@ const REQUEST_TIMEOUT_MS = 15_000;
 const FOREGROUND_PROBE_TIMEOUT_MS = 1_500;
 const textDecoder = new TextDecoder();
 const textEncoder = new TextEncoder();
-
-const isFastMobileRead = (method: CaxriMethod): boolean =>
-    method === 'mobile.dashboard' || method === 'terminal.preview';
 
 export class MobileGatewayRequestError extends Error {
     readonly code: string;
