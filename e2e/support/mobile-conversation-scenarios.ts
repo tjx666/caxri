@@ -173,6 +173,42 @@ async function capturedHash(environment: ScenarioEnvironment, label: string) {
     return createHash('sha256').update(frame).digest('hex');
 }
 
+async function captureHorizontalCodeReading(
+    environment: ScenarioEnvironment,
+    artifacts: string[],
+): Promise<void> {
+    const agentId = await scrollToConversationId(
+        environment.serial,
+        'conversation-agent-',
+        'earlier',
+    );
+    const agent = (await mobileSemantics(environment.serial)).find(
+        ({ checkId }) => checkId === agentId,
+    );
+    const frame = agent && androidBounds(agent.bounds);
+    if (!frame) throw new Error('Synthetic code block is not visible on Android');
+    const y = frame.bottom - 48;
+    const fromX = frame.left + Math.floor((frame.right - frame.left) * 0.8);
+    const toX = frame.left + Math.floor((frame.right - frame.left) * 0.2);
+    await capture(environment, 'code-left', artifacts);
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+        // eslint-disable-next-line no-await-in-loop -- each swipe advances the same horizontal code viewport.
+        await adbShell(environment.serial, [
+            'input',
+            'swipe',
+            String(fromX),
+            String(y),
+            String(toX),
+            String(y),
+            '350',
+        ]);
+    }
+    await capture(environment, 'code-right', artifacts);
+    expect(await capturedHash(environment, 'code-right')).not.toBe(
+        await capturedHash(environment, 'code-left'),
+    );
+}
+
 interface ShellGridState {
     columns: number;
     firstGridMarker: { columns: number; generation: string; rows: number };
@@ -405,6 +441,20 @@ export async function executeMobileConversationScenario(
             const fixture = await conversationFixture(environment.serial);
             try {
                 await fixture.appendTranscript(conversationBaselineRecords());
+                const projected = await fixture.readTimeline();
+                expect(
+                    projected.items.some(
+                        (item) =>
+                            item.type === 'agentMessage' && item.text.includes('synthetic-right'),
+                    ),
+                ).toBe(true);
+                expect(
+                    projected.items.some(
+                        (item) =>
+                            item.type === 'agentMessage' &&
+                            item.text.includes('Synthetic private reasoning must stay hidden.'),
+                    ),
+                ).toBe(false);
                 await fixture.pair();
                 await openConversation(environment.serial, fixture.allowedSessionId);
                 await scrollToConversationId(environment.serial, 'conversation-user-', 'earlier');
@@ -417,6 +467,8 @@ export async function executeMobileConversationScenario(
                     'earlier',
                 );
                 await capture(environment, 'collapsed', artifacts);
+                await captureHorizontalCodeReading(environment, artifacts);
+                await scrollToConversationId(environment.serial, 'conversation-group-', 'later');
                 await tapMobileCheck(environment.serial, group);
                 const tool = await waitForConversationId(environment.serial, 'conversation-tool-');
                 await capture(environment, 'expanded', artifacts);
@@ -424,7 +476,15 @@ export async function executeMobileConversationScenario(
                 await waitForConversationId(environment.serial, 'conversation-tool-detail');
                 await capture(environment, 'tool-detail', artifacts);
                 await finish(environment, artifacts, {
-                    screenshots: ['collapsed', 'expanded', 'tool-detail'],
+                    codeReading: 'horizontal-swipe-with-before-and-after-device-frames',
+                    hiddenThinking: 'synthetic-marker-absent-from-projected-timeline',
+                    screenshots: [
+                        'collapsed',
+                        'code-left',
+                        'code-right',
+                        'expanded',
+                        'tool-detail',
+                    ],
                     states: ['user', 'markdown-code', 'tool-group', 'turn', 'tool-detail'],
                     status: 'passed',
                 });
