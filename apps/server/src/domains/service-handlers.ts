@@ -17,6 +17,7 @@ import {
 } from './agents';
 import type { ConfigService } from './config';
 import type { CaxriDatabase } from './db';
+import { DeliveryFocusRefresh } from './delivery-focus-refresh';
 import type { DiagnosticsService } from './diagnostics';
 import type { DomainDependencies, DomainHandlers } from './domain-services';
 import type { ExternalStatusHub } from './external-status';
@@ -81,6 +82,7 @@ type ServiceHandlerMethods =
     | 'projectStatus.summary'
     | 'projectStatus.overview'
     | 'session.pullRequests'
+    | 'session.refreshDeliveryOnFocus'
     | 'session.searchContent'
     | 'settings.get'
     | 'settings.inspect'
@@ -171,6 +173,11 @@ export function createServiceHandlers(services: {
             vercel,
         },
     );
+    const deliveryFocusRefresh = new DeliveryFocusRefresh({
+        logger,
+        projectStatus,
+        sessionPullRequests,
+    });
     return {
         'agent.delegation.access.bootstrap': async ({
             rootPath,
@@ -292,6 +299,12 @@ export function createServiceHandlers(services: {
             projectStatus.summary(sessionId, refreshToken),
         'projectStatus.overview': ({ sessionId }) => projectStatus.overview(sessionId),
         'session.pullRequests': () => sessionPullRequests.snapshot(),
+        'session.refreshDeliveryOnFocus': ({ sessionId }) => {
+            // Fire-and-forget: the refresh logs its own outcome and the change events converge the UI.
+            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+            void deliveryFocusRefresh.request(sessionId);
+            return null;
+        },
         'settings.get': () => configuration.getSettings(),
         'settings.inspect': () => configuration.inspectSettings(),
         'settings.patch': ({ changes, dryRun }) => configuration.patchSettings(changes, dryRun),
