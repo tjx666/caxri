@@ -5,6 +5,7 @@ import { MOBILE_AGENT_SUBMIT_MAX_BYTES } from '@caxri/protocol';
 
 import type { MobileTheme } from '../../../theme/tokens';
 import { useSessionComposer } from '../hooks/use-session-composer';
+import { recordComposerInput, recordVisibleComposerDraft } from '../session-composer-diagnostic';
 import type { ComposerDelivery } from '../session-composer-state';
 import { composerDeliveryFeedback } from '../session-composer-state';
 import type { MobileSessionItem } from '../session-model';
@@ -50,7 +51,10 @@ const SessionComposerInput = ({
             editable={delivery.kind !== 'sending' && delivery.kind !== 'stopping'}
             multiline
             numberOfLines={6}
-            onChangeText={updateDraft}
+            onChangeText={(value) => {
+                recordComposerInput(value);
+                updateDraft(value);
+            }}
             onFocus={() => {
                 if (focusComposer) onComposerFocused?.();
             }}
@@ -140,6 +144,9 @@ export const SessionDetailComposer = ({
     session: MobileSessionItem;
     theme: MobileTheme;
 }) => {
+    useEffect(() => {
+        if (isVisible) recordVisibleComposerDraft(draft);
+    }, [draft, isVisible]);
     const { byteLength, canSubmit, delivery, disabledReason, showStop, submit, updateDraft } =
         useSessionComposer({
             deviceRole,

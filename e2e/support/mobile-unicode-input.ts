@@ -6,6 +6,8 @@ import { join } from 'node:path';
 import process from 'node:process';
 import { promisify } from 'node:util';
 
+import { mobileSemantics, waitForMobile } from './mobile-android';
+
 const execFileAsync = promisify(execFile);
 const sdk = join(homedir(), 'Library', 'Android', 'sdk');
 const java = '/Applications/Android Studio.app/Contents/jbr/Contents/Home/bin';
@@ -159,6 +161,36 @@ export async function setMobileComposerUnicode(serial: string, value: string): P
     if (!/result=-1\b/u.test(output) || !/data="?committed"?/u.test(output))
         throw new Error('Fixture Unicode input was not committed');
     await runComposerAutomation(serial, 'testAssertDraft', value);
+}
+
+/**
+ * Optional failure-only probe: append one ASCII character, never submit it, and report no text.
+ */
+export async function diagnoseMobileComposerAscii(
+    serial: string,
+    expectedDraft: string,
+): Promise<{ committed: boolean; reactive: boolean }> {
+    try {
+        const result = await execFileAsync(adb, mobileFixtureImeBroadcastArguments(serial, 'x'));
+        if (!/result=-1\b/u.test(result.stdout) || !/data="?committed"?/u.test(result.stdout))
+            return { committed: false, reactive: false };
+        await runComposerAutomation(serial, 'testAssertDraft', `${expectedDraft}x`);
+    } catch {
+        return { committed: false, reactive: false };
+    }
+    try {
+        await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) =>
+                nodes.some(
+                    ({ checkId, enabled }) => checkId === 'session-composer-send' && enabled,
+                ),
+            5_000,
+        );
+        return { committed: true, reactive: true };
+    } catch {
+        return { committed: true, reactive: false };
+    }
 }
 
 export const assertMobileComposerDraft = (serial: string, value: string): Promise<void> =>
