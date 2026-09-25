@@ -9,6 +9,7 @@ import { z } from 'zod';
 import type { StateIsolation } from './case-lifecycle';
 import { caseLifecycleReceiptSchema, lifecycleEvidencePath } from './case-lifecycle';
 import { assertDecodablePng } from './png-integrity';
+import type { BlockedReason } from './report-blocked-reason';
 import { errorCode } from './report-paths';
 
 export const mobileDeviceSchema = z.object({
@@ -295,6 +296,7 @@ const emptyValidatedMedia = (): ValidatedMobileMedia => ({
 });
 
 export async function validateMobileEvidence(input: {
+    blockedReason?: BlockedReason;
     caseId: string;
     device: z.infer<typeof mobileDeviceSchema>;
     directory: string;
@@ -326,6 +328,21 @@ export async function validateMobileEvidence(input: {
     ) {
         throw new Error(
             `Case ${input.caseId} mobile device receipt does not match the frozen plan`,
+        );
+    }
+    if (
+        input.blockedReason === 'execution-failed-before-evidence' &&
+        (deviceReceipt.artifacts.length > 0 ||
+            input.evidence.some(
+                ({ path, source }) =>
+                    mobileMediaType(path) !== undefined ||
+                    source === 'isolated-desktop-renderer' ||
+                    path === `assets/${encodeURIComponent(input.caseId)}-desktop-capture.json` ||
+                    path === mobileResultEvidencePath(input.caseId),
+            ))
+    ) {
+        throw new Error(
+            `Case ${input.caseId} execution-failed-before-evidence cannot include captured media or result`,
         );
     }
     const desktopCapture = await validateDesktopCapture({
@@ -384,7 +401,7 @@ export async function validateMobileEvidence(input: {
  * Binds a mobile case's final receipt to the frozen device and completed lifecycle.
  */
 export async function validateMobileCaseEvidence(input: {
-    blockedReason?: 'plan-evidence-gap';
+    blockedReason?: BlockedReason;
     caseId: string;
     device?: z.infer<typeof mobileDeviceSchema>;
     directory: string;
@@ -397,9 +414,9 @@ export async function validateMobileCaseEvidence(input: {
     if (input.surface !== 'mobile') return emptyValidatedMedia();
     if (!input.device) throw new Error(`Case ${input.caseId} is missing its mobile device plan`);
     const hasDeviceReceipt = await hasMobileDeviceReceipt(input.directory, input.caseId);
-    if (!hasDeviceReceipt && input.blockedReason === 'plan-evidence-gap') {
+    if (!hasDeviceReceipt && input.blockedReason) {
         throw new Error(
-            `Case ${input.caseId} plan-evidence-gap requires a passed mobile device receipt`,
+            `Case ${input.caseId} ${input.blockedReason} requires a mobile device receipt`,
         );
     }
     if (!hasDeviceReceipt && input.status === 'blocked') return emptyValidatedMedia();
@@ -416,6 +433,7 @@ export async function validateMobileCaseEvidence(input: {
         evidenceBinding = { launchId: finalLaunchId };
     }
     return validateMobileEvidence({
+        blockedReason: input.blockedReason,
         caseId: input.caseId,
         device: input.device,
         directory: input.directory,
@@ -424,7 +442,9 @@ export async function validateMobileCaseEvidence(input: {
         expectedStatus:
             input.blockedReason === 'plan-evidence-gap'
                 ? 'passed'
-                : ({ blocked: 'blocked', fail: 'failed', pass: 'passed' } as const)[input.status],
+                : input.blockedReason === 'execution-failed-before-evidence'
+                  ? 'failed'
+                  : ({ blocked: 'blocked', fail: 'failed', pass: 'passed' } as const)[input.status],
         reportCommit: input.reportCommit,
     });
 }
