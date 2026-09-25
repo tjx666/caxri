@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -11,22 +11,15 @@ import { isConnectionFresh } from '../../connection/connection-state';
 import { useMobileClient } from '../../connection/mobile-client-provider';
 import type { MobileLayoutMode } from '../../layout/layout-mode';
 import { mobileLayoutMode } from '../../layout/layout-mode';
-import { useSessionAttention } from '../hooks/use-session-attention';
-import { useSessionConversation } from '../hooks/use-session-conversation';
-import { allMobileSessions } from '../hooks/use-session-polling';
-import { useSessionShow } from '../hooks/use-session-show';
 import { ConnectionBanner } from './connection-banner';
 import { useHostSessions } from './host-sessions-provider';
-import { SessionDetail } from './session-detail';
 import { SessionHome } from './session-home';
-import { SessionRouteStatus } from './session-route-status';
+import { SessionsScreenDetail } from './sessions-screen-detail';
 
 const styles = StyleSheet.create({
     safeArea: { flex: 1 },
     split: { flex: 1, flexDirection: 'row' },
     divider: { width: StyleSheet.hairlineWidth },
-    detailEmpty: { alignItems: 'center', flex: 1, justifyContent: 'center' },
-    emptyBody: { fontSize: 14, lineHeight: 21, textAlign: 'center' },
     versionBanner: { borderBottomWidth: 1, gap: 3, paddingHorizontal: 16, paddingVertical: 12 },
     versionTitle: { fontSize: 14, fontWeight: '700' },
     versionBody: { fontSize: 13, lineHeight: 18 },
@@ -115,17 +108,9 @@ export const SessionsScreen = ({ routeSessionId }: { routeSessionId: string | nu
     const theme = useMobileTheme();
     const { height, width } = useWindowDimensions();
     const layout = mobileLayoutMode(width, height);
-    const { lastSeenAt, request, retryConnection, status } = useMobileClient();
-    const {
-        consumeComposerFocus,
-        focusComposerSessionId,
-        hostId,
-        sessions,
-        setDraft,
-        setSegment,
-        ui,
-    } = useHostSessions();
-    const { refresh, selectSession } = sessions;
+    const { lastSeenAt, retryConnection, status } = useMobileClient();
+    const { hostId, sessions } = useHostSessions();
+    const { selectSession } = sessions;
     const [now, setNow] = useState(0);
 
     useEffect(() => {
@@ -138,36 +123,7 @@ export const SessionsScreen = ({ routeSessionId }: { routeSessionId: string | nu
         };
     }, []);
 
-    useEffect(() => {
-        if (routeSessionId) selectSession(routeSessionId);
-    }, [routeSessionId, selectSession]);
-
-    const dashboardSelected = useMemo(() => {
-        if (routeSessionId)
-            return (
-                allMobileSessions(sessions.sections).find(({ id }) => id === routeSessionId) ?? null
-            );
-        return sessions.selected;
-    }, [routeSessionId, sessions.sections, sessions.selected]);
-    const shown = useSessionShow(
-        routeSessionId,
-        routeSessionId !== null && dashboardSelected === null,
-    );
-    const selected = dashboardSelected ?? shown.session;
-    const isDetailVisible = selected !== null && (layout !== 'phone' || routeSessionId !== null);
-    const rememberedSegment = selected ? ui.segmentBySession[selected.id] : undefined;
-    const conversation = useSessionConversation({
-        isDetailVisible,
-        remembered: rememberedSegment,
-        selected,
-    });
-    const segment = conversation.segment;
     const fresh = isConnectionFresh(status, lastSeenAt, now);
-    useSessionAttention({
-        enabled: fresh && isDetailVisible,
-        onRefresh: sessions.refresh,
-        session: selected,
-    });
 
     const openSession = useCallback(
         (sessionId: string): void => {
@@ -179,49 +135,13 @@ export const SessionsScreen = ({ routeSessionId }: { routeSessionId: string | nu
     const openNewSession = useCallback((): void => {
         router.navigate(`/h/${encodeURIComponent(hostId)}/new`);
     }, [hostId, router]);
-    const goHome = useCallback((): void => {
-        router.replace(`/h/${encodeURIComponent(hostId)}`);
-    }, [hostId, router]);
-    const markRead = useCallback(async (): Promise<void> => {
-        if (!selected) return;
-        await request('session.markRead', {
-            sessionId: selected.id,
-            attentionEpoch: selected.attentionEpoch,
-        });
-        await refresh();
-    }, [refresh, request, selected]);
-    const detail = selected ? (
-        <SessionDetail
-            conversationFallback={conversation.fallback}
-            conversationTimeline={conversation.timeline}
-            deviceRole={sessions.deviceRole}
-            draft={ui.draftBySession[selected.id] ?? ''}
-            focusComposer={focusComposerSessionId === selected.id}
-            hostId={hostId}
-            isConnected={fresh}
-            isVisible={isDetailVisible}
-            onBack={layout === 'phone' ? goHome : undefined}
-            onDraftChange={(draft) => setDraft(selected.id, draft)}
-            onComposerFocused={() => consumeComposerFocus(selected.id)}
-            onMarkRead={markRead}
-            onRefresh={sessions.refresh}
-            onSegmentChange={(next) => setSegment(selected.id, next)}
-            segment={segment}
-            session={selected}
-            theme={theme}
-            wideChanges={layout === 'tablet-wide'}
-        />
-    ) : routeSessionId ? (
-        <SessionRouteStatus
-            error={shown.error}
-            isLoading={shown.isLoading}
-            onRetry={shown.refresh}
+    const detail = (
+        <SessionsScreenDetail
+            fresh={fresh}
+            layout={layout}
+            routeSessionId={routeSessionId}
             theme={theme}
         />
-    ) : (
-        <View style={styles.detailEmpty}>
-            <Text style={[styles.emptyBody, { color: theme.muted }]}>Select a Session</Text>
-        </View>
     );
 
     return (

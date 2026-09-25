@@ -610,6 +610,7 @@ export async function createDomainServices(
             configuration,
             database,
             endpoints: dependencies.agentEndpoints,
+            git,
             queue: mobileTerminalMutations,
             terminals,
             timeline,

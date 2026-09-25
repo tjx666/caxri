@@ -21,6 +21,50 @@ const port = () => ({
 });
 
 describe('MobileGatewaySubscriptions', () => {
+    it('sends only the subscribed Session Git invalidation', async () => {
+        const sent: MobileServerPayload[] = [];
+        const subscriptions = new MobileGatewaySubscriptions({
+            authorize: async () => {},
+            currentPrincipal: () => principal,
+            matches: async () => true,
+            randomId: () => 'changes-subscription',
+            send: async (payload) => {
+                sent.push(payload);
+            },
+            terminate: vi.fn(),
+            connectionId: 'connection-1',
+        });
+        const id = await subscriptions.subscribe({ kind: 'changes', sessionId: 'session-granted' });
+        subscriptions.activate(id);
+        subscriptions.publish({
+            event: 'git.changed',
+            payload: {
+                repositoryIds: ['repo-other'],
+                sessionIds: ['session-other'],
+                scope: 'status',
+            },
+        });
+        subscriptions.publish({
+            event: 'git.changed',
+            payload: {
+                repositoryIds: ['repo-granted'],
+                sessionIds: ['session-granted'],
+                scope: 'status',
+            },
+        });
+        await vi.waitFor(() =>
+            expect(sent).toEqual([
+                {
+                    type: 'event',
+                    subscriptionId: id,
+                    sequence: 0,
+                    kind: 'changes.changed',
+                },
+            ]),
+        );
+        subscriptions.close();
+    });
+
     it('streams a normal 256 KiB Host batch without a capacity resync', async () => {
         const sent: MobileServerPayload[] = [];
         const execution = port();

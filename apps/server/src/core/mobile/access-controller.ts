@@ -25,6 +25,8 @@ const mobileGatewayMethodsByRole = {
         'mobile.dashboard',
         'mobile.session.show',
         'mobile.timeline.read',
+        'mobile.changes.list',
+        'mobile.changes.diff',
         'mobile.agent.availability',
         'terminal.preview',
     ],
@@ -32,6 +34,8 @@ const mobileGatewayMethodsByRole = {
         'mobile.dashboard',
         'mobile.session.show',
         'mobile.timeline.read',
+        'mobile.changes.list',
+        'mobile.changes.diff',
         'mobile.agent.availability',
         'terminal.preview',
         'session.markRead',
@@ -41,6 +45,8 @@ const mobileGatewayMethodsByRole = {
         'mobile.dashboard',
         'mobile.session.show',
         'mobile.timeline.read',
+        'mobile.changes.list',
+        'mobile.changes.diff',
         'mobile.agent.availability',
         'terminal.preview',
         'session.markRead',
@@ -86,6 +92,8 @@ type MobileControlRequest = Extract<
             | 'mobile.dashboard'
             | 'mobile.session.show'
             | 'mobile.timeline.read'
+            | 'mobile.changes.list'
+            | 'mobile.changes.diff'
             | 'mobile.agent.availability'
             | 'mobile.agent.submit'
             | 'mobile.session.create'
@@ -232,7 +240,7 @@ export const openMobileAccessController = async (options: {
         );
         if (resource.kind === 'terminal')
             await terminalForPrincipal(domainService, current, resource.terminalId);
-        else if (resource.kind === 'conversation')
+        else if (resource.kind === 'conversation' || resource.kind === 'changes')
             await sessionForPrincipal(domainService, current, resource.sessionId);
     };
     const operationKey = (deviceId: string, generation: number): string =>
@@ -309,6 +317,11 @@ export const openMobileAccessController = async (options: {
                         return (
                             event.event === 'terminal.output' &&
                             event.payload.terminalId === resource.terminalId
+                        );
+                    if (resource.kind === 'changes')
+                        return (
+                            event.event === 'git.changed' &&
+                            event.payload.sessionIds.includes(resource.sessionId)
                         );
                     if (event.event !== 'agentTranscript.changed') return false;
                     const terminal = await terminalForPrincipal(
@@ -425,6 +438,26 @@ export const openMobileAccessController = async (options: {
                         ...request.params,
                         principal,
                     });
+                    currentPairedPrincipal(principal, request.method);
+                    return result;
+                }
+                case 'mobile.changes.list':
+                case 'mobile.changes.diff': {
+                    const principal = currentPairedPrincipal(context.principal, request.method);
+                    await sessionForPrincipal(domainService, principal, request.params.sessionId);
+                    const result =
+                        request.method === 'mobile.changes.list'
+                            ? await domainService.request('mobile.changes.listInternal', {
+                                  sessionId: request.params.sessionId,
+                                  refresh: request.params.refresh,
+                                  principal,
+                              })
+                            : await domainService.request('mobile.changes.diffInternal', {
+                                  sessionId: request.params.sessionId,
+                                  repositoryId: request.params.repositoryId,
+                                  path: request.params.path,
+                                  principal,
+                              });
                     currentPairedPrincipal(principal, request.method);
                     return result;
                 }

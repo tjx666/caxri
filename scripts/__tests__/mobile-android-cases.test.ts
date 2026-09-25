@@ -57,6 +57,12 @@ describe('mobile Android Acceptance cases', () => {
             recordingOwner: 'adapter',
             scenario: 'timeline-projection',
         });
+        expect(mobileAndroidAcceptanceCase('MOB-CHANGES-04')).toEqual({
+            desktopProfile: 'managed-by-isolated-e2e',
+            media: ['video'],
+            recordingOwner: 'scenario',
+            scenario: 'changes-ask-agent-draft-send',
+        });
         expect(() => mobileAndroidAcceptanceCase('MOB-SEC-01')).toThrow(
             'Unsupported Android Acceptance case',
         );
@@ -80,6 +86,14 @@ describe('mobile Android Acceptance cases', () => {
         expect(shouldCaptureAdapterScreenshot('MOB-CONV-03', true)).toBe(false);
         expect(shouldCaptureAdapterScreenshot('MOB-CONV-01', true)).toBe(true);
         expect(shouldCaptureAdapterScreenshot('MOB-CONV-01', false)).toBe(false);
+        for (const caseId of [
+            'MOB-CHANGES-01',
+            'MOB-CHANGES-02',
+            'MOB-CHANGES-03',
+            'MOB-CHANGES-04',
+        ]) {
+            expect(shouldCaptureAdapterScreenshot(caseId, true)).toBe(false);
+        }
     });
 
     it('normalizes physical and override display state for exact restoration', () => {
