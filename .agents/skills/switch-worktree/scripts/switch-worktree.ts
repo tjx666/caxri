@@ -14,6 +14,7 @@ import {
     stopWorktree,
     switchWorktree,
 } from './worktree';
+import { listOrphanedProcesses } from './worktree-orphans';
 
 const USAGE = `Usage: switch-worktree <command> [options]
 
@@ -24,6 +25,7 @@ Commands:
   doctor [branch|path]                 Diagnose one checkout (default: current)
   dev                                  Start Caxri with this checkout's isolated profile
   stop                                 Stop only the processes this checkout started
+  orphans                              Report unsupervised dev processes in every checkout
   remove <branch|path> [--clean-profile]
                                        Safely remove a checkout and preserve its branch
   desktop --label <name> -- <command>  Hold the repository-wide desktop lease
@@ -113,6 +115,32 @@ function print(value: unknown, isJson: boolean): void {
     if (isJson) console.log(JSON.stringify(value, null, 2));
     else if (typeof value === 'string') console.log(value);
     else console.log(JSON.stringify(value, null, 2));
+}
+
+/**
+ * Ignore a run that lost its parent moments ago, such as a launcher that is still restarting.
+ */
+const ORPHAN_MIN_AGE_MS = 10 * 60 * 1000;
+const ORPHAN_COMMAND_PREVIEW = 160;
+
+/**
+ * Plain text because SessionStart hooks in Claude Code and Codex inject stdout into the agent's context. Silence means
+ * nothing to report, so a clean machine adds no context at all.
+ */
+function formatOrphans(orphans: Awaited<ReturnType<typeof listOrphanedProcesses>>): string {
+    const lines = orphans.map(({ branch, command, pid, startedAt, worktreePath }) => {
+        const relativeCommand = command.replaceAll(`${worktreePath}/`, './');
+        const preview =
+            relativeCommand.length > ORPHAN_COMMAND_PREVIEW
+                ? `${relativeCommand.slice(0, ORPHAN_COMMAND_PREVIEW)}…`
+                : relativeCommand;
+        return `- ${branch ?? worktreePath} (${worktreePath}): PID ${pid}${startedAt ? ` since ${startedAt}` : ''} — ${preview}`;
+    });
+    return [
+        'Caxri worktree processes are running with no live dev launcher. They may belong to a sibling session, so tell the user instead of stopping them unprompted:',
+        ...lines,
+        'To stop them, run `bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts stop` inside the owning worktree.',
+    ].join('\n');
 }
 
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/e2e-worker-isolation.test.ts
@@ -229,6 +257,16 @@ export async function runCli(argv: string[]): Promise<void> {
                       : `Stopped ${result.stopped.length} process(es) owned by this checkout`,
                 arguments_.json,
             );
+            return;
+        }
+        case 'orphans': {
+            if (arguments_.operands.length > 0)
+                throw new CommandError('orphans does not accept a target', 2);
+            const orphans = await listOrphanedProcesses(process.cwd(), {
+                minAgeMs: ORPHAN_MIN_AGE_MS,
+            });
+            if (arguments_.json) print(orphans, true);
+            else if (orphans.length > 0) print(formatOrphans(orphans), false);
             return;
         }
         case 'remove': {
