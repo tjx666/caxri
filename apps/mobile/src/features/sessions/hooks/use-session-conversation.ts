@@ -1,7 +1,7 @@
 import { useConversationTimeline } from '../../conversation/use-conversation-timeline';
 import type { MobileSessionItem } from '../session-model';
 import type { SessionSegment } from '../session-ui-state';
-import { resolveSessionConversationSegment } from '../session-ui-state';
+import { hasKnownConversationAgent, resolveSessionConversationSegment } from '../session-ui-state';
 
 export const useSessionConversation = ({
     isDetailVisible,
@@ -22,6 +22,7 @@ export const useSessionConversation = ({
     });
     const selection = resolveSessionConversationSegment({
         hasAgentEndpoint: selected?.primaryAgentEndpoint !== undefined,
+        hasKnownAgent: hasKnownConversationAgent(selected?.primaryTerminal),
         remembered,
         status: timeline.status,
     });

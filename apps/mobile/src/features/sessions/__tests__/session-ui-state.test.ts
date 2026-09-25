@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     emptyHostSessionUiState,
+    hasKnownConversationAgent,
     preferredSessionSegment,
     rememberSessionDraft,
     rememberSessionSegment,
@@ -10,6 +11,13 @@ import {
 } from '../session-ui-state';
 
 describe('host Session UI state', () => {
+    it('recognizes a newly launched Agent from Terminal kind before provider probing', () => {
+        expect(hasKnownConversationAgent({ kind: 'claude' })).toBe(true);
+        expect(hasKnownConversationAgent({ kind: 'codex' })).toBe(true);
+        expect(hasKnownConversationAgent({ kind: 'shell', provider: 'claude' })).toBe(true);
+        expect(hasKnownConversationAgent({ kind: 'shell' })).toBe(false);
+    });
+
     it('defaults to Conversation only when a timeline is available', () => {
         expect(preferredSessionSegment(undefined, true)).toBe('conversation');
         expect(preferredSessionSegment(undefined, false)).toBe('terminal');
@@ -20,7 +28,8 @@ describe('host Session UI state', () => {
     it('defaults to a likely Agent Conversation and falls back when its record is unavailable', () => {
         expect(
             resolveSessionConversationSegment({
-                hasAgentEndpoint: true,
+                hasAgentEndpoint: false,
+                hasKnownAgent: true,
                 remembered: undefined,
                 status: 'loading',
             }),
@@ -28,6 +37,15 @@ describe('host Session UI state', () => {
         expect(
             resolveSessionConversationSegment({
                 hasAgentEndpoint: true,
+                hasKnownAgent: true,
+                remembered: undefined,
+                status: 'loading',
+            }),
+        ).toEqual({ fallback: false, segment: 'conversation' });
+        expect(
+            resolveSessionConversationSegment({
+                hasAgentEndpoint: true,
+                hasKnownAgent: true,
                 remembered: 'conversation',
                 status: 'unsupported',
             }),
@@ -35,8 +53,33 @@ describe('host Session UI state', () => {
         expect(
             resolveSessionConversationSegment({
                 hasAgentEndpoint: false,
+                hasKnownAgent: true,
                 remembered: undefined,
                 status: 'missing',
+            }),
+        ).toEqual({ fallback: true, segment: 'terminal' });
+        expect(
+            resolveSessionConversationSegment({
+                hasAgentEndpoint: false,
+                hasKnownAgent: true,
+                remembered: 'terminal',
+                status: 'loading',
+            }),
+        ).toEqual({ fallback: false, segment: 'terminal' });
+        expect(
+            resolveSessionConversationSegment({
+                hasAgentEndpoint: false,
+                hasKnownAgent: false,
+                remembered: 'conversation',
+                status: 'loading',
+            }),
+        ).toEqual({ fallback: false, segment: 'conversation' });
+        expect(
+            resolveSessionConversationSegment({
+                hasAgentEndpoint: false,
+                hasKnownAgent: false,
+                remembered: 'conversation',
+                status: 'unsupported',
             }),
         ).toEqual({ fallback: true, segment: 'terminal' });
     });
