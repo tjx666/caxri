@@ -23,7 +23,11 @@ import { conversationBaselineRecords } from './mobile-conversation-transcript';
 import type { MobileDesktopCapture } from './mobile-desktop-capture';
 import { createMobileDesktopCapture } from './mobile-desktop-capture';
 import { tapTerminalKey } from './mobile-terminal-key';
-import { assertMobileComposerFocused, setMobileComposerUnicode } from './mobile-unicode-input';
+import {
+    assertMobileComposerDraft,
+    assertMobileComposerFocused,
+    setMobileComposerUnicode,
+} from './mobile-unicode-input';
 
 interface JourneyEnvironment {
     artifactManifestPath: string;
@@ -219,6 +223,51 @@ async function openOriginalSession(
     );
 }
 
+/**
+ * Keep composer failures attributable without recording the fixture message or accessibility text.
+ */
+async function waitForComposerSendEnabled(serial: string, expectedDraft: string): Promise<void> {
+    try {
+        await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) =>
+                nodes.some(
+                    ({ checkId, enabled }) => checkId === 'session-composer-send' && enabled,
+                ),
+        );
+    } catch (error) {
+        let nodes: Awaited<ReturnType<typeof mobileSemantics>> = [];
+        try {
+            nodes = await mobileSemantics(serial);
+        } catch {
+            // The action is reported as missing when the app is no longer available.
+        }
+        const send = nodes.find(({ checkId }) => checkId === 'session-composer-send');
+        const action = send
+            ? send.enabled
+                ? 'send-enabled'
+                : 'send-disabled'
+            : nodes.some(({ checkId }) => checkId === 'session-composer-stop')
+              ? 'stop-visible'
+              : 'action-missing';
+        let nativeDraft = 'unknown';
+        try {
+            await assertMobileComposerDraft(serial, expectedDraft);
+            nativeDraft = 'retained';
+        } catch (draftError) {
+            if (draftError instanceof Error && draftError.message.endsWith(': draft-mismatch')) {
+                nativeDraft = 'reset';
+            }
+        }
+        throw new Error(
+            `Mobile composer send unavailable: ${action}; native-draft:${nativeDraft}`,
+            {
+                cause: error,
+            },
+        );
+    }
+}
+
 async function runCoreJourney(
     environment: JourneyEnvironment,
     fixture: JourneyFixture,
@@ -231,11 +280,7 @@ async function runCoreJourney(
 
     const message = '继续处理合成示例。\n请给出下一步。';
     await setMobileComposerUnicode(environment.serial, message);
-    await waitForMobile(
-        () => mobileSemantics(environment.serial),
-        (nodes) =>
-            nodes.some(({ checkId, enabled }) => checkId === 'session-composer-send' && enabled),
-    );
+    await waitForComposerSendEnabled(environment.serial, message);
     await tapMobileCheck(environment.serial, 'session-composer-send');
     const expected = Buffer.from(`\u{1B}[200~${message}\u{1B}[201~\r`, 'utf8');
     await waitForMobile(
