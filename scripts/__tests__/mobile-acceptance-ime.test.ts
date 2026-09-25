@@ -3,6 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { MOBILE_FIXTURE_IME_ID, prepareMobileFixtureIme } from '../mobile-acceptance-ime';
 
 const previousIme = 'com.android.inputmethod.latin/.LatinIME';
+const fixtureListOrCurrent = (arguments_: string[], currentIme: string): string => {
+    if (arguments_[1] !== 'ime') return currentIme;
+    return arguments_.includes('-a') ? MOBILE_FIXTURE_IME_ID : '';
+};
 
 describe('mobile acceptance fixture IME', () => {
     it('restores the original default and removes the fixture after a case batch', async () => {
@@ -10,8 +14,11 @@ describe('mobile acceptance fixture IME', () => {
         let currentIme = previousIme;
         const cleanup = await prepareMobileFixtureIme('emulator-5554', {
             build: () => actions.push('build'),
-            readDevice: (arguments_) =>
-                arguments_[1] === 'ime' ? MOBILE_FIXTURE_IME_ID : currentIme,
+            readDevice: (arguments_) => {
+                if (arguments_[1] === 'ime')
+                    expect(arguments_).toEqual(['shell', 'ime', 'list', '-a', '-s']);
+                return fixtureListOrCurrent(arguments_, currentIme);
+            },
             runDevice: (arguments_) => {
                 actions.push(arguments_.join(' '));
                 if (arguments_[1] === 'ime' && arguments_[2] === 'set') currentIme = arguments_[3];
@@ -41,8 +48,7 @@ describe('mobile acceptance fixture IME', () => {
         await expect(
             prepareMobileFixtureIme('emulator-5554', {
                 build: () => actions.push('build'),
-                readDevice: (arguments_) =>
-                    arguments_[1] === 'ime' ? MOBILE_FIXTURE_IME_ID : currentIme,
+                readDevice: (arguments_) => fixtureListOrCurrent(arguments_, currentIme),
                 runDevice: (arguments_) => {
                     actions.push(arguments_.join(' '));
                     if (arguments_[1] !== 'ime' || arguments_[2] !== 'set') return;
@@ -99,8 +105,7 @@ describe('mobile acceptance fixture IME', () => {
         let isFailRestoreOnce = true;
         const cleanup = await prepareMobileFixtureIme('emulator-5554', {
             build: () => {},
-            readDevice: (arguments_) =>
-                arguments_[1] === 'ime' ? MOBILE_FIXTURE_IME_ID : currentIme,
+            readDevice: (arguments_) => fixtureListOrCurrent(arguments_, currentIme),
             runDevice: (arguments_) => {
                 actions.push(arguments_.join(' '));
                 if (arguments_[1] !== 'ime' || arguments_[2] !== 'set') return;
@@ -131,8 +136,7 @@ describe('mobile acceptance fixture IME', () => {
         let isFailDisableOnce = true;
         const cleanup = await prepareMobileFixtureIme('emulator-5554', {
             build: () => {},
-            readDevice: (arguments_) =>
-                arguments_[1] === 'ime' ? MOBILE_FIXTURE_IME_ID : currentIme,
+            readDevice: (arguments_) => fixtureListOrCurrent(arguments_, currentIme),
             runDevice: (arguments_) => {
                 actions.push(arguments_.join(' '));
                 if (arguments_[1] === 'ime' && arguments_[2] === 'set') currentIme = arguments_[3];
@@ -158,8 +162,7 @@ describe('mobile acceptance fixture IME', () => {
         try {
             await prepareMobileFixtureIme('emulator-5554', {
                 build: () => {},
-                readDevice: (arguments_) =>
-                    arguments_[1] === 'ime' ? MOBILE_FIXTURE_IME_ID : currentIme,
+                readDevice: (arguments_) => fixtureListOrCurrent(arguments_, currentIme),
                 runDevice: (arguments_) => {
                     if (arguments_[1] !== 'ime' || arguments_[2] !== 'set') return;
                     if (arguments_[3] === previousIme) throw new Error('restore failed');
