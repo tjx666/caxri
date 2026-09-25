@@ -49,6 +49,11 @@ async function waitForChanges(serial: string) {
     );
 }
 
+/**
+ * Swipes inside the diff viewport to avoid Android's edge-back gesture.
+ *
+ * @see https://developer.android.com/develop/ui/views/touch-and-input/gestures/gesturenav
+ */
 async function swipeDiffHorizontally(serial: string): Promise<void> {
     const scroll = (await safeChangesSemantics(serial)).find(
         ({ checkId }) => checkId === 'changes-diff-scroll',
@@ -56,12 +61,13 @@ async function swipeDiffHorizontally(serial: string): Promise<void> {
     const bounds = scroll && androidBounds(scroll.bounds);
     if (!bounds) throw new Error('Synthetic diff scroll viewport is unavailable');
     const y = Math.floor((bounds.top + bounds.bottom) / 2);
+    const width = bounds.right - bounds.left;
     await adbShell(serial, [
         'input',
         'swipe',
-        String(bounds.right - 20),
+        String(Math.floor(bounds.left + width * 0.75)),
         String(y),
-        String(bounds.left + 20),
+        String(Math.floor(bounds.left + width * 0.25)),
         String(y),
         '300',
     ]);
@@ -209,6 +215,10 @@ export async function executeMobileChangesScenario(
                 );
                 await capture(environment, 'text-diff', artifacts, 'changes-diff-scroll');
                 await swipeDiffHorizontally(environment.serial);
+                await waitForMobile(
+                    () => safeChangesSemantics(environment.serial),
+                    (nodes) => nodes.some(({ checkId }) => checkId === 'changes-diff-scroll'),
+                );
                 await capture(
                     environment,
                     'text-diff-after-horizontal-swipe',
