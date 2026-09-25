@@ -24,12 +24,14 @@ const mobileGatewayMethodsByRole = {
     view: [
         'mobile.dashboard',
         'mobile.session.show',
+        'mobile.timeline.read',
         'mobile.agent.availability',
         'terminal.preview',
     ],
     reply: [
         'mobile.dashboard',
         'mobile.session.show',
+        'mobile.timeline.read',
         'mobile.agent.availability',
         'terminal.preview',
         'session.markRead',
@@ -38,6 +40,7 @@ const mobileGatewayMethodsByRole = {
     control: [
         'mobile.dashboard',
         'mobile.session.show',
+        'mobile.timeline.read',
         'mobile.agent.availability',
         'terminal.preview',
         'session.markRead',
@@ -82,6 +85,7 @@ type MobileControlRequest = Extract<
             | 'mobile.device.list'
             | 'mobile.dashboard'
             | 'mobile.session.show'
+            | 'mobile.timeline.read'
             | 'mobile.agent.availability'
             | 'mobile.agent.submit'
             | 'mobile.session.create'
@@ -274,6 +278,30 @@ export const openMobileAccessController = async (options: {
                 },
                 authorizeSubscription: (principal, resource) =>
                     authorizeSubscription(principal, resource, domainService),
+                beginConversationSubscription: async (principal, sessionId) => {
+                    const current = currentPairedPrincipal(principal, 'mobile.timeline.read');
+                    await sessionForPrincipal(domainService, current, sessionId);
+                    const watched = await domainService.request('mobile.timeline.watchInternal', {
+                        sessionId,
+                        principal: current,
+                    });
+                    const close = () => {
+                        if (!watched.terminalId) return;
+                        // eslint-disable-next-line no-void -- Connection teardown cannot block on a Server IPC reply.
+                        void domainService
+                            .request('mobile.timeline.unwatchInternal', {
+                                terminalId: watched.terminalId,
+                            })
+                            .catch(() => {});
+                    };
+                    try {
+                        currentPairedPrincipal(current, 'mobile.timeline.read');
+                    } catch (error) {
+                        close();
+                        throw error;
+                    }
+                    return close;
+                },
                 matchesSubscriptionEvent: async (principal, resource, event) => {
                     await authorizeSubscription(principal, resource, domainService);
                     if (resource.kind === 'dashboard') return event.event === 'state.changed';
@@ -373,7 +401,10 @@ export const openMobileAccessController = async (options: {
                                       selector: session.primaryAgentTerminalId,
                                   },
                               })
-                            : Promise.resolve({ terminals: [] }),
+                            : domainService.request('terminal.queryForPrincipal', {
+                                  principal,
+                                  query: { mode: 'list', sessionId: session.id },
+                              }),
                     ]);
                     const projected = buildMobileDashboard({
                         hostDisplayName,
@@ -386,6 +417,16 @@ export const openMobileAccessController = async (options: {
                     if (!projected) throw new CaxriError('NOT_FOUND', 'Session not found');
                     currentPairedPrincipal(principal, request.method);
                     return { session: projected };
+                }
+                case 'mobile.timeline.read': {
+                    const principal = currentPairedPrincipal(context.principal, request.method);
+                    await sessionForPrincipal(domainService, principal, request.params.sessionId);
+                    const result = await domainService.request('mobile.timeline.readInternal', {
+                        ...request.params,
+                        principal,
+                    });
+                    currentPairedPrincipal(principal, request.method);
+                    return result;
                 }
                 case 'mobile.agent.availability': {
                     const principal = currentPairedPrincipal(context.principal, request.method);

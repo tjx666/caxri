@@ -12,9 +12,9 @@ import { useMobileClient } from '../../connection/mobile-client-provider';
 import type { MobileLayoutMode } from '../../layout/layout-mode';
 import { mobileLayoutMode } from '../../layout/layout-mode';
 import { useSessionAttention } from '../hooks/use-session-attention';
+import { useSessionConversation } from '../hooks/use-session-conversation';
 import { allMobileSessions } from '../hooks/use-session-polling';
 import { useSessionShow } from '../hooks/use-session-show';
-import { preferredSessionSegment } from '../session-ui-state';
 import { ConnectionBanner } from './connection-banner';
 import { useHostSessions } from './host-sessions-provider';
 import { SessionDetail } from './session-detail';
@@ -155,9 +155,13 @@ export const SessionsScreen = ({ routeSessionId }: { routeSessionId: string | nu
     );
     const selected = dashboardSelected ?? shown.session;
     const isDetailVisible = selected !== null && (layout !== 'phone' || routeSessionId !== null);
-    const segment = selected
-        ? preferredSessionSegment(ui.segmentBySession[selected.id], false)
-        : 'terminal';
+    const rememberedSegment = selected ? ui.segmentBySession[selected.id] : undefined;
+    const conversation = useSessionConversation({
+        isDetailVisible,
+        remembered: rememberedSegment,
+        selected,
+    });
+    const segment = conversation.segment;
     const fresh = isConnectionFresh(status, lastSeenAt, now);
     useSessionAttention({
         enabled: fresh && isDetailVisible,
@@ -188,6 +192,8 @@ export const SessionsScreen = ({ routeSessionId }: { routeSessionId: string | nu
     }, [refresh, request, selected]);
     const detail = selected ? (
         <SessionDetail
+            conversationFallback={conversation.fallback}
+            conversationTimeline={conversation.timeline}
             deviceRole={sessions.deviceRole}
             draft={ui.draftBySession[selected.id] ?? ''}
             focusComposer={focusComposerSessionId === selected.id}

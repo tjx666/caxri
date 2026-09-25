@@ -17,6 +17,7 @@ export { lowCostSandboxFailureReason } from './low-cost-sandbox';
 export { agentProviders } from './providers';
 export { extractClaudeDelegationAnswer } from './providers/claude/delegation';
 export { type AgentAdapter, AgentService, createLocalAgentAdapters } from './service';
+export { AgentTimelineService } from './timeline';
 export type { AgentTitleContext } from './title-generation';
 export {
     buildAgentTitlePrompt,

@@ -1,10 +1,19 @@
 import { Buffer } from 'node:buffer';
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import {
+    appendFile,
+    chmod,
+    mkdir,
+    mkdtemp,
+    readFile,
+    rename,
+    rm,
+    writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import process from 'node:process';
 
-import type { AppSettings, BootstrapState } from '@caxri/protocol';
+import type { AppSettings, BootstrapState, MobileTimelineReadResult } from '@caxri/protocol';
 
 import { createFakeAgentMode } from './agent-fixture';
 import type { RunningCaxri } from './helpers';
@@ -15,6 +24,8 @@ import {
     runMobileDeviceCommand,
     waitForMobile,
 } from './mobile-android';
+import type { MobileEncryptedPeer } from './mobile-encrypted-peer';
+import { pairMobileEncryptedPeer } from './mobile-encrypted-peer';
 
 export interface MobileAcceptanceFixture {
     allowedProjectId: string;
@@ -26,13 +37,18 @@ export interface MobileAcceptanceFixture {
     pairFromDesktopUi(trigger: () => Promise<void>): Promise<{ deviceId: string }>;
     failNextAgentLaunch(): Promise<void>;
     readCapturedInput(): Promise<Buffer>;
+    appendTranscript?(records: unknown[]): Promise<void>;
+    pairTimelineGateway?(): Promise<MobileEncryptedPeer>;
+    readTimeline?(): Promise<MobileTimelineReadResult>;
+    shellGridStatePath?: string;
+    replaceTranscript?(records: unknown[]): Promise<void>;
     running: RunningCaxri;
     stop(): Promise<void>;
     testDirectory: string;
 }
 
 interface CreateMobileAcceptanceFixtureInput {
-    mode: 'empty' | 'waiting' | 'launch-failure';
+    mode: 'empty' | 'waiting' | 'launch-failure' | 'conversation' | 'shell-conversation';
     serial: string;
     dropSubmitAcknowledgement?: boolean;
 }
@@ -102,6 +118,75 @@ process.exit(7);
     });
 }
 
+async function fakeConversationAgent(userDataDirectory: string) {
+    return createFakeAgentMode({
+        userDataDir: userDataDirectory,
+        providers: {
+            claude: {
+                executableSource: String.raw`#!${process.execPath}
+// 为隔离验收绑定合成 Claude 会话；仅修改当前临时配置中的会话状态。
+const fs = require('node:fs');
+const path = require('node:path');
+if (process.argv.includes('--version')) {
+  process.stdout.write('caxri-fake-claude 1.0.0\n');
+  process.exit(0);
+}
+const now = Date.now();
+const sessions = path.join(process.env.CLAUDE_CONFIG_DIR, 'sessions');
+fs.mkdirSync(sessions, { recursive: true });
+fs.writeFileSync(path.join(sessions, 'current.json'), JSON.stringify({
+  cwd: process.cwd(),
+  name: 'Synthetic Conversation',
+  sessionId: 'mobile-conversation-fixture',
+  startedAt: now,
+  status: 'busy',
+  updatedAt: now,
+}));
+process.stdin.setRawMode?.(true);
+process.stdin.resume();
+process.stdout.write('Synthetic Conversation ready\r\n');
+`,
+            },
+        },
+    });
+}
+
+async function createSyntheticShell(testDirectory: string): Promise<string> {
+    const executable = join(testDirectory, 'synthetic-shell');
+    await writeFile(
+        executable,
+        String.raw`#!${process.execPath}
+// 为隔离验收绘制合成终端网格；仅修改临时 Project 中的状态回执。
+const fs = require('node:fs');
+const path = require('node:path');
+const statePath = path.join(process.cwd(), '.caxri-synthetic-shell-state.json');
+let generationNumber = 0;
+const render = () => {
+  const columns = process.stdout.columns ?? 0;
+  const rows = process.stdout.rows ?? 0;
+  if (columns < 18 || rows < 4) return;
+  const generation = 'synthetic-shell-' + (++generationNumber);
+  const firstGridMarker = { columns, generation, rows };
+  const lines = Array.from({ length: rows }, (_, index) => {
+    const label = 'Synthetic row ' + String(index + 1).padStart(2, '0');
+    return '│' + label.padEnd(columns - 2, ' ') + '│';
+  });
+  process.stdout.write('\x1b[2J');
+  for (const [index, line] of lines.entries()) {
+    process.stdout.write('\x1b[' + (index + 1) + ';1H' + line);
+  }
+  fs.writeFileSync(statePath + '.next', JSON.stringify({ columns, firstGridMarker, generation, rows }));
+  fs.renameSync(statePath + '.next', statePath);
+};
+process.stdout.on('resize', render);
+process.stdin.resume();
+setTimeout(render, 250);
+`,
+    );
+    await chmod(executable, 0o700);
+    return executable;
+}
+
 export async function createMobileAcceptanceFixture(
     input: CreateMobileAcceptanceFixtureInput,
 ): Promise<MobileAcceptanceFixture> {
@@ -110,16 +195,24 @@ export async function createMobileAcceptanceFixture(
     const allowedRoot = join(testDirectory, 'allowed-project');
     const deniedRoot = join(testDirectory, 'denied-project');
     const inputCapture = join(testDirectory, 'agent-input.bin');
+    const shellGridStatePath =
+        input.mode === 'shell-conversation'
+            ? join(allowedRoot, '.caxri-synthetic-shell-state.json')
+            : undefined;
     await Promise.all([
         mkdir(allowedRoot, { recursive: true }),
         mkdir(deniedRoot, { recursive: true }),
     ]);
+    const conversationAgentMode =
+        input.mode === 'conversation' ? await fakeConversationAgent(userData) : undefined;
+    const syntheticShell =
+        input.mode === 'shell-conversation' ? await createSyntheticShell(testDirectory) : undefined;
     const agentMode =
         input.mode === 'waiting'
             ? await fakeWaitingAgent(userData, inputCapture)
             : input.mode === 'launch-failure'
               ? await fakeFailingAgent(userData)
-              : ({ mode: 'blocked' } as const);
+              : (conversationAgentMode ?? ({ mode: 'blocked' } as const));
     let running: RunningCaxri;
     try {
         running = await launchCaxri({
@@ -133,6 +226,9 @@ export async function createMobileAcceptanceFixture(
                 }),
                 CAXRI_MOBILE_TEST_HOST_DISPLAY_NAME: 'Caxri Test Host',
                 CAXRI_TEST_ROOT_PATHS: JSON.stringify([allowedRoot, deniedRoot]),
+                ...(input.mode === 'shell-conversation' && {
+                    SHELL: syntheticShell,
+                }),
             },
         });
     } catch (error) {
@@ -174,6 +270,7 @@ export async function createMobileAcceptanceFixture(
     let deniedProjectId: string;
     let allowedSessionId: string | undefined;
     let deniedSessionId: string | undefined;
+    let transcriptPath: string | undefined;
     try {
         /**
          * Destructive Desktop requests still exercise their real Main-process routing, but their native confirmation
@@ -182,7 +279,37 @@ export async function createMobileAcceptanceFixture(
         await running.app.evaluate(({ dialog }) => {
             dialog.showMessageBox = () => Promise.resolve({ checkboxChecked: false, response: 0 });
         });
-        if (input.mode === 'waiting') {
+        if (input.mode === 'conversation') {
+            allowedSessionId = await createProjectSession(running.page, 'claude');
+            const bound = await waitForMobile(
+                () => pageRequest<BootstrapState>(running.page, 'app.bootstrap'),
+                (state) =>
+                    state.terminals.some(
+                        (terminal) =>
+                            terminal.sessionId === allowedSessionId &&
+                            terminal.agentSessionId === 'mobile-conversation-fixture',
+                    ),
+            );
+            const allowed = bound.sessions.find(({ id }) => id === allowedSessionId);
+            const terminal = bound.terminals.find(
+                ({ sessionId }) => sessionId === allowedSessionId,
+            );
+            const config = conversationAgentMode?.environment.CLAUDE_CONFIG_DIR;
+            if (!allowed || !terminal || !config)
+                throw new Error('Synthetic Conversation binding is unavailable');
+            transcriptPath = join(
+                config,
+                'projects',
+                terminal.cwd.replaceAll(/[^a-z0-9]/giu, '-'),
+                'mobile-conversation-fixture.jsonl',
+            );
+            deniedSessionId = await createProjectSession(running.page, 'shell');
+            const deniedState = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
+            const denied = deniedState.sessions.find(({ id }) => id === deniedSessionId);
+            if (!denied) throw new Error('Denied fixture Project is unavailable');
+            allowedProjectId = allowed.projectId;
+            deniedProjectId = denied.projectId;
+        } else if (input.mode === 'waiting') {
             const currentSettings = await pageRequest<{ value: AppSettings }>(
                 running.page,
                 'settings.get',
@@ -220,7 +347,7 @@ export async function createMobileAcceptanceFixture(
             if (!allowed || !denied) throw new Error('Mobile Acceptance Projects are unavailable');
             allowedProjectId = allowed.projectId;
             deniedProjectId = denied.projectId;
-            if (input.mode === 'launch-failure') {
+            if (input.mode === 'launch-failure' || input.mode === 'shell-conversation') {
                 allowedSessionId = allowedEmptySessionId;
                 deniedSessionId = deniedEmptySessionId;
             } else {
@@ -270,6 +397,58 @@ export async function createMobileAcceptanceFixture(
         deniedProjectId,
         deniedSessionId,
         ...(input.mode === 'waiting' && { inputCapture }),
+        ...(shellGridStatePath && { shellGridStatePath }),
+        ...(transcriptPath && {
+            appendTranscript: async (records: unknown[]) => {
+                await mkdir(dirname(transcriptPath), { recursive: true });
+                await appendFile(
+                    transcriptPath,
+                    `${records.map((record) => JSON.stringify(record)).join('\n')}\n`,
+                );
+            },
+            replaceTranscript: async (records: unknown[]) => {
+                const next = `${transcriptPath}.next`;
+                await writeFile(
+                    next,
+                    `${records.map((record) => JSON.stringify(record)).join('\n')}\n`,
+                );
+                await rename(next, transcriptPath);
+            },
+            readTimeline: async () => {
+                const [{ CaxriDatabase }, { AgentTimelineService }] = await Promise.all([
+                    import('../../apps/server/src/domains/db'),
+                    import('../../apps/server/src/domains/agents/timeline'),
+                ]);
+                const database = new CaxriDatabase(join(userData, 'caxri.db'));
+                try {
+                    const session = database.getSession(allowedSessionId!);
+                    if (!session?.primaryAgentTerminalId)
+                        throw new Error('Synthetic Conversation primary Agent is unavailable');
+                    if (!conversationAgentMode)
+                        throw new Error('Synthetic Conversation Agent is unavailable');
+                    const timeline = new AgentTimelineService(database, {
+                        homeDirectory: testDirectory,
+                        variables: conversationAgentMode.environment,
+                    });
+                    return await timeline.read(
+                        session.id,
+                        session.primaryAgentTerminalId,
+                        undefined,
+                        80,
+                    );
+                } finally {
+                    database.close();
+                }
+            },
+            pairTimelineGateway: async () => {
+                const pairing = await pageRequest<{ pairingLink: string }>(
+                    running.page,
+                    'mobile.pairing.create',
+                    { projectIds: [allowedProjectId] },
+                );
+                return pairMobileEncryptedPeer(pairing.pairingLink);
+            },
+        }),
         pair: async () => {
             await pageRequest(running.page, 'mobile.access.enable');
             const pairing = await pageRequest<{ pairingLink: string }>(

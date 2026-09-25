@@ -18,6 +18,8 @@ const MAXIMUM_CONNECTION_PENDING_BYTES = MOBILE_GATEWAY_MAX_WIRE_BYTES * 16;
 
 interface Subscription {
     active: boolean;
+    activated: boolean;
+    closeConversation?: () => void;
     id: string;
     pendingBytes: number;
     pendingFrames: number;
@@ -41,6 +43,7 @@ export interface MobileSubscriptionOptions {
     send: (payload: MobileEventPayload | MobileStreamPayload) => Promise<void>;
     terminate: () => void;
     connectionId: string;
+    beginConversation?: (principal: Principal, sessionId: string) => Promise<() => void>;
     terminalExecution?: TerminalExecutionPort;
 }
 
@@ -85,6 +88,7 @@ export class MobileGatewaySubscriptions {
             throw new CaxriError('INTERNAL', 'Mobile subscription identity collided');
         const subscription: Subscription = {
             active: true,
+            activated: false,
             id,
             pendingBytes: 0,
             pendingFrames: 0,
@@ -93,6 +97,21 @@ export class MobileGatewaySubscriptions {
             tail: Promise.resolve(),
         };
         this.#subscriptions.set(id, subscription);
+        if (resource.kind === 'conversation' && this.#options.beginConversation) {
+            try {
+                subscription.closeConversation = await this.#options.beginConversation(
+                    this.#options.currentPrincipal(),
+                    resource.sessionId,
+                );
+                if (!subscription.active) {
+                    subscription.closeConversation();
+                    throw new CaxriError('CANCELLED', 'Conversation subscription closed');
+                }
+            } catch (error) {
+                this.unsubscribe(id);
+                throw error;
+            }
+        }
         if (resource.kind === 'terminal') {
             const port = this.#options.terminalExecution;
             if (!port) {
@@ -126,7 +145,10 @@ export class MobileGatewaySubscriptions {
     }
 
     activate(id: string): void {
-        this.#subscriptions.get(id)?.terminal?.activate();
+        const subscription = this.#subscriptions.get(id);
+        if (!subscription) return;
+        subscription.activated = true;
+        subscription.terminal?.activate();
     }
 
     publishObserverEvent(event: TerminalObserverEvent): void {
@@ -172,6 +194,7 @@ export class MobileGatewaySubscriptions {
         if (!subscription) return;
         subscription.active = false;
         this.#subscriptions.delete(id);
+        subscription.closeConversation?.();
         // eslint-disable-next-line no-void -- Observer close catches Host teardown failure internally.
         if (subscription.terminal) void subscription.terminal.close();
     }
@@ -180,6 +203,7 @@ export class MobileGatewaySubscriptions {
         this.#closed = true;
         for (const subscription of this.#subscriptions.values()) {
             subscription.active = false;
+            subscription.closeConversation?.();
             // eslint-disable-next-line no-void -- Observer close catches Host teardown failure internally.
             if (subscription.terminal) void subscription.terminal.close();
         }
@@ -192,7 +216,11 @@ export class MobileGatewaySubscriptions {
             const resource = subscription.resource;
             if (resource.kind === 'dashboard' && event.event === 'state.changed')
                 this.#queue(subscription, event, 'dashboard.changed');
-            else if (resource.kind === 'conversation' && event.event === 'agentTranscript.changed')
+            else if (
+                resource.kind === 'conversation' &&
+                subscription.activated &&
+                event.event === 'agentTranscript.changed'
+            )
                 this.#queue(subscription, event, 'conversation.changed');
         }
     }

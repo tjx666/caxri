@@ -7,7 +7,7 @@ import {
     CAXRI_ANDROID_PACKAGE,
     runAndroidAdb,
 } from './android-device-bridge';
-import { centerOfAndroidBounds } from './android-receipts';
+import { centerOfAndroidBounds, isAndroidCheckId } from './android-receipts';
 
 interface Arguments {
     checkId?: string;
@@ -25,7 +25,7 @@ const parseArguments = (values: string[]): Arguments => {
         throw new Error('A valid explicit --serial is required');
     const checkIdIndex = values.indexOf('--check-id');
     const checkId = values[checkIdIndex + 1];
-    if (command === 'tap' && (!checkId || !/^[a-z][a-z0-9_-]{2,100}$/u.test(checkId)))
+    if (command === 'tap' && (!checkId || !isAndroidCheckId(checkId)))
         throw new Error('tap requires a valid --check-id');
     return { command: command as Arguments['command'], serial, ...(checkId && { checkId }) };
 };

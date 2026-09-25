@@ -13,6 +13,7 @@ allowBuilds:
   unrs-resolver: true
 
 catalog:
+  '@ronradtke/react-native-markdown-display': ^9.0.3
   '@tanstack/react-query': ^5.103.1
   '@types/semver': ^7.8.0
   '@types/ws': ^8.18.1

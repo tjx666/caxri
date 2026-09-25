@@ -27,7 +27,10 @@ interface PendingTranscriptInstall {
 
 export interface AgentTranscriptWatcherOptions {
     emit: (event: ServerEvent) => void;
+    onForgetTerminal?: (terminalId: string) => void;
     locationForTerminal: (terminalId: string) => AgentTranscriptLocation | undefined;
+    locateForTerminal?: (terminalId: string) => Promise<AgentTranscriptLocation | undefined>;
+    mobileDiscoveryIntervalMs?: number;
     pollIntervalMs?: number;
     terminalIdsForSession: (sessionId: string) => readonly string[];
     watchHub: WatchHub;
@@ -36,9 +39,19 @@ export interface AgentTranscriptWatcherOptions {
 async function transcriptSignature(path: string): Promise<string> {
     try {
         const value = await stat(path);
-        return value.isFile() ? `${value.size}:${value.mtimeMs}:${value.ctimeMs}` : 'missing';
+        return value.isFile()
+            ? `${value.dev}:${value.ino}:${value.birthtimeMs}:${value.size}:${value.mtimeMs}:${value.ctimeMs}`
+            : 'missing';
     } catch {
         return 'missing';
+    }
+}
+
+async function hasTranscriptContent(path: string): Promise<boolean> {
+    try {
+        return (await stat(path)).size > 0;
+    } catch {
+        return false;
     }
 }
 
@@ -47,6 +60,7 @@ async function transcriptSignature(path: string): Promise<string> {
  * content; fallback polling compares only filesystem metadata. A post-subscribe signature check closes the race between
  * the initial signature read and WatchHub becoming live.
  */
+/* eslint-disable unicorn/consistent-class-member-order -- Subscription lifecycle remains adjacent to the public watch API. */
 export class AgentTranscriptWatcher {
     private closed = false;
     private closePromise?: Promise<void>;
@@ -54,6 +68,9 @@ export class AgentTranscriptWatcher {
     private generationCounter = 0;
     private readonly generations = new Map<string, number>();
     private readonly installs = new Map<string, PendingTranscriptInstall>();
+    private readonly desktopTerminals = new Set<string>();
+    private readonly mobileUsers = new Map<string, number>();
+    private readonly mobileDiscovery = new Map<string, ReturnType<typeof setInterval>>();
 
     constructor(private readonly options: AgentTranscriptWatcherOptions) {}
 
@@ -127,14 +144,54 @@ export class AgentTranscriptWatcher {
         }
         const completeEntry = entry as TranscriptWatchEntry;
         this.entries.set(terminalId, completeEntry);
+        const initialSignature = entry.signature;
         await this.detectChange(completeEntry);
+        if (
+            initialSignature !== 'missing' &&
+            this.mobileDiscovery.has(terminalId) &&
+            completeEntry.signature === initialSignature &&
+            (await hasTranscriptContent(path))
+        )
+            this.emitChange(completeEntry);
     }
 
     async watch(terminalId: string): Promise<void> {
+        this.desktopTerminals.add(terminalId);
+        await this.ensureWatch(terminalId);
+    }
+
+    async watchMobile(terminalId: string): Promise<void> {
+        this.mobileUsers.set(terminalId, (this.mobileUsers.get(terminalId) ?? 0) + 1);
+        try {
+            await this.ensureWatch(terminalId);
+            if (!this.entries.has(terminalId) && !this.installs.has(terminalId))
+                this.startMobileDiscovery(terminalId);
+        } catch (error) {
+            this.unwatchMobile(terminalId);
+            throw error;
+        }
+    }
+
+    unwatchMobile(terminalId: string): void {
+        const users = this.mobileUsers.get(terminalId);
+        if (users === undefined) return;
+        if (users > 1) {
+            this.mobileUsers.set(terminalId, users - 1);
+            return;
+        }
+        this.mobileUsers.delete(terminalId);
+        this.stopMobileDiscovery(terminalId);
+        if (!this.desktopTerminals.has(terminalId)) this.forgetTerminal(terminalId);
+    }
+
+    private async ensureWatch(terminalId: string): Promise<void> {
         if (this.closed) return;
-        const location = this.options.locationForTerminal(terminalId);
+        const location =
+            this.options.locationForTerminal(terminalId) ??
+            (await this.options.locateForTerminal?.(terminalId));
         if (!location) {
-            this.forgetTerminal(terminalId);
+            if (!this.mobileUsers.has(terminalId) && !this.desktopTerminals.has(terminalId))
+                this.forgetTerminal(terminalId);
             return;
         }
         const entry = this.entries.get(terminalId);
@@ -147,14 +204,16 @@ export class AgentTranscriptWatcher {
             // oxlint-disable-next-line typescript/no-unnecessary-condition -- concurrent lifecycle mutation across await
             if (this.closed) return;
             if (pending.invalidationGeneration !== invalidationGeneration) return;
-            const latest = this.options.locationForTerminal(terminalId);
+            const latest =
+                this.options.locationForTerminal(terminalId) ??
+                (await this.options.locateForTerminal?.(terminalId));
             if (
                 latest &&
                 (invalidationGeneration !== pending.generation ||
                     latest.path !== pending.location.path ||
                     latest.root !== pending.location.root)
             )
-                await this.watch(terminalId);
+                await this.ensureWatch(terminalId);
             return;
         }
         const generation = this.advanceGeneration(terminalId);
@@ -175,6 +234,10 @@ export class AgentTranscriptWatcher {
     }
 
     forgetTerminal(terminalId: string): void {
+        this.options.onForgetTerminal?.(terminalId);
+        this.stopMobileDiscovery(terminalId);
+        this.desktopTerminals.delete(terminalId);
+        this.mobileUsers.delete(terminalId);
         const pending = this.installs.get(terminalId);
         if (this.generations.has(terminalId)) {
             const generation = this.advanceGeneration(terminalId);
@@ -196,6 +259,7 @@ export class AgentTranscriptWatcher {
     close(): Promise<void> {
         if (this.closePromise) return this.closePromise;
         this.closed = true;
+        for (const terminalId of this.mobileDiscovery.keys()) this.stopMobileDiscovery(terminalId);
         const terminalIds = new Set([...this.entries.keys(), ...this.installs.keys()]);
         for (const terminalId of terminalIds) this.advanceGeneration(terminalId);
         const entries = this.entries.values().toArray();
@@ -209,8 +273,35 @@ export class AgentTranscriptWatcher {
             } finally {
                 this.installs.clear();
                 this.generations.clear();
+                this.desktopTerminals.clear();
+                this.mobileUsers.clear();
             }
         })();
         return this.closePromise;
     }
+
+    private startMobileDiscovery(terminalId: string): void {
+        if (this.mobileDiscovery.has(terminalId)) return;
+        const timer = setInterval(() => {
+            if (this.closed || !this.mobileUsers.has(terminalId)) {
+                this.stopMobileDiscovery(terminalId);
+                return;
+            }
+            // eslint-disable-next-line no-void -- The next bounded discovery tick handles a transient lookup miss.
+            void this.ensureWatch(terminalId)
+                .then(() => {
+                    if (this.entries.has(terminalId)) this.stopMobileDiscovery(terminalId);
+                })
+                .catch(() => {});
+        }, this.options.mobileDiscoveryIntervalMs ?? 2_000);
+        timer.unref();
+        this.mobileDiscovery.set(terminalId, timer);
+    }
+
+    private stopMobileDiscovery(terminalId: string): void {
+        const timer = this.mobileDiscovery.get(terminalId);
+        if (timer) clearInterval(timer);
+        this.mobileDiscovery.delete(terminalId);
+    }
 }
+/* eslint-enable unicorn/consistent-class-member-order */

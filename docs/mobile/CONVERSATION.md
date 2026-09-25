@@ -1,0 +1,75 @@
+# Mobile Conversation
+
+The mobile Conversation is a read-only projection of the primary Agent Terminal's own record. The
+Server locates and parses the record; the app receives typed timeline items through the encrypted
+Mobile gateway. The app does not open provider files or turn Terminal output into messages. Sending
+and stopping an Agent remain separate, role-gated commands.
+
+## Authority and projection
+
+`mobile.timeline.read({ sessionId, before?, limit? })` requires a current paired device and a
+Session in one of its granted Projects. The gateway checks the live device generation, role, and
+Project grants around the Server read. Server Core checks the paired principal and Session again
+before selecting that Session's primary Agent Terminal. A denied Session is an authorization error,
+not an empty timeline.
+
+The projection currently supports Claude Code and Codex records. It emits chronological
+`userMessage`, `agentMessage`, `toolCall`, and `turnBoundary` items with stable IDs. Tool items have
+a bounded name, summary, status, optional duration, and optional detail. Thinking and unrelated
+provider records are excluded. A successful read returns one of these statuses:
+
+| Status        | Meaning                                                                 | Mobile behavior                         |
+| ------------- | ----------------------------------------------------------------------- | --------------------------------------- |
+| `available`   | A supported Agent record was opened, including an empty record.         | Render Conversation.                    |
+| `unsupported` | The primary Agent uses a provider without a timeline projection.        | Show the explanation and open Terminal. |
+| `missing`     | The Session has no primary Agent record, or it cannot be opened safely. | Show the explanation and open Terminal. |
+
+The Server reads a bounded transcript window and returns at most 80 items and roughly 48 KiB per
+page. The default page limit is 40. Individual message text is limited to 4,096 characters and
+tool detail to 2,048 characters. `olderCursor` requests an earlier page. `truncated` means the
+retained window does not include the beginning of the record; the app tells the reader that earlier
+messages are available on the computer. The Server retains at most 16 MiB of parsed source in its
+cache and initially reads only the latest 4 MiB, so this view is not a complete archive.
+
+Cursors encode source identity, byte position, and item position within a provider record.
+Rotation, shrinkage, or a detected same-file rewrite creates a new source generation; a cursor
+outside the retained window also expires. The response sets `cursorExpired` and starts again from
+the current latest page; the app replaces stale history instead of joining items from two source
+generations. Item IDs also incorporate source identity and position.
+
+## Updates and rendering
+
+While Conversation is visible in the foreground, the app subscribes to that Session's
+`conversation.changed` invalidations. The event contains no message or tool content. The app
+subscribes before its initial snapshot, serializes reads, and refreshes again if an event arrives
+during a read. If subscription is unavailable, it polls while visible every 2.5 seconds. Background,
+unmount, disconnect, and revocation end the active observation. Reconnect obtains a fresh snapshot;
+the last visible items are marked stale until then.
+
+The app renders Agent messages as native Markdown without remote images, user messages as bubbles,
+consecutive tools as collapsible groups, and turn boundaries with duration when present. A tool
+row opens its bounded detail. The virtualized list loads older pages and follows new content only
+when the reader is near the bottom; otherwise it offers **Jump to latest**. Loading, empty, error,
+and stale states remain visible. `unsupported` and `missing` automatically select the Terminal
+with an explanation. The reader may also select Terminal directly.
+
+Conversation content and tool detail can contain sensitive material from the Agent record. They
+are returned only to a currently authorized paired device over the encrypted gateway; transcript
+bytes are not included in invalidation events, diagnostic logs, or durable recovery events. The
+projection bounds content for transport and display; it is not a redaction or secret-filtering
+feature.
+
+## Implementation references
+
+- [Timeline contract](../../packages/protocol/src/mobile/mobile-contract.ts)
+- [Gateway authorization](../../apps/server/src/core/mobile/access-controller.ts) and
+  [Server read](../../apps/server/src/domains/mobile-handlers.ts)
+- [Timeline projection](../../apps/server/src/domains/agents/timeline.ts),
+  [Claude parser](../../apps/server/src/domains/agents/providers/claude/timeline.ts), and
+  [Codex parser](../../apps/server/src/domains/agents/providers/codex/timeline.ts)
+- [Transcript watcher](../../apps/server/src/domains/agents/transcript-watcher.ts) and
+  [mobile observer](../../apps/mobile/src/features/conversation/use-conversation-timeline.ts)
+- [Conversation UI](../../apps/mobile/src/features/conversation/conversation-view.tsx)
+
+See [Mobile transport](TRANSPORT.md) for gateway framing, subscription lifecycle, and limits, and
+[Mobile design](DESIGN.md#conversation) for the intended interaction contract.
