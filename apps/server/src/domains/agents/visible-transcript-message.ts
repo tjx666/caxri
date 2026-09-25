@@ -10,6 +10,18 @@ export interface VisibleTranscriptMessage {
 const INJECTED_BLOCK_PATTERN =
     /^(?:# AGENTS\.md instructions|<environment_context>|<permissions instructions>|<system-reminder>|<INSTRUCTIONS>|<user_instructions>|<user-prompt-submit-hook>|<local-command|<command-name>|<command-message>)/u;
 
+const INJECTED_MARKER_PATTERN =
+    /# AGENTS\.md instructions|<environment_context>|<permissions instructions>|<system-reminder>|<INSTRUCTIONS>|<user_instructions>|<user-prompt-submit-hook>|<local-command|<command-name>|<command-message>/u;
+
+/**
+ * Tool input and output are separate provider blocks, but may carry the same injected envelopes as messages.
+ */
+export function stripInjectedTranscriptContent(text: string): string {
+    if (INJECTED_BLOCK_PATTERN.test(text.trimStart())) return '';
+    const marker = INJECTED_MARKER_PATTERN.exec(text);
+    return marker ? text.slice(0, marker.index).trimEnd() : text;
+}
+
 /**
  * Drops injected envelopes one content block at a time. Providers append an envelope as a sibling block beside genuine
  * text, so testing the joined message only caught an envelope that happened to lead it and let a trailing one through.
@@ -18,7 +30,7 @@ const INJECTED_BLOCK_PATTERN =
  * chunks are coalesced by the caller and must keep their own spacing.
  */
 function visibleBlockText(blocks: string[]): string {
-    return blocks.filter((block) => !INJECTED_BLOCK_PATTERN.test(block.trimStart())).join('\n');
+    return blocks.map(stripInjectedTranscriptContent).filter(Boolean).join('\n');
 }
 
 /**

@@ -59,6 +59,11 @@ export const buildMobileDashboard = (input: {
     }));
     const projects = new Map(visibleProjects.map((project) => [project.id, project]));
     const terminals = new Map(input.terminals.map((terminal) => [terminal.id, terminal]));
+    const shellTerminals = new Map<string, (typeof input.terminals)[number]>();
+    for (const terminal of input.terminals) {
+        if (terminal.kind === 'shell' && !shellTerminals.has(terminal.sessionId))
+            shellTerminals.set(terminal.sessionId, terminal);
+    }
     const active = input.sessions
         .filter((session) => session.archivedAt === undefined && projects.has(session.projectId))
         .toSorted(
@@ -73,7 +78,7 @@ export const buildMobileDashboard = (input: {
         if (sessions.length >= MAXIMUM_DASHBOARD_SESSIONS) break;
         const primaryTerminal = session.primaryAgentTerminalId
             ? terminals.get(session.primaryAgentTerminalId)
-            : undefined;
+            : shellTerminals.get(session.id);
         const mobileTerminal = primaryTerminal
             ? {
                   id: primaryTerminal.id,

@@ -1,6 +1,8 @@
 import { KeyboardAvoidingView, Platform, Text, View } from 'react-native';
 
 import type { MobileTheme } from '../../../theme/tokens';
+import { ConversationView } from '../../conversation/conversation-view';
+import type { useConversationTimeline } from '../../conversation/use-conversation-timeline';
 import { TerminalLiveView } from '../../terminal/terminal-live-view';
 import type { MobileSessionItem } from '../session-model';
 import { isMobileTerminalStopped } from '../session-model';
@@ -15,21 +17,13 @@ const segmentLabels: Record<SessionSegment, string> = {
     changes: 'Changes',
 };
 
-const SessionSegmentPlaceholder = ({
-    kind,
-    theme,
-}: {
-    kind: 'conversation' | 'changes';
-    theme: MobileTheme;
-}) => (
+const SessionSegmentPlaceholder = ({ kind, theme }: { kind: 'changes'; theme: MobileTheme }) => (
     <View style={styles.placeholder} testID={`${kind}-placeholder`}>
         <Text accessibilityRole="header" style={[styles.placeholderTitle, { color: theme.text }]}>
             {segmentLabels[kind]}
         </Text>
         <Text style={[styles.placeholderBody, { color: theme.muted }]}>
-            {kind === 'conversation'
-                ? 'Conversation view is coming soon. Use the Terminal to follow this Agent.'
-                : 'Changes review is coming soon. Review files on your computer for now.'}
+            Changes review is coming soon. Review files on your computer for now.
         </Text>
     </View>
 );
@@ -37,6 +31,8 @@ const SessionSegmentPlaceholder = ({
 export const SessionDetail = ({
     deviceRole,
     draft,
+    conversationFallback,
+    conversationTimeline,
     focusComposer,
     hostId,
     isConnected,
@@ -54,6 +50,8 @@ export const SessionDetail = ({
 }: {
     deviceRole: 'view' | 'reply' | 'control' | null;
     draft: string;
+    conversationFallback: boolean;
+    conversationTimeline: ReturnType<typeof useConversationTimeline>;
     focusComposer?: boolean;
     hostId: string;
     isConnected: boolean;
@@ -70,13 +68,14 @@ export const SessionDetail = ({
     wideChanges: boolean;
 }) => {
     const showTerminal = segment === 'terminal' || (segment === 'changes' && wideChanges);
-    const terminal = session.primaryAgentTerminalId ? (
+    const terminalId = session.primaryTerminal?.id ?? session.primaryAgentTerminalId;
+    const terminal = terminalId ? (
         <TerminalLiveView
-            key={session.primaryAgentTerminalId}
+            key={terminalId}
             isConnected={isConnected}
             isStopped={isMobileTerminalStopped(session)}
             role={deviceRole}
-            terminalId={session.primaryAgentTerminalId}
+            terminalId={terminalId}
             theme={theme}
             visible={isVisible && showTerminal}
         />
@@ -88,11 +87,14 @@ export const SessionDetail = ({
     const body =
         segment === 'terminal' ? (
             terminal
-        ) : (
-            <SessionSegmentPlaceholder
-                kind={segment === 'conversation' ? 'conversation' : 'changes'}
+        ) : segment === 'conversation' ? (
+            <ConversationView
+                onRetry={conversationTimeline.refresh}
                 theme={theme}
+                timeline={conversationTimeline}
             />
+        ) : (
+            <SessionSegmentPlaceholder kind="changes" theme={theme} />
         );
     return (
         <KeyboardAvoidingView
@@ -109,6 +111,18 @@ export const SessionDetail = ({
                 session={session}
                 theme={theme}
             />
+            {conversationFallback ? (
+                <Text
+                    accessibilityRole="alert"
+                    style={[
+                        styles.fallbackBanner,
+                        { color: theme.muted, borderColor: theme.border },
+                    ]}
+                    testID="conversation-fallback-banner"
+                >
+                    Conversation view isn't available for this Agent. Showing the Terminal.
+                </Text>
+            ) : null}
             {segment === 'changes' && wideChanges ? (
                 <View style={styles.bodyRow}>
                     {terminal}

@@ -68,6 +68,7 @@ export async function createDomainServices(
         files,
         git,
         sessionContext,
+        timeline,
         transcripts,
         watchHub,
         workbenchRoots,
@@ -254,9 +255,7 @@ export async function createDomainServices(
         processId: terminals.processId(terminal.id),
     });
     const forgetSessionRuntime = (sessionId: string): void => {
-        /**
-         * Retire naming before resetting its revision fence or removing the Session's database identity.
-         */
+        // Retire naming before resetting its revision fence or removing the Session's database identity.
         agentRuntime.automaticNaming.forgetSession(sessionId);
         sessionRenames.forgetSession(sessionId);
         terminalRestores.forget(sessionId);
@@ -613,6 +612,8 @@ export async function createDomainServices(
             endpoints: dependencies.agentEndpoints,
             queue: mobileTerminalMutations,
             terminals,
+            timeline,
+            transcripts,
         }),
         'session.select': ({ sessionId }) =>
             sessionSelections.run(async () => {
