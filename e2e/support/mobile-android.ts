@@ -24,6 +24,19 @@ export interface MobileSemanticNode {
     enabled: boolean;
 }
 
+export function androidBounds(source: string): {
+    bottom: number;
+    left: number;
+    right: number;
+    top: number;
+} | null {
+    const match = /^\[(\d+),(\d+)\]\[(\d+),(\d+)\]$/u.exec(source);
+    if (!match) return null;
+    const [, left, top, right, bottom] = match.map(Number);
+    if (right <= left || bottom <= top) return null;
+    return { bottom, left, right, top };
+}
+
 /**
  * `adb shell` parses its command a second time. Quoting keeps pairing-link query separators inside the single deep-link
  * argument instead of letting the device shell treat them as command operators.
@@ -76,6 +89,7 @@ export async function restoreMobileDisplayState(
         'density',
         original.density.override ? String(original.density.override) : 'reset',
     ]);
+    await adbShell(serial, ['settings', 'put', 'system', 'font_scale', String(original.fontScale)]);
     if (JSON.stringify(await mobileDisplayState(serial)) !== JSON.stringify(original))
         throw new Error('Android display state was not restored exactly');
 }

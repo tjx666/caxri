@@ -1,0 +1,64 @@
+import { useState } from 'react';
+import { Text, View } from 'react-native';
+
+import type { AgentTimelineItem } from '@caxri/protocol';
+
+import type { MobileTheme } from '../../theme/tokens';
+import { ConversationMarkdown } from './conversation-markdown';
+import type { ConversationEntry as Entry } from './conversation-model';
+import { formatConversationDuration } from './conversation-model';
+import { conversationStyles as styles } from './conversation-styles';
+import { ConversationToolDetail } from './conversation-tool-detail';
+import { ConversationToolGroup } from './conversation-tool-group';
+import { ConversationToolRow } from './conversation-tool-row';
+
+type ToolCall = Extract<AgentTimelineItem, { type: 'toolCall' }>;
+
+export const ConversationEntry = ({ entry, theme }: { entry: Entry; theme: MobileTheme }) => {
+    const [selectedTool, setSelectedTool] = useState<ToolCall | null>(null);
+    if (entry.type === 'turnBoundary')
+        return (
+            <View
+                style={[styles.message, styles.turnDivider]}
+                testID={`conversation-turn-${entry.id}`}
+            >
+                <View style={[styles.turnLine, { backgroundColor: theme.border }]} />
+                <Text style={[styles.turnText, { color: theme.muted }]}>
+                    {formatConversationDuration(entry.durationMs) ?? 'Turn complete'}
+                </Text>
+                <View style={[styles.turnLine, { backgroundColor: theme.border }]} />
+            </View>
+        );
+    if (entry.type === 'userMessage')
+        return (
+            <View style={[styles.message, styles.userRow]} testID={`conversation-user-${entry.id}`}>
+                <View style={[styles.userBubble, { backgroundColor: theme.surface }]}>
+                    <Text selectable style={[styles.userText, { color: theme.text }]}>
+                        {entry.text}
+                    </Text>
+                </View>
+            </View>
+        );
+    if (entry.type === 'agentMessage')
+        return (
+            <View style={styles.message} testID={`conversation-agent-${entry.id}`}>
+                <ConversationMarkdown text={entry.text} theme={theme} />
+            </View>
+        );
+    return (
+        <View style={styles.message}>
+            {entry.type === 'toolCall' ? (
+                <View style={[styles.toolGroup, { borderColor: theme.border }]}>
+                    <ConversationToolRow onPress={setSelectedTool} theme={theme} tool={entry} />
+                </View>
+            ) : (
+                <ConversationToolGroup group={entry} onToolPress={setSelectedTool} theme={theme} />
+            )}
+            <ConversationToolDetail
+                onClose={() => setSelectedTool(null)}
+                theme={theme}
+                tool={selectedTool}
+            />
+        </View>
+    );
+};

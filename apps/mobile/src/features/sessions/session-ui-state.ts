@@ -1,3 +1,6 @@
+import { shouldFallbackToTerminal } from '../conversation/conversation-model';
+import type { ConversationTimelineState } from '../conversation/use-conversation-timeline';
+
 export type SessionSegment = 'conversation' | 'terminal' | 'changes';
 
 export interface HostSessionUiState {
@@ -16,6 +19,25 @@ export const preferredSessionSegment = (
     remembered: SessionSegment | undefined,
     isConversationAvailable: boolean,
 ): SessionSegment => remembered ?? (isConversationAvailable ? 'conversation' : 'terminal');
+
+export const resolveSessionConversationSegment = ({
+    hasAgentEndpoint,
+    remembered,
+    status,
+}: {
+    hasAgentEndpoint: boolean;
+    remembered: SessionSegment | undefined;
+    status: ConversationTimelineState['status'];
+}): { fallback: boolean; segment: SessionSegment } => {
+    const fallback =
+        (remembered === undefined || remembered === 'conversation') &&
+        shouldFallbackToTerminal(status);
+    const available = status === 'available' || (hasAgentEndpoint && !fallback);
+    return {
+        fallback,
+        segment: fallback ? 'terminal' : preferredSessionSegment(remembered, available),
+    };
+};
 
 export const rememberSessionSegment = (
     state: HostSessionUiState,

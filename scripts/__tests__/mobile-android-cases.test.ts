@@ -4,6 +4,7 @@ import {
     mobileAndroidAcceptanceCase,
     parseAndroidDisplayState,
     parseMobileAndroidCaseIds,
+    shouldCaptureAdapterScreenshot,
 } from '../mobile-android-cases';
 
 describe('mobile Android Acceptance cases', () => {
@@ -44,6 +45,18 @@ describe('mobile Android Acceptance cases', () => {
             recordingOwner: 'adapter',
             scenario: 'new-session-launch-failure',
         });
+        expect(mobileAndroidAcceptanceCase('MOB-CONV-02')).toEqual({
+            desktopProfile: 'managed-by-isolated-e2e',
+            media: ['video'],
+            recordingOwner: 'scenario',
+            scenario: 'conversation-follow',
+        });
+        expect(mobileAndroidAcceptanceCase('MOB-TIMELINE-01')).toEqual({
+            desktopProfile: 'managed-by-isolated-e2e',
+            media: [],
+            recordingOwner: 'adapter',
+            scenario: 'timeline-projection',
+        });
         expect(() => mobileAndroidAcceptanceCase('MOB-SEC-01')).toThrow(
             'Unsupported Android Acceptance case',
         );
@@ -60,6 +73,13 @@ describe('mobile Android Acceptance cases', () => {
         expect(() => parseMobileAndroidCaseIds('')).toThrow(
             'At least one Android Acceptance case is required',
         );
+    });
+
+    it('never captures a Shell fallback frame in the adapter before formal fixture preflight', () => {
+        expect(shouldCaptureAdapterScreenshot('MOB-CONV-03', false)).toBe(false);
+        expect(shouldCaptureAdapterScreenshot('MOB-CONV-03', true)).toBe(false);
+        expect(shouldCaptureAdapterScreenshot('MOB-CONV-01', true)).toBe(true);
+        expect(shouldCaptureAdapterScreenshot('MOB-CONV-01', false)).toBe(false);
     });
 
     it('normalizes physical and override display state for exact restoration', () => {

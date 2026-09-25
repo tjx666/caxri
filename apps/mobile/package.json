@@ -21,6 +21,7 @@
     "dependencies": {
         "@caxri/mobile-transport": "workspace:*",
         "@caxri/protocol": "workspace:*",
+        "@ronradtke/react-native-markdown-display": "catalog:",
         "@shopify/flash-list": "2.0.2",
         "@tanstack/react-query": "catalog:",
         "@xterm/xterm": "6.1.0-beta.304",

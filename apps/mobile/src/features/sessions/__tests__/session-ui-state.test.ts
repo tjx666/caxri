@@ -5,6 +5,7 @@ import {
     preferredSessionSegment,
     rememberSessionDraft,
     rememberSessionSegment,
+    resolveSessionConversationSegment,
     selectSessionProject,
 } from '../session-ui-state';
 
@@ -14,6 +15,30 @@ describe('host Session UI state', () => {
         expect(preferredSessionSegment(undefined, false)).toBe('terminal');
         expect(preferredSessionSegment('changes', true)).toBe('changes');
         expect(preferredSessionSegment('terminal', true)).toBe('terminal');
+    });
+
+    it('defaults to a likely Agent Conversation and falls back when its record is unavailable', () => {
+        expect(
+            resolveSessionConversationSegment({
+                hasAgentEndpoint: true,
+                remembered: undefined,
+                status: 'loading',
+            }),
+        ).toEqual({ fallback: false, segment: 'conversation' });
+        expect(
+            resolveSessionConversationSegment({
+                hasAgentEndpoint: true,
+                remembered: 'conversation',
+                status: 'unsupported',
+            }),
+        ).toEqual({ fallback: true, segment: 'terminal' });
+        expect(
+            resolveSessionConversationSegment({
+                hasAgentEndpoint: false,
+                remembered: undefined,
+                status: 'missing',
+            }),
+        ).toEqual({ fallback: true, segment: 'terminal' });
     });
 
     it('remembers segment and draft independently for each Session', () => {

@@ -31,6 +31,12 @@ export const sessionDetailStyles = StyleSheet.create({
     },
     tabText: { fontSize: 13, fontWeight: '600' },
     body: { flex: 1, minWidth: 0 },
+    fallbackBanner: {
+        borderBottomWidth: 1,
+        fontSize: 12,
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+    },
     bodyRow: { flex: 1, flexDirection: 'row' },
     wideChanges: { borderLeftWidth: 1, flex: 1, minWidth: 0 },
     placeholder: { alignItems: 'center', flex: 1, gap: 8, justifyContent: 'center', padding: 24 },
