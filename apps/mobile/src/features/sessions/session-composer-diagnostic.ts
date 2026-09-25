@@ -5,6 +5,8 @@ const counters = {
     updateCalls: 0,
     setDraftCalls: 0,
     visibleDraftCalls: 0,
+    focusCalls: 0,
+    keyCalls: 0,
     providerGeneration: 0,
 };
 
@@ -18,6 +20,16 @@ const report = (details: Record<string, boolean | number | string>): void => {
 export const recordComposerInput = (value: string): void => {
     counters.inputCalls += 1;
     report({ stage: 'onChangeText', calls: counters.inputCalls, bytes: composerByteLength(value) });
+};
+
+export const recordComposerFocus = (): void => {
+    counters.focusCalls += 1;
+    report({ stage: 'onFocus', calls: counters.focusCalls });
+};
+
+export const recordComposerKey = (): void => {
+    counters.keyCalls += 1;
+    report({ stage: 'onKeyPress', calls: counters.keyCalls });
 };
 
 export const recordComposerUpdate = (value: string, isBusy: boolean, isEqual: boolean): void => {

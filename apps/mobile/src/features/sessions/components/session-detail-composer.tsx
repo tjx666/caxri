@@ -5,7 +5,12 @@ import { MOBILE_AGENT_SUBMIT_MAX_BYTES } from '@caxri/protocol';
 
 import type { MobileTheme } from '../../../theme/tokens';
 import { useSessionComposer } from '../hooks/use-session-composer';
-import { recordComposerInput, recordVisibleComposerDraft } from '../session-composer-diagnostic';
+import {
+    recordComposerFocus,
+    recordComposerInput,
+    recordComposerKey,
+    recordVisibleComposerDraft,
+} from '../session-composer-diagnostic';
 import type { ComposerDelivery } from '../session-composer-state';
 import { composerDeliveryFeedback } from '../session-composer-state';
 import type { MobileSessionItem } from '../session-model';
@@ -56,8 +61,10 @@ const SessionComposerInput = ({
                 updateDraft(value);
             }}
             onFocus={() => {
+                recordComposerFocus();
                 if (focusComposer) onComposerFocused?.();
             }}
+            onKeyPress={recordComposerKey}
             placeholder={placeholder}
             placeholderTextColor={theme.muted}
             ref={inputReference}

@@ -27,7 +27,7 @@ import { tapTerminalKey } from './mobile-terminal-key';
 import {
     assertMobileComposerDraft,
     assertMobileComposerFocused,
-    diagnoseMobileComposerAscii,
+    diagnoseMobileComposerInput,
     setMobileComposerUnicode,
 } from './mobile-unicode-input';
 
@@ -262,13 +262,8 @@ async function waitForComposerSendEnabled(serial: string, expectedDraft: string)
             }
         }
         let asciiDiagnostic = '';
-        if (nativeDraft === 'retained' && process.env.CAXRI_COMPOSER_DIAG_ASCII === '1') {
-            const { committed, reactive } = await diagnoseMobileComposerAscii(
-                serial,
-                expectedDraft,
-            );
-            asciiDiagnostic = `; ascii-committed:${committed}; ascii-reactive:${reactive}`;
-        }
+        if (nativeDraft === 'retained' && process.env.CAXRI_COMPOSER_DIAG_ASCII === '1')
+            asciiDiagnostic = await diagnoseMobileComposerInput(serial, expectedDraft);
         throw new Error(
             `Mobile composer send unavailable: ${action}; native-draft:${nativeDraft}${asciiDiagnostic}`,
             {
