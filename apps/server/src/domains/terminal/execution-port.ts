@@ -177,4 +177,11 @@ export interface TerminalExecutionPort {
         encoding?: 'binary',
     ): boolean;
     writeAgent(terminalId: string, data: string, signal?: AbortSignal): Promise<boolean>;
+    submitAgentExact(
+        terminalId: string,
+        expectedSessionId: string,
+        expectedAgentLaunchId: string,
+        text: string,
+        signal?: AbortSignal,
+    ): Promise<'accepted' | 'rejected' | 'unknown'>;
 }

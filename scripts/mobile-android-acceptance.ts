@@ -234,13 +234,12 @@ async function executeBuiltInScenario(
     }
 }
 
-async function executePlaywrightScenario(
+function executePlaywrightScenario(
     caseId: MobileAndroidAcceptanceCaseId,
     launchId: string,
     remoteVideoPath: string,
     sourceCommit: string,
-): Promise<void> {
-    const scenario = mobileAndroidAcceptanceCase(caseId).scenario;
+): void {
     const assetsDirectory = join(reportDirectory, 'assets');
     const artifactManifest = join(assetsDirectory, `${caseId}-artifact-manifest.json`);
     const scenarioReceipt = join(assetsDirectory, `${caseId}-scenario.txt`);
@@ -254,9 +253,8 @@ async function executePlaywrightScenario(
         CAXRI_MOBILE_ACCEPTANCE_SCENARIO_RECEIPT: scenarioReceipt,
         CAXRI_MOBILE_ACCEPTANCE_SERIAL: serial,
         CAXRI_MOBILE_ACCEPTANCE_SOURCE_COMMIT: sourceCommit,
-        ...(scenario === 'session-short-reply' && {
+        ...(mobileAndroidAcceptanceCase(caseId).recordingOwner === 'scenario' && {
             CAXRI_MOBILE_ACCEPTANCE_REMOTE_VIDEO_PATH: remoteVideoPath,
-            CAXRI_MOBILE_ACCEPTANCE_RESULT_RECEIPT: join(assetsDirectory, `${caseId}-result.json`),
         }),
     };
     run(
@@ -265,21 +263,13 @@ async function executePlaywrightScenario(
             '--bun',
             'playwright',
             'test',
-            scenario === 'session-short-reply'
-                ? 'e2e/mobile-short-reply.e2e.ts'
-                : 'e2e/mobile-acceptance-scenarios.e2e.ts',
+            'e2e/mobile-acceptance-scenarios.e2e.ts',
             '--workers=1',
             '--reporter=line',
         ],
         E2E_TIMEOUT_MS,
         environment,
     );
-    if (scenario === 'session-short-reply') {
-        await writeScenarioReceipt(caseId, {
-            outcome: 'one-bounded-reply-reached-the-waiting-agent',
-            status: 'passed',
-        });
-    }
 }
 
 async function readScenarioArtifacts(caseId: MobileAndroidAcceptanceCaseId): Promise<string[]> {

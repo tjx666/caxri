@@ -22,6 +22,8 @@ import { createDeletionHandlers } from './deletion-handlers';
 import { DiagnosticsService } from './diagnostics';
 import type { DomainDependencies, DomainHandlers, DomainServices } from './domain-services';
 import { createIntrospectionServices } from './introspection';
+import { createMobileDomainHandlers } from './mobile-handlers';
+import { MobileTerminalMutationQueue } from './mobile-terminal-mutation-queue';
 import { createOrderingHandlers } from './ordering-handlers';
 import { createProjectHidingHandlers } from './project-hiding-handlers';
 import { ProjectStatusService } from './project-status';
@@ -104,10 +106,8 @@ export async function createDomainServices(
             fields: { error: error instanceof Error ? error.message : String(error) },
         });
     }
-    /**
-     * Terminal-to-Agent wiring keeps provider checks in the composition root.
-     */
     const agentDispatchState: { service?: AgentDispatchService } = {};
+    const mobileTerminalMutations = new MobileTerminalMutationQueue();
     const terminals = new TerminalManager(database, send, logger, {
         ...dependencies.terminal,
         execution: dependencies.terminalExecution,
@@ -523,6 +523,7 @@ export async function createDomainServices(
             database,
             send,
             terminals,
+            mobileTerminalMutations,
             observeSelectedSession,
         }),
         'editor.confirmDiscard': () => mainOwned('editor.confirmDiscard'),
@@ -606,6 +607,13 @@ export async function createDomainServices(
             throw new CaxriError('FORBIDDEN', 'Mobile Session creation requires a paired device');
         },
         'mobile.session.createForPrincipal': createMobileSessionForPrincipal,
+        ...createMobileDomainHandlers({
+            configuration,
+            database,
+            endpoints: dependencies.agentEndpoints,
+            queue: mobileTerminalMutations,
+            terminals,
+        }),
         'session.select': ({ sessionId }) =>
             sessionSelections.run(async () => {
                 await workbenchRoots.validateSession(sessionId);
@@ -633,23 +641,25 @@ export async function createDomainServices(
         },
         'session.rename': ({ sessionId, displayTitle }, signal, finalizeDurably) =>
             sessionRenames.rename(sessionId, displayTitle, signal, finalizeDurably),
-        'session.archive': async ({ sessionId }) => {
-            terminalRestores.cancel(sessionId);
-            const session = database.archiveSession(sessionId);
-            await terminalSuspension.suspendSession(sessionId);
-            observeSelectedSession(selectedSessionId(), true);
-            sendFullStateChange('session.archive');
-            return session;
-        },
-        'session.detach': async ({ sessionId }) => {
-            if (!database.getSession(sessionId))
-                throw new CaxriError('NOT_FOUND', 'Session not found');
-            // A queued restore could relaunch the Agent right after it was handed over; drop it first.
-            terminalRestores.cancel(sessionId);
-            await terminalSuspension.detachSession(sessionId);
-            sendFullStateChange('session.detach');
-            return database.getSession(sessionId)!;
-        },
+        'session.archive': ({ sessionId }) =>
+            mobileTerminalMutations.runSessions([sessionId], async () => {
+                terminalRestores.cancel(sessionId);
+                const session = database.archiveSession(sessionId);
+                await terminalSuspension.suspendSession(sessionId);
+                observeSelectedSession(selectedSessionId(), true);
+                sendFullStateChange('session.archive');
+                return session;
+            }),
+        'session.detach': ({ sessionId }) =>
+            mobileTerminalMutations.runSessions([sessionId], async () => {
+                if (!database.getSession(sessionId))
+                    throw new CaxriError('NOT_FOUND', 'Session not found');
+                // A queued restore could relaunch the Agent right after it was handed over; drop it first.
+                terminalRestores.cancel(sessionId);
+                await terminalSuspension.detachSession(sessionId);
+                sendFullStateChange('session.detach');
+                return database.getSession(sessionId)!;
+            }),
         'session.resume': ({ sessionId }) =>
             sessionSelections.run(async () => {
                 await workbenchRoots.validateSession(sessionId);
@@ -668,6 +678,7 @@ export async function createDomainServices(
         ...createDeletionHandlers({
             database,
             delegations: agentCommands.delegationService,
+            mobileTerminalMutations,
             bootstrapState,
             forgetSessionRuntime,
             evictSessions: evictSessionCaches,
@@ -706,18 +717,16 @@ export async function createDomainServices(
             terminals.resize(terminalId, cols, rows);
             return null;
         },
-        'terminal.close': ({ terminalId }) => {
-            const sessionId = database.getTerminal(terminalId)?.sessionId;
-            coordinator.forgetTerminal(terminalId);
-            transcripts.forgetTerminal(terminalId);
-            terminals.close(terminalId);
-            /**
-             * Closing the primary Agent Terminal promotes another one, whose metadata must catch up.
-             */
-            if (sessionId) coordinator.probeSessionPrimaryAgent(sessionId);
-            sendFullStateChange('terminal.close');
-            return null;
-        },
+        'terminal.close': ({ terminalId }) =>
+            mobileTerminalMutations.run(terminalId, () => {
+                const sessionId = database.getTerminal(terminalId)?.sessionId;
+                coordinator.forgetTerminal(terminalId);
+                transcripts.forgetTerminal(terminalId);
+                terminals.close(terminalId);
+                if (sessionId) coordinator.probeSessionPrimaryAgent(sessionId);
+                sendFullStateChange('terminal.close');
+                return null;
+            }),
         'terminal.attach': ({ cols, rows, terminalId }) =>
             terminals.attach(
                 terminalId,

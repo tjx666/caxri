@@ -65,12 +65,65 @@ const liveAuthority = {
                   ptyGeneration: 1,
                   attachmentId: 'attachment-1',
                   agentLaunchId: 'launch-1',
+                  agentProcessId: 123,
                   running: true,
               }
             : undefined,
 };
 
 describe('architecture-a3b-terminal-host: private protocol', () => {
+    it('fences bounded Agent submissions to the started launch and PTY generation', () => {
+        const base = startEnvelope();
+        const submission = terminalHostRequestEnvelopeSchema.parse({
+            ...base,
+            scope: { ...base.scope, capability: 'terminal.agent.input' },
+            request: {
+                method: 'terminal.agent.submit',
+                params: { launchId: 'launch-1', text: '继续处理\n第二行' },
+            },
+        });
+        expect(authorizeTerminalHostRequest(submission, liveAuthority)).toEqual({ ok: true });
+        expect(
+            authorizeTerminalHostRequest(
+                terminalHostRequestEnvelopeSchema.parse({
+                    ...submission,
+                    scope: { ...submission.scope, ptyGeneration: 2 },
+                }),
+                liveAuthority,
+            ),
+        ).toEqual({ ok: false, reason: 'generation' });
+        expect(
+            authorizeTerminalHostRequest(
+                terminalHostRequestEnvelopeSchema.parse({
+                    ...submission,
+                    request: {
+                        ...submission.request,
+                        params: { launchId: 'other', text: 'again' },
+                    },
+                }),
+                liveAuthority,
+            ),
+        ).toEqual({ ok: false, reason: 'agent' });
+        expect(
+            terminalHostRequestEnvelopeSchema.safeParse({
+                ...submission,
+                request: {
+                    ...submission.request,
+                    params: { launchId: 'launch-1', text: '中'.repeat(5_462) },
+                },
+            }).success,
+        ).toBe(false);
+        expect(
+            terminalHostRequestEnvelopeSchema.safeParse({
+                ...submission,
+                request: {
+                    ...submission.request,
+                    params: { launchId: 'launch-1', text: '\u{1B}[201~' },
+                },
+            }).success,
+        ).toBe(false);
+    });
+
     it('accepts a bounded launch plan bound to the exact Server and Terminal generation', () => {
         expect(authorizeTerminalHostRequest(startEnvelope(), liveAuthority)).toEqual({ ok: true });
     });

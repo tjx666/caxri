@@ -24,6 +24,7 @@ export interface MobileAcceptanceFixture {
     inputCapture?: string;
     pair(): Promise<{ deviceId: string }>;
     pairFromDesktopUi(trigger: () => Promise<void>): Promise<{ deviceId: string }>;
+    failNextAgentLaunch(): Promise<void>;
     readCapturedInput(): Promise<Buffer>;
     running: RunningCaxri;
     stop(): Promise<void>;
@@ -31,12 +32,12 @@ export interface MobileAcceptanceFixture {
 }
 
 interface CreateMobileAcceptanceFixtureInput {
-    mode: 'empty' | 'waiting';
+    mode: 'empty' | 'waiting' | 'launch-failure';
     serial: string;
+    dropSubmitAcknowledgement?: boolean;
 }
 
-export const MOBILE_ACCEPTANCE_SAFE_OUTPUT =
-    'Synthetic Agent output: ready for Acceptance review.\r\n';
+const MOBILE_ACCEPTANCE_SAFE_OUTPUT = 'Synthetic Agent output: ready for Acceptance review.\r\n';
 
 async function fakeWaitingAgent(userDataDirectory: string, inputCapture: string) {
     return createFakeAgentMode({
@@ -64,10 +65,12 @@ const fixtureSessionId = 'mobile-acceptance-session-' + process.pid;
 process.stdin.setRawMode?.(true);
 process.stdin.on('data', (chunk) => {
   fs.appendFileSync(${JSON.stringify(inputCapture)}, chunk);
+  if (chunk.includes(3)) process.exit(130);
   if (!resumed) {
     resumed = true;
     invokeHook('UserPromptSubmit', { session_id: fixtureSessionId, turn_id: 'turn-2' });
   }
+  if (chunk.includes(13)) process.stdout.write('Synthetic message received.\r\n');
 });
 process.stdin.resume();
 process.stdout.write(${JSON.stringify(MOBILE_ACCEPTANCE_SAFE_OUTPUT)});
@@ -75,6 +78,24 @@ setTimeout(() => {
   invokeHook('UserPromptSubmit', { session_id: fixtureSessionId, turn_id: 'turn-1' });
   invokeHook('PermissionRequest', { session_id: fixtureSessionId, turn_id: 'turn-1' });
 }, 500);
+`,
+            },
+        },
+    });
+}
+
+async function fakeFailingAgent(userDataDirectory: string) {
+    return createFakeAgentMode({
+        userDataDir: userDataDirectory,
+        providers: {
+            codex: {
+                executableSource: String.raw`#!${process.execPath}
+if (process.argv.includes('--version')) {
+  process.stdout.write('codex-cli 0.151.0\n');
+  process.exit(0);
+}
+process.stderr.write('Synthetic Agent launch failed.\n');
+process.exit(7);
 `,
             },
         },
@@ -96,7 +117,9 @@ export async function createMobileAcceptanceFixture(
     const agentMode =
         input.mode === 'waiting'
             ? await fakeWaitingAgent(userData, inputCapture)
-            : ({ mode: 'blocked' } as const);
+            : input.mode === 'launch-failure'
+              ? await fakeFailingAgent(userData)
+              : ({ mode: 'blocked' } as const);
     let running: RunningCaxri;
     try {
         running = await launchCaxri({
@@ -105,6 +128,9 @@ export async function createMobileAcceptanceFixture(
             testRootPath: allowedRoot,
             env: {
                 ...(input.mode === 'waiting' && { CAXRI_E2E_AGENT_HOOKS: '1' }),
+                ...(input.dropSubmitAcknowledgement && {
+                    CAXRI_E2E_MOBILE_DROP_SUBMIT_ACK_ONCE: '1',
+                }),
                 CAXRI_MOBILE_TEST_HOST_DISPLAY_NAME: 'Caxri Test Host',
                 CAXRI_TEST_ROOT_PATHS: JSON.stringify([allowedRoot, deniedRoot]),
             },
@@ -194,12 +220,17 @@ export async function createMobileAcceptanceFixture(
             if (!allowed || !denied) throw new Error('Mobile Acceptance Projects are unavailable');
             allowedProjectId = allowed.projectId;
             deniedProjectId = denied.projectId;
-            await pageRequest(running.page, 'session.delete', {
-                sessionId: allowedEmptySessionId,
-            });
-            await pageRequest(running.page, 'session.delete', {
-                sessionId: deniedEmptySessionId,
-            });
+            if (input.mode === 'launch-failure') {
+                allowedSessionId = allowedEmptySessionId;
+                deniedSessionId = deniedEmptySessionId;
+            } else {
+                await pageRequest(running.page, 'session.delete', {
+                    sessionId: allowedEmptySessionId,
+                });
+                await pageRequest(running.page, 'session.delete', {
+                    sessionId: deniedEmptySessionId,
+                });
+            }
         }
     } catch (error) {
         await stop();
@@ -274,9 +305,21 @@ export async function createMobileAcceptanceFixture(
             if (input.mode !== 'waiting') return Buffer.alloc(0);
             try {
                 return await readFile(inputCapture);
-            } catch {
-                return Buffer.alloc(0);
+            } catch (error) {
+                if (
+                    typeof error === 'object' &&
+                    error !== null &&
+                    'code' in error &&
+                    error.code === 'ENOENT'
+                )
+                    return Buffer.alloc(0);
+                throw error;
             }
+        },
+        failNextAgentLaunch: async () => {
+            if (input.mode !== 'launch-failure')
+                throw new Error('Agent launch failure is unavailable in this fixture');
+            await rm(join(userData, 'e2e-agents', 'bin', 'codex'));
         },
         running,
         stop,

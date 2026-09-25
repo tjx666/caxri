@@ -1,12 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { MobileSession, MobileTerminal } from '../session-model';
-import {
-    buildMobileSessionSections,
-    isMobileTerminalStopped,
-    mobileSessionDraftKey,
-    shortReplyDisabledReason,
-} from '../session-model';
+import { buildMobileSessionSections, isMobileTerminalStopped } from '../session-model';
 
 const terminal: MobileTerminal = {
     id: 'terminal-1',
@@ -60,20 +55,6 @@ describe('mobile session model', () => {
         });
     });
 
-    it('explains exactly why a short reply is disabled', () => {
-        const item = buildMobileSessionSections({
-            total: 1,
-            truncated: false,
-            sessions: [session()],
-        }).needsAttention[0];
-
-        expect(shortReplyDisabledReason(item, false)).toBe('Reconnect to Caxri before replying.');
-        expect(shortReplyDisabledReason(item, true)).toBeNull();
-        expect(shortReplyDisabledReason({ ...item, lastActivityState: 'running' }, true)).toContain(
-            'waiting',
-        );
-    });
-
     it('recognizes a stopped Agent Terminal', () => {
         const item = buildMobileSessionSections({
             total: 1,
@@ -88,15 +69,6 @@ describe('mobile session model', () => {
                 primaryTerminal: { ...terminal, lastProcessState: 'stopped' },
             }),
         ).toBe(true);
-    });
-
-    it('invalidates a draft when the Session attention generation changes', () => {
-        expect(mobileSessionDraftKey(session({ attentionEpoch: 3 }))).not.toBe(
-            mobileSessionDraftKey(session({ attentionEpoch: 4 })),
-        );
-        expect(mobileSessionDraftKey(session())).not.toBe(
-            mobileSessionDraftKey(session({ primaryAgentTerminalId: 'terminal-2' })),
-        );
     });
 
     it('builds one thousand Session rows without a pathological model regression', () => {

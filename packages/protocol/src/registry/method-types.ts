@@ -109,6 +109,7 @@ export const effectfulCommandRecovery = {
     'mobile.pairing.create': 'memory',
     'mobile.device.revoke': 'memory',
     'mobile.session.create': 'durable',
+    'mobile.agent.submit': 'none',
     'mobile.terminal.takeOver': 'none',
     'mobile.terminal.release': 'none',
     'mobile.terminal.input': 'none',

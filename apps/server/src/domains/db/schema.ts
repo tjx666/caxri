@@ -251,6 +251,25 @@ export const agentDispatchReceipts = sqliteTable(
 );
 
 /**
+ * Reserved before PTY input, so a lost reply or Server restart cannot replay a mobile submission.
+ */
+export const mobileAgentSubmitReceipts = sqliteTable(
+    'mobile_agent_submit_receipts',
+    {
+        deviceId: text('device_id').notNull(),
+        deviceGeneration: integer('device_generation').notNull(),
+        clientMutationId: text('client_mutation_id').notNull(),
+        requestFingerprint: text('request_fingerprint').notNull(),
+        status: text('status').notNull(),
+        createdAt: integer('created_at').notNull(),
+    },
+    (table) => [
+        primaryKey({ columns: [table.deviceId, table.deviceGeneration, table.clientMutationId] }),
+        index('mobile_agent_submit_created').on(table.createdAt),
+    ],
+);
+
+/**
  * One durable identity row anchors recovery across Server boots. `state_epoch` changes only when the compatible
  * changefeed history is deliberately replaced; a normal restart changes the Boot ID, not this row.
  */

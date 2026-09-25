@@ -49,12 +49,6 @@ const androidCases = {
         recordingOwner: 'adapter',
         scenario: 'session-states',
     },
-    'MOB-SESSION-02': {
-        desktopProfile: 'managed-by-isolated-e2e',
-        media: ['screenshot', 'video'],
-        recordingOwner: 'scenario',
-        scenario: 'session-short-reply',
-    },
     'MOB-SESSION-03': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['video'],
@@ -66,6 +60,36 @@ const androidCases = {
         media: ['screenshot', 'video'],
         recordingOwner: 'adapter',
         scenario: 'terminal-observe-control',
+    },
+    'MOB-COMPOSER-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot', 'video'],
+        recordingOwner: 'scenario',
+        scenario: 'composer-unicode-submit',
+    },
+    'MOB-COMPOSER-02': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot', 'video'],
+        recordingOwner: 'scenario',
+        scenario: 'composer-stop',
+    },
+    'MOB-COMPOSER-03': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot', 'video'],
+        recordingOwner: 'scenario',
+        scenario: 'composer-unknown',
+    },
+    'MOB-NEW-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'adapter',
+        scenario: 'new-session-create',
+    },
+    'MOB-NEW-02': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'adapter',
+        scenario: 'new-session-launch-failure',
     },
 } as const satisfies Record<
     string,

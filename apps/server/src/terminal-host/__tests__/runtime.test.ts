@@ -55,11 +55,13 @@ function fakeEngine() {
     const snapshot = vi.fn(() => Promise.resolve(null));
     const start = vi.fn<(input: TerminalExecutionStart) => number>(() => 42);
     const write = vi.fn(() => true);
+    const writeWithCompletion = vi.fn(() => Promise.resolve(true));
     return {
         attach,
         snapshot,
         start,
         write,
+        writeWithCompletion,
         owner: {
             attach,
             close: vi.fn(),
@@ -97,6 +99,7 @@ function fakeEngine() {
             start,
             waitForAttachedSize: vi.fn(async () => {}),
             write,
+            writeWithCompletion,
         },
     };
 }
@@ -219,6 +222,7 @@ describe('architecture-a3b-terminal-host: TerminalHostRuntime', () => {
             close: vi.fn(() => Promise.resolve()),
             prepare,
             signalExact: vi.fn(() => true),
+            isRunningExact: vi.fn(() => true),
         };
         const { messages, runtime } = createRuntime(engine.owner, agentLauncher);
         const agentTerminal: TerminalRecord = {
@@ -284,6 +288,42 @@ describe('architecture-a3b-terminal-host: TerminalHostRuntime', () => {
             launchId: 'launch-1',
             processId: 101,
         });
+        const submitScope = { ...lifecycleScope, capability: 'terminal.agent.input' } as const;
+        await runtime.accept(
+            privateRequest(
+                {
+                    method: 'terminal.agent.submit',
+                    params: { launchId: 'launch-1', text: '继续\n第二行' },
+                },
+                submitScope,
+                'submit-agent-1',
+            ),
+        );
+        expect(engine.writeWithCompletion.mock.calls.slice(-2)).toEqual([
+            [terminal.id, '\u{1B}[200~继续\n第二行\u{1B}[201~'],
+            [terminal.id, '\r'],
+        ]);
+        expect(messages.at(-1)).toMatchObject({
+            id: 'submit-agent-1',
+            ok: true,
+            result: { outcome: 'accepted' },
+        });
+        engine.writeWithCompletion.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+        await runtime.accept(
+            privateRequest(
+                {
+                    method: 'terminal.agent.submit',
+                    params: { launchId: 'launch-1', text: 'uncertain' },
+                },
+                submitScope,
+                'submit-agent-uncertain',
+            ),
+        );
+        expect(messages.at(-1)).toMatchObject({
+            id: 'submit-agent-uncertain',
+            ok: true,
+            result: { outcome: 'unknown' },
+        });
         const inputScope = {
             ...lifecycleScope,
             capability: 'terminal.input',
@@ -335,6 +375,20 @@ describe('architecture-a3b-terminal-host: TerminalHostRuntime', () => {
             exitCode: 0,
             signal: null,
         });
+        const writesAfterExit = engine.writeWithCompletion.mock.calls.length;
+        const desktopWritesAfterExit = engine.write.mock.calls.length;
+        await runtime.accept(
+            privateRequest(
+                {
+                    method: 'terminal.agent.submit',
+                    params: { launchId: 'launch-1', text: 'must stay out of shell' },
+                },
+                submitScope,
+                'submit-agent-exited',
+            ),
+        );
+        expect(engine.writeWithCompletion).toHaveBeenCalledTimes(writesAfterExit);
+        expect(messages.at(-1)).toMatchObject({ id: 'submit-agent-exited', ok: false });
         await runtime.accept(
             privateRequest(
                 {
@@ -345,7 +399,7 @@ describe('architecture-a3b-terminal-host: TerminalHostRuntime', () => {
                 'input-agent-stale',
             ),
         );
-        expect(engine.write).toHaveBeenCalledTimes(2);
+        expect(engine.write).toHaveBeenCalledTimes(desktopWritesAfterExit);
         expect(messages.at(-1)).toMatchObject({
             type: 'reply',
             id: 'input-agent-stale',
