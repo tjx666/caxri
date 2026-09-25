@@ -9,6 +9,7 @@ import type { MobileTheme } from '../../theme/tokens';
 import { ConversationEntry } from './conversation-entry';
 import type { ConversationEntry as Entry } from './conversation-model';
 import {
+    CONVERSATION_FOLLOW_THRESHOLD,
     groupConversationItems,
     shouldFollowConversation,
     shouldShowConversationJump,
@@ -132,15 +133,12 @@ export const ConversationView = ({
     timeline: ConversationTimelineState & { loadOlder: () => Promise<void> };
 }) => {
     const list = useRef<FlashListRef<Entry>>(null);
-    const atBottom = useRef(true);
     const [isAtBottom, setIsAtBottom] = useState(true);
     const entries = useMemo(() => groupConversationItems(timeline.items), [timeline.items]);
     const onScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>): void => {
         const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
         const distance = contentSize.height - layoutMeasurement.height - contentOffset.y;
-        const nextAtBottom = shouldFollowConversation(distance);
-        atBottom.current = nextAtBottom;
-        setIsAtBottom(nextAtBottom);
+        setIsAtBottom(shouldFollowConversation(distance, layoutMeasurement.height));
     }, []);
     const renderItem = useCallback(
         ({ item }: ListRenderItemInfo<Entry>) => <ConversationEntry entry={item} theme={theme} />,
@@ -181,14 +179,11 @@ export const ConversationView = ({
                     />
                 }
                 maintainVisibleContentPosition={{
-                    autoscrollToBottomThreshold: 72,
+                    autoscrollToBottomThreshold: CONVERSATION_FOLLOW_THRESHOLD,
                     animateAutoScrollToBottom: false,
                     startRenderingFromBottom: true,
                 }}
                 onScroll={onScroll}
-                onContentSizeChange={() => {
-                    if (atBottom.current) list.current?.scrollToEnd({ animated: false });
-                }}
                 onStartReached={() => {
                     if (timeline.olderCursor && !timeline.isLoadingOlder) {
                         // eslint-disable-next-line no-void -- The timeline hook serializes older-page reads.
