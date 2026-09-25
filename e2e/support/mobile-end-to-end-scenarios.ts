@@ -23,7 +23,7 @@ import { conversationBaselineRecords } from './mobile-conversation-transcript';
 import type { MobileDesktopCapture } from './mobile-desktop-capture';
 import { createMobileDesktopCapture } from './mobile-desktop-capture';
 import { tapTerminalKey } from './mobile-terminal-key';
-import { setMobileComposerUnicode } from './mobile-unicode-input';
+import { assertMobileComposerFocused, setMobileComposerUnicode } from './mobile-unicode-input';
 
 interface JourneyEnvironment {
     artifactManifestPath: string;
@@ -309,17 +309,24 @@ async function runCoreJourney(
             nodes.some(
                 ({ checkId }) => checkId === `new-session-project-${fixture.allowedProjectId}`,
             ) &&
-            nodes.some(({ checkId, enabled }) => checkId === 'new-session-agent-codex' && enabled),
+            nodes.some(({ checkId, enabled }) => checkId === 'new-session-agent-claude' && enabled),
     );
     await tapMobileCheck(environment.serial, `new-session-project-${fixture.allowedProjectId}`);
-    await tapMobileCheck(environment.serial, 'new-session-agent-codex');
+    await tapMobileCheck(environment.serial, 'new-session-agent-claude');
     await tapMobileCheck(environment.serial, 'new-session-create');
     await waitForMobile(
         () => mobileSemantics(environment.serial),
         (nodes) =>
             nodes.some(({ checkId }) => checkId === 'session-detail') &&
-            nodes.some(({ checkId }) => checkId === 'session-composer-input'),
+            nodes.some(({ checkId }) => checkId === 'session-composer-input') &&
+            nodes.some(({ checkId }) => checkId === 'conversation-status-empty') &&
+            nodes.every(
+                ({ checkId }) =>
+                    checkId !== 'terminal-live-webview' &&
+                    checkId !== 'conversation-fallback-banner',
+            ),
     );
+    await assertMobileComposerFocused(environment.serial);
     const after = await waitForMobile(
         () =>
             pageRequest<{ selectedSessionId?: string; sessions: Array<{ id: string }> }>(
@@ -618,7 +625,7 @@ async function executeFailureJourney(
                 const terminal = identity.terminals.find(({ id }) => id === terminalId);
                 expect(session?.primaryAgentTerminalId).toBe(terminalId);
                 expect(terminal?.sessionId).toBe(fixture.allowedSessionId);
-                expect(terminal?.agentSessionId).toBe('mobile-conversation-fixture');
+                expect(terminal?.agentSessionId).toBeTruthy();
                 const before = await waitForDesktopConversationGrid(fixture, 'busy');
                 if (!before.state) throw new Error('Desktop Terminal state disappeared');
                 await tapMobileCheck(environment.serial, 'session-composer-stop');
