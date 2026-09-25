@@ -87,7 +87,8 @@ export async function prepareMobileFixtureIme(
         commands.runDevice(['install', '-r', join(directory, 'fixture-ime.apk')]);
         let isRegistered = false;
         for (let attempt = 0; attempt < 20; attempt += 1) {
-            const listed = commands.readDevice(['shell', 'ime', 'list', '-s']);
+            // A newly installed IME is disabled; `ime list -s` omits it until after `ime enable`.
+            const listed = commands.readDevice(['shell', 'ime', 'list', '-a', '-s']);
             if (listed.includes(`${packageId}/`)) {
                 isRegistered = true;
                 break;

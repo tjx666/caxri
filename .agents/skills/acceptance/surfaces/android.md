@@ -87,6 +87,8 @@ after saving the previous default, and restore that default, disable the fixture
 cleanup after every outcome. Never select the fixture IME on a real phone. Require a React-visible
 action state and the resulting product effect before accepting an input case; a native-only draft
 remains an execution failure.
+After installing the fixture, discover it with `ime list -a -s`: plain `ime list -s` lists enabled
+methods only, so it hides the newly installed fixture until `ime enable` runs.
 Before diagnosing a missing `testID`, verify the expected screen with a stable route marker. Start
 swipes inside the content area, away from Android's Back gesture edges, and check the route again.
 
