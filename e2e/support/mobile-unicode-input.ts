@@ -193,6 +193,47 @@ export async function diagnoseMobileComposerAscii(
     }
 }
 
+/**
+ * Failure-only hardware-key probe. It never submits the draft or records its contents.
+ */
+export async function diagnoseMobileComposerHardwareKey(
+    serial: string,
+    expectedDraft: string,
+): Promise<{ committed: boolean; reactive: boolean }> {
+    try {
+        await execFileAsync(adb, ['-s', serial, 'shell', 'input', 'text', 'x']);
+        await runComposerAutomation(serial, 'testAssertDraft', `${expectedDraft}x`);
+    } catch {
+        return { committed: false, reactive: false };
+    }
+    try {
+        await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) =>
+                nodes.some(
+                    ({ checkId, enabled }) => checkId === 'session-composer-send' && enabled,
+                ),
+            5_000,
+        );
+        return { committed: true, reactive: true };
+    } catch {
+        return { committed: true, reactive: false };
+    }
+}
+
+export async function diagnoseMobileComposerInput(
+    serial: string,
+    expectedDraft: string,
+): Promise<string> {
+    const { committed, reactive } = await diagnoseMobileComposerAscii(serial, expectedDraft);
+    let result = `; ascii-committed:${committed}; ascii-reactive:${reactive}`;
+    if (committed && !reactive) {
+        const hardware = await diagnoseMobileComposerHardwareKey(serial, `${expectedDraft}x`);
+        result += `; hardware-committed:${hardware.committed}; hardware-reactive:${hardware.reactive}`;
+    }
+    return result;
+}
+
 export const assertMobileComposerDraft = (serial: string, value: string): Promise<void> =>
     runComposerAutomation(serial, 'testAssertDraft', value);
 
