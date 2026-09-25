@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     centerOfAndroidBounds,
+    isAndroidCheckId,
     resumedPackageFromWindowDump,
     semanticNodesFromUiAutomator,
 } from '../android-receipts';
@@ -33,6 +34,14 @@ describe('Android content-free receipts', () => {
         ]);
         expect(JSON.stringify(semanticNodesFromUiAutomator(source))).not.toContain('private');
         expect(JSON.stringify(semanticNodesFromUiAutomator(source))).not.toContain('secret');
+    });
+
+    it('preserves bounded timeline controls with generation separators', () => {
+        const checkId = 'conversation-group-tools:1a.2b.3c.0:4:0';
+        const source = `<node resource-id="com.caxri.mobile:id/${checkId}" class="android.view.View" package="com.caxri.mobile" clickable="true" enabled="true" bounds="[0,0][100,100]" />`;
+        expect(isAndroidCheckId(checkId)).toBe(true);
+        expect(semanticNodesFromUiAutomator(source).map((node) => node.checkId)).toEqual([checkId]);
+        expect(isAndroidCheckId('conversation-tool-$(touch /tmp/unsafe)')).toBe(false);
     });
 
     it('extracts only the resumed package identity', () => {
