@@ -88,4 +88,37 @@ describe('buildMobileDashboard', () => {
         expect(result.sessions.map((session) => session.id)).toEqual(['session-1']);
         expect(result.total).toBe(1);
     });
+
+    it('projects the Shell Terminal for a Session without a primary Agent', () => {
+        const result = buildMobileDashboard({
+            hostDisplayName: 'Workstation',
+            deviceRole: 'view',
+            projects: [{ id: 'project-1', displayTitle: 'Project' }],
+            sessions: [
+                {
+                    id: 'session-1',
+                    projectId: 'project-1',
+                    displayTitle: 'Shell Session',
+                    lastOpenedAt: 1,
+                    lastActivityState: 'idle',
+                    attentionEpoch: 0,
+                    hasUnread: false,
+                },
+            ],
+            terminals: [
+                {
+                    id: 'terminal-1',
+                    sessionId: 'session-1',
+                    kind: 'shell',
+                    title: 'Shell',
+                    lastProcessState: 'running',
+                },
+            ],
+        });
+        expect(result.sessions[0]).toMatchObject({
+            id: 'session-1',
+            primaryTerminal: { id: 'terminal-1', kind: 'shell' },
+        });
+        expect(result.sessions[0]?.primaryAgentTerminalId).toBeUndefined();
+    });
 });

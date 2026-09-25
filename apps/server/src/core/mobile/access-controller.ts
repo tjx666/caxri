@@ -401,7 +401,10 @@ export const openMobileAccessController = async (options: {
                                       selector: session.primaryAgentTerminalId,
                                   },
                               })
-                            : Promise.resolve({ terminals: [] }),
+                            : domainService.request('terminal.queryForPrincipal', {
+                                  principal,
+                                  query: { mode: 'list', sessionId: session.id },
+                              }),
                     ]);
                     const projected = buildMobileDashboard({
                         hostDisplayName,
