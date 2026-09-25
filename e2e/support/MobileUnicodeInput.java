@@ -39,6 +39,9 @@ public final class MobileUnicodeInput extends UiAutomatorTestCase {
         String text = fixtureText();
         EditableObject input = composerInput();
         if (!input.exists()) throw new IllegalStateException("Composer input is unavailable");
+        // Match the user's input order before changing a controlled React Native TextInput.
+        input.click();
+        if (!input.isFocused()) throw new IllegalStateException("Composer is not focused");
         input.setUnicodeText(text);
         if (!text.equals(input.getText())) throw new IllegalStateException("Composer text differs from fixture");
     }
