@@ -50,8 +50,13 @@ export const terminalFixturePreflightReceiptSchema = z.object({
     }),
     fixture: terminalFixtureSchema,
     kind: z.literal('terminal-fixture-preflight'),
+    launchId: z.string().min(1).optional(),
     result: preflightResultSchema,
     schemaVersion: z.literal(1),
+    sourceCommit: z
+        .string()
+        .regex(/^[0-9a-f]{7,64}$/iu)
+        .optional(),
 });
 
 export type TerminalFixturePreflightReceipt = z.infer<typeof terminalFixturePreflightReceiptSchema>;
@@ -117,11 +122,13 @@ Usage:
 export function createTerminalFixturePreflightReceipt(
     fixture: TerminalFixture,
     caseId = 'unscoped',
+    identity?: { launchId: string; sourceCommit: string },
 ): TerminalFixturePreflightReceipt {
     return terminalFixturePreflightReceiptSchema.parse({
         caseId,
         fixture,
         kind: 'terminal-fixture-preflight',
+        ...identity,
         result: preflightTerminalFixture(fixture),
         schemaVersion: 1,
     });

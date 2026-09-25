@@ -18,6 +18,13 @@ bun run --cwd apps/mobile android:device inspect --serial "$SERIAL"
 Do not use the first result from `adb devices`, Expo's implicit selection, or an Android model name
 as the ADB identity. Keep the exact serial in every command.
 
+For a user-owned wireless device, keep the phone's pairing screen open while completing the Mac
+side. Use Android Studio's Device Manager pairing UI when computer control is available; inspect
+whether that version offers a device `Pair` action or a QR flow, then verify the resulting explicit
+serial with `adb devices -l`. Do not ask the user to switch apps to send a screenshot of a short-lived
+pairing code. The ADB `couldn't read status message` error alone does not identify an expired code,
+phone refusal, or VPN fault; recheck the live pairing service before assigning a cause or retrying.
+
 ## Current release round
 
 For the encrypted pairing and bounded short-reply criterion, initialize the structured report first

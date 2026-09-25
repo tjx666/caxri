@@ -74,4 +74,27 @@ describe('Acceptance Terminal fixture preflight', () => {
             'ASCII letters, numbers, and hyphens',
         );
     });
+
+    it('binds an observed Terminal grid to its exact source and isolated launch', () => {
+        const identity = { launchId: 'launch-123', sourceCommit: 'a'.repeat(40) };
+        expect(
+            createTerminalFixturePreflightReceipt(fixture(), 'MOB-TERM-01', identity),
+        ).toMatchObject({
+            caseId: 'MOB-TERM-01',
+            ...identity,
+            result: { status: 'ready' },
+        });
+        expect(() =>
+            createTerminalFixturePreflightReceipt(fixture(), 'MOB-TERM-01', {
+                ...identity,
+                sourceCommit: 'wrong',
+            }),
+        ).toThrow();
+        expect(() =>
+            createTerminalFixturePreflightReceipt(fixture(), 'MOB-TERM-01', {
+                ...identity,
+                launchId: '',
+            }),
+        ).toThrow();
+    });
 });
