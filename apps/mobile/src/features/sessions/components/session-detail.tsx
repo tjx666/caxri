@@ -68,13 +68,14 @@ export const SessionDetail = ({
     wideChanges: boolean;
 }) => {
     const showTerminal = segment === 'terminal' || (segment === 'changes' && wideChanges);
-    const terminal = session.primaryAgentTerminalId ? (
+    const terminalId = session.primaryTerminal?.id ?? session.primaryAgentTerminalId;
+    const terminal = terminalId ? (
         <TerminalLiveView
-            key={session.primaryAgentTerminalId}
+            key={terminalId}
             isConnected={isConnected}
             isStopped={isMobileTerminalStopped(session)}
             role={deviceRole}
-            terminalId={session.primaryAgentTerminalId}
+            terminalId={terminalId}
             theme={theme}
             visible={isVisible && showTerminal}
         />
