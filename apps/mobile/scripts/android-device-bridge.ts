@@ -4,8 +4,16 @@ import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import type { AndroidSemanticNode } from './android-receipts';
-import { resumedPackageFromWindowDump, semanticNodesFromUiAutomator } from './android-receipts';
+import type {
+    AndroidNodeObservation,
+    AndroidNodeTextExpectation,
+    AndroidSemanticNode,
+} from './android-receipts';
+import {
+    observeAndroidNodeFromUiAutomator,
+    resumedPackageFromWindowDump,
+    semanticNodesFromUiAutomator,
+} from './android-receipts';
 
 export const CAXRI_ANDROID_PACKAGE = 'com.caxri.mobile';
 
@@ -65,12 +73,13 @@ export const runAndroidAdb = (
 };
 
 /**
- * Captures only stable resource identifiers and structural flags. The raw accessibility tree is removed on both the
- * device and host because it can contain user-visible text and accessibility descriptions.
+ * Reads the foreground Caxri accessibility tree only inside this callback boundary and removes both dump copies.
+ * Consumers must project the XML to content-free values before returning.
  */
-export const captureAndroidSemanticNodes = async (
+const withAndroidUiAutomatorDump = async <T>(
     serial: string,
-): Promise<AndroidSemanticNode[]> => {
+    project: (source: string) => T,
+): Promise<T> => {
     const windowDump = runAndroidAdb(serial, ['shell', 'dumpsys', 'window']);
     if (resumedPackageFromWindowDump(windowDump) !== CAXRI_ANDROID_PACKAGE)
         throw new Error('Caxri must own the foreground Activity before semantic capture');
@@ -80,7 +89,7 @@ export const captureAndroidSemanticNodes = async (
     try {
         runAndroidAdb(serial, ['shell', 'uiautomator', 'dump', DEVICE_DUMP_PATH]);
         runAndroidAdb(serial, ['pull', DEVICE_DUMP_PATH, localDumpPath]);
-        return semanticNodesFromUiAutomator(await readFile(localDumpPath, 'utf8'));
+        return project(await readFile(localDumpPath, 'utf8'));
     } finally {
         try {
             runAndroidAdb(serial, ['shell', 'rm', '-f', DEVICE_DUMP_PATH]);
@@ -89,3 +98,21 @@ export const captureAndroidSemanticNodes = async (
         }
     }
 };
+
+/**
+ * Captures only stable resource identifiers and structural flags.
+ */
+export const captureAndroidSemanticNodes = (serial: string): Promise<AndroidSemanticNode[]> =>
+    withAndroidUiAutomatorDump(serial, semanticNodesFromUiAutomator);
+
+/**
+ * Observes one Caxri control without returning its text or accessibility description.
+ */
+export const observeAndroidNode = (
+    serial: string,
+    checkId: string,
+    expectedText?: AndroidNodeTextExpectation,
+): Promise<AndroidNodeObservation> =>
+    withAndroidUiAutomatorDump(serial, (source) =>
+        observeAndroidNodeFromUiAutomator(source, checkId, expectedText),
+    );

@@ -76,17 +76,22 @@ bun run --cwd apps/mobile android:device tap \
 Never upload `uiautomator dump` XML. Raw trees can contain pairing data, visible text, Session names,
 Terminal output, and accessibility descriptions. Prefer semantic identifiers over coordinates; use
 coordinates only after a sanitized inspection proves one unambiguous target.
-When an Acceptance UiAutomator helper invokes `adb shell`, omit option pairs whose value is empty:
-ADB drops empty positional arguments. Keep failures attributable to a safe execution stage and a
-closed reason code; never print raw stdout, command arguments, or fixture text into reports.
+On Android 36, deprecated `uiautomator runtest` can abort before executing a test and still print
+`OK (1 test)`; the observed abort was `android.test.RepetitiveTest` resolution failure. Never
+treat that line or a zero ADB exit status as a native assertion. Use the foreground-checked
+`android:device observe` command for focus and private text predicates, and prove a missing target
+on a screen without that control before trusting a new assertion path. React Native exposes `testID`
+as an Android resource ID; `UiSelector.description` queries `contentDescription`
+([Android API](<https://developer.android.com/reference/androidx/test/uiautomator/UiSelector#description(java.lang.String)>)).
+Keep failures attributable to a safe execution stage and a closed reason code; never print raw
+stdout, command arguments, fixture text, or accessibility XML into reports.
 For multiline Unicode in a controlled React Native input, use the Acceptance fixture IME's
-`InputConnection.commitText` path in `e2e/support/mobile-unicode-input.ts`. `ACTION_SET_TEXT`, even
-followed by a Delete key event and an immediate native `getText()` match, can leave the React draft
-unchanged. The runner must accept an explicit disposable emulator serial, select the fixture IME only
-after saving the previous default, and restore that default, disable the fixture, and uninstall it in
-cleanup after every outcome. Never select the fixture IME on a real phone. Require a React-visible
-action state and the resulting product effect before accepting an input case; a native-only draft
-remains an execution failure.
+`InputConnection.commitText` path in `e2e/support/mobile-unicode-input.ts`. Focus the resource ID,
+check exact native text through the sanitized observer, then require the React-visible action state
+and resulting product effect. The runner must accept an explicit disposable emulator serial, select
+the fixture IME only after saving the previous default, and restore that default, disable the fixture,
+and uninstall it in cleanup after every outcome. Never select the fixture IME on a real phone; a
+native-only draft remains an execution failure.
 After installing the fixture, discover it with `ime list -a -s`: plain `ime list -s` lists enabled
 methods only, so it hides the newly installed fixture until `ime enable` runs.
 Before diagnosing a missing `testID`, verify the expected screen with a stable route marker. Start

@@ -1,55 +1,21 @@
 import { Buffer } from 'node:buffer';
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
-import { homedir, tmpdir } from 'node:os';
+import { homedir } from 'node:os';
 import { join } from 'node:path';
-import process from 'node:process';
 import { promisify } from 'node:util';
 
-import { mobileSemantics, waitForMobile } from './mobile-android';
+import {
+    adbShell,
+    androidBounds,
+    mobileSemantics,
+    observeMobileNode,
+    waitForMobile,
+} from './mobile-android';
 
 const execFileAsync = promisify(execFile);
 const sdk = join(homedir(), 'Library', 'Android', 'sdk');
-const java = '/Applications/Android Studio.app/Contents/jbr/Contents/Home/bin';
-const android = join(sdk, 'platforms/android-36/android.jar');
-const automator = join(sdk, 'platforms/android-36/uiautomator.jar');
-const d8 = join(sdk, 'build-tools/36.0.0/d8');
 const adb = join(sdk, 'platform-tools/adb');
-const source = join(import.meta.dirname, 'MobileUnicodeInput.java');
-const junitStub = join(import.meta.dirname, 'android-junit-stub/junit/framework/TestCase.java');
-const remoteJar = '/data/local/tmp/caxri-mobile-unicode-input.jar';
-
-type UnicodeInputMethod =
-    | 'testAssertDraft'
-    | 'testAssertComposerFocused'
-    | 'testFocusComposer'
-    | 'testAssertUnknownFeedback';
 const fixtureImeReceiver = 'caxri.acceptance.ime/.FixtureInsertReceiver';
-
-/**
- * ADB shell drops empty argv values; assertions without text must omit the `-e` pair entirely.
- */
-export function mobileUnicodeInputArguments(
-    serial: string,
-    method: UnicodeInputMethod,
-    value?: string,
-): string[] {
-    const arguments_ = [
-        '-s',
-        serial,
-        'shell',
-        'uiautomator',
-        'runtest',
-        remoteJar,
-        '-c',
-        `caxri.acceptance.MobileUnicodeInput#${method}`,
-    ];
-    if (method === 'testAssertDraft') {
-        if (value === undefined) throw new Error('Unicode fixture text is required');
-        arguments_.push('-e', 'textBase64', Buffer.from(value, 'utf8').toString('base64'));
-    }
-    return arguments_;
-}
 
 export function mobileFixtureImeBroadcastArguments(serial: string, value: string): string[] {
     if (!/^emulator-\d+$/u.test(serial))
@@ -68,89 +34,43 @@ export function mobileFixtureImeBroadcastArguments(serial: string, value: string
     ];
 }
 
-function automationFailureReason(error: unknown, successfulOutput: string): string {
-    const output = [
-        successfulOutput,
-        error && typeof error === 'object' && 'stdout' in error && typeof error.stdout === 'string'
-            ? error.stdout
-            : '',
-        error && typeof error === 'object' && 'stderr' in error && typeof error.stderr === 'string'
-            ? error.stderr
-            : '',
-    ].join('\n');
-    if (output.includes('Composer is not focused')) return 'composer-not-focused';
-    if (output.includes('Composer input is unavailable')) return 'composer-unavailable';
-    if (output.includes('Composer draft differs from fixture')) return 'draft-mismatch';
-    if (output.includes('Unknown delivery feedback is unavailable')) return 'feedback-unavailable';
-    return 'unknown';
-}
-
 /**
- * UiAutomator checks focus and draft state. The test IME owns Unicode text input separately.
+ * Focuses the resource-id owned by the React Native TextInput, then verifies native focus. Android 36's deprecated
+ * `uiautomator runtest` can abort and still print `OK (1 test)`.
  */
-async function runComposerAutomation(
-    serial: string,
-    method: UnicodeInputMethod,
-    value?: string,
-): Promise<void> {
-    const directory = await mkdtemp(join(tmpdir(), 'caxri-mobile-unicode-'));
-    const classes = join(directory, 'classes');
-    const classJar = join(directory, 'mobile-unicode-classes.jar');
-    const jar = join(directory, 'mobile-unicode-input.jar');
-    let stage = 'compile';
-    let automationOutput = '';
-    let failure: string | undefined;
+async function focusMobileComposer(serial: string): Promise<void> {
+    const input = (await mobileSemantics(serial)).find(
+        ({ checkId }) => checkId === 'session-composer-input',
+    );
+    const bounds = input && androidBounds(input.bounds);
+    if (!input || !bounds || !input.enabled)
+        throw new Error('Android Unicode composer action failed at focus: composer-unavailable');
+    await adbShell(serial, [
+        'input',
+        'tap',
+        String(Math.floor((bounds.left + bounds.right) / 2)),
+        String(Math.floor((bounds.top + bounds.bottom) / 2)),
+    ]);
     try {
-        await mkdir(classes);
-        await execFileAsync(join(java, 'javac'), [
-            '-source',
-            '8',
-            '-target',
-            '8',
-            '-cp',
-            `${android}:${automator}`,
-            '-d',
-            classes,
-            junitStub,
-            source,
-        ]);
-        stage = 'package-classes';
-        await execFileAsync(join(java, 'jar'), ['cf', classJar, '-C', classes, 'caxri/acceptance']);
-        stage = 'dex';
-        await execFileAsync(d8, ['--lib', android, '--output', directory, classJar], {
-            env: { ...process.env, JAVA_HOME: join(java, '..') },
-        });
-        stage = 'package-dex';
-        await execFileAsync(join(java, 'jar'), ['cf', jar, '-C', directory, 'classes.dex']);
-        stage = 'push';
-        await execFileAsync(adb, ['-s', serial, 'push', jar, remoteJar]);
-        stage = 'execute';
-        const result = await execFileAsync(adb, mobileUnicodeInputArguments(serial, method, value));
-        automationOutput = result.stdout;
-        stage = 'verify-result';
-        if (!/OK \(1 test\)/u.test(result.stdout)) {
-            throw new Error('Android Unicode composer action did not complete');
-        }
-    } catch (error) {
-        failure = `Android Unicode composer action failed at ${stage}: ${automationFailureReason(error, automationOutput)}`;
-    } finally {
-        await Promise.allSettled([
-            execFileAsync(adb, ['-s', serial, 'shell', 'rm', '-f', remoteJar]),
-            rm(directory, { force: true, recursive: true }),
-        ]);
+        await waitForMobile(
+            () => observeMobileNode(serial, 'session-composer-input'),
+            ({ exists, focused }) => exists && focused,
+            5_000,
+        );
+    } catch {
+        throw new Error('Android Unicode composer action failed at focus: composer-not-focused');
     }
-    if (failure) throw new Error(failure);
 }
 
 /**
- * A real input connection edit updates React Native's controlled draft, unlike accessibility SET_TEXT. The Android
- * Acceptance runner installs and selects this fixture IME only on an explicit disposable emulator.
+ * The Android Acceptance runner installs and selects this fixture IME only on an explicit disposable emulator. Native
+ * focus and exact draft are verified through the foreground app's accessibility tree.
  *
  * @see https://developer.android.com/reference/android/view/inputmethod/InputConnection#commitText(java.lang.CharSequence,%20int)
  */
 export async function setMobileComposerUnicode(serial: string, value: string): Promise<void> {
     const arguments_ = mobileFixtureImeBroadcastArguments(serial, value);
-    await runComposerAutomation(serial, 'testFocusComposer');
+    await focusMobileComposer(serial);
     let output: string;
     try {
         const result = await execFileAsync(adb, arguments_);
@@ -160,13 +80,13 @@ export async function setMobileComposerUnicode(serial: string, value: string): P
     }
     if (!/result=-1\b/u.test(output) || !/data="?committed"?/u.test(output))
         throw new Error('Fixture Unicode input was not committed');
-    await runComposerAutomation(serial, 'testAssertDraft', value);
+    await assertMobileComposerDraft(serial, value);
 }
 
 /**
  * Optional failure-only probe: append one ASCII character, never submit it, and report no text.
  */
-export async function diagnoseMobileComposerAscii(
+async function diagnoseMobileComposerAscii(
     serial: string,
     expectedDraft: string,
 ): Promise<{ committed: boolean; reactive: boolean }> {
@@ -174,7 +94,7 @@ export async function diagnoseMobileComposerAscii(
         const result = await execFileAsync(adb, mobileFixtureImeBroadcastArguments(serial, 'x'));
         if (!/result=-1\b/u.test(result.stdout) || !/data="?committed"?/u.test(result.stdout))
             return { committed: false, reactive: false };
-        await runComposerAutomation(serial, 'testAssertDraft', `${expectedDraft}x`);
+        await assertMobileComposerDraft(serial, `${expectedDraft}x`);
     } catch {
         return { committed: false, reactive: false };
     }
@@ -196,13 +116,13 @@ export async function diagnoseMobileComposerAscii(
 /**
  * Failure-only hardware-key probe. It never submits the draft or records its contents.
  */
-export async function diagnoseMobileComposerHardwareKey(
+async function diagnoseMobileComposerHardwareKey(
     serial: string,
     expectedDraft: string,
 ): Promise<{ committed: boolean; reactive: boolean }> {
     try {
         await execFileAsync(adb, ['-s', serial, 'shell', 'input', 'text', 'x']);
-        await runComposerAutomation(serial, 'testAssertDraft', `${expectedDraft}x`);
+        await assertMobileComposerDraft(serial, `${expectedDraft}x`);
     } catch {
         return { committed: false, reactive: false };
     }
@@ -234,11 +154,26 @@ export async function diagnoseMobileComposerInput(
     return result;
 }
 
-export const assertMobileComposerDraft = (serial: string, value: string): Promise<void> =>
-    runComposerAutomation(serial, 'testAssertDraft', value);
+export async function assertMobileComposerDraft(serial: string, value: string): Promise<void> {
+    const node = await observeMobileNode(serial, 'session-composer-input', {
+        kind: 'equals',
+        value,
+    });
+    if (!node.exists || !node.textMatches)
+        throw new Error('Android Unicode composer action failed at verify-result: draft-mismatch');
+}
 
-export const assertMobileComposerFocused = (serial: string): Promise<void> =>
-    runComposerAutomation(serial, 'testAssertComposerFocused');
+export async function assertMobileComposerFocused(serial: string): Promise<void> {
+    const node = await observeMobileNode(serial, 'session-composer-input');
+    if (!node.exists || !node.focused)
+        throw new Error('Android Unicode composer action failed at focus: composer-not-focused');
+}
 
-export const assertMobileUnknownFeedback = (serial: string): Promise<void> =>
-    runComposerAutomation(serial, 'testAssertUnknownFeedback');
+export async function assertMobileUnknownFeedback(serial: string): Promise<void> {
+    const node = await observeMobileNode(serial, 'session-composer-feedback', {
+        kind: 'includes',
+        value: "Couldn't confirm delivery",
+    });
+    if (!node.exists || !node.textMatches)
+        throw new Error('Unknown delivery feedback is unavailable');
+}
