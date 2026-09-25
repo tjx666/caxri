@@ -130,6 +130,64 @@ describe('Session title material', () => {
         expect(prompt).not.toContain('recent_messages');
     });
 
+    it('uses the user request language despite English technical identifiers', () => {
+        const context = {
+            opening: [
+                { role: 'user' as const, text: '修复 TASK-1234 的 Session 标题' },
+                { role: 'assistant' as const, text: 'I will inspect the Session title.' },
+            ],
+            recent: [],
+        };
+        expect(buildAgentTitlePrompt(context)).toContain(
+            '<title_language>Chinese</title_language>',
+        );
+        expect(normalizeGeneratedAgentTitle('Fix Session title', context)).toBeUndefined();
+        expect(normalizeGeneratedAgentTitle('修复会话标题', context)).toBe('修复会话标题');
+    });
+
+    it('uses the assistant reply for language when the request is only an issue reference', () => {
+        const context = {
+            opening: [
+                { role: 'user' as const, text: 'TASK-1234' },
+                { role: 'assistant' as const, text: '需要修复会话标题同步。' },
+            ],
+            recent: [],
+        };
+        expect(buildAgentTitlePrompt(context)).toContain(
+            '<title_language>Chinese</title_language>',
+        );
+        expect(normalizeGeneratedAgentTitle('TASK-1234', context)).toBeUndefined();
+        expect(normalizeGeneratedAgentTitle('会话标题同步', context)).toBe('会话标题同步');
+    });
+
+    it('ignores image placeholders when choosing the conversation language', () => {
+        const context = {
+            opening: [
+                { role: 'user' as const, text: '[Image #1]' },
+                { role: 'assistant' as const, text: '需要修复菜单标题。' },
+            ],
+            recent: [],
+        };
+        expect(buildAgentTitlePrompt(context)).toContain(
+            '<title_language>Chinese</title_language>',
+        );
+    });
+
+    it('keeps English requests with model identifiers in English', () => {
+        const context = {
+            opening: [
+                { role: 'user' as const, text: 'Fix GPT-600 routing' },
+                { role: 'assistant' as const, text: 'The model route is missing.' },
+            ],
+            recent: [],
+        };
+        expect(buildAgentTitlePrompt(context)).toContain('<title_language>Latin</title_language>');
+        expect(normalizeGeneratedAgentTitle('Fix GPT-600 routing', context)).toBe(
+            'Fix GPT-600 routing',
+        );
+        expect(normalizeGeneratedAgentTitle('修复模型路由', context)).toBeUndefined();
+    });
+
     it('rejects empty, generic, multiline and oversized titles', () => {
         for (const title of [
             '',

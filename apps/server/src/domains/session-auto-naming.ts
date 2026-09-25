@@ -8,6 +8,7 @@ import {
     agentProviderStateRoot,
     buildAgentTitlePrompt,
     hasTitleNamingMaterial,
+    isBareIssueReferenceTitle,
     locateAgentTranscript,
     lowCostSandboxFailureReason,
     normalizeGeneratedAgentTitle,
@@ -210,7 +211,9 @@ export class SessionAutoNamingService {
                         if (
                             native.sessionId === target.agentSessionId &&
                             native.title &&
-                            native.titleSource !== 'automatic'
+                            native.titleSource !== 'automatic' &&
+                            (native.titleSource === 'explicit' ||
+                                !isBareIssueReferenceTitle(native.title))
                         ) {
                             await this.renames.renameAutomatically(
                                 session.id,
@@ -239,13 +242,23 @@ export class SessionAutoNamingService {
                             reason = 'insufficientContext';
                             return;
                         }
-                        title = normalizeGeneratedAgentTitle(
-                            await this.agents.generateTitle(target.provider, {
-                                cwd: terminal.cwd,
-                                prompt: buildAgentTitlePrompt(context),
-                                signal: controller.signal,
-                            }),
-                        );
+                        const candidate = await this.agents.generateTitle(target.provider, {
+                            cwd: terminal.cwd,
+                            prompt: buildAgentTitlePrompt(context),
+                            signal: controller.signal,
+                        });
+                        if (!isEligible()) return;
+                        title = normalizeGeneratedAgentTitle(candidate, context);
+                        if (!title && candidate.trim() !== 'SKIP') {
+                            title = normalizeGeneratedAgentTitle(
+                                await this.agents.generateTitle(target.provider, {
+                                    cwd: terminal.cwd,
+                                    prompt: buildAgentTitlePrompt(context, true),
+                                    signal: controller.signal,
+                                }),
+                                context,
+                            );
+                        }
                         if (!title) {
                             reason = 'insufficientContext';
                             return;

@@ -22,6 +22,7 @@ export type { AgentTitleContext } from './title-generation';
 export {
     buildAgentTitlePrompt,
     hasTitleNamingMaterial,
+    isBareIssueReferenceTitle,
     normalizeGeneratedAgentTitle,
     readAgentTitleMessages,
 } from './title-generation';
