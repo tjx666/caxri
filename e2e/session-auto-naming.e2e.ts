@@ -40,7 +40,7 @@ if (process.argv.includes('--resume')) {
 if (process.argv.includes('--print')) {
   process.stdin.resume(); process.stdin.on('end', () => {
     const counts = JSON.parse(fs.readFileSync(receipt, 'utf8')); counts.generations += 1; fs.writeFileSync(receipt, JSON.stringify(counts));
-    console.log('Session title synchronization');
+    console.log('会话标题同步');
   });
 } else {
   const id = 'naming-fixture-session';
@@ -50,7 +50,7 @@ if (process.argv.includes('--print')) {
   const state = { cwd: process.cwd(), sessionId: id, name: 'project-xx', nameSource: 'derived', status: 'busy', startedAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
   fs.writeFileSync(metadata, JSON.stringify(state));
   const transcript = path.join(folder, id + '.jsonl');
-  fs.writeFileSync(transcript, [ { type: 'user', message: { content: 'The screenshot has two rows named Analyze image. Fix session naming.' } }, { type: 'assistant', message: { content: 'The task is session title synchronization.' } }, { type: 'ai-title', aiTitle: 'Analyze image' } ].map(JSON.stringify).join('\n') + '\n');
+  fs.writeFileSync(transcript, [ { type: 'user', message: { content: 'TASK-1234' } }, { type: 'assistant', message: { content: '需要修复会话标题同步。' } }, { type: 'ai-title', aiTitle: 'Analyze image' } ].map(JSON.stringify).join('\n') + '\n');
   function hook(event) { const settings = JSON.parse(fs.readFileSync(path.join(home, 'settings.json'), 'utf8')); cp.execFileSync('/bin/sh', ['-c', settings.hooks[event][0].hooks[0].command], { env: process.env, input: JSON.stringify({ hook_event_name: event, session_id: id }), stdio: ['pipe', 'ignore', 'ignore'] }); }
   const ready = setInterval(() => { try {
     const settings = JSON.parse(fs.readFileSync(path.join(home, 'settings.json'), 'utf8'));
@@ -113,7 +113,7 @@ if (process.argv.includes('--print')) {
                             .sessions[0]?.displayTitle,
                     { timeout: 30_000 },
                 )
-                .toBe('Session title synchronization');
+                .toBe('会话标题同步');
             const state = await pageRequest<BootstrapState>(running.page, 'app.bootstrap', {});
             const session = state.sessions[0];
             const receiptPath = join(userData, 'e2e-agents', 'claude', 'naming-receipt.json');
@@ -125,7 +125,7 @@ if (process.argv.includes('--print')) {
                 )
                 .toBeGreaterThanOrEqual(2);
             await expect(
-                running.page.getByText('Session title synchronization', { exact: true }).first(),
+                running.page.getByText('会话标题同步', { exact: true }).first(),
             ).toBeVisible();
             /**
              * Hidden Electron windows can return an unpainted capture; show without taking the developer's focus.
