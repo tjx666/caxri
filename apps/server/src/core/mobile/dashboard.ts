@@ -1,6 +1,7 @@
 import { Buffer } from 'node:buffer';
 
 import type {
+    AgentEndpointRef,
     MobileDashboardResult,
     ProjectQueryResult,
     SessionQueryResult,
@@ -39,10 +40,22 @@ export const buildMobileDashboard = (input: {
     projects: ProjectQueryResult['projects'];
     sessions: SessionQueryResult['sessions'];
     terminals: TerminalQueryResult['terminals'];
+    resolveAgentEndpoint?: (terminalId: string) => AgentEndpointRef | undefined;
 }): MobileDashboardResult => {
+    const lastActivityByProject = new Map<string, number>();
+    for (const session of input.sessions) {
+        if (session.archivedAt !== undefined) continue;
+        lastActivityByProject.set(
+            session.projectId,
+            Math.max(lastActivityByProject.get(session.projectId) ?? 0, session.lastOpenedAt),
+        );
+    }
     const visibleProjects = input.projects.slice(0, 128).map((project) => ({
         id: project.id,
         displayTitle: title(project.displayTitle),
+        ...(lastActivityByProject.has(project.id) && {
+            lastActivityAt: lastActivityByProject.get(project.id)!,
+        }),
     }));
     const projects = new Map(visibleProjects.map((project) => [project.id, project]));
     const terminals = new Map(input.terminals.map((terminal) => [terminal.id, terminal]));
@@ -82,6 +95,11 @@ export const buildMobileDashboard = (input: {
             lastActivityState: session.lastActivityState,
             ...(session.primaryAgentTerminalId && {
                 primaryAgentTerminalId: session.primaryAgentTerminalId,
+                ...(input.resolveAgentEndpoint?.(session.primaryAgentTerminalId) && {
+                    primaryAgentEndpoint: input.resolveAgentEndpoint(
+                        session.primaryAgentTerminalId,
+                    ),
+                }),
             }),
             attentionEpoch: session.attentionEpoch,
             hasUnread: session.hasUnread,

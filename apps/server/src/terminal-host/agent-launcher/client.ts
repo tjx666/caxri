@@ -1,5 +1,7 @@
+import { Buffer } from 'node:buffer';
 import type { ChildProcess, SpawnOptions } from 'node:child_process';
 import { spawn } from 'node:child_process';
+import { closeSync, constants, openSync, readSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import process from 'node:process';
 
@@ -18,6 +20,61 @@ import {
 } from './protocol';
 
 const FORCE_KILL_DELAY_MS = 1_000;
+const FAILED_HANDOFF_DRAIN_MS = 50;
+
+function isClosedTerminal(error: unknown): boolean {
+    return (
+        error !== null &&
+        typeof error === 'object' &&
+        'code' in error &&
+        ['EIO', 'ENXIO', 'ENOTTY', 'EBADF'].includes(String(error.code))
+    );
+}
+
+/**
+ * The Agent and its parent shell share one PTY. Unread Composer bytes can otherwise become a shell command after the
+ * Agent exits. Keep the launcher foreground until Host fences the launch, then discard queued input before returning.
+ */
+function suppressTerminalEcho(): boolean | undefined {
+    const terminal = process.stdin;
+    if (!terminal.isTTY || typeof terminal.setRawMode !== 'function') return;
+    const wasRaw = terminal.isRaw === true;
+    terminal.setRawMode(true);
+    return wasRaw;
+}
+
+function drainPendingTerminalInput(wasRaw: boolean | undefined): void {
+    if (wasRaw === undefined) return;
+    const terminal = process.stdin;
+    /**
+     * This synchronous nonblocking read is intentional: the launcher must empty the PTY input queue after Host's exit
+     * acknowledgement and before its parent shell can resume. An async stream leaves a return-to-shell window.
+     */
+    // oxlint-disable-next-line node/no-sync -- Input must be empty before this foreground process returns to the shell.
+    const descriptor = openSync('/dev/tty', constants.O_RDONLY | constants.O_NONBLOCK);
+    const buffer = Buffer.allocUnsafe(4_096);
+    try {
+        while (true) {
+            try {
+                // oxlint-disable-next-line node/no-sync -- A nonblocking read closes the shell handoff window.
+                if (readSync(descriptor, buffer, 0, buffer.length, null) === 0) break;
+            } catch (error) {
+                if (
+                    error &&
+                    typeof error === 'object' &&
+                    'code' in error &&
+                    (error.code === 'EAGAIN' || error.code === 'EWOULDBLOCK')
+                )
+                    break;
+                throw error;
+            }
+        }
+    } finally {
+        // oxlint-disable-next-line node/no-sync -- Close the exact drain descriptor before restoring terminal mode.
+        closeSync(descriptor);
+        terminal.setRawMode(wasRaw);
+    }
+}
 
 export interface RunManagedAgentLauncherOptions {
     socketPath: string;
@@ -74,10 +131,14 @@ export function runManagedAgentLauncher(
         let child: ChildProcess | undefined;
         let isChildExited = false;
         let forceKillTimer: NodeJS.Timeout | undefined;
+        let failedHandoffTimer: NodeJS.Timeout | undefined;
         let isPlanReceived = false;
         let isSettled = false;
         let isTransportFailed = false;
         let pendingExit: ManagedAgentLauncherExit | undefined;
+        let isExitAcknowledged = false;
+        let isDrainingAfterExit = false;
+        let wasRawBeforeExit: boolean | undefined;
         let forwardSigint: () => void = () => {};
         let forwardSighup: () => void = () => {};
         let forwardSigterm: () => void = () => {};
@@ -85,6 +146,7 @@ export function runManagedAgentLauncher(
         const settle = (error: Error | undefined, exit?: ManagedAgentLauncherExit): void => {
             if (isSettled) return;
             isSettled = true;
+            if (failedHandoffTimer) clearInterval(failedHandoffTimer);
             if (forceKillTimer) clearTimeout(forceKillTimer);
             process.off('SIGINT', forwardSigint);
             process.off('SIGHUP', forwardSighup);
@@ -92,6 +154,43 @@ export function runManagedAgentLauncher(
             if (error) reject(error);
             else if (exit) resolve(exit);
             else reject(launcherFailure());
+        };
+
+        const settleAfterDrain = (
+            error: Error | undefined,
+            exit?: ManagedAgentLauncherExit,
+        ): void => {
+            if (isDrainingAfterExit) return;
+            isDrainingAfterExit = true;
+            try {
+                drainPendingTerminalInput(wasRawBeforeExit);
+                if (isExitAcknowledged && !error && exit && !socket.destroyed) {
+                    socket.end(
+                        encodeJsonLine(
+                            { type: 'drained' },
+                            MAX_MANAGED_AGENT_LAUNCHER_CONTROL_BYTES,
+                        ),
+                    );
+                } else settle(error, exit);
+            } catch {
+                settle(launcherFailure());
+            }
+        };
+
+        const holdUnsafeHandoff = (): void => {
+            if (wasRawBeforeExit === undefined) {
+                settleAfterDrain(launcherFailure());
+                return;
+            }
+            if (failedHandoffTimer) return;
+            process.stderr.write('Agent input handoff failed; close this Terminal to recover.\r\n');
+            failedHandoffTimer = setInterval(() => {
+                try {
+                    drainPendingTerminalInput(true);
+                } catch (error) {
+                    if (isClosedTerminal(error)) settle(launcherFailure());
+                }
+            }, FAILED_HANDOFF_DRAIN_MS);
         };
 
         const terminateChild = (signal: NodeJS.Signals = 'SIGHUP'): void => {
@@ -115,7 +214,9 @@ export function runManagedAgentLauncher(
             isTransportFailed = true;
             socket.destroy();
             if (child && !isChildExited) terminateChild();
-            else settle(launcherFailure());
+            else if (!isExitAcknowledged) holdUnsafeHandoff();
+            else if (isDrainingAfterExit) settle(launcherFailure());
+            else settleAfterDrain(launcherFailure());
         };
 
         /**
@@ -172,14 +273,20 @@ export function runManagedAgentLauncher(
             child.once('exit', (exitCode, signal) => {
                 isChildExited = true;
                 if (forceKillTimer) clearTimeout(forceKillTimer);
+                try {
+                    wasRawBeforeExit = suppressTerminalEcho();
+                } catch {
+                    failClosed();
+                    return;
+                }
                 const exit: ManagedAgentLauncherExit = { exitCode, signal };
                 pendingExit = exit;
                 if (isTransportFailed) {
-                    settle(launcherFailure());
+                    holdUnsafeHandoff();
                     return;
                 }
                 if (socket.destroyed || !socket.writable) {
-                    settle(launcherFailure());
+                    holdUnsafeHandoff();
                     return;
                 }
                 const message: ManagedAgentLauncherClientMessage = {
@@ -187,9 +294,8 @@ export function runManagedAgentLauncher(
                     exitCode,
                     signal,
                 };
-                socket.end(encodeJsonLine(message, MAX_MANAGED_AGENT_LAUNCHER_CONTROL_BYTES), () =>
-                    settle(undefined, exit),
-                );
+                if (!didWriteMessage(socket, message)) failClosed();
+                else socket.setTimeout(5_000, failClosed);
             });
         };
 
@@ -231,14 +337,23 @@ export function runManagedAgentLauncher(
                     }
                     continue;
                 }
-                if (!child || isChildExited) {
-                    failClosed();
-                    return;
-                }
                 try {
                     if (decoded.byteLength > MAX_MANAGED_AGENT_LAUNCHER_CONTROL_BYTES)
                         throw launcherFailure();
                     const control = parseManagedAgentLauncherServerMessage(decoded.value);
+                    if (control.type === 'exitAck') {
+                        if (!isChildExited || !pendingExit) {
+                            failClosed();
+                            return;
+                        }
+                        isExitAcknowledged = true;
+                        settleAfterDrain(undefined, pendingExit);
+                        continue;
+                    }
+                    if (!child || isChildExited) {
+                        failClosed();
+                        return;
+                    }
                     if (control.type === 'cancel') terminateChild();
                     else child.kill(control.signal);
                 } catch {
@@ -255,11 +370,12 @@ export function runManagedAgentLauncher(
                 return;
             }
             if (!isChildExited) failClosed();
+            else if (isExitAcknowledged && isDrainingAfterExit && pendingExit)
+                settle(undefined, pendingExit);
         });
         socket.once('error', failClosed);
         socket.once('close', () => {
-            if (!isChildExited) failClosed();
-            else if (!isTransportFailed && pendingExit) settle(undefined, pendingExit);
+            if (!isSettled) failClosed();
         });
     });
 }

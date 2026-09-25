@@ -225,6 +225,13 @@
             "when": 1790219546181,
             "tag": "0031_project-hiding",
             "breakpoints": true
+        },
+        {
+            "idx": 32,
+            "version": "6",
+            "when": 1790290198495,
+            "tag": "0032_moaning_lake",
+            "breakpoints": true
         }
     ]
 }

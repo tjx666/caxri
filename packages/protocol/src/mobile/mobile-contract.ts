@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { agentEndpointRefSchema as agentEndpointReferenceSchema } from '../agent/agent-endpoint-contract.js';
 import {
     canceledResultSchema,
     identifierSchema,
@@ -20,6 +21,7 @@ const noParameters = z.strictObject({}).default({});
 export const mobileDeviceIdSchema = z.string().regex(/^device_[0-9a-f]{32}$/u);
 export const MOBILE_MAX_PROJECT_GRANTS = 128;
 export const MOBILE_SHORT_REPLY_MAX_BYTES = 1_024;
+export const MOBILE_AGENT_SUBMIT_MAX_BYTES = 16 * 1_024;
 export const mobileProjectIdsSchema = z
     .array(z.string().min(1).max(200))
     .min(1)
@@ -57,6 +59,7 @@ export const mobileDashboardSessionSchema = z.strictObject({
     lastOpenedAt: sessionRecordSchema.shape.lastOpenedAt,
     lastActivityState: sessionRecordSchema.shape.lastActivityState,
     primaryAgentTerminalId: identifierSchema.optional(),
+    primaryAgentEndpoint: agentEndpointReferenceSchema.optional(),
     attentionEpoch: sessionRecordSchema.shape.attentionEpoch,
     hasUnread: sessionRecordSchema.shape.hasUnread,
     primaryTerminal: terminalRecordSchema
@@ -71,10 +74,14 @@ export const mobileDashboardSessionSchema = z.strictObject({
         .optional(),
 });
 
+const mobileProjectSummarySchema = scopedProjectSchema.extend({
+    lastActivityAt: z.number().int().nonnegative().optional(),
+});
+
 export const mobileDashboardResultSchema = z.strictObject({
     hostDisplayName: z.string().trim().min(1).max(100),
     deviceRole: z.enum(['view', 'reply', 'control']).nullable(),
-    projects: z.array(scopedProjectSchema).max(MOBILE_MAX_PROJECT_GRANTS),
+    projects: z.array(mobileProjectSummarySchema).max(MOBILE_MAX_PROJECT_GRANTS),
     sessions: z.array(mobileDashboardSessionSchema).max(64),
     total: z.number().int().nonnegative().max(4_096),
     truncated: z.boolean(),
@@ -89,6 +96,40 @@ export const mobileSessionCreateResultSchema = z.strictObject({
             message: z.string().min(1).max(256),
         })
         .optional(),
+});
+
+export const mobileAgentSubmitParametersSchema = z.strictObject({
+    sessionId: identifierSchema,
+    terminalId: identifierSchema,
+    endpoint: agentEndpointReferenceSchema,
+    clientMutationId: identifierSchema,
+    text: z
+        .string()
+        .min(1)
+        .refine(
+            (value) =>
+                value.trim().length > 0 &&
+                new TextEncoder().encode(value).length <= MOBILE_AGENT_SUBMIT_MAX_BYTES &&
+                ![...value].some((character) => {
+                    const code = character.codePointAt(0)!;
+                    return (code < 32 && code !== 9 && code !== 10) || (code >= 127 && code <= 159);
+                }),
+            'Mobile Agent input must be bounded multiline text without control characters',
+        ),
+});
+
+export const mobileAgentSubmitResultSchema = z.strictObject({
+    terminalId: identifierSchema,
+    outcome: z.enum(['accepted', 'unknown']),
+});
+
+const mobileAgentAvailabilitySchema = z.strictObject({
+    kind: terminalKindSchema,
+    available: z.boolean(),
+    reason: z.string().min(1).max(200).optional(),
+});
+const mobileAgentAvailabilityResultSchema = z.strictObject({
+    agents: z.array(mobileAgentAvailabilitySchema).length(4),
 });
 
 export const mobileMethods = {
@@ -124,6 +165,21 @@ export const mobileMethods = {
         ...commandPolicy('server', 'read', ['sessions.read']),
         params: noParameters,
         result: mobileDashboardResultSchema,
+    },
+    'mobile.session.show': {
+        ...commandPolicy('server', 'read', ['sessions.read']),
+        params: z.strictObject({ sessionId: identifierSchema }),
+        result: z.strictObject({ session: mobileDashboardSessionSchema }),
+    },
+    'mobile.agent.availability': {
+        ...commandPolicy('server', 'read', ['projects.read']),
+        params: z.strictObject({ projectId: identifierSchema }),
+        result: mobileAgentAvailabilityResultSchema,
+    },
+    'mobile.agent.submit': {
+        ...commandPolicy('server', 'control', ['terminals.steer']),
+        params: mobileAgentSubmitParametersSchema,
+        result: mobileAgentSubmitResultSchema,
     },
     'mobile.session.create': {
         ...commandPolicy('server', 'write', ['sessions.write']),
@@ -181,6 +237,16 @@ export const mobileMethods = {
  * changed while the dialog was open from inheriting stale approval.
  */
 export const mobileInternalMethods = {
+    'mobile.agent.availabilityInternal': {
+        ...commandPolicy('server', 'read'),
+        params: z.strictObject({ projectId: identifierSchema, principal: principalSchema }),
+        result: mobileMethods['mobile.agent.availability'].result,
+    },
+    'mobile.agent.submitInternal': {
+        ...commandPolicy('server', 'control'),
+        params: mobileAgentSubmitParametersSchema.extend({ principal: principalSchema }),
+        result: mobileAgentSubmitResultSchema,
+    },
     'mobile.session.createForPrincipal': {
         ...commandPolicy('server', 'write'),
         params: z.strictObject({

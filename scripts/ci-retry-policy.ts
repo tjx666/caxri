@@ -104,7 +104,6 @@ const protectedPathPatterns = [
     /^e2e\/failure-isolation\.e2e\.ts$/,
     /^e2e\/mobile-acceptance-scenarios\.e2e\.ts$/,
     /^e2e\/mobile-pairing-desktop-acceptance\.e2e\.ts$/,
-    /^e2e\/mobile-short-reply\.e2e\.ts$/,
     /^e2e\/real-agent-smoke\.e2e\.ts$/,
     /^e2e\/renderer\.performance\.e2e\.ts$/,
     /^e2e\/startup\.performance\.e2e\.ts$/,

@@ -117,6 +117,132 @@ async function rawClaim(
 }
 
 describe('ManagedAgentLauncherServer', () => {
+    it('waits for the in-flight PTY write callback before closing a lost handoff', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-pending-agent-drain-'));
+        temporaryDirectories.push(directory);
+        const closeOnLostDrain = vi.fn();
+        const ready = Promise.withResolvers<void>();
+        const beforeExitAck = vi.fn(() => ({
+            ready: ready.promise,
+            resumeAfterDrain: vi.fn(),
+            closeOnLostDrain,
+        }));
+        const socketPath = join(directory, 'launcher.sock');
+        const server = new ManagedAgentLauncherServer({
+            socketPath,
+            runtimePath: process.execPath,
+            entryPath: join(directory, 'launcher.js'),
+            beforeExitAck,
+        });
+        servers.push(server);
+        await server.start();
+        const prepared = server.prepare({
+            terminalId: 'terminal-pending-drain',
+            launchId: 'launch-pending-drain',
+            plan: immediateExitPlan(directory),
+        });
+        const socket = createConnection(socketPath);
+        let response = '';
+        socket.setEncoding('utf8');
+        socket.on('data', (chunk: string) => {
+            response += chunk;
+        });
+        socket.once('connect', () =>
+            socket.write(
+                `${JSON.stringify({
+                    type: 'claim',
+                    launchId: 'launch-pending-drain',
+                    token: prepared.environment.CAXRI_AGENT_LAUNCHER_TOKEN,
+                })}\n`,
+            ),
+        );
+        try {
+            await vi.waitFor(() => expect(response).toContain('"executable"'));
+            socket.write(`${JSON.stringify({ type: 'started', processId: 12345 })}\n`);
+            await prepared.started;
+            socket.write(`${JSON.stringify({ type: 'exited', exitCode: 0, signal: null })}\n`);
+            await vi.waitFor(() => expect(beforeExitAck).toHaveBeenCalledOnce());
+            const closed = new Promise<void>((resolve) => socket.once('close', () => resolve()));
+            socket.destroy();
+            await closed;
+            expect(closeOnLostDrain).not.toHaveBeenCalled();
+            expect(() =>
+                server.prepare({
+                    terminalId: 'terminal-pending-drain',
+                    launchId: 'launch-too-early',
+                    plan: immediateExitPlan(directory),
+                }),
+            ).toThrow('Invalid or duplicate managed Agent launch identity');
+            ready.resolve();
+            await vi.waitFor(() => expect(closeOnLostDrain).toHaveBeenCalledOnce());
+            expect(() =>
+                server.prepare({
+                    terminalId: 'terminal-pending-drain',
+                    launchId: 'launch-after-barrier',
+                    plan: immediateExitPlan(directory),
+                }),
+            ).not.toThrow();
+        } finally {
+            ready.resolve();
+            socket.destroy();
+        }
+    });
+
+    it('closes the captured PTY when exit is acknowledged but input drain is not', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-lost-agent-drain-'));
+        temporaryDirectories.push(directory);
+        const resumeAfterDrain = vi.fn();
+        const closeOnLostDrain = vi.fn();
+        const socketPath = join(directory, 'launcher.sock');
+        const server = new ManagedAgentLauncherServer({
+            socketPath,
+            runtimePath: process.execPath,
+            entryPath: join(directory, 'launcher.js'),
+            beforeExitAck: () => ({ ready: Promise.resolve(), resumeAfterDrain, closeOnLostDrain }),
+        });
+        servers.push(server);
+        await server.start();
+        const prepared = server.prepare({
+            terminalId: 'terminal-lost-drain',
+            launchId: 'launch-lost-drain',
+            plan: immediateExitPlan(directory),
+        });
+        const socket = createConnection(socketPath);
+        let response = '';
+        socket.setEncoding('utf8');
+        socket.on('data', (chunk: string) => {
+            response += chunk;
+        });
+        socket.once('connect', () => {
+            socket.write(
+                `${JSON.stringify({
+                    type: 'claim',
+                    launchId: 'launch-lost-drain',
+                    token: prepared.environment.CAXRI_AGENT_LAUNCHER_TOKEN,
+                })}\n`,
+            );
+        });
+        try {
+            await vi.waitFor(() => expect(response).toContain('"executable"'));
+            socket.write(`${JSON.stringify({ type: 'started', processId: 12345 })}\n`);
+            await prepared.started;
+            socket.write(`${JSON.stringify({ type: 'exited', exitCode: 0, signal: null })}\n`);
+            await vi.waitFor(() => expect(response).toContain('"exitAck"'));
+            socket.destroy();
+            await vi.waitFor(() => expect(closeOnLostDrain).toHaveBeenCalledOnce());
+            expect(resumeAfterDrain).not.toHaveBeenCalled();
+            expect(() =>
+                server.prepare({
+                    terminalId: 'terminal-lost-drain',
+                    launchId: 'launch-after-loss',
+                    plan: immediateExitPlan(directory),
+                }),
+            ).not.toThrow();
+        } finally {
+            socket.destroy();
+        }
+    });
+
     it('creates a mode-0600 socket and returns only the five launcher environment entries', async () => {
         const { directory, server, socketPath } = await createTestServer();
 

@@ -17,6 +17,11 @@ import {
 } from '@caxri/system';
 import type * as pty from 'node-pty';
 
+import {
+    quiesceAgentInput,
+    stopTerminalAfterInputQuiescence,
+    writeAgentInputWithCompletion,
+} from './agent-input';
 import { attachLogFields } from './attach-log';
 import { TerminalAttachments } from './attachments';
 import { TerminalOutputQueue } from './buffer';
@@ -95,6 +100,7 @@ export interface TerminalExecutionEngineOptions {
  */
 export class TerminalExecutionEngine {
     private readonly terminals = new Map<string, LiveTerminal>();
+    private readonly quiescedInput = new Set<LiveTerminal>();
     private readonly attachments = new TerminalAttachments();
     private readonly sizeLeases = new Map<
         string,
@@ -326,6 +332,7 @@ export class TerminalExecutionEngine {
             live.screen.write(recoveryTail);
         }
         this.terminals.delete(live.record.id);
+        this.quiescedInput.delete(live);
         this.attachments.detach(live.record.id);
         if (!shouldCapture) {
             live.screen.dispose();
@@ -339,7 +346,8 @@ export class TerminalExecutionEngine {
         provider: TerminalRecord['provider'],
         data: string | Buffer,
     ): boolean {
-        if (this.terminals.get(live.record.id) !== live) return false;
+        if (this.terminals.get(live.record.id) !== live || this.quiescedInput.has(live))
+            return false;
         if (provider) assertE2EAgentInput(readE2EAgentPolicy(), provider);
         live.metricInputBytes += Buffer.isBuffer(data)
             ? data.byteLength
@@ -484,7 +492,7 @@ export class TerminalExecutionEngine {
         const live = this.terminals.get(terminalId);
         if (!live) return;
         this.retire(live, false, 'discarded');
-        live.process.kill();
+        stopTerminalAfterInputQuiescence(live, true);
     }
 
     write(terminalId: string, data: string | Buffer): boolean {
@@ -492,6 +500,26 @@ export class TerminalExecutionEngine {
         if (!live) return false;
         if (typeof data === 'string') live.outputRecovery?.observeUserInput();
         return this.writeLive(live, live.record.provider, data);
+    }
+
+    async writeWithCompletion(terminalId: string, data: string | Buffer): Promise<boolean> {
+        return writeAgentInputWithCompletion(
+            this.terminals.get(terminalId),
+            this.quiescedInput,
+            data,
+            (live) => {
+                live.metricTimer ??= setTimeout(() => this.flushMetrics(live), 1_000);
+            },
+        );
+    }
+
+    quiesceInput(terminalId: string): ReturnType<typeof quiesceAgentInput> {
+        return quiesceAgentInput(
+            terminalId,
+            (id) => this.terminals.get(id),
+            this.quiescedInput,
+            (id) => this.close(id),
+        );
     }
 
     reconcileOutputRecoverySettings(): void {
@@ -686,7 +714,7 @@ export class TerminalExecutionEngine {
         const preservedSize = this.attachments.size(terminalId);
         if (live) {
             const capture = this.retire(live, true, 'restart');
-            live.process.kill();
+            stopTerminalAfterInputQuiescence(live, false);
             if (isPreserveAttachment) this.attachments.attach(terminalId, preservedSize);
             return capture;
         }
@@ -738,7 +766,7 @@ export class TerminalExecutionEngine {
         for (const live of this.terminals.values()) {
             const capture = this.retire(live, true, 'shutdown');
             if (capture) finalizations.push({ terminalId: live.record.id, capture });
-            live.process.kill();
+            stopTerminalAfterInputQuiescence(live, false);
         }
         this.resizeObserver.dispose();
         return finalizations;

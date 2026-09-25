@@ -103,6 +103,10 @@ The baseline machine provides Node 24, Bun 1.3, Xcode Command Line Tools, curren
 
 ## Recovery and notification dependency patches
 
+- `patches/node-pty@1.1.0.patch` adds write-completion and input-quiescence barriers to the Unix
+  PTY writer for exact managed Agent submission. Keep its runtime JS, source TS, and typings in
+  sync; the patch also restores the prebuilt spawn helper's executable bit after extraction.
+  Recheck the real PTY shell handoff and close-during-write regressions before removing it.
 - `patches/xterm-addon-serialize.patch` clips stale alternate-buffer cells to the visible grid and
   fixes [full-row cursor restoration](https://github.com/xtermjs/xterm.js/issues/6165). Both shipped
   module formats and upstream source carry the same correction. Remove it only after the owning

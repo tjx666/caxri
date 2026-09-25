@@ -71,12 +71,14 @@ export class CaxriDatabase {
     private readonly db: CaxriDatabase_;
     private readonly agentIdentity: AgentIdentity;
     readonly protocolState: CaxriDatabase_['protocolState'];
+    readonly mobileAgentSubmitReceipts: CaxriDatabase_['mobileAgentSubmitReceipts'];
     readonly agentDelegations: CaxriDatabase_['agentDelegations'];
 
     constructor(path: string, options?: CaxriDatabaseOptions) {
         this.db = new CaxriDatabase_(path, options);
         this.agentIdentity = new AgentIdentity(this.db);
         this.protocolState = this.db.protocolState;
+        this.mobileAgentSubmitReceipts = this.db.mobileAgentSubmitReceipts;
         this.agentDelegations = this.db.agentDelegations;
     }
 
@@ -775,9 +777,6 @@ export class CaxriDatabase {
         );
     }
 
-    /**
-     * Applied after Trash succeeds, scoped to the Workbench Root the confirmation was about.
-     */
     removeWorkbenchEditorPath(workbenchProjectId: string, path: string): number {
         return this.db.removeWorkbenchEditorPath(workbenchProjectId, path);
     }

@@ -30,9 +30,20 @@ describe('buildMobileDashboard', () => {
                 title: longTitle,
                 lastProcessState: 'running' as const,
             })),
+            resolveAgentEndpoint: (terminalId) =>
+                terminalId === 'terminal-0'
+                    ? { hostId: 'host-1', endpointId: 'endpoint-1', generation: 1 }
+                    : undefined,
         });
         expect(result.sessions[0]).toMatchObject({ id: 'session-0', hasUnread: true });
-        expect(result.projects).toEqual([{ id: 'project-1', displayTitle: '🙂'.repeat(25) }]);
+        expect(result.sessions[0]?.primaryAgentEndpoint).toEqual({
+            hostId: 'host-1',
+            endpointId: 'endpoint-1',
+            generation: 1,
+        });
+        expect(result.projects).toEqual([
+            { id: 'project-1', displayTitle: '🙂'.repeat(25), lastActivityAt: 999 },
+        ]);
         expect(result.truncated).toBe(true);
         expect(result.total).toBe(1_000);
         expect(Buffer.byteLength(JSON.stringify(result), 'utf8')).toBeLessThanOrEqual(
@@ -72,7 +83,7 @@ describe('buildMobileDashboard', () => {
         });
         expect(result.projects).toEqual([
             { id: 'project-2', displayTitle: 'Empty' },
-            { id: 'project-1', displayTitle: 'Active' },
+            { id: 'project-1', displayTitle: 'Active', lastActivityAt: 1 },
         ]);
         expect(result.sessions.map((session) => session.id)).toEqual(['session-1']);
         expect(result.total).toBe(1);

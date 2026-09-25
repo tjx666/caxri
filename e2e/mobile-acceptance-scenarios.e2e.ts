@@ -1,9 +1,10 @@
+import { Buffer } from 'node:buffer';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import process from 'node:process';
 
 import { writeJsonAtomic } from '../scripts/atomic-json.ts';
-import { expect, test } from './support/fixtures.ts';
+import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import { pageRequest } from './support/helpers.ts';
 import { createMobileAcceptanceFixture } from './support/mobile-acceptance-fixture.ts';
 import {
@@ -13,14 +14,20 @@ import {
     mobileSemantics,
     restoreMobileDisplayState,
     setMobileNetworkAvailable,
+    startMobileFramebufferRecording,
     tapMobileCheck,
     waitForMobile,
 } from './support/mobile-android.ts';
 import { createMobileTerminalAcceptanceFixture } from './support/mobile-terminal-acceptance-fixture.ts';
+import {
+    assertMobileComposerDraft,
+    assertMobileComposerFocused,
+    assertMobileUnknownFeedback,
+    setMobileComposerUnicode,
+} from './support/mobile-unicode-input.ts';
 
 /**
- * Mobile failure screenshots and traces can contain synthetic reply or Terminal-preview content outside the frozen
- * report. Scenario-owned framebuffer evidence is the only capture path and is covered by the privacy finalizer.
+ * Scenario-owned framebuffer evidence is the only capture path covered by the privacy finalizer.
  */
 test.use({ screenshot: 'off', trace: 'off' });
 
@@ -29,6 +36,7 @@ const caseId = process.env.CAXRI_MOBILE_ACCEPTANCE_CASE_ID;
 const assetsDirectory = process.env.CAXRI_MOBILE_ACCEPTANCE_ASSETS_DIR;
 const artifactManifestPath = process.env.CAXRI_MOBILE_ACCEPTANCE_ARTIFACT_MANIFEST;
 const scenarioReceiptPath = process.env.CAXRI_MOBILE_ACCEPTANCE_SCENARIO_RECEIPT;
+const remoteVideoPath = process.env.CAXRI_MOBILE_ACCEPTANCE_REMOTE_VIDEO_PATH;
 
 function requireEnvironment(): {
     artifactManifestPath: string;
@@ -158,6 +166,47 @@ async function tapTerminalKey(serial: string, key: 'down' | 'enter'): Promise<vo
         ]);
     }
     throw new Error(`Android Terminal ${key} key could not be reached`);
+}
+
+async function openComposerSession(serial: string, sessionId: string): Promise<void> {
+    await tapMobileCheck(serial, `session-row-${sessionId}`);
+    await waitForMobile(
+        () => mobileSemantics(serial),
+        (nodes) =>
+            nodes.some(({ checkId }) => checkId === 'session-detail') &&
+            nodes.some(({ checkId }) => checkId === 'session-composer-input'),
+    );
+    await tapMobileCheck(serial, 'session-segment-conversation');
+    await waitForMobile(
+        () => mobileSemantics(serial),
+        (nodes) => nodes.some(({ checkId }) => checkId === 'conversation-placeholder'),
+    );
+}
+
+function requireRemoteVideoPath(): string {
+    if (!remoteVideoPath) throw new Error('Scenario-owned Android recording path is unavailable');
+    return remoteVideoPath;
+}
+
+async function enterComposerText(serial: string, value: string): Promise<void> {
+    await setMobileComposerUnicode(serial, value);
+    await waitForMobile(
+        () => mobileSemantics(serial),
+        (nodes) =>
+            nodes.some(({ checkId, enabled }) => checkId === 'session-composer-send' && enabled),
+    );
+}
+
+function countByteSequence(source: Buffer, target: Buffer): number {
+    let count = 0;
+    for (
+        let offset = source.indexOf(target);
+        offset !== -1;
+        offset = source.indexOf(target, offset + target.length)
+    ) {
+        count += 1;
+    }
+    return count;
 }
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires the fixture argument.
@@ -377,7 +426,8 @@ test('executes one report-bound Android product scenario', async ({}) => {
                     (nodes) =>
                         nodes.some(({ checkId }) => checkId === 'connection-stale-banner') &&
                         nodes.some(
-                            ({ checkId, enabled }) => checkId === 'short-reply-send' && !enabled,
+                            ({ checkId, enabled }) =>
+                                checkId === 'session-composer-send' && !enabled,
                         ),
                     7_000,
                 );
@@ -485,6 +535,259 @@ test('executes one report-bound Android product scenario', async ({}) => {
                     releasedSize: { cols: released.cols, rows: released.rows },
                     status: 'passed',
                     takenOverSize: { cols: takenOver.cols, rows: takenOver.rows },
+                });
+            } finally {
+                await fixture.stop();
+            }
+            break;
+        }
+        case 'MOB-COMPOSER-01': {
+            const fixture = await createMobileAcceptanceFixture({
+                mode: 'waiting',
+                serial: environment.serial,
+            });
+            const message = '请检查第一项。\n然后继续第二项。';
+            let recording: Awaited<ReturnType<typeof startMobileFramebufferRecording>> | undefined;
+            try {
+                await fixture.pair();
+                if (!fixture.allowedSessionId) throw new Error('Composer Session is unavailable');
+                await openComposerSession(environment.serial, fixture.allowedSessionId);
+                recording = await startMobileFramebufferRecording(
+                    environment.serial,
+                    requireRemoteVideoPath(),
+                );
+                await enterComposerText(environment.serial, message);
+                await capture(environment, 'multiline-draft', artifacts);
+                const before = await fixture.readCapturedInput();
+                expect(before.length).toBe(0);
+                await tapMobileCheck(environment.serial, 'session-composer-send');
+                const submitted = Buffer.from(`\u{1B}[200~${message}\u{1B}[201~\r`, 'utf8');
+                const captured = await waitForMobile(
+                    () => fixture.readCapturedInput(),
+                    (input) => countByteSequence(input, submitted) === 1,
+                );
+                expect(countByteSequence(captured, submitted)).toBe(1);
+                await waitForMobile(
+                    () => mobileSemantics(environment.serial),
+                    (nodes) =>
+                        nodes.some(({ checkId }) => checkId === 'session-composer-feedback') &&
+                        nodes.some(
+                            ({ checkId, enabled }) =>
+                                checkId === 'session-composer-stop' ||
+                                (checkId === 'session-composer-send' && !enabled),
+                        ),
+                );
+                await capture(environment, 'delivered', artifacts);
+                await finish(environment, artifacts, {
+                    draftAfter: 'cleared',
+                    encodedInput: 'utf8-multiline-once',
+                    inputBeforeSend: 'none',
+                    status: 'passed',
+                });
+            } finally {
+                await recording?.stop();
+                await fixture.stop();
+            }
+            break;
+        }
+        case 'MOB-COMPOSER-02': {
+            const fixture = await createMobileAcceptanceFixture({
+                mode: 'waiting',
+                serial: environment.serial,
+            });
+            let recording: Awaited<ReturnType<typeof startMobileFramebufferRecording>> | undefined;
+            try {
+                await fixture.pair();
+                if (!fixture.allowedSessionId) throw new Error('Composer Session is unavailable');
+                await openComposerSession(environment.serial, fixture.allowedSessionId);
+                recording = await startMobileFramebufferRecording(
+                    environment.serial,
+                    requireRemoteVideoPath(),
+                );
+                await enterComposerText(environment.serial, 'Continue synthetic task');
+                await tapMobileCheck(environment.serial, 'session-composer-send');
+                await waitForMobile(
+                    () => mobileSemantics(environment.serial),
+                    (nodes) => nodes.some(({ checkId }) => checkId === 'session-composer-stop'),
+                );
+                await capture(environment, 'running-stop', artifacts);
+                await tapMobileCheck(environment.serial, 'session-composer-stop');
+                await waitForMobile(
+                    () =>
+                        pageRequest<{
+                            sessions: Array<{ id: string; lastActivityState?: string }>;
+                        }>(fixture.running.page, 'app.bootstrap'),
+                    (state) =>
+                        state.sessions.some(
+                            (session) =>
+                                session.id === fixture.allowedSessionId &&
+                                session.lastActivityState !== 'running',
+                        ),
+                );
+                await capture(environment, 'stopped', artifacts);
+                await finish(environment, artifacts, {
+                    action: 'target-Agent-interrupted',
+                    input: 'empty-at-stop',
+                    status: 'passed',
+                });
+            } finally {
+                await recording?.stop();
+                await fixture.stop();
+            }
+            break;
+        }
+        case 'MOB-COMPOSER-03': {
+            const fixture = await createMobileAcceptanceFixture({
+                dropSubmitAcknowledgement: true,
+                mode: 'waiting',
+                serial: environment.serial,
+            });
+            const message = 'Synthetic uncertain delivery';
+            let recording: Awaited<ReturnType<typeof startMobileFramebufferRecording>> | undefined;
+            try {
+                await fixture.pair();
+                if (!fixture.allowedSessionId) throw new Error('Composer Session is unavailable');
+                await openComposerSession(environment.serial, fixture.allowedSessionId);
+                recording = await startMobileFramebufferRecording(
+                    environment.serial,
+                    requireRemoteVideoPath(),
+                );
+                await enterComposerText(environment.serial, message);
+                await tapMobileCheck(environment.serial, 'session-composer-send');
+                const submitted = Buffer.from(`\u{1B}[200~${message}\u{1B}[201~\r`, 'utf8');
+                const captured = await waitForMobile(
+                    () => fixture.readCapturedInput(),
+                    (input) => countByteSequence(input, submitted) === 1,
+                );
+                expect(countByteSequence(captured, submitted)).toBe(1);
+                await waitForMobile(
+                    () => mobileSemantics(environment.serial),
+                    (nodes) => nodes.some(({ checkId }) => checkId === 'session-composer-feedback'),
+                );
+                await assertMobileUnknownFeedback(environment.serial);
+                await assertMobileComposerDraft(environment.serial, message);
+                await capture(environment, 'result-unknown', artifacts);
+                await finish(environment, artifacts, {
+                    draft: 'retained',
+                    hostWrite: 'once-before-ack-drop',
+                    status: 'passed',
+                });
+            } finally {
+                await recording?.stop();
+                await fixture.stop();
+            }
+            break;
+        }
+        case 'MOB-NEW-01': {
+            const fixture = await createMobileAcceptanceFixture({
+                mode: 'waiting',
+                serial: environment.serial,
+            });
+            try {
+                await fixture.pair();
+                const before = await pageRequest<{
+                    selectedSessionId?: string;
+                    sessions: Array<{ id: string }>;
+                }>(fixture.running.page, 'app.bootstrap');
+                if (!before.selectedSessionId)
+                    throw new Error('Desktop Session selection is unavailable');
+                await tapMobileCheck(environment.serial, 'new-session-button');
+                await waitForMobile(
+                    () => mobileSemantics(environment.serial),
+                    (nodes) =>
+                        nodes.some(({ checkId }) => checkId === 'new-session-screen') &&
+                        nodes.some(
+                            ({ checkId }) =>
+                                checkId === `new-session-project-${fixture.allowedProjectId}`,
+                        ) &&
+                        nodes.some(
+                            ({ checkId, enabled }) =>
+                                checkId === 'new-session-agent-codex' && enabled,
+                        ),
+                );
+                await tapMobileCheck(
+                    environment.serial,
+                    `new-session-project-${fixture.allowedProjectId}`,
+                );
+                await tapMobileCheck(environment.serial, 'new-session-agent-codex');
+                await capture(environment, 'selection', artifacts);
+                await tapMobileCheck(environment.serial, 'new-session-create');
+                await waitForMobile(
+                    () => mobileSemantics(environment.serial),
+                    (nodes) =>
+                        nodes.some(({ checkId }) => checkId === 'session-detail') &&
+                        nodes.some(({ checkId }) => checkId === 'session-composer-input'),
+                );
+                await assertMobileComposerFocused(environment.serial);
+                await tapMobileCheck(environment.serial, 'session-segment-conversation');
+                await waitForMobile(
+                    () => mobileSemantics(environment.serial),
+                    (nodes) => nodes.some(({ checkId }) => checkId === 'conversation-placeholder'),
+                );
+                const after = await pageRequest<{
+                    selectedSessionId?: string;
+                    sessions: Array<{ id: string }>;
+                }>(fixture.running.page, 'app.bootstrap');
+                expect(after.selectedSessionId).toBe(before.selectedSessionId);
+                expect(after.sessions.length).toBe(before.sessions.length + 1);
+                await capture(environment, 'created', artifacts);
+                await finish(environment, artifacts, {
+                    agent: 'synthetic-Codex',
+                    composer: 'focused',
+                    desktopSelection: 'preserved',
+                    status: 'passed',
+                });
+            } finally {
+                await fixture.stop();
+            }
+            break;
+        }
+        case 'MOB-NEW-02': {
+            allowE2EErrors([
+                { source: 'server-core', event: 'pty.spawn_failed', code: 'UNAVAILABLE', count: 1 },
+            ]);
+            const fixture = await createMobileAcceptanceFixture({
+                mode: 'launch-failure',
+                serial: environment.serial,
+            });
+            try {
+                await fixture.pair();
+                await tapMobileCheck(environment.serial, 'new-session-button');
+                await waitForMobile(
+                    () => mobileSemantics(environment.serial),
+                    (nodes) =>
+                        nodes.some(
+                            ({ checkId }) =>
+                                checkId === `new-session-project-${fixture.allowedProjectId}`,
+                        ) &&
+                        nodes.some(
+                            ({ checkId, enabled }) =>
+                                checkId === 'new-session-agent-codex' && enabled,
+                        ),
+                );
+                await tapMobileCheck(
+                    environment.serial,
+                    `new-session-project-${fixture.allowedProjectId}`,
+                );
+                await tapMobileCheck(environment.serial, 'new-session-agent-codex');
+                await fixture.failNextAgentLaunch();
+                await tapMobileCheck(environment.serial, 'new-session-create');
+                await waitForMobile(
+                    () => mobileSemantics(environment.serial),
+                    (nodes) =>
+                        nodes.some(({ checkId }) => checkId === 'new-session-screen') &&
+                        nodes.some(({ checkId }) => checkId === 'new-session-create-error') &&
+                        nodes.some(
+                            ({ checkId }) =>
+                                checkId === `new-session-project-${fixture.allowedProjectId}`,
+                        ) &&
+                        nodes.some(({ checkId }) => checkId === 'new-session-agent-codex'),
+                );
+                await capture(environment, 'launch-failure-selection-retained', artifacts);
+                await finish(environment, artifacts, {
+                    agent: 'synthetic-Codex-launch-failure',
+                    result: 'error-shown-selection-retained',
+                    status: 'passed',
                 });
             } finally {
                 await fixture.stop();

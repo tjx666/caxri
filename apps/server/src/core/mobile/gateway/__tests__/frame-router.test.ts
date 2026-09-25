@@ -1,5 +1,6 @@
+import type { MobileServerPayload } from '@caxri/mobile-transport';
 import type { Principal } from '@caxri/protocol';
-import { createCommandDispatcher } from '@caxri/protocol';
+import { CAXRI_PROTOCOL_VERSION, createCommandDispatcher } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { MobileGatewayFrameRouter } from '../frame-router';
@@ -13,12 +14,17 @@ const principal: Principal = {
     projectIds: ['project-1'],
 };
 
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
+});
 
 describe('MobileGatewayFrameRouter heartbeat', () => {
     it('acknowledges a foreground probe and closes an idle authenticated socket', async () => {
         vi.useFakeTimers();
-        const send = vi.fn(async () => {});
+        const send = vi.fn<(payload: MobileServerPayload) => Promise<void>>(() =>
+            Promise.resolve(),
+        );
         const terminate = vi.fn();
         const app = new MobileGatewayFrameRouter({
             authorizeMethod: () => {},
@@ -27,11 +33,11 @@ describe('MobileGatewayFrameRouter heartbeat', () => {
                 capabilities: [],
                 principal,
                 connection: {
-                    serverId: 'server-1',
-                    bootId: 'boot-1',
-                    stateEpoch: 'epoch-1',
+                    serverId: 'a'.repeat(32),
+                    bootId: 'b'.repeat(32),
+                    stateEpoch: 'c'.repeat(32),
                     clientId: 'mobile:device-1',
-                    connectionId: 'connection-1',
+                    connectionId: 'd'.repeat(32),
                 },
             }),
             dispatch: createCommandDispatcher({
@@ -60,6 +66,72 @@ describe('MobileGatewayFrameRouter heartbeat', () => {
             expect(terminate).not.toHaveBeenCalled();
             vi.advanceTimersByTime(3_000);
             expect(terminate).toHaveBeenCalledOnce();
+        } finally {
+            app.close();
+        }
+    });
+});
+
+describe('MobileGatewayFrameRouter E2E acknowledgement loss', () => {
+    it('closes only the first successful Agent submit before sending a reply', async () => {
+        vi.stubEnv('CAXRI_E2E', '1');
+        vi.stubEnv('CAXRI_E2E_MOBILE_DROP_SUBMIT_ACK_ONCE', '1');
+        const send = vi.fn<(payload: MobileServerPayload) => Promise<void>>(() =>
+            Promise.resolve(),
+        );
+        const terminate = vi.fn();
+        const app = new MobileGatewayFrameRouter({
+            authorizeMethod: () => {},
+            authorizeSubscription: () => Promise.resolve(),
+            context: () => ({
+                capabilities: ['terminals.steer'],
+                principal: { ...principal, role: 'reply' },
+                connection: {
+                    serverId: 'a'.repeat(32),
+                    bootId: 'b'.repeat(32),
+                    stateEpoch: 'c'.repeat(32),
+                    clientId: 'mobile:device-1',
+                    connectionId: 'd'.repeat(32),
+                },
+            }),
+            dispatch: createCommandDispatcher({
+                server: { invoke: () => ({ terminalId: 'terminal-1', outcome: 'accepted' }) },
+            }),
+            isActive: () => true,
+            matchesSubscriptionEvent: () => Promise.resolve(true),
+            now: () => Date.now(),
+            randomSubscriptionId: () => 'subscription-1',
+            send,
+            terminate,
+        });
+        const request = (id: string) => ({
+            type: 'request' as const,
+            request: {
+                protocolVersion: CAXRI_PROTOCOL_VERSION,
+                id,
+                method: 'mobile.agent.submit',
+                params: {
+                    sessionId: 'session-1',
+                    terminalId: 'terminal-1',
+                    endpoint: { hostId: 'host-1', endpointId: 'endpoint-1', generation: 1 },
+                    clientMutationId: id,
+                    text: 'continue',
+                },
+            },
+        });
+        try {
+            app.accept(request('first'));
+            await vi.waitFor(() =>
+                expect(terminate.mock.calls.length + send.mock.calls.length).toBeGreaterThan(0),
+            );
+            expect(send).not.toHaveBeenCalled();
+            expect(terminate).toHaveBeenCalledOnce();
+            app.accept(request('second'));
+            await vi.waitFor(() => expect(send).toHaveBeenCalledOnce());
+            expect(send.mock.calls[0]?.[0]).toMatchObject({
+                type: 'reply',
+                reply: { id: 'second', ok: true },
+            });
         } finally {
             app.close();
         }

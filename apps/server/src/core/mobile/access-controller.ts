@@ -1,8 +1,8 @@
-import { Buffer } from 'node:buffer';
 import { hostname } from 'node:os';
 
 import type { MobileSubscriptionResource } from '@caxri/mobile-transport';
 import type {
+    AgentEndpointRef,
     CommandAdapter,
     CommandExecutionContext,
     MobileDeviceRole,
@@ -11,23 +11,38 @@ import type {
     ServerOperationRequest,
     ServerRequest,
 } from '@caxri/protocol';
-import { CaxriError, MOBILE_SHORT_REPLY_MAX_BYTES } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
 
 import type { TerminalExecutionPort } from '../../domains/terminal';
+import type { AgentEndpointRegistry } from '../agent-endpoints/registry';
 import type { ServerDomainService } from '../domain-service';
 import { buildMobileDashboard } from './dashboard';
 import { MobileDeviceRegistry } from './device-registry';
 import { MobileGateway } from './gateway';
 
-type TerminalSendParameters = Extract<ServerRequest, { method: 'terminal.send' }>['params'];
 const mobileGatewayMethodsByRole = {
-    view: ['mobile.dashboard', 'terminal.preview'],
-    reply: ['mobile.dashboard', 'terminal.preview', 'session.markRead', 'terminal.send'],
-    control: [
+    view: [
         'mobile.dashboard',
+        'mobile.session.show',
+        'mobile.agent.availability',
+        'terminal.preview',
+    ],
+    reply: [
+        'mobile.dashboard',
+        'mobile.session.show',
+        'mobile.agent.availability',
         'terminal.preview',
         'session.markRead',
-        'terminal.send',
+        'mobile.agent.submit',
+    ],
+    control: [
+        'mobile.dashboard',
+        'mobile.session.show',
+        'mobile.agent.availability',
+        'terminal.preview',
+        'session.markRead',
+        'mobile.agent.submit',
+        'agent.control.interrupt',
         'mobile.session.create',
         'mobile.terminal.takeOver',
         'mobile.terminal.release',
@@ -39,6 +54,17 @@ export const isMobileGatewayMethodAllowedForRole = (
     role: MobileDeviceRole,
     method: string,
 ): boolean => (mobileGatewayMethodsByRole[role] as readonly string[]).includes(method);
+
+export function resolveMobileAgentEndpoint(
+    registry: AgentEndpointRegistry,
+    terminalId: string,
+): AgentEndpointRef | undefined {
+    try {
+        return registry.resolveTerminal(terminalId).ref;
+    } catch {
+        return undefined;
+    }
+}
 
 export const mobileHostDisplayName = (source: string): string =>
     source
@@ -55,6 +81,9 @@ type MobileControlRequest = Extract<
             | 'mobile.access.status'
             | 'mobile.device.list'
             | 'mobile.dashboard'
+            | 'mobile.session.show'
+            | 'mobile.agent.availability'
+            | 'mobile.agent.submit'
             | 'mobile.session.create'
             | 'mobile.terminal.takeOver'
             | 'mobile.terminal.release'
@@ -84,6 +113,7 @@ export interface MobileAccessController {
         request: MobileControlRequest,
         context: CommandExecutionContext,
         domainService: ServerDomainService,
+        resolveAgentEndpoint?: (terminalId: string) => AgentEndpointRef | undefined,
     ) => Promise<unknown>;
     invokeDesktopOperation: (request: MobileDesktopOperation) => Promise<unknown>;
     authorizePairedDeviceMethod: (principal: Principal, method: string) => void;
@@ -95,12 +125,6 @@ export interface MobileAccessController {
         context: CommandExecutionContext,
         domainService: ServerDomainService,
     ) => Promise<void>;
-    invokeShortReply: (
-        context: CommandExecutionContext,
-        parameters: TerminalSendParameters,
-        domainService: ServerDomainService,
-        invoke: (signal: AbortSignal) => Promise<unknown>,
-    ) => Promise<unknown>;
 }
 
 const requiredGateway = (gateway: MobileGateway | undefined): MobileGateway => {
@@ -276,7 +300,7 @@ export const openMobileAccessController = async (options: {
                 await gateway?.close();
             }),
         publish: (event) => gateway?.publish(event),
-        invokeControl: async (request, context, domainService) => {
+        invokeControl: async (request, context, domainService, resolveAgentEndpoint) => {
             const activeGateway = requiredGateway(gateway);
             switch (request.method) {
                 case 'mobile.access.status':
@@ -326,7 +350,78 @@ export const openMobileAccessController = async (options: {
                         projects: visibleProjects,
                         sessions: sessions.sessions,
                         terminals: terminals.terminals,
+                        resolveAgentEndpoint,
                     });
+                }
+                case 'mobile.session.show': {
+                    const principal = currentPairedPrincipal(context.principal, request.method);
+                    const session = await sessionForPrincipal(
+                        domainService,
+                        principal,
+                        request.params.sessionId,
+                    );
+                    const [projects, terminals] = await Promise.all([
+                        domainService.request('project.queryForPrincipal', {
+                            principal,
+                            query: { mode: 'show', selector: session.projectId },
+                        }),
+                        session.primaryAgentTerminalId
+                            ? domainService.request('terminal.queryForPrincipal', {
+                                  principal,
+                                  query: {
+                                      mode: 'show',
+                                      selector: session.primaryAgentTerminalId,
+                                  },
+                              })
+                            : Promise.resolve({ terminals: [] }),
+                    ]);
+                    const projected = buildMobileDashboard({
+                        hostDisplayName,
+                        deviceRole: principal.role,
+                        projects: projects.projects,
+                        sessions: [session],
+                        terminals: terminals.terminals,
+                        resolveAgentEndpoint,
+                    }).sessions.at(0);
+                    if (!projected) throw new CaxriError('NOT_FOUND', 'Session not found');
+                    currentPairedPrincipal(principal, request.method);
+                    return { session: projected };
+                }
+                case 'mobile.agent.availability': {
+                    const principal = currentPairedPrincipal(context.principal, request.method);
+                    const result = await domainService.request(
+                        'mobile.agent.availabilityInternal',
+                        {
+                            projectId: request.params.projectId,
+                            principal,
+                        },
+                    );
+                    currentPairedPrincipal(principal, request.method);
+                    return result;
+                }
+                case 'mobile.agent.submit': {
+                    const { principal, cancellation } = await withAuthority(() => {
+                        assertOpen();
+                        if (!activeGateway.status().enabled)
+                            throw new CaxriError('FORBIDDEN', 'Mobile access is disabled');
+                        const principal = currentPairedPrincipal(context.principal, request.method);
+                        return { principal, cancellation: registerOperation(principal) };
+                    });
+                    try {
+                        const result = await domainService.requestWithSignal(
+                            'mobile.agent.submitInternal',
+                            { ...request.params, principal },
+                            cancellation.signal,
+                        );
+                        return await withAuthority(() => {
+                            if (cancellation.signal.aborted)
+                                throw new CaxriError('CANCELLED', 'Mobile submission was canceled');
+                            currentPairedPrincipal(principal, request.method);
+                            return result;
+                        });
+                    } finally {
+                        await withAuthority(() => unregisterOperation(principal, cancellation));
+                    }
                 }
                 case 'mobile.session.create': {
                     /**
@@ -439,73 +534,6 @@ export const openMobileAccessController = async (options: {
                 return;
             }
             await sessionForPrincipal(domainService, context.principal, request.params.sessionId);
-        },
-        invokeShortReply: async (context, parameters, domainService, invoke) => {
-            await withAuthority(() => {
-                assertOpen();
-                currentPairedPrincipal(context.principal, 'terminal.send');
-                const activeGateway = requiredGateway(gateway);
-                if (!activeGateway.status().enabled)
-                    throw new CaxriError('FORBIDDEN', 'Mobile access is disabled');
-            });
-            const hasControlCharacter = [...parameters.text].some((character) => {
-                const code = character.codePointAt(0)!;
-                return code < 32 || (code >= 127 && code <= 159);
-            });
-            if (
-                hasControlCharacter ||
-                !parameters.enter ||
-                parameters.attentionEpoch === undefined ||
-                parameters.text.trim().length === 0 ||
-                Buffer.byteLength(parameters.text, 'utf8') > MOBILE_SHORT_REPLY_MAX_BYTES
-            )
-                throw new CaxriError(
-                    'VALIDATION',
-                    'Mobile replies require one bounded plain-text submitted message',
-                );
-            const terminal = await terminalForPrincipal(
-                domainService,
-                context.principal,
-                parameters.terminalId,
-            );
-            const session = await sessionForPrincipal(
-                domainService,
-                context.principal,
-                terminal.sessionId,
-            );
-            if (
-                terminal.kind === 'shell' ||
-                session.primaryAgentTerminalId !== terminal.id ||
-                session.lastActivityState !== 'waiting' ||
-                session.attentionEpoch !== parameters.attentionEpoch
-            )
-                throw new CaxriError(
-                    'CONFLICT',
-                    'Agent attention changed before the reply was accepted',
-                );
-            const { principal, cancellation } = await withAuthority(() => {
-                assertOpen();
-                if (!requiredGateway(gateway).status().enabled)
-                    throw new CaxriError('FORBIDDEN', 'Mobile access is disabled');
-                const principal = currentPairedPrincipal(context.principal, 'terminal.send');
-                return { principal, cancellation: registerOperation(principal) };
-            });
-            try {
-                if (cancellation.signal.aborted)
-                    throw new CaxriError('CANCELLED', 'Mobile reply was canceled');
-                /**
-                 * The domain checks this signal after dispatch admission and before consuming attention or writing.
-                 */
-                const result = await invoke(cancellation.signal);
-                return await withAuthority(() => {
-                    if (cancellation.signal.aborted)
-                        throw new CaxriError('CANCELLED', 'Mobile reply was canceled');
-                    currentPairedPrincipal(principal, 'terminal.send');
-                    return result;
-                });
-            } finally {
-                await withAuthority(() => unregisterOperation(principal, cancellation));
-            }
         },
     };
 };

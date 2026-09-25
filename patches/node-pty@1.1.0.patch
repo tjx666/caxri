@@ -1,0 +1,285 @@
+diff --git a/lib/unixTerminal.js b/lib/unixTerminal.js
+index 1ec12f796a822c78fba9ad7f6448c3987e325c23..d5d2591fa1bf55ccc7042fbc1fd38b46860d3505 100644
+--- a/lib/unixTerminal.js
++++ b/lib/unixTerminal.js
+@@ -155,6 +155,15 @@ var UnixTerminal = /** @class */ (function (_super) {
+     UnixTerminal.prototype._write = function (data) {
+         this._writeStream.write(data);
+     };
++    UnixTerminal.prototype.writeWithCompletion = function (data) {
++        return this._writeStream.writeWithCompletion(data);
++    };
++    UnixTerminal.prototype.quiesceInput = function () {
++        return this._writeStream.quiesce();
++    };
++    UnixTerminal.prototype.resumeInput = function () {
++        this._writeStream.resume();
++    };
+     Object.defineProperty(UnixTerminal.prototype, "fd", {
+         /* Accessors */
+         get: function () { return this._fd; },
+@@ -283,35 +292,74 @@ var CustomWriteStream = /** @class */ (function () {
+         this._fd = _fd;
+         this._encoding = _encoding;
+         this._writeQueue = [];
++        this._inFlight = false;
++        this._quiesced = false;
++        this._quiesceWaiters = [];
+     }
+     CustomWriteStream.prototype.dispose = function () {
++        void this.quiesce();
++    };
++    CustomWriteStream.prototype.write = function (data) {
++        this.enqueue(data);
++    };
++    CustomWriteStream.prototype.writeWithCompletion = function (data) {
++        var _this = this;
++        return new Promise(function (resolve) {
++            if (!_this.enqueue(data, resolve)) resolve(false);
++        });
++    };
++    CustomWriteStream.prototype.quiesce = function () {
++        var _this = this;
++        this._quiesced = true;
+         clearImmediate(this._writeImmediate);
+         this._writeImmediate = undefined;
++        for (var _i = 0, _a = this._writeQueue; _i < _a.length; _i++) {
++            var task = _a[_i];
++            if (task.resolve) task.resolve(false);
++        }
++        this._writeQueue.length = 0;
++        if (!this._inFlight) return Promise.resolve();
++        return new Promise(function (resolve) { return _this._quiesceWaiters.push(resolve); });
+     };
+-    CustomWriteStream.prototype.write = function (data) {
++    CustomWriteStream.prototype.resume = function () {
++        if (this._inFlight || this._quiesceWaiters.length > 0) {
++            throw new Error('PTY input cannot resume before in-flight writes settle');
++        }
++        this._quiesced = false;
++    };
++    CustomWriteStream.prototype.enqueue = function (data, resolve) {
++        if (this._quiesced) return false;
+         // Writes are put in a queue and processed asynchronously in order to handle
+         // backpressure from the kernel buffer.
+         var buffer = typeof data === 'string'
+             ? Buffer.from(data, this._encoding)
+             : Buffer.from(data);
+         if (buffer.byteLength !== 0) {
+-            this._writeQueue.push({ buffer: buffer, offset: 0 });
++            this._writeQueue.push({ buffer: buffer, offset: 0, resolve: resolve });
+             if (this._writeQueue.length === 1) {
+                 this._processWriteQueue();
+             }
+         }
++        else if (resolve) resolve(true);
++        return true;
+     };
+     CustomWriteStream.prototype._processWriteQueue = function () {
+         var _this = this;
+         this._writeImmediate = undefined;
+-        if (this._writeQueue.length === 0) {
++        if (this._quiesced || this._writeQueue.length === 0) {
+             return;
+         }
+         var task = this._writeQueue[0];
+         // Write to the underlying file descriptor and handle it directly, rather
+         // than using the `net.Socket`/`tty.WriteStream` wrappers which swallow and
+         // mask errors like EAGAIN and can cause the thread to block indefinitely.
++        this._inFlight = true;
+         fs.write(this._fd, task.buffer, task.offset, function (err, written) {
++            _this._inFlight = false;
++            if (_this._quiesced) {
++                for (var _i = 0, _a = _this._quiesceWaiters.splice(0); _i < _a.length; _i++) _a[_i]();
++                return;
++            }
+             if (err) {
+                 if ('code' in err && err.code === 'EAGAIN') {
+                     // `setImmediate` is used to yield to the event loop and re-attempt
+@@ -320,6 +368,10 @@ var CustomWriteStream = /** @class */ (function () {
+                 }
+                 else {
+                     // Stop processing immediately on unexpected error and log
++                    for (var _i = 0, _a = _this._writeQueue; _i < _a.length; _i++) {
++                        var queued = _a[_i];
++                        if (queued.resolve) queued.resolve(false);
++                    }
+                     _this._writeQueue.length = 0;
+                     console.error('Unhandled pty write error', err);
+                 }
+@@ -328,6 +380,7 @@ var CustomWriteStream = /** @class */ (function () {
+             task.offset += written;
+             if (task.offset >= task.buffer.byteLength) {
+                 _this._writeQueue.shift();
++                if (task.resolve) task.resolve(true);
+             }
+             // Since there is more room in the kernel buffer, we can continue to write
+             // until we hit EAGAIN or exhaust the queue.
+diff --git a/scripts/post-install.js b/scripts/post-install.js
+index 8dbac507ea9c64169ea500a0115816056c0bc309..ef95960084efe4495d2305a107775b4f58fa1980 100644
+--- a/scripts/post-install.js
++++ b/scripts/post-install.js
+@@ -49,6 +49,9 @@ try {
+ 
+ console.log(`\x1b[32m> Moving conpty.dll...\x1b[0m`);
+ if (os.platform() !== 'win32') {
++  // pnpm patch extraction can remove the prebuilt helper's executable bit.
++  const helper = path.join(__dirname, '..', 'prebuilds', `${os.platform()}-${os.arch()}`, 'spawn-helper');
++  if (fs.existsSync(helper)) fs.chmodSync(helper, 0o755);
+   console.log('  SKIPPED (not Windows)');
+ } else {
+   let windowsArch;
+diff --git a/src/unixTerminal.ts b/src/unixTerminal.ts
+index 98733dc0cd752b554bd94e45904ca341ad141bba..c05e6a5e7e1e64c7ef557db23f8eda1a3769a980 100644
+--- a/src/unixTerminal.ts
++++ b/src/unixTerminal.ts
+@@ -170,6 +170,18 @@ export class UnixTerminal extends Terminal {
+     this._writeStream.write(data);
+   }
+ 
++  public writeWithCompletion(data: string | Buffer): Promise<boolean> {
++    return this._writeStream.writeWithCompletion(data);
++  }
++
++  public quiesceInput(): Promise<void> {
++    return this._writeStream.quiesce();
++  }
++
++  public resumeInput(): void {
++    this._writeStream.resume();
++  }
++
+   /* Accessors */
+   get fd(): number { return this._fd; }
+   get ptsName(): string { return this._pty; }
+@@ -304,6 +316,7 @@ interface IWriteTask {
+   buffer: Buffer;
+   /** The current offset of not yet written data. */
+   offset: number;
++  resolve?: (written: boolean) => void;
+ }
+ 
+ /**
+@@ -315,6 +328,9 @@ class CustomWriteStream implements IDisposable {
+ 
+   private readonly _writeQueue: IWriteTask[] = [];
+   private _writeImmediate: NodeJS.Immediate | undefined;
++  private _inFlight = false;
++  private _quiesced = false;
++  private readonly _quiesceWaiters: Array<() => void> = [];
+ 
+   constructor(
+     private readonly _fd: number,
+@@ -323,11 +339,38 @@ class CustomWriteStream implements IDisposable {
+   }
+ 
+   dispose(): void {
++    void this.quiesce();
++  }
++
++  write(data: string | Buffer): void {
++    this.enqueue(data);
++  }
++
++  writeWithCompletion(data: string | Buffer): Promise<boolean> {
++    return new Promise(resolve => {
++      if (!this.enqueue(data, resolve)) resolve(false);
++    });
++  }
++
++  quiesce(): Promise<void> {
++    this._quiesced = true;
+     clearImmediate(this._writeImmediate);
+     this._writeImmediate = undefined;
++    for (const task of this._writeQueue) task.resolve?.(false);
++    this._writeQueue.length = 0;
++    if (!this._inFlight) return Promise.resolve();
++    return new Promise(resolve => this._quiesceWaiters.push(resolve));
+   }
+ 
+-  write(data: string | Buffer): void {
++  resume(): void {
++    if (this._inFlight || this._quiesceWaiters.length > 0) {
++      throw new Error('PTY input cannot resume before in-flight writes settle');
++    }
++    this._quiesced = false;
++  }
++
++  private enqueue(data: string | Buffer, resolve?: (written: boolean) => void): boolean {
++    if (this._quiesced) return false;
+     // Writes are put in a queue and processed asynchronously in order to handle
+     // backpressure from the kernel buffer.
+     const buffer = typeof data === 'string'
+@@ -335,17 +378,20 @@ class CustomWriteStream implements IDisposable {
+       : Buffer.from(data);
+ 
+     if (buffer.byteLength !== 0) {
+-      this._writeQueue.push({ buffer, offset: 0 });
++      this._writeQueue.push({ buffer, offset: 0, resolve });
+       if (this._writeQueue.length === 1) {
+         this._processWriteQueue();
+       }
++    } else {
++      resolve?.(true);
+     }
++    return true;
+   }
+ 
+   private _processWriteQueue(): void {
+     this._writeImmediate = undefined;
+ 
+-    if (this._writeQueue.length === 0) {
++    if (this._quiesced || this._writeQueue.length === 0) {
+       return;
+     }
+ 
+@@ -354,7 +400,13 @@ class CustomWriteStream implements IDisposable {
+     // Write to the underlying file descriptor and handle it directly, rather
+     // than using the `net.Socket`/`tty.WriteStream` wrappers which swallow and
+     // mask errors like EAGAIN and can cause the thread to block indefinitely.
++    this._inFlight = true;
+     fs.write(this._fd, task.buffer, task.offset, (err, written) => {
++      this._inFlight = false;
++      if (this._quiesced) {
++        for (const resolve of this._quiesceWaiters.splice(0)) resolve();
++        return;
++      }
+       if (err) {
+         if ('code' in err && err.code === 'EAGAIN') {
+           // `setImmediate` is used to yield to the event loop and re-attempt
+@@ -362,6 +414,7 @@ class CustomWriteStream implements IDisposable {
+           this._writeImmediate = setImmediate(() => this._processWriteQueue());
+         } else {
+           // Stop processing immediately on unexpected error and log
++          for (const queued of this._writeQueue) queued.resolve?.(false);
+           this._writeQueue.length = 0;
+           console.error('Unhandled pty write error', err);
+         }
+@@ -371,6 +424,7 @@ class CustomWriteStream implements IDisposable {
+       task.offset += written;
+       if (task.offset >= task.buffer.byteLength) {
+         this._writeQueue.shift();
++        task.resolve?.(true);
+       }
+ 
+       // Since there is more room in the kernel buffer, we can continue to write
+diff --git a/typings/node-pty.d.ts b/typings/node-pty.d.ts
+index 6f050ff1d97b8d3477be7ee95d2af516bd9517b7..03eefe239b5a85a5ae532f6c9a57a0cf2147d1c6 100644
+--- a/typings/node-pty.d.ts
++++ b/typings/node-pty.d.ts
+@@ -175,6 +175,15 @@ declare module 'node-pty' {
+      */
+     write(data: string | Buffer): void;
+ 
++    /** Resolve only after all bytes have reached the PTY master; Unix only. */
++    writeWithCompletion?(data: string | Buffer): Promise<boolean>;
++
++    /** Discard queued writes and wait for any in-flight write callback; Unix only. */
++    quiesceInput?(): Promise<void>;
++
++    /** Allow new writes after the foreground launcher has drained input; Unix only. */
++    resumeInput?(): void;
++
+     /**
+      * Kills the pty.
+      * @param signal The signal to use, defaults to SIGHUP. This parameter is not supported on

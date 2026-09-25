@@ -20,11 +20,11 @@ describe('mobile Android Acceptance cases', () => {
             recordingOwner: 'adapter',
             scenario: 'foundation-cold-start',
         });
-        expect(mobileAndroidAcceptanceCase('MOB-SESSION-02')).toEqual({
+        expect(mobileAndroidAcceptanceCase('MOB-COMPOSER-01')).toEqual({
             desktopProfile: 'managed-by-isolated-e2e',
             media: ['screenshot', 'video'],
             recordingOwner: 'scenario',
-            scenario: 'session-short-reply',
+            scenario: 'composer-unicode-submit',
         });
         expect(mobileAndroidAcceptanceCase('MOB-PAIR-05')).toEqual({
             desktopProfile: 'not-required',
@@ -32,15 +32,27 @@ describe('mobile Android Acceptance cases', () => {
             recordingOwner: 'adapter',
             scenario: 'crypto-vector',
         });
+        expect(mobileAndroidAcceptanceCase('MOB-COMPOSER-03')).toEqual({
+            desktopProfile: 'managed-by-isolated-e2e',
+            media: ['screenshot', 'video'],
+            recordingOwner: 'scenario',
+            scenario: 'composer-unknown',
+        });
+        expect(mobileAndroidAcceptanceCase('MOB-NEW-02')).toEqual({
+            desktopProfile: 'managed-by-isolated-e2e',
+            media: ['screenshot'],
+            recordingOwner: 'adapter',
+            scenario: 'new-session-launch-failure',
+        });
         expect(() => mobileAndroidAcceptanceCase('MOB-SEC-01')).toThrow(
             'Unsupported Android Acceptance case',
         );
     });
 
     it('accepts a stable ordered subset without duplicates', () => {
-        expect(parseMobileAndroidCaseIds('MOB-FDN-01,MOB-SESSION-02')).toEqual([
+        expect(parseMobileAndroidCaseIds('MOB-FDN-01,MOB-COMPOSER-01')).toEqual([
             'MOB-FDN-01',
-            'MOB-SESSION-02',
+            'MOB-COMPOSER-01',
         ]);
         expect(() => parseMobileAndroidCaseIds('MOB-FDN-01,MOB-FDN-01')).toThrow(
             'Duplicate Android Acceptance case',

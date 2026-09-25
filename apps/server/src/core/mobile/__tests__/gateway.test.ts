@@ -89,12 +89,10 @@ describe('MobileGateway', () => {
                             total: 0,
                             truncated: false,
                         };
-                    case 'terminal.send':
+                    case 'mobile.agent.submit':
                         return {
                             terminalId: 'terminal-1',
-                            accepted: true,
-                            byteLength: 2,
-                            enter: true,
+                            outcome: 'accepted',
                         };
                     case 'mobile.session.create':
                         return { sessionId: 'session-new' };
@@ -124,11 +122,12 @@ describe('MobileGateway', () => {
                 ).resolves.toMatchObject({ ok: true });
                 await expect(
                     client.request(
-                        request('reply', 'terminal.send', {
+                        request('reply', 'mobile.agent.submit', {
+                            sessionId: 'session-1',
                             terminalId: 'terminal-1',
+                            endpoint: { hostId: 'host-1', endpointId: 'endpoint-1', generation: 1 },
+                            clientMutationId: 'mutation-1',
                             text: 'Hi',
-                            enter: true,
-                            attentionEpoch: 1,
                         }),
                     ),
                 ).resolves.toMatchObject({

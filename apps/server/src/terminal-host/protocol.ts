@@ -18,7 +18,23 @@ import { observationContextSchema } from '../observability/context-schema';
 
 export const TERMINAL_HOST_PROTOCOL_VERSION = 4 as const;
 export const MAX_TERMINAL_HOST_MESSAGE_BYTES = 32 * 1024 * 1024;
+const MAX_AGENT_SUBMIT_TEXT_BYTES = 16 * 1024;
 const MAX_TERMINAL_HOST_OUTPUT_CHARACTERS = 256 * 1024;
+
+export function isValidAgentSubmitText(text: string): boolean {
+    if (
+        text.length === 0 ||
+        Buffer.byteLength(text, 'utf8') > MAX_AGENT_SUBMIT_TEXT_BYTES ||
+        Buffer.from(text, 'utf8').toString('utf8') !== text
+    )
+        return false;
+    for (const character of text) {
+        const code = character.codePointAt(0)!;
+        if (code === 9 || code === 10) continue;
+        if (code < 32 || (code >= 127 && code <= 159)) return false;
+    }
+    return true;
+}
 
 const ptyGenerationSchema = z.number().int().positive();
 const attachmentIdSchema = identifierSchema;
@@ -172,6 +188,17 @@ const terminalRequestSchemas = [
             params: z
                 .object({
                     data: z.string().max(65_536),
+                    launchId: identifierSchema,
+                })
+                .strict(),
+        })
+        .strict(),
+    z
+        .object({
+            method: z.literal('terminal.agent.submit'),
+            params: z
+                .object({
+                    text: z.string().refine(isValidAgentSubmitText),
                     launchId: identifierSchema,
                 })
                 .strict(),
@@ -503,6 +530,9 @@ const terminalHostResultSchemas = {
     'terminal.reserve': z.object({ reserved: z.literal(true) }).strict(),
     'terminal.start': z.object({ processId: z.number().int().positive() }).strict(),
     'terminal.agent.input': z.object({ accepted: z.boolean() }).strict(),
+    'terminal.agent.submit': z
+        .object({ outcome: z.enum(['accepted', 'rejected', 'unknown']) })
+        .strict(),
     'terminal.input': z.object({ accepted: z.boolean() }).strict(),
     'terminal.resize': z.object({ accepted: z.boolean() }).strict(),
     'terminal.attach': z
@@ -548,6 +578,7 @@ const requiredCapabilities = {
     'terminal.reserve': 'terminal.lifecycle',
     'terminal.start': 'terminal.lifecycle',
     'terminal.agent.input': 'terminal.agent.input',
+    'terminal.agent.submit': 'terminal.agent.input',
     'terminal.input': 'terminal.input',
     'terminal.resize': 'terminal.view',
     'terminal.attach': 'terminal.view',
@@ -584,6 +615,7 @@ export interface TerminalHostAuthority {
               ptyGeneration: number;
               attachmentId?: string;
               agentLaunchId?: string;
+              agentProcessId?: number;
               running?: boolean;
           }
         | undefined;
@@ -660,9 +692,15 @@ export function authorizeTerminalHostRequest(
             ? { ok: true }
             : { ok: false, reason: 'attachment' };
     }
-    if (envelope.request.method === 'terminal.agent.input') {
+    if (
+        envelope.request.method === 'terminal.agent.input' ||
+        envelope.request.method === 'terminal.agent.submit'
+    ) {
         if (envelope.scope.attachmentId !== undefined) return { ok: false, reason: 'attachment' };
-        return current.running && current.agentLaunchId === envelope.request.params.launchId
+        return current.running &&
+            current.agentLaunchId === envelope.request.params.launchId &&
+            (envelope.request.method !== 'terminal.agent.submit' ||
+                current.agentProcessId !== undefined)
             ? { ok: true }
             : { ok: false, reason: 'agent' };
     }
