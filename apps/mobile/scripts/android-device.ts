@@ -1,33 +1,71 @@
 #!/usr/bin/env bun
 
+import { Buffer } from 'node:buffer';
 import process from 'node:process';
 
 import {
     captureAndroidSemanticNodes,
     CAXRI_ANDROID_PACKAGE,
+    observeAndroidNode,
     runAndroidAdb,
 } from './android-device-bridge';
+import type { AndroidNodeTextExpectation } from './android-receipts';
 import { centerOfAndroidBounds, isAndroidCheckId } from './android-receipts';
 
 interface Arguments {
     checkId?: string;
-    command: 'inspect' | 'semantics' | 'tap' | 'wake';
+    command: 'inspect' | 'observe' | 'semantics' | 'tap' | 'wake';
+    expectedText?: AndroidNodeTextExpectation;
     serial: string;
 }
 
+const parseExpectedText = (values: string[]): AndroidNodeTextExpectation | undefined => {
+    const matchIndex = values.indexOf('--match');
+    const textIndex = values.indexOf('--expected-text-base64');
+    if (matchIndex === -1 && textIndex === -1) return;
+    if (matchIndex === -1 || textIndex === -1)
+        throw new Error('observe text matching requires both matching arguments');
+
+    const kind = values.at(matchIndex + 1);
+    const encoded = values.at(textIndex + 1);
+    if (encoded === undefined || (kind !== 'equals' && kind !== 'includes'))
+        throw new Error('Invalid observe text matching arguments');
+    if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(encoded))
+        throw new Error('Invalid observe text encoding');
+
+    const bytes = Buffer.from(encoded, 'base64');
+    if (bytes.toString('base64') !== encoded) throw new Error('Invalid observe text encoding');
+    try {
+        return { kind, value: new TextDecoder('utf-8', { fatal: true }).decode(bytes) };
+    } catch {
+        throw new Error('Invalid observe text encoding');
+    }
+};
+
 const parseArguments = (values: string[]): Arguments => {
     const command = values[0];
-    if (!['inspect', 'semantics', 'tap', 'wake'].includes(command))
-        throw new Error('Expected inspect, semantics, tap, or wake');
+    if (!['inspect', 'observe', 'semantics', 'tap', 'wake'].includes(command))
+        throw new Error('Expected inspect, observe, semantics, tap, or wake');
     const serialIndex = values.indexOf('--serial');
     const serial = values[serialIndex + 1];
     if (serialIndex === -1 || !serial || !/^[\w.:-]{1,200}$/u.test(serial))
         throw new Error('A valid explicit --serial is required');
     const checkIdIndex = values.indexOf('--check-id');
     const checkId = values[checkIdIndex + 1];
-    if (command === 'tap' && (!checkId || !isAndroidCheckId(checkId)))
-        throw new Error('tap requires a valid --check-id');
-    return { command: command as Arguments['command'], serial, ...(checkId && { checkId }) };
+    if ((command === 'tap' || command === 'observe') && (!checkId || !isAndroidCheckId(checkId)))
+        throw new Error('tap and observe require a valid --check-id');
+    const expectedText = command === 'observe' ? parseExpectedText(values) : undefined;
+    if (
+        command !== 'observe' &&
+        values.some((value) => value === '--match' || value === '--expected-text-base64')
+    )
+        throw new Error('Text matching requires observe');
+    return {
+        command: command as Arguments['command'],
+        serial,
+        ...(checkId && { checkId }),
+        ...(expectedText && { expectedText }),
+    };
 };
 
 const deviceProperty = (serial: string, property: string): string =>
@@ -68,6 +106,15 @@ const main = async (): Promise<void> => {
     if (input.command === 'tap') {
         if (!input.checkId) throw new Error('tap requires a valid --check-id');
         console.log(JSON.stringify(await tap(input.serial, input.checkId)));
+        return;
+    }
+    if (input.command === 'observe') {
+        if (!input.checkId) throw new Error('observe requires a valid --check-id');
+        console.log(
+            JSON.stringify(
+                await observeAndroidNode(input.serial, input.checkId, input.expectedText),
+            ),
+        );
         return;
     }
     const receipt =

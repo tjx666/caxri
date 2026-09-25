@@ -61,10 +61,84 @@ describe('Acceptance media integrity', () => {
         ).rejects.toThrow('at least 3 distinct sampled frames');
     });
 
+    it('allows a receipt-bound static Desktop recording while checking its declared duration', async () => {
+        const root = await temporaryRoot();
+        const directory = join(root, 'round-1');
+        const evidence = 'assets/MOB-E2E-01-desktop.mp4';
+        await mkdir(join(directory, 'assets'), { recursive: true });
+        await writeFile(join(directory, evidence), 'synthetic-video-bytes');
+        const runner = runnerFor({ hashes: Array.from({ length: 20 }, () => 'same') });
+        const report = {
+            cases: [{ evidence: [evidence], id: 'MOB-E2E-01', status: 'pass' as const }],
+            directory,
+            plans: [{ id: 'MOB-E2E-01', requiredEvidence: ['video'] }],
+            runner,
+        };
+        await expect(validateReportMediaEvidence(report)).rejects.toThrow(
+            'at least 3 distinct sampled frames',
+        );
+        await expect(
+            validateReportMediaEvidence({
+                ...report,
+                staticDesktopVideos: new Map([[evidence, 10_000]]),
+            }),
+        ).resolves.toBeUndefined();
+        await expect(
+            validateReportMediaEvidence({
+                ...report,
+                staticDesktopVideos: new Map([[evidence, 9_000]]),
+            }),
+        ).rejects.toThrow('duration does not match its receipt');
+        await expect(
+            validateVideoEvidence('/tmp/desktop.mp4', runnerFor({ duration: 181 }), {
+                allowStaticDesktop: true,
+            }),
+        ).rejects.toThrow('at most 180 seconds');
+    });
+
     it('rejects an excessively long clip before sampling it', async () => {
         await expect(
             validateVideoEvidence('/tmp/unbounded.mp4', runnerFor({ duration: 121 })),
         ).rejects.toThrow('at most 120 seconds');
+    });
+
+    it('allows a verified long Android journey without waiving visible frame changes', async () => {
+        const root = await temporaryRoot();
+        const directory = join(root, 'round-1');
+        const evidence = 'assets/MOB-E2E-01-android.mp4';
+        await mkdir(join(directory, 'assets'), { recursive: true });
+        await writeFile(join(directory, evidence), 'synthetic-android-video-bytes');
+        const runner = runnerFor({ duration: 170, frameCount: 680 });
+        const report = {
+            cases: [{ evidence: [evidence], id: 'MOB-E2E-01', status: 'pass' as const }],
+            directory,
+            plans: [{ id: 'MOB-E2E-01', requiredEvidence: ['video'] }],
+            runner,
+        };
+        await expect(validateReportMediaEvidence(report)).rejects.toThrow('at most 120 seconds');
+        await expect(
+            validateReportMediaEvidence({
+                ...report,
+                longAndroidVideos: new Set([evidence]),
+            }),
+        ).resolves.toBeUndefined();
+        const staticHashes = Array.from({ length: 20 }, () => 'same');
+        await expect(
+            validateVideoEvidence(
+                '/tmp/static-android.mp4',
+                runnerFor({
+                    duration: 170,
+                    frameCount: 680,
+                    hashes: staticHashes,
+                }),
+                { allowLongAndroidJourney: true },
+            ),
+        ).rejects.toThrow('at least 3 distinct sampled frames');
+        await expect(
+            validateVideoEvidence('/tmp/too-long-android.mp4', runnerFor({ duration: 181 }), {
+                allowLongAndroidJourney: true,
+            }),
+        ).rejects.toThrow('at most 180 seconds');
     });
 
     it('accepts a bounded clip with enough frames and visible variation', async () => {

@@ -18,6 +18,13 @@ bun run --cwd apps/mobile android:device inspect --serial "$SERIAL"
 Do not use the first result from `adb devices`, Expo's implicit selection, or an Android model name
 as the ADB identity. Keep the exact serial in every command.
 
+For a user-owned wireless device, keep the phone's pairing screen open while completing the Mac
+side. Use Android Studio's Device Manager pairing UI when computer control is available; inspect
+whether that version offers a device `Pair` action or a QR flow, then verify the resulting explicit
+serial with `adb devices -l`. Do not ask the user to switch apps to send a screenshot of a short-lived
+pairing code. The ADB `couldn't read status message` error alone does not identify an expired code,
+phone refusal, or VPN fault; recheck the live pairing service before assigning a cause or retrying.
+
 ## Current release round
 
 For the encrypted pairing and bounded short-reply criterion, initialize the structured report first
@@ -69,6 +76,24 @@ bun run --cwd apps/mobile android:device tap \
 Never upload `uiautomator dump` XML. Raw trees can contain pairing data, visible text, Session names,
 Terminal output, and accessibility descriptions. Prefer semantic identifiers over coordinates; use
 coordinates only after a sanitized inspection proves one unambiguous target.
+On Android 36, deprecated `uiautomator runtest` can abort before executing a test and still print
+`OK (1 test)`; the observed abort was `android.test.RepetitiveTest` resolution failure. Never
+treat that line or a zero ADB exit status as a native assertion. Use the foreground-checked
+`android:device observe` command for focus and private text predicates, and prove a missing target
+on a screen without that control before trusting a new assertion path. React Native exposes `testID`
+as an Android resource ID; `UiSelector.description` queries `contentDescription`
+([Android API](<https://developer.android.com/reference/androidx/test/uiautomator/UiSelector#description(java.lang.String)>)).
+Keep failures attributable to a safe execution stage and a closed reason code; never print raw
+stdout, command arguments, fixture text, or accessibility XML into reports.
+For multiline Unicode in a controlled React Native input, use the Acceptance fixture IME's
+`InputConnection.commitText` path in `e2e/support/mobile-unicode-input.ts`. Focus the resource ID,
+check exact native text through the sanitized observer, then require the React-visible action state
+and resulting product effect. The runner must accept an explicit disposable emulator serial, select
+the fixture IME only after saving the previous default, and restore that default, disable the fixture,
+and uninstall it in cleanup after every outcome. Never select the fixture IME on a real phone; a
+native-only draft remains an execution failure.
+After installing the fixture, discover it with `ime list -a -s`: plain `ime list -s` lists enabled
+methods only, so it hides the newly installed fixture until `ime enable` runs.
 Before diagnosing a missing `testID`, verify the expected screen with a stable route marker. Start
 swipes inside the content area, away from Android's Back gesture edges, and check the route again.
 

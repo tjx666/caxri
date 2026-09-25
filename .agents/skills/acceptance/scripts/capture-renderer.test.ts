@@ -205,9 +205,30 @@ describe('Acceptance Renderer capture', () => {
         );
         forged.result.lines[0].width = 7;
         await writeFile(path, JSON.stringify(forged));
-        await expect(requireCapturePreflight(path)).rejects.toThrow(
-            'does not match its observed fixture',
+        await expect(requireCapturePreflight(path)).rejects.toThrow();
+
+        const ready = createTerminalFixturePreflightReceipt(
+            {
+                columns: 8,
+                domRowCount: 1,
+                firstGridMarker: { columns: 8, generation: 'fixture-3', rows: 1 },
+                generation: 'fixture-3',
+                lines: ['│12345 │'],
+                rows: 1,
+            },
+            'terminal-layout',
         );
+        await writeFile(
+            path,
+            JSON.stringify({ ...ready, fixture: { ...ready.fixture, lines: ['│12345 │'] } }),
+        );
+        await expect(requireCapturePreflight(path)).rejects.toThrow();
+
+        await writeFile(
+            path,
+            JSON.stringify({ ...ready, result: { ...ready.result, status: 'fixture_blocked' } }),
+        );
+        await expect(requireCapturePreflight(path)).rejects.toThrow();
     });
 
     it('captures non-Terminal temporal evidence when the frozen launch plan opts out', async () => {

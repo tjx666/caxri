@@ -58,7 +58,7 @@ const androidCases = {
     'MOB-TERM-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot', 'video'],
-        recordingOwner: 'adapter',
+        recordingOwner: 'scenario',
         scenario: 'terminal-observe-control',
     },
     'MOB-COMPOSER-01': {
@@ -145,6 +145,54 @@ const androidCases = {
         recordingOwner: 'scenario',
         scenario: 'changes-ask-agent-draft-send',
     },
+    'MOB-CROSS-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot', 'video'],
+        recordingOwner: 'scenario',
+        scenario: 'cross-device-new-session',
+    },
+    'MOB-PARTIAL-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'partial-new-session-launch-failure',
+    },
+    'MOB-E2E-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot', 'video'],
+        recordingOwner: 'scenario',
+        scenario: 'journey-phone',
+    },
+    'MOB-E2E-02A': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'journey-background-recovery',
+    },
+    'MOB-E2E-02B': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'journey-network-recovery',
+    },
+    'MOB-E2E-02C': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'journey-desktop-revocation',
+    },
+    'MOB-E2E-02D': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'journey-simultaneous-terminal',
+    },
+    'MOB-E2E-03': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'journey-tablet',
+    },
 } as const satisfies Record<
     string,
     {
@@ -178,7 +226,7 @@ export function mobileAndroidAcceptanceCase(caseId: string): {
 }
 
 /**
- * A Shell fallback frame is owned by its scenario after the formal Terminal fixture preflight.
+ * A Terminal fixture frame is owned by its scenario after the formal fixture preflight.
  */
 export function shouldCaptureAdapterScreenshot(caseId: string, isLifecycleReady: boolean): boolean {
     const definition = mobileAndroidAcceptanceCase(caseId);
@@ -186,7 +234,25 @@ export function shouldCaptureAdapterScreenshot(caseId: string, isLifecycleReady:
         isLifecycleReady &&
         definition.media.includes('screenshot') &&
         definition.scenario !== 'conversation-shell-fallback' &&
-        !caseId.startsWith('MOB-CHANGES-')
+        definition.scenario !== 'terminal-observe-control' &&
+        !caseId.startsWith('MOB-CHANGES-') &&
+        !caseId.startsWith('MOB-E2E-') &&
+        caseId !== 'MOB-CROSS-01' &&
+        caseId !== 'MOB-PARTIAL-01'
+    );
+}
+
+/**
+ * Failed Terminal preflight and scenario execution cannot leave a report-bound recording.
+ */
+export function shouldCollectAndroidVideo(caseId: string, isScenarioSucceeded: boolean): boolean {
+    const definition = mobileAndroidAcceptanceCase(caseId);
+    return (
+        definition.media.includes('video') &&
+        (!['terminal-observe-control', 'journey-phone', 'cross-device-new-session'].includes(
+            definition.scenario,
+        ) ||
+            isScenarioSucceeded)
     );
 }
 

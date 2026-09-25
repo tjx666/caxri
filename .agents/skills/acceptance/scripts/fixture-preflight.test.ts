@@ -4,6 +4,7 @@ import type { TerminalFixture } from './fixture-preflight';
 import {
     createTerminalFixturePreflightReceipt,
     preflightTerminalFixture,
+    verifyTerminalFixturePreflightReceipt,
 } from './fixture-preflight';
 
 function fixture(overrides: Partial<TerminalFixture> = {}): TerminalFixture {
@@ -23,9 +24,9 @@ describe('Acceptance Terminal fixture preflight', () => {
         expect(preflightTerminalFixture(fixture())).toEqual({
             errors: [],
             lines: [
-                { index: 0, width: 8 },
-                { index: 1, width: 8 },
-                { index: 2, width: 8 },
+                { bordersIntact: true, index: 0, width: 8 },
+                { bordersIntact: true, index: 1, width: 8 },
+                { bordersIntact: true, index: 2, width: 8 },
             ],
             status: 'ready',
         });
@@ -73,5 +74,104 @@ describe('Acceptance Terminal fixture preflight', () => {
         expect(() => createTerminalFixturePreflightReceipt(fixture(), 'MOB/SEC/01')).toThrow(
             'ASCII letters, numbers, and hyphens',
         );
+    });
+
+    it('binds an observed Terminal grid to its exact source and isolated launch', () => {
+        const identity = { launchId: 'launch-123', sourceCommit: 'a'.repeat(40) };
+        expect(
+            createTerminalFixturePreflightReceipt(fixture(), 'MOB-TERM-01', identity),
+        ).toMatchObject({
+            caseId: 'MOB-TERM-01',
+            ...identity,
+            result: { status: 'ready' },
+        });
+        expect(() =>
+            createTerminalFixturePreflightReceipt(fixture(), 'MOB-TERM-01', {
+                ...identity,
+                sourceCommit: 'wrong',
+            }),
+        ).toThrow();
+        expect(() =>
+            createTerminalFixturePreflightReceipt(fixture(), 'MOB-TERM-01', {
+                ...identity,
+                launchId: '',
+            }),
+        ).toThrow();
+    });
+
+    it('persists only Terminal row measurements and rejects raw rows or extra receipt fields', () => {
+        const observed = fixture({ lines: ['│opaque│', '│A中🙂 │', '│e\u{301}     │'] });
+        const receipt = createTerminalFixturePreflightReceipt(observed, 'MOB-TERM-01');
+
+        expect(receipt.schemaVersion).toBe(2);
+        expect(receipt.fixture).not.toHaveProperty('lines');
+        expect(receipt.result.lines).toEqual([
+            { bordersIntact: true, index: 0, width: 8 },
+            { bordersIntact: true, index: 1, width: 8 },
+            { bordersIntact: true, index: 2, width: 8 },
+        ]);
+        expect(JSON.stringify(receipt)).not.toContain('opaque');
+        expect(() => verifyTerminalFixturePreflightReceipt(receipt)).not.toThrow();
+        expect(() =>
+            verifyTerminalFixturePreflightReceipt({
+                ...receipt,
+                fixture: { ...receipt.fixture, lines: observed.lines },
+            }),
+        ).toThrow();
+        expect(() =>
+            verifyTerminalFixturePreflightReceipt({ ...receipt, extra: 'untrusted' }),
+        ).toThrow();
+        expect(() =>
+            verifyTerminalFixturePreflightReceipt({
+                ...receipt,
+                fixture: {
+                    ...receipt.fixture,
+                    firstGridMarker: { ...receipt.fixture.firstGridMarker, extra: 'untrusted' },
+                },
+            }),
+        ).toThrow();
+        expect(() =>
+            verifyTerminalFixturePreflightReceipt({
+                ...receipt,
+                result: {
+                    ...receipt.result,
+                    lines: [
+                        { ...receipt.result.lines[0], extra: 'untrusted' },
+                        ...receipt.result.lines.slice(1),
+                    ],
+                },
+            }),
+        ).toThrow();
+        expect(() =>
+            verifyTerminalFixturePreflightReceipt({ ...receipt, schemaVersion: 1 }),
+        ).toThrow();
+    });
+
+    it('recomputes blocked status and errors from persisted row metrics', () => {
+        const receipt = createTerminalFixturePreflightReceipt(
+            fixture({ lines: [' 1234 │', '│A中🙂 │', '│e\u{301}     │'] }),
+            'MOB-TERM-01',
+        );
+
+        expect(receipt.result.lines[0]).toMatchObject({ bordersIntact: false, index: 0 });
+        expect(receipt.result.status).toBe('fixture_blocked');
+        expect(() =>
+            verifyTerminalFixturePreflightReceipt({
+                ...receipt,
+                result: { ...receipt.result, errors: [], status: 'ready' },
+            }),
+        ).toThrow();
+        expect(() =>
+            verifyTerminalFixturePreflightReceipt({
+                ...receipt,
+                result: {
+                    ...receipt.result,
+                    lines: [
+                        { ...receipt.result.lines[0], width: 8 },
+                        ...receipt.result.lines.slice(1),
+                    ],
+                },
+            }),
+        ).toThrow();
     });
 });
