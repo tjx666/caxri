@@ -19,7 +19,7 @@ export const ConversationMarkdown = ({ text, theme }: { text: string; theme: Mob
             },
             fence: { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1 },
             fence_code: { backgroundColor: theme.surface },
-            fence_token: { fontFamily: monospace },
+            fence_token: { color: theme.text, fontFamily: monospace },
             link: { color: theme.primary },
         }),
         [monospace, theme],

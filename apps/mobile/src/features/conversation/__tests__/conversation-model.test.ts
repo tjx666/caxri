@@ -103,8 +103,9 @@ describe('Conversation projection', () => {
     });
 
     it('follows only near the bottom and offers the jump after unseen content', () => {
-        expect(shouldFollowConversation(70)).toBe(true);
-        expect(shouldFollowConversation(120)).toBe(false);
+        expect(shouldFollowConversation(70, 720)).toBe(true);
+        expect(shouldFollowConversation(120, 720)).toBe(false);
+        expect(shouldFollowConversation(70, 600)).toBe(false);
         expect(shouldShowConversationJump(false, true)).toBe(true);
         expect(shouldShowConversationJump(true, true)).toBe(false);
         expect(shouldShowConversationJump(false, false)).toBe(false);

@@ -148,6 +148,24 @@ async function scrollToConversationId(
     throw new Error(`Conversation item ${prefix} was not rendered after bounded scrolling`);
 }
 
+async function assertConversationContentDuringPause(serial: string): Promise<void> {
+    const deadline = Date.now() + 2_500;
+    let blankSince: number | undefined;
+    do {
+        // eslint-disable-next-line no-await-in-loop -- consecutive observations detect a sustained virtual-list blank.
+        const nodes = await mobileSemantics(serial);
+        if (nodes.some(({ checkId }) => checkId.startsWith('conversation-agent-'))) {
+            blankSince = undefined;
+        } else {
+            blankSince ??= Date.now();
+            if (Date.now() - blankSince >= 900)
+                throw new Error('Conversation content remained blank during history scrolling');
+        }
+        // eslint-disable-next-line no-await-in-loop -- the next sample measures the same stationary viewport.
+        await new Promise((resolve) => setTimeout(resolve, 150));
+    } while (Date.now() < deadline);
+}
+
 async function capturedHash(environment: ScenarioEnvironment, label: string) {
     const frame = await readFile(
         join(environment.assetsDirectory, `${environment.caseId}-${label}-android.png`),
@@ -456,6 +474,7 @@ export async function executeMobileConversationScenario(
                 }
                 await fixture.appendTranscript(conversationAgentRecords(511, 1));
                 await waitForConversationId(environment.serial, 'conversation-jump-latest');
+                await assertConversationContentDuringPause(environment.serial);
                 await tapMobileCheck(environment.serial, 'conversation-jump-latest');
                 const latest = (await fixture.readTimeline()).items.at(-1);
                 if (!latest) throw new Error('Synthetic latest Conversation item is empty');

@@ -94,8 +94,16 @@ export const visibleConversationStatus = (
 ): ConversationAvailability =>
     isObservable || shouldFallbackToTerminal(status) ? status : 'stale';
 
-export const shouldFollowConversation = (distanceFromBottom: number): boolean =>
-    distanceFromBottom <= 72;
+/**
+ * FlashList measures autoscroll thresholds in viewport lengths; share that unit with the Jump control.
+ * https://github.com/Shopify/flash-list/blob/v2.0.2/src/recyclerview/hooks/useBoundDetection.ts
+ */
+export const CONVERSATION_FOLLOW_THRESHOLD = 0.1;
+
+export const shouldFollowConversation = (
+    distanceFromBottom: number,
+    viewportHeight: number,
+): boolean => distanceFromBottom <= viewportHeight * CONVERSATION_FOLLOW_THRESHOLD;
 
 export const shouldShowConversationJump = (isAtBottom: boolean, hasNewContent: boolean): boolean =>
     !isAtBottom && hasNewContent;
