@@ -2,8 +2,7 @@ import type { Principal } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
 import type { AgentEndpointLifecycle } from './agent-endpoints';
-import type { AgentTimelineService } from './agents/timeline';
-import type { AgentTranscriptWatcher } from './agents/transcript-watcher';
+import type { AgentTimelineService, AgentTranscriptWatcher } from './agents';
 import type { ConfigService } from './config';
 import type { CaxriDatabase } from './db';
 import type { DomainHandlers } from './domain-services';
