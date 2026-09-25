@@ -13,6 +13,7 @@ import {
     completeCaseLifecycle,
     markCaseLifecycleReady,
 } from './case-lifecycle';
+import { createTerminalFixturePreflightReceipt } from './fixture-preflight';
 import type { InitializeReportInput } from './report';
 import { finalizeReport, initializeReport } from './report';
 
@@ -447,6 +448,252 @@ describe('Acceptance mobile report scaffold', () => {
         );
         await expect(finalizeReport({ directory, requirement })).rejects.toThrow(
             'mobile device receipt does not match the frozen plan',
+        );
+    });
+
+    it('keeps a passed device outcome partial when planned progress evidence is missing', async () => {
+        const directory = await reportDirectory();
+        const caseId = 'android-session-progress';
+        const mobilePlan = {
+            category: '移动端 Session',
+            expected: '新 Session 的创建进度可见。',
+            id: caseId,
+            method: '在指定 Android 模拟器上创建 Session 并观察进度。',
+            mobileDevice: {
+                appId: 'com.caxri.mobile',
+                deviceId: 'emulator-5554',
+                platform: 'android',
+            },
+            requiredEvidence: ['screenshot'],
+            stateIsolation: { mode: 'isolated' },
+            surface: 'mobile',
+            title: 'Android 新 Session 创建进度',
+            verifier: 'agent',
+        } satisfies InitializeReportInput['plan'][number];
+        await initialize(directory, [mobilePlan]);
+        const resultPath = join(directory, 'result.json');
+        const result = parseReport(await readFile(resultPath, 'utf8'));
+        const lifecycle = await writeIsolatedLifecycle(directory, caseId);
+        const deviceEvidence = `assets/${caseId}-mobile-device.json`;
+        const observationEvidence = 'assets/session-progress-observation.txt';
+        const blockedCase = {
+            blockedReason: 'plan-evidence-gap',
+            category: mobilePlan.category,
+            evidence: citeEvidenceList([deviceEvidence, lifecycle.evidence, observationEvidence]),
+            id: caseId,
+            name: mobilePlan.title,
+            observation:
+                '设备成功创建新 Session，但录制从完成后的页面开始，缺少计划要求的创建进度画面。',
+            status: 'blocked',
+            surface: 'mobile',
+        };
+        const deviceReceipt = {
+            appId: 'com.caxri.mobile',
+            artifacts: [],
+            build: { identity: 'apk-sha256', mode: 'release' },
+            caseId,
+            cleanup: { appData: 'cleared', desktopProfile: 'isolated-and-removed' },
+            device: { id: 'emulator-5554', kind: 'emulator', platform: 'android' },
+            launchId: lifecycle.launchId,
+            outcome: 'session-created-after-progress-state-was-missed',
+            schemaVersion: 1,
+            sourceCommit: reportCommit,
+            status: 'passed',
+        };
+        result.cases[0] = blockedCase;
+        await Promise.all([
+            writeFile(resultPath, `${JSON.stringify(result, null, 2)}\n`),
+            writeFile(join(directory, deviceEvidence), JSON.stringify(deviceReceipt)),
+            writeFile(
+                join(directory, observationEvidence),
+                'Session was created, but the progress state was not captured.\n',
+            ),
+        ]);
+
+        await expect(finalizeReport({ directory, requirement })).resolves.toMatchObject({
+            summary: { blocked: 1, passed: 0, verdict: 'partial' },
+        });
+
+        result.cases[0] = {
+            ...blockedCase,
+            observation: '验收被阻断。',
+        };
+        await writeFile(resultPath, `${JSON.stringify(result, null, 2)}\n`);
+        await expect(finalizeReport({ directory, requirement })).rejects.toThrow(
+            'plan-evidence-gap needs a concrete observation and supporting evidence',
+        );
+
+        result.cases[0] = {
+            ...blockedCase,
+            evidence: citeEvidenceList([deviceEvidence, lifecycle.evidence]),
+        };
+        await writeFile(resultPath, `${JSON.stringify(result, null, 2)}\n`);
+        await expect(finalizeReport({ directory, requirement })).rejects.toThrow(
+            'plan-evidence-gap needs a concrete observation and supporting evidence',
+        );
+
+        result.cases[0] = { ...blockedCase, blockedReason: undefined };
+        await writeFile(resultPath, `${JSON.stringify(result, null, 2)}\n`);
+        await expect(finalizeReport({ directory, requirement })).rejects.toThrow(
+            'mobile device receipt does not match the frozen plan',
+        );
+
+        result.cases[0] = { ...blockedCase, status: 'pass' };
+        await writeFile(resultPath, `${JSON.stringify(result, null, 2)}\n`);
+        await expect(finalizeReport({ directory, requirement })).rejects.toThrow(
+            'plan-evidence-gap is only valid for a blocked mobile case',
+        );
+
+        result.cases[0] = blockedCase;
+        await writeFile(resultPath, `${JSON.stringify(result, null, 2)}\n`);
+        await writeFile(
+            join(directory, deviceEvidence),
+            JSON.stringify({ ...deviceReceipt, sourceCommit: 'b'.repeat(40) }),
+        );
+        await expect(finalizeReport({ directory, requirement })).rejects.toThrow(
+            'mobile device receipt does not match the frozen plan',
+        );
+
+        await writeFile(join(directory, deviceEvidence), JSON.stringify(deviceReceipt));
+        await rm(join(directory, deviceEvidence));
+        await expect(finalizeReport({ directory, requirement })).rejects.toThrow(
+            'Evidence file does not exist',
+        );
+
+        const screenshotEvidence = 'assets/session-created.png';
+        result.cases[0] = {
+            ...blockedCase,
+            evidence: citeEvidenceList([
+                deviceEvidence,
+                lifecycle.evidence,
+                observationEvidence,
+                screenshotEvidence,
+            ]),
+        };
+        const receiptWithMedia = {
+            ...deviceReceipt,
+            artifacts: [
+                {
+                    path: screenshotEvidence,
+                    sha256: createHash('sha256').update(VALID_PNG).digest('hex'),
+                    source: 'android-framebuffer',
+                    type: 'screenshot',
+                },
+            ],
+        };
+        await Promise.all([
+            writeFile(resultPath, `${JSON.stringify(result, null, 2)}\n`),
+            writeFile(join(directory, deviceEvidence), JSON.stringify(receiptWithMedia)),
+            writeFile(join(directory, screenshotEvidence), VALID_PNG),
+        ]);
+        await expect(finalizeReport({ directory, requirement })).resolves.toMatchObject({
+            summary: { blocked: 1, verdict: 'partial' },
+        });
+        await writeFile(
+            join(directory, deviceEvidence),
+            JSON.stringify({
+                ...receiptWithMedia,
+                artifacts: [{ ...receiptWithMedia.artifacts[0], sha256: '0'.repeat(64) }],
+            }),
+        );
+        await expect(finalizeReport({ directory, requirement })).rejects.toThrow(
+            'mobile media evidence is not device-bound',
+        );
+    });
+
+    it('binds a ready Terminal preflight to the exact report commit and final launch', async () => {
+        const directory = await reportDirectory();
+        const caseId = 'android-terminal-grid';
+        const mobilePlan = {
+            category: '移动端终端',
+            expected: '合成终端网格完整显示。',
+            fixturePreflight: 'terminal',
+            id: caseId,
+            method: '在指定安卓模拟器上检查合成终端。',
+            mobileDevice: {
+                appId: 'com.caxri.mobile',
+                deviceId: 'emulator-5554',
+                platform: 'android',
+            },
+            requiredEvidence: ['text'],
+            stateIsolation: { mode: 'isolated' },
+            surface: 'mobile',
+            title: '安卓合成终端网格完整显示',
+            verifier: 'agent',
+        } satisfies InitializeReportInput['plan'][number];
+        await initialize(directory, [mobilePlan]);
+        const resultPath = join(directory, 'result.json');
+        const result = parseReport(await readFile(resultPath, 'utf8'));
+        const lifecycle = await writeIsolatedLifecycle(directory, caseId);
+        const deviceEvidence = `assets/${caseId}-mobile-device.json`;
+        const preflightEvidence = `assets/${caseId}-fixture-preflight.json`;
+        result.cases[0] = {
+            category: mobilePlan.category,
+            evidence: citeEvidenceList([
+                lifecycle.evidence,
+                deviceEvidence,
+                preflightEvidence,
+                'assets/terminal-observation.txt',
+            ]),
+            id: caseId,
+            name: mobilePlan.title,
+            observation: '合成网格已准备就绪，设备显示完整菜单。',
+            status: 'pass',
+            surface: 'mobile',
+        };
+        const preflight = createTerminalFixturePreflightReceipt(
+            {
+                columns: 8,
+                domRowCount: 1,
+                firstGridMarker: { columns: 8, generation: 'grid-1', rows: 1 },
+                generation: 'grid-1',
+                lines: ['│12345 │'],
+                rows: 1,
+            },
+            caseId,
+            { launchId: lifecycle.launchId, sourceCommit: reportCommit },
+        );
+        await Promise.all([
+            writeFile(resultPath, `${JSON.stringify(result, null, 2)}\n`),
+            writeFile(
+                join(directory, deviceEvidence),
+                JSON.stringify({
+                    appId: 'com.caxri.mobile',
+                    artifacts: [],
+                    build: { identity: 'apk-sha256', mode: 'release' },
+                    caseId,
+                    cleanup: { appData: 'cleared', desktopProfile: 'isolated-and-removed' },
+                    device: { id: 'emulator-5554', kind: 'emulator', platform: 'android' },
+                    launchId: lifecycle.launchId,
+                    outcome: 'synthetic-grid-visible',
+                    schemaVersion: 1,
+                    sourceCommit: reportCommit,
+                    status: 'passed',
+                }),
+            ),
+            writeFile(join(directory, preflightEvidence), JSON.stringify(preflight)),
+            writeFile(
+                join(directory, 'assets/terminal-observation.txt'),
+                'Synthetic grid observed.',
+            ),
+        ]);
+
+        await expect(finalizeReport({ directory, requirement })).resolves.toMatchObject({
+            summary: { verdict: 'pass' },
+        });
+        await writeFile(
+            join(directory, preflightEvidence),
+            JSON.stringify({ ...preflight, sourceCommit: 'b'.repeat(40) }),
+        );
+        await expect(finalizeReport({ directory, requirement })).rejects.toThrow(
+            'fixture preflight does not match the report commit or final launch',
+        );
+        await writeFile(
+            join(directory, preflightEvidence),
+            JSON.stringify({ ...preflight, launchId: 'stale-launch' }),
+        );
+        await expect(finalizeReport({ directory, requirement })).rejects.toThrow(
+            'fixture preflight does not match the report commit or final launch',
         );
     });
 

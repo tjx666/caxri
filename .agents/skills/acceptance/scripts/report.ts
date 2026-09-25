@@ -19,11 +19,7 @@ import {
     terminalFixturePreflightReceiptSchema,
 } from './fixture-preflight';
 import { validateReportMediaEvidence } from './media-integrity';
-import {
-    hasMobileDeviceReceipt,
-    mobileDeviceSchema,
-    validateMobileEvidence,
-} from './mobile-report';
+import { mobileDeviceSchema, validateMobileCaseEvidence } from './mobile-report';
 import { changedPathsBetween } from './rebind-delta';
 import type { RebindReportHeadInput } from './report-head';
 import { rebindReportDocument } from './report-head';
@@ -57,9 +53,18 @@ const REQUIRED_EVIDENCE_TYPES = [
     'markdown',
     'dom_snapshot',
 ] as const;
+const MEDIA_SOURCES = [
+    'android-framebuffer',
+    'ios-simulator-framebuffer',
+    'isolated-desktop-renderer',
+] as const;
 const requiredEvidenceSchema = z.union([
     z.enum(REQUIRED_EVIDENCE_TYPES),
-    z.object({ hint: z.string().optional(), type: z.enum(REQUIRED_EVIDENCE_TYPES) }),
+    z.object({
+        hint: z.string().optional(),
+        source: z.enum(MEDIA_SOURCES).optional(),
+        type: z.enum(REQUIRED_EVIDENCE_TYPES),
+    }),
 ]);
 const planItemSchema = z
     .looseObject({
@@ -95,15 +100,15 @@ const planItemSchema = z
         }
     });
 /**
- * Every file submission carries a reviewer-facing description. The legacy bare-path form is rejected rather than
- * accepted for compatibility: ingest falls back to the filename, which tells a reviewer nothing about what the artifact
- * shows, and Caxri has no released rounds to keep working.
+ * Every cited file needs a reviewer-facing description; a bare filename conveys no observation.
  */
 const evidenceSchema = z.looseObject({
     description: z.string().trim().min(1),
     path: z.string().min(1),
+    source: z.enum(MEDIA_SOURCES).optional(),
 });
 const caseSchema = z.looseObject({
+    blockedReason: z.literal('plan-evidence-gap').optional(),
     category: z.string().min(1),
     evidence: z.array(evidenceSchema).min(1),
     id: z.string().min(1),
@@ -145,11 +150,6 @@ export interface FinalizeReportInput {
     directory: string;
     requirement: string;
 }
-/**
- * `lh acceptance run ingest` posts `proposal.md` into the acceptance discussion as this round's note to the reviewer,
- * so it is the first thing a person reads and the place they answer. The scaffold writes this placeholder and
- * `finalize` refuses it: an auto-generated "nothing to add" line would otherwise become a real message on the thread.
- */
 const PROPOSAL_PLACEHOLDER = '待补充：本轮交付了什么，希望评审者重点看哪里。';
 
 function preflightEvidencePath(caseId: string): string {
@@ -157,10 +157,7 @@ function preflightEvidencePath(caseId: string): string {
 }
 
 /**
- * Suffixes of the receipts that only record that the adapter's own machinery ran — which profile was used, that the
- * fixture came up, that cleanup completed. They say nothing about what the product did, so they cannot stand in for an
- * observation. The mobile device receipt is deliberately absent: it carries an `outcome`, which is a real record of
- * what happened on the selected target.
+ * Adapter lifecycle receipts cannot prove product outcomes; the mobile device receipt can.
  */
 const LIFECYCLE_RECEIPT_SUFFIXES = [
     '-state-isolation.json',
@@ -171,6 +168,7 @@ const LIFECYCLE_RECEIPT_SUFFIXES = [
 function isLifecycleReceipt(path: string): boolean {
     return LIFECYCLE_RECEIPT_SUFFIXES.some((suffix) => path.endsWith(suffix));
 }
+
 export async function loadAcceptanceCasePlan(
     reportDirectory: string,
     caseId: string,
@@ -361,18 +359,14 @@ async function validateEvidenceFile(directory: string, evidence: string): Promis
     if (!metadata.isFile()) throw new Error(`Evidence path is not a file: ${evidence}`);
     return evidenceTypeForPath(evidence);
 }
-function requiredEvidenceTypes(plan: PlanItem): RequiredEvidenceType[] {
+function requiredEvidenceTypes(plan: PlanItem) {
     return plan.requiredEvidence.map((evidence) =>
-        typeof evidence === 'string' ? evidence : evidence.type,
+        typeof evidence === 'string' ? { type: evidence } : evidence,
     );
 }
 
 /**
- * Reads one receipt that only exists because the case actually executed — a launch lifecycle or a fixture preflight.
- * The adapter writes it during execution, so a case blocked before that point cannot have one, and demanding it
- * unconditionally would leave the honest blocked round `SKILL.md` asks for impossible to finalize. Absence is accepted
- * only for `blocked`; the moment the file exists the case did execute, so it must declare the receipt and pass every
- * check below. Returns `null` when the case is legitimately blocked without the receipt.
+ * A blocked case may lack an execution receipt, but any receipt on disk must be cited and validated.
  */
 async function readExecutionReceipt(
     directory: string,
@@ -386,11 +380,6 @@ async function readExecutionReceipt(
     } catch (error: unknown) {
         if (errorCode(error) !== 'ENOENT') throw error;
         if (acceptanceCase.status === 'blocked') return null;
-        /**
-         * A case that reached a verdict but never produced the receipt is the ordinary authoring mistake, so it still
-         * gets the contract message rather than a bare ENOENT. A declared path that is missing on disk was already
-         * rejected by the per-file evidence check.
-         */
         throw new Error(missingMessage, { cause: error });
     }
     if (acceptanceCase.evidence.every((item) => evidencePath(item) !== evidence)) {
@@ -403,6 +392,7 @@ async function validateFixturePreflightEvidence(
     directory: string,
     plan: PlanItem,
     acceptanceCase: AcceptanceCase,
+    reportCommit: string | undefined,
 ): Promise<void> {
     if (plan.fixturePreflight !== 'terminal') return;
     const rawReceiptText = await readExecutionReceipt(
@@ -414,13 +404,28 @@ async function validateFixturePreflightEvidence(
     if (rawReceiptText === null) return;
     const rawReceipt: unknown = JSON.parse(rawReceiptText);
     const receipt = terminalFixturePreflightReceiptSchema.parse(rawReceipt);
-    const verified = createTerminalFixturePreflightReceipt(receipt.fixture, receipt.caseId);
+    const lifecyclePath = join(directory, lifecycleEvidencePath(plan.id));
+    const lifecycleText = await readFile(lifecyclePath, 'utf8');
+    const lifecycle: unknown = JSON.parse(lifecycleText);
+    const finalLaunchId = caseLifecycleReceiptSchema.parse(lifecycle).launches.at(-1)?.id;
+    const verified = createTerminalFixturePreflightReceipt(
+        receipt.fixture,
+        receipt.caseId,
+        receipt.launchId && receipt.sourceCommit
+            ? { launchId: receipt.launchId, sourceCommit: receipt.sourceCommit }
+            : undefined,
+    );
     if (
         receipt.caseId !== plan.id ||
         receipt.result.status !== 'ready' ||
         JSON.stringify(receipt) !== JSON.stringify(verified)
     ) {
         throw new Error(`Case ${plan.id} fixture preflight is blocked`);
+    }
+    if (receipt.sourceCommit !== reportCommit || receipt.launchId !== finalLaunchId) {
+        throw new Error(
+            `Case ${plan.id} fixture preflight does not match the report commit or final launch`,
+        );
     }
 }
 
@@ -476,49 +481,6 @@ async function validateCaseLifecycleEvidence(
     }
 }
 
-async function validateMobileDeviceEvidence(
-    directory: string,
-    plan: PlanItem,
-    acceptanceCase: AcceptanceCase,
-    reportCommit: string | undefined,
-): Promise<void> {
-    if (plan.surface !== 'mobile') return;
-    const expectedDevice = plan.mobileDevice;
-    if (!expectedDevice) throw new Error(`Case ${plan.id} is missing its mobile device plan`);
-    /**
-     * A mobile case blocked before the selected target ever ran has no device receipt and no launch lifecycle to read,
-     * so demanding either would make the honest blocked round impossible to finalize on mobile exactly as it was on
-     * desktop. The receipt on disk is the proof it ran.
-     */
-    if (
-        acceptanceCase.status === 'blocked' &&
-        !(await hasMobileDeviceReceipt(directory, plan.id))
-    ) {
-        return;
-    }
-    let evidenceBinding: { checkpointId: string } | { launchId: string };
-    if (plan.stateIsolation.mode === 'readonly_checkpoint') {
-        evidenceBinding = { checkpointId: plan.stateIsolation.checkpointId };
-    } else {
-        const lifecyclePath = join(directory, lifecycleEvidencePath(plan.id));
-        const lifecycle: unknown = JSON.parse(await readFile(lifecyclePath, 'utf8'));
-        const finalLaunchId = caseLifecycleReceiptSchema.parse(lifecycle).launches.at(-1)?.id;
-        if (!finalLaunchId) throw new Error(`Case ${plan.id} lifecycle has no launch`);
-        evidenceBinding = { launchId: finalLaunchId };
-    }
-    await validateMobileEvidence({
-        caseId: plan.id,
-        device: expectedDevice,
-        directory,
-        evidenceBinding,
-        evidencePaths: acceptanceCase.evidence.map(evidencePath),
-        expectedStatus: ({ blocked: 'blocked', fail: 'failed', pass: 'passed' } as const)[
-            acceptanceCase.status
-        ],
-        reportCommit,
-    });
-}
-
 function summaryFor(cases: AcceptanceCase[], conclusion?: string) {
     const counts: Record<CaseStatus, number> = { blocked: 0, fail: 0, pass: 0 };
     for (const item of cases) counts[item.status] += 1;
@@ -566,6 +528,8 @@ export async function finalizeReport(input: FinalizeReportInput) {
         throw new Error('Case ids and order must exactly match the frozen plan');
     }
 
+    const staticDesktopVideos = new Map<string, number>();
+    const longAndroidVideos = new Set<string>();
     for (const [index, item] of report.cases.entries()) {
         const planned = report.plan[index];
         if (
@@ -577,33 +541,60 @@ export async function finalizeReport(input: FinalizeReportInput) {
                 `Case ${item.id} title, category, and surface must match the frozen plan`,
             );
         }
-        const actualTypes = new Set<string>();
+        if (item.blockedReason) {
+            if (item.status !== 'blocked' || item.surface !== 'mobile') {
+                throw new Error(
+                    `Case ${item.id} plan-evidence-gap is only valid for a blocked mobile case`,
+                );
+            }
+            const deviceReceipt = `assets/${encodeURIComponent(item.id)}-mobile-device.json`;
+            const resultReceipt = `assets/${encodeURIComponent(item.id)}-result.json`;
+            const hasSupport = item.evidence.some((evidence) => {
+                const path = evidencePath(evidence);
+                return (
+                    !isLifecycleReceipt(path) && path !== deviceReceipt && path !== resultReceipt
+                );
+            });
+            if (!hasSupport || item.observation.trim().length < 20) {
+                throw new Error(
+                    `Case ${item.id} plan-evidence-gap needs a concrete observation and supporting evidence`,
+                );
+            }
+        }
+        const actualEvidence: Array<{ source?: (typeof MEDIA_SOURCES)[number]; type: string }> = [];
         for (const evidence of item.evidence) {
             // Sequential await preserves deterministic, index-ordered failure reporting when
             // multiple evidence entries are invalid; Promise.all would report whichever
             // filesystem check settles first instead of the first evidence entry in plan order.
             // eslint-disable-next-line no-await-in-loop
-            actualTypes.add(await validateEvidenceFile(directory, evidencePath(evidence)));
+            const type = await validateEvidenceFile(directory, evidencePath(evidence));
+            actualEvidence.push({ source: evidence.source, type });
         }
-        /**
-         * `requiredEvidence` names the medium that would show the planned behavior, so it only applies to a case that
-         * reached a verdict about that behavior. A `blocked` case is the one that could not, and the schema's `min(1)`
-         * plus the per-file check above still keep it from declaring nothing; demanding the unreachable medium would
-         * leave "could not observe this" with no representable outcome.
-         */
         const missing =
             item.status === 'blocked'
                 ? []
-                : requiredEvidenceTypes(planned).filter((required) => !actualTypes.has(required));
+                : requiredEvidenceTypes(planned).filter((required) =>
+                      actualEvidence.every(
+                          (actual) =>
+                              !(
+                                  actual.type === required.type &&
+                                  (!('source' in required) ||
+                                      !required.source ||
+                                      actual.source === required.source)
+                              ),
+                      ),
+                  );
         if (missing.length > 0) {
-            throw new Error(`Case ${item.id} is missing required evidence: ${missing.join(', ')}`);
+            throw new Error(
+                `Case ${item.id} is missing required evidence: ${missing
+                    .map(({ type, ...required }) =>
+                        'source' in required && required.source
+                            ? `${type}:${required.source}`
+                            : type,
+                    )
+                    .join(', ')}`,
+            );
         }
-        /**
-         * The medium is waived for `blocked`, so without this the schema's `min(1)` could be met by an
-         * adapter-generated receipt alone. Those files record that the machinery ran; they say nothing about the
-         * behavior. A blocked case must still show why it could not observe it — the covering test's result, a log
-         * excerpt, the extracted copy.
-         */
         if (
             item.status === 'blocked' &&
             item.evidence.every((evidence) => isLifecycleReceipt(evidencePath(evidence)))
@@ -615,7 +606,7 @@ export async function finalizeReport(input: FinalizeReportInput) {
         // Sequential await preserves deterministic, plan-ordered failure reporting across cases;
         // see the evidence-file validation loop above for the same rationale.
         // eslint-disable-next-line no-await-in-loop
-        await validateFixturePreflightEvidence(directory, planned, item);
+        await validateFixturePreflightEvidence(directory, planned, item, reportCommit);
         // eslint-disable-next-line no-await-in-loop
         await validateAgentFixtureEvidence(directory, {
             caseId: planned.id,
@@ -626,14 +617,30 @@ export async function finalizeReport(input: FinalizeReportInput) {
         // eslint-disable-next-line no-await-in-loop
         await validateCaseLifecycleEvidence(directory, planned, item);
         // eslint-disable-next-line no-await-in-loop
-        await validateMobileDeviceEvidence(directory, planned, item, reportCommit);
+        const validatedMedia = await validateMobileCaseEvidence({
+            blockedReason: item.blockedReason,
+            caseId: planned.id,
+            device: planned.mobileDevice,
+            directory,
+            evidence: item.evidence.map(({ path, source }) => ({ path, source })),
+            reportCommit,
+            stateIsolation: planned.stateIsolation,
+            status: item.status,
+            surface: planned.surface,
+        });
+        for (const [path, durationMs] of validatedMedia.staticDesktopVideos) {
+            staticDesktopVideos.set(path, durationMs);
+        }
+        for (const path of validatedMedia.longAndroidVideos) longAndroidVideos.add(path);
         validateCaseVisualizations(visualizationCaseSchema.parse(item));
     }
 
     await validateReportMediaEvidence({
         cases: report.cases,
         directory,
+        longAndroidVideos,
         plans: report.plan,
+        staticDesktopVideos,
     });
 
     if (proposal.trim() === PROPOSAL_PLACEHOLDER) {

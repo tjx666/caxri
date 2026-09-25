@@ -96,7 +96,12 @@ Its case evidence must include `assets/<case-id>-mobile-device.json`. Finalizati
 receipt and rejects a different platform, app id, device id, report commit, or final lifecycle
 launch. For `readonly_checkpoint`, it instead requires the frozen checkpoint id and no lifecycle
 receipt. When `assets/<case-id>-result.json` is cited, finalization binds it to the same commit and
-isolation identity. Every cited mobile screenshot or recording must have one matching receipt entry:
+isolation identity. A mobile plan may freeze media provenance, for example
+`{"type":"screenshot","source":"android-framebuffer"}` and
+`{"type":"screenshot","source":"isolated-desktop-renderer"}`. A source-qualified requirement
+needs a cited media entry with the same `source`, so a Desktop image cannot satisfy an Android
+image requirement. Every cited Android or iOS screenshot or recording must have one matching device
+receipt entry:
 
 ```json
 {
@@ -107,10 +112,22 @@ isolation identity. Every cited mobile screenshot or recording must have one mat
 }
 ```
 
-The artifact list must match the cited mobile media exactly. Finalization recomputes each hash,
-requires Android or iOS Simulator framebuffer provenance to match the frozen platform, and accepts
-mobile screenshots only as PNG framebuffer bytes. This binds screenshots and behavior to the
-selected target instead of an ambient emulator, Simulator, stale install, or prior retry.
+The device artifact list must match the cited device media exactly. Finalization recomputes each
+hash, requires framebuffer provenance to match the frozen platform, and accepts mobile screenshots
+only as PNG framebuffer bytes. When the case also cites isolated Desktop media, include
+`assets/<case-id>-desktop-capture.json` and tag each Desktop media evidence entry with
+`"source":"isolated-desktop-renderer"`. That receipt must bind the same case, report commit,
+launch id, mobile device serial, removed Desktop profile, process start identity, CDP target, and
+selected Session identity. It lists exactly the `before` and `after` PNGs, plus an optional
+full-duration `assets/MOB-E2E-01-desktop.mp4` for `MOB-E2E-01`. Each listed media path and hash is
+verified separately; the Desktop files cannot enter the device artifact list. The optional Desktop
+video may be visually static because it proves a stable selection. Only a verified Desktop capture
+receipt grants that exception; duration and frame-count checks still run, and the probed duration
+must match the receipt within 750 ms. Its recording receipt also binds the exact start/end interval,
+2 Hz encoded sample count, at least two live Renderer samples, and a maximum 1500 ms gap between
+live captures. `MOB-E2E-01` may carry an Android framebuffer recording up to 180 seconds only when
+that canonical video is in its verified device receipt. The usual 120-second limit remains for
+other videos, and the Android journey still needs enough distinct frames to show real interaction.
 
 Create the round scaffold only after the plan is frozen:
 
@@ -198,7 +215,8 @@ status needs evidence, and every artifact path is relative to the round director
 For isolated and restart cases, include the adapter-generated
 `assets/<case-id>-state-isolation.json`; finalization requires completed cleanup and, for restart,
 one exact profile identity across launches. A plan with `fixturePreflight: terminal` must also
-include the ready `assets/<case-id>-fixture-preflight.json` receipt.
+include the ready `assets/<case-id>-fixture-preflight.json` receipt, bound to the report commit and
+final launch id.
 
 `blocked` is the status for a case whose planned observation could not be made, so finalization
 asks it for what it does have rather than for what it could not produce. It does not have to
@@ -213,6 +231,14 @@ A blocked case still owes at least one real evidence file that supports its obse
 covering focused test's result, a log excerpt, the extracted copy. The launch, fixture preflight,
 and Agent fixture receipts do not count: they record that the adapter's own machinery ran, not what
 the product did. The mobile device receipt does count, because it carries the target's `outcome`.
+
+For a mobile action that succeeded on the selected device but missed a specific observation frozen
+in the plan, set the formal case to `"status": "blocked"` and add
+`"blockedReason": "plan-evidence-gap"`. Describe the missing observation concretely and cite a
+supporting artifact beyond adapter and device receipts. The device receipt must exist and retain
+`"status": "passed"`; the formal round remains `partial`. This exception does not relax the
+frozen case, device, commit, launch, cleanup, or media provenance and hash checks. Without this
+reason, a blocked case still requires a blocked device receipt when the device was reached.
 
 A plan may declare `agentFixture: "agent-features-v1"` for fake Claude Code or Codex processes,
 `agentFixture: "agent-delegation-v1"` for visible Claude/Codex/Grok task delegation with a synthetic caller,

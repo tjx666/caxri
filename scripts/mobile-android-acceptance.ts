@@ -30,6 +30,7 @@ import {
     mobileAndroidAcceptanceCase,
     parseMobileAndroidCaseIds,
     shouldCaptureAdapterScreenshot,
+    shouldCollectAndroidVideo,
 } from './mobile-android-cases';
 
 const root = resolve(import.meta.dirname, '..');
@@ -388,7 +389,7 @@ async function executeCase(
     } finally {
         const activeRecording = recording;
         const collected = await collectMobileAcceptanceArtifacts({
-            captureRecording: definition.media.includes('video')
+            captureRecording: shouldCollectAndroidVideo(caseId, failure === undefined)
                 ? async () => {
                       await activeRecording?.stop();
                       run(

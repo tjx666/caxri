@@ -6,6 +6,8 @@ import { extname, join } from 'node:path';
 
 import { z } from 'zod';
 
+import type { StateIsolation } from './case-lifecycle';
+import { caseLifecycleReceiptSchema, lifecycleEvidencePath } from './case-lifecycle';
 import { assertDecodablePng } from './png-integrity';
 import { errorCode } from './report-paths';
 
@@ -26,6 +28,48 @@ const mobileArtifactSchema = z.object({
     source: z.enum(['android-framebuffer', 'ios-simulator-framebuffer']),
     type: z.enum(['screenshot', 'video']),
 });
+
+const desktopArtifactSchema = z.object({
+    path: z.string().startsWith('assets/'),
+    sha256: z.string().regex(/^[0-9a-f]{64}$/u),
+    source: z.literal('isolated-desktop-renderer'),
+    type: z.enum(['screenshot', 'video']),
+});
+
+const desktopCaptureReceiptSchema = z.object({
+    appId: z.literal('com.caxri.mobile'),
+    artifacts: z.array(desktopArtifactSchema).min(2).max(3),
+    caseId: z.string().min(1),
+    cleanup: z.object({ desktopProfile: z.literal('removed') }),
+    desktop: z.object({
+        pid: z.number().int().positive(),
+        processStartedAt: z.string().min(1),
+        profileIdentity: z.string().regex(/^[0-9a-f]{64}$/u),
+        targetId: z.string().min(1),
+    }),
+    launchId: z.string().min(1),
+    recording: z
+        .object({
+            actualSampleCount: z.number().int().min(2),
+            durationMs: z.number().int().min(3_000).max(180_000),
+            endedAt: z.iso.datetime(),
+            maxSampleGapMs: z.number().int().nonnegative().max(1_500),
+            sampleCount: z.number().int().positive(),
+            sampleRate: z.literal(2),
+            startedAt: z.iso.datetime(),
+        })
+        .optional(),
+    schemaVersion: z.literal(1),
+    selectedSessionIdentity: z.string().regex(/^[0-9a-f]{64}$/u),
+    serial: z.string().min(1),
+    sourceCommit: z.string().regex(/^[0-9a-f]{40}$/iu),
+});
+
+type MediaSource = z.infer<typeof mobileArtifactSchema>['source'] | 'isolated-desktop-renderer';
+interface CitedEvidence {
+    path: string;
+    source?: MediaSource;
+}
 
 export const mobileDeviceReceiptSchema = z
     .object({
@@ -105,13 +149,14 @@ async function sha256(path: string): Promise<string> {
 async function validateMobileArtifacts(input: {
     artifacts: Array<z.infer<typeof mobileArtifactSchema>>;
     directory: string;
-    evidencePaths: string[];
+    evidence: CitedEvidence[];
     platform: z.infer<typeof mobileDeviceSchema>['platform'];
     caseId: string;
+    desktopPaths: Set<string>;
 }): Promise<void> {
-    const mediaEvidence = input.evidencePaths.flatMap((path) => {
+    const mediaEvidence = input.evidence.flatMap(({ path, source }) => {
         const type = mobileMediaType(path);
-        return type ? [{ path, type }] : [];
+        return type && !input.desktopPaths.has(path) ? [{ path, source, type }] : [];
     });
     const expectedSource =
         input.platform === 'android' ? 'android-framebuffer' : 'ios-simulator-framebuffer';
@@ -128,6 +173,7 @@ async function validateMobileArtifacts(input: {
             !artifact ||
             artifact.type !== evidence.type ||
             artifact.source !== expectedSource ||
+            (evidence.source !== undefined && evidence.source !== artifact.source) ||
             // Sequential hashing keeps failures in frozen evidence order and bounds large recordings.
             // eslint-disable-next-line no-await-in-loop
             artifact.sha256 !== (await sha256(join(input.directory, evidence.path)))
@@ -147,20 +193,122 @@ async function validateMobileArtifacts(input: {
     }
 }
 
+async function validateDesktopCapture(input: {
+    caseId: string;
+    deviceId: string;
+    directory: string;
+    evidenceBinding: z.infer<typeof mobileEvidenceBindingSchema>;
+    evidence: CitedEvidence[];
+    reportCommit: string | undefined;
+}): Promise<{ desktopPaths: Set<string>; staticVideo?: { durationMs: number; path: string } }> {
+    const prefix = `assets/${encodeURIComponent(input.caseId)}-desktop-`;
+    const receiptPath = `assets/${encodeURIComponent(input.caseId)}-desktop-capture.json`;
+    const videoPath = `assets/${encodeURIComponent(input.caseId)}-desktop.mp4`;
+    const screenshotPaths = [`${prefix}before.png`, `${prefix}after.png`];
+    const evidencePaths = input.evidence.map(({ path }) => path);
+    let rawReceipt: string;
+    try {
+        rawReceipt = await readFile(join(input.directory, receiptPath), 'utf8');
+    } catch (error: unknown) {
+        if (errorCode(error) !== 'ENOENT') throw error;
+        if (evidencePaths.some((path) => path.startsWith(prefix) || path === videoPath)) {
+            throw new Error(
+                `Case ${input.caseId} desktop media requires a Desktop capture receipt`,
+                {
+                    cause: error,
+                },
+            );
+        }
+        return { desktopPaths: new Set() };
+    }
+    if (!evidencePaths.includes(receiptPath)) {
+        throw new Error(`Case ${input.caseId} must cite its Desktop capture receipt`);
+    }
+    const receipt = desktopCaptureReceiptSchema.parse(JSON.parse(rawReceipt) as unknown);
+    const expectedPaths = receipt.recording ? [...screenshotPaths, videoPath] : screenshotPaths;
+    if (
+        receipt.artifacts.length !== expectedPaths.length ||
+        (receipt.recording !== undefined && input.caseId !== 'MOB-E2E-01')
+    ) {
+        throw new Error(`Case ${input.caseId} Desktop capture artifact set is invalid`);
+    }
+    if (receipt.recording) {
+        const elapsed =
+            Date.parse(receipt.recording.endedAt) - Date.parse(receipt.recording.startedAt);
+        if (
+            elapsed !== receipt.recording.durationMs ||
+            receipt.recording.sampleCount !== Math.ceil(elapsed / 500)
+        ) {
+            throw new Error(`Case ${input.caseId} Desktop recording timeline is invalid`);
+        }
+    }
+    if (
+        !input.reportCommit ||
+        !('launchId' in input.evidenceBinding) ||
+        receipt.caseId !== input.caseId ||
+        receipt.sourceCommit !== input.reportCommit ||
+        receipt.launchId !== input.evidenceBinding.launchId ||
+        receipt.serial !== input.deviceId ||
+        receipt.artifacts.some(
+            (artifact, index) =>
+                artifact.path !== expectedPaths[index] ||
+                artifact.type !== (index === 2 ? 'video' : 'screenshot') ||
+                !evidencePaths.includes(artifact.path) ||
+                input.evidence.find(({ path }) => path === artifact.path)?.source !==
+                    'isolated-desktop-renderer',
+        )
+    ) {
+        throw new Error(`Case ${input.caseId} Desktop capture does not match the selected launch`);
+    }
+    for (const artifact of receipt.artifacts) {
+        // Sequential validation preserves the frozen before/after failure order.
+
+        const path = join(input.directory, artifact.path);
+        // eslint-disable-next-line no-await-in-loop
+        if (artifact.sha256 !== (await sha256(path))) {
+            throw new Error(`Case ${input.caseId} Desktop capture media hash does not match`);
+        }
+        if (artifact.type === 'screenshot') {
+            // eslint-disable-next-line no-await-in-loop
+            await assertDecodablePng(await readFile(path));
+        }
+    }
+    return {
+        desktopPaths: new Set(expectedPaths),
+        ...(receipt.recording && {
+            staticVideo: { durationMs: receipt.recording.durationMs, path: videoPath },
+        }),
+    };
+}
+
 /**
  * Binds mobile evidence to the frozen target, report source, and declared isolation identity.
  */
+interface ValidatedMobileMedia {
+    longAndroidVideos: Set<string>;
+    staticDesktopVideos: Map<string, number>;
+}
+
+const emptyValidatedMedia = (): ValidatedMobileMedia => ({
+    longAndroidVideos: new Set(),
+    staticDesktopVideos: new Map(),
+});
+
 export async function validateMobileEvidence(input: {
     caseId: string;
     device: z.infer<typeof mobileDeviceSchema>;
     directory: string;
-    evidencePaths: string[];
+    evidence: CitedEvidence[];
     evidenceBinding: z.infer<typeof mobileEvidenceBindingSchema>;
     expectedStatus: z.infer<typeof mobileDeviceReceiptSchema>['status'];
     reportCommit: string | undefined;
-}): Promise<void> {
+}): Promise<ValidatedMobileMedia> {
+    const evidencePaths = input.evidence.map(({ path }) => path);
+    if (new Set(evidencePaths).size !== evidencePaths.length) {
+        throw new Error(`Case ${input.caseId} repeats an evidence path`);
+    }
     const deviceEvidence = mobileDeviceEvidencePath(input.caseId);
-    if (!input.evidencePaths.includes(deviceEvidence))
+    if (!evidencePaths.includes(deviceEvidence))
         throw new Error(`Case ${input.caseId} must include its mobile device receipt`);
     const rawDeviceReceipt: unknown = JSON.parse(
         await readFile(join(input.directory, deviceEvidence), 'utf8'),
@@ -180,15 +328,44 @@ export async function validateMobileEvidence(input: {
             `Case ${input.caseId} mobile device receipt does not match the frozen plan`,
         );
     }
+    const desktopCapture = await validateDesktopCapture({
+        caseId: input.caseId,
+        deviceId: input.device.deviceId,
+        directory: input.directory,
+        evidenceBinding: input.evidenceBinding,
+        evidence: input.evidence,
+        reportCommit: input.reportCommit,
+    });
     await validateMobileArtifacts({
         artifacts: deviceReceipt.artifacts,
         caseId: input.caseId,
         directory: input.directory,
-        evidencePaths: input.evidencePaths,
+        evidence: input.evidence,
         platform: input.device.platform,
+        desktopPaths: desktopCapture.desktopPaths,
     });
+    const media = emptyValidatedMedia();
+    const journeyVideo = `assets/${encodeURIComponent(input.caseId)}-android.mp4`;
+    if (
+        input.caseId === 'MOB-E2E-01' &&
+        input.device.platform === 'android' &&
+        deviceReceipt.artifacts.some(
+            (artifact) =>
+                artifact.path === journeyVideo &&
+                artifact.source === 'android-framebuffer' &&
+                artifact.type === 'video',
+        )
+    ) {
+        media.longAndroidVideos.add(journeyVideo);
+    }
     const resultEvidence = mobileResultEvidencePath(input.caseId);
-    if (!input.evidencePaths.includes(resultEvidence)) return;
+    if (desktopCapture.staticVideo) {
+        media.staticDesktopVideos.set(
+            desktopCapture.staticVideo.path,
+            desktopCapture.staticVideo.durationMs,
+        );
+    }
+    if (!evidencePaths.includes(resultEvidence)) return media;
     const rawResultReceipt: unknown = JSON.parse(
         await readFile(join(input.directory, resultEvidence), 'utf8'),
     );
@@ -200,4 +377,54 @@ export async function validateMobileEvidence(input: {
     ) {
         throw new Error(`Case ${input.caseId} mobile result receipt is stale`);
     }
+    return media;
+}
+
+/**
+ * Binds a mobile case's final receipt to the frozen device and completed lifecycle.
+ */
+export async function validateMobileCaseEvidence(input: {
+    blockedReason?: 'plan-evidence-gap';
+    caseId: string;
+    device?: z.infer<typeof mobileDeviceSchema>;
+    directory: string;
+    evidence: CitedEvidence[];
+    reportCommit: string | undefined;
+    stateIsolation: StateIsolation;
+    status: 'pass' | 'fail' | 'blocked';
+    surface: 'cli' | 'desktop' | 'mobile';
+}): Promise<ValidatedMobileMedia> {
+    if (input.surface !== 'mobile') return emptyValidatedMedia();
+    if (!input.device) throw new Error(`Case ${input.caseId} is missing its mobile device plan`);
+    const hasDeviceReceipt = await hasMobileDeviceReceipt(input.directory, input.caseId);
+    if (!hasDeviceReceipt && input.blockedReason === 'plan-evidence-gap') {
+        throw new Error(
+            `Case ${input.caseId} plan-evidence-gap requires a passed mobile device receipt`,
+        );
+    }
+    if (!hasDeviceReceipt && input.status === 'blocked') return emptyValidatedMedia();
+
+    let evidenceBinding: z.infer<typeof mobileEvidenceBindingSchema>;
+    if (input.stateIsolation.mode === 'readonly_checkpoint') {
+        evidenceBinding = { checkpointId: input.stateIsolation.checkpointId };
+    } else {
+        const lifecyclePath = join(input.directory, lifecycleEvidencePath(input.caseId));
+        const lifecycleText = await readFile(lifecyclePath, 'utf8');
+        const lifecycle: unknown = JSON.parse(lifecycleText);
+        const finalLaunchId = caseLifecycleReceiptSchema.parse(lifecycle).launches.at(-1)?.id;
+        if (!finalLaunchId) throw new Error(`Case ${input.caseId} lifecycle has no launch`);
+        evidenceBinding = { launchId: finalLaunchId };
+    }
+    return validateMobileEvidence({
+        caseId: input.caseId,
+        device: input.device,
+        directory: input.directory,
+        evidenceBinding,
+        evidence: input.evidence,
+        expectedStatus:
+            input.blockedReason === 'plan-evidence-gap'
+                ? 'passed'
+                : ({ blocked: 'blocked', fail: 'failed', pass: 'passed' } as const)[input.status],
+        reportCommit: input.reportCommit,
+    });
 }
