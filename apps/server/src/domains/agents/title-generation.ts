@@ -321,8 +321,12 @@ function firstLanguageForRole(
  * The first substantive user request owns the language; an issue-only request defers to the assistant's explanation.
  */
 function titleLanguage(context: AgentTitleContext): ReturnType<typeof messageLanguage> {
-    const messages = [...context.opening, ...context.recent];
-    return firstLanguageForRole(messages, 'user') ?? firstLanguageForRole(messages, 'assistant');
+    return (
+        firstLanguageForRole(context.opening, 'user') ??
+        firstLanguageForRole(context.opening, 'assistant') ??
+        firstLanguageForRole(context.recent, 'user') ??
+        firstLanguageForRole(context.recent, 'assistant')
+    );
 }
 
 export function buildAgentTitlePrompt(context: AgentTitleContext, isRetry = false): string {
