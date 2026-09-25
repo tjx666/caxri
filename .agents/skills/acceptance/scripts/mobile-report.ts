@@ -81,6 +81,7 @@ export const mobileDeviceReceiptSchema = z
         cleanup: z.object({
             appData: z.enum(['cleared', 'preserved']),
             desktopProfile: z.string(),
+            fixtureIme: z.enum(['pending', 'restored']).optional(),
         }),
         device: z.object({
             id: z.string().min(1),
@@ -330,6 +331,8 @@ export async function validateMobileEvidence(input: {
             `Case ${input.caseId} mobile device receipt does not match the frozen plan`,
         );
     }
+    if (deviceReceipt.cleanup.fixtureIme === 'pending')
+        throw new Error(`Case ${input.caseId} fixture input method cleanup is incomplete`);
     if (
         input.blockedReason === 'execution-failed-before-evidence' &&
         (deviceReceipt.artifacts.length > 0 ||

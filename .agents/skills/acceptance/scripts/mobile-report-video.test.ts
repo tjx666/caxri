@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import process from 'node:process';
 
@@ -134,6 +134,30 @@ describe('Acceptance Desktop recording receipt', () => {
                 expectedStatus: 'passed',
                 reportCommit: commit,
             });
+        await expect(validate()).resolves.toEqual({
+            longAndroidVideos: new Set([androidVideo]),
+            staticDesktopVideos: new Map([[video, 3_100]]),
+        });
+
+        const originalDeviceReceipt = await readFile(join(directory, deviceReceipt), 'utf8');
+        const parsedDeviceReceipt = JSON.parse(originalDeviceReceipt) as {
+            cleanup: { appData: string; desktopProfile: string };
+        };
+        await writeFile(
+            join(directory, deviceReceipt),
+            JSON.stringify({
+                ...parsedDeviceReceipt,
+                cleanup: { ...parsedDeviceReceipt.cleanup, fixtureIme: 'pending' },
+            }),
+        );
+        await expect(validate()).rejects.toThrow('fixture input method cleanup is incomplete');
+        await writeFile(
+            join(directory, deviceReceipt),
+            JSON.stringify({
+                ...parsedDeviceReceipt,
+                cleanup: { ...parsedDeviceReceipt.cleanup, fixtureIme: 'restored' },
+            }),
+        );
         await expect(validate()).resolves.toEqual({
             longAndroidVideos: new Set([androidVideo]),
             staticDesktopVideos: new Map([[video, 3_100]]),

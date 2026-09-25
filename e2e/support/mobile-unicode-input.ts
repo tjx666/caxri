@@ -18,10 +18,11 @@ const junitStub = join(import.meta.dirname, 'android-junit-stub/junit/framework/
 const remoteJar = '/data/local/tmp/caxri-mobile-unicode-input.jar';
 
 type UnicodeInputMethod =
-    | 'testSetUnicodeText'
     | 'testAssertDraft'
     | 'testAssertComposerFocused'
+    | 'testFocusComposer'
     | 'testAssertUnknownFeedback';
+const fixtureImeReceiver = 'caxri.acceptance.ime/.FixtureInsertReceiver';
 
 /**
  * ADB shell drops empty argv values; assertions without text must omit the `-e` pair entirely.
@@ -41,11 +42,28 @@ export function mobileUnicodeInputArguments(
         '-c',
         `caxri.acceptance.MobileUnicodeInput#${method}`,
     ];
-    if (method === 'testSetUnicodeText' || method === 'testAssertDraft') {
+    if (method === 'testAssertDraft') {
         if (value === undefined) throw new Error('Unicode fixture text is required');
         arguments_.push('-e', 'textBase64', Buffer.from(value, 'utf8').toString('base64'));
     }
     return arguments_;
+}
+
+export function mobileFixtureImeBroadcastArguments(serial: string, value: string): string[] {
+    if (!/^emulator-\d+$/u.test(serial))
+        throw new Error('Fixture Unicode input requires a disposable emulator');
+    return [
+        '-s',
+        serial,
+        'shell',
+        'am',
+        'broadcast',
+        '-n',
+        fixtureImeReceiver,
+        '--es',
+        'textBase64',
+        Buffer.from(value, 'utf8').toString('base64'),
+    ];
 }
 
 function automationFailureReason(error: unknown, successfulOutput: string): string {
@@ -60,20 +78,13 @@ function automationFailureReason(error: unknown, successfulOutput: string): stri
     ].join('\n');
     if (output.includes('Composer is not focused')) return 'composer-not-focused';
     if (output.includes('Composer input is unavailable')) return 'composer-unavailable';
-    if (output.includes('Composer text action failed')) return 'text-action-failed';
-    if (output.includes('Composer selection action failed')) return 'selection-action-failed';
-    if (output.includes('Composer delete action failed')) return 'delete-action-failed';
-    if (output.includes('Composer text differs from fixture')) return 'text-mismatch';
     if (output.includes('Composer draft differs from fixture')) return 'draft-mismatch';
     if (output.includes('Unknown delivery feedback is unavailable')) return 'feedback-unavailable';
     return 'unknown';
 }
 
 /**
- * Android's `input text` cannot reliably send Chinese. UiAutomator's text action can set a multiline Unicode value
- * without exposing it in a screenshot, semantic receipt, or desktop log.
- *
- * @see https://developer.android.com/reference/androidx/test/uiautomator/UiObject2#setText(java.lang.String)
+ * UiAutomator checks focus and draft state. The test IME owns Unicode text input separately.
  */
 async function runComposerAutomation(
     serial: string,
@@ -129,8 +140,26 @@ async function runComposerAutomation(
     if (failure) throw new Error(failure);
 }
 
-export const setMobileComposerUnicode = (serial: string, value: string): Promise<void> =>
-    runComposerAutomation(serial, 'testSetUnicodeText', value);
+/**
+ * A real input connection edit updates React Native's controlled draft, unlike accessibility SET_TEXT. The Android
+ * Acceptance runner installs and selects this fixture IME only on an explicit disposable emulator.
+ *
+ * @see https://developer.android.com/reference/android/view/inputmethod/InputConnection#commitText(java.lang.CharSequence,%20int)
+ */
+export async function setMobileComposerUnicode(serial: string, value: string): Promise<void> {
+    const arguments_ = mobileFixtureImeBroadcastArguments(serial, value);
+    await runComposerAutomation(serial, 'testFocusComposer');
+    let output: string;
+    try {
+        const result = await execFileAsync(adb, arguments_);
+        output = result.stdout;
+    } catch {
+        throw new Error('Fixture Unicode input broadcast failed');
+    }
+    if (!/result=-1\b/u.test(output) || !/data="?committed"?/u.test(output))
+        throw new Error('Fixture Unicode input was not committed');
+    await runComposerAutomation(serial, 'testAssertDraft', value);
+}
 
 export const assertMobileComposerDraft = (serial: string, value: string): Promise<void> =>
     runComposerAutomation(serial, 'testAssertDraft', value);
