@@ -15,6 +15,7 @@ const segmentLabels: Record<SessionSegment, string> = {
 const segments: SessionSegment[] = ['conversation', 'terminal', 'changes'];
 
 export const SessionDetailHeader = ({
+    changesCount,
     isConnected,
     onBack,
     onMarkRead,
@@ -23,6 +24,7 @@ export const SessionDetailHeader = ({
     session,
     theme,
 }: {
+    changesCount: number | null;
     isConnected: boolean;
     onBack?: () => void;
     onMarkRead: () => Promise<void>;
@@ -141,8 +143,12 @@ export const SessionDetailHeader = ({
                                 styles.tabText,
                                 { color: segment === option ? theme.text : theme.muted },
                             ]}
+                            testID={option === 'changes' ? 'changes-count' : undefined}
                         >
                             {segmentLabels[option]}
+                            {option === 'changes' && changesCount !== null
+                                ? ` ${changesCount}`
+                                : ''}
                         </Text>
                     </Pressable>
                 ))}

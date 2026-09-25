@@ -45,6 +45,7 @@ import { toGitError } from './errors';
 import { readGitHubPullRequestView } from './github';
 import type { GitMetadataWatcherOptions } from './metadata-watcher';
 import { GitMetadataWatcher } from './metadata-watcher';
+import { mobileChangesDiff, mobileChangesListForSummary } from './mobile-changes';
 import { GitPullRequestService } from './pull-request';
 import { loadTerminalReferenceContext, resolveTerminalCommitLink } from './reference-links';
 import { loadTerminalReferencePreview } from './reference-preview';
@@ -469,6 +470,22 @@ export class GitService {
                 ({ files: _files, ...projection }) => projection,
             ),
         };
+    }
+
+    async mobileChangesList(sessionId: string, shouldRefresh = false) {
+        const summary = shouldRefresh
+            ? await this.repositoryService.refreshSummary(sessionId, 'repository')
+            : await this.summary(sessionId, 0, 'repository');
+        return mobileChangesListForSummary(summary, (root, arguments_, maxBufferBytes) =>
+            this.git(root, arguments_, { maxBufferBytes }),
+        );
+    }
+
+    async mobileChangesDiff(sessionId: string, repoId: string, path: string) {
+        const repo = await this.resolveRepository(sessionId, repoId);
+        return mobileChangesDiff(repo, path, (root, arguments_, maxBufferBytes) =>
+            this.git(root, arguments_, { maxBufferBytes }),
+        );
     }
 
     /**

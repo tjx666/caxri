@@ -11,6 +11,33 @@ const reply = (id: string, result: unknown) => ({
 });
 
 describe('mobile frame router', () => {
+    it('routes changes invalidations only to the Changes subscription', () => {
+        const router = new MobileFrameRouter();
+        const onChanges = vi.fn();
+        router.addSubscription(
+            'changes-sub',
+            { kind: 'changes', sessionId: 'session-1' },
+            onChanges,
+        );
+        router.receiveSubscriptionMessage({
+            type: 'event',
+            subscriptionId: 'changes-sub',
+            sequence: 0,
+            kind: 'changes.changed',
+        });
+        expect(onChanges).toHaveBeenCalledExactlyOnceWith(
+            expect.objectContaining({ kind: 'changes.changed' }),
+        );
+        expect(() =>
+            router.receiveSubscriptionMessage({
+                type: 'event',
+                subscriptionId: 'changes-sub',
+                sequence: 1,
+                kind: 'dashboard.changed',
+            }),
+        ).toThrow('wrong resource');
+    });
+
     it('resolves simultaneous requests by ID when replies arrive in reverse order', async () => {
         const router = new MobileFrameRouter();
         const first = router.waitForReply('first', 15_000, vi.fn());

@@ -1,0 +1,96 @@
+import { useEffect, useMemo } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+
+import type { useMobileTheme } from '../../../theme/use-mobile-theme';
+import type { MobileLayoutMode } from '../../layout/layout-mode';
+import { useSessionAttention } from '../hooks/use-session-attention';
+import { useSessionConversation } from '../hooks/use-session-conversation';
+import { allMobileSessions } from '../hooks/use-session-polling';
+import { useSessionShow } from '../hooks/use-session-show';
+import { useHostSessions } from './host-sessions-provider';
+import { SelectedSessionDetail } from './selected-session-detail';
+import { SessionRouteStatus } from './session-route-status';
+
+const styles = StyleSheet.create({
+    detailEmpty: { alignItems: 'center', flex: 1, justifyContent: 'center' },
+    emptyBody: { fontSize: 14, lineHeight: 21, textAlign: 'center' },
+});
+
+export const SessionsScreenDetail = ({
+    fresh,
+    layout,
+    routeSessionId,
+    theme,
+}: {
+    fresh: boolean;
+    layout: MobileLayoutMode;
+    routeSessionId: string | null;
+    theme: ReturnType<typeof useMobileTheme>;
+}) => {
+    const { sessions, ui } = useHostSessions();
+    const { selectSession } = sessions;
+
+    useEffect(() => {
+        if (routeSessionId) selectSession(routeSessionId);
+    }, [routeSessionId, selectSession]);
+
+    const dashboardSelected = useMemo(() => {
+        if (routeSessionId)
+            return (
+                allMobileSessions(sessions.sections).find(({ id }) => id === routeSessionId) ?? null
+            );
+        return sessions.selected;
+    }, [routeSessionId, sessions.sections, sessions.selected]);
+    const shown = useSessionShow(
+        routeSessionId,
+        routeSessionId !== null && dashboardSelected === null,
+    );
+    const selected = dashboardSelected ?? shown.session;
+    const isDetailVisible = selected !== null && (layout !== 'phone' || routeSessionId !== null);
+    const rememberedSegment = selected ? ui.segmentBySession[selected.id] : undefined;
+    const wideBackgroundSegment = selected
+        ? (ui.contentSegmentBySession[selected.id] ??
+          (selected.primaryAgentEndpoint ? 'conversation' : 'terminal'))
+        : 'terminal';
+    const conversation = useSessionConversation({
+        isDetailVisible,
+        keepVisible:
+            layout === 'tablet-wide' &&
+            rememberedSegment === 'changes' &&
+            wideBackgroundSegment === 'conversation',
+        remembered: rememberedSegment,
+        selected,
+    });
+    useSessionAttention({
+        enabled: fresh && isDetailVisible,
+        onRefresh: sessions.refresh,
+        session: selected,
+    });
+
+    if (selected)
+        return (
+            <SelectedSessionDetail
+                conversation={conversation}
+                fresh={fresh}
+                isDetailVisible={isDetailVisible}
+                layout={layout}
+                selected={selected}
+                theme={theme}
+                wideBackgroundSegment={wideBackgroundSegment}
+            />
+        );
+    if (routeSessionId)
+        return (
+            <SessionRouteStatus
+                error={shown.error}
+                isLoading={shown.isLoading}
+                onRetry={shown.refresh}
+                theme={theme}
+            />
+        );
+    return (
+        <View style={styles.detailEmpty}>
+            <Text style={[styles.emptyBody, { color: theme.muted }]}>Select a Session</Text>
+        </View>
+    );
+};

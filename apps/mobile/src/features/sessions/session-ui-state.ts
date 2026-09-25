@@ -4,12 +4,14 @@ import type { ConversationTimelineState } from '../conversation/use-conversation
 export type SessionSegment = 'conversation' | 'terminal' | 'changes';
 
 export interface HostSessionUiState {
+    contentSegmentBySession: Record<string, 'conversation' | 'terminal'>;
     draftBySession: Record<string, string>;
     projectId: string | null;
     segmentBySession: Record<string, SessionSegment>;
 }
 
 export const emptyHostSessionUiState = (): HostSessionUiState => ({
+    contentSegmentBySession: {},
     draftBySession: {},
     projectId: null,
     segmentBySession: {},
@@ -43,8 +45,17 @@ export const rememberSessionSegment = (
     state: HostSessionUiState,
     sessionId: string,
     segment: SessionSegment,
+    previous?: SessionSegment,
 ): HostSessionUiState => ({
     ...state,
+    contentSegmentBySession: {
+        ...state.contentSegmentBySession,
+        ...(segment === 'changes'
+            ? previous && previous !== 'changes'
+                ? { [sessionId]: previous }
+                : {}
+            : { [sessionId]: segment }),
+    },
     segmentBySession: { ...state.segmentBySession, [sessionId]: segment },
 });
 

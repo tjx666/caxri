@@ -652,6 +652,7 @@ export class GitRepoService {
         sessionId: string,
         refresh = 0,
         requester: GitSummaryRequester = 'renderer',
+        shouldForce = false,
     ): Promise<GitSummary> {
         let sessionGeneration = this.sessionGenerations.get(sessionId);
         if (sessionGeneration === undefined) {
@@ -659,8 +660,8 @@ export class GitRepoService {
             this.sessionGenerations.set(sessionId, sessionGeneration);
         }
         const lastNonce = this.refreshNonces.get(sessionId) ?? 0;
-        const isForce = refresh > lastNonce;
-        if (isForce) this.refreshNonces.set(sessionId, refresh);
+        const isForce = shouldForce || refresh > lastNonce;
+        if (refresh > lastNonce) this.refreshNonces.set(sessionId, refresh);
         const reason = isForce ? 'refresh' : 'request';
         const key = `${sessionId}#${sessionGeneration}`;
         const inFlight = this.summaries.get(key);
@@ -683,6 +684,13 @@ export class GitRepoService {
                 ? this.summaries.runAfter(key, load)
                 : this.summaries.run(key, load),
         );
+    }
+
+    /**
+     * Forces a fresh producer without advancing another client's numeric refresh sequence.
+     */
+    refreshSummary(sessionId: string, requester: GitSummaryRequester): Promise<GitSummary> {
+        return this.summary(sessionId, 0, requester, true);
     }
 
     async resolveRepository(sessionId: string, repoIdValue: string): Promise<GitRepoSummary> {

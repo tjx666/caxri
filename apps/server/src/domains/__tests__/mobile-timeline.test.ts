@@ -4,14 +4,72 @@ import type { AgentTimelineService } from '../agents/timeline';
 import type { AgentTranscriptWatcher } from '../agents/transcript-watcher';
 import type { ConfigService } from '../config';
 import type { CaxriDatabase } from '../db';
+import type { GitService } from '../git';
 import { createMobileDomainHandlers } from '../mobile-handlers';
 import type { MobileTerminalMutationQueue } from '../mobile-terminal-mutation-queue';
 import type { TerminalManager } from '../terminal';
 
 describe('mobile timeline authorization', () => {
+    it('lets a view-role device read changes only through its granted Session', async () => {
+        const mobileChangesList = vi.fn(() =>
+            Promise.resolve({
+                isRepository: true,
+                files: [],
+                total: 0,
+                additions: 0,
+                deletions: 0,
+                truncated: false,
+            }),
+        );
+        const mobileChangesDiff = vi.fn(() => Promise.resolve({ status: 'stale' as const }));
+        const handlers = createMobileDomainHandlers({
+            configuration: {} as ConfigService,
+            database: {
+                getSession: () => ({ id: 'session-granted', projectId: 'project-granted' }),
+                listVisibleProjects: () => [{ id: 'project-granted' }],
+            } as unknown as CaxriDatabase,
+            git: { mobileChangesList, mobileChangesDiff } as unknown as GitService,
+            queue: {} as MobileTerminalMutationQueue,
+            terminals: {} as TerminalManager,
+            timeline: {} as AgentTimelineService,
+            transcripts: {} as AgentTranscriptWatcher,
+        });
+        const principal = {
+            kind: 'paired-device' as const,
+            id: 'paired-device:fixture',
+            deviceId: 'fixture',
+            generation: 1,
+            role: 'view' as const,
+            projectIds: ['project-granted'],
+        };
+        await expect(
+            handlers['mobile.changes.listInternal']({
+                sessionId: 'session-granted',
+                refresh: true,
+                principal,
+            }),
+        ).resolves.toMatchObject({ isRepository: true });
+        await expect(
+            handlers['mobile.changes.diffInternal']({
+                sessionId: 'session-granted',
+                repositoryId: 'repository-granted',
+                path: 'file.txt',
+                principal,
+            }),
+        ).resolves.toEqual({ status: 'stale' });
+        expect(mobileChangesList).toHaveBeenCalledWith('session-granted', true);
+        expect(mobileChangesDiff).toHaveBeenCalledWith(
+            'session-granted',
+            'repository-granted',
+            'file.txt',
+        );
+    });
+
     it('rejects another Project before reading or watching a transcript', async () => {
         const read = vi.fn();
         const watchMobile = vi.fn();
+        const mobileChangesList = vi.fn();
+        const mobileChangesDiff = vi.fn();
         const handlers = createMobileDomainHandlers({
             configuration: {} as ConfigService,
             database: {
@@ -22,6 +80,7 @@ describe('mobile timeline authorization', () => {
                 }),
                 listVisibleProjects: () => [{ id: 'project-other' }],
             } as unknown as CaxriDatabase,
+            git: { mobileChangesList, mobileChangesDiff } as unknown as GitService,
             queue: {} as MobileTerminalMutationQueue,
             terminals: {} as TerminalManager,
             timeline: { read } as unknown as AgentTimelineService,
@@ -50,6 +109,23 @@ describe('mobile timeline authorization', () => {
         ).rejects.toMatchObject({ code: 'NOT_FOUND' });
         expect(read).not.toHaveBeenCalled();
         expect(watchMobile).not.toHaveBeenCalled();
+        expect(() =>
+            handlers['mobile.changes.listInternal']({
+                sessionId: 'session-other',
+                refresh: false,
+                principal,
+            }),
+        ).toThrow('Session not found');
+        expect(() =>
+            handlers['mobile.changes.diffInternal']({
+                sessionId: 'session-other',
+                repositoryId: 'repository-other',
+                path: 'file.txt',
+                principal,
+            }),
+        ).toThrow('Session not found');
+        expect(mobileChangesList).not.toHaveBeenCalled();
+        expect(mobileChangesDiff).not.toHaveBeenCalled();
     });
 
     it('distinguishes a Shell-only Session from a Session without an Agent or Terminal', async () => {
@@ -61,6 +137,7 @@ describe('mobile timeline authorization', () => {
                 listVisibleProjects: () => [{ id: 'project-granted' }],
                 listTerminals: () => terminals,
             } as unknown as CaxriDatabase,
+            git: {} as GitService,
             queue: {} as MobileTerminalMutationQueue,
             terminals: {} as TerminalManager,
             timeline: { read: vi.fn() } as unknown as AgentTimelineService,

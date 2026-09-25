@@ -212,6 +212,8 @@ export class MobileGatewaySubscriptions {
 
     publish(event: ServerEvent): void {
         if (this.#closed) return;
+        const changedSessionIds =
+            event.event === 'git.changed' ? new Set(event.payload.sessionIds) : undefined;
         for (const subscription of this.#subscriptions.values()) {
             const resource = subscription.resource;
             if (resource.kind === 'dashboard' && event.event === 'state.changed')
@@ -222,6 +224,12 @@ export class MobileGatewaySubscriptions {
                 event.event === 'agentTranscript.changed'
             )
                 this.#queue(subscription, event, 'conversation.changed');
+            else if (
+                resource.kind === 'changes' &&
+                subscription.activated &&
+                changedSessionIds?.has(resource.sessionId)
+            )
+                this.#queue(subscription, event, 'changes.changed');
         }
     }
 
@@ -283,7 +291,8 @@ export class MobileGatewaySubscriptions {
                 type: 'event',
                 subscriptionId: subscription.id,
                 sequence,
-                kind: kindOrChunk as 'dashboard.changed' | 'conversation.changed',
+                kind: kindOrChunk as
+                    'dashboard.changed' | 'conversation.changed' | 'changes.changed',
             };
             await this.#options.send(payload);
         } catch {

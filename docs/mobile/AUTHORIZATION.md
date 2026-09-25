@@ -7,17 +7,18 @@ dispatcher also grants only the capabilities for that role.
 
 ## Current method grants
 
-| Role      | Allowed methods                                                                                                                                                                      |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `view`    | `mobile.dashboard`, `terminal.preview`                                                                                                                                               |
-| `reply`   | `mobile.dashboard`, `terminal.preview`, `session.markRead`, `terminal.send`                                                                                                          |
-| `control` | `mobile.dashboard`, `terminal.preview`, `session.markRead`, `terminal.send`, `mobile.session.create`, `mobile.terminal.takeOver`, `mobile.terminal.release`, `mobile.terminal.input` |
+| Role      | Additional methods beyond the preceding role                                                                                                                     |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `view`    | `mobile.dashboard`, `mobile.session.show`, `mobile.timeline.read`, `mobile.changes.list`, `mobile.changes.diff`, `mobile.agent.availability`, `terminal.preview` |
+| `reply`   | `session.markRead`, `mobile.agent.submit`                                                                                                                        |
+| `control` | `agent.control.interrupt`, `mobile.session.create`, `mobile.terminal.takeOver`, `mobile.terminal.release`, `mobile.terminal.input`                               |
 
 The method set is explicit. A role grant alone never authorizes a resource: dashboard, Session, and
-Terminal reads use principal-scoped queries; a short reply also checks the current Primary Agent
-Terminal and atomically consumes the requested `attentionEpoch` in the domain handler. Mobile
+Terminal reads use principal-scoped queries; an Agent submission also checks the current Primary
+Agent endpoint and atomically consumes the requested `attentionEpoch` in the domain handler. Mobile
 Session creation checks both the device's Project grant and the current Project record before its
-durable write. Git, files, and unrestricted `session.create` are outside the gateway method set.
+durable write. Git mutations, files, and unrestricted `session.create` are outside the gateway
+method set.
 
 New pairings receive `control` for the selected Projects. A pre-role device registry opens with no
 active grants; its old credentials cannot authenticate. The old store remains untouched until an
@@ -29,7 +30,9 @@ The dashboard returns the current paired device role so the mobile UI can gate T
 Desktop queries return a null role. Server authorization remains authoritative: the three
 `mobile.terminal.*` methods require `control`, the exact active connection and Terminal subscription,
 the subscription's Terminal generation, and a fresh principal-scoped Terminal query. A `reply` device
-may use the existing short `terminal.send` path but cannot take over size or send raw Terminal keys.
+may submit an Agent instruction through `mobile.agent.submit` but cannot take over size or send raw
+Terminal keys. Git reads use only `mobile.changes.list` and `mobile.changes.diff`; see
+[Mobile Changes](CHANGES.md). No Git mutation method is granted.
 Size leases use the exact connection and subscription as holder; closing that holder cannot release
 a newer connection's lease. Terminal observation requires only `view` and never changes Desktop
 attachment or size.
