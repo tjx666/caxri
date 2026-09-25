@@ -21,6 +21,12 @@ import {
 import { validateReportMediaEvidence } from './media-integrity';
 import { mobileDeviceSchema, validateMobileCaseEvidence } from './mobile-report';
 import { changedPathsBetween } from './rebind-delta';
+import {
+    BLOCKED_REASONS,
+    isLifecycleReceipt,
+    validateBlockedReason,
+    validateFailureDiagnostic,
+} from './report-blocked-reason';
 import type { RebindReportHeadInput } from './report-head';
 import { rebindReportDocument } from './report-head';
 import { reportCliHelp } from './report-help';
@@ -108,7 +114,7 @@ const evidenceSchema = z.looseObject({
     source: z.enum(MEDIA_SOURCES).optional(),
 });
 const caseSchema = z.looseObject({
-    blockedReason: z.literal('plan-evidence-gap').optional(),
+    blockedReason: z.enum(BLOCKED_REASONS).optional(),
     category: z.string().min(1),
     evidence: z.array(evidenceSchema).min(1),
     id: z.string().min(1),
@@ -154,19 +160,6 @@ const PROPOSAL_PLACEHOLDER = '待补充：本轮交付了什么，希望评审�
 
 function preflightEvidencePath(caseId: string): string {
     return `assets/${encodeURIComponent(caseId)}-fixture-preflight.json`;
-}
-
-/**
- * Adapter lifecycle receipts cannot prove product outcomes; the mobile device receipt can.
- */
-const LIFECYCLE_RECEIPT_SUFFIXES = [
-    '-state-isolation.json',
-    '-fixture-preflight.json',
-    '-agent-fixture.json',
-] as const;
-
-function isLifecycleReceipt(path: string): boolean {
-    return LIFECYCLE_RECEIPT_SUFFIXES.some((suffix) => path.endsWith(suffix));
 }
 
 export async function loadAcceptanceCasePlan(
@@ -541,26 +534,14 @@ export async function finalizeReport(input: FinalizeReportInput) {
                 `Case ${item.id} title, category, and surface must match the frozen plan`,
             );
         }
-        if (item.blockedReason) {
-            if (item.status !== 'blocked' || item.surface !== 'mobile') {
-                throw new Error(
-                    `Case ${item.id} plan-evidence-gap is only valid for a blocked mobile case`,
-                );
-            }
-            const deviceReceipt = `assets/${encodeURIComponent(item.id)}-mobile-device.json`;
-            const resultReceipt = `assets/${encodeURIComponent(item.id)}-result.json`;
-            const hasSupport = item.evidence.some((evidence) => {
-                const path = evidencePath(evidence);
-                return (
-                    !isLifecycleReceipt(path) && path !== deviceReceipt && path !== resultReceipt
-                );
-            });
-            if (!hasSupport || item.observation.trim().length < 20) {
-                throw new Error(
-                    `Case ${item.id} plan-evidence-gap needs a concrete observation and supporting evidence`,
-                );
-            }
-        }
+        const failureDiagnostic = validateBlockedReason({
+            caseId: item.id,
+            evidencePaths: item.evidence.map(evidencePath),
+            observation: item.observation,
+            reason: item.blockedReason,
+            status: item.status,
+            surface: item.surface,
+        });
         const actualEvidence: Array<{ source?: (typeof MEDIA_SOURCES)[number]; type: string }> = [];
         for (const evidence of item.evidence) {
             // Sequential await preserves deterministic, index-ordered failure reporting when
@@ -569,6 +550,10 @@ export async function finalizeReport(input: FinalizeReportInput) {
             // eslint-disable-next-line no-await-in-loop
             const type = await validateEvidenceFile(directory, evidencePath(evidence));
             actualEvidence.push({ source: evidence.source, type });
+        }
+        if (failureDiagnostic) {
+            // eslint-disable-next-line no-await-in-loop
+            await validateFailureDiagnostic(directory, item.id, failureDiagnostic);
         }
         const missing =
             item.status === 'blocked'

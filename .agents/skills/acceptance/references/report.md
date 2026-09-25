@@ -240,6 +240,14 @@ supporting artifact beyond adapter and device receipts. The device receipt must 
 frozen case, device, commit, launch, cleanup, or media provenance and hash checks. Without this
 reason, a blocked case still requires a blocked device receipt when the device was reached.
 
+When an execution fails before its planned media can be bound, use `"status": "blocked"` with
+`"blockedReason": "execution-failed-before-evidence"` only for a mobile case. Keep the device
+receipt's real `"status": "failed"`, cite it and one case-prefixed, sanitized `.txt` diagnostic
+summary, and state the observed interruption and missing proof concretely. The device receipt must
+have zero artifacts; the case cannot cite any screenshot, video, Desktop capture receipt, or mobile
+result receipt. Orphan files on disk are not evidence. The frozen case, device, commit, launch, and
+cleanup checks still apply, and the round is `partial` until a later round proves the outcome.
+
 A plan may declare `agentFixture: "agent-features-v1"` for fake Claude Code or Codex processes,
 `agentFixture: "agent-delegation-v1"` for visible Claude/Codex/Grok task delegation with a synthetic caller,
 or `agentFixture: "grok-build-v1"` for fake Grok Build. Launch with the matching `--agent-fixture` value and include
