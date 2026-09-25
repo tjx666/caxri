@@ -29,6 +29,7 @@ const isMessageForResource = (
     if (message.kind === 'resync-required') return true;
     if (resource.kind === 'dashboard') return message.kind === 'dashboard.changed';
     if (resource.kind === 'conversation') return message.kind === 'conversation.changed';
+    if (resource.kind === 'changes') return message.kind === 'changes.changed';
     return message.kind === 'terminal.snapshot' || message.kind === 'terminal.output';
 };
 

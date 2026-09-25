@@ -92,3 +92,5 @@ observer contract; mobile transport does not resize Desktop's Terminal by subscr
 
 The [Conversation guide](CONVERSATION.md) covers the authorized timeline snapshot, cursor recovery,
 and native mobile rendering behind the content-free hints.
+The [Changes guide](CHANGES.md) covers authorized Git snapshots, bounded diffs, and the
+content-free `changes.changed` hint.

@@ -69,6 +69,14 @@ test('Source Control navigates changed files with one tree Tab stop', async () =
             'Discard All Changes',
         );
         expect(actionIndex).toBeGreaterThanOrEqual(0);
+        await expect
+            .poll(() =>
+                groupMenu.evaluate(
+                    (menu) =>
+                        menu === document.activeElement || menu.contains(document.activeElement),
+                ),
+            )
+            .toBe(true);
         await running.page.keyboard.press('Home');
         for (let index = 0; index < actionIndex; index += 1) {
             // eslint-disable-next-line no-await-in-loop -- each arrow key advances from the preceding focused menu item

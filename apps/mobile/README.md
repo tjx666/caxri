@@ -4,6 +4,8 @@ The Expo SDK 57 development client for Caxri's paired Agent Session companion.
 
 The [Conversation guide](../../docs/mobile/CONVERSATION.md) describes the authorized Agent timeline,
 native rendering, live updates, and Terminal fallback.
+The [Changes guide](../../docs/mobile/CHANGES.md) describes authorized Git snapshots, bounded diffs,
+live refresh, and the commit draft boundary.
 
 ## Local development
 

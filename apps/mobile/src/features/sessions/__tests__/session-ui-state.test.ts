@@ -55,7 +55,22 @@ describe('host Session UI state', () => {
         );
         expect(second.segmentBySession).toEqual({ one: 'changes', two: 'terminal' });
         expect(second.draftBySession).toEqual({ one: 'draft one', two: 'draft two' });
+        expect(second.contentSegmentBySession).toEqual({ two: 'terminal' });
         expect(first.draftBySession).toEqual({ one: 'draft one' });
+    });
+
+    it('keeps the prior content segment behind Changes for each Session', () => {
+        const first = rememberSessionSegment(
+            emptyHostSessionUiState(),
+            'one',
+            'changes',
+            'conversation',
+        );
+        const second = rememberSessionSegment(first, 'two', 'changes', 'terminal');
+        expect(second.contentSegmentBySession).toEqual({ one: 'conversation', two: 'terminal' });
+        expect(
+            rememberSessionSegment(second, 'one', 'changes', 'changes').contentSegmentBySession,
+        ).toEqual(second.contentSegmentBySession);
     });
 
     it('keeps the Project filter while Session-specific state changes', () => {
