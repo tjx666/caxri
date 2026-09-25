@@ -538,7 +538,6 @@ export async function executeMobileConversationScenario(
                     fixture,
                     terminal.id,
                 );
-                artifacts.push(preflightReceipt);
                 await fixture.pair();
                 await tapMobileCheck(environment.serial, `session-row-${fixture.allowedSessionId}`);
                 await waitForMobile(
