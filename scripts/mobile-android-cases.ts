@@ -121,6 +121,30 @@ const androidCases = {
         recordingOwner: 'adapter',
         scenario: 'timeline-projection',
     },
+    'MOB-CHANGES-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'changes-list-and-diff',
+    },
+    'MOB-CHANGES-02': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'changes-unreviewable-placeholder',
+    },
+    'MOB-CHANGES-03': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'changes-wide-tablet-pane',
+    },
+    'MOB-CHANGES-04': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['video'],
+        recordingOwner: 'scenario',
+        scenario: 'changes-ask-agent-draft-send',
+    },
 } as const satisfies Record<
     string,
     {
@@ -161,7 +185,8 @@ export function shouldCaptureAdapterScreenshot(caseId: string, isLifecycleReady:
     return (
         isLifecycleReady &&
         definition.media.includes('screenshot') &&
-        definition.scenario !== 'conversation-shell-fallback'
+        definition.scenario !== 'conversation-shell-fallback' &&
+        !caseId.startsWith('MOB-CHANGES-')
     );
 }
 

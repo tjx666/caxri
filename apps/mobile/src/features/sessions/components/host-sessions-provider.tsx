@@ -31,7 +31,7 @@ interface HostSessionsContextValue {
     setNewSessionProjectId: (projectId: string) => void;
     setDraft: (sessionId: string, draft: string) => void;
     setProjectId: (projectId: string | null) => void;
-    setSegment: (sessionId: string, segment: SessionSegment) => void;
+    setSegment: (sessionId: string, segment: SessionSegment, previous?: SessionSegment) => void;
 }
 
 const HostSessionsContext = createContext<HostSessionsContextValue | null>(null);
@@ -71,9 +71,12 @@ export const HostSessionsProvider = ({
         listScrollOffsetReference.current = 0;
         setUi((current) => selectSessionProject(current, projectId));
     }, []);
-    const setSegment = useCallback((sessionId: string, segment: SessionSegment): void => {
-        setUi((current) => rememberSessionSegment(current, sessionId, segment));
-    }, []);
+    const setSegment = useCallback(
+        (sessionId: string, segment: SessionSegment, previous?: SessionSegment): void => {
+            setUi((current) => rememberSessionSegment(current, sessionId, segment, previous));
+        },
+        [],
+    );
     const value = useMemo(
         () => ({
             hostId,

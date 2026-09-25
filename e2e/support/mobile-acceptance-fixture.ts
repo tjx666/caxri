@@ -24,6 +24,8 @@ import {
     runMobileDeviceCommand,
     waitForMobile,
 } from './mobile-android';
+import type { MobileChangesFixtureKind } from './mobile-changes-fixture';
+import { seedMobileChangesFixture } from './mobile-changes-fixture';
 import type { MobileEncryptedPeer } from './mobile-encrypted-peer';
 import { pairMobileEncryptedPeer } from './mobile-encrypted-peer';
 
@@ -50,6 +52,7 @@ export interface MobileAcceptanceFixture {
 interface CreateMobileAcceptanceFixtureInput {
     mode: 'empty' | 'waiting' | 'launch-failure' | 'conversation' | 'shell-conversation';
     serial: string;
+    changes?: MobileChangesFixtureKind;
     dropSubmitAcknowledgement?: boolean;
 }
 
@@ -203,6 +206,14 @@ export async function createMobileAcceptanceFixture(
         mkdir(allowedRoot, { recursive: true }),
         mkdir(deniedRoot, { recursive: true }),
     ]);
+    if (input.changes) {
+        try {
+            await seedMobileChangesFixture(allowedRoot, input.changes);
+        } catch (error) {
+            await rm(testDirectory, { force: true, recursive: true });
+            throw error;
+        }
+    }
     const conversationAgentMode =
         input.mode === 'conversation' ? await fakeConversationAgent(userData) : undefined;
     const syntheticShell =

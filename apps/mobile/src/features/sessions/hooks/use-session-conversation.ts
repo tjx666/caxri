@@ -5,15 +5,19 @@ import { resolveSessionConversationSegment } from '../session-ui-state';
 
 export const useSessionConversation = ({
     isDetailVisible,
+    keepVisible,
     remembered,
     selected,
 }: {
     isDetailVisible: boolean;
+    keepVisible?: boolean;
     remembered: SessionSegment | undefined;
     selected: MobileSessionItem | null;
 }) => {
     const timeline = useConversationTimeline({
-        enabled: isDetailVisible && (remembered === undefined || remembered === 'conversation'),
+        enabled:
+            isDetailVisible &&
+            (remembered === undefined || remembered === 'conversation' || Boolean(keepVisible)),
         sessionId: selected?.id ?? null,
     });
     const selection = resolveSessionConversationSegment({

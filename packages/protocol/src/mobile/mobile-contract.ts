@@ -22,6 +22,9 @@ export const mobileDeviceIdSchema = z.string().regex(/^device_[0-9a-f]{32}$/u);
 export const MOBILE_MAX_PROJECT_GRANTS = 128;
 export const MOBILE_SHORT_REPLY_MAX_BYTES = 1_024;
 export const MOBILE_AGENT_SUBMIT_MAX_BYTES = 16 * 1_024;
+export const MOBILE_CHANGES_MAX_FILES = 100;
+export const MOBILE_CHANGES_MAX_PATCH_BYTES = 48 * 1_024;
+export const MOBILE_CHANGES_MAX_PATCH_LINES = 1_000;
 export const mobileProjectIdsSchema = z
     .array(z.string().min(1).max(200))
     .min(1)
@@ -169,6 +172,41 @@ export const mobileTimelineReadResultSchema = z.strictObject({
     cursorExpired: z.boolean(),
 });
 
+const mobileChangedFileSchema = z.strictObject({
+    repositoryId: identifierSchema,
+    repositoryName: z.string().min(1).max(100),
+    path: z.string().min(1).max(2_048),
+    originalPath: z.string().min(1).max(2_048).optional(),
+    status: z.enum(['M', 'A', 'D', 'R']),
+    additions: z.number().int().nonnegative(),
+    deletions: z.number().int().nonnegative(),
+});
+
+export const mobileChangesListResultSchema = z.strictObject({
+    isRepository: z.boolean(),
+    files: z.array(mobileChangedFileSchema).max(MOBILE_CHANGES_MAX_FILES),
+    total: z.number().int().nonnegative(),
+    additions: z.number().int().nonnegative(),
+    deletions: z.number().int().nonnegative(),
+    truncated: z.boolean(),
+});
+
+export const mobileChangesDiffResultSchema = z.discriminatedUnion('status', [
+    z.strictObject({
+        status: z.literal('available'),
+        patch: z
+            .string()
+            .min(1)
+            .refine(
+                (patch) => new TextEncoder().encode(patch).length <= MOBILE_CHANGES_MAX_PATCH_BYTES,
+                'Mobile patch exceeds the byte limit',
+            ),
+    }),
+    z.strictObject({ status: z.literal('binary') }),
+    z.strictObject({ status: z.literal('oversized') }),
+    z.strictObject({ status: z.literal('stale') }),
+]);
+
 const mobileAgentAvailabilitySchema = z.strictObject({
     kind: terminalKindSchema,
     available: z.boolean(),
@@ -221,6 +259,23 @@ export const mobileMethods = {
         ...commandPolicy('server', 'read', ['sessions.read']),
         params: mobileTimelineReadParametersSchema,
         result: mobileTimelineReadResultSchema,
+    },
+    'mobile.changes.list': {
+        ...commandPolicy('server', 'read', ['sessions.read']),
+        params: z.strictObject({
+            sessionId: identifierSchema,
+            refresh: z.boolean().default(false),
+        }),
+        result: mobileChangesListResultSchema,
+    },
+    'mobile.changes.diff': {
+        ...commandPolicy('server', 'read', ['sessions.read']),
+        params: z.strictObject({
+            sessionId: identifierSchema,
+            repositoryId: identifierSchema,
+            path: z.string().min(1).max(2_048),
+        }),
+        result: mobileChangesDiffResultSchema,
     },
     'mobile.agent.availability': {
         ...commandPolicy('server', 'read', ['projects.read']),
@@ -288,6 +343,25 @@ export const mobileMethods = {
  * changed while the dialog was open from inheriting stale approval.
  */
 export const mobileInternalMethods = {
+    'mobile.changes.listInternal': {
+        ...commandPolicy('server', 'read'),
+        params: z.strictObject({
+            sessionId: identifierSchema,
+            refresh: z.boolean().default(false),
+            principal: principalSchema,
+        }),
+        result: mobileChangesListResultSchema,
+    },
+    'mobile.changes.diffInternal': {
+        ...commandPolicy('server', 'read'),
+        params: z.strictObject({
+            sessionId: identifierSchema,
+            repositoryId: identifierSchema,
+            path: z.string().min(1).max(2_048),
+            principal: principalSchema,
+        }),
+        result: mobileChangesDiffResultSchema,
+    },
     'mobile.timeline.readInternal': {
         ...commandPolicy('server', 'read'),
         params: mobileTimelineReadParametersSchema.extend({ principal: principalSchema }),
@@ -337,3 +411,5 @@ export type MobileDashboardResult = z.infer<typeof mobileDashboardResultSchema>;
 export type MobileDeviceSummary = z.infer<typeof mobileDeviceSummarySchema>;
 export type AgentTimelineItem = z.infer<typeof agentTimelineItemSchema>;
 export type MobileTimelineReadResult = z.infer<typeof mobileTimelineReadResultSchema>;
+export type MobileChangesListResult = z.infer<typeof mobileChangesListResultSchema>;
+export type MobileChangesDiffResult = z.infer<typeof mobileChangesDiffResultSchema>;

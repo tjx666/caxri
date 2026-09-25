@@ -12,6 +12,7 @@ export const mobileSubscriptionResourceSchema = z.discriminatedUnion('kind', [
     z.strictObject({ kind: z.literal('dashboard') }),
     z.strictObject({ kind: z.literal('terminal'), terminalId: identifierSchema }),
     z.strictObject({ kind: z.literal('conversation'), sessionId: identifierSchema }),
+    z.strictObject({ kind: z.literal('changes'), sessionId: identifierSchema }),
 ]);
 
 export const mobileSubscribeResultSchema = z.strictObject({ subscriptionId: identifierSchema });
@@ -52,7 +53,7 @@ export const mobileEventPayloadSchema = z.union([
         type: z.literal('event'),
         subscriptionId: identifierSchema,
         sequence: sequenceSchema,
-        kind: z.enum(['dashboard.changed', 'conversation.changed']),
+        kind: z.enum(['dashboard.changed', 'conversation.changed', 'changes.changed']),
     }),
     z.strictObject({
         type: z.literal('event'),

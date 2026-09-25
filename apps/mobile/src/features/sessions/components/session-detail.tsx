@@ -1,32 +1,16 @@
-import { KeyboardAvoidingView, Platform, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Text } from 'react-native';
 
 import type { MobileTheme } from '../../../theme/tokens';
-import { ConversationView } from '../../conversation/conversation-view';
+import { ChangesPanel } from '../../changes/changes-panel';
+import { COMMIT_DRAFT } from '../../changes/changes-view';
+import { useChangesList } from '../../changes/use-changes';
 import type { useConversationTimeline } from '../../conversation/use-conversation-timeline';
-import { TerminalLiveView } from '../../terminal/terminal-live-view';
 import type { MobileSessionItem } from '../session-model';
-import { isMobileTerminalStopped } from '../session-model';
 import type { SessionSegment } from '../session-ui-state';
+import { SessionDetailBody } from './session-detail-body';
 import { SessionDetailComposer } from './session-detail-composer';
 import { SessionDetailHeader } from './session-detail-header';
 import { sessionDetailStyles as styles } from './session-detail-styles';
-
-const segmentLabels: Record<SessionSegment, string> = {
-    conversation: 'Conversation',
-    terminal: 'Terminal',
-    changes: 'Changes',
-};
-
-const SessionSegmentPlaceholder = ({ kind, theme }: { kind: 'changes'; theme: MobileTheme }) => (
-    <View style={styles.placeholder} testID={`${kind}-placeholder`}>
-        <Text accessibilityRole="header" style={[styles.placeholderTitle, { color: theme.text }]}>
-            {segmentLabels[kind]}
-        </Text>
-        <Text style={[styles.placeholderBody, { color: theme.muted }]}>
-            Changes review is coming soon. Review files on your computer for now.
-        </Text>
-    </View>
-);
 
 export const SessionDetail = ({
     deviceRole,
@@ -47,6 +31,7 @@ export const SessionDetail = ({
     session,
     theme,
     wideChanges,
+    wideBackgroundSegment,
 }: {
     deviceRole: 'view' | 'reply' | 'control' | null;
     draft: string;
@@ -66,36 +51,22 @@ export const SessionDetail = ({
     session: MobileSessionItem;
     theme: MobileTheme;
     wideChanges: boolean;
+    wideBackgroundSegment: 'conversation' | 'terminal';
 }) => {
-    const showTerminal = segment === 'terminal' || (segment === 'changes' && wideChanges);
-    const terminalId = session.primaryTerminal?.id ?? session.primaryAgentTerminalId;
-    const terminal = terminalId ? (
-        <TerminalLiveView
-            key={terminalId}
-            isConnected={isConnected}
-            isStopped={isMobileTerminalStopped(session)}
-            role={deviceRole}
-            terminalId={terminalId}
+    const changes = useChangesList(isVisible, session.id);
+    const changesPanel = (
+        <ChangesPanel
+            key={session.id}
+            canAskAgent={
+                (deviceRole === 'reply' || deviceRole === 'control') &&
+                Boolean(session.primaryAgentEndpoint)
+            }
+            list={changes}
+            onAskAgentToCommit={() => onDraftChange(COMMIT_DRAFT)}
+            sessionId={session.id}
             theme={theme}
-            visible={isVisible && showTerminal}
         />
-    ) : (
-        <View style={styles.placeholder} testID="terminal-unavailable">
-            <Text style={{ color: theme.muted }}>No active Terminal for this Session.</Text>
-        </View>
     );
-    const body =
-        segment === 'terminal' ? (
-            terminal
-        ) : segment === 'conversation' ? (
-            <ConversationView
-                onRetry={conversationTimeline.refresh}
-                theme={theme}
-                timeline={conversationTimeline}
-            />
-        ) : (
-            <SessionSegmentPlaceholder kind="changes" theme={theme} />
-        );
     return (
         <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -103,6 +74,7 @@ export const SessionDetail = ({
             testID="session-detail"
         >
             <SessionDetailHeader
+                changesCount={changes.state.snapshot?.changedFileCount ?? null}
                 isConnected={isConnected}
                 onBack={onBack}
                 onMarkRead={onMarkRead}
@@ -123,16 +95,18 @@ export const SessionDetail = ({
                     Conversation view isn't available for this Agent. Showing the Terminal.
                 </Text>
             ) : null}
-            {segment === 'changes' && wideChanges ? (
-                <View style={styles.bodyRow}>
-                    {terminal}
-                    <View style={[styles.wideChanges, { borderColor: theme.border }]}>
-                        <SessionSegmentPlaceholder kind="changes" theme={theme} />
-                    </View>
-                </View>
-            ) : (
-                <View style={styles.body}>{body}</View>
-            )}
+            <SessionDetailBody
+                changesPanel={changesPanel}
+                conversationTimeline={conversationTimeline}
+                deviceRole={deviceRole}
+                isConnected={isConnected}
+                isVisible={isVisible}
+                segment={segment}
+                session={session}
+                theme={theme}
+                wideBackgroundSegment={wideBackgroundSegment}
+                wideChanges={wideChanges}
+            />
             <SessionDetailComposer
                 deviceRole={deviceRole}
                 draft={draft}
