@@ -1,7 +1,6 @@
 import type {
     AppSettings,
     GitSummary,
-    ProjectStatusState,
     PullRequestUnavailable,
     ServerEvent,
     SessionDeployment,
@@ -38,9 +37,9 @@ import {
     runExternalStatusCommand,
 } from './external-status';
 import type { GitService } from './git';
-import { parseGitHubPullRequest } from './project-status-parse';
 import { VercelDeploymentStore } from './project-status-vercel-store';
 import { resolveSessionDeployment } from './session-pull-request-deployment';
+import { parseSessionPullRequest, selectBranchPullRequest } from './session-pull-request-parse';
 
 /**
  * Merge state moves on human timescales, so an open PR refreshes once a minute while a merged or closed one only
@@ -56,6 +55,12 @@ const MISSING_TTL_MS = 5 * 60_000;
  */
 const FAILURE_TTL_MS = 60_000;
 const MAX_CONCURRENT_LOOKUPS = 4;
+/**
+ * How old a shared pull-request record a forced Session refresh still accepts. The focus refresh re-reads the Status
+ * panel first, which refetches the same pull request moments earlier; accepting that record avoids paying a second `gh
+ * pr view` for it while still rejecting anything fetched before the window regained focus.
+ */
+const FORCED_RECORD_MAX_AGE_MS = 5_000;
 const MAX_TRANSCRIPT_SCANS = 128;
 const MAX_PULL_REQUEST_ENTRIES = 256;
 /**
@@ -151,54 +156,6 @@ function isSettled(value: SessionPullRequest | undefined): value is SessionPullR
     return value?.state === 'merged' || value?.state === 'closed';
 }
 
-function projectedChecks(
-    checks: ReadonlyArray<{ state: ProjectStatusState }> | undefined,
-    aggregate: ProjectStatusState | undefined,
-): ProjectStatusState | undefined {
-    return checks && checks.length > 0 ? aggregate : undefined;
-}
-
-function parseSessionPullRequest(
-    output: string,
-    source: SessionPullRequest['source'],
-    ignoredChecks: readonly string[],
-): SessionPullRequest | undefined {
-    const parsed = parseGitHubPullRequest(output, ignoredChecks).pullRequest;
-    if (!parsed) return undefined;
-    const state = parsed.lifecycle;
-    if (!state) return undefined;
-    return {
-        number: parsed.number,
-        title: parsed.title,
-        url: parsed.url,
-        state,
-        checks: projectedChecks(parsed.checks, parsed.state),
-        source,
-    };
-}
-
-/**
- * Picks the PR that best represents a branch when several exist: a live open PR outranks the merged one that already
- * landed, which outranks an abandoned closed one.
- */
-export function selectBranchPullRequest<T extends { state: string; isDraft?: boolean }>(
-    candidates: readonly T[],
-): T | undefined {
-    const rank = (candidate: T): number => {
-        switch (candidate.state.toUpperCase()) {
-            case 'OPEN':
-                return 0;
-            case 'MERGED':
-                return 1;
-            default:
-                return 2;
-        }
-    };
-    let best: T | undefined;
-    for (const candidate of candidates) if (!best || rank(candidate) < rank(best)) best = candidate;
-    return best;
-}
-
 /**
  * Discovers and tracks the pull request each active Session is delivering. Discovery prefers the Session's own Agent
  * transcript (the Agent may have opened the PR from a throwaway worktree that the Workbench root never checked out),
@@ -215,6 +172,11 @@ export class SessionPullRequestService {
     private readonly sessions = new Map<string, ScopedSessionEntry>();
     private sweep?: Promise<void>;
     private isRefreshRequested = false;
+    /**
+     * Sessions whose next sweep must bypass every cached lookup (see {@link refreshSession}). Consumed by the sweep that
+     * resolves the Session, so one request forces exactly one lookup.
+     */
+    private readonly forcedSessionIds = new Set<string>();
     private readonly transcriptScans = new Map<string, TranscriptPullRequestScan>();
     private readonly github: GitHubPullRequestStore;
     private readonly vercel: VercelDeploymentStore;
@@ -300,11 +262,14 @@ export class SessionPullRequestService {
             const liveIds = new Set(sessions.map((session) => session.id));
             for (const sessionId of this.sessions.keys())
                 if (!liveIds.has(sessionId)) this.sessions.delete(sessionId);
+            for (const sessionId of this.forcedSessionIds)
+                if (!liveIds.has(sessionId)) this.forcedSessionIds.delete(sessionId);
             await mapWithConcurrency(sessions, MAX_CONCURRENT_LOOKUPS, async (session) => {
                 const context = this.discoveryContext(session);
                 const cached = this.sessions.get(session.id);
                 const previous = cached?.context === context ? cached : undefined;
-                const resolved = await this.resolveSessionSafely(session, previous);
+                const isForced = this.forcedSessionIds.delete(session.id);
+                const resolved = await this.resolveSessionSafely(session, previous, isForced);
                 const result = { ...resolved, entry: await this.withDeployment(session, resolved) };
                 if (result.lookedUp) lookups += 1;
                 const current = this.database.getSession(session.id);
@@ -396,9 +361,10 @@ export class SessionPullRequestService {
     private async resolveSessionSafely(
         session: SessionRecord,
         previous: SessionEntry | undefined,
+        isForced: boolean,
     ): Promise<{ entry: SessionEntry; lookedUp: boolean }> {
         try {
-            return await this.resolveSession(session, previous);
+            return await this.resolveSession(session, previous, isForced);
         } catch (error) {
             this.logger.write('debug', logEventCatalog.sessionPullRequests.refreshFailed, {
                 fields: {
@@ -420,20 +386,27 @@ export class SessionPullRequestService {
     private async resolveSession(
         session: SessionRecord,
         previous: SessionEntry | undefined,
+        isForced: boolean,
     ): Promise<{ entry: SessionEntry; lookedUp: boolean }> {
         const now = this.now();
         const reference = await this.transcriptReference(session);
         if (reference) {
             const key = pullRequestKey(reference);
             // A still-fresh entry already carries last sweep's answer, including any branch hand-off below.
-            if (previous?.key === key && previous.expiresAt > now)
+            if (!isForced && previous?.key === key && previous.expiresAt > now)
                 return { entry: previous, lookedUp: false };
-            const transcript = await this.transcriptPullRequest(session, reference, key, previous);
-            return this.preferBranchPullRequest(session, transcript, key);
+            const transcript = await this.transcriptPullRequest(
+                session,
+                reference,
+                key,
+                previous,
+                isForced,
+            );
+            return this.preferBranchPullRequest(session, transcript, key, isForced);
         }
-        if (previous && previous.key === undefined && previous.expiresAt > now)
+        if (!isForced && previous && previous.key === undefined && previous.expiresAt > now)
             return { entry: previous, lookedUp: false };
-        const branch = await this.branchPullRequest(session);
+        const branch = await this.branchPullRequest(session, isForced);
         return {
             entry: {
                 expiresAt: branch.expiresAt,
@@ -452,16 +425,22 @@ export class SessionPullRequestService {
         reference: PullRequestReference,
         key: string,
         previous: SessionEntry | undefined,
+        isForced: boolean,
     ): Promise<{ entry: SessionEntry; lookedUp: boolean }> {
         const now = this.now();
         const cached = this.pullRequests.get(key);
-        if (cached && cached.expiresAt > now)
+        if (!isForced && cached && cached.expiresAt > now)
             return {
                 entry: { expiresAt: cached.expiresAt, key, value: cached.value },
                 lookedUp: false,
             };
         try {
-            const value = await this.viewPullRequest(session.rootPath, reference, 'agent');
+            const value = await this.viewPullRequest(
+                session.rootPath,
+                reference,
+                'agent',
+                isForced,
+            );
             const expiresAt = now + this.ttlFor(value);
             rememberBounded(this.pullRequests, key, { expiresAt, value }, MAX_PULL_REQUEST_ENTRIES);
             return { entry: { expiresAt, key, value }, lookedUp: true };
@@ -502,10 +481,11 @@ export class SessionPullRequestService {
         session: SessionRecord,
         transcript: { entry: SessionEntry; lookedUp: boolean },
         key: string,
+        isForced: boolean,
     ): Promise<{ entry: SessionEntry; lookedUp: boolean }> {
         const settled = transcript.entry.value;
         if (!isSettled(settled)) return transcript;
-        const branch = await this.branchPullRequest(session);
+        const branch = await this.branchPullRequest(session, isForced);
         const expiresAt = Math.min(transcript.entry.expiresAt, branch.expiresAt);
         const lookedUp = transcript.lookedUp || branch.lookedUp;
         if (!branch.value || branch.value.url === settled.url)
@@ -596,11 +576,13 @@ export class SessionPullRequestService {
         cwd: string,
         reference: PullRequestReference,
         source: SessionPullRequest['source'],
+        isForced: boolean,
     ): Promise<SessionPullRequest | undefined> {
         try {
             const output = await this.github.view({
                 allowStaleOnFailure: false,
                 cwd,
+                maxAgeMs: isForced ? FORCED_RECORD_MAX_AGE_MS : undefined,
                 number: reference.number,
                 owner: reference.owner,
                 repo: reference.repo,
@@ -614,7 +596,10 @@ export class SessionPullRequestService {
         }
     }
 
-    private async branchPullRequest(session: SessionRecord): Promise<{
+    private async branchPullRequest(
+        session: SessionRecord,
+        isForced: boolean,
+    ): Promise<{
         expiresAt: number;
         lookedUp: boolean;
         value?: SessionPullRequest;
@@ -629,7 +614,7 @@ export class SessionPullRequestService {
         if (!github) return missing;
         const key = `${github.owner}/${github.repo}\0${github.branch}`;
         const cached = this.branchLookups.get(key);
-        if (cached && cached.expiresAt > now)
+        if (!isForced && cached && cached.expiresAt > now)
             return {
                 expiresAt: cached.expiresAt,
                 lookedUp: false,
@@ -677,6 +662,7 @@ export class SessionPullRequestService {
                       github.rootPath,
                       { number: selected.number, owner: github.owner, repo: github.repo },
                       'branch',
+                      isForced,
                   )
                 : undefined;
             ttl = this.ttlFor(value);
@@ -763,6 +749,18 @@ export class SessionPullRequestService {
             ...(Object.keys(unavailable).length > 0 && { unavailable }),
             refreshedAt: this.refreshedAt,
         };
+    }
+
+    /**
+     * Re-resolves one Session past every cache this service and the shared pull-request record hold, then publishes the
+     * result through `sessionPullRequests.changed` like any sweep. Other Sessions ride along on their normal TTLs. A
+     * sweep already in flight may have resolved this Session before the request arrived, so the request also asks that
+     * sweep to run once more.
+     */
+    async refreshSession(sessionId: string): Promise<void> {
+        this.forcedSessionIds.add(sessionId);
+        this.isRefreshRequested = true;
+        await this.refresh();
     }
 
     async refresh(): Promise<void> {

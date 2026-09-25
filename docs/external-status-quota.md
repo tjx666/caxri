@@ -83,6 +83,13 @@ second cache.
   — so the shared record was refetched on every poll and shared nothing with itself.
 - `maxAgeMs: 0` forces a refetch. Only an explicit user refresh passes it: the Status panel's refresh
   token and Source Control's `git.pullRequestChanges` refresh, which must see a force-pushed head.
+- Window focus counts as that explicit refresh for the selected Session only. The Renderer calls
+  `session.refreshDeliveryOnFocus`, and `DeliveryFocusRefresh` (`delivery-focus-refresh.ts`) forces
+  the Status panel summary and then that Session's sidebar lookup, at most once per Session every
+  15 seconds. Without it, a pull request merged in the browser kept showing as open for up to the
+  settled TTLs above, because the Renderer's own focus refetch only reads these caches. The sidebar
+  lookup accepts a shared record up to 5 seconds old, so it joins the Status panel's fresh fetch
+  instead of querying the same pull request twice.
 - A confirmed "no pull request" is cacheable. A transport, auth, or quota failure is **not** — it
   would otherwise render as "no PR" until the TTL expired.
 - A failed refresh serves the last known record rather than propagating the error, and leaves
