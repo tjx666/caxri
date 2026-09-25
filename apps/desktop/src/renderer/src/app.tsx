@@ -14,6 +14,7 @@ import { scheduleCodeEditorPreload } from './features/editor/editor-loader';
 import { useExternalDocumentSync } from './features/editor/external-sync';
 import { CommandPalette } from './features/palette/command-palette';
 import { PathBrowserDialog } from './features/path-browser/path-browser-dialog';
+import { useDeliveryFocusRefresh } from './features/primary-sidebar/hooks/use-delivery-focus-refresh';
 import { PrimarySidebar } from './features/primary-sidebar/primary-sidebar';
 import { ProjectIconDialog } from './features/primary-sidebar/project-icon-dialog';
 import { ProjectSearchDialog } from './features/project-search/project-search-dialog';
@@ -121,6 +122,7 @@ export function App() {
     useSessionNavigationHistory();
     useCommandShortcuts();
     useSessionAttentionAcknowledgement();
+    useDeliveryFocusRefresh();
     useExternalDocumentSync();
     useGitDecorationSync();
     useChromeViewportClamp();
