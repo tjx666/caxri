@@ -23,6 +23,11 @@ AI-generated title may be replaced. The naming service checks native ownership b
 bounded, provider-authorized transcript tail in Server memory,
 selects visible user and assistant messages, and excludes instructions and tool records. It never uses Git branch
 names. Unclear tasks defer naming; generation uses the existing isolated, tool-disabled provider text runner.
+The first substantive user request determines the generated title's language; an issue-only or image-only request
+uses the assistant's explanation. Generated titles are checked against that language and cannot be a bare issue key.
+An invalid non-SKIP result gets one corrective generation attempt before naming defers to a later turn.
+An unknown-provenance native title that is only an issue key is treated as provisional under automatic ownership;
+an explicitly user-owned native title remains authoritative.
 `sessions.automatic_naming` persists the exact provider binding and pending title before native rename, then records
 the provider-returned title and completion. Automatic and manual writes share the Session rename queue. Every async
 boundary revalidates manual intent, archive state, primary binding, cwd, and launch identity; old work never follows a

@@ -13,7 +13,7 @@ import type { AgentCoordinator, AgentService } from './agents';
  * Server domain boundaries require the owning public root; structure tests reject cross-domain deep imports.
  */
 // react-doctor-disable-next-line react-doctor/no-barrel-import
-import { agentProviderStateRoot } from './agents';
+import { agentProviderStateRoot, isBareIssueReferenceTitle } from './agents';
 import type { CaxriDatabase } from './db';
 
 const MAXIMUM_AGENT_TARGET_CHANGES = 3;
@@ -251,7 +251,12 @@ export class SessionRenameService {
                 return false;
             let state = this.database.automaticSessionNaming(sessionId);
             if (state?.status === 'complete' || state?.status === 'stopped') return false;
-            if (!state && snapshot.title && snapshot.titleSource !== 'automatic') {
+            if (
+                !state &&
+                snapshot.title &&
+                snapshot.titleSource !== 'automatic' &&
+                (snapshot.titleSource === 'explicit' || !isBareIssueReferenceTitle(snapshot.title))
+            ) {
                 if (snapshot.titleSource === 'explicit') {
                     this.database.renameSession(sessionId, snapshot.title);
                 } else {
