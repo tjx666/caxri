@@ -50,6 +50,9 @@ report artifact; serialize the smallest relevant Renderer subtree by following
   [report.md](report.md#structured-visualizations), not a generated PNG. Keep the
   raw CSV/JSON, trace, or profile as `evidence` beside it.
 - Inspect every image, clip, and generated document before citing it.
+- A redacted screenshot must still show the state being claimed. A uniform masked row does not prove
+  which Session is selected, even with a matching state receipt. Preserve a privacy-safe selection
+  marker whose pixels differ for a different selected Session, and inspect both states.
 - Passing video evidence must survive the report finalizer's duration, frame-count,
   and visible-variation checks. A short or static frame sequence is not a recording.
 - Never copy media from a blocked or failed round into a passing case. The finalizer
@@ -60,6 +63,10 @@ report artifact; serialize the smallest relevant Renderer subtree by following
 - Pairing links and QR payloads are credentials. Mobile raw accessibility trees can also contain
   Terminal previews, Session names, Project paths, keyboard suggestions, or pairing data; use
   Caxri's sanitized Android semantic/result receipts and review iOS hierarchy text before citing it.
+- Terminal fixture rows can contain private output. Keep the raw preflight input in a temporary
+  directory outside the report and its `assets/` tree, delete it after preflight, and cite only the
+  schema v2 receipt. The receipt may retain grid identity, row widths, border booleans, and error
+  codes; it must not retain rendered row text or any other unreviewed Terminal content.
 - Never include a complete `caxri://` pairing URL, QR image, device credential, X25519 key, AES-GCM
   nonce, token, or secret-like value in evidence paths, files, observations, or `report.md`. Do not
   upload unfiltered ADB `logcat` or Simulator logs. Prefer allowlisted receipts; if private material

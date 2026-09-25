@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef } from 'react';
 
+import type { MethodResult } from '@caxri/protocol';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 
@@ -14,6 +15,7 @@ import {
     selectedNewSessionProject,
     sortNewSessionProjects,
 } from '../new-session-model';
+import { waitForCreatedConversation } from '../new-session-readiness';
 
 export const useNewSession = () => {
     const router = useRouter();
@@ -27,6 +29,7 @@ export const useNewSession = () => {
         setNewSessionAgent,
         setNewSessionCreateState,
         setNewSessionProjectId,
+        setSegment,
     } = useHostSessions();
     const creatingReference = useRef(false);
     const projects = useMemo(() => sortNewSessionProjects(sessions.projects), [sessions.projects]);
@@ -91,10 +94,30 @@ export const useNewSession = () => {
         setNewSessionAgent(selectedAgent);
         setNewSessionCreateState({ kind: 'creating' });
         try {
-            const result = await request('mobile.session.create', {
-                projectId: selectedProjectId,
-                defaultAgent: selectedAgent,
-            });
+            let result: MethodResult<'mobile.session.create'>;
+            try {
+                result = await request('mobile.session.create', {
+                    projectId: selectedProjectId,
+                    defaultAgent: selectedAgent,
+                });
+            } catch (error) {
+                const canRetry =
+                    error instanceof MobileGatewayRequestError &&
+                    ['CAPACITY', 'CONFLICT', 'FORBIDDEN', 'NOT_FOUND', 'VALIDATION'].includes(
+                        error.code,
+                    );
+                setNewSessionCreateState(
+                    canRetry
+                        ? { kind: 'failed', message: error.message }
+                        : {
+                              kind: 'uncertain',
+                              checkedSessions: false,
+                              message:
+                                  'Caxri did not confirm whether the Session was created. Check Sessions before trying again.',
+                          },
+                );
+                return;
+            }
             if (result.launchError) {
                 setNewSessionCreateState({
                     kind: 'partial',
@@ -103,23 +126,13 @@ export const useNewSession = () => {
                 });
                 return;
             }
-            openCreatedSession(result.sessionId, true);
-        } catch (error) {
-            const canRetry =
-                error instanceof MobileGatewayRequestError &&
-                ['CAPACITY', 'CONFLICT', 'FORBIDDEN', 'NOT_FOUND', 'VALIDATION'].includes(
-                    error.code,
+            if (selectedAgent === 'claude' || selectedAgent === 'codex') {
+                setSegment(result.sessionId, 'conversation');
+                await waitForCreatedConversation(() =>
+                    request('mobile.timeline.read', { sessionId: result.sessionId }),
                 );
-            setNewSessionCreateState(
-                canRetry
-                    ? { kind: 'failed', message: error.message }
-                    : {
-                          kind: 'uncertain',
-                          checkedSessions: false,
-                          message:
-                              'Caxri did not confirm whether the Session was created. Check Sessions before trying again.',
-                      },
-            );
+            }
+            openCreatedSession(result.sessionId, true);
         } finally {
             creatingReference.current = false;
         }
@@ -132,6 +145,7 @@ export const useNewSession = () => {
         setNewSessionAgent,
         setNewSessionCreateState,
         setNewSessionProjectId,
+        setSegment,
     ]);
 
     return {

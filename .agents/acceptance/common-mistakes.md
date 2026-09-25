@@ -5,6 +5,17 @@ needlessly prolonged an Acceptance run. Read it before planning a desktop or mob
 Keep entries evidence-based and link to the canonical workflow rule instead of
 duplicating the full procedure here.
 
+## Comparing an isolated Desktop profile by its original temporary path
+
+**Situation:** An Acceptance helper binds Desktop media to the isolated Electron profile.
+
+**Does not work:** Hashing or comparing the temporary path supplied to the launcher. macOS can
+resolve `/var` to `/private/var`, and Electron installs the canonical path as `userData`.
+
+**Works:** Resolve the profile's real path before recording its identity, and compare it with
+Electron's `userData` path. Keep the original fixture path for owned cleanup. See the
+[Desktop evidence contract](../skills/acceptance/references/report.md).
+
 ## Automating native macOS dialogs during routine Acceptance
 
 **Situation:** A product flow crosses `NSOpenPanel`, `NSSavePanel`, or another

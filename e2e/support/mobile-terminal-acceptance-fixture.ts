@@ -18,6 +18,9 @@ import {
 
 interface MenuState {
     cols: number | null;
+    firstGridMarker: { columns: number; generation: string; rows: number };
+    generation: string;
+    lines: string[];
     rows: number | null;
     selected: number;
     submissions: number;
@@ -52,8 +55,8 @@ export interface MobileTerminalAcceptanceFixture {
 }
 
 /**
- * The fake Agent prints only synthetic ANSI colors and a two-choice menu. Its private state file records the selected
- * option and submission count, never Terminal output or input bytes.
+ * The fake Agent fills every visible Terminal cell with synthetic content. Its temporary state contains only the
+ * synthetic grid, selected option, and submission count; it never records user Terminal input.
  */
 async function createMenuAgent(userData: string, statePath: string) {
     return createFakeAgentMode({
@@ -73,19 +76,39 @@ process.stdin.resume();
 let selected = 1;
 let submissions = 0;
 let pending = Buffer.alloc(0);
+let generationNumber = 0;
 const statePath = ${JSON.stringify(statePath)};
-const save = () => {
+const render = () => {
+  const cols = process.stdout.columns ?? 0;
+  const rows = process.stdout.rows ?? 0;
+  if (cols < 18 || rows < 4) return;
+  const generation = 'G' + (++generationNumber);
+  const labels = Array.from({ length: rows }, (_, index) => 'Synthetic row ' + String(index + 1).padStart(2, '0'));
+  labels[0] = generation + ' Agent ready';
+  labels[1] = selected === 1 ? '> 1. First' : '  1. First';
+  labels[2] = selected === 2 ? '> 2. Second' : '  2. Second';
+  labels[rows - 1] = submissions > 0 ? 'Selection submitted' : 'Choose an option';
+  const lines = labels.map((label) => '│' + label.slice(0, cols - 2).padEnd(cols - 2, ' ') + '│');
+  process.stdout.write('\x1b[?7l\x1b[2J');
+  for (const [index, line] of lines.entries()) {
+    const color = index === 0 ? 32 : index === selected ? 36 : index === rows - 1 && submissions > 0 ? 35 : 37;
+    process.stdout.write('\x1b[' + (index + 1) + ';1H\x1b[' + color + 'm' + line + '\x1b[0m');
+  }
+  process.stdout.write('\x1b[?7h');
   fs.writeFileSync(statePath + '.next', JSON.stringify({
-    cols: process.stdout.columns ?? null,
-    rows: process.stdout.rows ?? null,
+    cols,
+    firstGridMarker: { columns: cols, generation, rows },
+    generation,
+    lines,
+    rows,
     selected,
     submissions,
   }));
   fs.renameSync(statePath + '.next', statePath);
 };
-save();
-process.on('SIGWINCH', save);
-process.stdout.write('\x1b[32mSynthetic Agent ready\x1b[0m\r\nChoose an option:\r\n  1. First\r\n  2. Second\r\n');
+process.stdout.on('resize', render);
+process.on('SIGWINCH', render);
+setTimeout(render, 250);
 process.stdin.on('data', (chunk) => {
   pending = Buffer.concat([pending, chunk]);
   while (pending.length > 0) {
@@ -94,20 +117,17 @@ process.stdin.on('data', (chunk) => {
       if (pending.length < 3) break;
       if (pending[1] === 91 && pending[2] === 66) {
         selected = 2;
-        process.stdout.write('\x1b[36mSecond selected\x1b[0m\r\n');
       } else if (pending[1] === 91 && pending[2] === 65) {
         selected = 1;
-        process.stdout.write('\x1b[36mFirst selected\x1b[0m\r\n');
       }
       pending = pending.subarray(3);
-      save();
+      render();
       continue;
     }
     pending = pending.subarray(1);
     if (first !== 13 && first !== 10) continue;
     submissions += 1;
-    process.stdout.write('\x1b[35mSelection submitted\x1b[0m\r\n');
-    save();
+    render();
   }
 });
 `,

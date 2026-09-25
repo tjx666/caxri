@@ -35,9 +35,11 @@ sequence. For a secondary window such as Process Explorer, add
 `--fixture-preflight` is mandatory only when the frozen case plan declares
 `fixturePreflight: terminal`; the launcher records that requirement in the owned runtime receipt and
 frame capture otherwise fails closed. For a Terminal fixture, it points to the receipt written by
-`fixture-preflight.ts --output`. The receipt preserves the observed fixture generation, first grid
-marker, DOM row count, grid size, rendered lines, and ready/blocked result. The capture helper
-refuses capture before the first frame when that receipt is blocked.
+`fixture-preflight.ts --output`. Capture the observed rendered rows in a temporary input file
+outside the report tree, run preflight, then remove that input. The schema v2 receipt preserves
+the fixture generation, first grid marker, DOM row count, grid size, per-row widths and border
+checks, and ready/blocked result; it never contains the rendered row text. The capture helper
+refuses capture before the first frame when that receipt is blocked or malformed.
 
 An Agent fixture replaces a blocked Agent executable; it does not by itself claim Terminal grid
 layout. Declare the Terminal preflight separately whenever the evidence depends on rendered grid

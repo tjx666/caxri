@@ -5,6 +5,7 @@ import {
     parseAndroidDisplayState,
     parseMobileAndroidCaseIds,
     shouldCaptureAdapterScreenshot,
+    shouldCollectAndroidVideo,
 } from '../mobile-android-cases';
 
 describe('mobile Android Acceptance cases', () => {
@@ -51,6 +52,12 @@ describe('mobile Android Acceptance cases', () => {
             recordingOwner: 'scenario',
             scenario: 'conversation-follow',
         });
+        expect(mobileAndroidAcceptanceCase('MOB-TERM-01')).toEqual({
+            desktopProfile: 'managed-by-isolated-e2e',
+            media: ['screenshot', 'video'],
+            recordingOwner: 'scenario',
+            scenario: 'terminal-observe-control',
+        });
         expect(mobileAndroidAcceptanceCase('MOB-TIMELINE-01')).toEqual({
             desktopProfile: 'managed-by-isolated-e2e',
             media: [],
@@ -62,6 +69,24 @@ describe('mobile Android Acceptance cases', () => {
             media: ['video'],
             recordingOwner: 'scenario',
             scenario: 'changes-ask-agent-draft-send',
+        });
+        expect(mobileAndroidAcceptanceCase('MOB-E2E-01')).toEqual({
+            desktopProfile: 'managed-by-isolated-e2e',
+            media: ['screenshot', 'video'],
+            recordingOwner: 'scenario',
+            scenario: 'journey-phone',
+        });
+        expect(mobileAndroidAcceptanceCase('MOB-CROSS-01')).toEqual({
+            desktopProfile: 'managed-by-isolated-e2e',
+            media: ['screenshot', 'video'],
+            recordingOwner: 'scenario',
+            scenario: 'cross-device-new-session',
+        });
+        expect(mobileAndroidAcceptanceCase('MOB-PARTIAL-01')).toEqual({
+            desktopProfile: 'managed-by-isolated-e2e',
+            media: ['screenshot'],
+            recordingOwner: 'scenario',
+            scenario: 'partial-new-session-launch-failure',
         });
         expect(() => mobileAndroidAcceptanceCase('MOB-SEC-01')).toThrow(
             'Unsupported Android Acceptance case',
@@ -86,6 +111,8 @@ describe('mobile Android Acceptance cases', () => {
         expect(shouldCaptureAdapterScreenshot('MOB-CONV-03', true)).toBe(false);
         expect(shouldCaptureAdapterScreenshot('MOB-CONV-01', true)).toBe(true);
         expect(shouldCaptureAdapterScreenshot('MOB-CONV-01', false)).toBe(false);
+        expect(shouldCaptureAdapterScreenshot('MOB-TERM-01', true)).toBe(false);
+        expect(shouldCaptureAdapterScreenshot('MOB-TERM-01', false)).toBe(false);
         for (const caseId of [
             'MOB-CHANGES-01',
             'MOB-CHANGES-02',
@@ -94,6 +121,21 @@ describe('mobile Android Acceptance cases', () => {
         ]) {
             expect(shouldCaptureAdapterScreenshot(caseId, true)).toBe(false);
         }
+        expect(shouldCaptureAdapterScreenshot('MOB-E2E-01', true)).toBe(false);
+        expect(shouldCaptureAdapterScreenshot('MOB-E2E-03', true)).toBe(false);
+        expect(shouldCaptureAdapterScreenshot('MOB-CROSS-01', true)).toBe(false);
+        expect(shouldCaptureAdapterScreenshot('MOB-PARTIAL-01', true)).toBe(false);
+    });
+
+    it('does not pull Terminal video after blocked fixture preflight or failed scenario execution', () => {
+        expect(shouldCollectAndroidVideo('MOB-TERM-01', false)).toBe(false);
+        expect(shouldCollectAndroidVideo('MOB-TERM-01', true)).toBe(true);
+        expect(shouldCollectAndroidVideo('MOB-CONV-02', false)).toBe(true);
+        expect(shouldCollectAndroidVideo('MOB-CONV-03', true)).toBe(false);
+        expect(shouldCollectAndroidVideo('MOB-E2E-01', false)).toBe(false);
+        expect(shouldCollectAndroidVideo('MOB-E2E-01', true)).toBe(true);
+        expect(shouldCollectAndroidVideo('MOB-CROSS-01', false)).toBe(false);
+        expect(shouldCollectAndroidVideo('MOB-CROSS-01', true)).toBe(true);
     });
 
     it('normalizes physical and override display state for exact restoration', () => {

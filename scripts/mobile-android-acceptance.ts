@@ -12,6 +12,7 @@ import {
     markCaseLifecycleReady,
 } from '../.agents/skills/acceptance/scripts/case-lifecycle';
 import { loadAcceptanceCasePlan } from '../.agents/skills/acceptance/scripts/report';
+import { prepareMobileFixtureIme } from './mobile-acceptance-ime';
 import type { MobileAcceptanceArtifact } from './mobile-acceptance-runtime';
 import {
     assertMobileAcceptanceSourceIdentity,
@@ -30,6 +31,7 @@ import {
     mobileAndroidAcceptanceCase,
     parseMobileAndroidCaseIds,
     shouldCaptureAdapterScreenshot,
+    shouldCollectAndroidVideo,
 } from './mobile-android-cases';
 
 const root = resolve(import.meta.dirname, '..');
@@ -388,7 +390,7 @@ async function executeCase(
     } finally {
         const activeRecording = recording;
         const collected = await collectMobileAcceptanceArtifacts({
-            captureRecording: definition.media.includes('video')
+            captureRecording: shouldCollectAndroidVideo(caseId, failure === undefined)
                 ? async () => {
                       await activeRecording?.stop();
                       run(
@@ -460,6 +462,7 @@ async function executeCase(
             cleanup: {
                 appData: isCleanupCompleted ? 'cleared' : 'preserved',
                 desktopProfile: definition.desktopProfile,
+                fixtureIme: 'pending',
             },
             device: { id: serial, kind: 'emulator', platform: 'android' },
             launchId,
@@ -470,6 +473,53 @@ async function executeCase(
         },
     );
     if (failure) throw failure instanceof Error ? failure : new Error('Android Acceptance failed');
+}
+
+async function markFixtureImeRestored(
+    caseId: MobileAndroidAcceptanceCaseId,
+    sourceCommit: string,
+): Promise<void> {
+    const path = join(reportDirectory, 'assets', `${caseId}-mobile-device.json`);
+    let source: string;
+    try {
+        source = await readFile(path, 'utf8');
+    } catch (error) {
+        if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT')
+            return;
+        throw error;
+    }
+    const receipt = JSON.parse(source) as {
+        caseId: string;
+        cleanup: { fixtureIme?: string };
+        sourceCommit: string;
+    };
+    if (
+        receipt.caseId !== caseId ||
+        receipt.sourceCommit !== sourceCommit ||
+        receipt.cleanup.fixtureIme !== 'pending'
+    ) {
+        throw new Error('The fixture IME cleanup receipt does not match the current case');
+    }
+    await writeMobileAcceptanceReceipt(path, {
+        ...receipt,
+        cleanup: { ...receipt.cleanup, fixtureIme: 'restored' },
+    });
+}
+
+async function cleanupFixtureImeWithRetry(cleanup: () => Promise<void>): Promise<void> {
+    try {
+        await cleanup();
+    } catch (firstError) {
+        try {
+            await cleanup();
+        } catch (secondError) {
+            throw new AggregateError(
+                [firstError, secondError],
+                'Fixture IME cleanup failed after one retry',
+                { cause: secondError },
+            );
+        }
+    }
 }
 
 async function recordSetupBlockedCase(
@@ -559,6 +609,7 @@ const acceptanceBuildEnvironment = {
 };
 let setupFailure: unknown;
 let apkSha256: string | undefined;
+let cleanupFixtureIme: (() => Promise<void>) | undefined;
 try {
     run('bun', ['run', 'build'], BUILD_TIMEOUT_MS);
     run(
@@ -577,6 +628,16 @@ try {
     apkSha256 = createHash('sha256')
         .update(await readFile(releaseApk))
         .digest('hex');
+    cleanupFixtureIme = await prepareMobileFixtureIme(serial, {
+        build: (directory) =>
+            run(
+                'bash',
+                [join(root, 'e2e/support/mobile-ime/build.sh'), directory],
+                BUILD_TIMEOUT_MS,
+            ),
+        readDevice: adbRead,
+        runDevice: (arguments_) => adbRun(arguments_),
+    });
 } catch (error) {
     setupFailure = error;
 }
@@ -597,8 +658,37 @@ if (setupFailure) {
         : new Error('Android Acceptance setup failed');
 }
 if (!apkSha256) throw new Error('Android Acceptance build identity is unavailable');
-for (const caseId of caseIds) {
-    // Each case owns an isolated app/profile lifecycle but reuses the exact same already-hashed release APK build.
-    // eslint-disable-next-line no-await-in-loop
-    await executeCase(caseId, sourceCommit, apkSha256);
+let caseFailure: unknown;
+const attemptedCaseIds: MobileAndroidAcceptanceCaseId[] = [];
+try {
+    for (const caseId of caseIds) {
+        // Each case owns an isolated app/profile lifecycle but reuses the exact same already-hashed release APK build.
+        attemptedCaseIds.push(caseId);
+        // eslint-disable-next-line no-await-in-loop -- each case owns its isolated device and profile lifecycle.
+        await executeCase(caseId, sourceCommit, apkSha256);
+    }
+} catch (error) {
+    caseFailure = error;
 }
+let imeCleanupFailure: unknown;
+try {
+    if (!cleanupFixtureIme) throw new Error('Fixture IME cleanup owner is unavailable');
+    await cleanupFixtureImeWithRetry(cleanupFixtureIme);
+    for (const caseId of attemptedCaseIds) {
+        // eslint-disable-next-line no-await-in-loop -- the cleanup marker follows the same frozen case order.
+        await markFixtureImeRestored(caseId, sourceCommit);
+    }
+} catch (error) {
+    imeCleanupFailure = error;
+}
+if (caseFailure && imeCleanupFailure)
+    throw new AggregateError(
+        [caseFailure, imeCleanupFailure],
+        'Android Acceptance case and fixture IME cleanup failed',
+    );
+if (imeCleanupFailure)
+    throw imeCleanupFailure instanceof Error
+        ? imeCleanupFailure
+        : new Error('Fixture IME cleanup failed');
+if (caseFailure)
+    throw caseFailure instanceof Error ? caseFailure : new Error('Android Acceptance case failed');

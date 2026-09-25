@@ -11,7 +11,8 @@ const MINIMUM_VIDEO_FRAMES = 12;
 const MINIMUM_SAMPLED_FRAMES = 6;
 const MINIMUM_DISTINCT_SAMPLED_FRAMES = 3;
 const MAXIMUM_VIDEO_DURATION_SECONDS = 120;
-const MAXIMUM_SAMPLED_FRAMES = MAXIMUM_VIDEO_DURATION_SECONDS * 2;
+const MAXIMUM_ANDROID_JOURNEY_DURATION_SECONDS = 180;
+const MAXIMUM_STATIC_DESKTOP_DURATION_SECONDS = 180;
 const FFPROBE_TIMEOUT_MS = 10_000;
 const FFMPEG_TIMEOUT_MS = 30_000;
 const VIDEO_EXTENSIONS = new Set(['.m4v', '.mov', '.mp4', '.webm']);
@@ -122,6 +123,7 @@ function parseSampledFrameHashes(output: string): string[] {
 export async function validateVideoEvidence(
     filePath: string,
     runner: MediaCommandRunner = defaultRunner,
+    options: { allowLongAndroidJourney?: boolean; allowStaticDesktop?: boolean } = {},
 ): Promise<VideoEvidenceIntegrity> {
     const probeOutput = await runner('ffprobe', [
         '-v',
@@ -141,10 +143,13 @@ export async function validateVideoEvidence(
             `Video evidence ${filePath} must be at least ${MINIMUM_VIDEO_DURATION_SECONDS} seconds`,
         );
     }
-    if (durationSeconds > MAXIMUM_VIDEO_DURATION_SECONDS) {
-        throw new Error(
-            `Video evidence ${filePath} must be at most ${MAXIMUM_VIDEO_DURATION_SECONDS} seconds`,
-        );
+    const maxDurationSeconds = options.allowStaticDesktop
+        ? MAXIMUM_STATIC_DESKTOP_DURATION_SECONDS
+        : options.allowLongAndroidJourney
+          ? MAXIMUM_ANDROID_JOURNEY_DURATION_SECONDS
+          : MAXIMUM_VIDEO_DURATION_SECONDS;
+    if (durationSeconds > maxDurationSeconds) {
+        throw new Error(`Video evidence ${filePath} must be at most ${maxDurationSeconds} seconds`);
     }
 
     const stream = probe.streams?.[0];
@@ -167,9 +172,9 @@ export async function validateVideoEvidence(
         '-map',
         '0:v:0',
         '-t',
-        String(MAXIMUM_VIDEO_DURATION_SECONDS),
+        String(maxDurationSeconds),
         '-frames:v',
-        String(MAXIMUM_SAMPLED_FRAMES),
+        String(maxDurationSeconds * 2),
         '-f',
         'framemd5',
         '-',
@@ -181,7 +186,7 @@ export async function validateVideoEvidence(
         );
     }
     const distinctSampledFrames = new Set(sampledHashes).size;
-    if (distinctSampledFrames < MINIMUM_DISTINCT_SAMPLED_FRAMES) {
+    if (!options.allowStaticDesktop && distinctSampledFrames < MINIMUM_DISTINCT_SAMPLED_FRAMES) {
         throw new Error(
             `Video evidence ${filePath} must contain at least ${MINIMUM_DISTINCT_SAMPLED_FRAMES} distinct sampled frames`,
         );
@@ -327,6 +332,8 @@ async function validateCurrentCaseMedia(input: {
     directory: string;
     priorNonPassingByHash: Map<string, MediaHashSource>;
     runner?: MediaCommandRunner;
+    longAndroidVideos: Set<string>;
+    staticDesktopVideos: Map<string, number>;
 }): Promise<void> {
     for (const evidence of input.acceptanceCase.evidence) {
         const path = evidencePath(evidence);
@@ -336,8 +343,21 @@ async function validateCurrentCaseMedia(input: {
             const resolvedPath = await resolveMediaPath(input.directory, path);
             if (isVideoEvidence(path)) {
                 // Sequential probing avoids running several ffmpeg decoders during report finalization.
+
+                const declaredDurationMs = input.staticDesktopVideos.get(path);
                 // eslint-disable-next-line no-await-in-loop
-                await validateVideoEvidence(resolvedPath, input.runner);
+                const integrity = await validateVideoEvidence(resolvedPath, input.runner, {
+                    allowLongAndroidJourney: input.longAndroidVideos.has(path),
+                    allowStaticDesktop: declaredDurationMs !== undefined,
+                });
+                if (
+                    declaredDurationMs !== undefined &&
+                    Math.abs(integrity.durationSeconds * 1_000 - declaredDurationMs) > 750
+                ) {
+                    throw new Error(
+                        `Desktop video evidence ${path} duration does not match its receipt`,
+                    );
+                }
             }
             if (input.acceptanceCase.status === 'pass') {
                 // Sequential hashing avoids reading several large recordings into memory at once.
@@ -378,6 +398,8 @@ export async function validateReportMediaEvidence(input: {
     directory: string;
     plans: AcceptanceMediaPlan[];
     runner?: MediaCommandRunner;
+    longAndroidVideos?: Set<string>;
+    staticDesktopVideos?: Map<string, number>;
 }): Promise<void> {
     const planIds = new Set(input.plans.map(({ id }) => id));
     const [currentNonPassingByHash, priorNonPassingByHash] = await Promise.all([
@@ -401,6 +423,8 @@ export async function validateReportMediaEvidence(input: {
             directory: input.directory,
             priorNonPassingByHash,
             runner: input.runner,
+            longAndroidVideos: input.longAndroidVideos ?? new Set<string>(),
+            staticDesktopVideos: input.staticDesktopVideos ?? new Map<string, number>(),
         });
     }
 }
