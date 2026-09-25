@@ -61,6 +61,8 @@ function automationFailureReason(error: unknown, successfulOutput: string): stri
     if (output.includes('Composer is not focused')) return 'composer-not-focused';
     if (output.includes('Composer input is unavailable')) return 'composer-unavailable';
     if (output.includes('Composer text action failed')) return 'text-action-failed';
+    if (output.includes('Composer selection action failed')) return 'selection-action-failed';
+    if (output.includes('Composer delete action failed')) return 'delete-action-failed';
     if (output.includes('Composer text differs from fixture')) return 'text-mismatch';
     if (output.includes('Composer draft differs from fixture')) return 'draft-mismatch';
     if (output.includes('Unknown delivery feedback is unavailable')) return 'feedback-unavailable';

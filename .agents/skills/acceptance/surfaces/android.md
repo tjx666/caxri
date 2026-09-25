@@ -79,6 +79,9 @@ coordinates only after a sanitized inspection proves one unambiguous target.
 When an Acceptance UiAutomator helper invokes `adb shell`, omit option pairs whose value is empty:
 ADB drops empty positional arguments. Keep failures attributable to a safe execution stage and a
 closed reason code; never print raw stdout, command arguments, or fixture text into reports.
+For a controlled React Native input, `ACTION_SET_TEXT` and an immediate native `getText()` match do
+not prove that React received `onChangeText`. Require a React-visible action state and the resulting
+product effect before accepting an input case; a native-only draft remains an execution failure.
 Before diagnosing a missing `testID`, verify the expected screen with a stable route marker. Start
 swipes inside the content area, away from Android's Back gesture edges, and check the route again.
 
