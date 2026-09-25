@@ -1,6 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import process from 'node:process';
 
 import { createTerminalFixturePreflightReceipt } from '../../.agents/skills/acceptance/scripts/fixture-preflight';
 import { writeJsonAtomic } from '../../scripts/atomic-json';
@@ -26,6 +27,7 @@ import { tapTerminalKey } from './mobile-terminal-key';
 import {
     assertMobileComposerDraft,
     assertMobileComposerFocused,
+    diagnoseMobileComposerAscii,
     setMobileComposerUnicode,
 } from './mobile-unicode-input';
 
@@ -259,8 +261,16 @@ async function waitForComposerSendEnabled(serial: string, expectedDraft: string)
                 nativeDraft = 'reset';
             }
         }
+        let asciiDiagnostic = '';
+        if (nativeDraft === 'retained' && process.env.CAXRI_COMPOSER_DIAG_ASCII === '1') {
+            const { committed, reactive } = await diagnoseMobileComposerAscii(
+                serial,
+                expectedDraft,
+            );
+            asciiDiagnostic = `; ascii-committed:${committed}; ascii-reactive:${reactive}`;
+        }
         throw new Error(
-            `Mobile composer send unavailable: ${action}; native-draft:${nativeDraft}`,
+            `Mobile composer send unavailable: ${action}; native-draft:${nativeDraft}${asciiDiagnostic}`,
             {
                 cause: error,
             },
