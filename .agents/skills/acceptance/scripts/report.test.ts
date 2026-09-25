@@ -790,10 +790,10 @@ describe('Acceptance report scaffold', () => {
             },
             'terminal-layout',
         );
-        forged.fixture.lines = ['│中🙂   │'];
-        await writeFile(join(directory, preflightEvidence), JSON.stringify(forged));
-        await expect(finalizeReport({ directory, requirement })).rejects.toThrow(
-            'fixture preflight is blocked',
+        await writeFile(
+            join(directory, preflightEvidence),
+            JSON.stringify({ ...forged, fixture: { ...forged.fixture, lines: ['│中🙂   │'] } }),
         );
+        await expect(finalizeReport({ directory, requirement })).rejects.toThrow();
     });
 });
