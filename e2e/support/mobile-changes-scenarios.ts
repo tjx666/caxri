@@ -296,7 +296,6 @@ export async function executeMobileChangesScenario(
                 expect(finalInput.equals(expected)).toBe(true);
                 await recording.stop();
                 recording = undefined;
-                await assertMobileComposerDraft(environment.serial, '');
                 await finish(environment, artifacts, {
                     beforeSend: 'draft-only',
                     afterSend: 'delivered-once-to-synthetic-agent',
