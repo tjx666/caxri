@@ -123,6 +123,52 @@ export const mobileAgentSubmitResultSchema = z.strictObject({
     outcome: z.enum(['accepted', 'unknown']),
 });
 
+const timelineItemBase = {
+    id: z.string().min(1).max(128),
+    timestamp: z.number().int().nonnegative().optional(),
+};
+
+export const agentTimelineItemSchema = z.discriminatedUnion('type', [
+    z.strictObject({
+        ...timelineItemBase,
+        type: z.literal('userMessage'),
+        text: z.string().min(1).max(32_768),
+    }),
+    z.strictObject({
+        ...timelineItemBase,
+        type: z.literal('agentMessage'),
+        text: z.string().min(1).max(32_768),
+    }),
+    z.strictObject({
+        ...timelineItemBase,
+        type: z.literal('toolCall'),
+        name: z.string().min(1).max(100),
+        summary: z.string().min(1).max(240),
+        status: z.enum(['running', 'succeeded', 'failed']),
+        durationMs: z.number().int().nonnegative().optional(),
+        detail: z.string().max(2_048).optional(),
+    }),
+    z.strictObject({
+        ...timelineItemBase,
+        type: z.literal('turnBoundary'),
+        durationMs: z.number().int().nonnegative().optional(),
+    }),
+]);
+
+export const mobileTimelineReadParametersSchema = z.strictObject({
+    sessionId: identifierSchema,
+    before: z.string().min(1).max(128).optional(),
+    limit: z.number().int().min(1).max(80).default(40),
+});
+
+export const mobileTimelineReadResultSchema = z.strictObject({
+    status: z.enum(['available', 'unsupported', 'missing']),
+    items: z.array(agentTimelineItemSchema).max(80),
+    olderCursor: z.string().min(1).max(128).optional(),
+    truncated: z.boolean(),
+    cursorExpired: z.boolean(),
+});
+
 const mobileAgentAvailabilitySchema = z.strictObject({
     kind: terminalKindSchema,
     available: z.boolean(),
@@ -170,6 +216,11 @@ export const mobileMethods = {
         ...commandPolicy('server', 'read', ['sessions.read']),
         params: z.strictObject({ sessionId: identifierSchema }),
         result: z.strictObject({ session: mobileDashboardSessionSchema }),
+    },
+    'mobile.timeline.read': {
+        ...commandPolicy('server', 'read', ['sessions.read']),
+        params: mobileTimelineReadParametersSchema,
+        result: mobileTimelineReadResultSchema,
     },
     'mobile.agent.availability': {
         ...commandPolicy('server', 'read', ['projects.read']),
@@ -237,6 +288,21 @@ export const mobileMethods = {
  * changed while the dialog was open from inheriting stale approval.
  */
 export const mobileInternalMethods = {
+    'mobile.timeline.readInternal': {
+        ...commandPolicy('server', 'read'),
+        params: mobileTimelineReadParametersSchema.extend({ principal: principalSchema }),
+        result: mobileTimelineReadResultSchema,
+    },
+    'mobile.timeline.watchInternal': {
+        ...commandPolicy('server', 'control'),
+        params: z.strictObject({ sessionId: identifierSchema, principal: principalSchema }),
+        result: z.strictObject({ terminalId: identifierSchema.optional() }),
+    },
+    'mobile.timeline.unwatchInternal': {
+        ...commandPolicy('server', 'control'),
+        params: z.strictObject({ terminalId: identifierSchema }),
+        result: z.null(),
+    },
     'mobile.agent.availabilityInternal': {
         ...commandPolicy('server', 'read'),
         params: z.strictObject({ projectId: identifierSchema, principal: principalSchema }),
@@ -269,3 +335,5 @@ export const mobileInternalMethods = {
 export type MobileAccessStatus = z.infer<typeof mobileAccessStatusSchema>;
 export type MobileDashboardResult = z.infer<typeof mobileDashboardResultSchema>;
 export type MobileDeviceSummary = z.infer<typeof mobileDeviceSummarySchema>;
+export type AgentTimelineItem = z.infer<typeof agentTimelineItemSchema>;
+export type MobileTimelineReadResult = z.infer<typeof mobileTimelineReadResultSchema>;

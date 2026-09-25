@@ -7,7 +7,13 @@ import { logEventCatalog } from '@caxri/system';
  * Server domain boundaries require cross-domain dependencies to enter through the owning domain root.
  */
 // react-doctor-disable-next-line react-doctor/no-barrel-import
-import { AgentTranscriptWatcher, resolveAgentTranscriptLocation } from './agents';
+import {
+    AgentTimelineService,
+    AgentTranscriptWatcher,
+    defaultAgentEnvironment,
+    locateAgentTranscript,
+    resolveAgentTranscriptLocation,
+} from './agents';
 import { ConfigService } from './config';
 import { CaxriDatabase } from './db';
 import type { DomainDependencies } from './domain-services';
@@ -89,10 +95,17 @@ export async function createRootServices({
      * polling degradations, and event rates stay centrally gated and observable (`DiagnosticsService`).
      */
     const watchHub = new WatchHub({ logger });
+    const timeline = new AgentTimelineService(
+        database,
+        agentEnvironment ?? defaultAgentEnvironment(),
+    );
     const transcripts = new AgentTranscriptWatcher({
         emit: send,
+        onForgetTerminal: (terminalId) => timeline.forgetTerminal(terminalId),
         locationForTerminal: (terminalId) =>
             resolveAgentTranscriptLocation(database, terminalId, agentEnvironment),
+        locateForTerminal: (terminalId) =>
+            locateAgentTranscript(database, terminalId, agentEnvironment),
         terminalIdsForSession: (sessionId) =>
             database.listTerminals(sessionId).map((terminal) => terminal.id),
         watchHub,
@@ -164,6 +177,7 @@ export async function createRootServices({
         files,
         git,
         sessionContext,
+        timeline,
         transcripts,
         watchHub,
         workbenchRoots,
