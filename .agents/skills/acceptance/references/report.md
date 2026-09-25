@@ -130,6 +130,10 @@ that canonical video is in its verified device receipt. The usual 120-second lim
 other videos, and the Android journey still needs enough distinct frames to show real interaction.
 
 Create the round scaffold only after the plan is frozen:
+Read the full commit from `git rev-parse HEAD` in the report's worktree immediately before `init`;
+never transcribe or infer it from a short hash. Read back `result.json.commit` and compare it with
+`git rev-parse HEAD` before executing a case. Correct an unpublished, unexecuted scaffold before
+the guarded runner starts if they differ.
 
 ```bash
 bun run .agents/skills/acceptance/scripts/report.ts init \
