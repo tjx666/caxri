@@ -22,10 +22,13 @@ import {
     deploymentStateLabel,
     durationLabel,
     ignoredChecksLabel,
+    oneLine,
     projectStatusStateLabel,
     publicationDescription,
     publicationLabel,
     REFRESH_ACTION_LABEL,
+    reviewThreadLocation,
+    unresolvedCommentsLabel,
 } from './status-labels';
 import type { StatusTooltip } from './status-presentation';
 import {
@@ -141,6 +144,53 @@ function richTooltip(
                 ? [...rows, { label: 'link', value: linkText(url), url }]
                 : rows,
     };
+}
+
+/**
+ * Vscode-fe-helper's "Unresolved Comments" group: the review feedback a delivery still owes, one row per thread. The
+ * group opens the pull request's conversation; each thread opens its own comment. Absent when nothing is unresolved, so
+ * a clean pull request spends no row on it.
+ */
+function reviewThreadsNode(repo: ProjectStatusRepository, prefix: string): StatusNode | undefined {
+    const pullRequest = repo.pullRequest;
+    const threads = pullRequest?.unresolvedReviewThreads ?? [];
+    if (!pullRequest || threads.length === 0) return undefined;
+    const summary = unresolvedCommentsLabel(threads.length);
+    return item(`${prefix}:review-threads`, 'Unresolved Comments', {
+        description: String(threads.length),
+        icon: 'comment-unresolved',
+        accessibilityLabel: `Unresolved Comments, ${summary}`,
+        url: pullRequest.url,
+        tooltip: {
+            badge: { label: summary, tone: 'warning' },
+            description: 'Open the pull request conversation; expand for individual threads.',
+        },
+        children: threads.map((thread, index) => {
+            const location = reviewThreadLocation(thread);
+            const excerpt = oneLine(thread.body, 80);
+            return item(`${prefix}:review-thread:${index}`, location, {
+                description: excerpt || undefined,
+                icon: 'comment',
+                accessibilityLabel: [location, thread.author && `by ${thread.author}`, excerpt]
+                    .filter(Boolean)
+                    .join(', '),
+                url: thread.url,
+                tooltip: {
+                    ...(thread.body.trim() && { description: oneLine(thread.body, 1_024) }),
+                    rows: [
+                        thread.path ? { label: 'file', value: thread.path } : undefined,
+                        thread.author ? { label: 'author', value: `@${thread.author}` } : undefined,
+                        thread.createdAt === undefined
+                            ? undefined
+                            : {
+                                  label: 'created',
+                                  value: new Date(thread.createdAt).toLocaleString(),
+                              },
+                    ].filter((row): row is TreeItemTooltipRow => row !== undefined),
+                },
+            });
+        }),
+    });
 }
 
 /**
@@ -291,6 +341,7 @@ function buildRepoChildren(
             }),
         );
     }
+    const reviewThreads = reviewThreadsNode(repo, prefix);
     if (repo.deployments) {
         const { branchDeployments, url: deploymentsUrl } = repo.deployments;
         const environments = [...new Set(branchDeployments.map(({ environment }) => environment))];
@@ -330,6 +381,8 @@ function buildRepoChildren(
                 ),
             }),
         );
+        // fe-helper's order: the deployment list, then the review feedback, then the latest environments.
+        if (reviewThreads) nodes.push(reviewThreads);
         for (const [label, deployment] of [
             ['Production', repo.deployments.production],
             ['Preview', repo.deployments.preview],
@@ -353,6 +406,7 @@ function buildRepoChildren(
             );
         }
     }
+    if (reviewThreads && !repo.deployments) nodes.push(reviewThreads);
     if (repo.pullRequest) {
         const pullRequest = repo.pullRequest;
         /**

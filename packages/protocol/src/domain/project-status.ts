@@ -24,6 +24,22 @@ const projectStatusCheckSchema = z.object({
     completedAt: z.number().optional(),
 });
 
+/**
+ * One unresolved, current review thread on a pull request, represented by its opening comment. A thread GitHub marks
+ * outdated is left out: its anchor line no longer exists in the diff, so it is rarely the next thing to act on.
+ */
+const projectStatusReviewThreadSchema = z.object({
+    url: z.url(),
+    body: z.string(),
+    author: z.string().optional(),
+    /**
+     * Epoch milliseconds of the opening comment.
+     */
+    createdAt: z.number().optional(),
+    path: z.string().optional(),
+    line: z.number().int().positive().optional(),
+});
+
 const projectStatusLinearIssueSchema = z.object({
     identifier: z.string(),
     title: z.string().optional(),
@@ -196,6 +212,11 @@ const projectStatusRepoSchema = z.object({
             state: projectStatusStateSchema,
             checks: z.array(projectStatusCheckSchema),
             hiddenCheckCount: z.number().int().nonnegative(),
+            /**
+             * Absent when the threads were not read — the pull request is no longer open, or the read failed — so a
+             * consumer never mistakes "unknown" for "nothing left to address".
+             */
+            unresolvedReviewThreads: z.array(projectStatusReviewThreadSchema).optional(),
         })
         .optional(),
     linearIssues: z.array(projectStatusLinearIssueSchema),
@@ -316,6 +337,7 @@ export function acceptanceProjectStatusState(
 }
 export type ProjectStatusCheck = z.infer<typeof projectStatusCheckSchema>;
 export type ProjectStatusLinearIssue = z.infer<typeof projectStatusLinearIssueSchema>;
+export type ProjectStatusReviewThread = z.infer<typeof projectStatusReviewThreadSchema>;
 export type LinearIssueSource = z.infer<typeof linearIssueSourceSchema>;
 export type ProjectStatusOverviewLinearIssue = z.infer<
     typeof projectStatusOverviewLinearIssueSchema
