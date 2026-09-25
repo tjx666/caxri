@@ -6,7 +6,6 @@ import * as Crypto from 'expo-crypto';
 
 import { useMobileClient } from '../../connection/mobile-client-provider';
 import { MobileGatewayRequestError } from '../../connection/mobile-gateway-client';
-import { recordComposerUpdate } from '../session-composer-diagnostic';
 import {
     composerByteLength,
     composerDisabledReason,
@@ -93,7 +92,6 @@ export const useSessionComposer = ({
 
     const updateDraft = useCallback(
         (value: string): void => {
-            recordComposerUpdate(value, isBusy, value === draft);
             if (isBusy) return;
             if (value === draft) return;
             sessionComposerDeliveryStore.set(stateKey, { kind: 'idle' });
