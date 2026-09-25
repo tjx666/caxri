@@ -1,5 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
+import { realpathSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -26,6 +27,7 @@ interface MockDesktop {
 }
 
 function mockDesktop(profileDirectory: string): MockDesktop {
+    const canonicalProfileDirectory = realpathSync(profileDirectory);
     let targetId = 'owned-renderer-target';
     let screenshotDelayMs = 0;
     const screenshotOptions: Array<{ style?: string }> = [];
@@ -52,7 +54,7 @@ function mockDesktop(profileDirectory: string): MockDesktop {
             selector.includes('[role="dialog"]') ? { count: () => Promise.resolve(0) } : row,
     };
     const app = {
-        evaluate: () => Promise.resolve(profileDirectory),
+        evaluate: () => Promise.resolve(canonicalProfileDirectory),
         process: () => ({ pid: process.pid }),
     };
     return {
@@ -84,6 +86,7 @@ async function fixture(
 describe('mobile Desktop capture', () => {
     it('binds two redacted row captures to one owned Desktop and writes its receipt after cleanup', async () => {
         await fixture(async ({ assetsDirectory, profileDirectory }) => {
+            const canonicalProfileDirectory = realpathSync(profileDirectory);
             const desktop = mockDesktop(profileDirectory);
             const capture = await createMobileDesktopCapture({
                 assetsDirectory,
@@ -122,7 +125,9 @@ describe('mobile Desktop capture', () => {
             });
             expect(receipt.desktop).toMatchObject({
                 pid: process.pid,
-                profileIdentity: createHash('sha256').update(profileDirectory).digest('hex'),
+                profileIdentity: createHash('sha256')
+                    .update(canonicalProfileDirectory)
+                    .digest('hex'),
                 targetId: 'owned-renderer-target',
             });
             expect(receipt.selectedSessionIdentity).toBe(
@@ -159,7 +164,7 @@ describe('mobile Desktop capture', () => {
             });
             await capture.capture('before');
             desktop.setTargetId('replacement-renderer-target');
-            await expect(capture.capture('after')).rejects.toThrow('left the owned process');
+            await expect(capture.capture('after')).rejects.toThrow('Renderer target');
             expect(desktop.screenshotOptions).toHaveLength(1);
             await expect(
                 stat(join(assetsDirectory, 'MOB-NEW-01-desktop-capture.json')),
@@ -259,7 +264,7 @@ describe('mobile Desktop capture', () => {
             await capture.startRecording();
             desktop.setTargetId('replacement-renderer-target');
             await sleep(700);
-            await expect(capture.stopRecording()).rejects.toThrow('left the owned process');
+            await expect(capture.stopRecording()).rejects.toThrow('Renderer target');
             await expect(
                 stat(join(assetsDirectory, 'MOB-E2E-01-desktop.mp4')),
             ).rejects.toMatchObject({ code: 'ENOENT' });

@@ -1,6 +1,6 @@
 import type { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
-import { lstat, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -21,7 +21,7 @@ interface DesktopIdentity {
     targetId: string;
 }
 
-export interface DesktopArtifact {
+interface DesktopArtifact {
     path: string;
     sha256: string;
     source: 'isolated-desktop-renderer';
@@ -184,6 +184,7 @@ export async function createMobileDesktopCapture(
         throw new Error('Desktop capture requires the exact source commit');
     if (!input.caseId || !input.launchId || !input.serial)
         throw new Error('Desktop capture identity is incomplete');
+    const canonicalProfileDirectory = await realpath(input.profileDirectory);
     const pid = input.running.app.process().pid;
     if (!pid) throw new Error('Owned Desktop Main process is unavailable');
     const cdp = await input.running.page.context().newCDPSession(input.running.page);
@@ -194,7 +195,7 @@ export async function createMobileDesktopCapture(
     const identity: DesktopIdentity = {
         pid,
         processStartedAt: await processStartIdentity(pid),
-        profileIdentity: sha256(input.profileDirectory),
+        profileIdentity: sha256(canonicalProfileDirectory),
         targetId,
     };
     const sessionIds = new Map<CapturePhase, string>();
@@ -209,15 +210,17 @@ export async function createMobileDesktopCapture(
         const profile = await input.running.app.evaluate(({ app }) => app.getPath('userData'));
         if (
             currentPid !== identity.pid ||
-            (await processStartIdentity(identity.pid)) !== identity.processStartedAt ||
+            (await processStartIdentity(identity.pid)) !== identity.processStartedAt
+        )
+            throw new Error('Desktop capture identity mismatch: process');
+        if (profile !== canonicalProfileDirectory || sha256(profile) !== identity.profileIdentity)
+            throw new Error('Desktop capture identity mismatch: profile');
+        if (
             currentTarget.targetInfo.targetId !== identity.targetId ||
             currentTarget.targetInfo.type !== 'page' ||
-            sha256(profile) !== identity.profileIdentity ||
-            profile !== input.profileDirectory ||
             input.running.page.isClosed()
-        ) {
-            throw new Error('Desktop capture left the owned process, profile, or Renderer target');
-        }
+        )
+            throw new Error('Desktop capture identity mismatch: Renderer target');
     };
 
     const captureSafeRow = async (
