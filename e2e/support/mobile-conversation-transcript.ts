@@ -20,8 +20,18 @@ export function conversationBaselineRecords(): unknown[] {
                 id: 'synthetic-message-agent-1',
                 content: [
                     {
+                        type: 'thinking',
+                        thinking: 'Synthetic private reasoning must stay hidden.',
+                    },
+                    {
                         type: 'text',
-                        text: '## Synthetic result\n\n```ts\nconst ready = true;\n```',
+                        text: [
+                            '## Synthetic result',
+                            '',
+                            '```ts',
+                            `const sample = "synthetic-left-${'x'.repeat(160)}-synthetic-right";`,
+                            '```',
+                        ].join('\n'),
                     },
                 ],
             },
