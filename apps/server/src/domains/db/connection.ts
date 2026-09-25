@@ -153,6 +153,7 @@ function initializeSchema(database: Database.Database): void {
                 DROP TABLE IF EXISTS protocol_identity;
                 DROP TABLE IF EXISTS agent_delegations;
                 DROP TABLE IF EXISTS agent_dispatch_receipts;
+                DROP TABLE IF EXISTS mobile_agent_submit_receipts;
                 DROP TABLE IF EXISTS terminal_snapshots;
                 DROP TABLE IF EXISTS session_state;
                 DROP TABLE IF EXISTS terminals;

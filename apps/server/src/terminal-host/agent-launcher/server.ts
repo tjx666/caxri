@@ -4,6 +4,7 @@ import { chmod, lstat, rm } from 'node:fs/promises';
 import type { Server, Socket } from 'node:net';
 import { createServer } from 'node:net';
 import { isAbsolute } from 'node:path';
+import process from 'node:process';
 
 import { ensureUnixSocketDirectory } from '@caxri/system';
 
@@ -33,6 +34,12 @@ interface Deferred<T> {
     reject(error: Error): void;
 }
 
+interface AgentInputHandoff {
+    ready: Promise<void>;
+    resumeAfterDrain(): void;
+    closeOnLostDrain(): void;
+}
+
 interface ManagedLaunchState {
     terminalId: string;
     launchId: string;
@@ -47,6 +54,10 @@ interface ManagedLaunchState {
     terminationSignal?: NodeJS.Signals;
     termination?: Promise<void>;
     phaseTimer?: NodeJS.Timeout;
+    exitAckSent?: boolean;
+    handoff?: AgentInputHandoff;
+    handoffLost?: boolean;
+    handoffComplete?: boolean;
 }
 
 export interface ManagedAgentLauncherServerOptions {
@@ -54,6 +65,7 @@ export interface ManagedAgentLauncherServerOptions {
     runtimePath: string;
     entryPath: string;
     onEvent?(event: ManagedAgentLauncherEvent): void;
+    beforeExitAck?(terminalId: string): AgentInputHandoff;
     claimTimeoutMs?: number;
     terminationGraceMs?: number;
 }
@@ -160,6 +172,10 @@ export class ManagedAgentLauncherServer {
     }
 
     private finishWithoutClientExit(state: ManagedLaunchState): void {
+        if (state.phase === 'exited') {
+            if (state.socket) this.failConnection(state, state.socket);
+            return;
+        }
         const socket = state.socket;
         this.rejectBeforeStart(state);
         if (state.phase === 'started' && state.processId) {
@@ -179,7 +195,10 @@ export class ManagedAgentLauncherServer {
 
     private writeControl(
         state: ManagedLaunchState,
-        message: { type: 'cancel' } | { type: 'signal'; signal: ManagedAgentLauncherSignal },
+        message:
+            | { type: 'cancel' }
+            | { type: 'signal'; signal: ManagedAgentLauncherSignal }
+            | { type: 'exitAck' },
     ): boolean {
         const socket = state.socket;
         if (!socket || socket.destroyed || !socket.writable) return false;
@@ -193,7 +212,7 @@ export class ManagedAgentLauncherServer {
 
     private async waitForCompletion(state: ManagedLaunchState): Promise<boolean> {
         await Promise.race([state.completed.promise, wait(this.terminationGraceMs())]);
-        return state.phase === 'exited';
+        return state.phase === 'exited' && this.launches.get(state.launchId) !== state;
     }
 
     private terminate(state: ManagedLaunchState): Promise<void> {
@@ -222,9 +241,34 @@ export class ManagedAgentLauncherServer {
 
     private failConnection(state: ManagedLaunchState | undefined, socket: Socket): void {
         socket.destroy();
-        if (!state || state.phase === 'exited') return;
+        if (!state) return;
+        if (state.phase === 'exited') {
+            this.finishLostDrain(state);
+            return;
+        }
         // eslint-disable-next-line no-void -- The exact launch owns its asynchronous fail-closed cleanup.
         void this.terminate(state);
+    }
+
+    private finishLostDrain(state: ManagedLaunchState): void {
+        if (state.handoffComplete || state.handoffLost) return;
+        state.handoffLost = true;
+        if (!state.handoff) return;
+        const handoff = state.handoff;
+        // eslint-disable-next-line no-void -- The completed PTY callback is the close and FD-reuse barrier.
+        void handoff.ready
+            .then(() => {
+                state.handoffComplete = true;
+                try {
+                    handoff.closeOnLostDrain();
+                } finally {
+                    state.completed.resolve();
+                    this.removeState(state);
+                }
+            })
+            .catch(() => {
+                // An unconfirmed write must keep the PTY fenced; Host shutdown owns final process teardown.
+            });
     }
 
     private accept(socket: Socket): void {
@@ -295,6 +339,22 @@ export class ManagedAgentLauncherServer {
                     this.failConnection(state, socket);
                     return;
                 }
+                if (message.type === 'drained') {
+                    if (state.phase !== 'exited' || !state.exitAckSent) {
+                        this.failConnection(state, socket);
+                        return;
+                    }
+                    state.handoffComplete = true;
+                    try {
+                        state.handoff?.resumeAfterDrain();
+                    } catch {
+                        state.handoff?.closeOnLostDrain();
+                    }
+                    state.completed.resolve();
+                    this.removeState(state);
+                    socket.end();
+                    continue;
+                }
                 if (message.type === 'started') {
                     if (state.phase !== 'claimed') {
                         this.failConnection(state, socket);
@@ -326,9 +386,29 @@ export class ManagedAgentLauncherServer {
                     exitCode: message.exitCode,
                     signal: message.signal,
                 });
-                state.completed.resolve();
-                this.removeState(state);
-                socket.end();
+                const exitedState = state;
+                try {
+                    exitedState.handoff = this.options.beforeExitAck?.(exitedState.terminalId) ?? {
+                        ready: Promise.resolve(),
+                        resumeAfterDrain: () => {},
+                        closeOnLostDrain: () => {},
+                    };
+                } catch {
+                    this.failConnection(exitedState, socket);
+                    return;
+                }
+                // eslint-disable-next-line no-void -- Observe the exact launch's asynchronous PTY input barrier.
+                void exitedState.handoff.ready
+                    .then(() => {
+                        if (socket.destroyed || exitedState.handoffLost) {
+                            return;
+                        }
+                        exitedState.exitAckSent = this.writeControl(exitedState, {
+                            type: 'exitAck',
+                        });
+                        if (!exitedState.exitAckSent) socket.destroy();
+                    })
+                    .catch(() => this.failConnection(exitedState, socket));
             }
         });
         socket.once('end', () => {
@@ -341,7 +421,7 @@ export class ManagedAgentLauncherServer {
         socket.once('error', () => this.failConnection(state, socket));
         socket.once('close', () => {
             this.sockets.delete(socket);
-            if (state && state.phase !== 'exited') this.failConnection(state, socket);
+            if (state && !state.handoffComplete) this.failConnection(state, socket);
         });
     }
 
@@ -436,6 +516,27 @@ export class ManagedAgentLauncherServer {
             },
             started: started.promise,
         };
+    }
+
+    /**
+     * Checks the exact child immediately before Host writes to its PTY.
+     */
+    isRunningExact(terminalId: string, launchId: string): boolean {
+        const state = this.launchesByTerminal.get(terminalId);
+        if (
+            !state ||
+            state.launchId !== launchId ||
+            state.phase !== 'started' ||
+            state.isCanceling ||
+            !state.processId
+        )
+            return false;
+        try {
+            process.kill(state.processId, 0);
+            return true;
+        } catch {
+            return false;
+        }
     }
 
     signalExact(terminalId: string, launchId: string, signal: ManagedAgentLauncherSignal): boolean {

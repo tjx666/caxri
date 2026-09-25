@@ -1,5 +1,6 @@
 import { CaxriError, MAX_TERMINAL_INPUT_LENGTH } from '@caxri/protocol';
 
+import { isValidAgentSubmitText } from '../../terminal-host/protocol';
 import type { RemoteTerminalIdentity, TerminalHostControl } from './execution-contract';
 import { terminalScope } from './execution-scope';
 
@@ -47,6 +48,65 @@ export async function sendAgentInput(
         signal,
     )) as { accepted: boolean };
     return result;
+}
+
+/**
+ * Delivers one complete Composer submission to an exact managed Agent launch. An unresolved Host request is unknown:
+ * its paste may have reached the PTY even when Core lost the acknowledgement.
+ */
+export async function submitAgentInput(
+    supervisor: TerminalHostControl,
+    identities: ReadonlyMap<string, RemoteTerminalIdentity>,
+    terminalId: string,
+    expectedSessionId: string,
+    expectedAgentLaunchId: string,
+    text: string,
+    signal?: AbortSignal,
+): Promise<'accepted' | 'rejected' | 'unknown'> {
+    if (signal?.aborted || !isValidAgentSubmitText(text)) return 'rejected';
+    const identity = identities.get(terminalId);
+    if (
+        !identity?.processId ||
+        identity.record.sessionId !== expectedSessionId ||
+        identity.agent?.processId === undefined ||
+        identity.agent.launchId !== expectedAgentLaunchId
+    )
+        return 'rejected';
+    try {
+        await identity.ready;
+    } catch {
+        return 'rejected';
+    }
+    if (signal?.aborted) return 'rejected';
+    const current = identities.get(terminalId);
+    if (
+        current !== identity ||
+        current.record.sessionId !== expectedSessionId ||
+        current.processId === undefined ||
+        current.agent?.processId === undefined ||
+        current.agent.launchId !== expectedAgentLaunchId
+    )
+        return 'rejected';
+    try {
+        const result = (await supervisor.request(
+            {
+                method: 'terminal.agent.submit',
+                params: { text, launchId: expectedAgentLaunchId },
+            },
+            { ...terminalScope(identity, 'terminal.agent.input'), sessionId: expectedSessionId },
+            signal,
+        )) as { outcome: 'accepted' | 'rejected' | 'unknown' };
+        return result.outcome;
+    } catch (error) {
+        if (
+            error &&
+            typeof error === 'object' &&
+            'code' in error &&
+            error.code === 'CAPABILITY_DENIED'
+        )
+            return 'rejected';
+        return 'unknown';
+    }
 }
 
 /**

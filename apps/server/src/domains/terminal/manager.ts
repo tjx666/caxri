@@ -7,7 +7,7 @@ import type {
     TerminalResourceUsage,
     TerminalSnapshot,
 } from '@caxri/protocol';
-import { CaxriError, errorMessage, MAX_TERMINAL_PREVIEW_BYTES, toWireError } from '@caxri/protocol';
+import { CaxriError, errorMessage, toWireError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
@@ -26,21 +26,12 @@ import type {
     TerminalManagerOptions,
     TerminalStartOptions,
 } from './manager-types';
+import { terminalPreview } from './preview';
 import { TerminalSnapshotPersistence } from './snapshot-persistence';
 import type { TerminalStateStore } from './state-store';
 import { createTerminalTitleListener } from './terminal-title';
 
 const ptyLogEvents = logEventCatalog.pty;
-const textEncoder = new TextEncoder();
-const textDecoder = new TextDecoder();
-
-function boundedUtf8Tail(value: string): { content: string; truncated: boolean } {
-    const bytes = textEncoder.encode(value);
-    if (bytes.length <= MAX_TERMINAL_PREVIEW_BYTES) return { content: value, truncated: false };
-    let start = bytes.length - MAX_TERMINAL_PREVIEW_BYTES;
-    while (start < bytes.length && (bytes[start] & 0xc0) === 0x80) start += 1;
-    return { content: textDecoder.decode(bytes.subarray(start)), truncated: true };
-}
 type TerminalTitleListener = ReturnType<typeof createTerminalTitleListener>;
 interface AgentStartWaiter {
     launchId: string;
@@ -543,6 +534,23 @@ export class TerminalManager {
         return this.execution.writeAgent(terminalId, data, signal);
     }
 
+    submitAgentExact(
+        terminalId: string,
+        expectedSessionId: string,
+        expectedAgentLaunchId: string,
+        text: string,
+        signal?: AbortSignal,
+    ): Promise<'accepted' | 'rejected' | 'unknown'> {
+        this.observeUserInput(terminalId, text);
+        return this.execution.submitAgentExact(
+            terminalId,
+            expectedSessionId,
+            expectedAgentLaunchId,
+            text,
+            signal,
+        );
+    }
+
     reconcileOutputRecoverySettings(): void {
         for (const terminal of this.database.listTerminals())
             this.execution.configureOutputRecovery(
@@ -609,55 +617,7 @@ export class TerminalManager {
     }
 
     async preview(terminalId: string): Promise<TerminalPreview> {
-        const record = this.database.getTerminal(terminalId);
-        if (!record) throw new CaxriError('NOT_FOUND', 'Terminal not found');
-        const updatedAt = Date.now();
-        if (this.execution.processId(terminalId) === undefined)
-            return {
-                terminalId,
-                availability: 'stopped',
-                content: '',
-                truncated: false,
-                updatedAt,
-            };
-        if (!this.execution.textTail)
-            return {
-                terminalId,
-                availability: 'unavailable',
-                content: '',
-                truncated: false,
-                updatedAt,
-            };
-        try {
-            const source = await this.execution.textTail(
-                terminalId,
-                MAX_TERMINAL_PREVIEW_BYTES + 1,
-            );
-            if (source === null)
-                return {
-                    terminalId,
-                    availability: 'unavailable',
-                    content: '',
-                    truncated: false,
-                    updatedAt,
-                };
-            const bounded = boundedUtf8Tail(source);
-            return {
-                terminalId,
-                availability: 'live',
-                ...bounded,
-                truncated: bounded.truncated || source.length > MAX_TERMINAL_PREVIEW_BYTES,
-                updatedAt,
-            };
-        } catch {
-            return {
-                terminalId,
-                availability: 'unavailable',
-                content: '',
-                truncated: false,
-                updatedAt,
-            };
-        }
+        return terminalPreview(this.execution, terminalId, !!this.database.getTerminal(terminalId));
     }
 
     detachView(terminalId: string): void {

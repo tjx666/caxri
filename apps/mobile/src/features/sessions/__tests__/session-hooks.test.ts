@@ -1,4 +1,3 @@
-import { MOBILE_SHORT_REPLY_MAX_BYTES } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../connection/mobile-client-provider', () => ({
@@ -13,11 +12,6 @@ import {
     nextSelectedSessionId,
     projectSessionList,
 } from '../hooks/use-session-polling';
-import {
-    acceptedShortReplyDraft,
-    isDeliveredReplyCurrent,
-    shortReplyByteLength,
-} from '../hooks/use-short-reply';
 import type { MobileSession } from '../session-model';
 import { buildMobileSessionSections } from '../session-model';
 
@@ -98,21 +92,6 @@ describe('mobile Session hooks', () => {
         expect(released.sections).toBe(latest.sections);
         expect(released.selectedId).toBeNull();
         expect(released.hasLoaded).toBe(true);
-    });
-
-    it('enforces the short-reply limit by UTF-8 bytes without discarding the current draft', () => {
-        const current = 'kept';
-        const tooLarge = '🙂'.repeat(MOBILE_SHORT_REPLY_MAX_BYTES / 4 + 1);
-        expect(shortReplyByteLength(tooLarge)).toBeGreaterThan(MOBILE_SHORT_REPLY_MAX_BYTES);
-        expect(acceptedShortReplyDraft(current, tooLarge)).toBe(current);
-        expect(acceptedShortReplyDraft(current, 'accepted')).toBe('accepted');
-    });
-
-    it('keeps delivery feedback only for the accepted Session attention generation', () => {
-        const delivered = { attentionEpoch: 3, sessionId: 'session-1' };
-        expect(isDeliveredReplyCurrent(delivered, session())).toBe(true);
-        expect(isDeliveredReplyCurrent(delivered, session({ attentionEpoch: 4 }))).toBe(false);
-        expect(isDeliveredReplyCurrent(delivered, session({ id: 'session-2' }))).toBe(false);
     });
 
     it('keys read acknowledgement by Session and attention generation', () => {

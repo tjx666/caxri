@@ -20,5 +20,6 @@ export const mobileCapabilitiesByRole = {
         'terminals.read',
         'terminals.preview',
         'terminals.steer',
+        'agents.control',
     ],
 } as const satisfies Record<MobileDeviceRole, readonly Capability[]>;

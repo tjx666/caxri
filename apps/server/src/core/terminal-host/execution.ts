@@ -21,7 +21,12 @@ import type {
     TerminalExecutionPort,
     TerminalObserverEvent,
 } from '../../domains/terminal';
-import { canSendAgentInput, deliverAgentInput, sendAgentInput } from './agent-input';
+import {
+    canSendAgentInput,
+    deliverAgentInput,
+    sendAgentInput,
+    submitAgentInput,
+} from './agent-input';
 import {
     attachFailureLog,
     didRestorePublishedAttachment,
@@ -38,6 +43,11 @@ import type {
 } from './execution-contract';
 import { listenExecutionEvent } from './execution-events';
 import { currentIdentity, terminalScope } from './execution-scope';
+import {
+    canSignalHostAgentExact,
+    canSignalHostProcessExact,
+    configureHostOutputRecovery,
+} from './host-actions';
 import { projectLiveTerminalHostEvent } from './host-event-projection';
 import { hotPathCompletions, settleHotPaths } from './hot-paths';
 import type { TerminalInputReceipt } from './input-queue';
@@ -45,9 +55,6 @@ import { TerminalInputQueue } from './input-queue';
 import { RemoteMobileTerminalControl } from './mobile-observation';
 import { buildShutdownCaptures } from './shutdown-captures';
 
-/**
- * Process-backed port: Renderer input and resize accept from cached identities; managed Agent input awaits Host.
- */
 export class RemoteTerminalExecution extends EventTarget implements TerminalExecutionPort {
     private readonly generations = new Map<string, number>();
     private readonly identities = new Map<string, RemoteTerminalIdentity>();
@@ -440,62 +447,59 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
             .accepted;
     }
 
+    submitAgentExact(
+        terminalId: string,
+        expectedSessionId: string,
+        expectedAgentLaunchId: string,
+        text: string,
+        signal?: AbortSignal,
+    ): Promise<'accepted' | 'rejected' | 'unknown'> {
+        return submitAgentInput(
+            this.supervisor,
+            this.identities,
+            terminalId,
+            expectedSessionId,
+            expectedAgentLaunchId,
+            text,
+            signal,
+        );
+    }
+
     configureOutputRecovery(
         terminalId: string,
         provider: TerminalRecord['provider'],
         settings?: AgentOutputRecoverySettings,
     ): void {
-        const identity = this.identities.get(terminalId);
-        if (!identity) return;
-        identity.record = { ...identity.record, provider };
-        this.background(
-            this.supervisor.request(
-                {
-                    method: 'terminal.recovery.configure',
-                    params: { provider, ...(settings && { settings }) },
-                },
-                terminalScope(identity, 'terminal.lifecycle'),
-            ),
-            'terminal.recovery.configure',
+        configureHostOutputRecovery(
+            this.supervisor,
+            this.identities,
             terminalId,
+            provider,
+            settings,
+            (request, method, id) => this.background(request, method, id),
         );
     }
 
     signalExact(terminalId: string, expectedProcessId: number, signal: string): boolean {
-        const identity = this.identities.get(terminalId);
-        if (
-            identity?.processId !== expectedProcessId ||
-            (signal !== 'SIGINT' && signal !== 'SIGHUP')
-        )
-            return false;
-        this.background(
-            this.supervisor.request(
-                { method: 'terminal.signal', params: { expectedProcessId, signal } },
-                terminalScope(identity, 'terminal.lifecycle'),
-            ),
-            'terminal.signal',
+        return canSignalHostProcessExact(
+            this.supervisor,
+            this.identities,
             terminalId,
+            expectedProcessId,
+            signal,
+            (request, method, id) => this.background(request, method, id),
         );
-        return true;
     }
 
     signalAgentExact(terminalId: string, expectedLaunchId: string, signal: string): boolean {
-        const identity = this.identities.get(terminalId);
-        if (
-            identity?.agent?.launchId !== expectedLaunchId ||
-            identity.agent.processId === undefined ||
-            (signal !== 'SIGINT' && signal !== 'SIGHUP')
-        )
-            return false;
-        this.background(
-            this.supervisor.request(
-                { method: 'terminal.agent.signal', params: { launchId: expectedLaunchId, signal } },
-                terminalScope(identity, 'terminal.lifecycle'),
-            ),
-            'terminal.agent.signal',
+        return canSignalHostAgentExact(
+            this.supervisor,
+            this.identities,
             terminalId,
+            expectedLaunchId,
+            signal,
+            (request, method, id) => this.background(request, method, id),
         );
-        return true;
     }
 
     resize(terminalId: string, cols: number, rows: number): boolean {

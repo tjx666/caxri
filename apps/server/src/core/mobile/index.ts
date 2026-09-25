@@ -1,1 +1,5 @@
-export { isMobileControlRequest, openMobileAccessController } from './access-controller';
+export {
+    isMobileControlRequest,
+    openMobileAccessController,
+    resolveMobileAgentEndpoint,
+} from './access-controller';

@@ -65,6 +65,7 @@ overrides:
 patchedDependencies:
   '@xterm/addon-serialize@0.15.0-beta.301': 23296bdc952f707d99b5475cfd9a4c1be35781c950bd0b9e2b4bc69787a8c80a
   app-builder-lib: 76490dc48e3257f305d7c866bc6751fd5296cd1dbe902cafbad94afcecf0aa56
+  node-pty@1.1.0: 99576d1b8c3b0798e1e02b1abe3c37b01f46b0d0caf8d73395e2ac704c1195fb
   react-native-webview@13.16.1: 9e6f75ac1b6d4220b6cca7babaf72ad969366bf8aefbcc86ec52278dcade2c17
   sonner@2.0.8: 87c8dc2e0ab4f205514cec597784d1c10088828095f78285394a3eba89322470
 
@@ -194,7 +195,7 @@ importers:
         version: 13.4.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       node-pty:
         specifier: ^1.1.0
-        version: 1.1.0
+        version: 1.1.0(patch_hash=99576d1b8c3b0798e1e02b1abe3c37b01f46b0d0caf8d73395e2ac704c1195fb)
       oxlint:
         specifier: 'catalog:'
         version: 1.83.0(oxlint-tsgolint@7.0.2002)
@@ -571,7 +572,7 @@ importers:
         version: 3.3.1
       node-pty:
         specifier: ^1.1.0
-        version: 1.1.0
+        version: 1.1.0(patch_hash=99576d1b8c3b0798e1e02b1abe3c37b01f46b0d0caf8d73395e2ac704c1195fb)
       plist:
         specifier: ^5.0.0
         version: 5.0.0
@@ -15837,7 +15838,7 @@ snapshots:
 
   node-int64@0.4.0: {}
 
-  node-pty@1.1.0:
+  node-pty@1.1.0(patch_hash=99576d1b8c3b0798e1e02b1abe3c37b01f46b0d0caf8d73395e2ac704c1195fb):
     dependencies:
       node-addon-api: 7.1.1
 

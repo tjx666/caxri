@@ -83,6 +83,7 @@ const agentLauncher = new ManagedAgentLauncherServer({
         if (!currentRuntime) throw new Error('Terminal Host Runtime is not initialized');
         currentRuntime.projectManagedAgentEvent(event);
     },
+    beforeExitAck: (terminalId) => runtimeReference.current!.quiesceManagedAgentInput(terminalId),
 });
 await agentLauncher.start();
 const runtime = new TerminalHostRuntime({

@@ -28,7 +28,7 @@ export function terminalScope(
     identity: RemoteTerminalIdentity,
     capability: TerminalHostCapability,
     attachmentId?: string,
-): TerminalHostScope {
+): Extract<TerminalHostScope, { scope: 'terminal' }> {
     return {
         scope: 'terminal',
         capability,

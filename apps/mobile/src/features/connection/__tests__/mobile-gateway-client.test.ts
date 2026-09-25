@@ -1,7 +1,11 @@
 import { MOBILE_TRANSPORT_VERSION, serializeMobilePairingLink } from '@caxri/mobile-transport';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { MobileGatewayRuntime, MobileReconnectError } from '../mobile-gateway-client';
+import type {
+    MobileGatewayConnection,
+    MobileGatewayRuntime,
+    MobileReconnectError,
+} from '../mobile-gateway-client';
 import { pairMobileGateway, reconnectMobileGateway } from '../mobile-gateway-client';
 import {
     FakeGatewaySocket,
@@ -168,7 +172,22 @@ describe('mobile gateway client', () => {
         }
     });
 
-    it('times out an idempotent dashboard read after three seconds', async () => {
+    it.each([
+        [
+            'dashboard',
+            (connection: MobileGatewayConnection) => connection.request('mobile.dashboard'),
+        ],
+        [
+            'Session detail',
+            (connection: MobileGatewayConnection) =>
+                connection.request('mobile.session.show', { sessionId: 'session-1' }),
+        ],
+        [
+            'Agent availability',
+            (connection: MobileGatewayConnection) =>
+                connection.request('mobile.agent.availability', { projectId: 'project-1' }),
+        ],
+    ])('times out an idempotent %s read after three seconds', async (_name, request) => {
         const runtime: MobileGatewayRuntime = {
             openWebSocket: () => new FakeGatewaySocket(false, 0, true) as unknown as WebSocket,
             platform: 'android',
@@ -184,7 +203,7 @@ describe('mobile gateway client', () => {
         vi.useFakeTimers();
         try {
             let isSettled = false;
-            const outcome = observeSettlement(paired.connection.request('mobile.dashboard'), () => {
+            const outcome = observeSettlement(request(paired.connection), () => {
                 isSettled = true;
             });
             expect(paired.connection.hasOutstandingMutation()).toBe(false);

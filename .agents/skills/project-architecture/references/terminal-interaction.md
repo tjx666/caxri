@@ -20,6 +20,17 @@ when no Desktop view remains. Only one exact connection and subscription holder 
 Mobile control input crosses a separate Host request fenced to the current PTY generation; it never
 borrows the Desktop attachment capability. Revocation cancels input awaiting Host startup before
 send; once sent, the Host result remains authoritative because PTY input cannot be recalled.
+Mobile Composer submission uses a separate exact-Agent Host operation, bounded to 16 KiB of valid
+UTF-8 text without terminal control bytes. Host queues bracketed paste text and then a separate
+Return, checking the managed Agent child before each write under the current PTY generation and
+launch. Its patched node-pty writer reports completion only after each write reaches the PTY master;
+a discarded, partial, or unacknowledged write is unknown and is never retried. On Agent exit, Host
+atomically stops new PTY input, discards queued writes, and waits for any in-flight write callback
+before acknowledging the launcher. The launcher suppresses terminal echo, drains the inherited PTY
+input queue through a nonblocking `/dev/tty` read, and reports that drain before Host resumes input
+for the same PTY generation. If Host transport fails before its acknowledgement, the launcher stays
+foreground in raw mode and periodically discards input; close the affected Terminal to recover.
+This keeps unread Agent input from becoming a zsh or bash shell command.
 
 Terminal attachment recovery belongs to the Client binary-stream boundary: `TIMEOUT` and
 `UNAVAILABLE` can leave both Host ownership ambiguous and the output socket closed. Retry with fresh

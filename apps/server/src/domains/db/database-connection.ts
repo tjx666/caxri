@@ -10,6 +10,7 @@ import {
 import { AgentDelegationsModel } from './models/agent-delegations';
 import { AgentDispatchReceiptsModel } from './models/agent-dispatch-receipts';
 import { AppStateModel } from './models/app-state';
+import { MobileAgentSubmitReceiptsModel } from './models/mobile-agent-submit-receipts';
 import { ProjectsModel } from './models/projects';
 import { ProtocolStateModel } from './models/protocol-state';
 import type { SessionStateRepair, SessionStateUnchangedWrite } from './models/session-state-row';
@@ -64,6 +65,7 @@ export class CaxriDatabaseConnection {
     readonly snapshots: SnapshotsModel;
     readonly appState: AppStateModel;
     readonly agentDispatchReceipts: AgentDispatchReceiptsModel;
+    readonly mobileAgentSubmitReceipts: MobileAgentSubmitReceiptsModel;
     readonly agentDelegations: AgentDelegationsModel;
     readonly protocolState: ProtocolStateModel;
 
@@ -81,6 +83,7 @@ export class CaxriDatabaseConnection {
         this.snapshots = new SnapshotsModel(this.db);
         this.appState = new AppStateModel(this.db);
         this.agentDispatchReceipts = new AgentDispatchReceiptsModel(this.db);
+        this.mobileAgentSubmitReceipts = new MobileAgentSubmitReceiptsModel(this.db);
         this.agentDelegations = new AgentDelegationsModel(this.db);
         this.protocolState = new ProtocolStateModel(this.db, (work) => this.transaction(work));
         this.onTransaction = options.onTransaction;

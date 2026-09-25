@@ -53,10 +53,13 @@ export interface ManagedAgentLauncherExit {
 export type ManagedAgentLauncherClientMessage =
     | { type: 'claim'; launchId: string; token: string }
     | { type: 'started'; processId: number }
-    | { type: 'exited'; exitCode: number | null; signal: NodeJS.Signals | null };
+    | { type: 'exited'; exitCode: number | null; signal: NodeJS.Signals | null }
+    | { type: 'drained' };
 
 export type ManagedAgentLauncherServerMessage =
-    { type: 'signal'; signal: ManagedAgentLauncherSignal } | { type: 'cancel' };
+    | { type: 'signal'; signal: ManagedAgentLauncherSignal }
+    | { type: 'cancel' }
+    | { type: 'exitAck' };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -136,6 +139,7 @@ export function parseManagedAgentLauncherClientMessage(
 ): ManagedAgentLauncherClientMessage {
     if (!isRecord(value) || typeof value.type !== 'string')
         throw new Error('Invalid managed Agent launcher message');
+    if (value.type === 'drained' && hasExactKeys(value, ['type'])) return { type: 'drained' };
     if (
         value.type === 'claim' &&
         hasExactKeys(value, ['type', 'launchId', 'token']) &&
@@ -179,6 +183,7 @@ export function parseManagedAgentLauncherServerMessage(
     if (!isRecord(value) || typeof value.type !== 'string')
         throw new Error('Invalid managed Agent launcher control');
     if (value.type === 'cancel' && hasExactKeys(value, ['type'])) return { type: 'cancel' };
+    if (value.type === 'exitAck' && hasExactKeys(value, ['type'])) return { type: 'exitAck' };
     if (
         value.type === 'signal' &&
         hasExactKeys(value, ['type', 'signal']) &&
