@@ -151,6 +151,7 @@ export const effectfulCommandRecovery = {
     'session.deleteMany': 'memory',
     'session.select': 'durable',
     'session.markRead': 'durable',
+    'session.refreshDeliveryOnFocus': 'memory',
     'session.reorder': 'durable',
     'session.reorderPinned': 'durable',
     'session.setPinned': 'durable',

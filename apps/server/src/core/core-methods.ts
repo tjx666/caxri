@@ -64,6 +64,7 @@ export const coreForwardedMethods = [
     'session.reorder',
     'session.reorderPinned',
     'session.pullRequests',
+    'session.refreshDeliveryOnFocus',
     'session.rename',
     'session.searchContent',
     'session.resume',

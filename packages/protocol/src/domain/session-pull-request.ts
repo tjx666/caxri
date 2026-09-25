@@ -77,4 +77,14 @@ export const sessionPullRequestMethods = {
         params: z.object({}).default({}),
         result: sessionPullRequestsSchema,
     },
+    /**
+     * Asks the Server to re-read one Session's delivery status past its caches because the window just regained focus:
+     * the user most likely merged or pushed somewhere else. The Server throttles per Session and answers before the
+     * refresh finishes; the usual `projectStatus.changed` and `sessionPullRequests.changed` events carry the result.
+     */
+    'session.refreshDeliveryOnFocus': {
+        ...commandPolicy('server', 'control'),
+        params: z.object({ sessionId: identifierSchema }),
+        result: z.null(),
+    },
 } as const;

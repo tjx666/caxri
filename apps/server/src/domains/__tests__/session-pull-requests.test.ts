@@ -4,7 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { ExternalStatusRunner } from '../external-status';
 import { ExternalStatusCliError } from '../external-status';
-import { selectBranchPullRequest, SessionPullRequestService } from '../session-pull-requests';
+import { selectBranchPullRequest } from '../session-pull-request-parse';
+import { SessionPullRequestService } from '../session-pull-requests';
 import {
     CODEX_THREAD_ID,
     codexCreatedPullRequestLines,

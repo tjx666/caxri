@@ -180,6 +180,7 @@ export const logEventCatalog = {
     sessionPullRequests: {
         cli: 'session_pull_requests.cli',
         cliSummary: 'session_pull_requests.cli_summary',
+        focusRefresh: 'session_pull_requests.focus_refresh',
         lookupUnavailable: 'session_pull_requests.lookup_unavailable',
         refresh: 'session_pull_requests.refresh',
         refreshFailed: 'session_pull_requests.refresh_failed',
