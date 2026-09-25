@@ -58,6 +58,9 @@ Before reporting completion, verify every applicable step above against current 
 local checks is not completion while PR creation, CI, merge, issue closeout, or synchronization is
 still pending. Continue authorized work; if a concrete blocker prevents progress, report the exact
 unfinished step and blocker instead of declaring the task complete.
+Also check the original request and any supplied handoff for explicit final deliverables, and verify
+each against current evidence. A merged PR or Acceptance round does not satisfy an omitted artifact,
+report, or handoff requirement.
 
 When a user correction changes the owning checkout, carry the original task and this delivery
 checklist forward in the existing worktree whenever possible. Moving the implementation is an
