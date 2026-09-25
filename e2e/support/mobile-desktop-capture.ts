@@ -63,18 +63,39 @@ const SAMPLE_INTERVAL_MS = 500;
 const MAX_SAMPLE_GAP_MS = 1_500;
 const MAX_RECORDING_MS = 180_000;
 const MIN_RECORDING_MS = 3_000;
-const SAFE_ROW_STYLE = `
-    .session-card {
-        color: transparent !important;
-        text-shadow: none !important;
-    }
-    .session-card *, .session-card::before, .session-card::after {
-        visibility: hidden !important;
-    }
-`;
-
 const sha256 = (content: string | Uint8Array): string =>
     createHash('sha256').update(content).digest('hex');
+
+/**
+ * Keep the real row styling while replacing every user-authored descendant with an anonymous identity marker.
+ */
+function safeRowStyle(sessionId: string): string {
+    const marker = sha256(sessionId).slice(0, 8).toUpperCase();
+    return `
+        .session-card {
+            position: relative !important;
+            color: transparent !important;
+            text-shadow: none !important;
+        }
+        .session-card *, .session-card::before, .session-card::after {
+            visibility: hidden !important;
+        }
+        .session-card[aria-selected="true"]::after {
+            content: "Selected Session · ${marker}" !important;
+            position: absolute !important;
+            inset: 0 !important;
+            display: flex !important;
+            align-items: center !important;
+            padding: 0 8px 0 13px !important;
+            box-shadow: inset 3px 0 0 var(--foreground) !important;
+            color: var(--foreground) !important;
+            font: 500 12px/1 system-ui, sans-serif !important;
+            text-shadow: none !important;
+            visibility: visible !important;
+            pointer-events: none !important;
+        }
+    `;
+}
 
 interface FrameSample {
     atMs: number;
@@ -250,7 +271,10 @@ export async function createMobileDesktopCapture(
         if ((await row.count()) !== 1 || (await row.getAttribute('aria-selected')) !== 'true') {
             throw new Error('Desktop selected Session row is not uniquely visible');
         }
-        const png = await row.screenshot({ animations: 'disabled', style: SAFE_ROW_STYLE });
+        const png = await row.screenshot({
+            animations: 'disabled',
+            style: safeRowStyle(sessionId),
+        });
         await assertOwnedIdentity();
         await assertDecodablePng(png);
         return { png, sessionId };
