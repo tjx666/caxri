@@ -17,6 +17,7 @@ import {
     tapMobileCheck,
     waitForMobile,
 } from './mobile-android';
+import { conversationBaselineRecords } from './mobile-conversation-transcript';
 import { assertMobileComposerDraft } from './mobile-unicode-input';
 
 interface ChangesScenarioEnvironment {
@@ -73,12 +74,25 @@ async function swipeDiffHorizontally(serial: string): Promise<void> {
     ]);
 }
 
-async function openChanges(serial: string, sessionId: string): Promise<void> {
+async function openChanges(
+    serial: string,
+    sessionId: string,
+    shouldShowConversationBesideChanges: boolean,
+): Promise<void> {
     await tapMobileCheck(serial, `session-row-${sessionId}`);
     await waitForMobile(
         () => mobileSemantics(serial),
         (nodes) => nodes.some(({ checkId }) => checkId === 'session-segment-changes'),
     );
+    if (shouldShowConversationBesideChanges) {
+        await tapMobileCheck(serial, 'session-segment-conversation');
+        await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) =>
+                nodes.some(({ checkId }) => checkId === 'conversation-view') &&
+                nodes.some(({ checkId }) => checkId.startsWith('conversation-user-')),
+        );
+    }
     await tapMobileCheck(serial, 'session-segment-changes');
     await waitForChanges(serial);
 }
@@ -182,8 +196,12 @@ export async function executeMobileChangesScenario(
     let originalDisplay: Awaited<ReturnType<typeof mobileDisplayState>> | undefined;
     let recording: Awaited<ReturnType<typeof startMobileFramebufferRecording>> | undefined;
     try {
-        if (environment.caseId === 'MOB-CHANGES-03')
+        if (environment.caseId === 'MOB-CHANGES-03') {
+            if (!fixture.appendTranscript)
+                throw new Error('Synthetic tablet Conversation fixture is unavailable');
+            await fixture.appendTranscript(conversationBaselineRecords());
             originalDisplay = await mobileDisplayState(environment.serial);
+        }
         await fixture.pair();
         const sessionId = fixture.allowedSessionId;
         if (!sessionId) throw new Error('Synthetic Changes Session is unavailable');
@@ -202,7 +220,7 @@ export async function executeMobileChangesScenario(
                 (nodes) => nodes.some(({ checkId }) => checkId === `session-row-${sessionId}`),
             );
         }
-        await openChanges(environment.serial, sessionId);
+        await openChanges(environment.serial, sessionId, environment.caseId === 'MOB-CHANGES-03');
         switch (environment.caseId) {
             case 'MOB-CHANGES-01': {
                 const rows = changedRowIds(await safeChangesSemantics(environment.serial));
