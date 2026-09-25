@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, AppState, Pressable, Text, TextInput, View } from 'react-native';
 
 import { MOBILE_AGENT_SUBMIT_MAX_BYTES } from '@caxri/protocol';
 
@@ -9,6 +9,7 @@ import {
     recordComposerFocus,
     recordComposerInput,
     recordComposerKey,
+    recordComposerPulse,
     recordVisibleComposerDraft,
 } from '../session-composer-diagnostic';
 import type { ComposerDelivery } from '../session-composer-state';
@@ -154,6 +155,13 @@ export const SessionDetailComposer = ({
     useEffect(() => {
         if (isVisible) recordVisibleComposerDraft(draft);
     }, [draft, isVisible]);
+    useEffect(() => {
+        if (!isVisible) return;
+        const pulse = () => recordComposerPulse(AppState.currentState === 'active');
+        pulse();
+        const interval = setInterval(pulse, 5_000);
+        return () => clearInterval(interval);
+    }, [isVisible]);
     const { byteLength, canSubmit, delivery, disabledReason, showStop, submit, updateDraft } =
         useSessionComposer({
             deviceRole,
