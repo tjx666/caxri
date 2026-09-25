@@ -167,6 +167,7 @@ describe('pnpm workspace contract', () => {
          * teaches the next reader to edit the expectation rather than read it.
          */
         expect(Object.keys(workspace.catalog ?? {})).toEqual([
+            '@ronradtke/react-native-markdown-display',
             '@tanstack/react-query',
             '@types/semver',
             '@types/ws',
