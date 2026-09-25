@@ -40,6 +40,15 @@ const styles = StyleSheet.create({
         width: 56,
     },
     newText: { fontSize: 30, lineHeight: 34 },
+    tabletNewButton: {
+        alignItems: 'center',
+        borderTopWidth: StyleSheet.hairlineWidth,
+        flexDirection: 'row',
+        gap: 8,
+        justifyContent: 'center',
+        minHeight: 56,
+    },
+    tabletNewText: { fontSize: 15, fontWeight: '700' },
 });
 
 const entryKey = (entry: SessionListEntry): string => entry.id;
@@ -203,10 +212,21 @@ export const SessionHome = ({
                 accessibilityLabel="New Session"
                 accessibilityRole="button"
                 onPress={onNewSession}
-                style={[styles.newButton, { backgroundColor: theme.primary }]}
+                style={
+                    layout === 'phone'
+                        ? [styles.newButton, { backgroundColor: theme.primary }]
+                        : [styles.tabletNewButton, { borderColor: theme.border }]
+                }
                 testID="new-session-button"
             >
-                <Text style={[styles.newText, { color: theme.primaryForeground }]}>+</Text>
+                <Text
+                    style={[
+                        layout === 'phone' ? styles.newText : styles.tabletNewText,
+                        { color: layout === 'phone' ? theme.primaryForeground : theme.primary },
+                    ]}
+                >
+                    {layout === 'phone' ? '+' : '+  New Session'}
+                </Text>
             </Pressable>
         </View>
     );
