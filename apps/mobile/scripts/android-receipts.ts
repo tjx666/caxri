@@ -14,11 +14,14 @@ export interface AndroidPoint {
 const attribute = (source: string, name: string): string | undefined =>
     new RegExp(`${name}="([^"]*)"`, 'u').exec(source)?.[1];
 
+export const isAndroidCheckId = (value: string): boolean =>
+    /^[a-z][a-z0-9_.:-]{2,100}$/u.test(value);
+
 const checkIdFromResource = (resourceId: string): string | undefined => {
     const raw = resourceId.includes(':id/')
         ? resourceId.slice(resourceId.lastIndexOf('/') + 1)
         : resourceId;
-    if (!/^[a-z][a-z0-9_-]{2,100}$/u.test(raw)) return;
+    if (!isAndroidCheckId(raw)) return;
     return raw;
 };
 

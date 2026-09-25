@@ -5,6 +5,7 @@ import process from 'node:process';
 
 import { createTerminalFixturePreflightReceipt } from '../../.agents/skills/acceptance/scripts/fixture-preflight.ts';
 import { writeJsonAtomic } from '../../scripts/atomic-json.ts';
+import { allowE2EErrors } from './error-gate.ts';
 import { expect } from './fixtures.ts';
 import { pageRequest } from './helpers.ts';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture.ts';
@@ -113,6 +114,38 @@ async function waitForConversationId(serial: string, prefix: string): Promise<st
         (current) => current.some(({ checkId }) => checkId.startsWith(prefix)),
     );
     return nodes.find(({ checkId }) => checkId.startsWith(prefix))!.checkId;
+}
+
+async function scrollToConversationId(
+    serial: string,
+    prefix: string,
+    direction: 'earlier' | 'later',
+): Promise<string> {
+    const viewport = (await mobileSemantics(serial)).find(
+        ({ checkId }) => checkId === 'conversation-view',
+    );
+    const frame = viewport && androidBounds(viewport.bounds);
+    if (!frame) throw new Error('Conversation scroll viewport is unavailable');
+    const x = Math.floor((frame.left + frame.right) / 2);
+    const upper = frame.top + Math.floor((frame.bottom - frame.top) * 0.25);
+    const lower = frame.top + Math.floor((frame.bottom - frame.top) * 0.8);
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+        // eslint-disable-next-line no-await-in-loop -- each gesture depends on the currently rendered virtual list.
+        const nodes = await mobileSemantics(serial);
+        const match = nodes.find(({ checkId }) => checkId.startsWith(prefix));
+        if (match) return match.checkId;
+        // eslint-disable-next-line no-await-in-loop -- one bounded gesture advances the same viewport.
+        await adbShell(serial, [
+            'input',
+            'swipe',
+            String(x),
+            String(direction === 'earlier' ? upper : lower),
+            String(x),
+            String(direction === 'earlier' ? lower : upper),
+            '300',
+        ]);
+    }
+    throw new Error(`Conversation item ${prefix} was not rendered after bounded scrolling`);
 }
 
 async function capturedHash(environment: ScenarioEnvironment, label: string) {
@@ -259,13 +292,22 @@ export async function executeMobileConversationScenario(
                 );
                 if (!fixture.deniedSessionId)
                     throw new Error('Denied fixture Session is unavailable');
+                allowE2EErrors([
+                    {
+                        source: 'server-core',
+                        event: 'ipc.request_failed',
+                        code: 'NOT_FOUND',
+                        method: 'mobile.timeline.read',
+                        count: 1,
+                    },
+                ]);
                 await expect(
                     gateway.readTimeline({
                         sessionId: fixture.deniedSessionId,
                     }),
                 ).rejects.toMatchObject({ code: 'NOT_FOUND' });
                 await openConversation(environment.serial, fixture.allowedSessionId);
-                await waitForConversationId(environment.serial, 'conversation-user-');
+                await scrollToConversationId(environment.serial, 'conversation-user-', 'earlier');
                 let changeCount = 0;
                 subscription = await gateway.subscribeConversation(
                     fixture.allowedSessionId,
@@ -347,13 +389,15 @@ export async function executeMobileConversationScenario(
                 await fixture.appendTranscript(conversationBaselineRecords());
                 await fixture.pair();
                 await openConversation(environment.serial, fixture.allowedSessionId);
-                await waitForConversationId(environment.serial, 'conversation-user-');
-                await waitForConversationId(environment.serial, 'conversation-agent-');
-                const group = await waitForConversationId(
+                await scrollToConversationId(environment.serial, 'conversation-user-', 'earlier');
+                await scrollToConversationId(environment.serial, 'conversation-agent-', 'later');
+                await scrollToConversationId(environment.serial, 'conversation-group-', 'later');
+                await scrollToConversationId(environment.serial, 'conversation-turn-', 'later');
+                const group = await scrollToConversationId(
                     environment.serial,
                     'conversation-group-',
+                    'earlier',
                 );
-                await waitForConversationId(environment.serial, 'conversation-turn-');
                 await capture(environment, 'collapsed', artifacts);
                 await tapMobileCheck(environment.serial, group);
                 const tool = await waitForConversationId(environment.serial, 'conversation-tool-');
