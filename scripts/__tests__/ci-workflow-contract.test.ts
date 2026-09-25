@@ -192,14 +192,25 @@ describe('CI workflow contract', () => {
         );
         expect(setupAction).toContain('bun run scripts/prepare-node-pty.ts');
         expect(setupAction).toContain('bun run electron:install');
+        expect(setupAction).toContain('PLAYWRIGHT_BROWSERS_PATH=$playwright_cache');
+        expect(setupAction).toContain('bunx --bun playwright install chromium-headless-shell');
         expect(setupAction).not.toContain('pnpm rebuild electron');
         expect(setupAction.indexOf('bun run scripts/prepare-node-pty.ts')).toBeGreaterThan(
             setupAction.indexOf('pnpm install --frozen-lockfile'),
         );
+        expect(
+            setupAction.indexOf('bunx --bun playwright install chromium-headless-shell'),
+        ).toBeGreaterThan(setupAction.indexOf('pnpm install --frozen-lockfile'));
         expect(setupAction).not.toContain('bun run rebuild');
         expect(bunVersion).toBe('1.4.0');
         expect(workflow).toContain('Server artifact native compatibility');
         expect(workflow).toContain('bun run spike:native');
+        expect(workflow).toContain(
+            "install-playwright-shell: ${{ needs.retry-policy.outputs.checks_scope == 'full' || needs.retry-policy.outputs.checks_scope == 'focused-source' }}",
+        );
+        expect(workflow).toContain(
+            "install-playwright-shell: ${{ needs.retry-policy.outputs.mode == 'full' && needs.retry-policy.outputs.checks_scope == 'full' && needs.retry-policy.outputs.e2e_profile == 'optimized' }}",
+        );
         expect(workflow).toContain(
             "CAXRI_VITEST_PARTITION: ${{ inputs.vitest_partition || 'optimized' }}",
         );

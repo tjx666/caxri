@@ -160,6 +160,7 @@ jobs:
           setup-toolchain: 'true'
           install-dependencies: 'true'
           install-electron: ${{ needs.retry-policy.outputs.checks_scope == 'full' || needs.retry-policy.outputs.checks_scope == 'focused-source' }}
+          install-playwright-shell: ${{ needs.retry-policy.outputs.checks_scope == 'full' || needs.retry-policy.outputs.checks_scope == 'focused-source' }}
       - name: Run focused changed-file checks
         if: needs.retry-policy.outputs.checks_scope != 'full'
         env:
@@ -261,6 +262,7 @@ jobs:
           setup-toolchain: 'true'
           install-dependencies: 'true'
           install-electron: 'true'
+          install-playwright-shell: ${{ needs.retry-policy.outputs.mode == 'full' && needs.retry-policy.outputs.checks_scope == 'full' && needs.retry-policy.outputs.e2e_profile == 'optimized' }}
       - name: Report E2E runner route
         run: |
           {
