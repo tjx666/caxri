@@ -89,3 +89,6 @@ authorized Terminal subscription and never enter the durable recovery journal or
 The gateway validates resource scope before each push, including after a same-host re-pair changes
 Project grants. Live Terminal observation and size ownership are governed by the separate Terminal
 observer contract; mobile transport does not resize Desktop's Terminal by subscribing.
+
+The [Conversation guide](CONVERSATION.md) covers the authorized timeline snapshot, cursor recovery,
+and native mobile rendering behind the content-free hints.

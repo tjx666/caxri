@@ -91,6 +91,36 @@ const androidCases = {
         recordingOwner: 'adapter',
         scenario: 'new-session-launch-failure',
     },
+    'MOB-CONV-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'adapter',
+        scenario: 'conversation-content',
+    },
+    'MOB-CONV-02': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['video'],
+        recordingOwner: 'scenario',
+        scenario: 'conversation-follow',
+    },
+    'MOB-CONV-03': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'adapter',
+        scenario: 'conversation-shell-fallback',
+    },
+    'MOB-CONV-04': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'adapter',
+        scenario: 'conversation-tablet-font',
+    },
+    'MOB-TIMELINE-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: [],
+        recordingOwner: 'adapter',
+        scenario: 'timeline-projection',
+    },
 } as const satisfies Record<
     string,
     {
@@ -121,6 +151,18 @@ export function mobileAndroidAcceptanceCase(caseId: string): {
         recordingOwner: definition.recordingOwner,
         scenario: definition.scenario,
     };
+}
+
+/**
+ * A Shell fallback frame is owned by its scenario after the formal Terminal fixture preflight.
+ */
+export function shouldCaptureAdapterScreenshot(caseId: string, isLifecycleReady: boolean): boolean {
+    const definition = mobileAndroidAcceptanceCase(caseId);
+    return (
+        isLifecycleReady &&
+        definition.media.includes('screenshot') &&
+        definition.scenario !== 'conversation-shell-fallback'
+    );
 }
 
 export function parseMobileAndroidCaseIds(

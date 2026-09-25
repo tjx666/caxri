@@ -26,7 +26,11 @@ import {
     writeMobileAcceptanceReceipt,
 } from './mobile-acceptance-runtime';
 import type { MobileAndroidAcceptanceCaseId } from './mobile-android-cases';
-import { mobileAndroidAcceptanceCase, parseMobileAndroidCaseIds } from './mobile-android-cases';
+import {
+    mobileAndroidAcceptanceCase,
+    parseMobileAndroidCaseIds,
+    shouldCaptureAdapterScreenshot,
+} from './mobile-android-cases';
 
 const root = resolve(import.meta.dirname, '..');
 const adb = join(homedir(), 'Library', 'Android', 'sdk', 'platform-tools', 'adb');
@@ -401,24 +405,23 @@ async function executeCase(
                       });
                   }
                 : undefined,
-            captureScreenshot:
-                isLifecycleReady && definition.media.includes('screenshot')
-                    ? async () => {
-                          const screenshot = captureMobileAcceptanceCommand({
-                              arguments: ['-s', serial, 'exec-out', 'screencap', '-p'],
-                              command: adb,
-                              cwd: root,
-                              deadlineMs: overallDeadlineMs,
-                              timeoutMs: DEVICE_TIMEOUT_MS,
-                          });
-                          await writeMobileAcceptanceArtifact(screenshotPath, screenshot);
-                          return createMobileAcceptanceArtifact(screenshotPath, {
-                              path: `assets/${caseId}-android.png`,
-                              source: 'android-framebuffer',
-                              type: 'screenshot',
-                          });
-                      }
-                    : undefined,
+            captureScreenshot: shouldCaptureAdapterScreenshot(caseId, isLifecycleReady)
+                ? async () => {
+                      const screenshot = captureMobileAcceptanceCommand({
+                          arguments: ['-s', serial, 'exec-out', 'screencap', '-p'],
+                          command: adb,
+                          cwd: root,
+                          deadlineMs: overallDeadlineMs,
+                          timeoutMs: DEVICE_TIMEOUT_MS,
+                      });
+                      await writeMobileAcceptanceArtifact(screenshotPath, screenshot);
+                      return createMobileAcceptanceArtifact(screenshotPath, {
+                          path: `assets/${caseId}-android.png`,
+                          source: 'android-framebuffer',
+                          type: 'screenshot',
+                      });
+                  }
+                : undefined,
             failure,
         });
         failure = collected.failure;

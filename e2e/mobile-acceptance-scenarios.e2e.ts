@@ -9,6 +9,7 @@ import { pageRequest } from './support/helpers.ts';
 import { createMobileAcceptanceFixture } from './support/mobile-acceptance-fixture.ts';
 import {
     adbShell,
+    androidBounds,
     captureMobileFramebuffer,
     mobileDisplayState,
     mobileSemantics,
@@ -18,6 +19,7 @@ import {
     tapMobileCheck,
     waitForMobile,
 } from './support/mobile-android.ts';
+import { executeMobileConversationScenario } from './support/mobile-conversation-scenarios.ts';
 import { createMobileTerminalAcceptanceFixture } from './support/mobile-terminal-acceptance-fixture.ts';
 import {
     assertMobileComposerDraft,
@@ -74,19 +76,6 @@ async function finish(
             'utf8',
         ),
     ]);
-}
-
-function androidBounds(source: string): {
-    left: number;
-    top: number;
-    right: number;
-    bottom: number;
-} | null {
-    const match = /^\[(\d+),(\d+)\]\[(\d+),(\d+)\]$/u.exec(source);
-    if (!match) return null;
-    const [, left, top, right, bottom] = match.map(Number);
-    if (right <= left || bottom <= top) return null;
-    return { left, top, right, bottom };
 }
 
 async function tapTerminalKey(serial: string, key: 'down' | 'enter'): Promise<void> {
@@ -179,7 +168,9 @@ async function openComposerSession(serial: string, sessionId: string): Promise<v
     await tapMobileCheck(serial, 'session-segment-conversation');
     await waitForMobile(
         () => mobileSemantics(serial),
-        (nodes) => nodes.some(({ checkId }) => checkId === 'conversation-placeholder'),
+        (nodes) =>
+            nodes.some(({ checkId }) => checkId === 'conversation-fallback-banner') &&
+            nodes.some(({ checkId }) => checkId === 'terminal-live-webview'),
     );
 }
 
@@ -722,7 +713,9 @@ test('executes one report-bound Android product scenario', async ({}) => {
                 await tapMobileCheck(environment.serial, 'session-segment-conversation');
                 await waitForMobile(
                     () => mobileSemantics(environment.serial),
-                    (nodes) => nodes.some(({ checkId }) => checkId === 'conversation-placeholder'),
+                    (nodes) =>
+                        nodes.some(({ checkId }) => checkId === 'conversation-fallback-banner') &&
+                        nodes.some(({ checkId }) => checkId === 'terminal-live-webview'),
                 );
                 const after = await pageRequest<{
                     selectedSessionId?: string;
@@ -794,6 +787,13 @@ test('executes one report-bound Android product scenario', async ({}) => {
             }
             break;
         }
+        case 'MOB-TIMELINE-01':
+        case 'MOB-CONV-01':
+        case 'MOB-CONV-02':
+        case 'MOB-CONV-03':
+        case 'MOB-CONV-04':
+            await executeMobileConversationScenario(environment, artifacts);
+            break;
         default:
             throw new Error(`Unsupported Playwright mobile Acceptance case: ${environment.caseId}`);
     }
