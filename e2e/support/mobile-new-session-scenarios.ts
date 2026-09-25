@@ -12,6 +12,7 @@ import {
     tapMobileCheck,
     waitForMobile,
 } from './mobile-android';
+import { conversationBaselineRecords } from './mobile-conversation-transcript';
 import { createMobileDesktopCapture } from './mobile-desktop-capture';
 import { assertMobileComposerFocused } from './mobile-unicode-input';
 
@@ -51,10 +52,11 @@ async function finish(
     ]);
 }
 
-async function chooseCodexForAllowedProject(
+async function chooseAgentForAllowedProject(
     environment: NewSessionEnvironment,
     allowedProjectId: string,
     deniedProjectId: string,
+    agent: 'claude' | 'codex',
 ): Promise<void> {
     await tapMobileCheck(environment.serial, 'new-session-button');
     await waitForMobile(
@@ -63,10 +65,12 @@ async function chooseCodexForAllowedProject(
             nodes.some(({ checkId }) => checkId === 'new-session-screen') &&
             nodes.some(({ checkId }) => checkId === `new-session-project-${allowedProjectId}`) &&
             nodes.every(({ checkId }) => checkId !== `new-session-project-${deniedProjectId}`) &&
-            nodes.some(({ checkId, enabled }) => checkId === 'new-session-agent-codex' && enabled),
+            nodes.some(
+                ({ checkId, enabled }) => checkId === `new-session-agent-${agent}` && enabled,
+            ),
     );
     await tapMobileCheck(environment.serial, `new-session-project-${allowedProjectId}`);
-    await tapMobileCheck(environment.serial, 'new-session-agent-codex');
+    await tapMobileCheck(environment.serial, `new-session-agent-${agent}`);
 }
 
 async function executeSuccessfulCreate(
@@ -74,12 +78,15 @@ async function executeSuccessfulCreate(
     artifacts: string[],
 ): Promise<void> {
     const fixture = await createMobileAcceptanceFixture({
-        mode: 'waiting',
+        mode: 'conversation',
         serial: environment.serial,
     });
     let recording: Awaited<ReturnType<typeof startMobileFramebufferRecording>> | undefined;
     let isStopped = false;
     try {
+        if (!fixture.appendTranscript)
+            throw new Error('Synthetic Conversation transcript fixture is unavailable');
+        await fixture.appendTranscript(conversationBaselineRecords());
         await fixture.pair();
         const desktop = await createMobileDesktopCapture({
             assetsDirectory: environment.assetsDirectory,
@@ -104,10 +111,11 @@ async function executeSuccessfulCreate(
                 environment.remoteVideoPath,
             );
         }
-        await chooseCodexForAllowedProject(
+        await chooseAgentForAllowedProject(
             environment,
             fixture.allowedProjectId,
             fixture.deniedProjectId,
+            'claude',
         );
         await capture(environment, 'selection', artifacts);
         await tapMobileCheck(environment.serial, 'new-session-create');
@@ -115,7 +123,9 @@ async function executeSuccessfulCreate(
             () => mobileSemantics(environment.serial),
             (nodes) =>
                 nodes.some(({ checkId }) => checkId === 'session-detail') &&
-                nodes.some(({ checkId }) => checkId === 'session-composer-input'),
+                nodes.some(({ checkId }) => checkId === 'session-composer-input') &&
+                nodes.some(({ checkId }) => checkId === 'conversation-status-empty') &&
+                nodes.every(({ checkId }) => checkId !== 'terminal-live-webview'),
         );
         await assertMobileComposerFocused(environment.serial);
         const after = await pageRequest<{
@@ -132,7 +142,7 @@ async function executeSuccessfulCreate(
         isStopped = true;
         await desktop.finalizeAfterCleanup({ cleanupConfirmed: true });
         await finish(environment, artifacts, {
-            agent: 'synthetic-Codex',
+            agent: 'synthetic-Claude',
             composer: 'focused',
             desktopSelection: 'preserved',
             pairing: 'verified-before-media',
@@ -160,10 +170,11 @@ async function executeLaunchFailure(
     });
     try {
         await fixture.pair();
-        await chooseCodexForAllowedProject(
+        await chooseAgentForAllowedProject(
             environment,
             fixture.allowedProjectId,
             fixture.deniedProjectId,
+            'codex',
         );
         await fixture.failNextAgentLaunch();
         await tapMobileCheck(environment.serial, 'new-session-create');

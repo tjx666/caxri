@@ -247,22 +247,34 @@ async function fakeConversationAgent(
 // 为隔离验收绑定合成 Claude 会话；仅修改当前临时配置中的会话状态。
 const fs = require('node:fs');
 const path = require('node:path');
+const { randomUUID } = require('node:crypto');
 if (process.argv.includes('--version')) {
   process.stdout.write('caxri-fake-claude 1.0.0\n');
   process.exit(0);
 }
 const now = Date.now();
+const sessionId = 'mobile-conversation-fixture-' + randomUUID();
 const sessions = path.join(process.env.CLAUDE_CONFIG_DIR, 'sessions');
-const sessionStatePath = path.join(sessions, 'current.json');
+const sessionStatePath = path.join(sessions, sessionId + '.json');
+const transcriptDirectory = path.join(
+  process.env.CLAUDE_CONFIG_DIR,
+  'projects',
+  process.cwd().replace(/[^a-z0-9]/gi, '-'),
+);
 fs.mkdirSync(sessions, { recursive: true });
-const writeSessionState = (status) => fs.writeFileSync(sessionStatePath, JSON.stringify({
-  cwd: process.cwd(),
-  name: 'Synthetic Conversation',
-  sessionId: 'mobile-conversation-fixture',
-  startedAt: now,
-  status,
-  updatedAt: Date.now(),
-}));
+fs.mkdirSync(transcriptDirectory, { recursive: true });
+fs.writeFileSync(path.join(transcriptDirectory, sessionId + '.jsonl'), '', { flag: 'wx' });
+const writeSessionState = (status) => {
+  fs.writeFileSync(sessionStatePath + '.next', JSON.stringify({
+    cwd: process.cwd(),
+    name: 'Synthetic Conversation',
+    sessionId,
+    startedAt: now,
+    status,
+    updatedAt: Date.now(),
+  }));
+  fs.renameSync(sessionStatePath + '.next', sessionStatePath);
+};
 writeSessionState('busy');
 process.stdin.setRawMode?.(true);
 ${
@@ -469,7 +481,7 @@ export async function createMobileAcceptanceFixture(
                     state.terminals.some(
                         (terminal) =>
                             terminal.sessionId === allowedSessionId &&
-                            terminal.agentSessionId === 'mobile-conversation-fixture',
+                            terminal.agentSessionId?.startsWith('mobile-conversation-fixture-'),
                     ),
             );
             const allowed = bound.sessions.find(({ id }) => id === allowedSessionId);
@@ -477,14 +489,14 @@ export async function createMobileAcceptanceFixture(
                 ({ sessionId }) => sessionId === allowedSessionId,
             );
             const config = conversationAgentMode?.environment.CLAUDE_CONFIG_DIR;
-            if (!allowed || !terminal || !config)
+            if (!allowed || !config || !terminal?.agentSessionId)
                 throw new Error('Synthetic Conversation binding is unavailable');
             conversationTerminalId = terminal.id;
             transcriptPath = join(
                 config,
                 'projects',
                 terminal.cwd.replaceAll(/[^a-z0-9]/giu, '-'),
-                'mobile-conversation-fixture.jsonl',
+                `${terminal.agentSessionId}.jsonl`,
             );
             if (input.mode === 'journey') {
                 if (!menuStatePath) throw new Error('Synthetic Terminal state path is unavailable');
