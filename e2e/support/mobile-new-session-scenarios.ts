@@ -73,6 +73,35 @@ async function chooseAgentForAllowedProject(
     await tapMobileCheck(environment.serial, `new-session-agent-${agent}`);
 }
 
+async function waitForCreatedConversation(serial: string): Promise<void> {
+    try {
+        await waitForMobile(
+            () => mobileSemantics(serial),
+            (nodes) =>
+                nodes.some(({ checkId }) => checkId === 'session-detail') &&
+                nodes.some(({ checkId }) => checkId === 'session-composer-input') &&
+                nodes.some(({ checkId }) => checkId === 'conversation-status-empty') &&
+                nodes.every(({ checkId }) => checkId !== 'terminal-live-webview'),
+        );
+    } catch (error) {
+        const nodes = await mobileSemantics(serial);
+        const checks = new Set(nodes.map(({ checkId }) => checkId));
+        const observed = {
+            composer: checks.has('session-composer-input'),
+            conversationEmpty: checks.has('conversation-status-empty'),
+            conversationLoading: checks.has('conversation-status-loading'),
+            conversationView: checks.has('conversation-view'),
+            detail: checks.has('session-detail'),
+            fallback: checks.has('conversation-fallback-banner'),
+            newSessionScreen: checks.has('new-session-screen'),
+            terminal: checks.has('terminal-live-webview'),
+        };
+        throw new Error(`Created Conversation did not become ready: ${JSON.stringify(observed)}`, {
+            cause: error,
+        });
+    }
+}
+
 async function executeSuccessfulCreate(
     environment: NewSessionEnvironment,
     artifacts: string[],
@@ -119,14 +148,7 @@ async function executeSuccessfulCreate(
         );
         await capture(environment, 'selection', artifacts);
         await tapMobileCheck(environment.serial, 'new-session-create');
-        await waitForMobile(
-            () => mobileSemantics(environment.serial),
-            (nodes) =>
-                nodes.some(({ checkId }) => checkId === 'session-detail') &&
-                nodes.some(({ checkId }) => checkId === 'session-composer-input') &&
-                nodes.some(({ checkId }) => checkId === 'conversation-status-empty') &&
-                nodes.every(({ checkId }) => checkId !== 'terminal-live-webview'),
-        );
+        await waitForCreatedConversation(environment.serial);
         await assertMobileComposerFocused(environment.serial);
         const after = await pageRequest<{
             selectedSessionId?: string;

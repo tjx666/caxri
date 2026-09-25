@@ -87,6 +87,39 @@ describe('AgentTranscriptWatcher', () => {
         await watchHub.close();
     });
 
+    it('notifies a mobile subscriber when a late-bound transcript is empty', async () => {
+        const path = await transcriptFixture();
+        await writeFile(path, '');
+        const { subscribe } = nativeSubscribe();
+        const watchHub = new WatchHub({ subscribe });
+        const emit = vi.fn();
+        let isAvailable = false;
+        const watcher = new AgentTranscriptWatcher({
+            emit,
+            locationForTerminal: () => {},
+            locateForTerminal: () =>
+                Promise.resolve(isAvailable ? transcriptLocation(path) : undefined),
+            mobileDiscoveryIntervalMs: 10,
+            terminalIdsForSession: () => ['terminal-a'],
+            watchHub,
+        });
+
+        await watcher.watchMobile('terminal-a');
+        expect(subscribe).not.toHaveBeenCalled();
+        isAvailable = true;
+        await vi.waitFor(() => expect(subscribe).toHaveBeenCalledOnce());
+        await vi.waitFor(() =>
+            expect(emit).toHaveBeenCalledWith({
+                event: 'agentTranscript.changed',
+                payload: { terminalId: 'terminal-a' },
+            }),
+        );
+        expect(emit).toHaveBeenCalledOnce();
+        watcher.unwatchMobile('terminal-a');
+        await watcher.close();
+        await watchHub.close();
+    });
+
     it('keeps a Desktop transcript watch when the last mobile subscriber leaves', async () => {
         const path = await transcriptFixture();
         const { callbacks, subscribe, unsubscribe } = nativeSubscribe();

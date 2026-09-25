@@ -47,14 +47,6 @@ async function transcriptSignature(path: string): Promise<string> {
     }
 }
 
-async function hasTranscriptContent(path: string): Promise<boolean> {
-    try {
-        return (await stat(path)).size > 0;
-    } catch {
-        return false;
-    }
-}
-
 /**
  * Retains one Server/WatchHub subscription per transcript that a Renderer has actually opened. Native events carry no
  * content; fallback polling compares only filesystem metadata. A post-subscribe signature check closes the race between
@@ -146,11 +138,14 @@ export class AgentTranscriptWatcher {
         this.entries.set(terminalId, completeEntry);
         const initialSignature = entry.signature;
         await this.detectChange(completeEntry);
+        /**
+         * A mobile reader may have received `missing` before the Agent bound its transcript. An empty transcript is
+         * already available, so its first late-discovery install must invalidate that read too.
+         */
         if (
             initialSignature !== 'missing' &&
             this.mobileDiscovery.has(terminalId) &&
-            completeEntry.signature === initialSignature &&
-            (await hasTranscriptContent(path))
+            completeEntry.signature === initialSignature
         )
             this.emitChange(completeEntry);
     }
