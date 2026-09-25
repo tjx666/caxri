@@ -4,6 +4,7 @@ import type {
     ProjectStatusAcceptance,
     ProjectStatusDeployment,
     ProjectStatusRepository,
+    ProjectStatusReviewThread,
     ProjectStatusState,
 } from 'caxri';
 
@@ -173,4 +174,29 @@ export function durationLabel(durationMs: number | undefined): string | undefine
 
 export function ignoredChecksLabel(count: number): string {
     return `${count} ignored check${count === 1 ? '' : 's'}`;
+}
+
+export function unresolvedCommentsLabel(count: number): string {
+    return `${count} unresolved ${count === 1 ? 'comment' : 'comments'}`;
+}
+
+/**
+ * `file:line` for an inline thread, the bare file name for a file-level one, and `General` for a thread GitHub anchored
+ * to no file at all. The directory stays on the hover card: a narrow panel truncated full paths to `docs/api/bro…`,
+ * which cut exactly the part that tells threads apart.
+ */
+export function reviewThreadLocation(
+    thread: Pick<ProjectStatusReviewThread, 'line' | 'path'>,
+): string {
+    if (!thread.path) return 'General';
+    const fileName = thread.path.slice(thread.path.lastIndexOf('/') + 1);
+    return thread.line === undefined ? fileName : `${fileName}:${thread.line}`;
+}
+
+/**
+ * Collapses a Markdown comment to one line for the row's description. The hover card keeps the longer text.
+ */
+export function oneLine(text: string, maxLength: number): string {
+    const collapsed = text.replaceAll(/\s+/gu, ' ').trim();
+    return collapsed.length > maxLength ? `${collapsed.slice(0, maxLength - 1)}…` : collapsed;
 }
