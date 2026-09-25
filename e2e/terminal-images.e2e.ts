@@ -231,8 +231,12 @@ test('inline images render real pixels, enforce budgets, and restore as content-
         await createAdditionalShellSession(running.page);
         await sessionCard(running.page, firstSessionId).click();
         await expect(sessionCard(running.page, firstSessionId)).toHaveClass(/active/);
-        await expect(running.page.locator(`${VISIBLE_SESSION} .xterm-rows`)).toContainText(
-            RECOVERY_PLACEHOLDER,
+        /**
+         * Switching to a retained Session keeps its live xterm; only reattachment replays recovery placeholders.
+         */
+        await expect(running.page.locator(`${VISIBLE_SESSION} .terminal-pane`)).toHaveAttribute(
+            'data-terminal-id',
+            terminalId,
         );
 
         await running.page.reload();
