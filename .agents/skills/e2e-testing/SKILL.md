@@ -118,6 +118,9 @@ evidence rather than automated test or Acceptance evidence.
   so the spec proceeds one step early and only loses the race on a loaded runner. Wait on the value
   that separates the two: capture the identity the mutation returned and assert the UI carries it,
   as `session-list-window.e2e.ts` does with `data-session-id` before it sends a key.
+- A new tab can render before it becomes active. For remount or recovery assertions, wait for the
+  old surface to unmount or for a verified attach/reload before performing the next action; tab
+  presence alone does not establish the lifecycle boundary.
 - Keep drag-test receipts outside watched Project roots; a previous assertion must not trigger a
   tree refresh that moves the next pointer target.
 - Do not mutate the filesystem while a menu, popover, or other transient surface is open. A watched

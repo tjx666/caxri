@@ -192,6 +192,10 @@ test('inline images render real pixels, enforce budgets, and restore as content-
 
         await pressNewTerminal(running.page);
         const secondTerminalId = await waitForNewTerminalId(running.page, [terminalId]);
+        /**
+         * The new tab appears before activation; wait for the first xterm to unmount before splitting it out.
+         */
+        await expect(surface).toHaveCount(0);
         await splitTerminalToRight(running.page, secondTerminalId);
         await expect(running.page.locator(`${VISIBLE_SESSION} .workbench-pane`)).toHaveCount(2);
         const secondSurface = running.page.locator(
@@ -231,12 +235,12 @@ test('inline images render real pixels, enforce budgets, and restore as content-
         await createAdditionalShellSession(running.page);
         await sessionCard(running.page, firstSessionId).click();
         await expect(sessionCard(running.page, firstSessionId)).toHaveClass(/active/);
-        /**
-         * Switching to a retained Session keeps its live xterm; only reattachment replays recovery placeholders.
-         */
         await expect(running.page.locator(`${VISIBLE_SESSION} .terminal-pane`)).toHaveAttribute(
             'data-terminal-id',
             terminalId,
+        );
+        await expect(running.page.locator(`${VISIBLE_SESSION} .xterm-rows`)).toContainText(
+            RECOVERY_PLACEHOLDER,
         );
 
         await running.page.reload();
