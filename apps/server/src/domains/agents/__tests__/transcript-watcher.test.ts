@@ -51,6 +51,63 @@ afterEach(async () => {
 });
 
 describe('AgentTranscriptWatcher', () => {
+    it('discovers a Codex-style transcript only while mobile has a conversation subscription', async () => {
+        const path = await transcriptFixture();
+        const { callbacks, subscribe, unsubscribe } = nativeSubscribe();
+        const watchHub = new WatchHub({ subscribe });
+        const emit = vi.fn();
+        let isAvailable = false;
+        const locateForTerminal = vi.fn(() =>
+            Promise.resolve(isAvailable ? transcriptLocation(path) : undefined),
+        );
+        const watcher = new AgentTranscriptWatcher({
+            emit,
+            locationForTerminal: () => {},
+            locateForTerminal,
+            mobileDiscoveryIntervalMs: 10,
+            terminalIdsForSession: () => ['terminal-a'],
+            watchHub,
+        });
+
+        await watcher.watchMobile('terminal-a');
+        expect(subscribe).not.toHaveBeenCalled();
+        isAvailable = true;
+        await vi.waitFor(() => expect(subscribe).toHaveBeenCalledOnce());
+        await vi.waitFor(() => expect(emit).toHaveBeenCalledOnce());
+        expect(emit).toHaveBeenCalledWith({
+            event: 'agentTranscript.changed',
+            payload: { terminalId: 'terminal-a' },
+        });
+        watcher.unwatchMobile('terminal-a');
+        await vi.waitFor(() => expect(unsubscribe).toHaveBeenCalledOnce());
+        callbacks[0]?.(null, [{ path, type: 'update' }]);
+        expect(emit).toHaveBeenCalledOnce();
+        expect(locateForTerminal).toHaveBeenCalled();
+        await watcher.close();
+        await watchHub.close();
+    });
+
+    it('keeps a Desktop transcript watch when the last mobile subscriber leaves', async () => {
+        const path = await transcriptFixture();
+        const { callbacks, subscribe, unsubscribe } = nativeSubscribe();
+        const watchHub = new WatchHub({ subscribe });
+        const emit = vi.fn();
+        const watcher = new AgentTranscriptWatcher({
+            emit,
+            locationForTerminal: () => transcriptLocation(path),
+            terminalIdsForSession: () => ['terminal-a'],
+            watchHub,
+        });
+        await watcher.watch('terminal-a');
+        await watcher.watchMobile('terminal-a');
+        watcher.unwatchMobile('terminal-a');
+        callbacks[0]?.(null, [{ path, type: 'update' }]);
+        expect(emit).toHaveBeenCalledOnce();
+        expect(unsubscribe).not.toHaveBeenCalled();
+        await watcher.close();
+        await watchHub.close();
+    });
+
     it('emits a content-free targeted event for the opened transcript', async () => {
         const path = await transcriptFixture();
         const { callbacks, subscribe } = nativeSubscribe();

@@ -43,12 +43,16 @@ function shouldDropE2ESubmitAcknowledgement(method: string, isSucceeded: boolean
     return true;
 }
 
-interface MobileAppOptions {
+export interface MobileAppOptions {
     authorizeMethod: (principal: Principal, method: string) => void;
     authorizeSubscription: (
         principal: Principal,
         resource: MobileSubscriptionResource,
     ) => Promise<void>;
+    beginConversationSubscription?: (
+        principal: Principal,
+        sessionId: string,
+    ) => Promise<() => void>;
     context: () => CommandExecutionContext;
     dispatch: CommandDispatcher;
     isActive: () => boolean;
@@ -83,6 +87,7 @@ export class MobileGatewayFrameRouter {
         if (!connectionId) throw new CaxriError('FORBIDDEN', 'Mobile connection is required');
         this.#subscriptions = new MobileGatewaySubscriptions({
             authorize: options.authorizeSubscription,
+            beginConversation: options.beginConversationSubscription,
             currentPrincipal: () => options.context().principal,
             matches: options.matchesSubscriptionEvent,
             randomId: options.randomSubscriptionId,

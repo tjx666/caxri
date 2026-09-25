@@ -56,6 +56,7 @@ import type {
     MobileDeviceSummary,
 } from '../device-registry';
 import { selectMobileGatewayAddresses } from './address-selection';
+import type { MobileAppOptions } from './frame-router';
 import { MobileGatewayFrameRouter } from './frame-router';
 import { dummyCandidate } from './handshake-candidate';
 import { isAllowedMobileOrigin } from './origin';
@@ -105,6 +106,7 @@ export interface MobileGatewayOptions {
         principal: Principal,
         resource: MobileSubscriptionResource,
     ) => Promise<void>;
+    beginConversationSubscription?: MobileAppOptions['beginConversationSubscription'];
     bootId: string;
     now?: () => number;
     protocolIdentity: { serverId: string; stateEpoch: string };
@@ -126,8 +128,7 @@ export interface MobileGatewayOptions {
     selectAddress?: () => string;
 }
 
-const isAllowedLanAddress = (address: string | undefined): boolean =>
-    address !== undefined && isPrivateMobileIpv4Address(address);
+const isAllowedLanAddress = (address?: string) => isPrivateMobileIpv4Address(address ?? '');
 
 /**
  * Default-off LAN transport for one Server profile. The loopback control transport is never reused.
@@ -555,6 +556,7 @@ export class MobileGateway {
                     session.application = new MobileGatewayFrameRouter({
                         authorizeMethod: this.#options.authorizePairedDeviceMethod,
                         authorizeSubscription: this.#options.authorizeSubscription,
+                        beginConversationSubscription: this.#options.beginConversationSubscription,
                         context: () => this.#context(authenticatedSession),
                         dispatch: this.#dispatch,
                         isActive: () =>
