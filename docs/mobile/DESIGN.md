@@ -210,9 +210,9 @@ for this Agent. Showing the Terminal.` A plain shell never shows this notice.
   errors) floats as a compact chip at the top instead of stacking rows under the output. While the
   phone itself is offline the app-wide `Reconnecting…` banner already explains the frozen frame, so
   the stale chip only appears when the connection is up but Terminal updates stopped.
-- **Observe** (default): the Terminal keeps Desktop's columns and rows. Every row always fits the
-  height, so the newest line is never hidden. The width scales down to a readable minimum; below
-  that the view pans horizontally by drag. Pinch zooms out far enough to show the whole width.
+- **Observe** (default): the Terminal keeps Desktop's columns and rows. The default scale has a
+  readable minimum; a tall grid scrolls vertically and starts at the latest output. A wide grid
+  pans horizontally. Pinch zoom can shrink the view to fit the whole grid.
   Observing never resizes the PTY.
 - **Take over**: a floating `Take over` button (control devices) resizes the PTY to the phone through
   a Server lease and opens the system keyboard. Tapping the Terminal reopens the keyboard; when the

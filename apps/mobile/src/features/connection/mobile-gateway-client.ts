@@ -49,6 +49,9 @@ import type { MobileSubscriptionListener } from './mobile-frame-router';
 import { MobileFrameRouter } from './mobile-frame-router';
 import { MobileHeartbeat } from './mobile-heartbeat';
 import { isFastMobileRead } from './mobile-read-timeouts';
+import { pairingClientHello } from './pairing-client-hello';
+import { pairingCredential } from './pairing-credential';
+import { createPairingSocketRuntime } from './pairing-socket-runtime';
 import { MobileSocketReaderBudget } from './socket-reader-budget';
 
 const HANDSHAKE_TIMEOUT_MS = 10_000;
@@ -679,6 +682,7 @@ const hasUnsupportedPairingLinkVersion = (source: string): boolean => {
 
 export const pairMobileGateway = async (input: {
     isCurrent?: () => boolean;
+    signal?: AbortSignal;
     displayName: string;
     pairingLink: string;
     runtime: MobileGatewayRuntime;
@@ -696,6 +700,7 @@ export const pairMobileGateway = async (input: {
         throw new MobilePairingError('expired', 'This pairing code has expired.');
     const clientSecretKey = input.runtime.randomBytes(X25519_KEY_BYTES);
     const clientNonce = input.runtime.randomBytes(HANDSHAKE_NONCE_BYTES);
+    const { runtime, dispose } = createPairingSocketRuntime(input.runtime, input.signal);
     let session: EstablishedSession;
     try {
         session = await establish({
@@ -706,19 +711,17 @@ export const pairMobileGateway = async (input: {
             clientSecretKey,
             clientNonce,
             presharedKey: decodeHex(link.secret, PAIRING_SECRET_BYTES),
-            runtime: input.runtime,
-            clientHello: {
-                type: 'hello',
-                version: MOBILE_TRANSPORT_VERSION,
-                mode: 'pair',
+            runtime,
+            clientHello: pairingClientHello({
                 pairingId: link.pairingId,
-                displayName: input.displayName.trim().slice(0, 100) || 'Mobile device',
+                displayName: input.displayName,
                 platform: input.runtime.platform,
-                clientPublicKey: encodeHex(mobilePublicKey(clientSecretKey)),
-                clientNonce: encodeHex(clientNonce),
-            },
+                clientSecretKey,
+                clientNonce,
+            }),
         });
     } catch (error) {
+        dispose();
         if (error instanceof MobilePairingError || error instanceof MobileVersionMismatchError)
             throw error;
         throw new MobilePairingError('rejected', 'Caxri could not verify this pairing.');
@@ -729,16 +732,13 @@ export const pairMobileGateway = async (input: {
         );
         if (paired.deviceId !== session.deviceId)
             throw new Error('Caxri returned an unexpected device identity.');
-        const credential = {
-            version: 1,
-            addresses: link.addresses,
-            port: link.port,
-            serverId: link.serverId,
-            deviceId: paired.deviceId,
-            generation: paired.generation,
-            credential: paired.credential,
-        } as const satisfies MobileCredential;
-        await input.store.save(credential, input.isCurrent);
+        const credential = pairingCredential(link, paired);
+        await input.store.save(
+            credential,
+            () => !input.signal?.aborted && (input.isCurrent?.() ?? true),
+        );
+        if (input.signal?.aborted) throw new Error('Pairing attempt was cancelled.');
+        dispose();
         return {
             connection: new MobileGatewayConnection(session, async () => {
                 await input.store.clearIfCurrent(credential);
@@ -746,6 +746,7 @@ export const pairMobileGateway = async (input: {
             credential,
         };
     } catch (error) {
+        dispose();
         session.reader.close();
         session.socket.close();
         throw error;

@@ -48,8 +48,8 @@ const TreeChildren = ({
             <PanelStatus
                 message={
                     isOtherSession
-                        ? 'This panel follows the Session open on your computer. Open this Session there to see it here.'
-                        : 'Unable to load this panel.'
+                        ? 'Open this Session on your computer to view its details here.'
+                        : 'Unable to load this view.'
                 }
                 onRetry={() => {
                     // eslint-disable-next-line no-void -- The query renders its own error state.
@@ -61,7 +61,7 @@ const TreeChildren = ({
         );
     }
     if (depth === 0 && children.data.items.length === 0)
-        return <PanelStatus message="Nothing to show." theme={theme} />;
+        return <PanelStatus message="Nothing to show." testID="tree-panel-empty" theme={theme} />;
     return (
         <>
             {children.data.items.map((item) => (

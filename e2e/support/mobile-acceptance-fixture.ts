@@ -63,6 +63,8 @@ interface CreateMobileAcceptanceFixtureInput {
     serial: string;
     changes?: MobileChangesFixtureKind;
     dropSubmitAcknowledgement?: boolean;
+    delayPairingResult?: boolean;
+    isolatedProjectHome?: boolean;
 }
 
 const MOBILE_ACCEPTANCE_SAFE_OUTPUT = 'Synthetic Agent output: ready for Acceptance review.\r\n';
@@ -391,6 +393,13 @@ export async function createMobileAcceptanceFixture(
     await Promise.all([
         mkdir(allowedRoot, { recursive: true }),
         mkdir(deniedRoot, { recursive: true }),
+        ...(input.isolatedProjectHome
+            ? [
+                  mkdir(join(userData, 'e2e-agents', 'home', 'mobile-new-project', 'nested'), {
+                      recursive: true,
+                  }),
+              ]
+            : []),
     ]);
     if (input.changes) {
         try {
@@ -421,12 +430,16 @@ export async function createMobileAcceptanceFixture(
     try {
         running = await launchCaxri({
             agentMode,
+            desktopLeaseWaitMs: process.env.CAXRI_MOBILE_ACCEPTANCE_CASE_ID ? 120_000 : 0,
             userDataDir: userData,
             testRootPath: allowedRoot,
             env: {
                 ...(input.mode === 'waiting' && { CAXRI_E2E_AGENT_HOOKS: '1' }),
                 ...(input.dropSubmitAcknowledgement && {
                     CAXRI_E2E_MOBILE_DROP_SUBMIT_ACK_ONCE: '1',
+                }),
+                ...(input.delayPairingResult && {
+                    CAXRI_E2E_MOBILE_PAIRING_RESULT_DELAY: '1',
                 }),
                 CAXRI_MOBILE_TEST_HOST_DISPLAY_NAME: 'Caxri Test Host',
                 CAXRI_TEST_ROOT_PATHS: JSON.stringify([allowedRoot, deniedRoot]),

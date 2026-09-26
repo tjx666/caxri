@@ -43,6 +43,24 @@ const androidCases = {
         recordingOwner: 'adapter',
         scenario: 'crypto-vector',
     },
+    'MOB-PAIR-CANCEL-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot', 'video'],
+        recordingOwner: 'scenario',
+        scenario: 'pairing-cancel',
+    },
+    'MOB-RENDER-01': {
+        desktopProfile: 'not-required',
+        media: ['screenshot', 'video'],
+        recordingOwner: 'scenario',
+        scenario: 'render-retry',
+    },
+    'MOB-STORAGE-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot', 'video'],
+        recordingOwner: 'scenario',
+        scenario: 'credential-storage-retry',
+    },
     'MOB-SESSION-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot'],
@@ -54,6 +72,12 @@ const androidCases = {
         media: ['video'],
         recordingOwner: 'adapter',
         scenario: 'session-reconnect',
+    },
+    'MOB-SESSION-PUSH-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'session-detail-push',
     },
     'MOB-TERM-01': {
         desktopProfile: 'managed-by-isolated-e2e',
@@ -90,6 +114,18 @@ const androidCases = {
         media: ['screenshot'],
         recordingOwner: 'adapter',
         scenario: 'new-session-launch-failure',
+    },
+    'MOB-PROJECT-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'add-nested-project',
+    },
+    'MOB-PANELS-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'browse-panels',
     },
     'MOB-CONV-01': {
         desktopProfile: 'managed-by-isolated-e2e',

@@ -29,10 +29,11 @@ public final class FixtureIme extends InputMethodService {
         return false;
     }
 
-    boolean commitFixture(String base64) {
+    boolean commitFixture(String base64, boolean compose) {
         InputConnection connection = getCurrentInputConnection();
         if (connection == null) return false;
         String text = new String(Base64.decode(base64, Base64.NO_WRAP), StandardCharsets.UTF_8);
-        return connection.commitText(text, 1);
+        if (!compose) return connection.commitText(text, 1);
+        return connection.setComposingText(text, 1) && connection.finishComposingText();
     }
 }

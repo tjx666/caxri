@@ -8,6 +8,7 @@ export type MobileConnectionStatus =
     | 'connecting'
     | 'revoked'
     | 'stale'
+    | 'storage-error'
     | 'unpaired'
     | 'unverified'
     | 'version-mismatch';

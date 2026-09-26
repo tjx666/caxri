@@ -26,4 +26,12 @@ describe('mobile Unicode input arguments', () => {
             'Fixture Unicode input requires a disposable emulator',
         );
     });
+
+    it('requests a composing transaction without placing the draft in the shell arguments', () => {
+        const value = '中文组合';
+        const arguments_ = mobileFixtureImeBroadcastArguments('emulator-5554', value, 'compose');
+        expect(arguments_).toContain('--ez');
+        expect(arguments_).toContain('compose');
+        expect(arguments_).not.toContain(value);
+    });
 });

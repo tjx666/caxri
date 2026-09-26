@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -97,12 +97,21 @@ interface PairingMethodScreenProperties {
 
 export const PairingMethodScreen = ({ method }: PairingMethodScreenProperties) => {
     const theme = useMobileTheme();
-    const client = useMobileClient();
+    const { cancelPairing, pair: pairWithClient } = useMobileClient();
     const [cameraPermission, requestCameraPermission] = useCameraPermissions();
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const pairing = useRef(false);
+    const mounted = useRef(true);
     const lastScannedValue = useRef<string | null>(null);
+
+    useEffect(() => {
+        mounted.current = true;
+        return () => {
+            mounted.current = false;
+            cancelPairing();
+        };
+    }, [cancelPairing]);
 
     const pair = useCallback(
         async (source: string): Promise<void> => {
@@ -111,16 +120,18 @@ export const PairingMethodScreen = ({ method }: PairingMethodScreenProperties) =
             setBusy(true);
             setError(null);
             try {
-                await client.pair(source);
-                router.replace('/sessions');
+                await pairWithClient(source);
+                if (mounted.current) router.replace('/sessions');
             } catch (pairingError) {
-                setError(pairingErrorMessage(pairingError));
-                pairing.current = false;
+                if (mounted.current) setError(pairingErrorMessage(pairingError));
             } finally {
-                setBusy(false);
+                if (mounted.current) {
+                    pairing.current = false;
+                    setBusy(false);
+                }
             }
         },
-        [client],
+        [pairWithClient],
     );
 
     const paste = useCallback(async (): Promise<void> => {
@@ -161,7 +172,10 @@ export const PairingMethodScreen = ({ method }: PairingMethodScreenProperties) =
                             accessibilityHint="Returns to the pairing method choices."
                             accessibilityLabel="Back"
                             icon={ChevronLeft}
-                            onPress={() => router.back()}
+                            onPress={() => {
+                                cancelPairing();
+                                router.back();
+                            }}
                             testID={`pairing-${method}-back-button`}
                             theme={theme}
                         />

@@ -17,6 +17,13 @@ bun run --cwd apps/mobile android:device inspect --serial "$SERIAL"
 
 Do not use the first result from `adb devices`, Expo's implicit selection, or an Android model name
 as the ADB identity. Keep the exact serial in every command.
+An explicit serial selects a device but does not reserve it. Parallel tasks must use distinct
+disposable emulator instances; the Desktop lease does not serialize APK installs, package clears,
+or native taps. Launch a task-owned AVD with an unused port when the shared instance is active;
+copy only hardware configuration and use fresh user data, never another task's live disk image.
+Freeze that serial in the new report round and stop only the
+instance this task launched. If Android reports `PACKAGE UPDATED` during a case, investigate
+another installer before attributing the interruption to an app crash.
 
 For a user-owned wireless device, keep the phone's pairing screen open while completing the Mac
 side. Use Android Studio's Device Manager pairing UI when computer control is available; inspect
@@ -96,6 +103,16 @@ After installing the fixture, discover it with `ime list -a -s`: plain `ime list
 methods only, so it hides the newly installed fixture until `ime enable` runs.
 Before diagnosing a missing `testID`, verify the expected screen with a stable route marker. Start
 swipes inside the content area, away from Android's Back gesture edges, and check the route again.
+An identifier existing in source does not prove that the current Agent, device role, and segment
+render it. Choose a visible composer entry before entering text. During a mobile Terminal lease,
+Desktop's rendered grid follows the phone; verify window geometry separately, and expect the
+Desktop grid to return only after release. For pinch claims, inject one native two-pointer gesture
+and inspect the resulting framebuffer; parallel single-pointer swipes do not establish pinch behavior.
+Keep injected render failures active until the error screen's explicit retry action clears them;
+a one-shot mutation during render can be consumed by React's automatic replay without showing the boundary.
+For metadata cases such as Session title updates, select Project before capturing the detail page.
+A fallback shell may display the host account and machine name even inside an isolated Project;
+Terminal evidence requires a synthetic shell or Agent fixture instead.
 
 ## Capture and judge
 

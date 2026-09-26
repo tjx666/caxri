@@ -479,7 +479,28 @@ export async function executeMobileConversationScenario(
                 await capture(environment, 'collapsed', artifacts);
                 await captureHorizontalCodeReading(environment, artifacts);
                 await scrollToConversationId(environment.serial, 'conversation-group-', 'later');
-                await tapMobileCheck(environment.serial, group);
+                for (let attempt = 0; attempt < 20; attempt += 1) {
+                    // eslint-disable-next-line no-await-in-loop -- each semantic tap tests the settled state after the previous tap.
+                    await tapMobileCheck(environment.serial, group);
+                    // eslint-disable-next-line no-await-in-loop -- the expanded children confirm the tap reached the current virtualized row.
+                    await waitForConversationId(environment.serial, 'conversation-tool-');
+                    // eslint-disable-next-line no-await-in-loop -- Preserve bounded progress if the native driver times out.
+                    await writeJsonAtomic(environment.scenarioReceiptPath, {
+                        caseId: environment.caseId,
+                        schemaVersion: 1,
+                        status: 'running',
+                        toolGroupExpansions: { attempts: 20, succeeded: attempt + 1 },
+                    });
+                    if (attempt === 19) break;
+                    // eslint-disable-next-line no-await-in-loop -- collapse before testing the next independent expansion.
+                    await tapMobileCheck(environment.serial, group);
+                    // eslint-disable-next-line no-await-in-loop -- the next tap must wait for the list to settle.
+                    await waitForMobile(
+                        () => mobileSemantics(environment.serial),
+                        (nodes) =>
+                            nodes.every(({ checkId }) => !checkId.startsWith('conversation-tool-')),
+                    );
+                }
                 const tool = await waitForConversationId(environment.serial, 'conversation-tool-');
                 await capture(environment, 'expanded', artifacts);
                 await tapMobileCheck(environment.serial, tool);
@@ -488,6 +509,7 @@ export async function executeMobileConversationScenario(
                 await finish(environment, artifacts, {
                     codeReading: 'horizontal-swipe-with-before-and-after-device-frames',
                     hiddenThinking: 'synthetic-marker-absent-from-projected-timeline',
+                    toolGroupExpansions: { attempts: 20, succeeded: 20 },
                     screenshots: [
                         'collapsed',
                         'code-left',

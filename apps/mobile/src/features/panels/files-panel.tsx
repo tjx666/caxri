@@ -190,10 +190,15 @@ export const FilesPanel = ({ sessionId, theme }: { sessionId: string; theme: Mob
                                 // eslint-disable-next-line no-void -- The query renders its own error state.
                                 void listing.refetch();
                             }}
+                            testID="files-error"
                             theme={theme}
                         />
                     ) : (
-                        <PanelStatus message="This folder is empty." theme={theme} />
+                        <PanelStatus
+                            message="This folder is empty."
+                            testID="files-empty"
+                            theme={theme}
+                        />
                     )
                 }
                 ListFooterComponent={

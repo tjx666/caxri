@@ -207,13 +207,26 @@ async function validateDesktopCapture(input: {
     const receiptPath = `assets/${encodeURIComponent(input.caseId)}-desktop-capture.json`;
     const videoPath = `assets/${encodeURIComponent(input.caseId)}-desktop.mp4`;
     const screenshotPaths = [`${prefix}before.png`, `${prefix}after.png`];
-    const evidencePaths = input.evidence.map(({ path }) => path);
+    const evidencePaths = new Set(input.evidence.map(({ path }) => path));
     let rawReceipt: string;
     try {
         rawReceipt = await readFile(join(input.directory, receiptPath), 'utf8');
     } catch (error: unknown) {
         if (errorCode(error) !== 'ENOENT') throw error;
-        if (evidencePaths.some((path) => path.startsWith(prefix) || path === videoPath)) {
+        /**
+         * A mobile scenario may mention Desktop in its name while capturing the phone framebuffer. Canonical Desktop
+         * paths and explicit Desktop provenance still require their receipt; mobile media keeps its device/hash gate.
+         */
+        const requiresDesktopReceipt = input.evidence.some(
+            ({ path, source }) =>
+                screenshotPaths.includes(path) ||
+                path === videoPath ||
+                source === 'isolated-desktop-renderer' ||
+                (path.startsWith(prefix) &&
+                    source !== 'android-framebuffer' &&
+                    source !== 'ios-simulator-framebuffer'),
+        );
+        if (requiresDesktopReceipt) {
             throw new Error(
                 `Case ${input.caseId} desktop media requires a Desktop capture receipt`,
                 {
@@ -223,7 +236,7 @@ async function validateDesktopCapture(input: {
         }
         return { desktopPaths: new Set() };
     }
-    if (!evidencePaths.includes(receiptPath)) {
+    if (!evidencePaths.has(receiptPath)) {
         throw new Error(`Case ${input.caseId} must cite its Desktop capture receipt`);
     }
     const receipt = desktopCaptureReceiptSchema.parse(JSON.parse(rawReceipt) as unknown);
@@ -255,7 +268,7 @@ async function validateDesktopCapture(input: {
             (artifact, index) =>
                 artifact.path !== expectedPaths[index] ||
                 artifact.type !== (index === 2 ? 'video' : 'screenshot') ||
-                !evidencePaths.includes(artifact.path) ||
+                !evidencePaths.has(artifact.path) ||
                 input.evidence.find(({ path }) => path === artifact.path)?.source !==
                     'isolated-desktop-renderer',
         )
