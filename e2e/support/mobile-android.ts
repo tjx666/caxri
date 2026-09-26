@@ -235,17 +235,19 @@ export const tapMobileCheck = (
         ...(options.isLongPress ? ['--long-press'] : []),
     ]);
 
-export async function tapMobileAttentionCheck(serial: string, checkId: string): Promise<void> {
+/**
+ * React Native can expose a visible Pressable with `clickable=false` in Android's accessibility dump. Tap its verified
+ * device bounds and prove the resulting product state separately.
+ */
+export async function tapMobileCheckByBounds(serial: string, checkId: string): Promise<void> {
     const nodes = await mobileSemantics(serial);
     const target = nodes.find((node) => node.checkId === checkId);
     const bounds = target && androidBounds(target.bounds);
     if (!bounds || !target.enabled) {
         const visible = nodes
-            .filter((node) => node.checkId.startsWith('attention-'))
+            .filter((node) => node.checkId.startsWith(checkId.split('-', 1)[0]))
             .map((node) => node.checkId);
-        throw new Error(
-            `Attention control ${checkId} is unavailable; visible: ${visible.join(',')}`,
-        );
+        throw new Error(`Mobile control ${checkId} is unavailable; visible: ${visible.join(',')}`);
     }
     await adbShell(serial, [
         'input',
