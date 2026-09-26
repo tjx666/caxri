@@ -31,3 +31,24 @@ export const PanelStatus = ({
         ) : null}
     </View>
 );
+
+/**
+ * A Panels read that has no data yet is either in flight or held back because the phone is offline or backgrounded.
+ * TanStack reports the second as a pending query with an idle fetch, which would otherwise spin forever.
+ */
+export const PendingPanelStatus = ({
+    fetchStatus,
+    theme,
+}: {
+    fetchStatus: 'fetching' | 'idle' | 'paused';
+    theme: MobileTheme;
+}) =>
+    fetchStatus === 'fetching' ? (
+        <PanelStatus isLoading theme={theme} />
+    ) : (
+        <PanelStatus
+            message="Reconnect to browse this Project."
+            testID="panels-offline"
+            theme={theme}
+        />
+    );

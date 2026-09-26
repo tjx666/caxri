@@ -6,11 +6,38 @@ import Markdown from '@ronradtke/react-native-markdown-display';
 
 import type { MobileTheme } from '../../theme/tokens';
 
+/**
+ * The library's document-sized headings (32/24/18) dwarf a chat bubble on a phone, so headings step down from a modest
+ * top size and lean on weight instead.
+ */
+const headingStyle = (fontSize: number, color: string) => ({
+    color,
+    fontSize,
+    fontWeight: '600' as const,
+    lineHeight: Math.round(fontSize * 1.4),
+    marginBottom: 4,
+    marginTop: 12,
+});
+
 export const ConversationMarkdown = ({ text, theme }: { text: string; theme: MobileTheme }) => {
     const monospace = Platform.OS === 'ios' ? 'Menlo' : 'monospace';
     const markdownStyle = useMemo(
         () => ({
             body: { color: theme.text, fontSize: 15, lineHeight: 23 },
+            blockquote: {
+                backgroundColor: theme.surface,
+                borderColor: theme.border,
+                borderLeftWidth: 3,
+                marginLeft: 0,
+                paddingHorizontal: 10,
+            },
+            heading1: headingStyle(19, theme.text),
+            heading2: headingStyle(17, theme.text),
+            heading3: headingStyle(16, theme.text),
+            heading4: headingStyle(15, theme.text),
+            heading5: headingStyle(15, theme.muted),
+            heading6: headingStyle(15, theme.muted),
+            hr: { backgroundColor: theme.border },
             code_inline: {
                 backgroundColor: theme.surface,
                 color: theme.text,

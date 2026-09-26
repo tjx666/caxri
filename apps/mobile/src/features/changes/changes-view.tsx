@@ -1,6 +1,7 @@
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import { draculaTheme } from '@caxri/protocol';
+import { RotateCw } from 'lucide-react-native';
 
 import type { MobileTheme } from '../../theme/tokens';
 import { ChangesListContent } from './changes-list-content';
@@ -26,35 +27,38 @@ export const ChangesView = ({
     theme: MobileTheme;
 }) => (
     <View style={styles.root} testID="changes-view">
-        <View style={[styles.toolbar, { borderColor: theme.border }]}>
-            <Text
-                accessibilityRole="header"
-                style={[styles.summary, { color: theme.text }]}
-                testID="changes-summary"
-            >
-                {state.snapshot
-                    ? changesSummary(
-                          state.snapshot.changedFileCount,
-                          state.snapshot.additions,
-                          state.snapshot.deletions,
-                      )
-                    : 'Changes'}
-            </Text>
-            <Pressable
-                accessibilityLabel="Refresh changes"
-                accessibilityRole="button"
-                accessibilityState={{ busy: state.isRefreshing }}
-                onPress={onRefresh}
-                style={styles.refresh}
-                testID="changes-refresh"
-            >
-                {state.isRefreshing ? (
-                    <ActivityIndicator color={theme.primary} />
-                ) : (
-                    <Text style={[styles.refreshText, { color: theme.primary }]}>↻</Text>
-                )}
-            </Pressable>
-        </View>
+        {/* Outside a Git repository a "0 files changed" summary contradicts the empty state below it. */}
+        {state.snapshot?.isRepository === false ? null : (
+            <View style={[styles.toolbar, { borderColor: theme.border }]}>
+                <Text
+                    accessibilityRole="header"
+                    style={[styles.summary, { color: theme.text }]}
+                    testID="changes-summary"
+                >
+                    {state.snapshot
+                        ? changesSummary(
+                              state.snapshot.changedFileCount,
+                              state.snapshot.additions,
+                              state.snapshot.deletions,
+                          )
+                        : 'Changes'}
+                </Text>
+                <Pressable
+                    accessibilityLabel="Refresh changes"
+                    accessibilityRole="button"
+                    accessibilityState={{ busy: state.isRefreshing }}
+                    onPress={onRefresh}
+                    style={styles.refresh}
+                    testID="changes-refresh"
+                >
+                    {state.isRefreshing ? (
+                        <ActivityIndicator color={theme.primary} />
+                    ) : (
+                        <RotateCw color={theme.primary} size={20} />
+                    )}
+                </Pressable>
+            </View>
+        )}
         {state.isStale ? (
             <Text
                 style={[styles.stale, { borderColor: theme.border, color: theme.muted }]}

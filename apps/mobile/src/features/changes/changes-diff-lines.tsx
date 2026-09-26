@@ -5,11 +5,11 @@ import { FlatList, ScrollView, View } from 'react-native';
 import type { MobileTheme } from '../../theme/tokens';
 import { ChangesDiffRow } from './changes-diff-row';
 import type { DiffLine } from './changes-model';
-import { parseUnifiedDiff } from './changes-model';
+import { parseUnifiedDiff, visibleDiffLines } from './changes-model';
 import { changesStyles as styles } from './changes-styles';
 
 export const ChangesDiffLines = ({ patch, theme }: { patch: string; theme: MobileTheme }) => {
-    const lines = useMemo(() => parseUnifiedDiff(patch).lines, [patch]);
+    const lines = useMemo(() => visibleDiffLines(parseUnifiedDiff(patch).lines), [patch]);
     const [viewport, setViewport] = useState({ height: 0, width: 0 });
     const onLayout = useCallback((event: LayoutChangeEvent): void => {
         const { height, width } = event.nativeEvent.layout;

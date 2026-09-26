@@ -32,3 +32,12 @@ export const canAddProjectBrowserLevel = (
 ): level is ProjectBrowserLevel & {
     path: string;
 } => level.path !== null;
+
+/**
+ * A Git repository is the usual Project, and a folder with no subfolders cannot be opened to reach the footer's Add, so
+ * both offer Add on the row itself; without it a leaf folder would be a dead end.
+ */
+export const canAddProjectBrowserEntry = (entry: {
+    hasChildren: boolean;
+    isGitRepository: boolean;
+}): boolean => entry.isGitRepository || !entry.hasChildren;

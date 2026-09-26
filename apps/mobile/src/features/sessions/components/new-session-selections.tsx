@@ -7,7 +7,11 @@ import { Folder, FolderPlus, Search } from 'lucide-react-native';
 import { AgentGlyph } from '../../../components/agent-icon';
 import type { MobileTheme } from '../../../theme/tokens';
 import type { NewSessionViewState } from '../hooks/use-new-session';
-import { NEW_SESSION_AGENT_LABELS, NEW_SESSION_AGENT_ORDER } from '../new-session-model';
+import {
+    NEW_SESSION_AGENT_LABELS,
+    NEW_SESSION_AGENT_ORDER,
+    newSessionAgentReason,
+} from '../new-session-model';
 import { NewSessionChoice } from './new-session-choice';
 import { newSessionStyles as styles } from './new-session-styles';
 
@@ -22,13 +26,12 @@ const NewSessionAgentChoice = ({
 }) => {
     const agent = state.agents.find((candidate) => candidate.kind === kind);
     const disabled = !agent?.available || state.isAvailabilityError || state.isAvailabilityLoading;
-    const reason = state.isAvailabilityError
-        ? 'Availability unavailable.'
-        : state.isAvailabilityLoading
-          ? 'Checking availability…'
-          : agent?.available
-            ? undefined
-            : (agent?.reason ?? 'Not available on this computer.');
+    const reason = newSessionAgentReason({
+        agent,
+        isConnected: state.status === 'connected',
+        isError: state.isAvailabilityError,
+        isLoading: state.isAvailabilityLoading,
+    });
     return (
         <NewSessionChoice
             disabled={disabled}
