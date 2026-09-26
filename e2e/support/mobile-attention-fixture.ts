@@ -17,12 +17,13 @@ export interface AttentionReceipt {
 export async function prepareMobileAttentionAgent(userDataDirectory: string) {
     const fixture = await prepareAcceptanceAgentFixture({
         fixtureId: 'agent-features-v1',
+        isPublicFrame: true,
         userDataDir: userDataDirectory,
     });
     return {
         agentMode: {
             mode: 'fake' as const,
-            environment: { ...fixture.environment, CAXRI_ACCEPTANCE_PUBLIC_FRAME: '1' },
+            environment: fixture.environment,
             executables: fixture.executables,
         },
         receiptPath: join(fixture.environment.CLAUDE_CONFIG_DIR!, 'acceptance-receipts.jsonl'),

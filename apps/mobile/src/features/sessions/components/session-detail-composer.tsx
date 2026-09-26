@@ -213,7 +213,7 @@ export const SessionDetailComposer = ({
             ) : null}
             {suggestions.trigger ? (
                 <View testID="session-composer-suggestions">
-                    {suggestions.items.slice(0, 10).map((item) => (
+                    {suggestions.items.slice(0, 10).map((item, index) => (
                         <Pressable
                             accessibilityLabel={`Insert ${item}`}
                             accessibilityRole="button"
@@ -227,7 +227,8 @@ export const SessionDetailComposer = ({
                                     ),
                                 )
                             }
-                            style={{ padding: 8 }}
+                            style={{ minHeight: 44, justifyContent: 'center', padding: 8 }}
+                            testID={`session-composer-suggestion-${index}`}
                         >
                             <Text style={{ color: theme.text }}>{item}</Text>
                         </Pressable>
