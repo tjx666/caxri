@@ -370,6 +370,42 @@ const requestAttention = () => {
   setClaudeStatus('idle');
   invokeHook('PermissionRequest');
 };
+const requestNativeAttention = (kind) => {
+  if (provider !== 'claude') return;
+  startTurn('A bounded attention fixture topic');
+  const event = kind === 'question' ? 'PreToolUse' : 'PermissionRequest';
+  const group = hookDocument().hooks[event].find((entry) => kind === 'question'
+    ? entry.matcher === '^AskUserQuestion$'
+    : !entry.matcher);
+  if (!group) throw new Error('Attention hook is unavailable');
+  const payload = kind === 'question'
+    ? { tool_name: 'AskUserQuestion', tool_input: { questions: [
+        { question: 'Choose options', header: 'Options', options: [
+          { label: 'Alpha', description: 'First choice' },
+          { label: 'Beta', description: 'Second choice' },
+        ], multiSelect: true },
+        { question: 'Add a note', header: 'Note', options: [], multiSelect: false },
+      ] } }
+    : { tool_name: 'Bash', tool_input: { command: 'echo fixture' } };
+  const child = childProcess.spawn('/bin/sh', ['-c', group.hooks[0].command], {
+    env: process.env, stdio: ['pipe', 'pipe', 'ignore'],
+  });
+  let output = '';
+  child.stdout.on('data', (chunk) => { output += chunk; });
+  child.on('close', (code) => {
+    let applied = false;
+    try {
+      const reply = JSON.parse(output);
+      applied = kind === 'question'
+        ? reply.hookSpecificOutput?.permissionDecision === 'allow' &&
+          Object.keys(reply.hookSpecificOutput?.updatedInput?.answers ?? {}).length === 2
+        : ['allow', 'deny'].includes(reply.hookSpecificOutput?.decision?.behavior);
+    } catch {}
+    appendReceipt({ kind: 'attentionAnswer', attentionKind: kind, applied, exitCode: code });
+    if (applied) finishTurn();
+  });
+  child.stdin.end(JSON.stringify(payload));
+};
 
 // Claude begins turns through UserPromptSubmit; only Codex installs a SessionStart binding.
 const requiredInitialHooks = provider === 'codex'
@@ -413,6 +449,8 @@ const handleCommand = (raw) => {
     if (command === 'fixture:start') startTurn('Long completion notification topic');
     else if (command === 'fixture:finish') finishTurn();
     else if (command === 'fixture:waiting') requestAttention();
+    else if (command === 'fixture:permission') requestNativeAttention('permission');
+    else if (command === 'fixture:question') requestNativeAttention('question');
     else if (command === 'fixture:release') fs.writeFileSync(releasePath, 'release');
     else if (command === 'fixture:hold-next') setMode({ kind: 'hold', sessionId });
     else if (command === 'fixture:fail-next') setMode({ kind: 'fail', sessionId });

@@ -23,17 +23,26 @@ const PanelIcon = ({ panel, ...iconProperties }: LucideProps & { panel: Panel })
 };
 
 const PanelBody = ({
+    deviceRole,
     sessionId,
     theme,
     view,
 }: {
+    deviceRole: 'view' | 'reply' | 'control' | null;
     sessionId: string;
     theme: MobileTheme;
     view: PanelView;
 }) => {
     switch (view.kind) {
         case 'files':
-            return <FilesPanel sessionId={sessionId} theme={theme} />;
+            return (
+                <FilesPanel
+                    deviceRole={deviceRole}
+                    key={sessionId}
+                    sessionId={sessionId}
+                    theme={theme}
+                />
+            );
         case 'tree':
             return <TreePanel key={view.id} sessionId={sessionId} theme={theme} viewId={view.id} />;
         default:
@@ -93,7 +102,15 @@ const withoutChanges = (panels: readonly Panel[]): Panel[] =>
 /**
  * Mirrors Desktop's right sidebar (Files, Status, and any extension panel) for one Session, read-only.
  */
-export const PanelsView = ({ sessionId, theme }: { sessionId: string; theme: MobileTheme }) => {
+export const PanelsView = ({
+    deviceRole,
+    sessionId,
+    theme,
+}: {
+    deviceRole: 'view' | 'reply' | 'control' | null;
+    sessionId: string;
+    theme: MobileTheme;
+}) => {
     const panels = usePanelsList(sessionId);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     if (panels.isPending)
@@ -141,14 +158,24 @@ export const PanelsView = ({ sessionId, theme }: { sessionId: string; theme: Mob
             />
             <View style={styles.body}>
                 {selected.views.length === 1 ? (
-                    <PanelBody sessionId={sessionId} theme={theme} view={selected.views[0]} />
+                    <PanelBody
+                        deviceRole={deviceRole}
+                        sessionId={sessionId}
+                        theme={theme}
+                        view={selected.views[0]}
+                    />
                 ) : (
                     selected.views.map((view) => (
                         <View key={view.id} style={styles.body}>
                             <Text style={[styles.viewTitle, { color: theme.muted }]}>
                                 {view.title}
                             </Text>
-                            <PanelBody sessionId={sessionId} theme={theme} view={view} />
+                            <PanelBody
+                                deviceRole={deviceRole}
+                                sessionId={sessionId}
+                                theme={theme}
+                                view={view}
+                            />
                         </View>
                     ))
                 )}

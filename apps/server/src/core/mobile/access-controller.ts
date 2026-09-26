@@ -22,8 +22,11 @@ import type { TerminalExecutionPort } from '../../domains/terminal';
 import type { AgentEndpointRegistry } from '../agent-endpoints/registry';
 import type { ServerDomainService } from '../domain-service';
 import type { ExtensionService } from '../extensions/service';
+import { listMobileAgentActions, terminalForPrincipal } from './action-requests';
+import { invokeMobileAttentionRequest } from './attention-requests';
 import { buildMobileDashboard } from './dashboard';
 import { MobileDeviceRegistry } from './device-registry';
+import { invokeMobileFileRequest } from './file-requests';
 import { MobileGateway } from './gateway';
 import { adoptCurrentPairedPrincipal } from './gateway/principal-grant';
 import { isMobileGatewayMethodAllowedForRole } from './role-methods';
@@ -43,7 +46,6 @@ export function resolveMobileAgentEndpoint(
         return undefined;
     }
 }
-
 export const mobileHostDisplayName = (source: string): string =>
     source
         .split('.', 1)[0]
@@ -64,7 +66,11 @@ type MobileControlRequest = Extract<
             | 'mobile.changes.list'
             | 'mobile.changes.diff'
             | 'mobile.agent.availability'
+            | 'mobile.agent.actions'
+            | 'mobile.attention.list'
+            | 'mobile.attention.answer'
             | 'mobile.agent.submit'
+            | 'mobile.image.upload'
             | 'mobile.session.create'
             | 'mobile.session.rename'
             | 'mobile.session.archive'
@@ -79,7 +85,9 @@ type MobileControlRequest = Extract<
             | 'mobile.panels.list'
             | 'mobile.tree.children'
             | 'mobile.files.list'
-            | 'mobile.files.read';
+            | 'mobile.files.read'
+            | 'mobile.files.search'
+            | 'mobile.files.write';
     }
 >;
 type MobileDesktopOperation = Extract<
@@ -109,6 +117,7 @@ export interface MobileAccessController {
     ) => Promise<unknown>;
     invokeDesktopOperation: (request: MobileDesktopOperation) => Promise<unknown>;
     authorizePairedDeviceMethod: (principal: Principal, method: string) => void;
+    hasAttentionRecipient: (projectId: string) => boolean;
     validatePairedDeviceRequest: (
         request:
             | Extract<ServerRequest, { method: 'session.markRead' }>
@@ -121,20 +130,6 @@ export interface MobileAccessController {
 const requiredGateway = (gateway: MobileGateway | undefined): MobileGateway => {
     if (!gateway) throw new CaxriError('UNAVAILABLE', 'Mobile access is unavailable');
     return gateway;
-};
-
-const terminalForPrincipal = async (
-    domainService: ServerDomainService,
-    principal: Principal,
-    terminalId: string,
-) => {
-    const result = await domainService.request('terminal.queryForPrincipal', {
-        principal,
-        query: { mode: 'show', selector: terminalId },
-    });
-    const terminal = result.terminals.at(0);
-    if (!terminal) throw new CaxriError('NOT_FOUND', 'Terminal not found');
-    return terminal;
 };
 
 /**
@@ -385,7 +380,7 @@ export const openMobileAccessController = async (options: {
                         return activeGateway.disable();
                     });
                 case 'mobile.device.list':
-                    return { devices: activeGateway.devices() };
+                    return { devices: registry.list() };
                 case 'mobile.dashboard': {
                     const paired =
                         context.principal.kind === 'paired-device'
@@ -500,6 +495,35 @@ export const openMobileAccessController = async (options: {
                     currentPairedPrincipal(principal, request.method);
                     return result;
                 }
+                case 'mobile.agent.actions': {
+                    const principal = currentPairedPrincipal(context.principal, request.method);
+                    return listMobileAgentActions(request, principal, domainService, () => {
+                        currentPairedPrincipal(principal, request.method);
+                    });
+                }
+                case 'mobile.attention.list': {
+                    const principal = currentPairedPrincipal(context.principal, request.method);
+                    return invokeMobileAttentionRequest(request, principal, domainService, () => {
+                        currentPairedPrincipal(principal, request.method);
+                    });
+                }
+                case 'mobile.attention.answer': {
+                    /**
+                     * Serialize a one-shot provider decision with revocation.
+                     */
+                    return withAuthority(async () => {
+                        assertOpen();
+                        const principal = currentPairedPrincipal(context.principal, request.method);
+                        return invokeMobileAttentionRequest(
+                            request,
+                            principal,
+                            domainService,
+                            () => {
+                                currentPairedPrincipal(principal, request.method);
+                            },
+                        );
+                    });
+                }
                 case 'mobile.agent.submit': {
                     const { principal, cancellation } = await withAuthority(() => {
                         assertOpen();
@@ -523,6 +547,23 @@ export const openMobileAccessController = async (options: {
                     } finally {
                         await withAuthority(() => unregisterOperation(principal, cancellation));
                     }
+                }
+                case 'mobile.image.upload': {
+                    return withAuthority(async () => {
+                        assertOpen();
+                        const principal = currentPairedPrincipal(context.principal, request.method);
+                        await sessionForPrincipal(
+                            domainService,
+                            principal,
+                            request.params.sessionId,
+                        );
+                        const result = await domainService.request('mobile.image.uploadInternal', {
+                            ...request.params,
+                            principal,
+                        });
+                        currentPairedPrincipal(principal, request.method);
+                        return result;
+                    });
                 }
                 case 'mobile.session.create': {
                     /**
@@ -653,24 +694,25 @@ export const openMobileAccessController = async (options: {
                     );
                     return result;
                 }
+                case 'mobile.files.write': {
+                    /**
+                     * Keep the bounded atomic save inside the same authority order as device revocation.
+                     */
+                    return withAuthority(async () => {
+                        assertOpen();
+                        const principal = currentPairedPrincipal(context.principal, request.method);
+                        return invokeMobileFileRequest(request, principal, domainService, () => {
+                            currentPairedPrincipal(principal, request.method);
+                        });
+                    });
+                }
                 case 'mobile.files.list':
-                case 'mobile.files.read': {
+                case 'mobile.files.read':
+                case 'mobile.files.search': {
                     const principal = currentPairedPrincipal(context.principal, request.method);
-                    await sessionForPrincipal(domainService, principal, request.params.sessionId);
-                    const result =
-                        request.method === 'mobile.files.list'
-                            ? await domainService.request('mobile.files.listInternal', {
-                                  sessionId: request.params.sessionId,
-                                  directory: request.params.directory,
-                                  principal,
-                              })
-                            : await domainService.request('mobile.files.readInternal', {
-                                  sessionId: request.params.sessionId,
-                                  path: request.params.path,
-                                  principal,
-                              });
-                    currentPairedPrincipal(principal, request.method);
-                    return result;
+                    return invokeMobileFileRequest(request, principal, domainService, () => {
+                        currentPairedPrincipal(principal, request.method);
+                    });
                 }
                 case 'mobile.panels.list': {
                     const principal = currentPairedPrincipal(context.principal, request.method);
@@ -741,6 +783,7 @@ export const openMobileAccessController = async (options: {
                 });
                 return revocation;
             }),
+        hasAttentionRecipient: (projectId) => gateway?.hasAttentionRecipient(projectId) ?? false,
         validatePairedDeviceRequest: async (request, context, domainService) => {
             currentPairedPrincipal(context.principal, request.method);
             if (request.method === 'terminal.preview') {

@@ -5,6 +5,41 @@ Server locates and parses the record; the app receives typed timeline items thro
 Mobile gateway. The app does not open provider files or turn Terminal output into messages. Sending
 and stopping an Agent remain separate, role-gated commands.
 
+## Answering Agent requests
+
+Claude Code's blocking `PermissionRequest` and `AskUserQuestion` hooks create one Server-owned
+request ID per hook invocation only while an eligible `control` device is connected. Otherwise the
+native Agent prompt continues immediately. An active hook waits for at most two minutes. `mobile.attention.list`
+shows the current request in Conversation; a `control` device can call
+`mobile.attention.answer` with that ID. The Server checks the live device generation, role, Session,
+and Project grant again before answering. A second answer, a retired Terminal launch, a disconnected
+hook, or an expired request is rejected. The hook returns Claude's native decision JSON; it never
+writes a guessed key into the PTY. Other providers continue to require Terminal interaction.
+
+Permission cards offer **Allow once** and **Deny**. Question cards preserve Claude's grouped steps,
+single or multiple selections, and free-text answers. A `view` or `reply` device sees a read-only
+explanation. The phone polls request status while foregrounded; handled and expired cards lose
+their controls. Tool inputs are reduced to a bounded display summary before crossing the hook
+socket. No question, command, or answer content enters diagnostics.
+
+## Composer and Project files
+
+`/` suggestions use the running provider's Server-discovered command and skill list; `@` suggestions
+use bounded Project file-name search. Selecting an item inserts its invocation or relative path
+into the draft. A paired `reply` or `control` device may attach up to three compressed JPEGs from
+the library, camera, or clipboard. The app sends bounded chunks through the encrypted gateway;
+Server Core writes a file only after all chunks arrive and validates its type and size. The Agent
+receives temporary image paths with the submitted prompt. Attachment IDs enter the durable
+submission fingerprint alongside the text, so an uncertain retry cannot silently change the
+payload. Interrupted uploads expire after two idle minutes without writing a file; completed
+temporary images expire after one hour.
+
+The Project file preview exposes **Edit** only to `control` devices for bounded editable text.
+`mobile.files.write` carries the hash of the content originally read. The existing document writer
+checks that precondition inside its ordered, atomic save path and rejects an external change with
+`CONFLICT`; the mobile editor offers Discard and reload. Workspace symlinks retain their entry-path
+identity and use the Desktop document service's existing authorization rules.
+
 ## Authority and projection
 
 `mobile.timeline.read({ sessionId, before?, limit? })` requires a current paired device and a

@@ -165,6 +165,8 @@ describe('MobileGateway', () => {
                 selectAddress: () => '127.0.0.1',
             });
             const client = await connectDevice(gateway, record);
+            expect(gateway.hasAttentionRecipient('project-1')).toBe(role === 'control');
+            expect(gateway.hasAttentionRecipient('another-project')).toBe(false);
             const request = (id: string, method: string, parameters: unknown) => ({
                 protocolVersion: CAXRI_PROTOCOL_VERSION,
                 id,
@@ -208,6 +210,7 @@ describe('MobileGateway', () => {
                     client.socket.once('close', resolve),
                 );
                 await registry.revoke(record.deviceId, record.generation);
+                expect(gateway.hasAttentionRecipient('project-1')).toBe(false);
                 client.send({
                     type: 'request',
                     request: request('after-revoke', 'mobile.dashboard', {}),

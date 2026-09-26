@@ -25,6 +25,7 @@ export type DomainHandlers = {
  * Environment-owned seams supplied to the domain-service composition root.
  */
 export interface DomainDependencies {
+    hasMobileAttentionRecipient?: (projectId: string) => boolean;
     userDataPath: string;
     logger: StructuredLogger;
     send: (event: ServerEvent) => void;

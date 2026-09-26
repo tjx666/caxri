@@ -6,6 +6,7 @@ import { atomicWrite } from '../../atomic-file';
 const BRIDGE_RECEIPT_TIMEOUT_MS = 250;
 const BRIDGE_SOCKET_TIMEOUT_MS = 2_000;
 const BRIDGE_STDIN_TIMEOUT_MS = 250;
+const BRIDGE_ATTENTION_TIMEOUT_MS = 125_000;
 export const AGENT_HOOK_BRIDGE_MAX_DELIVERY_MS = BRIDGE_STDIN_TIMEOUT_MS + BRIDGE_SOCKET_TIMEOUT_MS;
 
 const BRIDGE_SCRIPT = String.raw`'use strict';
@@ -29,6 +30,7 @@ for (let index = 2; index < process.argv.length - 1; index += 2) {
 // machine, so it must stay identical across builds or they would rewrite each other's entries. Each Caxri instance
 // tells the bridge which schema it expects through the launch environment, next to the socket that instance owns.
 const provider = args.get('provider');
+const interactive = args.get('interactive');
 // Grok imports Claude hooks by default. Those inherited commands must not identify it as Claude Code.
 if (process.env.GROK_SESSION_ID && provider !== 'grok') process.exit(0);
 const schemaFromEnvironment = Number(process.env['CAXRI_HOOK_SCHEMA_' + String(provider).toUpperCase()]);
@@ -284,10 +286,92 @@ function readIdentifiers(callback) {
   process.stdin.on('end', () => { clearTimeout(timer); finish(); });
   process.stdin.on('error', () => { clearTimeout(timer); finish(); });
 }
+// Only Claude's two answerable hooks use this longer channel. Keep full question input in this process so the Server
+// receives only bounded display fields; the original questions are echoed back to Claude with the user's answers.
+function readAttention(callback) {
+  let source = '';
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    try {
+      const payload = JSON.parse(source);
+      const toolName = String(payload.tool_name || '').slice(0, 100);
+      const toolInput = payload.tool_input && typeof payload.tool_input === 'object' ? payload.tool_input : {};
+      const summary = String(toolInput.command || toolInput.file_path || toolInput.path || '').slice(0, 500);
+      const questions = interactive === 'question' && Array.isArray(toolInput.questions)
+        ? toolInput.questions.slice(0, 4).map(q => ({
+            question: String(q.question || '').slice(0, 500),
+            header: String(q.header || '').slice(0, 100),
+            multiSelect: q.multiSelect === true,
+            options: Array.isArray(q.options) ? q.options.slice(0, 8).map(o => ({
+              label: String(o.label || '').slice(0, 100),
+              description: typeof o.description === 'string' ? o.description.slice(0, 250) : undefined,
+            })) : [],
+          })) : [];
+      if (interactive === 'question' && (
+        !Array.isArray(toolInput.questions) || toolInput.questions.length !== questions.length ||
+        new Set(questions.map(q => q.question)).size !== questions.length ||
+        questions.some(q => !q.question)
+      )) return callback(null);
+      callback({ toolName, summary, questions, originalQuestions: toolInput.questions });
+    } catch { callback(null); }
+  };
+  const timer = setTimeout(finish, 1000);
+  process.stdin.setEncoding('utf8');
+  process.stdin.on('data', chunk => {
+    source += chunk;
+    if (source.length > 65536) { clearTimeout(timer); callback(null); done = true; }
+  });
+  process.stdin.on('end', () => { clearTimeout(timer); finish(); });
+  process.stdin.on('error', () => { clearTimeout(timer); finish(); });
+}
+function sendAttention(input) {
+  if (!input || !hasLaunchContext) return;
+  const socket = net.createConnection(socketPath);
+  let response = '';
+  socket.setEncoding('utf8');
+  socket.setTimeout(${BRIDGE_ATTENTION_TIMEOUT_MS}, () => socket.destroy());
+  socket.on('connect', () => socket.end(JSON.stringify({
+    ...signal,
+    kind: 'attention',
+    attentionKind: interactive,
+    toolName: input.toolName,
+    summary: input.summary,
+    questions: input.questions,
+  })));
+  socket.on('data', chunk => { response += chunk; if (response.length > 8192) socket.destroy(); });
+  socket.on('end', () => {
+    try {
+      const answer = JSON.parse(response);
+      if (!answer.ok) return;
+      if (interactive === 'permission' && ['allow', 'deny'].includes(answer.decision)) {
+        process.stdout.write(JSON.stringify({ hookSpecificOutput: {
+          hookEventName: 'PermissionRequest', decision: { behavior: answer.decision },
+        } }) + '\n');
+      } else if (interactive === 'question' && answer.answers && Array.isArray(input.originalQuestions)) {
+        const originalAnswers = {};
+        for (let index = 0; index < input.questions.length; index += 1) {
+          const displayQuestion = input.questions[index].question;
+          const originalQuestion = input.originalQuestions[index].question;
+          if (typeof originalQuestion !== 'string' || typeof answer.answers[displayQuestion] !== 'string') return;
+          originalAnswers[originalQuestion] = answer.answers[displayQuestion];
+        }
+        process.stdout.write(JSON.stringify({ hookSpecificOutput: {
+          hookEventName: 'PreToolUse', permissionDecision: 'allow',
+          updatedInput: { questions: input.originalQuestions, answers: originalAnswers },
+        } }) + '\n');
+      }
+    } catch { /* No answer leaves Claude's native prompt available. */ }
+  });
+  socket.on('error', () => {});
+}
 if (!hasAnyLaunchContext) {
   process.exitCode = 0;
 } else if (!hasLaunchContext) {
   process.exitCode = exitCodes.launchContextUnavailable;
+} else if (interactive && provider === 'claude') {
+  readAttention(sendAttention);
 } else {
 if (process.env.CAXRI_HOOK_RECEIPTS === '1') reportBridgeStarted();
 readIdentifiers(({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateIntent, promptDigest, responseDigest, responseByteLength, responseStop, turnContinues, failure, overflow, ignored }) => {
@@ -342,7 +426,7 @@ readIdentifiers(({ agentId, cwd, sessionId, toolUseId, turnId, worktreeCreateInt
 }
 `;
 
-const BRIDGE_VERSION = 20;
+const BRIDGE_VERSION = 21;
 
 const BRIDGE_WRAPPER = String.raw`#!/bin/sh
 bridge_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
@@ -355,7 +439,10 @@ elif [ ! -r "$bridge_dir/bridge.cjs" ]; then
     printf 'caxri-hook: bridge_unavailable\n' >&2
   fi
 else
-  ELECTRON_RUN_AS_NODE=1 "$CAXRI_HOOK_RUNTIME" "$bridge_dir/bridge.cjs" "$@" >/dev/null 2>&1
+  case " $* " in
+    *" --interactive "*) ELECTRON_RUN_AS_NODE=1 "$CAXRI_HOOK_RUNTIME" "$bridge_dir/bridge.cjs" "$@" 2>/dev/null ;;
+    *) ELECTRON_RUN_AS_NODE=1 "$CAXRI_HOOK_RUNTIME" "$bridge_dir/bridge.cjs" "$@" >/dev/null 2>&1 ;;
+  esac
   bridge_status=$?
   case "$bridge_status" in
     0) ;;

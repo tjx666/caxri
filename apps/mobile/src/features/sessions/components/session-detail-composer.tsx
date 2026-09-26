@@ -1,10 +1,13 @@
 import { useEffect, useRef } from 'react';
-import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, Text, TextInput, View } from 'react-native';
 
 import { MOBILE_AGENT_SUBMIT_MAX_BYTES } from '@caxri/protocol';
-import { ArrowUp, Square } from 'lucide-react-native';
+import { ArrowUp, Paperclip, Square } from 'lucide-react-native';
 
 import type { MobileTheme } from '../../../theme/tokens';
+import { insertComposerSuggestion } from '../composer-suggestions';
+import { useComposerSuggestions } from '../hooks/use-composer-suggestions';
+import { useImageAttachments } from '../hooks/use-image-attachments';
 import { useSessionComposer } from '../hooks/use-session-composer';
 import type { ComposerDelivery } from '../session-composer-state';
 import { composerDeliveryFeedback } from '../session-composer-state';
@@ -141,8 +144,12 @@ export const SessionDetailComposer = ({
     session: MobileSessionItem;
     theme: MobileTheme;
 }) => {
+    const images = useImageAttachments(session.id);
     const { byteLength, canSubmit, delivery, disabledReason, showStop, submit, updateDraft } =
         useSessionComposer({
+            attachmentIds: images.readyIds,
+            hasPendingAttachment: images.hasUnsentAttachment,
+            onAttachmentsSent: images.clear,
             deviceRole,
             draft,
             hostId,
@@ -151,6 +158,7 @@ export const SessionDetailComposer = ({
             onRefresh,
             session,
         });
+    const suggestions = useComposerSuggestions(draft, session);
     const feedback = composerDeliveryFeedback(delivery);
     /**
      * The limit only matters near it; showing `0/16384 B` on every idle composer was noise.
@@ -162,7 +170,86 @@ export const SessionDetailComposer = ({
             style={[styles.composerBlock, { borderColor: theme.border }]}
             testID="session-composer"
         >
+            {images.attachments.length > 0 ? (
+                <View style={styles.composerMeta} testID="session-image-attachments">
+                    {images.attachments.map((attachment) => (
+                        <View key={attachment.id}>
+                            <Image
+                                accessibilityLabel="Attached image preview"
+                                source={{ uri: attachment.uri }}
+                                style={{ width: 72, height: 72 }}
+                            />
+                            <Text
+                                style={{
+                                    color:
+                                        attachment.state === 'failed' ? theme.danger : theme.muted,
+                                }}
+                            >
+                                {attachment.state === 'uploading'
+                                    ? `Uploading ${Math.round(attachment.progress * 100)}%`
+                                    : attachment.state === 'failed'
+                                      ? 'Upload failed'
+                                      : 'Ready'}
+                            </Text>
+                            {attachment.state === 'failed' ? (
+                                <Pressable
+                                    accessibilityLabel="Retry image upload"
+                                    accessibilityRole="button"
+                                    onPress={() => images.retry(attachment.id)}
+                                >
+                                    <Text style={{ color: theme.primary }}>Retry</Text>
+                                </Pressable>
+                            ) : null}
+                            <Pressable
+                                accessibilityLabel="Remove image"
+                                accessibilityRole="button"
+                                onPress={() => images.remove(attachment.id)}
+                            >
+                                <Text style={{ color: theme.muted }}>Remove</Text>
+                            </Pressable>
+                        </View>
+                    ))}
+                </View>
+            ) : null}
+            {suggestions.trigger ? (
+                <View testID="session-composer-suggestions">
+                    {suggestions.items.slice(0, 10).map((item) => (
+                        <Pressable
+                            accessibilityLabel={`Insert ${item}`}
+                            accessibilityRole="button"
+                            key={item}
+                            onPress={() =>
+                                updateDraft(
+                                    insertComposerSuggestion(
+                                        draft,
+                                        suggestions.trigger.token,
+                                        item,
+                                    ),
+                                )
+                            }
+                            style={{ padding: 8 }}
+                        >
+                            <Text style={{ color: theme.text }}>{item}</Text>
+                        </Pressable>
+                    ))}
+                    {suggestions.isError ? (
+                        <Text accessibilityRole="alert" style={{ color: theme.danger }}>
+                            Suggestions are unavailable. You can still type the command or path.
+                        </Text>
+                    ) : null}
+                </View>
+            ) : null}
             <View style={styles.composerRow}>
+                {deviceRole === 'reply' || deviceRole === 'control' ? (
+                    <Pressable
+                        accessibilityLabel="Attach image"
+                        accessibilityRole="button"
+                        onPress={images.choose}
+                        testID="session-attach-image"
+                    >
+                        <Paperclip color={theme.text} size={20} />
+                    </Pressable>
+                ) : null}
                 <SessionComposerInput
                     delivery={delivery}
                     draft={draft}

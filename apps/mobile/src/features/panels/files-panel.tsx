@@ -1,12 +1,14 @@
 import { memo, useCallback, useState } from 'react';
 import type { ListRenderItemInfo } from 'react-native';
-import { FlatList, Pressable, ScrollView, Text, View } from 'react-native';
+import { FlatList, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
 import type { FileEntry } from '@caxri/protocol';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 
 import { IconButton } from '../../components/icon-button';
 import type { MobileTheme } from '../../theme/tokens';
+import { useMobileClient } from '../connection/mobile-client-provider';
+import { MobileGatewayRequestError } from '../connection/mobile-gateway-client';
 import { FileTypeIcon } from './file-type-icon';
 import { PanelStatus, PendingPanelStatus } from './panel-status';
 import { panelsStyles as styles } from './panels-styles';
@@ -65,17 +67,55 @@ const FileRow = memo(
 );
 
 const FilePreview = ({
+    deviceRole,
     entry,
     onBack,
     sessionId,
     theme,
 }: {
+    deviceRole: 'view' | 'reply' | 'control' | null;
     entry: FileEntry;
     onBack: () => void;
     sessionId: string;
     theme: MobileTheme;
 }) => {
+    const { request } = useMobileClient();
     const file = useFileRead(sessionId, entry.path);
+    const [draft, setDraft] = useState<string | null>(null);
+    const [expectedContentHash, setExpectedContentHash] = useState<string | null>(null);
+    const [saving, setSaving] = useState(false);
+    const [saveError, setSaveError] = useState<string | null>(null);
+    const discard = () => {
+        setDraft(null);
+        setExpectedContentHash(null);
+        setSaveError(null);
+        // eslint-disable-next-line no-void -- Query state owns the refreshed file result.
+        void file.refetch();
+    };
+    const save = async () => {
+        if (draft === null || expectedContentHash === null || saving) return;
+        setSaving(true);
+        setSaveError(null);
+        try {
+            await request('mobile.files.write', {
+                sessionId,
+                path: entry.path,
+                content: draft,
+                expectedContentHash,
+            });
+            setDraft(null);
+            setExpectedContentHash(null);
+            await file.refetch();
+        } catch (error) {
+            setSaveError(
+                error instanceof MobileGatewayRequestError && error.code === 'CONFLICT'
+                    ? 'This file changed on your computer. Discard and reload before editing again.'
+                    : 'Unable to save this file. Try again.',
+            );
+        } finally {
+            setSaving(false);
+        }
+    };
     const body = (() => {
         if (file.isPending)
             return <PendingPanelStatus fetchStatus={file.fetchStatus} theme={theme} />;
@@ -98,18 +138,84 @@ const FilePreview = ({
                     theme={theme}
                 />
             );
+        const document = file.data;
         return (
-            <ScrollView style={styles.preview}>
-                <ScrollView horizontal>
+            <View style={styles.preview}>
+                {deviceRole === 'control' && !document.readOnly ? (
+                    <View style={styles.crumbs}>
+                        {draft === null ? (
+                            <Pressable
+                                accessibilityLabel="Edit file"
+                                accessibilityRole="button"
+                                onPress={() => {
+                                    setDraft(document.content);
+                                    setExpectedContentHash(document.contentHash);
+                                }}
+                                testID="files-edit"
+                            >
+                                <Text style={{ color: theme.primary }}>Edit</Text>
+                            </Pressable>
+                        ) : (
+                            <>
+                                <Pressable
+                                    accessibilityLabel="Save file"
+                                    accessibilityRole="button"
+                                    accessibilityState={{ disabled: saving }}
+                                    disabled={saving}
+                                    onPress={async () => {
+                                        await save();
+                                    }}
+                                    testID="files-save"
+                                >
+                                    <Text style={{ color: theme.primary }}>Save</Text>
+                                </Pressable>
+                                <Pressable
+                                    accessibilityLabel="Discard changes"
+                                    accessibilityRole="button"
+                                    onPress={discard}
+                                    testID="files-discard"
+                                >
+                                    <Text style={{ color: theme.muted }}>Discard</Text>
+                                </Pressable>
+                            </>
+                        )}
+                    </View>
+                ) : null}
+                {saveError ? (
                     <Text
-                        selectable
-                        style={[styles.previewText, { color: theme.text }]}
-                        testID="files-preview-text"
+                        accessibilityRole="alert"
+                        style={{ color: theme.danger }}
+                        testID="files-save-error"
                     >
-                        {file.data.content}
+                        {saveError}
                     </Text>
-                </ScrollView>
-            </ScrollView>
+                ) : null}
+                {draft === null ? (
+                    <ScrollView style={styles.preview}>
+                        <ScrollView horizontal>
+                            <Text
+                                selectable
+                                style={[styles.previewText, { color: theme.text }]}
+                                testID="files-preview-text"
+                            >
+                                {document.content}
+                            </Text>
+                        </ScrollView>
+                    </ScrollView>
+                ) : (
+                    <TextInput
+                        accessibilityLabel="File contents"
+                        autoCapitalize="none"
+                        multiline
+                        onChangeText={setDraft}
+                        scrollEnabled
+                        style={[styles.previewText, { color: theme.text, flex: 1 }]}
+                        testID="files-editor"
+                        textAlignVertical="top"
+                        value={draft}
+                    />
+                )}
+            </View>
         );
     })();
     return (
@@ -137,7 +243,15 @@ const FilePreview = ({
  * paths come from the Server listing and are passed back unchanged, so symlinks reached through the Project keep their
  * workspace identity.
  */
-export const FilesPanel = ({ sessionId, theme }: { sessionId: string; theme: MobileTheme }) => {
+export const FilesPanel = ({
+    deviceRole,
+    sessionId,
+    theme,
+}: {
+    deviceRole: 'view' | 'reply' | 'control' | null;
+    sessionId: string;
+    theme: MobileTheme;
+}) => {
     const [stack, setStack] = useState<FileEntry[]>([]);
     const [preview, setPreview] = useState<FileEntry | null>(null);
     const directory = stack.at(-1);
@@ -155,6 +269,7 @@ export const FilesPanel = ({ sessionId, theme }: { sessionId: string; theme: Mob
     if (preview)
         return (
             <FilePreview
+                deviceRole={deviceRole}
                 entry={preview}
                 onBack={() => setPreview(null)}
                 sessionId={sessionId}

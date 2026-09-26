@@ -7,8 +7,8 @@ local network or Tailscale, the owner can see which Session needs them, read the
 watch and drive the live Terminal, send instructions, stop an Agent, start a new Session, and review
 the resulting changes.
 
-It is not a reduced Desktop workspace. File editing, the file tree, extensions, settings, and
-multi-pane Terminal layouts stay on Desktop.
+The mobile Project panel supports bounded text-file edits. Settings and multi-pane Terminal layouts
+stay on Desktop.
 
 ## Principles
 
@@ -30,8 +30,9 @@ In scope:
 - Pairing over LAN or Tailscale IPv4, fast reconnect, and foreground recovery.
 - Session home ordered by attention, with a Project filter.
 - Session screen with four segments: **Conversation**, **Terminal**, **Changes**, and **Project**
-  (read-only Files, Status, and extension panels, mirroring Desktop's right sidebar).
-- Composer that types into the Primary Agent Terminal, and a Stop action.
+  (Files, Status, and extension panels, mirroring Desktop's right sidebar).
+- Composer with image attachments, `/` actions, `@` file completion, and a Stop action.
+- Claude Code permission and question cards in Conversation, scoped to the exact blocking hook.
 - Creating a Session in a granted Project, and adding a Project from a `control` device.
 - Phone layout plus a tablet split layout.
 
@@ -39,9 +40,9 @@ Current implementation boundary: live Terminal observation and control are Andro
 shows an unavailable state for this segment and for Conversation's Terminal fallback. This is a
 remaining platform gap, not a change to the cross-platform product target.
 
-Deferred, with reasons recorded in [Deferred](#deferred): permission-approval cards, offline outbox,
-system push and Live Activities, multiple hosts, file editing, image attachments, `@file` and
-`/command` completion, voice beyond the system keyboard, light theme, and iPad keyboard shortcuts.
+Deferred, with reasons recorded in [Deferred](#deferred): offline outbox, system push and Live
+Activities, multiple hosts, voice beyond the system keyboard, light theme, and iPad keyboard
+shortcuts.
 
 ## Connectivity
 
@@ -372,13 +373,10 @@ rejected by the Server. `view` and `reply` devices never see the entry point.
 
 ## Deferred
 
-| Capability                        | Why it waits                                                                                                    |
-| --------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Permission-approval cards         | Hooks do not carry an answerable request identity; mapping buttons to keystrokes is not reliable. Use Terminal. |
-| Offline outbox                    | Bounded Agent-submit receipts can remain unknown and do not prove Agent execution; automatic resend is unsafe.  |
-| System push and Live Activities   | Requires a push service outside LAN/Tailscale; designed together with notification privacy (#499).              |
-| Multiple hosts                    | Routes and query keys already carry `hostId`; the UI waits for demand.                                          |
-| File editing, image attachments   | Project panels are read-only; editing belongs on Desktop until the remote-control loop needs it.                |
-| `@file` and `/command` completion | Composer polish after the core loop is proven.                                                                  |
-| Voice beyond system dictation     | The system keyboard's dictation already works in the composer.                                                  |
-| iPad keyboard shortcuts           | Tablet layout ships first; hardware-keyboard behavior follows.                                                  |
+| Capability                      | Why it waits                                                                                                   |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Offline outbox                  | Bounded Agent-submit receipts can remain unknown and do not prove Agent execution; automatic resend is unsafe. |
+| System push and Live Activities | Requires a push service outside LAN/Tailscale; designed together with notification privacy (#499).             |
+| Multiple hosts                  | Routes and query keys already carry `hostId`; the UI waits for demand.                                         |
+| Voice beyond system dictation   | The system keyboard's dictation already works in the composer.                                                 |
+| iPad keyboard shortcuts         | Tablet layout ships first; hardware-keyboard behavior follows.                                                 |
