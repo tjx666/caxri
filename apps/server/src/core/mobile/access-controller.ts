@@ -571,6 +571,8 @@ export const openMobileAccessController = async (options: {
                         return activeGateway.createPairing(request.params.projectIds);
                     });
                 }
+                default:
+                    throw new CaxriError('INTERNAL', 'Mobile control method is not implemented');
             }
         },
         invokeDesktopOperation: (request) =>

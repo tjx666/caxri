@@ -149,6 +149,38 @@ describe('MobileAccessController role and resource authority', () => {
         expect(isMobileGatewayMethodAllowedForRole('control', 'session.create')).toBe(false);
     });
 
+    it('rejects a mobile control method with no implementation', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-mobile-unknown-control-'));
+        temporaryDirectories.push(directory);
+        const controller = await openMobileAccessController({
+            directory,
+            registryPath: join(directory, 'mobile-devices.json'),
+        });
+        const domainService = {} as ServerDomainService;
+        controller.attach(
+            { invoke: vi.fn() },
+            'b'.repeat(32),
+            { serverId: 'a'.repeat(32), stateEpoch: 'c'.repeat(32) },
+            domainService,
+            terminalExecution,
+        );
+        try {
+            const futureRequest = {
+                method: 'mobile.futureControl',
+                params: {},
+            } as unknown as Parameters<typeof controller.invokeControl>[0];
+            await expect(
+                controller.invokeControl(
+                    futureRequest,
+                    {} as CommandExecutionContext,
+                    domainService,
+                ),
+            ).rejects.toMatchObject({ code: 'INTERNAL' });
+        } finally {
+            await controller.close();
+        }
+    });
+
     it('rejects a Project outside the grant and a revoked generation', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-mobile-authority-'));
         temporaryDirectories.push(directory);
