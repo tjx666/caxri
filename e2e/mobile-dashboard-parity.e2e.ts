@@ -47,17 +47,18 @@ async function waitForRows(serial: string, sessionIds: string[]): Promise<void> 
     );
 }
 
-async function showConversation(serial: string): Promise<void> {
+async function showTerminal(serial: string): Promise<void> {
     await waitForMobile(
         () => mobileSemantics(serial),
         (nodes) => nodes.some(({ checkId }) => checkId === 'session-detail'),
     );
-    await tapMobileCheck(serial, 'session-segment-conversation');
+    /**
+     * Select the Terminal explicitly so the fixture does not depend on Conversation transcript availability.
+     */
+    await tapMobileCheck(serial, 'session-segment-terminal');
     await waitForMobile(
         () => mobileSemantics(serial),
-        (nodes) =>
-            nodes.some(({ checkId }) => checkId === 'conversation-placeholder') &&
-            nodes.every(({ checkId }) => checkId !== 'terminal-preview-populated'),
+        (nodes) => nodes.some(({ checkId }) => checkId === 'terminal-live-webview'),
     );
 }
 
@@ -92,10 +93,10 @@ test('captures three synthetic Session states before the dashboard Query migrati
         );
 
         await tapMobileCheck(environment.serial, `session-row-${fixture.sessionIds.completed}`);
-        await showConversation(environment.serial);
+        await showTerminal(environment.serial);
         await captureMobileFramebuffer(
             environment.serial,
-            join(environment.assetsDirectory, 'phone-detail-conversation.png'),
+            join(environment.assetsDirectory, 'phone-detail-terminal.png'),
         );
         await tapMobileCheck(environment.serial, 'session-detail-back');
         await waitForRows(environment.serial, sessionIds);
@@ -105,10 +106,10 @@ test('captures three synthetic Session states before the dashboard Query migrati
         await launchMobile(environment.serial);
         await waitForRows(environment.serial, sessionIds);
         await tapMobileCheck(environment.serial, `session-row-${fixture.sessionIds.completed}`);
-        await showConversation(environment.serial);
+        await showTerminal(environment.serial);
         await captureMobileFramebuffer(
             environment.serial,
-            join(environment.assetsDirectory, 'tablet-split-conversation.png'),
+            join(environment.assetsDirectory, 'tablet-split-terminal.png'),
         );
 
         await restoreMobileDisplayState(environment.serial, originalDisplay);

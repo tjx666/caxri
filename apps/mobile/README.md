@@ -6,6 +6,8 @@ The [Conversation guide](../../docs/mobile/CONVERSATION.md) describes the author
 native rendering, live updates, and Terminal fallback.
 The [Changes guide](../../docs/mobile/CHANGES.md) describes authorized Git snapshots, bounded diffs,
 live refresh, and the commit draft boundary.
+The [APK size guide](../../docs/mobile/APK-SIZE.md) records internal Android build variants,
+measurement, and upgrade identity checks.
 
 The current live Terminal implementation is Android-only. iOS displays an explicit unavailable
 state for that segment, including Conversation fallback; building the iOS app does not establish

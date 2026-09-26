@@ -606,6 +606,14 @@ for (const [index, planned] of plannedCases.entries()) {
 const acceptanceBuildEnvironment = {
     ...process.env,
     EXPO_PUBLIC_CAXRI_ACCEPTANCE: '1',
+    ...(caseIds.length === 1 &&
+        caseIds[0] === 'MOB-STORAGE-01' && {
+            EXPO_PUBLIC_CAXRI_ACCEPTANCE_FAULT: 'storage-read-once',
+        }),
+    ...(caseIds.length === 1 &&
+        caseIds[0] === 'MOB-RENDER-01' && {
+            EXPO_PUBLIC_CAXRI_ACCEPTANCE_FAULT: 'render-once',
+        }),
 };
 let setupFailure: unknown;
 let apkSha256: string | undefined;

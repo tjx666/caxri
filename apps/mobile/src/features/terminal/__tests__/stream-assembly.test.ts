@@ -16,6 +16,41 @@ const snapshot = {
 };
 
 describe('mobile Terminal stream assembly', () => {
+    it('accepts a replacement snapshot on one subscription after a grid resize', () => {
+        const state = createTerminalStreamAssembly('terminal-1');
+        const first = {
+            kind: 'terminal.snapshot' as const,
+            generation: 7,
+            nextHostSequence: 31,
+            chunkIndex: 0,
+            chunkCount: 1,
+            chunkHex: hex(JSON.stringify(snapshot)),
+        };
+        expect(state.receive(first)).toMatchObject({ kind: 'snapshot' });
+        const resizedSnapshot = { ...snapshot, cols: 100 };
+        const resizedHex = hex(JSON.stringify(resizedSnapshot));
+        expect(
+            state.receive({
+                kind: 'terminal.snapshot',
+                generation: 7,
+                nextHostSequence: 34,
+                chunkIndex: 0,
+                chunkCount: 1,
+                chunkHex: resizedHex,
+            }),
+        ).toMatchObject({ kind: 'snapshot', snapshot: { cols: 100 } });
+        expect(
+            state.receive({
+                kind: 'terminal.output',
+                generation: 7,
+                hostSequence: 34,
+                chunkIndex: 0,
+                chunkCount: 1,
+                chunkHex: hex('new grid'),
+            }),
+        ).toEqual({ kind: 'output', data: 'new grid' });
+    });
+
     it('assembles a split UTF-8 snapshot before delivering matching output', () => {
         const state = createTerminalStreamAssembly('terminal-1');
         const source = new TextEncoder().encode(JSON.stringify(snapshot));

@@ -68,7 +68,9 @@ const { javaHome, sdkRoot } = resolveAndroidEnvironment({
 const request = parseAndroidBuildRequest(process.argv.slice(2));
 const result = spawnSync(
     request.buildOnly ? join(mobileRoot, 'android', 'gradlew') : expoPath,
-    request.buildOnly ? [request.gradleTask] : ['run:android', ...request.expoArguments],
+    request.buildOnly
+        ? [request.gradleTask, ...request.gradleArguments]
+        : ['run:android', ...request.expoArguments],
     {
         cwd: request.buildOnly ? join(mobileRoot, 'android') : mobileRoot,
         env: {

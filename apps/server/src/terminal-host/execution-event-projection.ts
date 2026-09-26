@@ -40,6 +40,7 @@ export function projectTerminalExecutionEvent(
                 event: 'terminal.observer.gap',
                 identity,
                 sequence: event.sequence,
+                reason: event.reason,
             });
             return;
         case 'activity':

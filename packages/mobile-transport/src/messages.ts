@@ -60,7 +60,7 @@ export const mobileEventPayloadSchema = z.union([
         subscriptionId: identifierSchema,
         sequence: sequenceSchema,
         kind: z.literal('resync-required'),
-        reason: z.enum(['capacity', 'source-gap', 'generation-changed']),
+        reason: z.enum(['capacity', 'source-gap', 'generation-changed', 'resize']),
     }),
 ]);
 const terminalStreamFields = {

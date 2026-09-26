@@ -29,7 +29,8 @@ run_stage link-apk "$tools_directory/aapt2" link -I "$android_jar" \
 run_stage compile-java "$java_directory/javac" -source 8 -target 8 -cp "$android_jar" \
     -d "$output_directory/classes" \
     src/caxri/acceptance/ime/FixtureIme.java \
-    src/caxri/acceptance/ime/FixtureInsertReceiver.java
+    src/caxri/acceptance/ime/FixtureInsertReceiver.java \
+    src/caxri/acceptance/ime/FixtureGestureInstrumentation.java
 run_stage package-classes "$java_directory/jar" cf "$output_directory/classes.jar" \
     -C "$output_directory/classes" .
 run_stage dex "$tools_directory/d8" --lib "$android_jar" --output "$output_directory/dex" \

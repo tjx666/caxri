@@ -50,7 +50,13 @@ export interface TerminalExecutionExit {
 
 export type TerminalObserverEvent =
     | { type: 'output'; terminalId: string; generation: number; sequence: number; data: string }
-    | { type: 'gap'; terminalId: string; generation: number; sequence: number };
+    | {
+          type: 'gap';
+          terminalId: string;
+          generation: number;
+          sequence: number;
+          reason: 'resize' | 'overflow';
+      };
 
 export interface TerminalExecutionLaunch {
     agent?: {

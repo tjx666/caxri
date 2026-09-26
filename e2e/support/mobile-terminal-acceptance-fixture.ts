@@ -148,6 +148,7 @@ export async function createMobileTerminalAcceptanceFixture(
     let running: RunningCaxri;
     try {
         running = await launchCaxri({
+            desktopLeaseWaitMs: process.env.CAXRI_MOBILE_ACCEPTANCE_CASE_ID ? 120_000 : 0,
             agentMode,
             userDataDir: userData,
             testRootPath: projectRoot,

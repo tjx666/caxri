@@ -123,6 +123,8 @@ async function offlineStates(environment: UiAuditScenarioEnvironment, artifacts:
         await setMobileNetworkAvailable(serial, true);
     }
     await waitFor(serial, (nodes) => !hasCheck(nodes, 'connection-stale-banner'));
+    await waitFor(serial, (nodes) => hasCheck(nodes, 'files-panel'));
+    await capture(environment, 'project-recovered', artifacts, 'files-panel');
     await tapMobileCheck(serial, 'session-segment-terminal');
     await waitFor(serial, (nodes) => hasCheck(nodes, 'terminal-live-webview'));
     await setMobileNetworkAvailable(serial, false);

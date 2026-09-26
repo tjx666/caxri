@@ -2,6 +2,7 @@ import { Terminal } from '@xterm/xterm';
 
 import { createTerminalFrameBatch } from '../src/features/terminal/frame-batch';
 import { resetTerminalSnapshot } from '../src/features/terminal/snapshot-reset';
+import { isTerminalViewAtBottom, terminalViewScale } from '../src/features/terminal/view-scale';
 
 interface TerminalBridgeWindow extends Window {
     __CAXRI_TERMINAL_ID__: string;
@@ -47,11 +48,10 @@ const distance = (first: Touch, second: Touch): number =>
 
 /**
  * Xterm 6 scrolls through a virtual `ScrollableElement`, so `.xterm-viewport` no longer emits native scroll events; the
- * buffer's viewport position is the only reliable "following output" signal.
+ * buffer position and the outer viewport must both be at the bottom to follow output.
  */
 const reportScroll = (): void => {
-    const buffer = terminal.buffer.active;
-    const isNext = buffer.viewportY >= buffer.baseY;
+    const isNext = isTerminalViewAtBottom(terminal.buffer.active, viewport);
     if (isNext === viewState.isAtBottom) return;
     viewState.isAtBottom = isNext;
     post({ type: 'scroll', atBottom: viewState.isAtBottom });
@@ -74,14 +74,9 @@ const layout = (): void => {
     const widthFit = viewport.clientWidth / gridWidth;
     const heightFit = viewport.clientHeight / gridHeight;
     /**
-     * An observed Terminal keeps the computer's size, which is usually far wider and taller than a phone. Every row
-     * must stay visible because the newest output lands at the bottom of the grid, so the default scale never exceeds
-     * the height fit. Width only shrinks to a readable floor; wider grids pan horizontally instead, and pinching can
-     * zoom out until the whole width fits.
+     * A tall Desktop grid scrolls vertically at the readable default; pinching can still fit the whole grid.
      */
-    const fitted = Math.min(1, heightFit, Math.max(0.6, widthFit));
-    const smallest = Math.min(1, widthFit, heightFit);
-    const scale = Math.min(2, Math.max(smallest, fitted * viewState.zoom));
+    const scale = terminalViewScale({ heightFit, widthFit, zoom: viewState.zoom });
     viewState.scale = scale;
     stage.style.width = `${gridWidth}px`;
     stage.style.height = `${gridHeight}px`;
@@ -139,6 +134,7 @@ const scrollBy = (delta: number): void => {
         const before = viewport.scrollTop;
         viewport.scrollTop = Math.min(maxPageScroll, Math.max(0, before - remaining));
         remaining -= before - viewport.scrollTop;
+        reportScroll();
     }
     gesture.pendingY += remaining;
     const height = lineHeight();
@@ -164,6 +160,7 @@ const glide = (): void => {
     };
     momentum.frame = requestAnimationFrame(step);
 };
+viewport.addEventListener('scroll', reportScroll, { passive: true });
 
 viewport.addEventListener(
     'touchstart',
@@ -264,6 +261,7 @@ const batch = createTerminalFrameBatch({
     cancel: (id) => cancelAnimationFrame(id),
     schedule: (callback) => requestAnimationFrame(callback),
     write: (data) => {
+        const outerScrollTop = viewport.scrollTop;
         const shouldFollow = viewState.isAtBottom;
         terminal.write(data, () => {
             /**
@@ -272,6 +270,8 @@ const batch = createTerminalFrameBatch({
             if (shouldFollow) {
                 terminal.scrollToBottom();
                 viewport.scrollTop = viewport.scrollHeight;
+            } else {
+                viewport.scrollTop = outerScrollTop;
             }
             reportScroll();
         });

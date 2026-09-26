@@ -34,6 +34,8 @@ export const connectionStatusLabel = (status: MobileConnectionStatus): string =>
             return 'Access revoked';
         case 'version-mismatch':
             return 'Update required';
+        case 'storage-error':
+            return 'Saved connection unavailable';
         case 'unpaired':
             return 'Not paired';
     }

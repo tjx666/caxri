@@ -17,7 +17,7 @@ export type TerminalExecutionEvent =
           droppedBytes?: number;
       }
     | { type: 'observerOutput'; terminalId: string; data: string; sequence: number }
-    | { type: 'observerGap'; terminalId: string; sequence: number }
+    | { type: 'observerGap'; terminalId: string; sequence: number; reason: 'resize' | 'overflow' }
     | {
           type: 'outputRecovery';
           terminalId: string;
@@ -43,6 +43,7 @@ export interface LiveTerminal {
     observerOutputQueue: TerminalOutputQueue;
     observerDroppedBytes: number;
     observerNeedsResync: boolean;
+    observerResyncReason: 'resize' | 'overflow' | null;
     observerSequence: number;
     observers: Set<string>;
     process: pty.IPty;

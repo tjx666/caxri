@@ -83,6 +83,7 @@ export const createTerminalStreamAssembly = (terminalId: string) => {
                     return resync();
                 if (generation !== null && chunk.generation !== generation) return resync();
                 if (chunk.kind === 'terminal.snapshot') {
+                    if (pending === null && chunk.chunkIndex === 0) nextHostSequence = null;
                     if (
                         nextHostSequence !== null ||
                         (pending && pending.sequence !== chunk.nextHostSequence)

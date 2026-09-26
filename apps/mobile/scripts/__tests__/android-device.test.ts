@@ -13,6 +13,7 @@ describe('Android observe CLI', () => {
         const checkId = ['--check-id', 'session-composer-input'];
         const cases = [
             ['observe', ...serial, ...checkId, '--match', 'equals'],
+            ['observe', ...serial, ...checkId, '--match', 'includes', '--expected-text-base64', ''],
             [
                 'observe',
                 ...serial,
@@ -43,6 +44,8 @@ describe('Android observe CLI', () => {
             expect(result.stdout).toBe('');
             expect(result.stderr).not.toContain(privateText);
             expect(result.stderr).not.toContain('adb');
+            if (arguments_.at(-1) === '')
+                expect(result.stderr).toContain('Android includes text must not be empty');
         }
     });
 

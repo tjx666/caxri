@@ -13,6 +13,7 @@ import {
     completeCaseLifecycle,
     markCaseLifecycleReady,
 } from './case-lifecycle';
+import type { InitializeReportInput } from './report';
 import { finalizeReport, initializeReport } from './report';
 
 const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
@@ -87,6 +88,7 @@ async function mixedReport() {
     const resultPath = join(directory, 'result.json');
     const result = JSON.parse(await readFile(resultPath, 'utf8')) as {
         cases: Array<Record<string, unknown>>;
+        plan: InitializeReportInput['plan'];
     };
     const caseResult = {
         category: '移动端新建会话',
@@ -175,6 +177,37 @@ afterAll(async () => {
 });
 
 describe('Acceptance mixed Android and Desktop media', () => {
+    it('keeps Android media device-bound when its scenario name mentions desktop', async () => {
+        const fixture = await mixedReport();
+        const { directory, deviceReceipt, result, resultPath } = fixture;
+        const renamedPath = `assets/${caseId}-desktop-resized-under-lease-android.png`;
+        result.plan[0].requiredEvidence = [{ source: 'android-framebuffer', type: 'screenshot' }];
+        result.cases[0] = {
+            ...fixture.caseResult,
+            evidence: fixture.caseResult.evidence
+                .filter(({ path }) => ![beforePath, afterPath, desktopReceiptPath].includes(path))
+                .map((item) => ({
+                    ...item,
+                    path: item.path === mobilePath ? renamedPath : item.path,
+                })),
+        };
+        deviceReceipt.artifacts[0].path = renamedPath;
+        await Promise.all([
+            rm(join(directory, desktopReceiptPath)),
+            writeFile(join(directory, renamedPath), PNG),
+            writeFile(join(directory, deviceReceiptPath), JSON.stringify(deviceReceipt)),
+            writeFile(resultPath, JSON.stringify(result)),
+        ]);
+        await expect(finalizeReport({ directory, requirement })).resolves.toMatchObject({
+            summary: { passed: 1, verdict: 'pass' },
+        });
+        deviceReceipt.artifacts[0].sha256 = '0'.repeat(64);
+        await writeFile(join(directory, deviceReceiptPath), JSON.stringify(deviceReceipt));
+        await expect(finalizeReport({ directory, requirement })).rejects.toThrow(
+            'mobile media evidence is not device-bound',
+        );
+    });
+
     it('partitions receipt sources and binds every cited image to the same case and launch', async () => {
         const fixture = await mixedReport();
         const { directory, desktopReceipt, result, resultPath } = fixture;

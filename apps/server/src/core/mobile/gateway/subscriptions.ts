@@ -8,6 +8,7 @@ import type { Principal, ServerEvent } from '@caxri/protocol';
 import { assertNever, CaxriError } from '@caxri/protocol';
 
 import type { TerminalExecutionPort, TerminalObserverEvent } from '../../../domains/terminal';
+import type { MobileTerminalResyncReason } from './diagnostics';
 import { MobileTerminalObserver } from './terminal-observer';
 
 const MAXIMUM_SUBSCRIPTIONS = 32;
@@ -41,6 +42,7 @@ export interface MobileSubscriptionOptions {
     ) => Promise<boolean>;
     randomId: () => string;
     send: (payload: MobileEventPayload | MobileStreamPayload) => Promise<void>;
+    reportTerminalResync?: (reason: MobileTerminalResyncReason) => void;
     terminate: () => void;
     connectionId: string;
     beginConversation?: (principal: Principal, sessionId: string) => Promise<() => void>;
@@ -128,6 +130,7 @@ export class MobileGatewaySubscriptions {
                 reserve: (bytes) => this.#reserve(subscription, bytes),
                 release: (bytes) => this.#release(subscription, bytes),
                 send: this.#options.send,
+                reportResync: this.#options.reportTerminalResync,
                 remove: () => this.unsubscribe(id),
                 terminate: this.#options.terminate,
             });

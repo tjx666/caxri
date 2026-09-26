@@ -6,8 +6,10 @@ import { z } from 'zod';
  */
 export const logEventCatalog = {
     mobileGateway: {
+        sessionReadSummary: 'mobile_gateway.session_read_summary',
         failure: 'mobile_gateway.failure',
         failureSummary: 'mobile_gateway.failure_summary',
+        terminalResyncSummary: 'mobile_gateway.terminal_resync_summary',
     },
     agent: {
         automaticNamingFinished: 'agent.automatic_naming_finished',

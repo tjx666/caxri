@@ -51,6 +51,24 @@ describe('mobile application messages', () => {
                 reason: 'source-gap',
             }).success,
         ).toBe(true);
+        expect(
+            mobileServerPayloadSchema.safeParse({
+                type: 'event',
+                subscriptionId: 'subscription-1',
+                sequence: 2,
+                kind: 'resync-required',
+                reason: 'resize',
+            }).success,
+        ).toBe(true);
+        expect(
+            mobileServerPayloadSchema.safeParse({
+                type: 'event',
+                subscriptionId: 'subscription-1',
+                sequence: 2,
+                kind: 'resync-required',
+                reason: 'unknown',
+            }).success,
+        ).toBe(false);
         expect(mobileServerPayloadSchema.safeParse({ ...output, generation: 0 }).success).toBe(
             false,
         );

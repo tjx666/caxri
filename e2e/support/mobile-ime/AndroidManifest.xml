@@ -14,4 +14,8 @@
         </service>
         <receiver android:name=".FixtureInsertReceiver" android:exported="true" />
     </application>
+    <instrumentation
+        android:name=".FixtureGestureInstrumentation"
+        android:targetPackage="caxri.acceptance.ime"
+    />
 </manifest>

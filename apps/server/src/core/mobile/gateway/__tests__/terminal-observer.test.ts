@@ -159,12 +159,13 @@ describe('MobileTerminalObserver', () => {
             await observer.start();
             observer.activate();
             await vi.waitFor(() => expect(sent).toHaveLength(1));
-            if (cause === 'gap')
+            if (cause !== 'host-exit')
                 observer.accept({
                     type: 'gap',
                     terminalId: 'terminal-1',
                     generation: 1,
                     sequence: 3,
+                    reason: 'overflow',
                 });
             else observer.invalidate();
             await vi.waitFor(() => expect(sent).toHaveLength(2));
@@ -174,6 +175,69 @@ describe('MobileTerminalObserver', () => {
             });
             await vi.waitFor(() => expect(remove).toHaveBeenCalledOnce());
         }
+    });
+
+    it('replaces a resized snapshot without closing the mobile lease', async () => {
+        const sent: MobileServerPayload[] = [];
+        const remove = vi.fn();
+        const reportResync = vi.fn();
+        const port = {
+            observe: vi
+                .fn()
+                .mockResolvedValueOnce({
+                    snapshot: { ...snapshot, payload: 'old', byteCount: 3 },
+                    nextSequence: 3,
+                    generation: 1,
+                })
+                .mockResolvedValueOnce({
+                    snapshot: { ...snapshot, cols: 100, payload: 'new', byteCount: 3 },
+                    nextSequence: 4,
+                    generation: 1,
+                }),
+            unobserve: vi.fn(async () => {}),
+            takeOver: vi.fn(async () => ({ expiresAt: 1_000 })),
+            releaseTakeOver: vi.fn(async () => {}),
+            inputForGeneration: vi.fn(async () => true),
+        } as unknown as TerminalExecutionPort;
+        const observer = new MobileTerminalObserver({
+            terminalId: 'terminal-1',
+            subscriptionId: 'subscription-1',
+            holderId: 'connection-1:subscription-1',
+            port,
+            authorize: async () => {},
+            reserve: () => true,
+            release: vi.fn(),
+            send: async (payload) => {
+                sent.push(payload);
+            },
+            remove,
+            reportResync,
+            terminate: vi.fn(),
+        });
+        await observer.start();
+        observer.activate();
+        await vi.waitFor(() => expect(sent).toHaveLength(1));
+        await observer.takeOver(1, { cols: 70, rows: 20 });
+        observer.accept({
+            type: 'gap',
+            terminalId: 'terminal-1',
+            generation: 1,
+            sequence: 3,
+            reason: 'resize',
+        });
+        await vi.waitFor(() => expect(sent).toHaveLength(2));
+        expect(sent[1]).toMatchObject({
+            kind: 'terminal.snapshot',
+            nextHostSequence: 4,
+            sequence: 1,
+        });
+        expect(remove).not.toHaveBeenCalled();
+        expect(port.releaseTakeOver).not.toHaveBeenCalled();
+        expect(reportResync).toHaveBeenCalledExactlyOnceWith('resize');
+        await observer.input(1, 'still controlled');
+        expect(port.inputForGeneration).toHaveBeenCalledOnce();
+        await observer.close();
+        expect(port.releaseTakeOver).toHaveBeenCalledOnce();
     });
 
     it('renews an idle lease and releases only its exact holder on close', async () => {

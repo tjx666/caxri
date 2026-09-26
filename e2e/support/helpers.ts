@@ -45,6 +45,10 @@ export interface LaunchCaxriOptions {
      */
     userDataDir: string;
     /**
+     * Bounded queue time for an explicitly coordinated desktop workflow.
+     */
+    desktopLeaseWaitMs?: number;
+    /**
      * Project root exposed to the app through `CAXRI_TEST_ROOT_PATH`.
      */
     testRootPath: string;
@@ -233,6 +237,7 @@ export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<Runni
         {
             coordinatorToken: workerIsolation.coordinatorToken,
             namespace: workerIsolation.leaseNamespace,
+            waitMs: options.desktopLeaseWaitMs,
         },
     );
     let releasePromise: Promise<void> | undefined;

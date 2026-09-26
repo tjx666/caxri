@@ -35,6 +35,7 @@ export interface AndroidBuildPaths {
 export interface AndroidBuildRequest {
     buildOnly: boolean;
     expoArguments: string[];
+    gradleArguments: string[];
     gradleTask: string;
 }
 
@@ -130,22 +131,49 @@ export const resolveAndroidBuildPaths = (scriptDirectory: string): AndroidBuildP
 export const parseAndroidBuildRequest = (arguments_: readonly string[]): AndroidBuildRequest => {
     const normalized = arguments_.filter((argument) => argument !== '--');
     const buildOnly = normalized.includes('--build-only');
-    const expoArguments = normalized.filter((argument) => argument !== '--build-only');
+    const abiIndex = normalized.indexOf('--abi');
+    const abi = abiIndex === -1 ? undefined : normalized[abiIndex + 1];
+    if (abiIndex !== -1 && !['arm64-v8a', 'x86_64'].includes(abi ?? ''))
+        throw new Error('Android build ABI must be arm64-v8a or x86_64');
+    const optimize = normalized.includes('--optimize');
+    const minify = optimize || normalized.includes('--minify');
+    if (!buildOnly && (abiIndex !== -1 || minify))
+        throw new Error('Android ABI and optimization options require build-only');
+    const buildArguments = normalized.filter(
+        (argument, index) =>
+            argument !== '--abi' &&
+            (abiIndex === -1 || index !== abiIndex + 1) &&
+            argument !== '--optimize' &&
+            argument !== '--minify' &&
+            argument !== '--build-only',
+    );
+    const expoArguments = buildOnly
+        ? buildArguments
+        : normalized.filter((argument) => argument !== '--build-only');
     const variantIndex = expoArguments.indexOf('--variant');
     const variant = variantIndex === -1 ? 'debug' : expoArguments[variantIndex + 1];
     if (!variant || !/^[a-z][a-z0-9]*$/iu.test(variant))
         throw new Error('Android build variant must be one alphanumeric identifier');
     if (buildOnly) {
+        if (variant !== 'release' && (abi || minify))
+            throw new Error('Android ABI and optimization options require release build-only');
         const supportedArguments = variantIndex === -1 ? [] : ['--variant', variant];
         if (
             expoArguments.length !== supportedArguments.length ||
             expoArguments.some((argument, index) => argument !== supportedArguments[index])
         )
-            throw new Error('Android build-only accepts only --variant');
+            throw new Error(
+                'Android build-only accepts only --variant, --abi, --minify, and --optimize',
+            );
     }
     return {
         buildOnly,
         expoArguments,
+        gradleArguments: [
+            ...(abi ? [`-PreactNativeArchitectures=${abi}`] : []),
+            ...(minify ? ['-Pandroid.enableMinifyInReleaseBuilds=true'] : []),
+            ...(optimize ? ['-Pandroid.enableShrinkResourcesInReleaseBuilds=true'] : []),
+        ],
         gradleTask: `app:assemble${variant[0].toUpperCase()}${variant.slice(1)}`,
     };
 };
