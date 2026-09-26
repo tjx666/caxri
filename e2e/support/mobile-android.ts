@@ -54,12 +54,14 @@ export async function runMobileDeviceCommand(
     executable: string,
     arguments_: string[],
     output: 'capture' | 'ignore' = 'ignore',
+    timeoutMs?: number,
 ): Promise<string> {
     try {
         const result = await execFileAsync(executable, arguments_, {
             cwd: projectRoot,
             encoding: 'utf8',
             maxBuffer: 4 * 1024 * 1024,
+            timeout: timeoutMs,
         });
         return output === 'capture' ? result.stdout.trim() : '';
     } catch (error) {

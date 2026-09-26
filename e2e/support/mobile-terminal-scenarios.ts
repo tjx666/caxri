@@ -13,6 +13,7 @@ import {
     tapMobileCheck,
     waitForMobile,
 } from './mobile-android';
+import { pinchReadOnlyTerminal } from './mobile-native-pinch';
 import { createMobileTerminalAcceptanceFixture } from './mobile-terminal-acceptance-fixture';
 import { tapTerminalKey } from './mobile-terminal-key';
 
@@ -117,6 +118,12 @@ export async function executeMobileTerminalScenario(
         const observingSize = await fixture.menuState();
         expect({ cols: observingSize.cols, rows: observingSize.rows }).toEqual(desktopSize);
         await capture(environment, 'observing', artifacts);
+        await pinchReadOnlyTerminal(environment.serial, 'pinch-in');
+        await capture(environment, 'fit-to-screen', artifacts);
+        await pinchReadOnlyTerminal(environment.serial, 'pinch-out');
+        await capture(environment, 'readable-default-restored', artifacts);
+        const afterPinch = await fixture.menuState();
+        expect({ cols: afterPinch.cols, rows: afterPinch.rows }).toEqual(desktopSize);
         const windowBounds = await fixture.running.app.evaluate(({ BrowserWindow }) =>
             BrowserWindow.getAllWindows()[0].getBounds(),
         );
@@ -322,6 +329,7 @@ export async function executeMobileTerminalScenario(
             observingResize: 'no-stale-banner',
             tallGrid: {
                 rows: desktopSize.rows,
+                fitToScreen: 'native-pinch-in-and-out-captured',
                 scrollPosition: 'retained-until-latest',
                 output: 'follows-bottom',
             },
