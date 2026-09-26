@@ -113,6 +113,13 @@ The command prints the target path. Use that path as the working directory for l
 do not expect a child process to change the parent shell's directory. If Git already has the branch
 checked out elsewhere, reuse the reported path.
 
+After a completed PR has merged, a genuinely new delivery may reuse the same clean linked
+worktree on a fresh branch. Fetch `origin/main`, then target that worktree explicitly with
+`rtk git -C <absolute-worktree-path> switch -c <branch> origin/main`. The primary-checkout
+guard resolves the target from the command; a bare `rtk git switch` can be misclassified as a
+primary-checkout mutation even when the command runner's working directory is the linked worktree.
+Never switch branches in the primary checkout.
+
 ## Inspect and diagnose
 
 ```bash
