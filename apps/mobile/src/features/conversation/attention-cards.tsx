@@ -122,7 +122,7 @@ const AttentionCard = ({
             {question && item.kind === 'question' ? (
                 <View style={{ gap: 8 }}>
                     <Text style={{ color: theme.text }}>{question.question}</Text>
-                    {question.options.map((option) => (
+                    {question.options.map((option, optionIndex) => (
                         <Pressable
                             accessibilityLabel={option.label}
                             accessibilityRole="button"
@@ -136,7 +136,7 @@ const AttentionCard = ({
                             disabled={!canAnswer}
                             key={option.label}
                             style={{ minHeight: 44, justifyContent: 'center', paddingVertical: 8 }}
-                            testID={`attention-option-${option.label}`}
+                            testID={`attention-option-${questionIndex}-${optionIndex}`}
                             onPress={() =>
                                 setInput((current) => {
                                     if (!question.multiSelect) return option.label;
