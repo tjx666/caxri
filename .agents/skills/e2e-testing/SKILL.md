@@ -90,6 +90,9 @@ Use the launch helpers instead of the developer's real profile:
   data. Agent specs explicitly select shared `fake` mode or the single-provider `real` mode, except
   negative tests that deliberately prove the `blocked` default; never inherit the developer's
   `PATH`, `HOME`, `CODEX_HOME`, or `CLAUDE_CONFIG_DIR` accidentally.
+- Seed Home-browser fixtures under the launcher's isolated Agent HOME
+  (`<userDataDir>/e2e-agents/home`); a `launchCaxri({ env: { HOME } })` override is replaced by
+  the isolation environment. Canonicalize expected Project roots before comparing server results.
 
 The manual real-Agent smoke is Codex-only: `bun run test:e2e:real-agent`. It requires an
 authenticated Codex CLI, sends one bounded read-only natural-language prompt in a temporary

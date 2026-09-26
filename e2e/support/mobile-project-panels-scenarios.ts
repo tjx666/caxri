@@ -1,4 +1,4 @@
-import { writeFile } from 'node:fs/promises';
+import { mkdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import type { BootstrapState } from '@caxri/protocol';
@@ -76,7 +76,16 @@ async function addNestedProject(environment: Environment, artifacts: string[]): 
         );
         await capture(environment, 'browse-nested', artifacts);
         await tapMobileCheck(environment.serial, nestedId);
-        const rootPath = join(fixture.testDirectory, 'mobile-new-project', 'nested');
+        const rootPath = await realpath(
+            join(
+                fixture.testDirectory,
+                'user-data',
+                'e2e-agents',
+                'home',
+                'mobile-new-project',
+                'nested',
+            ),
+        );
         const state = await waitForMobile(
             () => pageRequest<BootstrapState>(fixture.running.page, 'app.bootstrap'),
             (current) => current.projects.some(({ rootPath: root }) => root === rootPath),
@@ -108,6 +117,12 @@ async function browsePanels(environment: Environment, artifacts: string[]): Prom
         serial: environment.serial,
     });
     try {
+        const projectRoot = join(fixture.testDirectory, 'allowed-project');
+        const removedFolder = join(projectRoot, 'removed-folder');
+        await Promise.all([
+            mkdir(join(projectRoot, 'empty-folder'), { recursive: true }),
+            mkdir(removedFolder, { recursive: true }),
+        ]);
         await fixture.pair();
         if (!fixture.allowedSessionId) throw new Error('Panels Session is unavailable');
         await tapMobileCheck(environment.serial, `session-row-${fixture.allowedSessionId}`);
@@ -118,9 +133,27 @@ async function browsePanels(environment: Environment, artifacts: string[]): Prom
         await tapMobileCheck(environment.serial, 'session-segment-panels');
         await waitForMobile(
             () => mobileSemantics(environment.serial),
-            (nodes) => hasCheck(nodes, 'files-panel'),
+            (nodes) => hasCheck(nodes, 'files-entry-empty-folder'),
+        );
+        await tapMobileCheck(environment.serial, 'files-entry-empty-folder');
+        await waitForMobile(
+            () => mobileSemantics(environment.serial),
+            (nodes) => hasCheck(nodes, 'files-empty'),
         );
         await capture(environment, 'files-empty', artifacts);
+        await tapMobileCheck(environment.serial, 'files-up');
+        await waitForMobile(
+            () => mobileSemantics(environment.serial),
+            (nodes) => hasCheck(nodes, 'files-entry-removed-folder'),
+        );
+        await rm(removedFolder, { recursive: true });
+        await tapMobileCheck(environment.serial, 'files-entry-removed-folder');
+        await waitForMobile(
+            () => mobileSemantics(environment.serial),
+            (nodes) => hasCheck(nodes, 'files-error'),
+        );
+        await capture(environment, 'files-error', artifacts);
+        await tapMobileCheck(environment.serial, 'files-up');
         await tapMobileCheck(environment.serial, 'panel-tab-caxri.project-status');
         await waitForMobile(
             () => mobileSemantics(environment.serial),
@@ -141,6 +174,7 @@ async function browsePanels(environment: Environment, artifacts: string[]): Prom
         await capture(environment, 'git-changes', artifacts);
         await finish(environment, artifacts, {
             panels: ['Files', 'Status', 'Fixture tree'],
+            filesStates: ['empty', 'error'],
             git: 'Changes segment',
             status: 'passed',
         });

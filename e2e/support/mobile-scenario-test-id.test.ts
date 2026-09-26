@@ -8,6 +8,9 @@ const mobileRoot = fileURLToPath(new URL('../../apps/mobile/src/', import.meta.u
 const scenarioPaths = [
     fileURLToPath(new URL('../mobile-dashboard-parity.e2e.ts', import.meta.url)),
     fileURLToPath(new URL('../mobile-acceptance-scenarios.e2e.ts', import.meta.url)),
+    ...readdirSync(import.meta.dirname)
+        .filter((name) => /^mobile-.*-scenarios\.ts$/u.test(name))
+        .map((name) => join(import.meta.dirname, name)),
 ];
 
 const mobileSources = readdirSync(mobileRoot, { recursive: true, withFileTypes: true })
