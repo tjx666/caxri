@@ -1,6 +1,18 @@
 export type MobileAndroidMediaType = 'screenshot' | 'video';
 
 const androidCases = {
+    'MOB-ATTN-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['video'],
+        recordingOwner: 'scenario',
+        scenario: 'agent-permission',
+    },
+    'MOB-ATTN-02': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['video'],
+        recordingOwner: 'scenario',
+        scenario: 'agent-question',
+    },
     'MOB-ACC-02': {
         desktopProfile: 'not-required',
         media: ['screenshot', 'video'],

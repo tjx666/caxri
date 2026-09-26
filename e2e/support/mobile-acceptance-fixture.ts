@@ -24,10 +24,18 @@ import {
     runMobileDeviceCommand,
     waitForMobile,
 } from './mobile-android';
+import type { AttentionCommand, AttentionReceipt } from './mobile-attention-fixture';
+import {
+    enableMobileAttentionHooks,
+    mobileAttentionControl,
+    prepareMobileAttentionAgent,
+} from './mobile-attention-fixture';
 import type { MobileChangesFixtureKind } from './mobile-changes-fixture';
 import { seedMobileChangesFixture } from './mobile-changes-fixture';
 import type { MobileEncryptedPeer } from './mobile-encrypted-peer';
 import { pairMobileEncryptedPeer } from './mobile-encrypted-peer';
+import type { SyntheticMenuState } from './mobile-synthetic-menu-state';
+import { readSyntheticMenuState } from './mobile-synthetic-menu-state';
 
 export interface MobileAcceptanceFixture {
     allowedProjectId: string;
@@ -48,6 +56,10 @@ export interface MobileAcceptanceFixture {
     failNextAgentLaunch(): Promise<void>;
     readCapturedInput(): Promise<Buffer>;
     appendTranscript?(records: unknown[]): Promise<void>;
+    attention?: {
+        readReceipt(): Promise<AttentionReceipt[]>;
+        trigger(command: AttentionCommand): Promise<void>;
+    };
     pairTimelineGateway?(): Promise<MobileEncryptedPeer>;
     readTimeline?(): Promise<MobileTimelineReadResult>;
     shellGridStatePath?: string;
@@ -59,7 +71,13 @@ export interface MobileAcceptanceFixture {
 
 interface CreateMobileAcceptanceFixtureInput {
     mode:
-        'empty' | 'waiting' | 'launch-failure' | 'conversation' | 'shell-conversation' | 'journey';
+        | 'empty'
+        | 'waiting'
+        | 'attention'
+        | 'launch-failure'
+        | 'conversation'
+        | 'shell-conversation'
+        | 'journey';
     serial: string;
     changes?: MobileChangesFixtureKind;
     dropSubmitAcknowledgement?: boolean;
@@ -68,33 +86,6 @@ interface CreateMobileAcceptanceFixtureInput {
 }
 
 const MOBILE_ACCEPTANCE_SAFE_OUTPUT = 'Synthetic Agent output: ready for Acceptance review.\r\n';
-
-interface SyntheticMenuState {
-    cols: number | null;
-    firstGridMarker: { columns: number; generation: string; rows: number };
-    generation: string;
-    interrupts: number;
-    lines: string[];
-    phase: 'busy' | 'menu';
-    rows: number | null;
-    selected: number;
-    submissions: number;
-}
-
-async function readSyntheticMenuState(path: string): Promise<SyntheticMenuState | null> {
-    try {
-        return JSON.parse(await readFile(path, 'utf8')) as SyntheticMenuState;
-    } catch (error) {
-        if (
-            error !== null &&
-            typeof error === 'object' &&
-            'code' in error &&
-            error.code === 'ENOENT'
-        )
-            return null;
-        throw error;
-    }
-}
 
 async function fakeWaitingAgent(userDataDirectory: string, inputCapture: string) {
     return createFakeAgentMode({
@@ -418,14 +409,18 @@ export async function createMobileAcceptanceFixture(
                   input.mode === 'journey' ? inputCapture : undefined,
               )
             : undefined;
+    const attentionAgentMode =
+        input.mode === 'attention' ? await prepareMobileAttentionAgent(userData) : undefined;
     const syntheticShell =
         input.mode === 'shell-conversation' ? await createSyntheticShell(testDirectory) : undefined;
     const agentMode =
         input.mode === 'waiting'
             ? await fakeWaitingAgent(userData, inputCapture)
-            : input.mode === 'launch-failure'
-              ? await fakeFailingAgent(userData)
-              : (conversationAgentMode ?? ({ mode: 'blocked' } as const));
+            : attentionAgentMode && input.mode === 'attention'
+              ? attentionAgentMode.agentMode
+              : input.mode === 'launch-failure'
+                ? await fakeFailingAgent(userData)
+                : (conversationAgentMode ?? ({ mode: 'blocked' } as const));
     let running: RunningCaxri;
     try {
         running = await launchCaxri({
@@ -499,7 +494,8 @@ export async function createMobileAcceptanceFixture(
         await running.app.evaluate(({ dialog }) => {
             dialog.showMessageBox = () => Promise.resolve({ checkboxChecked: false, response: 0 });
         });
-        if (input.mode === 'conversation' || input.mode === 'journey') {
+        if (['conversation', 'journey', 'attention'].includes(input.mode)) {
+            if (input.mode === 'attention') await enableMobileAttentionHooks(running.page);
             allowedSessionId = await createProjectSession(running.page, 'claude');
             const bound = await waitForMobile(
                 () => pageRequest<BootstrapState>(running.page, 'app.bootstrap'),
@@ -507,7 +503,11 @@ export async function createMobileAcceptanceFixture(
                     state.terminals.some(
                         (terminal) =>
                             terminal.sessionId === allowedSessionId &&
-                            terminal.agentSessionId?.startsWith('mobile-conversation-fixture-'),
+                            (input.mode === 'attention'
+                                ? Boolean(terminal.agentSessionId)
+                                : terminal.agentSessionId?.startsWith(
+                                      'mobile-conversation-fixture-',
+                                  )),
                     ),
             );
             const allowed = bound.sessions.find(({ id }) => id === allowedSessionId);
@@ -515,15 +515,21 @@ export async function createMobileAcceptanceFixture(
                 ({ sessionId }) => sessionId === allowedSessionId,
             );
             const config = conversationAgentMode?.environment.CLAUDE_CONFIG_DIR;
-            if (!allowed || !config || !terminal?.agentSessionId)
+            if (
+                !allowed ||
+                !terminal ||
+                (input.mode !== 'attention' && (!config || !terminal.agentSessionId))
+            )
                 throw new Error('Synthetic Conversation binding is unavailable');
             conversationTerminalId = terminal.id;
-            transcriptPath = join(
-                config,
-                'projects',
-                terminal.cwd.replaceAll(/[^a-z0-9]/giu, '-'),
-                `${terminal.agentSessionId}.jsonl`,
-            );
+            if (config && terminal.agentSessionId) {
+                transcriptPath = join(
+                    config,
+                    'projects',
+                    terminal.cwd.replaceAll(/[^a-z0-9]/giu, '-'),
+                    `${terminal.agentSessionId}.jsonl`,
+                );
+            }
             if (input.mode === 'journey') {
                 if (!menuStatePath) throw new Error('Synthetic Terminal state path is unavailable');
                 const menu = await pageRequest<{
@@ -676,6 +682,15 @@ export async function createMobileAcceptanceFixture(
             }),
         ...((input.mode === 'waiting' || input.mode === 'journey') && { inputCapture }),
         ...(shellGridStatePath && { shellGridStatePath }),
+        ...(input.mode === 'attention' &&
+            attentionAgentMode &&
+            conversationTerminalId && {
+                attention: mobileAttentionControl(
+                    running.page,
+                    conversationTerminalId,
+                    attentionAgentMode.receiptPath,
+                ),
+            }),
         ...(transcriptPath && {
             appendTranscript: async (records: unknown[]) => {
                 await mkdir(dirname(transcriptPath), { recursive: true });
