@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import { Platform, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 
@@ -45,7 +45,6 @@ function AndroidTerminalLiveView({
     const webview = useRef<WebView>(null);
     const keyboard = useTerminalKeyboard();
     const hasLeaseReference = useRef(false);
-    const [webviewGeneration, setWebviewGeneration] = useState(0);
     const injectScript = useCallback((script: string): void => {
         webview.current?.injectJavaScript(script);
     }, []);
@@ -65,15 +64,6 @@ function AndroidTerminalLiveView({
     useLayoutEffect(() => {
         hasLeaseReference.current = terminal.hasLease;
     }, [terminal.hasLease]);
-    const { onWebviewTerminated } = terminal;
-    /**
-     * Android requires a new native WebView after renderer termination; reloading the dead instance is invalid.
-     * https://developer.android.com/develop/ui/views/layout/webapps/handle-termination
-     */
-    const recreateWebview = useCallback((): void => {
-        onWebviewTerminated();
-        setWebviewGeneration((current) => current + 1);
-    }, [onWebviewTerminated]);
     const html = useMemo(() => terminalWebviewDocument(terminalId), [terminalId]);
     const takeOver = async (): Promise<void> => {
         await terminal.takeOver();
@@ -87,7 +77,7 @@ function AndroidTerminalLiveView({
         >
             <View style={styles.screen}>
                 <WebView
-                    key={webviewGeneration}
+                    key={terminal.webviewGeneration}
                     ref={webview}
                     allowFileAccess={false}
                     allowUniversalAccessFromFileURLs={false}
@@ -96,7 +86,7 @@ function AndroidTerminalLiveView({
                     javaScriptCanOpenWindowsAutomatically={false}
                     mixedContentMode="never"
                     onMessage={(event) => terminal.onWebviewMessage(event.nativeEvent.data)}
-                    onRenderProcessGone={recreateWebview}
+                    onRenderProcessGone={terminal.onWebviewTerminated}
                     onShouldStartLoadWithRequest={(request) =>
                         request.url === 'about:blank' || request.url === 'about:srcdoc'
                     }

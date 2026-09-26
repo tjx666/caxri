@@ -89,6 +89,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
     const [status, setStatus] = useState<MobileConnectionStatus>('booting');
     const [isForeground, setIsForeground] = useState(AppState.currentState === 'active');
     const connection = useRef<MobileGatewayConnection | null>(null);
+    const pairingGeneration = useRef(0);
     const backgroundedAt = useRef<number | null>(null);
     const appState = useRef(AppState.currentState);
     const activeProbe = useRef<MobileGatewayConnection | null>(null);
@@ -183,6 +184,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
         void loadCredential();
         return () => {
             isActive = false;
+            pairingGeneration.current += 1;
             replaceConnection(null);
         };
     }, [replaceConnection]);
@@ -306,21 +308,29 @@ export const useMobileClientController = (): MobileClientContextValue => {
 
     const pair = useCallback(
         async (pairingLink: string): Promise<void> => {
+            const generation = ++pairingGeneration.current;
+            const isCurrent = (): boolean => pairingGeneration.current === generation;
             replaceConnection(null);
             setStatus('connecting');
             try {
                 const paired = await pairMobileGateway({
+                    isCurrent,
                     displayName: Device.modelName ?? 'Mobile device',
                     pairingLink,
                     runtime: expoMobileGatewayRuntime,
                     store: expoMobileCredentialStore,
                 });
+                if (!isCurrent()) {
+                    paired.connection.close();
+                    throw new Error('Pairing attempt was superseded.');
+                }
                 setCredential(paired.credential);
                 if (!adoptConnection(paired.connection)) return;
                 setLastSeenAt(Date.now());
                 setRetryAttempt(0);
                 setStatus('connected');
             } catch (error) {
+                if (!isCurrent()) throw error;
                 setStatus(
                     error instanceof MobileVersionMismatchError
                         ? 'version-mismatch'
@@ -335,6 +345,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
     );
 
     const forgetDevice = useCallback(async (): Promise<void> => {
+        pairingGeneration.current += 1;
         replaceConnection(null);
         await expoMobileCredentialStore.clear();
         setCredential(null);
