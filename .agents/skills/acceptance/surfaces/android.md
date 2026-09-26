@@ -17,6 +17,13 @@ bun run --cwd apps/mobile android:device inspect --serial "$SERIAL"
 
 Do not use the first result from `adb devices`, Expo's implicit selection, or an Android model name
 as the ADB identity. Keep the exact serial in every command.
+An explicit serial selects a device but does not reserve it. Parallel tasks must use distinct
+disposable emulator instances; the Desktop lease does not serialize APK installs, package clears,
+or native taps. Launch a task-owned AVD with an unused port when the shared instance is active;
+copy only hardware configuration and use fresh user data, never another task's live disk image.
+Freeze that serial in the new report round and stop only the
+instance this task launched. If Android reports `PACKAGE UPDATED` during a case, investigate
+another installer before attributing the interruption to an app crash.
 
 For a user-owned wireless device, keep the phone's pairing screen open while completing the Mac
 side. Use Android Studio's Device Manager pairing UI when computer control is available; inspect
