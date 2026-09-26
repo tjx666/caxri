@@ -106,3 +106,8 @@ unsupported, Agent Terminals use macOS's system zsh while ordinary Shell Termina
 `terminal.restart`, Resume, and Fresh deliberately replace the Shell PTY too:
 injecting a command into an existing prompt could append to an unpublished edit or disrupt foreground job control.
 Ordinary Agent exit never replaces the Shell; this explicit restart boundary is the safe exception.
+
+Desktop batch compaction is owned by `session.compactWarm` in Server Core. It estimates prompt-cache
+freshness from bounded native usage, requires submission-to-completion input proof, and sends only to
+the exact live primary Agent generation. See [Batch Session compaction](../../../../docs/session-compaction.md)
+for the estimates, skip reasons, and live-TUI ownership boundary.

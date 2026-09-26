@@ -16,6 +16,7 @@ import {
     sessionRestorePlacementSchema,
     sessionStateSchema,
 } from './session.js';
+import { sessionCompactionResultSchema } from './session-compaction.js';
 import {
     sessionContentSearchParametersSchema,
     sessionContentSearchResultSchema,
@@ -40,6 +41,11 @@ const sessionAttentionReadResult = z.object({
     hasUnread: z.boolean(),
 });
 export const sessionMethods = {
+    'session.compactWarm': {
+        ...commandPolicy('server', 'control'),
+        params: z.object({}),
+        result: sessionCompactionResultSchema,
+    },
     'session.searchContent': {
         ...commandPolicy('server', 'read'),
         params: sessionContentSearchParametersSchema,

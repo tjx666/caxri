@@ -21,12 +21,7 @@ import type {
     TerminalExecutionPort,
     TerminalObserverEvent,
 } from '../../domains/terminal';
-import {
-    canSendAgentInput,
-    deliverAgentInput,
-    sendAgentInput,
-    submitAgentInput,
-} from './agent-input';
+import { didWriteAgentInputExact, sendAgentInput, submitAgentInput } from './agent-input';
 import {
     attachFailureLog,
     didRestorePublishedAttachment,
@@ -421,25 +416,25 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         onDelivered?: (wasAccepted: boolean) => void,
         encoding?: 'binary',
     ): boolean {
-        const identity = this.identities.get(terminalId);
-        if (identity?.agent?.launchId !== launchId) return false;
-        if (!identity.attachmentId) {
-            if (encoding) return false;
-            if (!canSendAgentInput(identity, data)) return false;
-            /**
-             * Background delegations use Host's exact-launch Agent capability without a Renderer attachment. That
-             * answer arrives too late for this return value, so it reaches the caller through `onDelivered` instead:
-             * the launch can change while `identity.ready` is awaited, and the Host can refuse outright.
-             */
-            this.background(
-                deliverAgentInput(this.supervisor, this.identities, terminalId, data, onDelivered),
-                'terminal.agent.input',
-                terminalId,
-            );
-            return true;
-        }
-        return this.acceptInput(terminalId, data, MAX_INPUT_LENGTH, false, launchId, encoding)
-            .accepted;
+        return didWriteAgentInputExact({
+            supervisor: this.supervisor,
+            identities: this.identities,
+            terminalId,
+            data,
+            launchId,
+            onDelivered,
+            encoding,
+            acceptAttached: () =>
+                this.acceptInput(
+                    terminalId,
+                    data,
+                    MAX_INPUT_LENGTH,
+                    Boolean(onDelivered),
+                    launchId,
+                    encoding,
+                ),
+            background: (task) => this.background(task, 'terminal.agent.input', terminalId),
+        });
     }
 
     async writeAgent(terminalId: string, data: string, signal?: AbortSignal): Promise<boolean> {

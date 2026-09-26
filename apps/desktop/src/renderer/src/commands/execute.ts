@@ -43,6 +43,7 @@ import {
     selectAdjacentSession,
     switchMruSession,
 } from '../features/session/session-commands';
+import { compactWarmSessions } from '../features/session/session-compaction-commands';
 import { lastTabTerminalSessionId } from '../features/session/session-last-tab';
 import {
     canSelectWorkbenchRoot,
@@ -171,6 +172,7 @@ const commandContext: CommandContext = {
             else void chooseProjectFolder();
         },
         archiveSelected: archiveSelectedSession,
+        compactWarm: compactWarmSessions,
         canNavigateHistory: canNavigateSessionHistory,
         deleteSelected: deleteSelectedSession,
         detachSelected: detachSelectedSession,
