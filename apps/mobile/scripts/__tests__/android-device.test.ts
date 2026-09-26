@@ -45,4 +45,15 @@ describe('Android observe CLI', () => {
             expect(result.stderr).not.toContain('adb');
         }
     });
+
+    it('accepts a long press only on tap', () => {
+        const arguments_ = ['semantics', '--serial', 'emulator-5554', '--long-press'];
+        const result = spawnSync('bun', [scriptPath, ...arguments_], {
+            encoding: 'utf8',
+            shell: false,
+            timeout: 5_000,
+        });
+        expect(result.status).toBe(1);
+        expect(result.stderr).toContain('--long-press requires tap');
+    });
 });

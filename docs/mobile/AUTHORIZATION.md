@@ -7,11 +7,11 @@ dispatcher also grants only the capabilities for that role.
 
 ## Current method grants
 
-| Role      | Additional methods beyond the preceding role                                                                                                                                                                                                             |
-| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `view`    | `mobile.dashboard`, `mobile.session.show`, `mobile.timeline.read`, `mobile.changes.list`, `mobile.changes.diff`, `mobile.agent.availability`, `terminal.preview`, `mobile.panels.list`, `mobile.tree.children`, `mobile.files.list`, `mobile.files.read` |
-| `reply`   | `session.markRead`, `mobile.agent.submit`                                                                                                                                                                                                                |
-| `control` | `agent.control.interrupt`, `mobile.session.create`, `mobile.terminal.takeOver`, `mobile.terminal.release`, `mobile.terminal.input`, `mobile.project.browse`, `mobile.project.add`                                                                        |
+| Role      | Additional methods beyond the preceding role                                                                                                                                                                                                                                        |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `view`    | `mobile.dashboard`, `mobile.session.show`, `mobile.timeline.read`, `mobile.changes.list`, `mobile.changes.diff`, `mobile.agent.availability`, `mobile.session.archived`, `terminal.preview`, `mobile.panels.list`, `mobile.tree.children`, `mobile.files.list`, `mobile.files.read` |
+| `reply`   | `session.markRead`, `mobile.agent.submit`                                                                                                                                                                                                                                           |
+| `control` | `agent.control.interrupt`, `mobile.session.create`, `mobile.session.rename`, `mobile.session.archive`, `mobile.session.restore`, `mobile.terminal.takeOver`, `mobile.terminal.release`, `mobile.terminal.input`, `mobile.project.browse`, `mobile.project.add`                      |
 
 The method set is explicit. A role grant alone never authorizes a resource: dashboard, Session, and
 Terminal reads use principal-scoped queries; an Agent submission also checks the current Primary
@@ -52,6 +52,16 @@ Terminal keys. Git reads use only `mobile.changes.list` and `mobile.changes.diff
 Size leases use the exact connection and subscription as holder; closing that holder cannot release
 a newer connection's lease. Terminal observation requires only `view` and never changes Desktop
 attachment or size.
+
+## Mobile Session management
+
+`mobile.session.rename`, `mobile.session.archive`, and `mobile.session.restore` resolve the Session
+through the principal-scoped query first, so a Session outside the device's Project grant reports
+`NOT_FOUND`. They then call Desktop's own `session.rename`, `session.archive`, and
+`session.unarchive` handlers; restore places the Session at the top of its Project, as Desktop does.
+Each returns only `sessionId`, and the dashboard carries the new state. `mobile.session.archived` is
+a read that lists archived Sessions of granted Projects, newest first, bounded to 64 items within
+one frame.
 
 ## Mobile Session creation
 

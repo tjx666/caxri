@@ -6,9 +6,9 @@ import type { CommandAdapter, Principal } from '@caxri/protocol';
 import { CAXRI_PROTOCOL_VERSION, CaxriError } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { isMobileGatewayMethodAllowedForRole } from '../access-controller';
 import { MobileDeviceRegistry } from '../device-registry';
 import { MobileGateway } from '../gateway';
+import { isMobileGatewayMethodAllowedForRole } from '../role-methods';
 import { connectDevice } from './gateway-client.fixture';
 
 const temporaryDirectories: string[] = [];

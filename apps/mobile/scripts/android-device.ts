@@ -16,6 +16,10 @@ interface Arguments {
     checkId?: string;
     command: 'inspect' | 'observe' | 'semantics' | 'tap' | 'wake';
     expectedText?: AndroidNodeTextExpectation;
+    /**
+     * Holds the touch long enough to fire a React Native long press instead of a tap.
+     */
+    isLongPress: boolean;
     serial: string;
 }
 
@@ -60,8 +64,11 @@ const parseArguments = (values: string[]): Arguments => {
         values.some((value) => value === '--match' || value === '--expected-text-base64')
     )
         throw new Error('Text matching requires observe');
+    const isLongPress = values.includes('--long-press');
+    if (isLongPress && command !== 'tap') throw new Error('--long-press requires tap');
     return {
         command: command as Arguments['command'],
+        isLongPress,
         serial,
         ...(checkId && { checkId }),
         ...(expectedText && { expectedText }),
@@ -85,15 +92,28 @@ const semantics = async (serial: string): Promise<object> => ({
     checks: await captureAndroidSemanticNodes(serial),
 });
 
-const tap = async (serial: string, checkId: string): Promise<object> => {
+/**
+ * A zero-distance swipe is ADB's way to hold one point; 800 ms clears React Native's 500 ms default long-press delay.
+ */
+const LONG_PRESS_MS = 800;
+
+const tap = async (serial: string, checkId: string, isLongPress: boolean): Promise<object> => {
     const node = (await captureAndroidSemanticNodes(serial)).find(
         (candidate) => candidate.checkId === checkId,
     );
     if (!node || !node.clickable || !node.enabled)
         throw new Error('The requested Caxri control is unavailable');
     const point = centerOfAndroidBounds(node.bounds);
-    runAndroidAdb(serial, ['shell', 'input', 'tap', String(point.x), String(point.y)]);
-    return { checkId, serial, status: 'tap-requested' };
+    const x = String(point.x);
+    const y = String(point.y);
+    if (isLongPress)
+        runAndroidAdb(serial, ['shell', 'input', 'swipe', x, y, x, y, String(LONG_PRESS_MS)]);
+    else runAndroidAdb(serial, ['shell', 'input', 'tap', x, y]);
+    return {
+        checkId,
+        serial,
+        status: isLongPress ? 'long-press-requested' : 'tap-requested',
+    };
 };
 
 const main = async (): Promise<void> => {
@@ -105,7 +125,7 @@ const main = async (): Promise<void> => {
     }
     if (input.command === 'tap') {
         if (!input.checkId) throw new Error('tap requires a valid --check-id');
-        console.log(JSON.stringify(await tap(input.serial, input.checkId)));
+        console.log(JSON.stringify(await tap(input.serial, input.checkId, input.isLongPress)));
         return;
     }
     if (input.command === 'observe') {

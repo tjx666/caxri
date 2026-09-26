@@ -2,11 +2,13 @@ import { Buffer } from 'node:buffer';
 
 import type {
     AgentEndpointRef,
+    MobileArchivedSessionsResult,
     MobileDashboardResult,
     ProjectQueryResult,
     SessionQueryResult,
     TerminalQueryResult,
 } from '@caxri/protocol';
+import { MOBILE_ARCHIVED_SESSIONS_MAX } from '@caxri/protocol';
 
 export const MOBILE_DASHBOARD_MAX_BYTES = 48 * 1024;
 const MAXIMUM_DASHBOARD_SESSIONS = 64;
@@ -130,5 +132,51 @@ export const buildMobileDashboard = (input: {
         sessions,
         total: active.length,
         truncated: sessions.length < active.length,
+    };
+};
+
+/**
+ * Projects the principal's archived Sessions for the phone's restore list, newest archive first, bounded by count and
+ * by the same frame budget as the dashboard.
+ */
+export const buildMobileArchivedSessions = (input: {
+    projects: ProjectQueryResult['projects'];
+    sessions: SessionQueryResult['sessions'];
+    terminals: TerminalQueryResult['terminals'];
+}): MobileArchivedSessionsResult => {
+    const projects = new Map(input.projects.map((project) => [project.id, project]));
+    const terminals = new Map(input.terminals.map((terminal) => [terminal.id, terminal]));
+    const archived = input.sessions
+        .filter(
+            (session): session is typeof session & { archivedAt: number } =>
+                session.archivedAt !== undefined && projects.has(session.projectId),
+        )
+        .toSorted(
+            (left, right) => right.archivedAt - left.archivedAt || left.id.localeCompare(right.id),
+        );
+    const sessions: MobileArchivedSessionsResult['sessions'] = [];
+    let bytes = 0;
+    for (const session of archived) {
+        if (sessions.length >= MOBILE_ARCHIVED_SESSIONS_MAX) break;
+        const agentKind = session.primaryAgentTerminalId
+            ? terminals.get(session.primaryAgentTerminalId)?.kind
+            : undefined;
+        const candidate: MobileArchivedSessionsResult['sessions'][number] = {
+            id: session.id,
+            projectId: session.projectId,
+            displayTitle: title(session.displayTitle),
+            projectTitle: title(projects.get(session.projectId)?.displayTitle ?? 'Project'),
+            archivedAt: session.archivedAt,
+            ...(agentKind && { agentKind }),
+        };
+        const size = Buffer.byteLength(JSON.stringify(candidate), 'utf8') + 1;
+        if (bytes + size > MOBILE_DASHBOARD_MAX_BYTES - 1_024) break;
+        bytes += size;
+        sessions.push(candidate);
+    }
+    return {
+        sessions,
+        total: Math.min(archived.length, 4_096),
+        truncated: sessions.length < archived.length,
     };
 };

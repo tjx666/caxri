@@ -1,5 +1,7 @@
 import type { AgentTimelineItem, MobileTimelineReadResult } from '@caxri/protocol';
 
+import { summarizeToolGroup } from './tool-presentation';
+
 type ToolCall = Extract<AgentTimelineItem, { type: 'toolCall' }>;
 
 export type ConversationAvailability =
@@ -21,10 +23,13 @@ const toolGroup = (tools: ToolCall[]): ConversationEntry => {
     const durationMs = tools.every((tool) => tool.durationMs !== undefined)
         ? tools.reduce((total, tool) => total + (tool.durationMs ?? 0), 0)
         : undefined;
-    const summary = tools.every((tool) => tool.summary.startsWith('Ran '))
-        ? `Ran ${tools.length} commands`
-        : `${tools.length} tool calls`;
-    return { id: `tools:${tools[0].id}`, type: 'toolGroup', tools, summary, durationMs };
+    return {
+        id: `tools:${tools[0].id}`,
+        type: 'toolGroup',
+        tools,
+        summary: summarizeToolGroup(tools),
+        durationMs,
+    };
 };
 
 export const groupConversationItems = (items: AgentTimelineItem[]): ConversationEntry[] => {

@@ -122,6 +122,9 @@ describe('mobile Android Acceptance cases', () => {
             'MOB-UI-02',
             'MOB-UI-03',
             'MOB-UI-04',
+            'MOB-UI-05',
+            'MOB-UI-06',
+            'MOB-UI-07',
         ]) {
             expect(shouldCaptureAdapterScreenshot(caseId, true)).toBe(false);
         }

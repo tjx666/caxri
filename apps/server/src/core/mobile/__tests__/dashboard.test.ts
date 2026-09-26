@@ -2,7 +2,11 @@ import { Buffer } from 'node:buffer';
 
 import { describe, expect, it } from 'vitest';
 
-import { buildMobileDashboard, MOBILE_DASHBOARD_MAX_BYTES } from '../dashboard';
+import {
+    buildMobileArchivedSessions,
+    buildMobileDashboard,
+    MOBILE_DASHBOARD_MAX_BYTES,
+} from '../dashboard';
 
 describe('buildMobileDashboard', () => {
     it('prioritizes attention and stays within one encrypted frame for Desktop-scale inputs', () => {
@@ -120,5 +124,83 @@ describe('buildMobileDashboard', () => {
             primaryTerminal: { id: 'terminal-1', kind: 'shell' },
         });
         expect(result.sessions[0]?.primaryAgentTerminalId).toBeUndefined();
+    });
+});
+
+describe('buildMobileArchivedSessions', () => {
+    it('lists granted archived Sessions newest first with the primary Agent kind', () => {
+        const session = (id: string, projectId: string, archivedAt?: number) => ({
+            id,
+            projectId,
+            displayTitle: id,
+            lastOpenedAt: 1,
+            lastActivityState: 'completed' as const,
+            primaryAgentTerminalId: `terminal-${id}`,
+            attentionEpoch: 0,
+            hasUnread: false,
+            ...(archivedAt !== undefined && { archivedAt }),
+        });
+        const result = buildMobileArchivedSessions({
+            projects: [{ id: 'project-1', displayTitle: 'Granted' }],
+            sessions: [
+                session('active', 'project-1'),
+                session('older', 'project-1', 10),
+                session('newer', 'project-1', 20),
+                session('other-project', 'project-2', 30),
+            ],
+            terminals: [
+                {
+                    id: 'terminal-newer',
+                    sessionId: 'newer',
+                    kind: 'claude' as const,
+                    title: 'Claude',
+                    lastProcessState: 'stopped' as const,
+                },
+            ],
+        });
+        expect(result).toEqual({
+            sessions: [
+                {
+                    id: 'newer',
+                    projectId: 'project-1',
+                    displayTitle: 'newer',
+                    projectTitle: 'Granted',
+                    archivedAt: 20,
+                    agentKind: 'claude',
+                },
+                {
+                    id: 'older',
+                    projectId: 'project-1',
+                    displayTitle: 'older',
+                    projectTitle: 'Granted',
+                    archivedAt: 10,
+                },
+            ],
+            total: 2,
+            truncated: false,
+        });
+    });
+
+    it('bounds the list to one frame', () => {
+        const result = buildMobileArchivedSessions({
+            projects: [{ id: 'project-1', displayTitle: 'Granted' }],
+            sessions: Array.from({ length: 500 }, (_, index) => ({
+                id: `session-${index}`,
+                projectId: 'project-1',
+                displayTitle: '🙂'.repeat(1_024),
+                lastOpenedAt: 1,
+                lastActivityState: 'completed' as const,
+                attentionEpoch: 0,
+                hasUnread: false,
+                archivedAt: index,
+            })),
+            terminals: [],
+        });
+        expect(result.truncated).toBe(true);
+        expect(result.total).toBe(500);
+        expect(result.sessions.length).toBeLessThanOrEqual(64);
+        expect(Buffer.byteLength(JSON.stringify(result), 'utf8')).toBeLessThan(
+            MOBILE_DASHBOARD_MAX_BYTES,
+        );
     });
 });
