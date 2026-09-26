@@ -18,6 +18,12 @@ measurement.
 
 ## Development-client sampler
 
+Authenticated frames update a ref-backed last-observation timestamp without publishing a new
+shared React context. The Session screen samples it on its existing one-second freshness clock.
+Connection status changes still propagate immediately. The browser-backed runtime regression
+drives observations on separate frames and requires zero shared controller renders from those
+observations; this is a render-count contract, not a device frame-rate or release-performance claim.
+
 Run from the repository root with one explicit ADB serial and one stable ready `testID`:
 
 ```sh

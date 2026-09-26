@@ -15,7 +15,9 @@ dispatcher also grants only the capabilities for that role.
 
 The method set is explicit. A role grant alone never authorizes a resource: dashboard, Session, and
 Terminal reads use principal-scoped queries; an Agent submission also checks the current Primary
-Agent endpoint and atomically consumes the requested `attentionEpoch` in the domain handler. Mobile
+Agent endpoint and reserves a durable receipt keyed by device ID, device generation, and
+`clientMutationId` before dispatching Terminal input. A request fingerprint rejects reuse of that
+identity for different input. Mobile
 Session creation checks both the device's Project grant and the current Project record before its
 durable write. Git mutations, files, and unrestricted `session.create` are outside the gateway
 method set.
@@ -67,9 +69,16 @@ access controller holds its authority queue only for admission and final authori
 revocation aborts in-flight creates and short replies. The domain checks cancellation immediately before the durable
 Session write. If revocation happens after that write, the old connection closes and may lose the
 result. After re-pairing, the client must refresh `mobile.dashboard` and reconcile existing Sessions
-before offering another create attempt. The domain handler checks the cancellation signal, then
-checks and consumes short-reply `attentionEpoch` immediately before writing to the Terminal, even
-if the access controller's earlier read has become stale.
+before offering another create attempt. The submission handler checks cancellation and the exact
+Agent endpoint again after reserving its receipt. A confirmed Host acceptance marks it `accepted`;
+an uncertain result retains the reservation and returns `unknown`, preventing an automatic second
+write. A confirmed rejection removes the reservation so the request may be retried safely. These
+bounded receipts establish input admission, not proof that the Agent executed the instruction.
+
+Revocation rejects new operations; it cannot undo effects already admitted to another process.
+In particular, an Agent interrupt is authorized and synchronously enqueued to Terminal Host before
+the Server can process a later revocation. Physical signal delivery may finish afterward; this is
+not a new request admitted using a revoked credential.
 
 ## Adding a Project from mobile
 
@@ -92,5 +101,5 @@ next `mobile.dashboard` read.
 
 The implementation lives in [the access controller](../../apps/server/src/core/mobile/access-controller.ts),
 [device registry](../../apps/server/src/core/mobile/device-registry.ts),
-[Project browse/add handlers](../../apps/server/src/domains/mobile-project-browse.ts), and
+[Project browse/add handlers](../../apps/server/src/domains/mobile/project-browse.ts), and
 [mobile protocol](../../packages/protocol/src/mobile/mobile-contract.ts).

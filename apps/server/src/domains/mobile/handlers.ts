@@ -3,21 +3,18 @@ import { Buffer } from 'node:buffer';
 import type { Principal, ServerEvent } from '@caxri/protocol';
 import { CaxriError, MOBILE_FILES_MAX_ENTRIES, MOBILE_FILES_READ_MAX_BYTES } from '@caxri/protocol';
 
-import type { AgentEndpointLifecycle } from './agent-endpoints';
-import type { AgentTimelineService, AgentTranscriptWatcher } from './agents';
-import type { ConfigService } from './config';
-import type { CaxriDatabase } from './db';
-import type { DomainHandlers } from './domain-services';
-import type { FileService } from './files';
-import type { GitService } from './git';
-import { createMobileAgentAvailabilityHandler } from './mobile-agent-availability';
-import { createMobileAgentSubmitHandler } from './mobile-agent-submit';
-import {
-    createMobileProjectAddHandler,
-    createMobileProjectBrowseHandler,
-} from './mobile-project-browse';
-import type { MobileTerminalMutationQueue } from './mobile-terminal-mutation-queue';
-import type { TerminalManager } from './terminal';
+import type { AgentEndpointLifecycle } from '../agent-endpoints';
+import type { AgentTimelineService, AgentTranscriptWatcher } from '../agents';
+import type { ConfigService } from '../config';
+import type { CaxriDatabase } from '../db';
+import type { DomainHandlers } from '../domain-services';
+import type { FileService } from '../files';
+import type { GitService } from '../git';
+import type { MobileTerminalMutationQueue } from '../mobile-terminal-mutation-queue';
+import type { TerminalManager } from '../terminal';
+import { createMobileAgentAvailabilityHandler } from './agent-availability';
+import { createMobileAgentSubmitHandler } from './agent-submit';
+import { createMobileProjectAddHandler, createMobileProjectBrowseHandler } from './project-browse';
 
 type MobileDomainMethods = Pick<
     DomainHandlers,

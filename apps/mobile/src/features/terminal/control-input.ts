@@ -31,7 +31,8 @@ export const chunkTerminalText = (value: string): string[] => {
     const chunks: string[] = [];
     for (let offset = 0; offset < value.length;) {
         let end = Math.min(value.length, offset + MAXIMUM_WEBVIEW_TEXT_UNITS);
-        const last = value.codePointAt(end - 1) ?? 0;
+        // eslint-disable-next-line unicorn/prefer-code-point -- Inspect the boundary code unit; codePointAt consumes its following low surrogate.
+        const last = value.charCodeAt(end - 1);
         if (end < value.length && last >= 0xd800 && last <= 0xdbff) end -= 1;
         chunks.push(value.slice(offset, end));
         offset = end;

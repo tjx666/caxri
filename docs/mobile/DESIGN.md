@@ -35,6 +35,10 @@ In scope:
 - Creating a Session in a granted Project, and adding a Project from a `control` device.
 - Phone layout plus a tablet split layout.
 
+Current implementation boundary: live Terminal observation and control are Android-only. iOS
+shows an unavailable state for this segment and for Conversation's Terminal fallback. This is a
+remaining platform gap, not a change to the cross-platform product target.
+
 Deferred, with reasons recorded in [Deferred](#deferred): permission-approval cards, offline outbox,
 system push and Live Activities, multiple hosts, file editing, image attachments, `@file` and
 `/command` completion, voice beyond the system keyboard, light theme, and iPad keyboard shortcuts.
@@ -358,7 +362,7 @@ rejected by the Server. `view` and `reply` devices never see the entry point.
 | Capability                        | Why it waits                                                                                                    |
 | --------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | Permission-approval cards         | Hooks do not carry an answerable request identity; mapping buttons to keystrokes is not reliable. Use Terminal. |
-| Offline outbox                    | PTY input has no durable receipt; automatic resend could type a message twice.                                  |
+| Offline outbox                    | Bounded Agent-submit receipts can remain unknown and do not prove Agent execution; automatic resend is unsafe.  |
 | System push and Live Activities   | Requires a push service outside LAN/Tailscale; designed together with notification privacy (#499).              |
 | Multiple hosts                    | Routes and query keys already carry `hostId`; the UI waits for demand.                                          |
 | File editing, image attachments   | Panels are read-only; editing belongs on Desktop until the remote-control loop needs it.                        |

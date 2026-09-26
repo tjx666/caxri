@@ -14,10 +14,22 @@ import {
     MOBILE_CHANGES_MAX_PATCH_BYTES,
     MOBILE_CHANGES_MAX_PATCH_LINES,
 } from '@caxri/protocol';
+import { AsyncSemaphore } from '@caxri/system';
 
 import { readBoundedRegularFile } from '../bounded-file-reader';
 
 const MAX_LIST_BYTES = 48 * 1_024;
+const mobileFileReads = new AsyncSemaphore(8);
+
+/**
+ * Share the descriptor budget across repositories, list/diff requests, and paired connections.
+ */
+async function readMobileChangesFile(path: string): Promise<Buffer | null> {
+    return mobileFileReads.run(async () => {
+        if (!(await lstat(path)).isFile()) return null;
+        return readBoundedRegularFile(path, MOBILE_CHANGES_MAX_PATCH_BYTES);
+    });
+}
 
 function lineCount(content: Buffer): number {
     if (content.length === 0) return 0;
@@ -61,9 +73,8 @@ function status(kind: GitRepositorySummary['files'][number]['kind']): 'M' | 'A' 
 async function untrackedLineCount(rootPath: string, path: string): Promise<number> {
     try {
         const candidate = resolve(rootPath, path);
-        if (!(await lstat(candidate)).isFile()) return 0;
-        const content = await readBoundedRegularFile(candidate, MOBILE_CHANGES_MAX_PATCH_BYTES);
-        return content.includes(0) ? 0 : lineCount(content);
+        const content = await readMobileChangesFile(candidate);
+        return !content || content.includes(0) ? 0 : lineCount(content);
     } catch {
         // A moving or oversized untracked file remains visible with unknown line counts.
         return 0;
@@ -228,9 +239,8 @@ export async function mobileChangesDiff(
     if (file.kind === 'untracked' || !repo.head) {
         const candidate = resolve(repo.rootPath, file.path);
         try {
-            if (!(await lstat(candidate)).isFile()) return { status: 'binary' };
-            const content = await readBoundedRegularFile(candidate, MOBILE_CHANGES_MAX_PATCH_BYTES);
-            if (content.includes(0)) return { status: 'binary' };
+            const content = await readMobileChangesFile(candidate);
+            if (!content || content.includes(0)) return { status: 'binary' };
             if (lineCount(content) + 4 > MOBILE_CHANGES_MAX_PATCH_LINES)
                 return { status: 'oversized' };
             const decoded = new TextDecoder('utf-8', { fatal: true }).decode(content);

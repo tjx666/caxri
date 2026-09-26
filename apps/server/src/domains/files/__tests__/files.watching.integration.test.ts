@@ -8,6 +8,10 @@ import { StructuredLogger } from '@caxri/system';
 import type parcelWatcher from '@parcel/watcher';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import {
+    createWatchDiagnosticHub,
+    createWatchFailureProbe,
+} from '../../../__tests__/support/watch-diagnostics';
 import { CaxriDatabase } from '../../db/repository';
 import { FileService } from '../service';
 
@@ -141,6 +145,7 @@ describe('FileService watcher and polling behavior', () => {
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const session = database.createSession(database.createProject(root).id, 'shell').session;
         const events: string[] = [];
+        const watchHub = createWatchDiagnosticHub();
         const service = new FileService(
             database,
             (event) => {
@@ -149,30 +154,37 @@ describe('FileService watcher and polling behavior', () => {
             },
             createLogger(join(directory, 'logs')),
             () => 1024,
-            { pollIntervalMs: 50 },
+            { pollIntervalMs: 50, watchHub },
         );
-        await service.watchSession(session.id);
-        await writeFile(watchedPath, 'after', 'utf8');
+        try {
+            await service.watchSession(session.id);
+            const diagnose = createWatchFailureProbe(watchHub, 'files-root', () => events.length);
+            await writeFile(watchedPath, 'after', 'utf8');
 
-        await expect.poll(() => events.length, { timeout: 5_000 }).toBeGreaterThan(0);
-        /**
-         * Wait beyond a complete polling interval so the native event cannot be replayed as a phantom change.
-         */
-        await new Promise((resolve) => setTimeout(resolve, 150));
-        /**
-         * MacOS may report both the changed file and its parent directory in one native batch, especially under
-         * parallel filesystem load. Coalescing guarantees one event per canonical path; it does not suppress a valid
-         * parent-directory invalidation.
-         */
-        expect(events.filter((path) => path === canonicalWatchedPath)).toEqual([
-            canonicalWatchedPath,
-        ]);
-        expect(new Set(events).size).toBe(events.length);
-        expect(
-            events.every((path) => path === canonicalRoot || path.startsWith(`${canonicalRoot}/`)),
-        ).toBe(true);
-        await service.close();
-        database.close();
+            await diagnose(expect.poll(() => events.length, { timeout: 5_000 }).toBeGreaterThan(0));
+            /**
+             * Wait beyond a complete polling interval so the native event cannot be replayed as a phantom change.
+             */
+            await new Promise((resolve) => setTimeout(resolve, 150));
+            /**
+             * MacOS may report both the changed file and its parent directory in one native batch, especially under
+             * parallel filesystem load. Coalescing guarantees one event per canonical path; it does not suppress a
+             * valid parent-directory invalidation.
+             */
+            expect(events.filter((path) => path === canonicalWatchedPath)).toEqual([
+                canonicalWatchedPath,
+            ]);
+            expect(new Set(events).size).toBe(events.length);
+            expect(
+                events.every(
+                    (path) => path === canonicalRoot || path.startsWith(`${canonicalRoot}/`),
+                ),
+            ).toBe(true);
+        } finally {
+            await service.close();
+            await watchHub.close();
+            database.close();
+        }
     });
 
     it('does not poll while the native watcher remains healthy', async () => {

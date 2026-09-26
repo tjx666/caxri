@@ -1,9 +1,9 @@
 import { defaultAppSettings } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { ConfigService } from '../config';
-import type { CaxriDatabase } from '../db';
-import { createMobileAgentAvailabilityHandler } from '../mobile-agent-availability';
+import type { ConfigService } from '../../config';
+import type { CaxriDatabase } from '../../db';
+import { createMobileAgentAvailabilityHandler } from '../agent-availability';
 
 describe('mobile Agent availability', () => {
     it('checks Project grants before probing and returns only availability, never executable paths', async () => {

@@ -46,6 +46,13 @@ findings. Keep those repairs local unless the user separately requests remote de
 
 ## Entry modes
 
+For a whole-feature implementation audit (for example, mobile authority, reconnect, and streaming),
+use `audit-architecture-debt` to track coverage beyond the repaired diff. Before starting the final
+CI run, finish the requested coverage, adjudicate candidates, and batch authorized repairs with
+their local checks. A green patch review does not close unexamined audit areas. If CI is already
+running, finish that remaining work before waiting or retrying; cancel an obsolete run before
+pushing the consolidated replacement.
+
 | Mode  | Trigger                                                                          | Execution                                                                                                 |
 | ----- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | Light | Ordinary review requests                                                         | Main agent applies the applicable quick checklists inline; no subagents.                                  |

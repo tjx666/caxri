@@ -17,7 +17,6 @@ import {
     HANDSHAKE_NONCE_BYTES,
     handshakeConfirmation,
     isHandshakeConfirmationValid,
-    isPrivateMobileIpv4Address,
     MOBILE_GATEWAY_MAX_WIRE_BYTES,
     MOBILE_TRANSPORT_VERSION,
     mobileClientConfirmationSchema,
@@ -46,6 +45,7 @@ import type {
     ServerEvent,
 } from '@caxri/protocol';
 import { CaxriError, createCommandDispatcher } from '@caxri/protocol';
+import type { StructuredLogger } from '@caxri/system';
 import type WebSocket from 'ws';
 import { WebSocketServer } from 'ws';
 
@@ -56,10 +56,17 @@ import type {
     MobileDeviceSummary,
 } from '../device-registry';
 import { selectMobileGatewayAddresses } from './address-selection';
+import {
+    isAllowedMobilePeer,
+    MAXIMUM_MOBILE_CONNECTIONS,
+    mobileTcpAdmissionFailure,
+    mobileUpgradeFailure,
+} from './admission';
+import type { MobileGatewayFailureReason } from './diagnostics';
+import { MobileGatewayDiagnostics } from './diagnostics';
 import type { MobileAppOptions } from './frame-router';
 import { MobileGatewayFrameRouter } from './frame-router';
 import { dummyCandidate } from './handshake-candidate';
-import { isAllowedMobileOrigin } from './origin';
 import { adoptCurrentPairedPrincipal } from './principal-grant';
 import { mobileCapabilitiesByRole } from './role-capabilities';
 import { createServerSealedPayload, sendFinalSealedPayload } from './sealed-payload';
@@ -70,11 +77,8 @@ import { SourceAttemptLimiter } from './source-attempt-limiter';
 export { selectMobileGatewayAddress } from './address-selection';
 export { boundedMobileReply } from './reply';
 
-const MOBILE_PATH = '/mobile';
 const HANDSHAKE_TIMEOUT_MS = 10_000;
 const PAIRING_TTL_MS = 2 * 60_000;
-const MAXIMUM_CONNECTIONS = 32;
-const MAXIMUM_HANDSHAKES = 8;
 const MAXIMUM_PENDING_PAIRINGS = 8;
 
 interface PendingPairing {
@@ -101,6 +105,7 @@ interface GatewaySession {
 }
 
 export interface MobileGatewayOptions {
+    logger?: Pick<StructuredLogger, 'write'>;
     adapters: CommandDispatcherOptions;
     authorizePairedDeviceMethod: (principal: Principal, method: string) => void;
     authorizeSubscription: (
@@ -129,8 +134,6 @@ export interface MobileGatewayOptions {
     selectAddress?: () => string;
 }
 
-const isAllowedLanAddress = (address?: string) => isPrivateMobileIpv4Address(address ?? '');
-
 /**
  * Default-off LAN transport for one Server profile. The loopback control transport is never reused.
  */
@@ -138,6 +141,7 @@ const isAllowedLanAddress = (address?: string) => isPrivateMobileIpv4Address(add
 export class MobileGateway {
     readonly #activeByDevice = new Map<string, Map<WebSocket, GatewaySession>>();
     readonly #dispatch: CommandDispatcher;
+    readonly #diagnostics: MobileGatewayDiagnostics;
     readonly #now: () => number;
     readonly #options: MobileGatewayOptions;
     readonly #pairings = new Map<string, PendingPairing>();
@@ -157,6 +161,7 @@ export class MobileGateway {
     constructor(options: MobileGatewayOptions) {
         this.#options = options;
         this.#now = options.now ?? Date.now;
+        this.#diagnostics = new MobileGatewayDiagnostics(options.logger, this.#now);
         this.#sourceAttempts = new SourceAttemptLimiter({ now: this.#now });
         this.#random = options.random ?? randomBytes;
         this.#stopObserverEvents = options.terminalExecution?.onObserverEvent((event) => {
@@ -247,10 +252,7 @@ export class MobileGateway {
             perMessageDeflate: false,
         });
         const server = createServer({ maxHeaderSize: 8 * 1_024 }, (request, response) => {
-            if (
-                !isAllowedLanAddress(sourceAddress(request.socket)) ||
-                !isAllowedLanAddress(request.socket.localAddress)
-            ) {
+            if (!isAllowedMobilePeer(sourceAddress(request.socket), request.socket.localAddress)) {
                 request.socket.destroy();
                 return;
             }
@@ -259,15 +261,18 @@ export class MobileGateway {
         server.headersTimeout = HANDSHAKE_TIMEOUT_MS;
         server.requestTimeout = HANDSHAKE_TIMEOUT_MS;
         server.keepAliveTimeout = 1_000;
-        server.maxConnections = MAXIMUM_CONNECTIONS;
+        server.maxConnections = MAXIMUM_MOBILE_CONNECTIONS;
+        server.on('drop', () => this.#diagnostics.failure('admissionCapacity'));
         server.on('connection', (socket) => {
             const remoteAddress = sourceAddress(socket);
-            if (
-                !isAllowedLanAddress(remoteAddress) ||
-                !isAllowedLanAddress(socket.localAddress) ||
-                this.#tcpSockets.size >= MAXIMUM_CONNECTIONS ||
-                !this.#admitSource(remoteAddress ?? 'unknown')
-            ) {
+            const rejection = mobileTcpAdmissionFailure(
+                remoteAddress,
+                socket.localAddress,
+                this.#tcpSockets.size,
+                () => this.#sourceAttempts.admit(remoteAddress ?? 'unknown'),
+            );
+            if (rejection) {
+                this.#diagnostics.failure(rejection);
                 socket.destroy();
                 return;
             }
@@ -276,14 +281,14 @@ export class MobileGateway {
             socket.once('close', () => this.#tcpSockets.delete(socket));
         });
         server.on('upgrade', (request, socket, head) => {
-            if (
-                request.url !== MOBILE_PATH ||
-                !isAllowedLanAddress(sourceAddress(request.socket)) ||
-                !isAllowedLanAddress(request.socket.localAddress) ||
-                !isAllowedMobileOrigin(request.headers.origin, request.headers.host) ||
-                this.#sockets.size >= MAXIMUM_CONNECTIONS ||
-                this.#handshakes >= MAXIMUM_HANDSHAKES
-            ) {
+            const rejection = mobileUpgradeFailure(
+                request,
+                sourceAddress(request.socket),
+                this.#sockets.size,
+                this.#handshakes,
+            );
+            if (rejection) {
+                this.#diagnostics.failure(rejection);
                 socket.destroy();
                 return;
             }
@@ -403,6 +408,7 @@ export class MobileGateway {
         if (server?.listening) await new Promise<void>((resolve) => server.close(() => resolve()));
         this.#webSocketServer?.close();
         this.#webSocketServer = undefined;
+        this.#diagnostics.flush();
         return this.status();
     }
 
@@ -410,10 +416,6 @@ export class MobileGateway {
         this.#stopObserverEvents?.();
         this.#stopHostExit?.();
         return this.disable();
-    }
-
-    #admitSource(source: string): boolean {
-        return this.#sourceAttempts.admit(source);
     }
 
     #removeExpiredPairings(): void {
@@ -428,16 +430,19 @@ export class MobileGateway {
         let session: GatewaySession | undefined;
         let isReady = false;
         let isAcceptingMessages = true;
+        let didTerminate = false;
         let queue = Promise.resolve();
         const queueBudget = new MobileSocketQueueBudget();
-        const terminate = (): void => {
-            if (session?.revoking) return;
+        const terminate = (reason: MobileGatewayFailureReason = 'applicationClosed'): void => {
+            if (didTerminate || session?.revoking) return;
+            didTerminate = true;
+            this.#diagnostics.failure(reason);
             isAcceptingMessages = false;
             session?.application?.close();
             socket.terminate();
         };
         this.#terminators.set(socket, terminate);
-        const timer = setTimeout(terminate, HANDSHAKE_TIMEOUT_MS);
+        const timer = setTimeout(() => terminate('handshakeTimeout'), HANDSHAKE_TIMEOUT_MS);
         timer.unref();
         const remove = (): void => {
             isAcceptingMessages = false;
@@ -452,16 +457,16 @@ export class MobileGateway {
             if (active?.size === 0) this.#activeByDevice.delete(session.deviceId);
         };
         socket.on('close', remove);
-        socket.on('error', () => {});
+        socket.on('error', () => terminate('transportError'));
         socket.on('message', (data, isBinary) => {
             if (!isAcceptingMessages) return;
             if (isBinary) {
-                terminate();
+                terminate('binaryFrame');
                 return;
             }
             const releaseQueueCapacity = queueBudget.tryAcquire(messageByteLength(data));
             if (!releaseQueueCapacity) {
-                terminate();
+                terminate('inboundCapacity');
                 return;
             }
             const previousMessage = queue;
@@ -485,6 +490,7 @@ export class MobileGateway {
                             type: 'version-mismatch',
                             supportedVersion: MOBILE_TRANSPORT_VERSION,
                         });
+                        this.#diagnostics.failure('versionMismatch');
                         isAcceptingMessages = false;
                         socket.send(JSON.stringify(mismatch), (error) => {
                             if (error) terminate();
@@ -518,7 +524,7 @@ export class MobileGateway {
                             'client',
                         )
                     ) {
-                        terminate();
+                        terminate('authenticationFailed');
                         return;
                     }
                     let principal: Principal;
@@ -598,7 +604,7 @@ export class MobileGateway {
                 try {
                     await currentMessage;
                 } catch {
-                    terminate();
+                    terminate(isReady ? 'invalidFrame' : 'invalidHandshake');
                 } finally {
                     releaseQueueCapacity();
                 }
@@ -721,23 +727,26 @@ export class MobileGateway {
         };
     }
 
+    #sealedPayload(session: GatewaySession, payload: unknown): string {
+        return createServerSealedPayload(
+            {
+                connectionId: session.transcript.connectionId,
+                connectionIdHex: session.connection.connectionId,
+                counter: session.outbound.take(),
+                deviceId: session.deviceId,
+                key: session.keys.serverToClient,
+            },
+            payload,
+        );
+    }
+
     #sendSealed(
         socket: WebSocket,
         session: GatewaySession,
         payload: unknown,
         onSent?: (error?: Error) => void,
     ): void {
-        const counter = session.outbound.take();
-        const sourceFrame = createServerSealedPayload(
-            {
-                connectionId: session.transcript.connectionId,
-                connectionIdHex: session.connection.connectionId,
-                counter,
-                deviceId: session.deviceId,
-                key: session.keys.serverToClient,
-            },
-            payload,
-        );
+        const sourceFrame = this.#sealedPayload(session, payload);
         if (
             socket.readyState !== 1 ||
             socket.bufferedAmount + Buffer.byteLength(sourceFrame, 'utf8') >
@@ -763,17 +772,7 @@ export class MobileGateway {
             deviceId: session.deviceId,
             generation: session.generation,
         });
-        const counter = session.outbound.take();
-        const sourceFrame = createServerSealedPayload(
-            {
-                connectionId: session.transcript.connectionId,
-                connectionIdHex: session.connection.connectionId,
-                counter,
-                deviceId: session.deviceId,
-                key: session.keys.serverToClient,
-            },
-            revoked,
-        );
+        const sourceFrame = this.#sealedPayload(session, revoked);
         const closeResult = await sendFinalSealedPayload(
             socket,
             sourceFrame,

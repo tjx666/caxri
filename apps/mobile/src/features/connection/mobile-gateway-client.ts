@@ -678,6 +678,7 @@ const hasUnsupportedPairingLinkVersion = (source: string): boolean => {
 };
 
 export const pairMobileGateway = async (input: {
+    isCurrent?: () => boolean;
     displayName: string;
     pairingLink: string;
     runtime: MobileGatewayRuntime;
@@ -737,7 +738,7 @@ export const pairMobileGateway = async (input: {
             generation: paired.generation,
             credential: paired.credential,
         } as const satisfies MobileCredential;
-        await input.store.save(credential);
+        await input.store.save(credential, input.isCurrent);
         return {
             connection: new MobileGatewayConnection(session, async () => {
                 await input.store.clearIfCurrent(credential);

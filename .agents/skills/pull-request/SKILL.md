@@ -40,7 +40,8 @@ readback. Do not end again at local validation or PR creation. A status-only que
 5. Create or update the PR with an English title and body that describe observable behavior,
    validation, non-goals, and closing issue links. Read back the resulting PR.
 6. Treat queued or failed required checks, unresolved conflicts, and active review findings as real
-   readiness blockers, unless the diff qualifies for [Fast merge without CI](#fast-merge-without-ci).
+   readiness blockers, unless the diff qualifies for [Fast merge without CI](#fast-merge-without-ci)
+   or a failed case qualifies for the CI-only parity exception below.
    Repair the owning branch and refresh the exact-head state instead of merging
    stale evidence. Watch checks with `bun run scripts/watch-ci.ts --run <id>` using the
    harness-specific ownership rules in the reference below. Concurrent sessions, including other
@@ -55,11 +56,18 @@ readback. Do not end again at local validation or PR creation. A status-only que
    subsequent runner status before diagnosing infrastructure failure. Keep following queued work
    through transient disconnects; do not mark the issue Blocked or end delivery solely because
    one status sample says offline. Inspect completed failed jobs even while the final gate queues.
-   A failed E2E case outside the change's own behavior gets two local repetitions of that exact
-   case, never a full-suite or repeated CI rerun: the suite shares one self-hosted runner, so
+   A failed unit, integration, or E2E case outside the change's own behavior gets two local
+   repetitions of that exact case, never a full-suite or repeated CI rerun: checks share one self-hosted runner, so
    chasing an intermittent failure in place blocks this delivery and every sibling delivery behind
-   it. When both repetitions pass, record the case in `e2e-testing` and continue. Procedure:
+   it. When both repetitions pass, record the exact head, failed CI case/run, local commands/results,
+   and waiver in the PR and the shared flaky-case tracker, then continue authorized delivery.
+   Use the owning test runner; E2E reproduction and tracker publication follow
    [CI-only parity](../e2e-testing/SKILL.md#ci-only-parity).
+   Do not require runner access or infrastructure root-cause diagnosis before applying this exception.
+   Keep the failed CI result red, distinguish waived failures from checks that never ran, and never
+   report the whole suite as passed. A failure that reproduces locally, lacks the two local passes,
+   or concerns behavior changed by this delivery remains a blocker unless the user explicitly
+   authorizes a narrower exception.
 7. Merge only when explicitly authorized by the user or an active workflow such as `go`. Verify the
    remote merged state and merge commit before reporting completion.
 8. After the current task's PR is merged, inspect whether the task is running in the primary

@@ -23,7 +23,7 @@ import { createDeletionHandlers } from './deletion-handlers';
 import { DiagnosticsService } from './diagnostics';
 import type { DomainDependencies, DomainHandlers, DomainServices } from './domain-services';
 import { createIntrospectionServices } from './introspection';
-import { createMobileDomainHandlers } from './mobile-handlers';
+import { createMobileDomainHandlers } from './mobile';
 import { MobileTerminalMutationQueue } from './mobile-terminal-mutation-queue';
 import { createOrderingHandlers } from './ordering-handlers';
 import { createProjectHidingHandlers } from './project-hiding-handlers';

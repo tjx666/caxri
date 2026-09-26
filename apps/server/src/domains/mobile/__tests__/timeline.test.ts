@@ -1,14 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { AgentTimelineService } from '../agents/timeline';
-import type { AgentTranscriptWatcher } from '../agents/transcript-watcher';
-import type { ConfigService } from '../config';
-import type { CaxriDatabase } from '../db';
-import type { FileService } from '../files';
-import type { GitService } from '../git';
-import { createMobileDomainHandlers } from '../mobile-handlers';
-import type { MobileTerminalMutationQueue } from '../mobile-terminal-mutation-queue';
-import type { TerminalManager } from '../terminal';
+import type { AgentTimelineService } from '../../agents/timeline';
+import type { AgentTranscriptWatcher } from '../../agents/transcript-watcher';
+import type { ConfigService } from '../../config';
+import type { CaxriDatabase } from '../../db';
+import type { FileService } from '../../files';
+import type { GitService } from '../../git';
+import type { MobileTerminalMutationQueue } from '../../mobile-terminal-mutation-queue';
+import type { TerminalManager } from '../../terminal';
+import { createMobileDomainHandlers } from '../handlers';
 
 describe('mobile timeline authorization', () => {
     it('lets a view-role device read changes only through its granted Session', async () => {

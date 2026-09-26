@@ -44,12 +44,17 @@ tool detail to 2,048 characters. `olderCursor` requests an earlier page. `trunca
 retained window does not include the beginning of the record; the app tells the reader that earlier
 messages are available on the computer. The Server retains at most 16 MiB of parsed source in its
 cache and initially reads only the latest 4 MiB, so this view is not a complete archive.
+Reads are serialized per Terminal, including cache updates and source-revision assignment. Two
+devices therefore cannot append the same record twice or publish inconsistent cursor generations.
+Forgetting a Terminal invalidates pending reads so they cannot repopulate its retired cache.
 
 Cursors encode source identity, byte position, and item position within a provider record.
-Rotation, shrinkage, or a detected same-file rewrite creates a new source generation; a cursor
-outside the retained window also expires. The response sets `cursorExpired` and starts again from
+Rotation, shrinkage, or a detected same-file rewrite creates a new source generation. A cursor
+from another generation expires. The response sets `cursorExpired` and starts again from
 the current latest page; the app replaces stale history instead of joining items from two source
-generations. Item IDs also incorporate source identity and position.
+generations. Item IDs also incorporate source identity and position. A valid cursor outside the
+cached window triggers bounded older-file reads. When one provider record projects multiple items,
+those reads include the cursor's record so earlier items from that same record remain reachable.
 
 ## Updates and rendering
 
@@ -59,6 +64,11 @@ subscribes before its initial snapshot, serializes reads, and refreshes again if
 during a read. If subscription is unavailable, it polls while visible every 2.5 seconds. Background,
 unmount, disconnect, and revocation end the active observation. Reconnect obtains a fresh snapshot;
 the last visible items are marked stale until then.
+
+Latest-page updates replace the overlapping suffix without replacing the pagination cursor of
+the oldest retained item. Once earlier pages are loaded, live updates therefore preserve progress
+toward the beginning, including the exhausted-history state. A disjoint latest page replaces both
+the retained items and their pagination cursor.
 
 The app renders Agent messages as native Markdown without remote images, user messages as bubbles,
 consecutive tools as collapsible groups, and turn boundaries with duration when present. A tool
@@ -77,7 +87,7 @@ feature.
 
 - [Timeline contract](../../packages/protocol/src/mobile/mobile-contract.ts)
 - [Gateway authorization](../../apps/server/src/core/mobile/access-controller.ts) and
-  [Server read](../../apps/server/src/domains/mobile-handlers.ts)
+  [Server read](../../apps/server/src/domains/mobile/handlers.ts)
 - [Timeline projection](../../apps/server/src/domains/agents/timeline.ts),
   [Claude parser](../../apps/server/src/domains/agents/providers/claude/timeline.ts), and
   [Codex parser](../../apps/server/src/domains/agents/providers/codex/timeline.ts)

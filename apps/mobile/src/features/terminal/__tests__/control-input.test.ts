@@ -40,6 +40,10 @@ describe('mobile Terminal control input', () => {
         const value = `${'a'.repeat(12 * 1_024 - 1)}😀end`;
         const chunks = chunkTerminalText(value);
         expect(chunks.join('')).toBe(value);
+        expect(chunks.every((chunk) => chunk.isWellFormed())).toBe(true);
+        const independentlyEncoded = chunks.map((chunk) => new TextEncoder().encode(chunk));
+        const encodedBytes = Uint8Array.from(independentlyEncoded.flatMap((bytes) => [...bytes]));
+        expect(new TextDecoder().decode(encodedBytes)).toBe(value);
         expect(chunks.every((chunk) => chunk.length <= 12 * 1_024)).toBe(true);
     });
 });

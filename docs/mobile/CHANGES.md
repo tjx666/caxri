@@ -24,6 +24,10 @@ returns `stale`.
 The gateway limits the sealed response frame to 64 KiB. These bounds keep a large worktree or file
 from filling a mobile response. They do not inspect or redact source content.
 
+Untracked-file line counts and diff previews share a Server-wide eight-read file budget across
+repositories and paired connections. Concurrent refreshes therefore retain the same per-file size
+bounds without multiplying open descriptors by the number of requested files.
+
 Both methods require a current paired device with at least the `view` role and a grant for the
 Session's Project. The gateway and Server check the Session and current device authority, then
 resolve the opaque repository ID within that Session's authorized Git summary. An unauthorized
@@ -60,7 +64,7 @@ operation after receiving that instruction; the Changes view itself cannot commi
   [transport subscription](../../packages/mobile-transport/src/messages.ts)
 - [Gateway authorization](../../apps/server/src/core/mobile/access-controller.ts),
   [Git projection](../../apps/server/src/domains/git/mobile-changes.ts), and
-  [domain handler](../../apps/server/src/domains/mobile-handlers.ts)
+  [domain handler](../../apps/server/src/domains/mobile/handlers.ts)
 - [Query observer](../../apps/mobile/src/features/changes/use-changes.ts),
   [Changes view](../../apps/mobile/src/features/changes/changes-view.tsx), and
   [diff view](../../apps/mobile/src/features/changes/changes-diff.tsx)

@@ -65,6 +65,61 @@ afterEach(async () => {
 });
 
 describe('MobileGateway', () => {
+    it('records bounded transport causes without peer or payload contents', async () => {
+        const registry = await registryFixture();
+        const write = vi.fn();
+        const gateway = new MobileGateway({
+            ...subscriptionOptions,
+            adapters: {
+                server: {
+                    invoke: () => {
+                        throw new Error('Unexpected dispatch');
+                    },
+                },
+            },
+            authorizePairedDeviceMethod: authorizeMethod,
+            bootId: 'b'.repeat(32),
+            protocolIdentity: { serverId: 'a'.repeat(32), stateEpoch: 'c'.repeat(32) },
+            registry,
+            logger: { write },
+            selectAddress: () => '127.0.0.1',
+        });
+        const enabled = await gateway.enable();
+        try {
+            await Promise.all(
+                [false, false, true].map(async (binary) => {
+                    const socket = await openSocket(
+                        `ws://${enabled.address}:${enabled.port}/mobile`,
+                    );
+                    const closed = new Promise<void>((resolve) => {
+                        socket.once('close', () => resolve());
+                    });
+                    socket.send('private-fixture-payload', { binary });
+                    await closed;
+                }),
+            );
+        } finally {
+            await gateway.close();
+        }
+        expect(write).toHaveBeenCalledWith('warn', 'mobile_gateway.failure', {
+            fields: { reason: 'invalidHandshake' },
+        });
+        expect(write).toHaveBeenCalledWith('warn', 'mobile_gateway.failure', {
+            fields: { reason: 'binaryFrame' },
+        });
+        expect(write.mock.calls.at(-1)).toMatchObject([
+            'info',
+            'mobile_gateway.failure_summary',
+            {
+                fields: { invalidHandshake: 2, binaryFrame: 1, total: 3 },
+            },
+        ]);
+        expect(write).toHaveBeenCalledTimes(3);
+        expect(JSON.stringify(write.mock.calls)).not.toMatch(
+            /private-fixture-payload|127\.0\.0\.1/u,
+        );
+    });
+
     it.each(['view', 'reply', 'control'] as const)(
         'enforces the %s role on each encrypted request and rejects a revoked generation',
         async (role) => {
