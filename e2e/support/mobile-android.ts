@@ -97,10 +97,10 @@ export const pushMobileFixture = (
 /**
  * Reads only a fixed native control's bounds; the raw accessibility tree never leaves the device probe.
  */
-export async function tapMobileNativeControl(
+async function mobileNativeControlBounds(
     serial: string,
-    query: { text?: string; resourceId?: string },
-): Promise<void> {
+    query: { text?: string; resourceId?: string; singleImageTile?: boolean },
+): Promise<ReturnType<typeof androidBounds>> {
     const dumpPath = '/data/local/tmp/caxri-acceptance-native.xml';
     let source: string;
     try {
@@ -113,16 +113,34 @@ export async function tapMobileNativeControl(
         .matchAll(/<node\b[^>]*>/gu)
         .map(([node]) => node)
         .filter((node) => {
+            if (query.singleImageTile) {
+                const tile = androidBounds(/\bbounds="([^"]+)"/u.exec(node)?.[1] ?? '');
+                if (!tile || !node.includes('clickable="true"')) return false;
+                const width = tile.right - tile.left;
+                const height = tile.bottom - tile.top;
+                return width >= 200 && height >= 200 && Math.abs(width - height) <= 2;
+            }
             const attribute = query.text ? 'text' : 'resource-id';
             const value = query.text ?? query.resourceId;
             return new RegExp(String.raw`\b${attribute}="([^"]*)"`, 'u').exec(node)?.[1] === value;
         })
         .toArray();
-    if (candidates.length !== 1) throw new Error('Native mobile control is unavailable');
+    if (candidates.length !== 1) return null;
     const node = candidates[0];
-    if (!node.includes('enabled="true"')) throw new Error('Native mobile control is disabled');
-    const bounds = androidBounds(/\bbounds="([^"]+)"/u.exec(node)?.[1] ?? '');
-    if (!bounds) throw new Error('Native mobile control has no bounds');
+    if (!node.includes('enabled="true"')) return null;
+    return androidBounds(/\bbounds="([^"]+)"/u.exec(node)?.[1] ?? '');
+}
+
+export async function tapMobileNativeControl(
+    serial: string,
+    query: { text?: string; resourceId?: string; singleImageTile?: boolean },
+): Promise<void> {
+    const bounds = await waitForMobile(
+        () => mobileNativeControlBounds(serial, query),
+        (candidate) => candidate !== null,
+        15_000,
+    );
+    if (!bounds) throw new Error('Native mobile control is unavailable');
     await adbShell(serial, [
         'input',
         'tap',
