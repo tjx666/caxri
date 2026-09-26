@@ -82,6 +82,13 @@ export async function executeMobileRecoveryScenario(
                 // UIAutomator can take longer than the delayed pairing result to read a loading frame.
                 await new Promise((resolve) => setTimeout(resolve, 750));
                 await adbShell(environment.serial, ['input', 'keyevent', 'KEYCODE_BACK']);
+                // A deep link launched from Home returns to the Android launcher on Back.
+                await adbShell(environment.serial, [
+                    'am',
+                    'start',
+                    '-W',
+                    'com.caxri.mobile/.MainActivity',
+                ]);
                 await waitForMobile(
                     () => mobileSemantics(environment.serial),
                     (nodes) => nodes.some(({ checkId }) => checkId === 'pairing-entry-screen'),
