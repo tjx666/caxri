@@ -32,6 +32,18 @@ interface CachedTranscript {
     tailSignature: string;
 }
 
+interface TimelineReadQueue {
+    generation: number;
+    tail: Promise<void>;
+}
+
+const missingTimeline = (): MobileTimelineReadResult => ({
+    status: 'missing',
+    items: [],
+    truncated: false,
+    cursorExpired: false,
+});
+
 async function tailSignature(handle: FileHandle, end: number): Promise<string> {
     if (end <= 0) return '';
     const length = Math.min(64, end);
@@ -137,6 +149,7 @@ function boundedPage(
 export class AgentTimelineService {
     readonly #cache = new Map<string, CachedTranscript>();
     readonly #revisions = new Map<string, number>();
+    readonly #reads = new Map<string, TimelineReadQueue>();
 
     constructor(
         private readonly database: CaxriDatabase,
@@ -144,6 +157,8 @@ export class AgentTimelineService {
     ) {}
 
     forgetTerminal(terminalId: string): void {
+        const reads = this.#reads.get(terminalId);
+        if (reads) reads.generation += 1;
         this.#cache.delete(terminalId);
         this.#revisions.delete(terminalId);
     }
@@ -154,16 +169,47 @@ export class AgentTimelineService {
         before: string | undefined,
         limit: number,
     ): Promise<MobileTimelineReadResult> {
+        const queue = this.#reads.get(terminalId) ?? { generation: 0, tail: Promise.resolve() };
+        const previous = queue.tail;
+        const release = Promise.withResolvers<void>();
+        const generation = queue.generation;
+        queue.tail = release.promise;
+        this.#reads.set(terminalId, queue);
+        await previous;
+        try {
+            if (queue.generation !== generation) return missingTimeline();
+            const page = await this.#readCurrent(sessionId, terminalId, before, limit);
+            return queue.generation === generation ? page : missingTimeline();
+        } finally {
+            /**
+             * A forgotten Terminal cannot regain cached history from an older in-flight read.
+             */
+            if (queue.generation !== generation) {
+                this.#cache.delete(terminalId);
+                this.#revisions.delete(terminalId);
+            }
+            release.resolve();
+            if (queue.tail === release.promise) this.#reads.delete(terminalId);
+        }
+    }
+
+    /**
+     * Serialize file identity, revision, and append updates across independently connected readers.
+     */
+    async #readCurrent(
+        sessionId: string,
+        terminalId: string,
+        before: string | undefined,
+        limit: number,
+    ): Promise<MobileTimelineReadResult> {
         const terminal = this.database.getTerminal(terminalId);
-        if (terminal?.sessionId !== sessionId || !terminal.provider)
-            return { status: 'missing', items: [], truncated: false, cursorExpired: false };
+        if (terminal?.sessionId !== sessionId || !terminal.provider) return missingTimeline();
         const provider = terminal.provider;
         if (!agentProviders[provider].timelineProjector)
             return { status: 'unsupported', items: [], truncated: false, cursorExpired: false };
         const location = await locateAgentTranscript(this.database, terminalId, this.environment);
         const opened = location && (await openSafeAgentTranscript(location));
-        if (!opened)
-            return { status: 'missing', items: [], truncated: false, cursorExpired: false };
+        if (!opened) return missingTimeline();
         try {
             const { handle, path, stats } = opened;
             const fileIdentity = `${stats.dev.toString(36)}.${stats.ino.toString(36)}.${Math.floor(stats.birthtimeMs).toString(36)}`;
