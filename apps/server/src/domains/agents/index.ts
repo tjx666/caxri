@@ -1,4 +1,5 @@
 export { listAgentActions, recordRecentAgentAction } from './actions';
+export { AgentAttentionRequests } from './attention-requests';
 export { CompactionReadiness } from './compaction-readiness';
 export { SessionContentSearch } from './content-search';
 export type { ContextCacheObservation } from './context-cache';
