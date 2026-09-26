@@ -126,10 +126,14 @@ async function enterComposerText(
 // eslint-disable-next-line no-empty-pattern -- Playwright requires the fixture argument.
 test('executes one report-bound Android product scenario', async ({}) => {
     test.skip(!caseId, 'Run through the guarded Android Acceptance adapter');
+    /**
+     * Reserve bounded queue time without shortening the product scenario's deadline.
+     */
+    test.setTimeout(210_000);
     const environment = requireEnvironment();
     const artifacts: string[] = [];
     if (environment.caseId.startsWith('MOB-E2E-')) {
-        test.setTimeout(300_000);
+        test.setTimeout(420_000);
         if (!sourceCommit || !launchId)
             throw new Error('Integrated journey Acceptance identity is incomplete');
         await executeMobileEndToEndScenario(
@@ -141,7 +145,7 @@ test('executes one report-bound Android product scenario', async ({}) => {
 
     switch (environment.caseId) {
         case 'MOB-SESSION-PUSH-01':
-            test.setTimeout(180_000);
+            test.setTimeout(300_000);
             await executeMobileSessionRefreshScenario(environment, artifacts);
             break;
         case 'MOB-PAIR-CANCEL-01':
@@ -387,7 +391,7 @@ test('executes one report-bound Android product scenario', async ({}) => {
             break;
         }
         case 'MOB-TERM-01':
-            test.setTimeout(300_000);
+            test.setTimeout(420_000);
             await executeMobileTerminalScenario(
                 { ...environment, launchId, sourceCommit, remoteVideoPath },
                 artifacts,

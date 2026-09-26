@@ -96,6 +96,9 @@ Use the launch helpers instead of the developer's real profile:
 - Seed Home-browser fixtures under the launcher's isolated Agent HOME
   (`<userDataDir>/e2e-agents/home`); a `launchCaxri({ env: { HOME } })` override is replaced by
   the isolation environment. Canonicalize expected Project roots before comparing server results.
+- Guarded Android Acceptance reserves up to two minutes for the shared Desktop lease after its
+  release build. Keep that queue budget separate from the scenario deadline; a busy sibling must
+  be awaited through the lease API, never killed or bypassed, and must not force an immediate APK rebuild.
 
 The manual real-Agent smoke is Codex-only: `bun run test:e2e:real-agent`. It requires an
 authenticated Codex CLI, sends one bounded read-only natural-language prompt in a temporary
