@@ -174,6 +174,7 @@ describe('pnpm workspace contract', () => {
             '@yutengjing/eslint-config-typescript',
             '@yutengjing/prettier-config',
             'eslint-plugin-import-x',
+            'lucide-react-native',
             'markdownlint',
             'markdownlint-cli2',
             'oxlint',
