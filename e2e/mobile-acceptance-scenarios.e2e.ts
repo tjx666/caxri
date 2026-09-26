@@ -197,8 +197,8 @@ test('executes one report-bound Android product scenario', async ({}) => {
                 if (kind === 'permission') {
                     await tapMobileCheck(environment.serial, 'attention-allow-once');
                 } else {
-                    await tapMobileAttentionCheck(environment.serial, 'attention-option-Alpha');
-                    await tapMobileAttentionCheck(environment.serial, 'attention-option-Beta');
+                    await tapMobileAttentionCheck(environment.serial, 'attention-option-0-0');
+                    await tapMobileAttentionCheck(environment.serial, 'attention-option-0-1');
                     await tapMobileAttentionCheck(environment.serial, 'attention-answer-next');
                     await tapMobileAttentionCheck(environment.serial, 'attention-answer-input');
                     await adbShell(environment.serial, ['input', 'text', 'fixture']);
