@@ -9,6 +9,7 @@ import { Plus } from 'lucide-react-native';
 
 import type { MobileTheme } from '../../../theme/tokens';
 import { useMobileClient } from '../../connection/mobile-client-provider';
+import { AttentionCards } from '../../conversation/attention-cards';
 import type { MobileLayoutMode } from '../../layout/layout-mode';
 import { useSessionManagement } from '../hooks/use-session-management';
 import type { SessionListEntry } from '../hooks/use-session-polling';
@@ -153,15 +154,25 @@ export const SessionHome = ({
             item.type === 'header' ? (
                 <Text style={[styles.groupHeader, { color: theme.muted }]}>{item.label}</Text>
             ) : (
-                <SessionRow
-                    now={now}
-                    onLongPress={deviceRole === 'control' ? openActions : undefined}
-                    onPress={onOpenSession}
-                    selected={item.session.id === selectedId && layout !== 'phone'}
-                    session={item.session}
-                    showProject={activeProjectId === null}
-                    theme={theme}
-                />
+                <View>
+                    <SessionRow
+                        now={now}
+                        onLongPress={deviceRole === 'control' ? openActions : undefined}
+                        onPress={onOpenSession}
+                        selected={item.session.id === selectedId && layout !== 'phone'}
+                        session={item.session}
+                        showProject={activeProjectId === null}
+                        theme={theme}
+                    />
+                    {item.session.lastActivityState === 'waiting' ? (
+                        <AttentionCards
+                            fallbackToTerminal={item.session.primaryTerminal?.provider !== 'claude'}
+                            role={deviceRole}
+                            sessionId={item.session.id}
+                            theme={theme}
+                        />
+                    ) : null}
+                </View>
             ),
         [activeProjectId, deviceRole, layout, now, onOpenSession, openActions, selectedId, theme],
     );

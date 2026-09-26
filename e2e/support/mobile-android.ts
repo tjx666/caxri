@@ -87,6 +87,68 @@ export async function runMobileDeviceCommand(
 export const adbShell = (serial: string, arguments_: string[]): Promise<string> =>
     runMobileDeviceCommand(adb, ['-s', serial, 'shell', ...arguments_], 'capture');
 
+export const pushMobileFixture = (
+    serial: string,
+    localPath: string,
+    remotePath: string,
+): Promise<string> =>
+    runMobileDeviceCommand(adb, ['-s', serial, 'push', localPath, remotePath], 'capture');
+
+/**
+ * Reads only a fixed native control's bounds; the raw accessibility tree never leaves the device probe.
+ */
+async function mobileNativeControlBounds(
+    serial: string,
+    query: { text?: string; resourceId?: string; singleImageTile?: boolean },
+): Promise<ReturnType<typeof androidBounds>> {
+    const dumpPath = '/data/local/tmp/caxri-acceptance-native.xml';
+    let source: string;
+    try {
+        await adbShell(serial, ['uiautomator', 'dump', dumpPath]);
+        source = await adbShell(serial, ['cat', dumpPath]);
+    } finally {
+        await adbShell(serial, ['rm', '-f', dumpPath]);
+    }
+    const candidates = source
+        .matchAll(/<node\b[^>]*>/gu)
+        .map(([node]) => node)
+        .filter((node) => {
+            if (query.singleImageTile) {
+                const tile = androidBounds(/\bbounds="([^"]+)"/u.exec(node)?.[1] ?? '');
+                if (!tile || !node.includes('clickable="true"')) return false;
+                const width = tile.right - tile.left;
+                const height = tile.bottom - tile.top;
+                return width >= 200 && height >= 200 && Math.abs(width - height) <= 2;
+            }
+            const attribute = query.text ? 'text' : 'resource-id';
+            const value = query.text ?? query.resourceId;
+            return new RegExp(String.raw`\b${attribute}="([^"]*)"`, 'u').exec(node)?.[1] === value;
+        })
+        .toArray();
+    if (candidates.length !== 1) return null;
+    const node = candidates[0];
+    if (!node.includes('enabled="true"')) return null;
+    return androidBounds(/\bbounds="([^"]+)"/u.exec(node)?.[1] ?? '');
+}
+
+export async function tapMobileNativeControl(
+    serial: string,
+    query: { text?: string; resourceId?: string; singleImageTile?: boolean },
+): Promise<void> {
+    const bounds = await waitForMobile(
+        () => mobileNativeControlBounds(serial, query),
+        (candidate) => candidate !== null,
+        15_000,
+    );
+    if (!bounds) throw new Error('Native mobile control is unavailable');
+    await adbShell(serial, [
+        'input',
+        'tap',
+        String(Math.floor((bounds.left + bounds.right) / 2)),
+        String(Math.floor((bounds.top + bounds.bottom) / 2)),
+    ]);
+}
+
 export async function mobileDisplayState(serial: string): Promise<AndroidDisplayState> {
     const [density, fontScale, rotation, size] = await Promise.all([
         adbShell(serial, ['wm', 'density']),
@@ -234,6 +296,28 @@ export const tapMobileCheck = (
         checkId,
         ...(options.isLongPress ? ['--long-press'] : []),
     ]);
+
+/**
+ * React Native can expose a visible Pressable with `clickable=false` in Android's accessibility dump. Tap its verified
+ * device bounds and prove the resulting product state separately.
+ */
+export async function tapMobileCheckByBounds(serial: string, checkId: string): Promise<void> {
+    const nodes = await mobileSemantics(serial);
+    const target = nodes.find((node) => node.checkId === checkId);
+    const bounds = target && androidBounds(target.bounds);
+    if (!bounds || !target.enabled) {
+        const visible = nodes
+            .filter((node) => node.checkId.startsWith(checkId.split('-', 1)[0]))
+            .map((node) => node.checkId);
+        throw new Error(`Mobile control ${checkId} is unavailable; visible: ${visible.join(',')}`);
+    }
+    await adbShell(serial, [
+        'input',
+        'tap',
+        String(Math.floor((bounds.left + bounds.right) / 2)),
+        String(Math.floor((bounds.top + bounds.bottom) / 2)),
+    ]);
+}
 
 export async function waitForMobile<T>(
     read: () => T | Promise<T>,

@@ -152,6 +152,7 @@ export interface AgentHookBinding {
     matcher?: string;
     phase: AgentLifecyclePhase;
     reply?: 'emptyJson';
+    interactive?: 'permission' | 'question';
 }
 
 export interface AgentHookConfigTarget {

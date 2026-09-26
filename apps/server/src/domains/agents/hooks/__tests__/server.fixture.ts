@@ -87,13 +87,20 @@ interface TestHookServer {
  */
 export async function createTestServer(
     handler: HookSignalHandler = () => ({ disposition: 'accepted' }),
+    onAttention?: ConstructorParameters<typeof AgentHookServer>[4],
 ): Promise<TestHookServer> {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-hook-server-'));
     onTestFinished(() => rm(directory, { recursive: true, force: true }));
     const socketPath = join(directory, 'hooks.sock');
     const onSignal = vi.fn(handler);
     const onDiagnostic = vi.fn();
-    const server = new AgentHookServer(socketPath, SCHEMA_VERSIONS, onSignal, onDiagnostic);
+    const server = new AgentHookServer(
+        socketPath,
+        SCHEMA_VERSIONS,
+        onSignal,
+        onDiagnostic,
+        onAttention,
+    );
     await server.start();
     return { server, socketPath, onDiagnostic, onSignal };
 }

@@ -5,6 +5,107 @@ needlessly prolonged an Acceptance run. Read it before planning a desktop or mob
 Keep entries evidence-based and link to the canonical workflow rule instead of
 duplicating the full procedure here.
 
+## Freezing fixture requirements without matching runner receipts
+
+**Situation:** A mobile Agent case uses a synthetic CLI but never displays or samples a Terminal grid.
+
+**Does not work:** Adding `fixturePreflight: "terminal"` just because an Agent fixture exists. The
+Android runner can pass while emitting no Terminal preflight receipt, so finalization correctly
+rejects the round. Likewise, an `agentFixture` plan entry needs a begin/complete lifecycle receipt
+from that exact case; launching a fake Agent alone does not provide one.
+
+**Works:** Before freezing a plan, map each declared fixture requirement to the runner's actual
+receipt-producing call. Use Terminal preflight only when the case measures a rendered Terminal grid
+and writes its bounded preflight receipt. Start and complete an Agent fixture lifecycle for every
+case that declares `agentFixture`. Check the first case's artifact list before spending a full
+batch on an unpublishable plan. See the [report contract](../skills/acceptance/references/report.md).
+
+## Capturing mobile Agent fixture content in public evidence
+
+**Situation:** An Android Acceptance case displays a synthetic Agent request over its Session conversation.
+
+**Does not work:** Assuming synthetic Session titles and transcripts are safe to publish, or passing a
+privacy switch through `sourceEnvironment`. The fake Agent isolation builder selects its own environment
+keys, so that switch does not reach the executable. A successful device case can still have unusable media.
+
+**Works:** Select the fixture's `isPublicFrame` source variant before generating its executable, then inspect
+the full screenshot and recording before citing them. The variant emits no transcript content or Terminal
+output and uses a generic Session label. A missing transcript routes the app to Terminal, so a pending native
+Agent request must remain reachable there. An empty fixture-owned transcript file can make Conversation and
+its composer available without visible conversation content. Follow the
+[Acceptance privacy rule](../skills/acceptance/SKILL.md).
+
+For a file-edit case, the `shell-conversation` fixture still paints synthetic Terminal rows. Use a
+content-free fixture when capturing a report-bound failure screenshot; a synthetic transcript is
+still Agent output under the same privacy rule.
+
+## Guessing a mobile tab check ID from its destination
+
+**Situation:** An Android case opens a Session's Files panel after pairing.
+
+**Does not work:** Tapping `session-segment-files`. Files belongs to the Session's Project segment,
+then the `caxri.files` panel tab; the guessed ID fails before the file behavior is exercised.
+
+**Works:** Check the mounted component's `testID` and wait for that ID in device semantics before
+each navigation tap. Open `session-segment-panels`, then `panel-tab-caxri.files`, and only then
+look for `files-entry-*`.
+
+## Reusing a disabled native button for another action
+
+**Situation:** After saving a file, the Android framebuffer still shows the Edit action and
+semantics still lists its `testID`, but the action remains `enabled=false`.
+
+**Does not work:** Treating the visible label as proof that the action is enabled, or bypassing the
+disabled state with a coordinate tap. React can reconcile a conditionally rendered Edit Pressable
+with the Save Pressable that was disabled during submission.
+
+**Works:** Give the mutually exclusive native actions distinct React keys, then use the strict
+semantic tap helper to verify the returned Edit button is enabled after saving. Keep the action
+away from the screen edge with a full touch target.
+
+## Assuming a native Android Photo Picker thumbnail has a resource ID
+
+**Situation:** A disposable Android 36 emulator has exactly one fixture-owned JPEG in the system
+Photo Picker.
+
+**Does not work:** Querying a guessed Photo Picker thumbnail resource ID immediately after the
+native source dialog. The picker opens asynchronously and its clickable image tile has no resource
+ID in the device hierarchy.
+
+**Works:** Confirm the gallery is empty before adding one synthetic image, wait for the picker to
+show one enabled clickable square tile, tap its verified bounds, and confirm Caxri's attachment
+state afterwards. Parse native accessibility XML only in memory and remove the temporary device dump
+without uploading or logging it.
+
+The public-frame Agent fixture intentionally ignores bracketed paste as a command, so a mobile
+image send does not create a `terminalInput` receipt. Require its sanitized
+`imageAttachmentReceived` receipt instead; it records only whether the referenced JPEG path is
+valid and exists, never the path or message.
+
+## Using arbitrary option labels as Android check IDs
+
+**Situation:** A mobile Agent question renders clickable choices, but the sanitized Android semantic receipt
+does not list their `testID` values.
+
+**Does not work:** Building `testID` from an Agent-supplied label such as `Alpha`. The Android receipt
+accepts only lower-case check IDs, and other labels may contain spaces or punctuation.
+
+**Works:** Use stable numeric choice IDs and keep the Agent label in the accessibility label. Verify a
+touch through the device semantics and the resulting Agent fixture receipt. See the
+[Android surface procedure](../skills/acceptance/surfaces/android.md).
+
+## Losing the desktop lease between Android cases
+
+**Situation:** A batch reuses one release APK but launches and closes a separate isolated Electron
+profile for each mobile case.
+
+**Does not work:** Assuming the serial lock also reserves the shared macOS desktop. Another worktree
+can take the desktop lease between cases, after the expensive APK build.
+
+**Works:** Let the case's Electron launcher use the bounded active-owner lease wait, then launch only
+after the repository lease is free. A stale or invalid lease still fails closed. See the
+[Android surface procedure](../skills/acceptance/surfaces/android.md).
+
 ## Comparing an isolated Desktop profile by its original temporary path
 
 **Situation:** An Acceptance helper binds Desktop media to the isolated Electron profile.

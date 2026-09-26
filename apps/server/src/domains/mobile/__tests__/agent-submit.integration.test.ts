@@ -79,6 +79,42 @@ async function fixture() {
 }
 
 describe('mobile Agent submission', () => {
+    it('includes only resolved attachment paths in one exact Agent submission', async () => {
+        const f = await fixture();
+        const attachmentId = 'image_0123456789abcdef0123456789abcdef';
+        const imagePath = join(f.path, `${attachmentId}.jpg`);
+        const paths = vi.fn(() => [imagePath]);
+        const handler = createMobileAgentSubmitHandler({
+            database: f.database,
+            endpoints: f.endpoints,
+            images: { paths },
+            queue: f.queue,
+            terminals: { submitAgentExact: f.submitAgentExact },
+        });
+        const input = { ...f.input, attachmentIds: [attachmentId] };
+        try {
+            await expect(handler(input)).resolves.toEqual({
+                terminalId: f.terminalId,
+                outcome: 'accepted',
+            });
+            expect(paths).toHaveBeenCalledExactlyOnceWith('device-1:1', f.input.sessionId, [
+                attachmentId,
+            ]);
+            expect(f.submitAgentExact).toHaveBeenCalledExactlyOnceWith(
+                f.terminalId,
+                f.input.sessionId,
+                'launch-1',
+                `${f.input.text}\n\nAttached image paths:\n${imagePath}`,
+                undefined,
+            );
+            await expect(handler({ ...input, attachmentIds: [] })).rejects.toMatchObject({
+                code: 'CONFLICT',
+            });
+        } finally {
+            f.database.close();
+        }
+    });
+
     it('writes once and replays accepted after a Server database reopen without storing text', async () => {
         const f = await fixture();
         expect(await f.handler(f.input)).toEqual({ terminalId: f.terminalId, outcome: 'accepted' });

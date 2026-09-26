@@ -24,6 +24,76 @@ afterEach(async () => {
 });
 
 describe('MobileAccessController role and resource authority', () => {
+    it('rejects a revoked device before answering or writing a file', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-mobile-revoked-write-'));
+        temporaryDirectories.push(directory);
+        const registryPath = join(directory, 'mobile-devices.json');
+        const registry = await MobileDeviceRegistry.open({ directory, path: registryPath });
+        const paired = await registry.pair({
+            displayName: 'Test phone',
+            platform: 'ios',
+            projectIds: ['project-1'],
+        });
+        const principal = registry.authenticate({
+            credential: paired.credential,
+            deviceId: paired.device.deviceId,
+            generation: paired.device.generation,
+        });
+        const controller = await openMobileAccessController({ directory, registryPath });
+        const request = vi.fn();
+        const domainService = { request } as unknown as ServerDomainService;
+        controller.attach(
+            { invoke: vi.fn() },
+            'b'.repeat(32),
+            { serverId: 'a'.repeat(32), stateEpoch: 'c'.repeat(32) },
+            domainService,
+            terminalExecution,
+            () => {},
+        );
+        try {
+            await controller.invokeDesktopOperation({
+                method: 'mobile.device.revoke.apply',
+                params: {
+                    deviceId: paired.device.deviceId,
+                    expectedGeneration: paired.device.generation,
+                },
+            });
+            const context: CommandExecutionContext = { capabilities: [], principal };
+            await expect(
+                controller.invokeControl(
+                    {
+                        method: 'mobile.attention.answer',
+                        params: {
+                            sessionId: 'session-1',
+                            requestId: 'request-1',
+                            decision: 'allow',
+                        },
+                    },
+                    context,
+                    domainService,
+                ),
+            ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+            await expect(
+                controller.invokeControl(
+                    {
+                        method: 'mobile.files.write',
+                        params: {
+                            sessionId: 'session-1',
+                            path: '/project/notes.txt',
+                            content: 'updated',
+                            expectedContentHash: 'a'.repeat(64),
+                        },
+                    },
+                    context,
+                    domainService,
+                ),
+            ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+            expect(request).not.toHaveBeenCalled();
+        } finally {
+            await controller.close();
+        }
+    });
+
     it('revokes promptly while a mobile Session start is pending', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-mobile-create-revoke-'));
         temporaryDirectories.push(directory);
@@ -126,6 +196,19 @@ describe('MobileAccessController role and resource authority', () => {
         expect(isMobileGatewayMethodAllowedForRole('view', 'mobile.terminal.input')).toBe(false);
         expect(isMobileGatewayMethodAllowedForRole('reply', 'terminal.send')).toBe(false);
         expect(isMobileGatewayMethodAllowedForRole('reply', 'mobile.agent.submit')).toBe(true);
+        expect(isMobileGatewayMethodAllowedForRole('view', 'mobile.attention.list')).toBe(true);
+        expect(isMobileGatewayMethodAllowedForRole('view', 'mobile.attention.answer')).toBe(false);
+        expect(isMobileGatewayMethodAllowedForRole('reply', 'mobile.attention.answer')).toBe(false);
+        expect(isMobileGatewayMethodAllowedForRole('control', 'mobile.attention.answer')).toBe(
+            true,
+        );
+        expect(isMobileGatewayMethodAllowedForRole('view', 'mobile.agent.actions')).toBe(true);
+        expect(isMobileGatewayMethodAllowedForRole('view', 'mobile.files.search')).toBe(true);
+        expect(isMobileGatewayMethodAllowedForRole('view', 'mobile.files.write')).toBe(false);
+        expect(isMobileGatewayMethodAllowedForRole('reply', 'mobile.files.write')).toBe(false);
+        expect(isMobileGatewayMethodAllowedForRole('control', 'mobile.files.write')).toBe(true);
+        expect(isMobileGatewayMethodAllowedForRole('view', 'mobile.image.upload')).toBe(false);
+        expect(isMobileGatewayMethodAllowedForRole('reply', 'mobile.image.upload')).toBe(true);
         expect(isMobileGatewayMethodAllowedForRole('reply', 'agent.control.interrupt')).toBe(false);
         expect(isMobileGatewayMethodAllowedForRole('view', 'mobile.changes.list')).toBe(true);
         expect(isMobileGatewayMethodAllowedForRole('view', 'mobile.changes.diff')).toBe(true);

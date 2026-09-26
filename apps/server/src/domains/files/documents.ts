@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { Stats } from 'node:fs';
 import { constants } from 'node:fs';
 import { lstat, open, realpath, rename, unlink } from 'node:fs/promises';
@@ -264,6 +264,7 @@ export class DocumentService {
         path: string,
         content: string,
         expected?: ResolvedSessionPath,
+        expectedContentHash?: string,
     ): Promise<FileDocument> {
         const resolved = await this.resolveDocumentPath(sessionId, path, expected);
         if (isDependencyDocument(resolved))
@@ -293,6 +294,13 @@ export class DocumentService {
                     'IO',
                     'File changed during save or has multiple filesystem links',
                 );
+            }
+            if (expectedContentHash !== undefined) {
+                const currentHash = createHash('sha256')
+                    .update(await file.readFile())
+                    .digest('hex');
+                if (currentHash !== expectedContentHash)
+                    throw new CaxriError('CONFLICT', 'File changed since it was opened');
             }
             const replacement = await this.openFile(
                 temporaryPath,
@@ -337,6 +345,10 @@ export class DocumentService {
                 currentStats.dev !== stats.dev ||
                 currentStats.ino !== stats.ino ||
                 currentStats.nlink > 1 ||
+                (expectedContentHash !== undefined &&
+                    (currentStats.mtimeMs !== openedStats.mtimeMs ||
+                        currentStats.ctimeMs !== openedStats.ctimeMs ||
+                        currentStats.size !== openedStats.size)) ||
                 (await realpath(resolved.path)) !== resolved.path
             )
                 throw new CaxriError('IO', 'File changed during save');

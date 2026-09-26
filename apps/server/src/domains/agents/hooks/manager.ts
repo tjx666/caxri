@@ -37,6 +37,7 @@ import { defaultHookHealth, hookHealthFor } from './health';
 import { withAgentHookInstallLock } from './install-lock';
 import { HookLaunchRegistry } from './launch-registry';
 import { parseProfileIntents, serializeProfileIntents } from './profile-intents';
+import type { HookWireAttention } from './server';
 import { AgentHookServer, pruneStaleAgentHookSockets } from './server';
 import { AgentHookTelemetry } from './telemetry';
 
@@ -67,6 +68,13 @@ interface AgentHookManagerOptions {
     onLaunchEnded: (terminalId: string) => void;
     onLaunchStarted: (terminalId: string, launchId: string) => void;
     onSignal: (signal: AgentLifecycleSignal) => AgentSignalDecision | Promise<AgentSignalDecision>;
+    onAttention?: (
+        request: HookWireAttention,
+        signal: AbortSignal,
+    ) => Promise<{
+        decision?: 'allow' | 'deny';
+        answers?: Record<string, string>;
+    } | null>;
     hookExecutable: string;
     /**
      * Per-provider schema version this instance writes as the provider-file ordering token, announces to the bridge,
@@ -653,6 +661,14 @@ export class AgentHookManager {
                     }
                 },
                 (diagnostic) => this.telemetry.record(diagnostic),
+                async (request, signal) => {
+                    if (
+                        !this.settings?.claude.hooks.enabled ||
+                        !this.requestedSettings?.claude.hooks.enabled
+                    )
+                        return null;
+                    return this.options.onAttention?.(request, signal) ?? null;
+                },
             );
             await this.server.start();
             await this.reconcile(settings);

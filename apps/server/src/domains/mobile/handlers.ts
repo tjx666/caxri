@@ -1,10 +1,12 @@
 import { Buffer } from 'node:buffer';
+import { createHash } from 'node:crypto';
 
 import type { Principal, ServerEvent } from '@caxri/protocol';
 import { CaxriError, MOBILE_FILES_MAX_ENTRIES, MOBILE_FILES_READ_MAX_BYTES } from '@caxri/protocol';
 
 import type { AgentEndpointLifecycle } from '../agent-endpoints';
 import type { AgentTimelineService, AgentTranscriptWatcher } from '../agents';
+import { AgentAttentionRequests } from '../agents';
 import type { ConfigService } from '../config';
 import type { CaxriDatabase } from '../db';
 import type { DomainHandlers } from '../domain-services';
@@ -14,6 +16,7 @@ import type { MobileTerminalMutationQueue } from '../mobile-terminal-mutation-qu
 import type { TerminalManager } from '../terminal';
 import { createMobileAgentAvailabilityHandler } from './agent-availability';
 import { createMobileAgentSubmitHandler } from './agent-submit';
+import { MobileImageStore } from './image-store';
 import { createMobileProjectAddHandler, createMobileProjectBrowseHandler } from './project-browse';
 
 type MobileDomainMethods = Pick<
@@ -22,6 +25,12 @@ type MobileDomainMethods = Pick<
     | 'mobile.agent.availabilityInternal'
     | 'mobile.agent.submit'
     | 'mobile.agent.submitInternal'
+    | 'mobile.attention.list'
+    | 'mobile.attention.listInternal'
+    | 'mobile.attention.answer'
+    | 'mobile.attention.answerInternal'
+    | 'mobile.image.upload'
+    | 'mobile.image.uploadInternal'
     | 'mobile.changes.list'
     | 'mobile.changes.listInternal'
     | 'mobile.changes.diff'
@@ -41,6 +50,10 @@ type MobileDomainMethods = Pick<
     | 'mobile.files.listInternal'
     | 'mobile.files.read'
     | 'mobile.files.readInternal'
+    | 'mobile.files.search'
+    | 'mobile.files.searchInternal'
+    | 'mobile.files.write'
+    | 'mobile.files.writeInternal'
 >;
 
 function authorizedSession(database: CaxriDatabase, sessionId: string, principal: Principal) {
@@ -57,23 +70,52 @@ function authorizedSession(database: CaxriDatabase, sessionId: string, principal
 }
 
 export function createMobileDomainHandlers(options: {
+    attentionRequests?: AgentAttentionRequests;
     configuration: ConfigService;
     database: CaxriDatabase;
     emit: (event: ServerEvent) => void;
     endpoints?: AgentEndpointLifecycle;
     files: FileService;
     git: GitService;
+    imageDirectory?: string;
     queue: MobileTerminalMutationQueue;
     terminals: TerminalManager;
     timeline: AgentTimelineService;
     transcripts: AgentTranscriptWatcher;
 }): MobileDomainMethods {
+    const attentionRequests = options.attentionRequests ?? new AgentAttentionRequests();
+    const images = new MobileImageStore(options.imageDirectory);
     const browseProject = createMobileProjectBrowseHandler({});
     const addProject = createMobileProjectAddHandler({
         database: options.database,
         emit: options.emit,
     });
     return {
+        'mobile.attention.list': () => {
+            throw new CaxriError('FORBIDDEN', 'Mobile attention requires a paired device');
+        },
+        'mobile.attention.listInternal': ({ sessionId, principal }) => {
+            authorizedSession(options.database, sessionId, principal);
+            return { requests: attentionRequests.list(sessionId) };
+        },
+        'mobile.attention.answer': () => {
+            throw new CaxriError('FORBIDDEN', 'Mobile attention requires a paired device');
+        },
+        'mobile.attention.answerInternal': ({
+            sessionId,
+            requestId,
+            decision,
+            answers,
+            principal,
+        }) => {
+            if (principal.kind !== 'paired-device' || principal.role !== 'control')
+                throw new CaxriError(
+                    'FORBIDDEN',
+                    'Control access is required to answer Agent requests',
+                );
+            authorizedSession(options.database, sessionId, principal);
+            return attentionRequests.answer(sessionId, requestId, { decision, answers });
+        },
         'mobile.agent.availability': () => {
             throw new CaxriError('FORBIDDEN', 'Mobile Agent availability requires a paired device');
         },
@@ -81,7 +123,30 @@ export function createMobileDomainHandlers(options: {
         'mobile.agent.submit': () => {
             throw new CaxriError('FORBIDDEN', 'Mobile Agent input requires a paired device');
         },
-        'mobile.agent.submitInternal': createMobileAgentSubmitHandler(options),
+        'mobile.agent.submitInternal': createMobileAgentSubmitHandler({ ...options, images }),
+        'mobile.image.upload': () => {
+            throw new CaxriError('FORBIDDEN', 'Mobile image upload requires a paired device');
+        },
+        'mobile.image.uploadInternal': async ({
+            sessionId,
+            attachmentId,
+            chunkIndex,
+            chunkCount,
+            chunk,
+            principal,
+        }) => {
+            if (principal.kind !== 'paired-device' || principal.role === 'view')
+                throw new CaxriError('FORBIDDEN', 'Device cannot attach images');
+            authorizedSession(options.database, sessionId, principal);
+            return images.upload({
+                sessionId,
+                attachmentId,
+                chunkIndex,
+                chunkCount,
+                chunk,
+                owner: `${principal.deviceId}:${principal.generation}`,
+            });
+        },
         'mobile.changes.list': () => {
             throw new CaxriError('FORBIDDEN', 'Mobile changes require a paired device');
         },
@@ -188,6 +253,7 @@ export function createMobileDomainHandlers(options: {
                     content: document.content,
                     mtimeMs: document.mtimeMs,
                     size: document.size,
+                    contentHash: createHash('sha256').update(document.content).digest('hex'),
                     ...(document.readOnly !== undefined && { readOnly: document.readOnly }),
                 };
             } catch (error) {
@@ -206,6 +272,61 @@ export function createMobileDomainHandlers(options: {
                     return { status: 'binary' as const };
                 throw error;
             }
+        },
+        'mobile.files.write': () => {
+            throw new CaxriError('FORBIDDEN', 'Mobile file writes require a paired device');
+        },
+        'mobile.files.search': () => {
+            throw new CaxriError('FORBIDDEN', 'Mobile file search requires a paired device');
+        },
+        'mobile.files.searchInternal': async ({ sessionId, query, principal }) => {
+            authorizedSession(options.database, sessionId, principal);
+            const result = await options.files.search({
+                sessionId,
+                consumer: 'mobile-composer',
+                mode: 'name',
+                query,
+                caseSensitive: false,
+                wholeWord: false,
+                regex: false,
+                include: '',
+                exclude: '',
+                useIgnoreFiles: true,
+            });
+            const paths = result.matches
+                .map((match) => match.relativePath)
+                .filter((path) => path.length <= 2_048);
+            return {
+                paths: paths.slice(0, 40),
+                truncated:
+                    result.truncated || paths.length !== result.matches.length || paths.length > 40,
+            };
+        },
+        'mobile.files.writeInternal': async ({
+            sessionId,
+            path,
+            content,
+            expectedContentHash,
+            principal,
+        }) => {
+            if (principal.kind !== 'paired-device' || principal.role !== 'control')
+                throw new CaxriError('FORBIDDEN', 'Control access is required to edit files');
+            authorizedSession(options.database, sessionId, principal);
+            const document = await options.files.write(
+                sessionId,
+                path,
+                content,
+                expectedContentHash,
+            );
+            return {
+                status: 'available' as const,
+                path: document.path,
+                content: document.content,
+                mtimeMs: document.mtimeMs,
+                size: document.size,
+                contentHash: createHash('sha256').update(document.content).digest('hex'),
+                ...(document.readOnly !== undefined && { readOnly: document.readOnly }),
+            };
         },
     };
 }

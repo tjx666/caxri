@@ -1,21 +1,30 @@
 import { Buffer } from 'node:buffer';
-import { writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname } from 'node:path';
 import process from 'node:process';
 
-import { writeJsonAtomic } from '../scripts/atomic-json.ts';
+import {
+    beginAgentFixtureLifecycle,
+    completeAgentFixtureLifecycle,
+} from '../.agents/skills/acceptance/scripts/agent-fixture-lifecycle.ts';
 import { expect, test } from './support/fixtures.ts';
 import { pageRequest } from './support/helpers.ts';
 import { createMobileAcceptanceFixture } from './support/mobile-acceptance-fixture.ts';
 import {
+    capture,
+    executeMobileComposerSuggestionsScenario,
+    executeMobileFileEditScenario,
+    executeMobileImageAttachmentScenario,
+    finish,
+} from './support/mobile-agent-actions-scenarios.ts';
+import {
     adbShell,
-    captureMobileFramebuffer,
     mobileDisplayState,
     mobileSemantics,
     restoreMobileDisplayState,
     setMobileNetworkAvailable,
     startMobileFramebufferRecording,
     tapMobileCheck,
+    tapMobileCheckByBounds,
     waitForMobile,
 } from './support/mobile-android.ts';
 import { executeMobileChangesScenario } from './support/mobile-changes-scenarios.ts';
@@ -63,31 +72,6 @@ function requireEnvironment(): {
     return { artifactManifestPath, assetsDirectory, caseId, scenarioReceiptPath, serial };
 }
 
-async function capture(
-    environment: ReturnType<typeof requireEnvironment>,
-    label: string,
-    artifacts: string[],
-): Promise<void> {
-    const name = `${environment.caseId}-${label}-android.png`;
-    await captureMobileFramebuffer(environment.serial, join(environment.assetsDirectory, name));
-    artifacts.push(`assets/${name}`);
-}
-
-async function finish(
-    environment: ReturnType<typeof requireEnvironment>,
-    artifacts: string[],
-    receipt: Record<string, unknown>,
-): Promise<void> {
-    await Promise.all([
-        writeJsonAtomic(environment.artifactManifestPath, { artifacts, schemaVersion: 1 }),
-        writeFile(
-            environment.scenarioReceiptPath,
-            `${JSON.stringify({ ...receipt, caseId: environment.caseId, schemaVersion: 1 }, null, 2)}\n`,
-            'utf8',
-        ),
-    ]);
-}
-
 async function openComposerSession(serial: string, sessionId: string): Promise<void> {
     await tapMobileCheck(serial, `session-row-${sessionId}`);
     await waitForMobile(
@@ -128,7 +112,7 @@ test('executes one report-bound Android product scenario', async ({}) => {
     /**
      * Reserve bounded queue time without shortening the product scenario's deadline.
      */
-    test.setTimeout(210_000);
+    test.setTimeout(300_000);
     const environment = requireEnvironment();
     const artifacts: string[] = [];
     if (environment.caseId.startsWith('MOB-E2E-')) {
@@ -152,6 +136,107 @@ test('executes one report-bound Android product scenario', async ({}) => {
         case 'MOB-STORAGE-01':
             await executeMobileRecoveryScenario({ ...environment, remoteVideoPath }, artifacts);
             break;
+        case 'MOB-ATTN-01':
+        case 'MOB-ATTN-02': {
+            const fixture = await createMobileAcceptanceFixture({
+                mode: 'attention',
+                serial: environment.serial,
+            });
+            const reportDirectory = dirname(environment.assetsDirectory);
+            const fixtureLaunchId = await beginAgentFixtureLifecycle(reportDirectory, {
+                availableProviders: ['claude', 'codex'],
+                caseId: environment.caseId,
+                fixtureId: 'agent-features-v1',
+            });
+            let recording: Awaited<ReturnType<typeof startMobileFramebufferRecording>> | undefined;
+            const kind = environment.caseId === 'MOB-ATTN-01' ? 'permission' : 'question';
+            try {
+                await fixture.pair();
+                if (!fixture.allowedSessionId || !fixture.attention)
+                    throw new Error('Attention fixture Session is unavailable');
+                await tapMobileCheck(environment.serial, `session-row-${fixture.allowedSessionId}`);
+                await waitForMobile(
+                    () => mobileSemantics(environment.serial),
+                    (nodes) => nodes.some(({ checkId }) => checkId === 'session-detail'),
+                );
+                recording = await startMobileFramebufferRecording(
+                    environment.serial,
+                    requireRemoteVideoPath(),
+                );
+                await fixture.attention.trigger(
+                    kind === 'permission' ? 'fixture:permission' : 'fixture:question',
+                );
+                await waitForMobile(
+                    () => mobileSemantics(environment.serial),
+                    (nodes) => nodes.some(({ checkId }) => checkId === 'attention-cards'),
+                    30_000,
+                );
+                await capture(environment, 'request', artifacts);
+                if (kind === 'permission') {
+                    await tapMobileCheck(environment.serial, 'attention-allow-once');
+                } else {
+                    await tapMobileCheckByBounds(environment.serial, 'attention-option-0-0');
+                    await tapMobileCheckByBounds(environment.serial, 'attention-option-0-1');
+                    await tapMobileCheckByBounds(environment.serial, 'attention-answer-next');
+                    await tapMobileCheckByBounds(environment.serial, 'attention-answer-input');
+                    await adbShell(environment.serial, ['input', 'text', 'fixture']);
+                    await tapMobileCheckByBounds(environment.serial, 'attention-answer-next');
+                }
+                await waitForMobile(
+                    () => fixture.attention!.readReceipt(),
+                    (receipts) =>
+                        receipts.some(
+                            (receipt) =>
+                                receipt.kind === 'attentionAnswer' &&
+                                receipt.attentionKind === kind &&
+                                receipt.applied === true,
+                        ),
+                    30_000,
+                );
+                await waitForMobile(
+                    () => mobileSemantics(environment.serial),
+                    (nodes) =>
+                        nodes.every(({ checkId }) => checkId !== 'attention-allow-once') &&
+                        nodes.every(({ checkId }) => checkId !== 'attention-answer-next'),
+                );
+                await capture(environment, 'answered', artifacts);
+                await finish(environment, artifacts, {
+                    attentionKind: kind,
+                    fixtureAnswer: 'applied',
+                    status: 'passed',
+                });
+            } finally {
+                await recording?.stop();
+                await fixture.stop();
+                await completeAgentFixtureLifecycle(reportDirectory, {
+                    caseId: environment.caseId,
+                    cleanupCompleted: true,
+                    launchId: fixtureLaunchId,
+                    sharedProfile: false,
+                });
+            }
+            break;
+        }
+        case 'MOB-COMPOSE-01': {
+            await executeMobileComposerSuggestionsScenario(
+                environment,
+                artifacts,
+                requireRemoteVideoPath(),
+            );
+            break;
+        }
+        case 'MOB-COMPOSE-02': {
+            await executeMobileImageAttachmentScenario(
+                environment,
+                artifacts,
+                requireRemoteVideoPath(),
+            );
+            break;
+        }
+        case 'MOB-EDIT-01': {
+            await executeMobileFileEditScenario(environment, artifacts);
+            break;
+        }
         case 'MOB-PAIR-02': {
             await adbShell(environment.serial, [
                 'am',

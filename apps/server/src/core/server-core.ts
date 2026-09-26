@@ -112,6 +112,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         userDataPath: lease.paths.userDataPath,
     });
     const domainService = createServerDomainService({
+        hasMobileAttentionRecipient: (projectId) => mobileAccess.hasAttentionRecipient(projectId),
         agentEndpointControl: endpointControl,
         agentHooksPath: options.agentHooksPath,
         createServices: options.createDomainServices,

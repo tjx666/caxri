@@ -10,6 +10,7 @@ import type { CreateDomainServices } from './domain-service';
 import { ServerDomainService } from './domain-service';
 
 export interface ServerDomainServiceOptions {
+    hasMobileAttentionRecipient?: (projectId: string) => boolean;
     agentEndpointControl: AgentEndpointControl;
     agentHooksPath?: string;
     executable?: string;
@@ -28,6 +29,7 @@ export function createServerDomainService(
 ): ServerDomainService {
     return new ServerDomainService(
         {
+            hasMobileAttentionRecipient: options.hasMobileAttentionRecipient,
             agentEndpoints: new AgentEndpointLifecycle(
                 options.agentEndpointControl,
                 options.userDataPath,

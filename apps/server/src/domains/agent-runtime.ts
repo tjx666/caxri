@@ -5,7 +5,7 @@ import { errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
-import type { AgentLifecycleSignal } from './agents';
+import type { AgentAttentionRequests, AgentLifecycleSignal } from './agents';
 import {
     AgentCoordinator,
     AgentHookManager,
@@ -24,6 +24,7 @@ import * as provenance from './workbench-provenance';
 import type { WorkbenchRootService } from './workbench-roots';
 
 interface CreateAgentRuntimeOptions {
+    attentionRequests: AgentAttentionRequests;
     configuration: ConfigService;
     database: CaxriDatabase;
     dependencies: Pick<
@@ -35,6 +36,7 @@ interface CreateAgentRuntimeOptions {
         | 'agentRefreshDelayMs'
         | 'agentUnknownRecoveryMs'
         | 'hookExecutable'
+        | 'hasMobileAttentionRecipient'
     >;
     logger: StructuredLogger;
     /**
@@ -108,7 +110,10 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
         environment: agentEnvironment,
         logger,
         onAuthorityLost: (provider) => coordinator.resetHookAuthority(provider),
-        onLaunchEnded: (terminalId) => coordinator.endTerminalLaunch(terminalId),
+        onLaunchEnded: (terminalId) => {
+            coordinator.endTerminalLaunch(terminalId);
+            options.attentionRequests.supersedeTerminal(terminalId);
+        },
         onLaunchStarted: (terminalId, launchId) =>
             coordinator.beginTerminalLaunch(terminalId, launchId),
         onSignal: async (signal) => {
@@ -121,6 +126,55 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
                 options.onLifecycleSignal?.(signal);
             }
             return decision;
+        },
+        onAttention: async (request, signal) => {
+            const terminal = database.getTerminal(request.terminalId);
+            if (terminal?.lastProcessState !== 'running') return null;
+            const session = database.getSession(terminal.sessionId);
+            if (!session) return null;
+            /**
+             * Only PreToolUse can return question answers; a permission decision alone cannot complete this tool.
+             *
+             * @see https://code.claude.com/docs/en/hooks#askuserquestion
+             */
+            if (request.attentionKind === 'permission' && request.toolName === 'AskUserQuestion')
+                return null;
+            const attentionSignal = {
+                provider: 'claude' as const,
+                phase: 'attentionRequested' as const,
+                terminalId: request.terminalId,
+                launchId: request.launchId,
+            };
+            const decision = await provenance.handleAgentLifecycleSignal(
+                coordinator,
+                workbenchRoots,
+                attentionSignal,
+            );
+            if (decision !== 'accepted') return null;
+            options.onLifecycleSignal?.(attentionSignal);
+            if (!dependencies.hasMobileAttentionRecipient?.(session.projectId)) return null;
+            const disconnected = new AbortController();
+            const monitor = setInterval(() => {
+                if (!dependencies.hasMobileAttentionRecipient?.(session.projectId))
+                    disconnected.abort();
+            }, 1_000);
+            monitor.unref();
+            try {
+                const { requestId, answer } = await options.attentionRequests.offer({
+                    sessionId: terminal.sessionId,
+                    terminalId: request.terminalId,
+                    launchId: request.launchId,
+                    kind: request.attentionKind,
+                    toolName: request.toolName,
+                    summary: request.summary,
+                    questions: request.questions,
+                    signal: AbortSignal.any([signal, disconnected.signal]),
+                });
+                if (answer) options.attentionRequests.markApplied(requestId);
+                return answer;
+            } finally {
+                clearInterval(monitor);
+            }
         },
         hookExecutable: dependencies.hookExecutable ?? process.execPath,
         send,
