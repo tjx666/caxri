@@ -425,7 +425,7 @@ export async function createMobileAcceptanceFixture(
     try {
         running = await launchCaxri({
             agentMode,
-            desktopLeaseWaitMs: process.env.CAXRI_MOBILE_ACCEPTANCE_CASE_ID ? 120_000 : 0,
+            desktopLeaseWaitMs: process.env.CAXRI_MOBILE_ACCEPTANCE_CASE_ID ? 180_000 : undefined,
             userDataDir: userData,
             testRootPath: allowedRoot,
             env: {

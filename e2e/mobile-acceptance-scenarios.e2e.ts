@@ -113,7 +113,7 @@ test('executes one report-bound Android product scenario', async ({}) => {
     /**
      * Reserve bounded queue time without shortening the product scenario's deadline.
      */
-    test.setTimeout(210_000);
+    test.setTimeout(300_000);
     const environment = requireEnvironment();
     const artifacts: string[] = [];
     if (environment.caseId.startsWith('MOB-E2E-')) {

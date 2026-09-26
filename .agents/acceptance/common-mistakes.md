@@ -32,6 +32,18 @@ accepts only lower-case check IDs, and other labels may contain spaces or punctu
 touch through the device semantics and the resulting Agent fixture receipt. See the
 [Android surface procedure](../skills/acceptance/surfaces/android.md).
 
+## Losing the desktop lease between Android cases
+
+**Situation:** A batch reuses one release APK but launches and closes a separate isolated Electron
+profile for each mobile case.
+
+**Does not work:** Assuming the serial lock also reserves the shared macOS desktop. Another worktree
+can take the desktop lease between cases, after the expensive APK build.
+
+**Works:** Let the case's Electron launcher use the bounded active-owner lease wait, then launch only
+after the repository lease is free. A stale or invalid lease still fails closed. See the
+[Android surface procedure](../skills/acceptance/surfaces/android.md).
+
 ## Comparing an isolated Desktop profile by its original temporary path
 
 **Situation:** An Acceptance helper binds Desktop media to the isolated Electron profile.
