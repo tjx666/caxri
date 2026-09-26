@@ -14,8 +14,10 @@ import {
 import parcelWatcher from '@parcel/watcher';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { createWatchFailureProbe } from '../../__tests__/support/watch-diagnostics';
 import { ConfigService } from '../config';
 import { draculaTheme } from '../theme';
+import { WatchHub } from '../watch-hub';
 
 const temporaryDirectories: string[] = [];
 afterEach(async () => {
@@ -470,25 +472,37 @@ describe('ConfigurationService', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-'));
         temporaryDirectories.push(directory);
         const events: ServerEvent[] = [];
-        const service = new ConfigService(directory, (event) => {
-            events.push(event);
-        });
+        const watchHub = new WatchHub();
+        const service = new ConfigService(
+            directory,
+            (event) => {
+                events.push(event);
+            },
+            undefined,
+            { watchHub },
+        );
         await service.initialize();
 
         try {
+            const diagnose = createWatchFailureProbe(watchHub, 'config', () => events.length);
             const source = `${JSON.stringify({ ...service.getSettings().value, 'terminal.fontSize': 16 }, null, 2)}\n`;
             const temporaryPath = `${service.settingsPath}.external.tmp`;
             await writeFile(temporaryPath, source, 'utf8');
             await rename(temporaryPath, service.settingsPath);
 
-            await expect
-                .poll(() => service.getSettings().value['terminal.fontSize'], { timeout: 5_000 })
-                .toBe(16);
+            await diagnose(
+                expect
+                    .poll(() => service.getSettings().value['terminal.fontSize'], {
+                        timeout: 5_000,
+                    })
+                    .toBe(16),
+            );
             expect(events.filter((event) => event.event === 'settings.changed')).toEqual([
                 { event: 'settings.changed', payload: { source } },
             ]);
         } finally {
             await service.close();
+            await watchHub.close();
         }
     });
 
@@ -496,9 +510,15 @@ describe('ConfigurationService', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-oversized-reload-'));
         temporaryDirectories.push(directory);
         const events: ServerEvent[] = [];
-        const service = new ConfigService(directory, (event) => {
-            events.push(event);
-        });
+        const watchHub = new WatchHub();
+        const service = new ConfigService(
+            directory,
+            (event) => {
+                events.push(event);
+            },
+            undefined,
+            { watchHub },
+        );
         await service.initialize();
         const cases = [
             {
@@ -521,6 +541,11 @@ describe('ConfigurationService', () => {
         try {
             for (const testCase of cases) {
                 events.length = 0;
+                const diagnose = createWatchFailureProbe(
+                    watchHub,
+                    'config',
+                    () => events.filter((event) => event.event === testCase.event).length,
+                );
                 const previousSource = testCase.getSource();
                 const temporaryPath = `${testCase.path}.external.tmp`;
                 // eslint-disable-next-line no-await-in-loop -- each case resets shared `events` state and mutates the same watched path; running cases concurrently would race.
@@ -533,16 +558,19 @@ describe('ConfigurationService', () => {
                 await rename(temporaryPath, testCase.path);
 
                 // eslint-disable-next-line no-await-in-loop -- polling this case's outcome must finish before resetting shared `events` state for the next case.
-                await expect
-                    .poll(
-                        () => {
-                            const payload = events.find((event) => event.event === testCase.event)
-                                ?.payload as { error?: string; source: string } | undefined;
-                            return payload?.error;
-                        },
-                        { timeout: 5_000 },
-                    )
-                    .toContain('configuration source limit');
+                await diagnose(
+                    expect
+                        .poll(
+                            () => {
+                                const payload = events.find(
+                                    (event) => event.event === testCase.event,
+                                )?.payload as { error?: string; source: string } | undefined;
+                                return payload?.error;
+                            },
+                            { timeout: 5_000 },
+                        )
+                        .toContain('configuration source limit'),
+                );
                 expect(testCase.getSource()).toBe(previousSource);
                 const payload = events.find((event) => event.event === testCase.event)?.payload as
                     { error?: string; source: string } | undefined;
@@ -550,6 +578,7 @@ describe('ConfigurationService', () => {
             }
         } finally {
             await service.close();
+            await watchHub.close();
         }
     });
 
