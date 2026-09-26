@@ -19,6 +19,21 @@ import {
 const INITIAL_THREAD = '019a0000-0000-7000-8000-000000000001';
 const RESUMED_THREAD = '019a0000-0000-7000-8000-000000000042';
 
+async function acceptedHookCount(
+    logPath: string,
+    phase: 'turnStarted' | 'turnFinished',
+): Promise<number> {
+    const log = await readFile(logPath, 'utf8');
+    return log
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line) as { event?: string; fields?: { phase?: string } })
+        .filter(
+            (entry) =>
+                entry.event === 'agent_hooks.signal_accepted' && entry.fields?.phase === phase,
+        ).length;
+}
+
 for (const entry of ['shell', 'codex', 'exited-codex'] as const) {
     // eslint-disable-next-line no-empty-pattern -- Playwright requires object destructuring for its fixture argument
     test(`manual Codex resume from ${entry} tracks the resumed turn in the sidebar`, async ({}, testInfo) => {
@@ -182,7 +197,20 @@ process.stdout.write('Fake Codex ready\r\n');
                     })
                     .toBe('running');
             }
+            const hookLogPath = join(userData, 'logs', 'server-core.jsonl');
+            const startsBeforeWork =
+                entry === 'shell' ? 0 : await acceptedHookCount(hookLogPath, 'turnStarted');
             await typeTerminal(running.page, 'work');
+            /**
+             * The resumed thread ID and sidebar's running status can both predate this prompt. Wait for the hook from
+             * this exact managed turn before sending `finish`, so the assertion cannot pass on inherited running state
+             * while the fixture is still processing `work`. A Shell-launched Codex first reports providerMismatch and
+             * binds through Shell promotion, so it has no accepted hook receipt at this point.
+             */
+            if (entry !== 'shell')
+                await expect
+                    .poll(() => acceptedHookCount(hookLogPath, 'turnStarted'))
+                    .toBeGreaterThan(startsBeforeWork);
             await expect
                 .poll(async () => {
                     const state = await pageRequest<BootstrapState>(running.page, 'app.bootstrap');
@@ -191,7 +219,13 @@ process.stdout.write('Fake Codex ready\r\n');
                 .toBe(RESUMED_THREAD);
             await expect(status).toBeVisible();
             await running.page.screenshot({ path: testInfo.outputPath('resumed-running.png') });
+            const finishesBeforeFinish =
+                entry === 'shell' ? 0 : await acceptedHookCount(hookLogPath, 'turnFinished');
             await typeTerminal(running.page, 'finish');
+            if (entry !== 'shell')
+                await expect
+                    .poll(() => acceptedHookCount(hookLogPath, 'turnFinished'))
+                    .toBeGreaterThan(finishesBeforeFinish);
             await expect(status).toHaveCount(0);
         } finally {
             await running.app.close();

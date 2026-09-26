@@ -133,6 +133,9 @@ evidence rather than automated test or Acceptance evidence.
   launch finalization and lease cleanup so one worker failure cannot poison later specs.
 - Preserve the first causal failure and its artifacts. Do not use retries to turn an original red
   result green or allow a lock/lease cascade to hide it.
+- Map a CI failure to the exact assertion in that run's source and its screenshot or trace before
+  naming the failed stage. A test title that mentions reload can still fail during an earlier split,
+  as `terminal-commands.e2e.ts` did; current line numbers may have shifted since the run.
 - CI keeps `maxFailures` for fast containment, then reruns suppressed tests once per file and line with
   `--max-failures=0` so every parameterized sibling receives a verdict.
   The final pool receipt must classify every planned spec as `pass`, `fail`, or `timeout`, retain
