@@ -193,6 +193,30 @@ const androidCases = {
         recordingOwner: 'scenario',
         scenario: 'journey-tablet',
     },
+    'MOB-UI-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'ui-audit-project-tab',
+    },
+    'MOB-UI-02': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'ui-audit-changes',
+    },
+    'MOB-UI-03': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'ui-audit-offline',
+    },
+    'MOB-UI-04': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'adapter',
+        scenario: 'conversation-shell-fallback',
+    },
 } as const satisfies Record<
     string,
     {
@@ -236,6 +260,7 @@ export function shouldCaptureAdapterScreenshot(caseId: string, isLifecycleReady:
         definition.scenario !== 'conversation-shell-fallback' &&
         definition.scenario !== 'terminal-observe-control' &&
         !caseId.startsWith('MOB-CHANGES-') &&
+        !caseId.startsWith('MOB-UI-') &&
         !caseId.startsWith('MOB-E2E-') &&
         caseId !== 'MOB-CROSS-01' &&
         caseId !== 'MOB-PARTIAL-01'
