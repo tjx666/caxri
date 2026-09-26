@@ -66,6 +66,91 @@ async function browserBundle(entry: string, modules: Record<string, string> = {}
 }
 
 describe('mobile runtime browser boundaries', () => {
+    it('keeps newer pairing and Forget authoritative over delayed pairing results', async () => {
+        const code = await browserBundle(
+            `
+            import { createElement } from 'react';
+            import { createRoot } from 'react-dom/client';
+            import { useMobileClientController } from '${root}/src/features/connection/use-mobile-client-controller.ts';
+            globalThis.fixture = { saved: null, delayed: {}, closed: [] };
+            function Harness() {
+                globalThis.fixture.client = useMobileClientController();
+                return null;
+            }
+            globalThis.fixture.run = async () => {
+                const f = globalThis.fixture;
+                const old = f.client.pair('A').catch(() => {});
+                await f.client.pair('B');
+                f.delayed.A();
+                await old;
+                await new Promise(requestAnimationFrame);
+                const result = [f.client.hostId, JSON.parse(f.saved).serverId, String(f.closed.includes('A'))];
+                const pending = f.client.pair('C').catch(() => {});
+                await f.client.forgetDevice();
+                f.delayed.C();
+                await pending;
+                await new Promise(requestAnimationFrame);
+                return [...result, f.client.status, String(f.saved), String(f.closed.includes('C'))];
+            };
+            createRoot(document.getElementById('root')).render(createElement(Harness));
+        `,
+            {
+                'react-native': `export const AppState = { currentState: 'active', addEventListener: () => ({ remove() {} }) };`,
+                'expo-device': `export const modelName = 'Fixture phone';`,
+                'expo-network': `export const addNetworkStateListener = () => ({ remove() {} });`,
+                './expo-credential-store': `
+                    import { createMobileCredentialStore } from '${root}/src/features/connection/credential-store.ts';
+                    export const expoMobileCredentialStore = createMobileCredentialStore({
+                        getItemAsync: async () => globalThis.fixture.saved,
+                        setItemAsync: async (_, value) => { globalThis.fixture.saved = value; },
+                        deleteItemAsync: async () => { globalThis.fixture.saved = null; }
+                    });
+                `,
+                './expo-mobile-gateway-runtime': `export const expoMobileGatewayRuntime = {};`,
+                './mobile-gateway-client': `
+                    export class MobileGatewayRequestError extends Error {}
+                    export class MobileGatewayTimeoutError extends Error {}
+                    export class MobileReconnectError extends Error {}
+                    export class MobileVersionMismatchError extends Error {}
+                    export const reconnectMobileGateway = async () => { throw new Error('Unexpected reconnect'); };
+                    export const pairMobileGateway = async (input) => {
+                        const name = input.pairingLink;
+                        const connection = { close: () => globalThis.fixture.closed.push(name),
+                            setForeground() {}, onObservation: () => () => {}, onTermination: () => () => {} };
+                        try {
+                            if (name !== 'B') await new Promise(resolve => { globalThis.fixture.delayed[name] = resolve; });
+                            const credential = { version: 1, addresses: ['127.0.0.1'], port: 42131,
+                                serverId: name, deviceId: 'device_' + '01'.repeat(16), generation: 1, credential: 'ab'.repeat(32) };
+                            await input.store.save(credential, input.isCurrent);
+                            return { credential, connection };
+                        } catch (error) { connection.close(); throw error; }
+                    };
+                `,
+            },
+        );
+        const browser = await chromium.launch({ headless: true });
+        try {
+            const page = await browser.newPage();
+            await page.setContent('<div id="root"></div>');
+            await page.addScriptTag({ content: code });
+            await page.waitForFunction(
+                () =>
+                    Reflect.has((globalThis as FixtureScope).fixture, 'client') &&
+                    (globalThis as FixtureScope).fixture.client.status === 'unpaired',
+            );
+            expect(await page.evaluate(() => (globalThis as FixtureScope).fixture.run())).toEqual([
+                'B',
+                'B',
+                'true',
+                'unpaired',
+                'null',
+                'true',
+            ]);
+        } finally {
+            await browser.close();
+        }
+    });
+
     it('reacquires a Terminal snapshot after a WebView document restarts', async () => {
         const code = await browserBundle(
             `
@@ -76,7 +161,7 @@ describe('mobile runtime browser boundaries', () => {
             const injectScript = () => {};
             function Harness() {
                 globalThis.fixture.terminal = useLiveTerminal({ injectScript, isConnected: true,
-                    isStopped: false, role: 'view', terminalId: 'terminal-fixture', visible: true });
+                    isStopped: false, role: 'control', terminalId: 'terminal-fixture', visible: true });
                 return null;
             }
             createRoot(document.getElementById('root')).render(createElement(Harness));
@@ -87,8 +172,14 @@ describe('mobile runtime browser boundaries', () => {
                 '../connection/mobile-client-provider': `
                 const context = { connectionEpoch: 1, subscriptionAvailable: true,
                     request: async () => null,
-                    subscribe: async () => {
+                    subscribe: async (_, listener) => {
                         const id = ++globalThis.fixture.subscriptions;
+                        const snapshot = { terminalId: 'terminal-fixture', encodingVersion: 1,
+                            cols: 80, rows: 24, lineCount: 1, byteCount: 2, payload: 'hi', updatedAt: 1 };
+                        const chunkHex = Array.from(new TextEncoder().encode(JSON.stringify(snapshot)),
+                            byte => byte.toString(16).padStart(2, '0')).join('');
+                        listener({ type: 'stream', kind: 'terminal.snapshot', generation: 1,
+                            nextHostSequence: 1, chunkIndex: 0, chunkCount: 1, chunkHex });
                         return { subscriptionId: 'subscription-' + id,
                             unsubscribe: async () => { globalThis.fixture.unsubscribed++; } };
                     }
@@ -149,6 +240,55 @@ describe('mobile runtime browser boundaries', () => {
             );
             await page.waitForFunction(
                 () => (globalThis as FixtureScope).fixture.subscriptions === 3,
+            );
+            await page.waitForFunction(
+                () => (globalThis as FixtureScope).fixture.terminal.canControl,
+            );
+            expect(
+                await page.evaluate(async () => {
+                    const terminal = (globalThis as FixtureScope).fixture.terminal;
+                    terminal.onWebviewMessage(
+                        JSON.stringify({
+                            version: 1,
+                            terminalId: 'terminal-fixture',
+                            type: 'error',
+                            code: 'render-failed',
+                        }),
+                    );
+                    return terminal.sendInput('fixture');
+                }),
+            ).toBe('blocked');
+            await page.waitForFunction(
+                () => (globalThis as FixtureScope).fixture.terminal.state === 'error',
+            );
+            expect(
+                await page.evaluate(() => (globalThis as FixtureScope).fixture.terminal.canControl),
+            ).toBe(false);
+            await page.waitForFunction(
+                () => (globalThis as FixtureScope).fixture.unsubscribed === 3,
+            );
+            const documentGeneration = await page.evaluate(() => {
+                const terminal = (globalThis as FixtureScope).fixture.terminal;
+                terminal.retry();
+                return terminal.webviewGeneration;
+            });
+            await page.waitForFunction(
+                (previous) =>
+                    (globalThis as FixtureScope).fixture.terminal.webviewGeneration > previous,
+                documentGeneration,
+            );
+            expect(
+                await page.evaluate(() => (globalThis as FixtureScope).fixture.subscriptions),
+            ).toBe(3);
+            await page.evaluate(
+                (message) =>
+                    (globalThis as FixtureScope).fixture.terminal.onWebviewMessage(message),
+                ready,
+            );
+            await page.waitForFunction(
+                () =>
+                    (globalThis as FixtureScope).fixture.subscriptions === 4 &&
+                    (globalThis as FixtureScope).fixture.terminal.canControl,
             );
         } finally {
             await browser.close();

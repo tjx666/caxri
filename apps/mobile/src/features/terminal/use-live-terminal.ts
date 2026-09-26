@@ -96,7 +96,9 @@ export const useLiveTerminal = ({
     const resizeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
     const lifetime = useRef(0);
     const context = useRef({ isConnected, role, visible, subscriptionAvailable });
+    const webviewValid = useRef(false);
     const [webviewReady, setWebviewReady] = useState(false);
+    const [webviewGeneration, setWebviewGeneration] = useState(0);
     const [state, setState] = useState<LiveTerminalState>('loading');
     const [error, setError] = useState<string | null>(null);
     const [atBottom, setAtBottom] = useState(true);
@@ -107,12 +109,24 @@ export const useLiveTerminal = ({
     const [currentGeneration, setCurrentGeneration] = useState<number | null>(null);
     const [hasSubscription, setHasSubscription] = useState(false);
 
-    const onWebviewTerminated = useCallback((): void => {
+    const invalidateWebview = useCallback((): void => {
+        webviewValid.current = false;
+        generation.current = null;
+        lifetime.current += 1;
         setWebviewReady(false);
         setState('loading');
         size.current = null;
         setHasSize(false);
     }, []);
+
+    /**
+     * Recreate the native document rather than reloading a terminated Android WebView.
+     * https://developer.android.com/develop/ui/views/layout/webapps/handle-termination
+     */
+    const onWebviewTerminated = useCallback((): void => {
+        invalidateWebview();
+        setWebviewGeneration((current) => current + 1);
+    }, [invalidateWebview]);
 
     useLayoutEffect(() => {
         context.current = { isConnected, role, visible, subscriptionAvailable };
@@ -190,7 +204,7 @@ export const useLiveTerminal = ({
         if (shouldObserveTerminal({ isStopped, subscriptionAvailable, visible, webviewReady })) {
             // eslint-disable-next-line no-void -- The effect owns the bounded subscription and its cleanup.
             void subscribe({ kind: 'terminal', terminalId }, (message) => {
-                if (!isActive || !isStreamActive) return;
+                if (!isActive || !isStreamActive || !webviewValid.current) return;
                 if (message.kind === 'resync-required') {
                     scheduleResync();
                     return;
@@ -292,6 +306,7 @@ export const useLiveTerminal = ({
         if (
             !handle ||
             currentGeneration === null ||
+            !webviewValid.current ||
             !canUseTerminalControls({
                 connected: isConnected,
                 generation: currentGeneration,
@@ -415,6 +430,7 @@ export const useLiveTerminal = ({
         if (!message) return;
         switch (message.type) {
             case 'ready': {
+                webviewValid.current = true;
                 setWebviewReady(true);
                 // Each document needs its own snapshot, even if a previous document was already ready.
                 setRetry((current) => current + 1);
@@ -457,6 +473,8 @@ export const useLiveTerminal = ({
                 break;
             }
             case 'error': {
+                invalidateWebview();
+                setState('error');
                 setError('The Terminal display could not render.');
             }
         }
@@ -482,10 +500,11 @@ export const useLiveTerminal = ({
         paste,
         pressKey,
         release,
-        retry: () => setRetry((current) => current + 1),
+        retry: onWebviewTerminated,
         sendInput,
         typeText,
         state: displayState,
         takeOver,
+        webviewGeneration,
     };
 };

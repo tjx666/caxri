@@ -36,6 +36,42 @@ const memoryStorage = (): CredentialStorageAdapter & { values: Map<string, strin
 };
 
 describe('mobile credential store', () => {
+    it('rolls back a pairing superseded during a native write before releasing the queue', async () => {
+        const storage = memoryStorage();
+        const store = createMobileCredentialStore(storage);
+        await store.save(credential);
+        let isCurrent = true;
+        let releaseWrite = (): void => {};
+        let reportWrite = (): void => {};
+        // eslint-disable-next-line unicorn/prefer-promise-with-resolvers -- Match the mobile runtime target.
+        const started = new Promise<void>((resolve) => {
+            reportWrite = resolve;
+        });
+        // eslint-disable-next-line unicorn/prefer-promise-with-resolvers -- Match the mobile runtime target.
+        const finish = new Promise<void>((resolve) => {
+            releaseWrite = resolve;
+        });
+        const write = storage.setItemAsync.bind(storage);
+        storage.setItemAsync = async (key, value) => {
+            if (value === JSON.stringify(replacementCredential)) {
+                reportWrite();
+                await finish;
+            }
+            await write(key, value);
+        };
+        const save = store.save(replacementCredential, () => isCurrent);
+        const rejected = expect(save).rejects.toThrow('superseded');
+        await started;
+        isCurrent = false;
+        const snapshot = store.load();
+        releaseWrite();
+        await rejected;
+        await expect(snapshot).resolves.toEqual(credential);
+        await store.clear();
+        await expect(store.save(replacementCredential, () => false)).rejects.toThrow('superseded');
+        await expect(store.load()).resolves.toBeNull();
+    });
+
     it('round-trips the bounded device credential', async () => {
         const storage = memoryStorage();
         const store = createMobileCredentialStore(storage);
