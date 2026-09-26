@@ -150,15 +150,38 @@ async function projectIcons(environment: UiAuditScenarioEnvironment, artifacts: 
     await waitFor(serial, (nodes) => hasCheck(nodes, 'files-panel'));
     await capture(environment, 'files', artifacts, 'files-panel');
     const nodes = await mobileSemantics(serial);
-    const treeTab = nodes
+    const treeTabs = nodes
         .map(({ checkId }) => checkId)
-        .find((id) => id.startsWith('panel-tab-') && id !== 'panel-tab-caxri.files');
-    if (!treeTab) throw new Error('The Project tab lists no tree view besides Files');
-    await tapMobileCheck(serial, treeTab);
-    const viewId = treeTab.slice('panel-tab-'.length);
-    await waitFor(serial, (current) => hasCheck(current, `tree-panel-${viewId}`));
-    await capture(environment, 'tree-view', artifacts, `tree-panel-${viewId}`);
-    await finish(environment, artifacts, { status: 'passed', treeView: viewId });
+        .filter((id) => id.startsWith('panel-tab-') && id !== 'panel-tab-caxri.files');
+    if (treeTabs.length === 0) throw new Error('The Project tab lists no tree view besides Files');
+    /**
+     * Tabs are keyed by panel id while the tree body is keyed by view id, so wait for any rendered tree body rather
+     * than deriving its id from the tab.
+     */
+    const treeViews: string[] = [];
+    for (const [index, treeTab] of treeTabs.entries()) {
+        // eslint-disable-next-line no-await-in-loop -- Each tab is opened and captured in turn on one device.
+        await tapMobileCheck(serial, treeTab);
+        // eslint-disable-next-line no-await-in-loop -- The capture must follow this tab's render.
+        const rendered = await waitFor(serial, (current) =>
+            current.some(
+                ({ checkId }) => checkId.startsWith('tree-panel-') && !treeViews.includes(checkId),
+            ),
+        );
+        const treePanel = rendered
+            .map(({ checkId }) => checkId)
+            .find((id) => id.startsWith('tree-panel-') && !treeViews.includes(id));
+        if (
+            !treePanel ||
+            treePanel === 'tree-panel-error' ||
+            treePanel === 'tree-panel-other-session'
+        )
+            throw new Error(`Tree view did not load: ${treePanel ?? 'missing'}`);
+        treeViews.push(treePanel);
+        // eslint-disable-next-line no-await-in-loop -- Captures are sequential device reads.
+        await capture(environment, `tree-view-${index + 1}`, artifacts, treePanel);
+    }
+    await finish(environment, artifacts, { status: 'passed', treeViews: treeViews.length });
 }
 
 const sessionTitle = async (fixture: MobileAcceptanceFixture, sessionId: string) => {
