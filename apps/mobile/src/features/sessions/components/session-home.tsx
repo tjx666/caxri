@@ -4,6 +4,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { FlashListRef, ListRenderItemInfo } from '@shopify/flash-list';
 import { FlashList } from '@shopify/flash-list';
+import { useRouter } from 'expo-router';
+import { Plus } from 'lucide-react-native';
 
 import type { MobileTheme } from '../../../theme/tokens';
 import { useMobileClient } from '../../connection/mobile-client-provider';
@@ -22,24 +24,24 @@ const styles = StyleSheet.create({
     phonePane: { flex: 1 },
     tabletPane: { flexGrow: 0, flexShrink: 0, width: 320 },
     groupHeader: {
-        fontSize: 11,
-        fontWeight: '800',
-        letterSpacing: 0.8,
-        paddingBottom: 7,
-        paddingHorizontal: 16,
-        paddingTop: 18,
+        fontSize: 12,
+        fontWeight: '700',
+        letterSpacing: 0.6,
+        paddingBottom: 6,
+        paddingHorizontal: 18,
+        paddingTop: 16,
     },
     newButton: {
         alignItems: 'center',
-        borderRadius: 28,
-        bottom: 16,
-        height: 56,
+        borderRadius: 18,
+        bottom: 20,
+        boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.35)',
+        height: 58,
         justifyContent: 'center',
         position: 'absolute',
-        right: 16,
-        width: 56,
+        right: 18,
+        width: 58,
     },
-    newText: { fontSize: 30, lineHeight: 34 },
     tabletNewButton: {
         alignItems: 'center',
         borderTopWidth: StyleSheet.hairlineWidth,
@@ -68,11 +70,13 @@ export const SessionHome = ({
     theme: MobileTheme;
 }) => {
     const { forgetDevice, status } = useMobileClient();
-    const { listScrollOffsetRef, sessions, setProjectId, ui } = useHostSessions();
+    const router = useRouter();
+    const { hostId, listScrollOffsetRef, sessions, setProjectId, ui } = useHostSessions();
     const listReference = useRef<FlashListRef<SessionListEntry>>(null);
     const hasRestoredScroll = useRef(false);
     const {
         beginListInteraction,
+        deviceRole,
         entries,
         error,
         finishListInteraction,
@@ -141,10 +145,11 @@ export const SessionHome = ({
                     onPress={onOpenSession}
                     selected={item.session.id === selectedId && layout !== 'phone'}
                     session={item.session}
+                    showProject={activeProjectId === null}
                     theme={theme}
                 />
             ),
-        [layout, now, onOpenSession, selectedId, theme],
+        [activeProjectId, layout, now, onOpenSession, selectedId, theme],
     );
     return (
         <View
@@ -159,6 +164,11 @@ export const SessionHome = ({
                 activeProjectId={activeProjectId}
                 forgetDevice={forgetDevice}
                 hostDisplayName={hostDisplayName}
+                onAddProject={
+                    deviceRole === 'control'
+                        ? () => router.navigate(`/h/${encodeURIComponent(hostId)}/add-project`)
+                        : undefined
+                }
                 onChooseProject={chooseProject}
                 projects={projects}
                 status={status}
@@ -219,14 +229,16 @@ export const SessionHome = ({
                 }
                 testID="new-session-button"
             >
-                <Text
-                    style={[
-                        layout === 'phone' ? styles.newText : styles.tabletNewText,
-                        { color: layout === 'phone' ? theme.primaryForeground : theme.primary },
-                    ]}
-                >
-                    {layout === 'phone' ? '+' : '+  New Session'}
-                </Text>
+                <Plus
+                    color={layout === 'phone' ? theme.primaryForeground : theme.primary}
+                    size={layout === 'phone' ? 28 : 20}
+                    strokeWidth={2.25}
+                />
+                {layout === 'phone' ? null : (
+                    <Text style={[styles.tabletNewText, { color: theme.primary }]}>
+                        New Session
+                    </Text>
+                )}
             </Pressable>
         </View>
     );

@@ -1,3 +1,4 @@
+import { classifySystemEvent } from '../../system-event';
 import type { TimelineBuilder } from '../../timeline-model';
 import {
     timelineObject,
@@ -5,7 +6,10 @@ import {
     timelineText,
     timelineTimestamp,
 } from '../../timeline-model';
-import { extractVisibleTranscriptMessage } from '../../visible-transcript-message';
+import {
+    extractRawUserTranscriptText,
+    extractVisibleTranscriptMessage,
+} from '../../visible-transcript-message';
 
 function toolInputSummary(name: string, input: unknown): string {
     const fields = timelineObject(input);
@@ -59,16 +63,22 @@ export function appendClaudeTimelineRecord(
     }
     const message = timelineObject(record.message);
     const nativeId = typeof message?.id === 'string' ? message.id : undefined;
-    const visible = extractVisibleTranscriptMessage(record);
-    if (visible)
-        builder.addMessage(
-            visible.role,
-            visible.text,
-            offset,
-            0,
-            nativeId ?? (typeof record.uuid === 'string' ? record.uuid : undefined),
-            timestamp,
-        );
+    const rawUserText = record.type === 'user' ? extractRawUserTranscriptText(record) : undefined;
+    const systemEvent = rawUserText && classifySystemEvent(rawUserText);
+    if (systemEvent) {
+        builder.addSystemEvent(systemEvent, offset, 0, timestamp);
+    } else {
+        const visible = extractVisibleTranscriptMessage(record);
+        if (visible)
+            builder.addMessage(
+                visible.role,
+                visible.text,
+                offset,
+                0,
+                nativeId ?? (typeof record.uuid === 'string' ? record.uuid : undefined),
+                timestamp,
+            );
+    }
     const blocks = Array.isArray(message?.content) ? message.content : [];
     for (const [index, block] of blocks.entries()) {
         const part = timelineObject(block);

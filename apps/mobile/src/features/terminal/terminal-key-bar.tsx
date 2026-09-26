@@ -55,11 +55,10 @@ const TerminalKeyButton = ({
             styles.key,
             {
                 backgroundColor: selected ? theme.primary : theme.surface,
-                borderColor: theme.border,
                 opacity: canControl ? 1 : 0.45,
             },
         ],
-        [canControl, selected, theme.border, theme.primary, theme.surface],
+        [canControl, selected, theme.primary, theme.surface],
     );
     const labelStyle = useMemo(
         () => [styles.keyLabel, { color: selected ? theme.primaryForeground : theme.text }],
@@ -97,7 +96,6 @@ export const TerminalKeyBar = ({
     onPaste,
     theme,
 }: TerminalKeyBarProperties) => {
-    const listStyle = useMemo(() => [styles.keyBar, { borderColor: theme.border }], [theme.border]);
     const renderKey = useCallback(
         ({ item }: ListRenderItemInfo<KeyEntry>) => (
             <TerminalKeyButton
@@ -121,7 +119,7 @@ export const TerminalKeyBar = ({
             keyboardShouldPersistTaps="always"
             renderItem={renderKey}
             showsHorizontalScrollIndicator={false}
-            style={listStyle}
+            style={styles.keyBar}
             testID="terminal-key-bar"
         />
     );

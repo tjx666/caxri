@@ -342,11 +342,25 @@ export class TerminalExecutionEngine {
         return true;
     }
 
-    private applySize(live: LiveTerminal, cols: number, rows: number): boolean {
+    /**
+     * Mobile observers render their own grid, and the observer stream carries only output. A size change they did not
+     * request (Desktop resize, lease release or expiry) therefore resyncs them so the next snapshot carries the new
+     * grid. The lease holder sizes its own grid, so a take-over resize skips the resync.
+     */
+    private applySize(
+        live: LiveTerminal,
+        cols: number,
+        rows: number,
+        { resyncObservers = true }: { resyncObservers?: boolean } = {},
+    ): boolean {
         if (live.process.cols === cols && live.process.rows === rows) return true;
         live.screen.resize(cols, rows);
         live.process.resize(cols, rows);
         this.resizeObserver.recordApplied(live.record.id, { cols, rows });
+        if (resyncObservers && live.observers.size > 0) {
+            live.observerNeedsResync = true;
+            live.outputTimer ??= setTimeout(() => this.flushOutput(live), this.outputFlushMs);
+        }
         return true;
     }
 
@@ -572,7 +586,7 @@ export class TerminalExecutionEngine {
                 expiresAt: 0,
             });
         }
-        this.applySize(live, size.cols, size.rows);
+        this.applySize(live, size.cols, size.rows, { resyncObservers: false });
         const lease = this.scheduleSizeLease(terminalId, holderId, timeoutMs);
         this.emitSizeOwnership(live);
         return lease;

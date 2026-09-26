@@ -53,21 +53,32 @@ const reportScroll = (): void => {
 const layout = (): void => {
     const screen = stage.querySelector<HTMLElement>('.xterm-screen');
     if (!screen) return;
-    const bounds = screen.getBoundingClientRect();
-    const currentScale = Number(stage.dataset.scale ?? '1');
-    const cellWidth = bounds.width / Math.max(terminal.cols * currentScale, 1);
-    const cellHeight = bounds.height / Math.max(terminal.rows * currentScale, 1);
+    /**
+     * Layout size ignores the stage transform, so the cell size never depends on the scale applied by a previous pass.
+     * The renderer may apply a resize later than `terminal.resize`, which is why the screen element is observed too.
+     */
+    const cellWidth = screen.offsetWidth / Math.max(terminal.cols, 1);
+    const cellHeight = screen.offsetHeight / Math.max(terminal.rows, 1);
     if (!(cellWidth > 0 && cellHeight > 0)) return;
     const gridWidth = terminal.cols * cellWidth;
     const gridHeight = terminal.rows * cellHeight;
-    const widthScale = viewport.clientWidth / gridWidth;
-    const scale = Math.min(1.8, Math.max(0.72, Math.min(1, widthScale) * viewState.zoom));
+    const widthFit = viewport.clientWidth / gridWidth;
+    const heightFit = viewport.clientHeight / gridHeight;
+    /**
+     * An observed Terminal keeps the computer's size, which is usually far wider and taller than a phone. Every row
+     * must stay visible because the newest output lands at the bottom of the grid, so the default scale never exceeds
+     * the height fit. Width only shrinks to a readable floor; wider grids pan horizontally instead, and pinching can
+     * zoom out until the whole width fits.
+     */
+    const fitted = Math.min(1, heightFit, Math.max(0.6, widthFit));
+    const smallest = Math.min(1, widthFit, heightFit);
+    const scale = Math.min(2, Math.max(smallest, fitted * viewState.zoom));
     stage.style.width = `${gridWidth}px`;
     stage.style.height = `${gridHeight}px`;
     stage.style.transform = `scale(${scale})`;
-    stage.dataset.scale = String(scale);
     frame.style.width = `${gridWidth * scale}px`;
     frame.style.height = `${gridHeight * scale}px`;
+    if (viewState.isAtBottom) viewport.scrollTop = viewport.scrollHeight;
     const availableColumns = Math.floor(viewport.clientWidth / cellWidth);
     const availableRows = Math.floor(viewport.clientHeight / cellHeight);
     post({
@@ -78,6 +89,8 @@ const layout = (): void => {
 };
 
 terminalViewport?.addEventListener('scroll', reportScroll, { passive: true });
+const gesture = { startX: 0, startY: 0, lastX: 0, startedAt: 0, moved: false, panning: false };
+
 viewport.addEventListener(
     'touchstart',
     (event) => {
@@ -85,8 +98,38 @@ viewport.addEventListener(
         const second = event.touches.item(1);
         if (first && second && event.touches.length === 2)
             viewState.pinchDistance = distance(first, second);
+        if (first && event.touches.length === 1) {
+            gesture.startX = first.clientX;
+            gesture.startY = first.clientY;
+            gesture.lastX = first.clientX;
+            gesture.startedAt = Date.now();
+            gesture.moved = false;
+            gesture.panning = false;
+        } else gesture.moved = true;
     },
-    { passive: true },
+    { capture: true, passive: true },
+);
+/**
+ * Xterm consumes vertical swipes for scrollback, which also swallows horizontal ones. This capture-phase handler owns
+ * horizontal drags so a grid wider than the phone can still be panned.
+ */
+viewport.addEventListener(
+    'touchmove',
+    (event) => {
+        const first = event.touches.item(0);
+        if (!first || event.touches.length !== 1) return;
+        const dx = first.clientX - gesture.startX;
+        const dy = first.clientY - gesture.startY;
+        if (Math.abs(dx) > 8 || Math.abs(dy) > 8) gesture.moved = true;
+        if (!gesture.panning && Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.5)
+            gesture.panning = true;
+        if (!gesture.panning) return;
+        viewport.scrollLeft -= first.clientX - gesture.lastX;
+        gesture.lastX = first.clientX;
+        event.preventDefault();
+        event.stopPropagation();
+    },
+    { capture: true, passive: false },
 );
 viewport.addEventListener(
     'touchmove',
@@ -96,8 +139,8 @@ viewport.addEventListener(
         if (!first || !second || !viewState.pinchDistance || event.touches.length !== 2) return;
         const nextDistance = distance(first, second);
         viewState.zoom = Math.max(
-            0.7,
-            Math.min(2, viewState.zoom * (nextDistance / viewState.pinchDistance)),
+            0.2,
+            Math.min(3, viewState.zoom * (nextDistance / viewState.pinchDistance)),
         );
         viewState.pinchDistance = nextDistance;
         event.preventDefault();
@@ -107,12 +150,17 @@ viewport.addEventListener(
 );
 viewport.addEventListener(
     'touchend',
-    () => {
+    (event) => {
         viewState.pinchDistance = null;
+        if (event.touches.length === 0 && !gesture.moved && Date.now() - gesture.startedAt < 350)
+            post({ type: 'tap' });
     },
-    { passive: true },
+    { capture: true, passive: true },
 );
-new ResizeObserver(layout).observe(viewport);
+const layoutObserver = new ResizeObserver(layout);
+layoutObserver.observe(viewport);
+const screenElement = stage.querySelector<HTMLElement>('.xterm-screen');
+if (screenElement) layoutObserver.observe(screenElement);
 
 const batch = createTerminalFrameBatch({
     cancel: (id) => cancelAnimationFrame(id),
@@ -121,8 +169,10 @@ const batch = createTerminalFrameBatch({
         const scrollTop = terminalViewport?.scrollTop ?? 0;
         const shouldFollow = viewState.isAtBottom;
         terminal.write(data, () => {
-            if (shouldFollow) terminal.scrollToBottom();
-            else if (terminalViewport) terminalViewport.scrollTop = scrollTop;
+            if (shouldFollow) {
+                terminal.scrollToBottom();
+                viewport.scrollTop = viewport.scrollHeight;
+            } else if (terminalViewport) terminalViewport.scrollTop = scrollTop;
             reportScroll();
         });
     },
@@ -141,20 +191,22 @@ bridgeWindow.CaxriTerminal = {
             if (!raw || typeof raw !== 'object') return;
             const command = raw as Record<string, unknown>;
             if (command.version !== 1 || command.terminalId !== terminalId) return;
-            if (
-                command.type === 'reset' &&
+            const hasGrid =
                 Number.isSafeInteger(command.cols) &&
                 Number.isSafeInteger(command.rows) &&
                 Number(command.cols) >= 2 &&
                 Number(command.cols) <= 1_000 &&
                 Number(command.rows) >= 1 &&
-                Number(command.rows) <= 1_000
-            ) {
+                Number(command.rows) <= 1_000;
+            if (hasGrid && command.type === 'reset') {
                 batch.reset();
                 terminal.reset();
                 terminal.resize(Number(command.cols), Number(command.rows));
                 viewState.isAtBottom = true;
                 post({ type: 'scroll', atBottom: true });
+                layout();
+            } else if (hasGrid && command.type === 'resize') {
+                terminal.resize(Number(command.cols), Number(command.rows));
                 layout();
             } else if (
                 command.type === 'append' &&
@@ -164,6 +216,7 @@ bridgeWindow.CaxriTerminal = {
                 batch.push(command.data);
             else if (command.type === 'jump') {
                 terminal.scrollToBottom();
+                viewport.scrollTop = viewport.scrollHeight;
                 reportScroll();
             }
         } catch {

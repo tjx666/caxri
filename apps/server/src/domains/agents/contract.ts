@@ -12,6 +12,7 @@ import type {
 
 import type { AgentDelegationAdapter } from './delegation-contract';
 import type { AgentHookAdapter } from './hooks/contract';
+import type { TimelineBuilder } from './timeline-model';
 import type { AgentTranscriptLocation } from './transcript-security';
 
 export interface AgentSnapshotContext {
@@ -264,6 +265,13 @@ export interface AgentProviderDescriptor {
         environment: AgentEnvironment,
         signal?: AbortSignal,
     ): Promise<AgentTranscriptLocation | undefined>;
+    /**
+     * Appends this provider's projection of one raw transcript line to a mobile timeline page. Pure and synchronous: no
+     * filesystem or network access, matching `AgentTimelineService`'s per-line replay. A provider without a durable
+     * per-line transcript (Grok streams over ACP with no JSONL analog) omits this, and `AgentTimelineService` reports
+     * `unsupported` for that provider instead of guessing at a shape.
+     */
+    timelineProjector?(this: void, builder: TimelineBuilder, record: unknown, offset: number): void;
 }
 
 /**

@@ -60,6 +60,7 @@ import type { MobileAppOptions } from './frame-router';
 import { MobileGatewayFrameRouter } from './frame-router';
 import { dummyCandidate } from './handshake-candidate';
 import { isAllowedMobileOrigin } from './origin';
+import { adoptCurrentPairedPrincipal } from './principal-grant';
 import { mobileCapabilitiesByRole } from './role-capabilities';
 import { createServerSealedPayload, sendFinalSealedPayload } from './sealed-payload';
 import { messageByteLength, messageText } from './socket-message';
@@ -710,16 +711,9 @@ export class MobileGateway {
             session.deviceId,
             session.generation,
         );
-        const principal = session.principal;
-        if (
-            principal?.kind !== 'paired-device' ||
-            current.kind !== 'paired-device' ||
-            current.id !== principal.id ||
-            current.role !== principal.role ||
-            current.projectIds.length !== principal.projectIds.length ||
-            current.projectIds.some((id, index) => id !== principal.projectIds[index])
-        )
-            throw new CaxriError('FORBIDDEN', 'Paired device authorization changed');
+        const principal = adoptCurrentPairedPrincipal(session.principal, current);
+        if (!principal) throw new CaxriError('FORBIDDEN', 'Paired device authorization changed');
+        session.principal = principal;
         return {
             capabilities: mobileCapabilitiesByRole[principal.role],
             connection: session.connection,

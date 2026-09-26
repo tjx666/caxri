@@ -4,6 +4,7 @@ import type { AgentTimelineService } from '../agents/timeline';
 import type { AgentTranscriptWatcher } from '../agents/transcript-watcher';
 import type { ConfigService } from '../config';
 import type { CaxriDatabase } from '../db';
+import type { FileService } from '../files';
 import type { GitService } from '../git';
 import { createMobileDomainHandlers } from '../mobile-handlers';
 import type { MobileTerminalMutationQueue } from '../mobile-terminal-mutation-queue';
@@ -24,6 +25,8 @@ describe('mobile timeline authorization', () => {
         const mobileChangesDiff = vi.fn(() => Promise.resolve({ status: 'stale' as const }));
         const handlers = createMobileDomainHandlers({
             configuration: {} as ConfigService,
+            emit: vi.fn(),
+            files: {} as FileService,
             database: {
                 getSession: () => ({ id: 'session-granted', projectId: 'project-granted' }),
                 listVisibleProjects: () => [{ id: 'project-granted' }],
@@ -72,6 +75,8 @@ describe('mobile timeline authorization', () => {
         const mobileChangesDiff = vi.fn();
         const handlers = createMobileDomainHandlers({
             configuration: {} as ConfigService,
+            emit: vi.fn(),
+            files: {} as FileService,
             database: {
                 getSession: () => ({
                     id: 'session-other',
@@ -132,6 +137,8 @@ describe('mobile timeline authorization', () => {
         let terminals: Array<{ kind: 'shell' }> = [{ kind: 'shell' }];
         const handlers = createMobileDomainHandlers({
             configuration: {} as ConfigService,
+            emit: vi.fn(),
+            files: {} as FileService,
             database: {
                 getSession: () => ({ id: 'session-fixture', projectId: 'project-granted' }),
                 listVisibleProjects: () => [{ id: 'project-granted' }],

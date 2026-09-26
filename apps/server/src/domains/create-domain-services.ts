@@ -8,7 +8,7 @@ import type {
     TerminalKind,
     TerminalRecord,
 } from '@caxri/protocol';
-import { agentProviderCatalog, CaxriError } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
 import { logEventCatalog } from '@caxri/system';
 
 import { readActiveContext } from './active-context';
@@ -18,6 +18,7 @@ import type { AgentDispatchService } from './agent-dispatch';
 import { createAgentRuntime } from './agent-runtime';
 import { LongPasteService } from './agents';
 import { createBackgroundTasks, refreshWatchSessionInBackground } from './background-tasks';
+import { createBugReportDeliveryHandler } from './bug-report-delivery';
 import { createDeletionHandlers } from './deletion-handlers';
 import { DiagnosticsService } from './diagnostics';
 import type { DomainDependencies, DomainHandlers, DomainServices } from './domain-services';
@@ -531,43 +532,7 @@ export async function createDomainServices(
         'bugReport.saveScreenshot': () => mainOwned('bugReport.saveScreenshot'),
         'bugReport.context': () => diagnostics.reportContext(),
         'bugReport.send': () => mainOwned('bugReport.send'),
-        'bugReport.deliver': ({ pasteImage, report, sessionId, terminalId }) => {
-            const terminal = database.getTerminal(terminalId);
-            if (!terminal) throw new CaxriError('NOT_FOUND', 'Agent Terminal not found');
-            if (terminal.sessionId !== sessionId)
-                throw new CaxriError(
-                    'CONFLICT',
-                    'The selected Agent no longer belongs to this Session',
-                );
-            if (!terminal.provider)
-                throw new CaxriError(
-                    'CONFLICT',
-                    'Bug reports can only be sent to an Agent Terminal',
-                );
-            if (
-                terminal.lastProcessState !== 'running' ||
-                terminal.lastAgentProcessState !== 'running' ||
-                terminals.agentProcessId(terminalId) === undefined
-            )
-                throw new CaxriError('UNAVAILABLE', 'The selected Agent is no longer running');
-            if (pasteImage) {
-                const imageInput = agentProviderCatalog[terminal.provider].imageInput;
-                if (!imageInput)
-                    throw new CaxriError(
-                        'CONFLICT',
-                        'The selected Agent does not support screenshot delivery',
-                    );
-                if (!terminals.write(terminalId, imageInput.terminalInput))
-                    throw new CaxriError('UNAVAILABLE', 'The selected Agent is no longer running');
-            }
-            /**
-             * Bracketed paste keeps Markdown newlines inside one Agent prompt; the validated report cannot contain
-             * control characters capable of terminating the paste sequence.
-             */
-            if (!terminals.write(terminalId, `\u{1B}[200~${report}\u{1B}[201~\r`))
-                throw new CaxriError('UNAVAILABLE', 'The selected Agent is no longer running');
-            return null;
-        },
+        ...createBugReportDeliveryHandler({ database, terminals }),
         'files.reveal': () => mainOwned('files.reveal'),
         'files.openWithDefaultApp': () => mainOwned('files.openWithDefaultApp'),
         'project.openInEditor': () => mainOwned('project.openInEditor'),
@@ -609,7 +574,9 @@ export async function createDomainServices(
         ...createMobileDomainHandlers({
             configuration,
             database,
+            emit: send,
             endpoints: dependencies.agentEndpoints,
+            files,
             git,
             queue: mobileTerminalMutations,
             terminals,

@@ -28,6 +28,7 @@ import { codexHookAdapter } from './hooks';
 import { generateCodexLowCostText } from './low-cost-generation';
 import { resolveCodexHome, resolveCodexStateDirectories } from './paths';
 import { findCodexStateDatabases } from './state-databases';
+import { appendCodexTimelineRecord } from './timeline';
 import { locateCodexTranscript } from './transcript';
 
 /**
@@ -736,4 +737,5 @@ export const codexProvider: AgentProviderDescriptor = {
     locateTranscript: (context, environment, signal) =>
         locateCodexTranscript(context, environment, signal),
     resumeArguments: (agentSessionId) => ['resume', agentSessionId],
+    timelineProjector: appendCodexTimelineRecord,
 };
