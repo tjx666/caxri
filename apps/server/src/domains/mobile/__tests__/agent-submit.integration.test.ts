@@ -5,15 +5,15 @@ import { join } from 'node:path';
 import type { BootstrapState, Principal } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { AgentDelegationService } from '../agent-delegation';
-import type { AgentEndpointLifecycle } from '../agent-endpoints';
-import type { AgentCoordinator } from '../agents';
-import { CaxriDatabase } from '../db';
-import { createDeletionHandlers } from '../deletion-handlers';
-import { createMobileAgentSubmitHandler } from '../mobile-agent-submit';
-import { MobileTerminalMutationQueue } from '../mobile-terminal-mutation-queue';
-import type { TerminalManager } from '../terminal';
-import { createTerminalMoveHandler } from '../terminal-move';
+import type { AgentDelegationService } from '../../agent-delegation';
+import type { AgentEndpointLifecycle } from '../../agent-endpoints';
+import type { AgentCoordinator } from '../../agents';
+import { CaxriDatabase } from '../../db';
+import { createDeletionHandlers } from '../../deletion-handlers';
+import { MobileTerminalMutationQueue } from '../../mobile-terminal-mutation-queue';
+import type { TerminalManager } from '../../terminal';
+import { createTerminalMoveHandler } from '../../terminal-move';
+import { createMobileAgentSubmitHandler } from '../agent-submit';
 
 const directories: string[] = [];
 const endpoint = { hostId: 'host-1', endpointId: 'endpoint-1', generation: 1 };

@@ -64,7 +64,7 @@ operation after receiving that instruction; the Changes view itself cannot commi
   [transport subscription](../../packages/mobile-transport/src/messages.ts)
 - [Gateway authorization](../../apps/server/src/core/mobile/access-controller.ts),
   [Git projection](../../apps/server/src/domains/git/mobile-changes.ts), and
-  [domain handler](../../apps/server/src/domains/mobile-handlers.ts)
+  [domain handler](../../apps/server/src/domains/mobile/handlers.ts)
 - [Query observer](../../apps/mobile/src/features/changes/use-changes.ts),
   [Changes view](../../apps/mobile/src/features/changes/changes-view.tsx), and
   [diff view](../../apps/mobile/src/features/changes/changes-diff.tsx)
