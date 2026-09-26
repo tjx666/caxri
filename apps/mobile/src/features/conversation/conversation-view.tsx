@@ -142,7 +142,11 @@ export const ConversationView = ({
         setIsAtBottom(shouldFollowConversation(distance, layoutMeasurement.height));
     }, []);
     const renderItem = useCallback(
-        ({ item }: ListRenderItemInfo<Entry>) => <ConversationEntry entry={item} theme={theme} />,
+        ({ item }: ListRenderItemInfo<Entry>) => (
+            <View style={styles.entry}>
+                <ConversationEntry entry={item} theme={theme} />
+            </View>
+        ),
         [theme],
     );
     const jumpToLatest = useCallback((): void => {

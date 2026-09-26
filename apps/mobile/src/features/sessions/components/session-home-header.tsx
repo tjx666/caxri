@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { EllipsisVertical, FolderPlus, Unlink } from 'lucide-react-native';
+import { Archive, EllipsisVertical, FolderPlus, Settings } from 'lucide-react-native';
 
 import { IconButton } from '../../../components/icon-button';
 import type { MobileTheme } from '../../../theme/tokens';
@@ -62,14 +62,12 @@ const MenuAction = ({
     onPress,
     testID,
     theme,
-    tone = 'default',
 }: {
-    icon: typeof Unlink;
+    icon: typeof Archive;
     label: string;
     onPress: () => void;
     testID: string;
     theme: MobileTheme;
-    tone?: 'danger' | 'default';
 }) => (
     <Pressable
         accessibilityRole="button"
@@ -80,31 +78,31 @@ const MenuAction = ({
         ]}
         testID={testID}
     >
-        <Icon color={tone === 'danger' ? theme.danger : theme.muted} size={18} />
-        <Text style={[styles.menuText, { color: tone === 'danger' ? theme.danger : theme.text }]}>
-            {label}
-        </Text>
+        <Icon color={theme.muted} size={18} />
+        <Text style={[styles.menuText, { color: theme.text }]}>{label}</Text>
     </Pressable>
 );
 
 export const SessionHomeHeader = ({
     activeProjectId,
-    forgetDevice,
     hostDisplayName,
     onAddProject,
     onChooseProject,
+    onOpenArchived,
+    onOpenSettings,
     projects,
     status,
     theme,
 }: {
     activeProjectId: string | null;
-    forgetDevice: () => void;
     hostDisplayName: string;
     /**
      * Present only for a control device; view and reply devices cannot widen their own Project grant.
      */
     onAddProject?: () => void;
     onChooseProject: (projectId: string | null) => void;
+    onOpenArchived: () => void;
+    onOpenSettings: () => void;
     projects: Project[];
     status: MobileConnectionStatus;
     theme: MobileTheme;
@@ -192,12 +190,24 @@ export const SessionHomeHeader = ({
                         />
                     ) : null}
                     <MenuAction
-                        icon={Unlink}
-                        label="Forget this computer"
-                        onPress={forgetDevice}
-                        testID="forget-this-computer-action"
+                        icon={Archive}
+                        label="Archived Sessions"
+                        onPress={() => {
+                            setMenuOpen(false);
+                            onOpenArchived();
+                        }}
+                        testID="archived-sessions-action"
                         theme={theme}
-                        tone="danger"
+                    />
+                    <MenuAction
+                        icon={Settings}
+                        label="Settings"
+                        onPress={() => {
+                            setMenuOpen(false);
+                            onOpenSettings();
+                        }}
+                        testID="settings-action"
+                        theme={theme}
                     />
                 </View>
             ) : null}

@@ -8,6 +8,10 @@ export interface MobileTheme {
      * Raised controls and pills that sit on `surface`.
      */
     elevated: string;
+    /**
+     * Landed work, such as a merged pull request, matching Desktop's `merged` token.
+     */
+    merged: string;
     muted: string;
     primary: string;
     primaryForeground: string;
@@ -29,6 +33,7 @@ export const mobileTheme = {
     border: draculaTheme.colors.border,
     danger: draculaTheme.colors.danger,
     elevated: draculaTheme.colors.elevated,
+    merged: draculaTheme.colors.merged,
     muted: draculaTheme.colors.muted,
     primary: draculaTheme.colors.accent,
     primaryForeground: draculaTheme.colors.background,

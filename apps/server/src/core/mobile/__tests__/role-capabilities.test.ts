@@ -2,8 +2,8 @@ import type { CaxriMethod, MobileDeviceRole } from '@caxri/protocol';
 import { methods } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { isMobileGatewayMethodAllowedForRole } from '../access-controller';
 import { mobileCapabilitiesByRole } from '../gateway/role-capabilities';
+import { isMobileGatewayMethodAllowedForRole } from '../role-methods';
 
 describe('mobile role capabilities', () => {
     it('grant every capability a role-allowed gateway method requires', () => {

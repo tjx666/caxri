@@ -7,12 +7,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { TerminalExecutionPort } from '../../../domains/terminal';
 import type { ServerDomainService } from '../../domain-service';
-import {
-    isMobileGatewayMethodAllowedForRole,
-    mobileHostDisplayName,
-    openMobileAccessController,
-} from '../access-controller';
+import { mobileHostDisplayName, openMobileAccessController } from '../access-controller';
 import { MobileDeviceRegistry } from '../device-registry';
+import { isMobileGatewayMethodAllowedForRole } from '../role-methods';
 
 const temporaryDirectories: string[] = [];
 const terminalExecution = {
@@ -148,6 +145,17 @@ describe('MobileAccessController role and resource authority', () => {
         ])
             expect(isMobileGatewayMethodAllowedForRole('control', method)).toBe(true);
         expect(isMobileGatewayMethodAllowedForRole('control', 'session.create')).toBe(false);
+        for (const method of [
+            'mobile.session.rename',
+            'mobile.session.archive',
+            'mobile.session.restore',
+        ]) {
+            expect(isMobileGatewayMethodAllowedForRole('view', method)).toBe(false);
+            expect(isMobileGatewayMethodAllowedForRole('reply', method)).toBe(false);
+            expect(isMobileGatewayMethodAllowedForRole('control', method)).toBe(true);
+        }
+        for (const role of ['view', 'reply', 'control'] as const)
+            expect(isMobileGatewayMethodAllowedForRole(role, 'mobile.session.archived')).toBe(true);
         for (const method of ['mobile.project.browse', 'mobile.project.add']) {
             expect(isMobileGatewayMethodAllowedForRole('view', method)).toBe(false);
             expect(isMobileGatewayMethodAllowedForRole('reply', method)).toBe(false);

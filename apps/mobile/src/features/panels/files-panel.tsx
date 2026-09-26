@@ -3,10 +3,11 @@ import type { ListRenderItemInfo } from 'react-native';
 import { FlatList, Pressable, ScrollView, Text, View } from 'react-native';
 
 import type { FileEntry } from '@caxri/protocol';
-import { ChevronLeft, ChevronRight, File, Folder, FolderSymlink } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 
 import { IconButton } from '../../components/icon-button';
 import type { MobileTheme } from '../../theme/tokens';
+import { FileTypeIcon } from './file-type-icon';
 import { PanelStatus, PendingPanelStatus } from './panel-status';
 import { panelsStyles as styles } from './panels-styles';
 import { useFileRead, useFilesList } from './use-panels';
@@ -32,7 +33,6 @@ const FileRow = memo(
         theme: MobileTheme;
     }) => {
         const isFolder = isDirectory(entry);
-        const Icon = isFolder ? (entry.kind === 'symlink' ? FolderSymlink : Folder) : File;
         return (
             <Pressable
                 accessibilityLabel={`${entry.name}, ${isFolder ? 'folder' : 'file'}`}
@@ -45,7 +45,7 @@ const FileRow = memo(
                 ]}
                 testID={`files-entry-${entry.name}`}
             >
-                <Icon color={isFolder ? theme.primary : theme.muted} size={18} strokeWidth={1.75} />
+                <FileTypeIcon entry={entry} theme={theme} />
                 <Text
                     numberOfLines={1}
                     style={[styles.rowText, { color: entry.gitIgnored ? theme.muted : theme.text }]}
@@ -122,6 +122,7 @@ const FilePreview = ({
                     testID="files-preview-back"
                     theme={theme}
                 />
+                <FileTypeIcon entry={entry} size={18} theme={theme} />
                 <Text numberOfLines={1} style={[styles.crumbText, { color: theme.text }]}>
                     {entry.name}
                 </Text>

@@ -35,21 +35,29 @@ const post = (message: Record<string, unknown>): void => {
     );
 };
 
-const terminalViewport = stage.querySelector<HTMLElement>('.xterm-viewport');
-const viewState = { isAtBottom: true, zoom: 1, pinchDistance: null as number | null };
+const viewState = {
+    isAtBottom: true,
+    zoom: 1,
+    scale: 1,
+    pinchDistance: null as number | null,
+};
 
 const distance = (first: Touch, second: Touch): number =>
     Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
 
+/**
+ * Xterm 6 scrolls through a virtual `ScrollableElement`, so `.xterm-viewport` no longer emits native scroll events; the
+ * buffer's viewport position is the only reliable "following output" signal.
+ */
 const reportScroll = (): void => {
-    if (!terminalViewport) return;
-    const isNext =
-        terminalViewport.scrollHeight - terminalViewport.scrollTop - terminalViewport.clientHeight <
-        24;
+    const buffer = terminal.buffer.active;
+    const isNext = buffer.viewportY >= buffer.baseY;
     if (isNext === viewState.isAtBottom) return;
     viewState.isAtBottom = isNext;
     post({ type: 'scroll', atBottom: viewState.isAtBottom });
 };
+terminal.onScroll(reportScroll);
+terminal.buffer.onBufferChange(reportScroll);
 
 const layout = (): void => {
     const screen = stage.querySelector<HTMLElement>('.xterm-screen');
@@ -74,6 +82,7 @@ const layout = (): void => {
     const fitted = Math.min(1, heightFit, Math.max(0.6, widthFit));
     const smallest = Math.min(1, widthFit, heightFit);
     const scale = Math.min(2, Math.max(smallest, fitted * viewState.zoom));
+    viewState.scale = scale;
     stage.style.width = `${gridWidth}px`;
     stage.style.height = `${gridHeight}px`;
     stage.style.transform = `scale(${scale})`;
@@ -89,8 +98,72 @@ const layout = (): void => {
     });
 };
 
-terminalViewport?.addEventListener('scroll', reportScroll, { passive: true });
-const gesture = { startX: 0, startY: 0, lastX: 0, startedAt: 0, moved: false, panning: false };
+const gesture = {
+    startX: 0,
+    startY: 0,
+    lastX: 0,
+    lastY: 0,
+    lastAt: 0,
+    startedAt: 0,
+    moved: false,
+    axis: null as 'x' | 'y' | null,
+    /**
+     * Sub-line drag distance carried between moves, in CSS pixels of the scaled grid.
+     */
+    pendingY: 0,
+    velocityY: 0,
+};
+const momentum = { frame: 0 };
+
+const stopMomentum = (): void => {
+    if (momentum.frame) cancelAnimationFrame(momentum.frame);
+    momentum.frame = 0;
+};
+
+const lineHeight = (): number => {
+    const screen = stage.querySelector<HTMLElement>('.xterm-screen');
+    const height = screen ? screen.offsetHeight / Math.max(terminal.rows, 1) : 0;
+    return height > 0 ? height * viewState.scale : 16;
+};
+
+/**
+ * Moves content by a vertical finger delta. A grid zoomed taller than the phone pans the page first; once the page is
+ * at its edge, the rest of the delta scrolls xterm's scrollback line by line.
+ *
+ * @param delta Positive when the finger moves down, which reveals earlier output.
+ */
+const scrollBy = (delta: number): void => {
+    const maxPageScroll = viewport.scrollHeight - viewport.clientHeight;
+    let remaining = delta;
+    if (maxPageScroll > 0) {
+        const before = viewport.scrollTop;
+        viewport.scrollTop = Math.min(maxPageScroll, Math.max(0, before - remaining));
+        remaining -= before - viewport.scrollTop;
+    }
+    gesture.pendingY += remaining;
+    const height = lineHeight();
+    const lines = Math.trunc(gesture.pendingY / height);
+    if (lines === 0) return;
+    gesture.pendingY -= lines * height;
+    terminal.scrollLines(-lines);
+};
+
+const glide = (): void => {
+    stopMomentum();
+    let last = performance.now();
+    const step = (now: number): void => {
+        const elapsed = now - last;
+        last = now;
+        gesture.velocityY *= 0.95 ** (elapsed / 16);
+        if (Math.abs(gesture.velocityY) < 0.05) {
+            momentum.frame = 0;
+            return;
+        }
+        scrollBy(gesture.velocityY * elapsed);
+        momentum.frame = requestAnimationFrame(step);
+    };
+    momentum.frame = requestAnimationFrame(step);
+};
 
 viewport.addEventListener(
     'touchstart',
@@ -99,20 +172,27 @@ viewport.addEventListener(
         const second = event.touches.item(1);
         if (first && second && event.touches.length === 2)
             viewState.pinchDistance = distance(first, second);
+        stopMomentum();
         if (first && event.touches.length === 1) {
             gesture.startX = first.clientX;
             gesture.startY = first.clientY;
             gesture.lastX = first.clientX;
+            gesture.lastY = first.clientY;
+            gesture.lastAt = event.timeStamp;
             gesture.startedAt = Date.now();
             gesture.moved = false;
-            gesture.panning = false;
+            gesture.axis = null;
+            gesture.pendingY = 0;
+            gesture.velocityY = 0;
         } else gesture.moved = true;
     },
     { capture: true, passive: true },
 );
 /**
- * Xterm consumes vertical swipes for scrollback, which also swallows horizontal ones. This capture-phase handler owns
- * horizontal drags so a grid wider than the phone can still be panned.
+ * Xterm 6 registers no touch handling for its scrollable element, so neither axis scrolls on a phone by default. This
+ * capture-phase handler locks each single-finger drag to its dominant axis: horizontal pans a grid wider than the
+ * phone, vertical scrolls the scrollback.
+ * https://github.com/xtermjs/xterm.js/blob/master/src/browser/scrollable/touch.ts
  */
 viewport.addEventListener(
     'touchmove',
@@ -122,11 +202,19 @@ viewport.addEventListener(
         const dx = first.clientX - gesture.startX;
         const dy = first.clientY - gesture.startY;
         if (Math.abs(dx) > 8 || Math.abs(dy) > 8) gesture.moved = true;
-        if (!gesture.panning && Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.5)
-            gesture.panning = true;
-        if (!gesture.panning) return;
-        viewport.scrollLeft -= first.clientX - gesture.lastX;
+        if (!gesture.axis && gesture.moved)
+            gesture.axis = Math.abs(dx) > Math.abs(dy) * 1.5 ? 'x' : 'y';
+        if (!gesture.axis) return;
+        if (gesture.axis === 'x') viewport.scrollLeft -= first.clientX - gesture.lastX;
+        else {
+            const delta = first.clientY - gesture.lastY;
+            const elapsed = Math.max(1, event.timeStamp - gesture.lastAt);
+            gesture.velocityY = 0.8 * (delta / elapsed) + 0.2 * gesture.velocityY;
+            scrollBy(delta);
+        }
         gesture.lastX = first.clientX;
+        gesture.lastY = first.clientY;
+        gesture.lastAt = event.timeStamp;
         event.preventDefault();
         event.stopPropagation();
     },
@@ -155,6 +243,15 @@ viewport.addEventListener(
         viewState.pinchDistance = null;
         if (event.touches.length === 0 && !gesture.moved && Date.now() - gesture.startedAt < 350)
             post({ type: 'tap' });
+        /**
+         * A finger resting before lift-off means the reader stopped on purpose, so only a recent move keeps gliding.
+         */
+        if (
+            event.touches.length === 0 &&
+            gesture.axis === 'y' &&
+            event.timeStamp - gesture.lastAt < 80
+        )
+            glide();
     },
     { capture: true, passive: true },
 );
@@ -167,13 +264,15 @@ const batch = createTerminalFrameBatch({
     cancel: (id) => cancelAnimationFrame(id),
     schedule: (callback) => requestAnimationFrame(callback),
     write: (data) => {
-        const scrollTop = terminalViewport?.scrollTop ?? 0;
         const shouldFollow = viewState.isAtBottom;
         terminal.write(data, () => {
+            /**
+             * Xterm keeps a reader's scrolled-up position while output arrives, so only a following view needs moving.
+             */
             if (shouldFollow) {
                 terminal.scrollToBottom();
                 viewport.scrollTop = viewport.scrollHeight;
-            } else if (terminalViewport) terminalViewport.scrollTop = scrollTop;
+            }
             reportScroll();
         });
     },
@@ -215,6 +314,7 @@ bridgeWindow.CaxriTerminal = {
             )
                 batch.push(command.data);
             else if (command.type === 'jump') {
+                stopMomentum();
                 terminal.scrollToBottom();
                 viewport.scrollTop = viewport.scrollHeight;
                 reportScroll();
