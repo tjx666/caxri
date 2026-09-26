@@ -14,10 +14,12 @@ import {
 import parcelWatcher from '@parcel/watcher';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createWatchFailureProbe } from '../../__tests__/support/watch-diagnostics';
+import {
+    createWatchDiagnosticHub,
+    createWatchFailureProbe,
+} from '../../__tests__/support/watch-diagnostics';
 import { ConfigService } from '../config';
 import { draculaTheme } from '../theme';
-import { WatchHub } from '../watch-hub';
 
 const temporaryDirectories: string[] = [];
 afterEach(async () => {
@@ -472,7 +474,7 @@ describe('ConfigurationService', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-'));
         temporaryDirectories.push(directory);
         const events: ServerEvent[] = [];
-        const watchHub = new WatchHub();
+        const watchHub = createWatchDiagnosticHub();
         const service = new ConfigService(
             directory,
             (event) => {
@@ -510,7 +512,7 @@ describe('ConfigurationService', () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-oversized-reload-'));
         temporaryDirectories.push(directory);
         const events: ServerEvent[] = [];
-        const watchHub = new WatchHub();
+        const watchHub = createWatchDiagnosticHub();
         const service = new ConfigService(
             directory,
             (event) => {

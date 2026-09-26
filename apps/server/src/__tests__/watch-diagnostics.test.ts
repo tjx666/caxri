@@ -1,7 +1,8 @@
+import type parcelWatcher from '@parcel/watcher';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { WatchHubSnapshot } from '../domains/watch-hub';
-import { createWatchFailureProbe } from './support/watch-diagnostics';
+import { createWatchDiagnosticHub, createWatchFailureProbe } from './support/watch-diagnostics';
 
 function snapshot(native: number, polling: number, eventBatches: number): WatchHubSnapshot {
     return {
@@ -14,6 +15,34 @@ function snapshot(native: number, polling: number, eventBatches: number): WatchH
 }
 
 describe('watch failure diagnostics', () => {
+    it('preserves native callback delivery and subscription cleanup while counting failures', async () => {
+        const unsubscribe = vi.fn(async () => {});
+        let deliver: parcelWatcher.SubscribeCallback | undefined;
+        const subscribe = vi.fn<typeof parcelWatcher.subscribe>((_root, callback) => {
+            deliver = callback;
+            return Promise.resolve({ unsubscribe });
+        });
+        const hub = createWatchDiagnosticHub(subscribe);
+        const onError = vi.fn();
+        await hub.register({ label: 'config', root: '/workspace', onEvents: vi.fn(), onError });
+        const diagnose = createWatchFailureProbe(hub, 'config', () => 0);
+        const error = new Error('private-backend-detail');
+        deliver!(error, []);
+        expect(onError).toHaveBeenCalledWith(error, expect.anything());
+        expect(subscribe.mock.calls[0]?.[0]).toBe('/workspace');
+        expect(typeof subscribe.mock.calls[0]?.[2]?.backend).toBe('string');
+        try {
+            const failure = diagnose(Promise.reject(new Error('assertion')));
+            await expect(failure).rejects.toThrow('"nativeCallbacksDelta":1');
+            await expect(failure).rejects.toThrow('"nativeErrorCallbacksDelta":1');
+            await expect(failure).rejects.toThrow('"nativeEventsDelta":0');
+            await expect(failure).rejects.not.toThrow('private-backend-detail');
+        } finally {
+            await hub.close();
+        }
+        expect(unsubscribe).toHaveBeenCalledOnce();
+    });
+
     it('preserves successful assertions without collecting another snapshot', async () => {
         const hub = { snapshot: vi.fn(() => snapshot(1, 0, 2)) };
         const diagnose = createWatchFailureProbe(hub, 'config', () => 0);

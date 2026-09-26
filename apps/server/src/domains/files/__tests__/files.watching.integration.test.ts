@@ -8,9 +8,11 @@ import { StructuredLogger } from '@caxri/system';
 import type parcelWatcher from '@parcel/watcher';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createWatchFailureProbe } from '../../../__tests__/support/watch-diagnostics';
+import {
+    createWatchDiagnosticHub,
+    createWatchFailureProbe,
+} from '../../../__tests__/support/watch-diagnostics';
 import { CaxriDatabase } from '../../db/repository';
-import { WatchHub } from '../../watch-hub';
 import { FileService } from '../service';
 
 /**
@@ -143,7 +145,7 @@ describe('FileService watcher and polling behavior', () => {
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const session = database.createSession(database.createProject(root).id, 'shell').session;
         const events: string[] = [];
-        const watchHub = new WatchHub();
+        const watchHub = createWatchDiagnosticHub();
         const service = new FileService(
             database,
             (event) => {
