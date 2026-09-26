@@ -161,6 +161,7 @@ export const effectfulCommandRecovery = {
     'session.setPinned': 'durable',
     'session.rename': 'durable',
     'session.archive': 'durable',
+    'session.compactWarm': 'memory',
     'session.unarchive': 'durable',
     'session.unarchiveMany': 'durable',
     'session.detach': 'durable',

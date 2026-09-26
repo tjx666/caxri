@@ -1,5 +1,8 @@
 export { listAgentActions, recordRecentAgentAction } from './actions';
+export { CompactionReadiness } from './compaction-readiness';
 export { SessionContentSearch } from './content-search';
+export type { ContextCacheObservation } from './context-cache';
+export { inspectContextCache } from './context-cache';
 export { type AgentEnvironment, agentProviderStateRoot, defaultAgentEnvironment } from './contract';
 export { AgentCoordinator } from './coordinator';
 export { delegationAdapter } from './delegation';

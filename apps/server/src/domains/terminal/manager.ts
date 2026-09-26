@@ -485,7 +485,7 @@ export class TerminalManager {
     private observeUserInput(terminalId: string, data: string): void {
         if (isTerminalProtocolResponse(data)) return;
         this.inputEpochs.set(terminalId, this.inputEpoch(terminalId) + 1);
-        this.onInput?.(terminalId);
+        this.onInput?.(terminalId, data);
     }
 
     start(record: TerminalRecord, options?: TerminalStartOptions): Promise<TerminalRecord> {
