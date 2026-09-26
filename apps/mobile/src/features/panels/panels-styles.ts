@@ -24,6 +24,8 @@ export const panelsStyles = StyleSheet.create({
         paddingRight: 12,
     },
     crumbText: { flex: 1, fontSize: 13, minWidth: 0 },
+    fileActions: { gap: 12, paddingLeft: 16 },
+    fileAction: { justifyContent: 'center', minHeight: 44 },
     row: {
         alignItems: 'center',
         flexDirection: 'row',

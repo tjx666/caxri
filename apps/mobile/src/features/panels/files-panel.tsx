@@ -142,7 +142,7 @@ const FilePreview = ({
         return (
             <View style={styles.preview}>
                 {deviceRole === 'control' && !document.readOnly ? (
-                    <View style={styles.crumbs}>
+                    <View style={[styles.crumbs, styles.fileActions]}>
                         {draft === null ? (
                             <Pressable
                                 accessibilityLabel="Edit file"
@@ -151,6 +151,7 @@ const FilePreview = ({
                                     setDraft(document.content);
                                     setExpectedContentHash(document.contentHash);
                                 }}
+                                style={styles.fileAction}
                                 testID="files-edit"
                             >
                                 <Text style={{ color: theme.primary }}>Edit</Text>
@@ -165,6 +166,7 @@ const FilePreview = ({
                                     onPress={async () => {
                                         await save();
                                     }}
+                                    style={styles.fileAction}
                                     testID="files-save"
                                 >
                                     <Text style={{ color: theme.primary }}>Save</Text>
@@ -173,6 +175,7 @@ const FilePreview = ({
                                     accessibilityLabel="Discard changes"
                                     accessibilityRole="button"
                                     onPress={discard}
+                                    style={styles.fileAction}
                                     testID="files-discard"
                                 >
                                     <Text style={{ color: theme.muted }}>Discard</Text>

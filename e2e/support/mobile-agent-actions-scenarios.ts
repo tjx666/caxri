@@ -159,7 +159,11 @@ export async function executeMobileFileEditScenario(
         await tapMobileCheck(environment.serial, 'files-entry-acceptance-note.txt');
         await waitForMobile(
             () => mobileSemantics(environment.serial),
-            (nodes) => nodes.some(({ checkId }) => checkId === 'files-edit'),
+            (nodes) =>
+                nodes.some(
+                    ({ checkId, clickable, enabled }) =>
+                        checkId === 'files-edit' && clickable && enabled,
+                ),
         );
         await tapMobileCheck(environment.serial, 'files-edit');
         await insertMobileInputUnicode(environment.serial, 'files-editor', 'accepted', 'accepted');
@@ -170,7 +174,11 @@ export async function executeMobileFileEditScenario(
         );
         await waitForMobile(
             () => mobileSemantics(environment.serial),
-            (nodes) => nodes.some(({ checkId }) => checkId === 'files-edit'),
+            (nodes) =>
+                nodes.some(
+                    ({ checkId, clickable, enabled }) =>
+                        checkId === 'files-edit' && clickable && enabled,
+                ),
         );
         await tapMobileCheck(environment.serial, 'files-edit');
         await insertMobileInputUnicode(
