@@ -110,6 +110,7 @@ const TreeRow = ({
                         paddingLeft: 8 + depth * INDENT,
                     },
                 ]}
+                testID="tree-row"
             >
                 <View style={styles.treeChevron}>
                     {isCollapsible ? <Chevron color={theme.muted} size={16} /> : null}
