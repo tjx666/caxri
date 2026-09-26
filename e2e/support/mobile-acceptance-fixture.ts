@@ -249,7 +249,20 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 if (process.argv.includes('--version')) {
-  process.stdout.write('caxri-fake-claude 1.0.0\n');
+  process.stdout.write('2.1.251 (Claude Code)\n');
+  process.exit(0);
+}
+// Mobile rename forwards to Desktop's rename, which renames the provider Session through non-interactive /rename.
+const resumeIndex = process.argv.indexOf('--resume');
+const renameCommand = process.argv.at(-1) ?? '';
+if (resumeIndex >= 0 && renameCommand.startsWith('/rename ')) {
+  process.stdout.write(JSON.stringify({
+    is_error: false,
+    result: 'Session renamed to: ' + renameCommand.slice('/rename '.length),
+    session_id: process.argv[resumeIndex + 1],
+    subtype: 'success',
+    type: 'result',
+  }));
   process.exit(0);
 }
 const now = Date.now();
