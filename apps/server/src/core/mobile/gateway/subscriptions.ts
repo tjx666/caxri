@@ -5,7 +5,7 @@ import type {
 } from '@caxri/mobile-transport';
 import { MOBILE_GATEWAY_MAX_WIRE_BYTES } from '@caxri/mobile-transport';
 import type { Principal, ServerEvent } from '@caxri/protocol';
-import { CaxriError } from '@caxri/protocol';
+import { assertNever, CaxriError } from '@caxri/protocol';
 
 import type { TerminalExecutionPort, TerminalObserverEvent } from '../../../domains/terminal';
 import { MobileTerminalObserver } from './terminal-observer';
@@ -214,22 +214,38 @@ export class MobileGatewaySubscriptions {
         if (this.#closed) return;
         const changedSessionIds =
             event.event === 'git.changed' ? new Set(event.payload.sessionIds) : undefined;
-        for (const subscription of this.#subscriptions.values()) {
-            const resource = subscription.resource;
-            if (resource.kind === 'dashboard' && event.event === 'state.changed')
-                this.#queue(subscription, event, 'dashboard.changed');
-            else if (
-                resource.kind === 'conversation' &&
-                subscription.activated &&
-                event.event === 'agentTranscript.changed'
-            )
-                this.#queue(subscription, event, 'conversation.changed');
-            else if (
-                resource.kind === 'changes' &&
-                subscription.activated &&
-                changedSessionIds?.has(resource.sessionId)
-            )
-                this.#queue(subscription, event, 'changes.changed');
+        for (const subscription of this.#subscriptions.values())
+            this.#publishSubscription(subscription, event, changedSessionIds);
+    }
+
+    #publishSubscription(
+        subscription: Subscription,
+        event: ServerEvent,
+        changedSessionIds: Set<string> | undefined,
+    ): void {
+        const resource = subscription.resource;
+        switch (resource.kind) {
+            case 'dashboard': {
+                if (event.event === 'state.changed')
+                    this.#queue(subscription, event, 'dashboard.changed');
+                break;
+            }
+            case 'conversation': {
+                if (subscription.activated && event.event === 'agentTranscript.changed')
+                    this.#queue(subscription, event, 'conversation.changed');
+                break;
+            }
+            case 'changes': {
+                if (subscription.activated && changedSessionIds?.has(resource.sessionId))
+                    this.#queue(subscription, event, 'changes.changed');
+                break;
+            }
+            case 'terminal': {
+                break;
+            }
+            default: {
+                assertNever(resource, 'Unhandled mobile subscription publisher');
+            }
         }
     }
 

@@ -82,6 +82,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         version: options.version,
     });
     const mobileAccess = await openMobileAccessController({
+        logger,
         directory: lease.paths.directory,
         ...(options.mobileHostDisplayName && { hostDisplayName: options.mobileHostDisplayName }),
         registryPath: lease.paths.mobileDevices,
@@ -180,16 +181,12 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
          * Skip refreshes emitted after the Extension Host enters teardown.
          */
         if (!stopPromise) {
-            const extensionRefresh = routeExtensionDomainEvent(
-                extensionService,
-                domainService,
-                event,
-            );
             // eslint-disable-next-line unicorn/prefer-await -- event delivery cannot await a best-effort refresh
-            extensionRefresh.catch((error: unknown) =>
-                logger.write('error', logEventCatalog.extensionHost.contextRefreshFailed, {
-                    fields: { message: error instanceof Error ? error.message : String(error) },
-                }),
+            routeExtensionDomainEvent(extensionService, domainService, event).catch(
+                (error: unknown) =>
+                    logger.write('error', logEventCatalog.extensionHost.contextRefreshFailed, {
+                        fields: { message: error instanceof Error ? error.message : String(error) },
+                    }),
             );
         }
         if (isTransientServerEvent(event)) server?.broadcast(event);

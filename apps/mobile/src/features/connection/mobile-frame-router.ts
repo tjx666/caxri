@@ -5,7 +5,7 @@ import type {
 } from '@caxri/mobile-transport';
 import { mobileEventPayloadSchema, mobileStreamPayloadSchema } from '@caxri/mobile-transport';
 import type { CommandReplyEnvelope } from '@caxri/protocol';
-import { commandReplyEnvelopeSchema } from '@caxri/protocol';
+import { assertNever, commandReplyEnvelopeSchema } from '@caxri/protocol';
 
 export type MobileSubscriptionMessage = MobileEventPayload | MobileStreamPayload;
 export type MobileSubscriptionListener = (message: MobileSubscriptionMessage) => void;
@@ -27,10 +27,18 @@ const isMessageForResource = (
     message: MobileSubscriptionMessage,
 ): boolean => {
     if (message.kind === 'resync-required') return true;
-    if (resource.kind === 'dashboard') return message.kind === 'dashboard.changed';
-    if (resource.kind === 'conversation') return message.kind === 'conversation.changed';
-    if (resource.kind === 'changes') return message.kind === 'changes.changed';
-    return message.kind === 'terminal.snapshot' || message.kind === 'terminal.output';
+    switch (resource.kind) {
+        case 'dashboard':
+            return message.kind === 'dashboard.changed';
+        case 'conversation':
+            return message.kind === 'conversation.changed';
+        case 'changes':
+            return message.kind === 'changes.changed';
+        case 'terminal':
+            return message.kind === 'terminal.snapshot' || message.kind === 'terminal.output';
+        default:
+            return assertNever(resource, 'Unhandled mobile subscription message');
+    }
 };
 
 /**
