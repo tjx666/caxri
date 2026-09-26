@@ -36,6 +36,13 @@ agent-browser --session "$SESSION" --no-pin-tab --cdp "$PORT" wait --text "Expec
 agent-browser --session "$SESSION" --no-pin-tab --cdp "$PORT" snapshot -i
 ```
 
+For a context menu, `agent-browser click` is left-click only; it does not accept
+`--button right`. Resolve the target element's viewport center with a bounded
+`eval`, then use `mouse move <x> <y>`, `mouse down right`, and `mouse up right`
+against the same Session and CDP port. Read back the menu before choosing an
+item. An unrecognized `click` flag can leave an ordinary left click that looks
+successful while no menu opens.
+
 References become stale after navigation, renderer reload, or meaningful DOM
 replacement. Snapshot again before the next interaction.
 `snapshot -i` lists interactive controls and can omit the static explanation of
