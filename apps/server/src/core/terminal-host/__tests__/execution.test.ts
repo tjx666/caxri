@@ -250,7 +250,8 @@ describe('architecture-a3b-terminal-host: RemoteTerminalExecution', () => {
         });
 
         expect(execution.writeAgentExact(terminal.id, 'stale', 'stale-launch')).toBe(false);
-        expect(execution.writeAgentExact(terminal.id, 'summary', 'launch-1')).toBe(true);
+        const delivered = vi.fn();
+        expect(execution.writeAgentExact(terminal.id, 'summary', 'launch-1', delivered)).toBe(true);
         await vi.waitFor(() =>
             expect(control.requests.at(-1)?.request).toEqual({
                 method: 'terminal.input',
@@ -258,6 +259,7 @@ describe('architecture-a3b-terminal-host: RemoteTerminalExecution', () => {
             }),
         );
 
+        await vi.waitFor(() => expect(delivered).toHaveBeenCalledExactlyOnceWith(true));
         control.holdAgentInputRequests = true;
         const reply = execution.writeAgent(terminal.id, 'Continue\r');
         await vi.waitFor(() =>

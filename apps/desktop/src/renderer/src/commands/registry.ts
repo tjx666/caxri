@@ -21,6 +21,7 @@ export interface CommandContext {
     };
     session: {
         archiveSelected(): void;
+        compactWarm(): void;
         canNavigateHistory(direction: SessionNavigationDirection): boolean;
         create(): void;
         deleteSelected(): void;

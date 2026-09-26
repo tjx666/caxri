@@ -16,7 +16,7 @@ import { createAgentCommandRuntime } from './agent-command-runtime';
 import type { AgentDelegationService } from './agent-delegation';
 import type { AgentDispatchService } from './agent-dispatch';
 import { createAgentRuntime } from './agent-runtime';
-import { LongPasteService } from './agents';
+import { CompactionReadiness, LongPasteService } from './agents';
 import { createBackgroundTasks, refreshWatchSessionInBackground } from './background-tasks';
 import { createBugReportDeliveryHandler } from './bug-report-delivery';
 import { createDeletionHandlers } from './deletion-handlers';
@@ -31,6 +31,7 @@ import { ProjectStatusService } from './project-status';
 import { VercelDeploymentStore } from './project-status-vercel-store';
 import { createRootServices } from './root-services';
 import { createServiceHandlers, mainOwned } from './service-handlers';
+import { SessionCompaction } from './session-compaction';
 import { createMobileSessionHandler, createSessionCreator } from './session-creation';
 import { SessionSelectionQueue } from './session-selection';
 import {
@@ -77,12 +78,14 @@ export async function createDomainServices(
     const selectedSessionId = () => database.getAppState('lastSelectedSessionId') ?? undefined;
     const suspensionState: { service?: TerminalSuspensionService } = {};
     const delegationState: { service?: AgentDelegationService } = {};
+    const compactionReadiness = new CompactionReadiness();
     const agentRuntime = await createAgentRuntime({
         configuration,
         database,
         dependencies,
         logger,
         onLifecycleSignal: (signal) => {
+            compactionReadiness.observe(signal);
             if (!signal.agentTurnContinues) suspensionState.service?.observeLifecycle(signal);
             delegationState.service?.observe(signal, 'evidence');
         },
@@ -169,6 +172,7 @@ export async function createDomainServices(
             return dependencies.agentEndpoints?.activate(terminal.id);
         },
         onLifecycleRetired: async (terminalId, launchId) => {
+            compactionReadiness.forget(terminalId);
             delegationState.service?.interruptTerminal(terminalId, false, launchId);
             suspensionState.service?.forgetTerminal(terminalId);
             agentHooks.endTerminalLaunch(terminalId, launchId);
@@ -181,7 +185,8 @@ export async function createDomainServices(
         },
         onOutputActivity: (terminalId, processId) =>
             coordinator.observeOutput(terminalId, processId),
-        onInput: (terminalId) => {
+        onInput: (terminalId, data) => {
+            compactionReadiness.input(terminalId, data);
             suspensionState.service?.observeInput(terminalId);
             delegationState.service?.interruptTerminal(terminalId, true);
         },
@@ -438,7 +443,16 @@ export async function createDomainServices(
         await watchHub.close();
         database.close();
     }
+    const compaction = new SessionCompaction({
+        database,
+        coordinator,
+        terminals,
+        logger,
+        readiness: compactionReadiness,
+        environment: agentEnvironment,
+    });
     const handlers: DomainHandlers = {
+        'session.compactWarm': (_parameters, signal) => compaction.run(signal),
         'extensions.retry': () => mainOwned('extensions.retry'),
         'requests.cancel': () => mainOwned('requests.cancel'),
         'viewContainers.cancelRequest': () => mainOwned('viewContainers.cancelRequest'),

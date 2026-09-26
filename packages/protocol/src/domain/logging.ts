@@ -177,6 +177,9 @@ export const logEventCatalog = {
         summary: 'project_status.summary',
         watch: 'project_status.watch',
     },
+    sessionCompaction: {
+        checked: 'session.compaction_checked',
+    },
     sessionRename: {
         providerSyncSkipped: 'session_rename.provider_sync_skipped',
         providerTitleMismatch: 'session_rename.provider_title_mismatch',

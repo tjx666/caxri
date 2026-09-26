@@ -122,6 +122,12 @@ export const commandDefinitions: CommandDefinition[] = [
         nativeMenu: { menu: 'session', group: 0, order: 3 },
     },
     {
+        id: 'session.compactWarm',
+        title: 'Compact Sessions with Warm Cache',
+        category: 'Session',
+        description: 'Compact idle Sessions whose prompt cache is estimated to remain warm',
+    },
+    {
         id: 'session.detach',
         title: 'Detach Agent',
         category: 'Session',
