@@ -5,7 +5,7 @@ import { errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
-import type { AgentLifecycleSignal } from './agents';
+import type { AgentAttentionRequests, AgentLifecycleSignal } from './agents';
 import {
     AgentCoordinator,
     AgentHookManager,
@@ -14,7 +14,6 @@ import {
     defaultAgentEnvironment,
     discoverExecutable,
 } from './agents';
-import type { AgentAttentionRequests } from './agents/attention-requests';
 import type { ConfigService } from './config';
 import type { CaxriDatabase } from './db';
 import type { DomainDependencies } from './domain-services';

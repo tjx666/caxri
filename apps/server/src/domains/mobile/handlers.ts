@@ -6,7 +6,7 @@ import { CaxriError, MOBILE_FILES_MAX_ENTRIES, MOBILE_FILES_READ_MAX_BYTES } fro
 
 import type { AgentEndpointLifecycle } from '../agent-endpoints';
 import type { AgentTimelineService, AgentTranscriptWatcher } from '../agents';
-import { AgentAttentionRequests } from '../agents/attention-requests';
+import { AgentAttentionRequests } from '../agents';
 import type { ConfigService } from '../config';
 import type { CaxriDatabase } from '../db';
 import type { DomainHandlers } from '../domain-services';
