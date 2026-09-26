@@ -43,6 +43,7 @@ export const commandIds = [
     'workbench.previousTab',
     'editor.save',
     'editor.sendReferenceToTerminal',
+    'editor.addReviewComment',
     'editor.openPreview',
     'editor.openPreviewToSide',
     'editor.openImportLink',

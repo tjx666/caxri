@@ -420,6 +420,7 @@ export const methods = {
         params: z.object({
             terminalId: identifierSchema,
             data: z.string().max(MAX_TERMINAL_INPUT_PAYLOAD_LENGTH),
+            requireRunningAgent: z.boolean().optional(),
         }),
         result: z.null(),
     },

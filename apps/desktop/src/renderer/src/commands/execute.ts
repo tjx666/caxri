@@ -6,6 +6,10 @@ import { errorMessage, listPaneTerminalIds, paneSplitBlockedReason } from '@caxr
 import { focusNextAttentionSession } from '../features/agent-activity/agent-activity-commands';
 import { closeDocumentTabs, saveActiveEditor } from '../features/editor/document-commands';
 import {
+    addGitReviewComment,
+    canAddGitReviewComment,
+} from '../features/editor/git-review-comment-commands';
+import {
     canOpenImportLinkAtCursor,
     openImportLinkAtCursor,
 } from '../features/editor/import-link-commands';
@@ -289,6 +293,8 @@ const commandContext: CommandContext = {
         canSendReferenceToTerminal: canSendActiveFileReference,
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         sendReferenceToTerminal: () => void sendActiveFileReferenceToTerminal(),
+        canAddReviewComment: canAddGitReviewComment,
+        addReviewComment: addGitReviewComment,
         canOpenPreview: canOpenActivePreview,
         openPreview: openActiveFilePreview,
         openPreviewToSide: openActiveFilePreviewToSide,

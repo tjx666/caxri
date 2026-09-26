@@ -88,6 +88,8 @@ export interface CommandContext {
          */
         canSendReferenceToTerminal(): boolean;
         sendReferenceToTerminal(): void;
+        canAddReviewComment(): boolean;
+        addReviewComment(): void;
         /**
          * True only when the active tab is a file a registered previewer can render — or the preview of one, so
          * re-running the command from the preview re-focuses it instead of failing.
