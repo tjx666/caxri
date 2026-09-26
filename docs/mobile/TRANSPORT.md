@@ -36,6 +36,11 @@ snapshot chunk. Snapshot chunks carry `nextHostSequence`; output chunks carry `h
 The client assembles a snapshot before applying later output. Each Terminal subscription has its
 own wire sequence, while Host sequence and generation detect source loss or Terminal restart.
 
+Every WebView document-ready event retires the previous observer and requests a new snapshot.
+Observer cleanup also drops pending native-to-WebView output. Snapshot replacement queues a hard
+reset in xterm's input stream after sizing the grid, so old asynchronous parser writes cannot
+appear on the replacement screen. Android recreates the native WebView when its renderer exits.
+
 ## Authority and lifecycle
 
 Server Core checks the live device generation, exact role, and Project grant for every command and

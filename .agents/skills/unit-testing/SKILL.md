@@ -19,6 +19,9 @@ Validate the smallest observable behavior below the Electron desktop boundary.
    there must be covered.
    Callback regressions must assert the callback was actually registered before invoking it;
    a no-op fallback can make an unreachable scenario falsely pass.
+   For chunked or asynchronously parsed streams, preserve the original chunk boundaries and
+   exercise the real encoder/parser when its buffering affects the result. Joining chunks before
+   the assertion or checking enqueue alone cannot prove correct consumer output or reset ordering.
 3. Do not unit-test React components by default. Extract meaningful state into a hook or pure
    function; route rendering and interaction to `e2e-testing`.
 4. Run the narrowest relevant files:
