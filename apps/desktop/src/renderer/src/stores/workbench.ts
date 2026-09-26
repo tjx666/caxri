@@ -768,6 +768,7 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
             case 'sessionPullRequests.changed':
             case 'terminal.exit':
             case 'terminal.output':
+            case 'terminal.sizeOwnership':
             case 'updates.state':
                 return;
             default:

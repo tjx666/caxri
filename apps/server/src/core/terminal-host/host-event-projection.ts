@@ -48,6 +48,15 @@ export function projectLiveTerminalHostEvent(
                 processId: event.processId,
             });
             return;
+        case 'terminal.sizeOwnership':
+            emitExecution({
+                type: 'sizeOwnership',
+                terminalId: identity.record.id,
+                owner: event.owner,
+                cols: event.cols,
+                rows: event.rows,
+            });
+            return;
         case 'terminal.title':
             emitExecution({
                 type: 'title',

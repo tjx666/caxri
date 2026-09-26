@@ -19,6 +19,13 @@ export type TerminalExecutionEvent =
           status: 'recovered' | 'rate-limited';
       }
     | { type: 'activity'; terminalId: string; processId: number }
+    | {
+          type: 'sizeOwnership';
+          terminalId: string;
+          owner: 'desktop' | 'mobile';
+          cols: number;
+          rows: number;
+      }
     | { type: 'title'; terminalId: string; title: string }
     | {
           type: 'agentStarted';

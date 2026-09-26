@@ -478,6 +478,16 @@ const terminalHostEventEnvelopeSchema = z.discriminatedUnion('event', [
     z
         .object({
             type: z.literal('event'),
+            event: z.literal('terminal.sizeOwnership'),
+            identity: terminalEventIdentitySchema,
+            owner: z.enum(['desktop', 'mobile']),
+            cols: terminalGridSizeSchema.shape.cols,
+            rows: terminalGridSizeSchema.shape.rows,
+        })
+        .strict(),
+    z
+        .object({
+            type: z.literal('event'),
             event: z.literal('terminal.title'),
             identity: terminalEventIdentitySchema,
             title: z.string().min(1).max(200),

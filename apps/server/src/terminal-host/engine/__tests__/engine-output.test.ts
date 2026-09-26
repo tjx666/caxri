@@ -250,15 +250,74 @@ describe('Terminal execution output boundaries', () => {
             await Promise.all(engine.shutdown().map(({ capture }) => capture));
         }
     });
+    it('reports current size ownership on takeover, late attach, mobile resize, and release', async () => {
+        const { engine, events } = fixture();
+        try {
+            await engine.attach('terminal', { cols: 80, rows: 24 });
+            engine.takeOver('terminal', 'connection:subscription', { cols: 42, rows: 20 }, 12_000);
+            engine.resize('terminal', 100, 30);
+            await engine.attach('terminal', { cols: 110, rows: 32 });
+            engine.takeOver('terminal', 'connection:subscription', { cols: 50, rows: 22 }, 12_000);
+            engine.releaseTakeOver('terminal', 'other:subscription');
+            engine.releaseTakeOver('terminal', 'connection:subscription');
+
+            expect(events.filter((event) => event.type === 'sizeOwnership')).toEqual([
+                {
+                    type: 'sizeOwnership',
+                    terminalId: 'terminal',
+                    owner: 'desktop',
+                    cols: 80,
+                    rows: 24,
+                },
+                {
+                    type: 'sizeOwnership',
+                    terminalId: 'terminal',
+                    owner: 'mobile',
+                    cols: 42,
+                    rows: 20,
+                },
+                {
+                    type: 'sizeOwnership',
+                    terminalId: 'terminal',
+                    owner: 'mobile',
+                    cols: 42,
+                    rows: 20,
+                },
+                {
+                    type: 'sizeOwnership',
+                    terminalId: 'terminal',
+                    owner: 'mobile',
+                    cols: 50,
+                    rows: 22,
+                },
+                {
+                    type: 'sizeOwnership',
+                    terminalId: 'terminal',
+                    owner: 'desktop',
+                    cols: 110,
+                    rows: 32,
+                },
+            ]);
+        } finally {
+            await Promise.all(engine.shutdown().map(({ capture }) => capture));
+        }
+    });
     it('restores the pre-lease size when desktop detaches and the lease expires', async () => {
         vi.useFakeTimers();
-        const { engine, size } = fixture();
+        const { engine, events, size } = fixture();
         try {
             await engine.attach('terminal', { cols: 80, rows: 24 });
             engine.takeOver('terminal', 'connection:subscription', { cols: 42, rows: 20 }, 1_000);
             engine.detachView('terminal');
             await vi.advanceTimersByTimeAsync(1_000);
             expect(size()).toEqual({ cols: 80, rows: 24 });
+            expect(events.findLast((event) => event.type === 'sizeOwnership')).toEqual({
+                type: 'sizeOwnership',
+                terminalId: 'terminal',
+                owner: 'desktop',
+                cols: 80,
+                rows: 24,
+            });
         } finally {
             await Promise.all(engine.shutdown().map(({ capture }) => capture));
             vi.useRealTimers();

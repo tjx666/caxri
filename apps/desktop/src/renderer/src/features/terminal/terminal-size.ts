@@ -229,7 +229,8 @@ interface TerminalPaneResizeControllerOptions {
 
 interface TerminalFitResult {
     localApplied: boolean;
-    size: TerminalSize;
+    displayedSize: TerminalSize;
+    requestedSize: TerminalSize;
 }
 
 /**
@@ -238,6 +239,7 @@ interface TerminalFitResult {
  */
 export class TerminalPaneResizeController {
     private lastSentSize: TerminalSize | undefined;
+    private mobileSize: TerminalSize | undefined;
     private readonly tracker: TerminalResizeBurstTracker;
 
     constructor(private readonly options: TerminalPaneResizeControllerOptions) {
@@ -264,12 +266,13 @@ export class TerminalPaneResizeController {
      */
     private fit(): TerminalFitResult | undefined {
         try {
-            const size = this.options.propose();
-            if (!size) return undefined;
-            const isLocalApplied = didTerminalSizeChange(this.options.current(), size);
-            if (isLocalApplied) this.options.apply(size);
-            this.options.fitted(size);
-            return { localApplied: isLocalApplied, size };
+            const requestedSize = this.options.propose();
+            if (!requestedSize) return undefined;
+            const displayedSize = this.mobileSize ?? requestedSize;
+            const isLocalApplied = didTerminalSizeChange(this.options.current(), displayedSize);
+            if (isLocalApplied) this.options.apply(displayedSize);
+            this.options.fitted(displayedSize);
+            return { localApplied: isLocalApplied, displayedSize, requestedSize };
         } catch {
             // The pane may be between layout and disposal during a Session switch.
             return undefined;
@@ -292,19 +295,44 @@ export class TerminalPaneResizeController {
         const result = this.fit();
         if (!result) return;
         const requestSent =
-            this.options.isRunning() && didTerminalSizeChange(this.lastSentSize, result.size);
-        this.tracker.sample(result.size, { localApplied: result.localApplied, requestSent });
+            this.options.isRunning() &&
+            didTerminalSizeChange(this.lastSentSize, result.requestedSize);
+        this.tracker.sample(result.displayedSize, {
+            localApplied: result.localApplied,
+            requestSent,
+        });
         if (!requestSent) return;
-        this.lastSentSize = result.size;
+        this.lastSentSize = result.requestedSize;
         // eslint-disable-next-line no-void -- request owns its bounded retry-state repair
-        void this.request(result.size);
+        void this.request(result.requestedSize);
     }
 
     fitInitial(): TerminalSize | undefined {
         const result = this.fit();
         if (!result) return undefined;
-        this.tracker.sample(result.size, { localApplied: result.localApplied, requestSent: true });
-        return result.size;
+        this.tracker.sample(result.displayedSize, {
+            localApplied: result.localApplied,
+            requestSent: true,
+        });
+        return result.requestedSize;
+    }
+
+    /**
+     * A mobile lease changes the PTY grid while Desktop still owns its desired post-lease size. Keep xterm aligned with
+     * the PTY and continue reporting container fits to the Host for release.
+     */
+    setSizeOwnership(owner: 'desktop' | 'mobile', size: TerminalSize): void {
+        this.mobileSize = owner === 'mobile' ? size : undefined;
+        const isLocalApplied = didTerminalSizeChange(this.options.current(), size);
+        if (isLocalApplied) this.options.apply(size);
+        this.options.fitted(size);
+        this.tracker.sample(size, { localApplied: isLocalApplied, requestSent: false });
+        if (owner === 'desktop') this.fitAndResize();
+    }
+
+    resetSizeOwnership(): void {
+        this.mobileSize = undefined;
+        this.fit();
     }
 
     confirmSent(size: TerminalSize): void {
