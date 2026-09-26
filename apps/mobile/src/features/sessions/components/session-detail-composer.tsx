@@ -172,7 +172,7 @@ export const SessionDetailComposer = ({
         >
             {images.attachments.length > 0 ? (
                 <View style={styles.composerMeta} testID="session-image-attachments">
-                    {images.attachments.map((attachment) => (
+                    {images.attachments.map((attachment, index) => (
                         <View key={attachment.id}>
                             <Image
                                 accessibilityLabel="Attached image preview"
@@ -184,6 +184,7 @@ export const SessionDetailComposer = ({
                                     color:
                                         attachment.state === 'failed' ? theme.danger : theme.muted,
                                 }}
+                                testID={`session-image-status-${index}`}
                             >
                                 {attachment.state === 'uploading'
                                     ? `Uploading ${Math.round(attachment.progress * 100)}%`
@@ -204,6 +205,7 @@ export const SessionDetailComposer = ({
                                 accessibilityLabel="Remove image"
                                 accessibilityRole="button"
                                 onPress={() => images.remove(attachment.id)}
+                                testID={`session-image-remove-${index}`}
                             >
                                 <Text style={{ color: theme.muted }}>Remove</Text>
                             </Pressable>
