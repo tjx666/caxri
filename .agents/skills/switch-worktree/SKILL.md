@@ -129,7 +129,23 @@ bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts doctor [branch
 
 Treat a symlinked `node_modules`, missing profile, or missing dependencies as blocking. `list`
 reports Git status, ahead/behind counts, dependency state, isolated profile, dev process identity,
-and the repository-wide desktop lease.
+orphaned processes, and the repository-wide desktop lease.
+
+`orphanProcesses` lists processes running out of a checkout whose parent chain ends at launchd
+(PPID 1) without a live `dev` launcher, `Playwright`, shell, or agent above them — typically a
+Server Core left behind after its window and launcher exited. Server Core is spawned detached so a
+restarted Desktop can adopt it, so a checkout that still has any supervised run reports none.
+`doctor` warns about them. The
+repository `SessionStart` hooks in `.claude/settings.json` and `.codex/hooks.json` run the cheap
+repository-wide scan below at session start and stay silent when nothing is found:
+
+```bash
+bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts orphans [--json]
+```
+
+`orphans` skips processes younger than ten minutes and only reports. An orphan may still belong to
+a sibling session, so tell the user and run `stop` inside the owning worktree only with their
+agreement or when your own session started it.
 
 ## Start development
 

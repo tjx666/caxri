@@ -13,6 +13,19 @@
                     }
                 ]
             }
+        ],
+        "SessionStart": [
+            {
+                "matcher": "startup|resume|clear",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "bun run \"$(git rev-parse --show-toplevel)/.agents/skills/switch-worktree/scripts/switch-worktree.ts\" orphans",
+                        "statusMessage": "Checking for orphaned Caxri dev processes",
+                        "timeout": 10
+                    }
+                ]
+            }
         ]
     }
 }
