@@ -1,4 +1,4 @@
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useRef, useState } from 'react';
 import type { ListRenderItemInfo } from 'react-native';
 import { FlatList, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
@@ -82,18 +82,18 @@ const FilePreview = ({
     const { request } = useMobileClient();
     const file = useFileRead(sessionId, entry.path);
     const [draft, setDraft] = useState<string | null>(null);
-    const [expectedContentHash, setExpectedContentHash] = useState<string | null>(null);
+    const expectedContentHash = useRef<string | null>(null);
     const [saving, setSaving] = useState(false);
     const [saveError, setSaveError] = useState<string | null>(null);
     const discard = () => {
         setDraft(null);
-        setExpectedContentHash(null);
+        expectedContentHash.current = null;
         setSaveError(null);
         // eslint-disable-next-line no-void -- Query state owns the refreshed file result.
         void file.refetch();
     };
     const save = async () => {
-        if (draft === null || expectedContentHash === null || saving) return;
+        if (saving || draft === null || expectedContentHash.current === null) return;
         setSaving(true);
         setSaveError(null);
         try {
@@ -101,10 +101,10 @@ const FilePreview = ({
                 sessionId,
                 path: entry.path,
                 content: draft,
-                expectedContentHash,
+                expectedContentHash: expectedContentHash.current,
             });
             setDraft(null);
-            setExpectedContentHash(null);
+            expectedContentHash.current = null;
             await file.refetch();
         } catch (error) {
             setSaveError(
@@ -151,7 +151,7 @@ const FilePreview = ({
                                 key="edit"
                                 onPress={() => {
                                     setDraft(document.content);
-                                    setExpectedContentHash(document.contentHash);
+                                    expectedContentHash.current = document.contentHash;
                                 }}
                                 style={styles.fileAction}
                                 testID="files-edit"
