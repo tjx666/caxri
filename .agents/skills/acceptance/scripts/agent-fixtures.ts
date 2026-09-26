@@ -118,13 +118,14 @@ export function validateAcceptanceAgentFixture(
     );
 }
 
-function sharedSource(provider: AgentProvider): string {
+function sharedSource(provider: AgentProvider, isPublicFrame = false): string {
     return String.raw`#!${process.execPath}
 const childProcess = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 function main() {
 const provider = ${JSON.stringify(provider)};
+const isPublicFrame = ${JSON.stringify(isPublicFrame)};
 if (process.argv.includes('--version')) {
   process.stdout.write(provider === 'claude' ? '2.1.251 (Claude Code)\n' : 'codex-cli 0.151.0\n');
   process.exit(0);
@@ -233,7 +234,7 @@ if (isClaudeGeneration || isCodexGeneration) {
     const mode = consumeMode();
     const count = nextCount();
     const sessionId = mode.sessionId ?? '';
-    const fallbackText = process.env.CAXRI_ACCEPTANCE_PUBLIC_FRAME === '1'
+    const fallbackText = isPublicFrame
       ? 'Session'
       : 'Repair Session Naming';
     const text = mode.kind === 'same' ? currentTitle(sessionId) : (mode.title ?? fallbackText);
@@ -307,7 +308,7 @@ if (provider === 'claude') {
 }
 
 const appendTranscript = (topic, includePrivate) => {
-  if (process.env.CAXRI_ACCEPTANCE_PUBLIC_FRAME === '1') return;
+  if (isPublicFrame) return;
   const privateText = includePrivate ? privateMarker + '_PROMPT ' + privateMarker + '_RESPONSE ' : '';
   const filler = ' bounded acceptance context'.repeat(40);
   const records = provider === 'claude'
@@ -544,6 +545,10 @@ function assertFixtureId(value: string): asserts value is AcceptanceAgentFixture
  */
 interface PrepareAcceptanceAgentFixtureOptions {
     fixtureId: string;
+    /**
+     * Suppress fixture transcript and use a generic title in public mobile media.
+     */
+    isPublicFrame?: boolean;
     sourceEnvironment?: NodeJS.ProcessEnv;
     userDataDir: string;
 }
@@ -586,7 +591,7 @@ export async function prepareAcceptanceAgentFixture(
                         ? grokAcceptanceSource()
                         : options.fixtureId === 'agent-delegation-v1'
                           ? delegationFixtureSource(provider)
-                          : sharedSource(provider),
+                          : sharedSource(provider, options.isPublicFrame),
                     'utf8',
                 );
                 await chmod(executable, 0o700);

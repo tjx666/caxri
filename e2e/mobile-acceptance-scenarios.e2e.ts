@@ -1,5 +1,4 @@
 import { Buffer } from 'node:buffer';
-import { writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import process from 'node:process';
 
@@ -13,8 +12,13 @@ import { expect, test } from './support/fixtures.ts';
 import { pageRequest } from './support/helpers.ts';
 import { createMobileAcceptanceFixture } from './support/mobile-acceptance-fixture.ts';
 import {
+    capture,
+    executeMobileComposerSuggestionsScenario,
+    executeMobileFileEditScenario,
+    finish,
+} from './support/mobile-agent-actions-scenarios.ts';
+import {
     adbShell,
-    captureMobileFramebuffer,
     mobileDisplayState,
     mobileSemantics,
     restoreMobileDisplayState,
@@ -67,31 +71,6 @@ function requireEnvironment(): {
         throw new Error('Mobile Acceptance scenario identity is incomplete');
     }
     return { artifactManifestPath, assetsDirectory, caseId, scenarioReceiptPath, serial };
-}
-
-async function capture(
-    environment: ReturnType<typeof requireEnvironment>,
-    label: string,
-    artifacts: string[],
-): Promise<void> {
-    const name = `${environment.caseId}-${label}-android.png`;
-    await captureMobileFramebuffer(environment.serial, join(environment.assetsDirectory, name));
-    artifacts.push(`assets/${name}`);
-}
-
-async function finish(
-    environment: ReturnType<typeof requireEnvironment>,
-    artifacts: string[],
-    receipt: Record<string, unknown>,
-): Promise<void> {
-    await Promise.all([
-        writeJsonAtomic(environment.artifactManifestPath, { artifacts, schemaVersion: 1 }),
-        writeFile(
-            environment.scenarioReceiptPath,
-            `${JSON.stringify({ ...receipt, caseId: environment.caseId, schemaVersion: 1 }, null, 2)}\n`,
-            'utf8',
-        ),
-    ]);
 }
 
 async function openComposerSession(serial: string, sessionId: string): Promise<void> {
@@ -237,6 +216,18 @@ test('executes one report-bound Android product scenario', async ({}) => {
                     sharedProfile: false,
                 });
             }
+            break;
+        }
+        case 'MOB-COMPOSE-01': {
+            await executeMobileComposerSuggestionsScenario(
+                environment,
+                artifacts,
+                requireRemoteVideoPath(),
+            );
+            break;
+        }
+        case 'MOB-EDIT-01': {
+            await executeMobileFileEditScenario(environment, artifacts);
             break;
         }
         case 'MOB-PAIR-02': {

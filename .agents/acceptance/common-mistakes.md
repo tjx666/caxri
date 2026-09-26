@@ -5,6 +5,30 @@ needlessly prolonged an Acceptance run. Read it before planning a desktop or mob
 Keep entries evidence-based and link to the canonical workflow rule instead of
 duplicating the full procedure here.
 
+## Capturing mobile Agent fixture content in public evidence
+
+**Situation:** An Android Acceptance case displays a synthetic Agent request over its Session conversation.
+
+**Does not work:** Assuming synthetic Session titles and transcripts are safe to publish, or passing a
+privacy switch through `sourceEnvironment`. The fake Agent isolation builder selects its own environment
+keys, so that switch does not reach the executable. A successful device case can still have unusable media.
+
+**Works:** Select the fixture's `isPublicFrame` source variant before generating its executable, then inspect
+the full screenshot and recording before citing them. The variant emits no transcript and uses a generic
+Session label. Follow the [Acceptance privacy rule](../skills/acceptance/SKILL.md).
+
+## Using arbitrary option labels as Android check IDs
+
+**Situation:** A mobile Agent question renders clickable choices, but the sanitized Android semantic receipt
+does not list their `testID` values.
+
+**Does not work:** Building `testID` from an Agent-supplied label such as `Alpha`. The Android receipt
+accepts only lower-case check IDs, and other labels may contain spaces or punctuation.
+
+**Works:** Use stable numeric choice IDs and keep the Agent label in the accessibility label. Verify a
+touch through the device semantics and the resulting Agent fixture receipt. See the
+[Android surface procedure](../skills/acceptance/surfaces/android.md).
+
 ## Comparing an isolated Desktop profile by its original temporary path
 
 **Situation:** An Acceptance helper binds Desktop media to the isolated Electron profile.
