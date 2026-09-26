@@ -2,7 +2,7 @@ import { Terminal } from '@xterm/xterm';
 
 import { createTerminalFrameBatch } from '../src/features/terminal/frame-batch';
 import { resetTerminalSnapshot } from '../src/features/terminal/snapshot-reset';
-import { terminalViewScale } from '../src/features/terminal/view-scale';
+import { isTerminalViewAtBottom, terminalViewScale } from '../src/features/terminal/view-scale';
 
 interface TerminalBridgeWindow extends Window {
     __CAXRI_TERMINAL_ID__: string;
@@ -48,11 +48,10 @@ const distance = (first: Touch, second: Touch): number =>
 
 /**
  * Xterm 6 scrolls through a virtual `ScrollableElement`, so `.xterm-viewport` no longer emits native scroll events; the
- * buffer's viewport position is the only reliable "following output" signal.
+ * buffer position and the outer viewport must both be at the bottom to follow output.
  */
 const reportScroll = (): void => {
-    const buffer = terminal.buffer.active;
-    const isNext = buffer.viewportY >= buffer.baseY;
+    const isNext = isTerminalViewAtBottom(terminal.buffer.active, viewport);
     if (isNext === viewState.isAtBottom) return;
     viewState.isAtBottom = isNext;
     post({ type: 'scroll', atBottom: viewState.isAtBottom });
@@ -160,6 +159,7 @@ const glide = (): void => {
     };
     momentum.frame = requestAnimationFrame(step);
 };
+viewport.addEventListener('scroll', reportScroll, { passive: true });
 
 viewport.addEventListener(
     'touchstart',
@@ -260,6 +260,7 @@ const batch = createTerminalFrameBatch({
     cancel: (id) => cancelAnimationFrame(id),
     schedule: (callback) => requestAnimationFrame(callback),
     write: (data) => {
+        const outerScrollTop = viewport.scrollTop;
         const shouldFollow = viewState.isAtBottom;
         terminal.write(data, () => {
             /**
@@ -268,6 +269,8 @@ const batch = createTerminalFrameBatch({
             if (shouldFollow) {
                 terminal.scrollToBottom();
                 viewport.scrollTop = viewport.scrollHeight;
+            } else {
+                viewport.scrollTop = outerScrollTop;
             }
             reportScroll();
         });
