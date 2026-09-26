@@ -394,7 +394,11 @@ export async function createMobileAcceptanceFixture(
         mkdir(allowedRoot, { recursive: true }),
         mkdir(deniedRoot, { recursive: true }),
         ...(input.isolatedProjectHome
-            ? [mkdir(join(testDirectory, 'mobile-new-project', 'nested'), { recursive: true })]
+            ? [
+                  mkdir(join(userData, 'e2e-agents', 'home', 'mobile-new-project', 'nested'), {
+                      recursive: true,
+                  }),
+              ]
             : []),
     ]);
     if (input.changes) {
@@ -429,7 +433,6 @@ export async function createMobileAcceptanceFixture(
             userDataDir: userData,
             testRootPath: allowedRoot,
             env: {
-                ...(input.isolatedProjectHome && { HOME: testDirectory }),
                 ...(input.mode === 'waiting' && { CAXRI_E2E_AGENT_HOOKS: '1' }),
                 ...(input.dropSubmitAcknowledgement && {
                     CAXRI_E2E_MOBILE_DROP_SUBMIT_ACK_ONCE: '1',
