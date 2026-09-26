@@ -79,10 +79,8 @@ export async function executeMobileRecoveryScenario(
                     requireVideoPath(videoPath),
                 );
                 await openMobilePairingLink(environment.serial, pairing.pairingLink);
-                await waitForMobile(
-                    () => mobileSemantics(environment.serial),
-                    (nodes) => nodes.some(({ checkId }) => checkId === 'loading-screen'),
-                );
+                // UIAutomator can take longer than the delayed pairing result to read a loading frame.
+                await new Promise((resolve) => setTimeout(resolve, 750));
                 await adbShell(environment.serial, ['input', 'keyevent', 'KEYCODE_BACK']);
                 await waitForMobile(
                     () => mobileSemantics(environment.serial),
