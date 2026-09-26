@@ -162,6 +162,7 @@ caxri skills update caxri-cli --provider codex --local --yes --json
 caxri skills uninstall caxri-cli --provider codex --local --yes --json
 ```
 
-Use `--provider claude` for Claude Code or `--provider grok` for Grok Build. Use `--global` only after the user explicitly chooses a
-global install. Respect `compatible`, `stale`, and `conflict` health. Never overwrite an unmarked,
-modified, unknown-schema, or newer skill; follow the reported action instead.
+Use `--provider claude` for Claude Code or `--provider grok` for Grok Build. Use `--global` only
+after the user explicitly chooses a global install. Respect `compatible`, `stale`, and `conflict`
+health. Never overwrite an unmarked, modified, unknown-schema, or newer skill; follow the reported
+action instead.

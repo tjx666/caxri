@@ -334,6 +334,11 @@ export interface LintBuckets {
 
 const SKILL_INVOCATION_CONTRACT_TEST = 'scripts/__tests__/skill-invocation.test.ts';
 const PROJECT_HOOK_CONTRACT_TEST = '.agents/skills/acceptance/scripts/project-hook.test.ts';
+/**
+ * The product skill is embedded into `@caxri/agent-skills` as a generated bundle; this test fails when
+ * `skills/caxri-cli/**` changes without regenerating that bundle.
+ */
+const BUNDLED_SKILL_CONTRACT_TEST = 'apps/cli/src/__tests__/skills.integration.test.ts';
 
 function repoHarnessTestCandidates(file: string): string[] {
     const candidates: string[] = [];
@@ -356,6 +361,7 @@ function repoHarnessTestCandidates(file: string): string[] {
     ) {
         candidates.push(PROJECT_HOOK_CONTRACT_TEST);
     }
+    if (file.startsWith('skills/caxri-cli/')) candidates.push(BUNDLED_SKILL_CONTRACT_TEST);
     return candidates;
 }
 
