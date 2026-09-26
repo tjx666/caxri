@@ -126,6 +126,13 @@ async function browsePanels(environment: Environment, artifacts: string[]): Prom
         ]);
         await fixture.pair();
         if (!fixture.allowedSessionId) throw new Error('Panels Session is unavailable');
+        await pageRequest(fixture.running.page, 'session.select', {
+            sessionId: fixture.allowedSessionId,
+        });
+        await waitForMobile(
+            () => pageRequest<BootstrapState>(fixture.running.page, 'app.bootstrap'),
+            (state) => state.selectedSessionId === fixture.allowedSessionId,
+        );
         await tapMobileCheck(environment.serial, `session-row-${fixture.allowedSessionId}`);
         await waitForMobile(
             () => mobileSemantics(environment.serial),
@@ -167,13 +174,16 @@ async function browsePanels(environment: Environment, artifacts: string[]): Prom
         await tapMobileCheck(environment.serial, 'panel-tab-caxri.project-status');
         await waitForMobile(
             () => mobileSemantics(environment.serial),
-            (nodes) => hasCheck(nodes, 'tree-panel-caxri.project-status.overview'),
+            (nodes) =>
+                hasCheck(nodes, 'tree-panel-caxri.project-status.overview') &&
+                (hasCheck(nodes, 'tree-row') || hasCheck(nodes, 'tree-panel-empty')),
         );
         await capture(environment, 'status', artifacts);
         await tapMobileCheck(environment.serial, 'panel-tab-caxri.fixture');
         await waitForMobile(
             () => mobileSemantics(environment.serial),
-            (nodes) => hasCheck(nodes, 'tree-panel-caxri.fixture.tree'),
+            (nodes) =>
+                hasCheck(nodes, 'tree-panel-caxri.fixture.tree') && hasCheck(nodes, 'tree-row'),
         );
         await capture(environment, 'extension-tree', artifacts);
         await tapMobileCheck(environment.serial, 'session-segment-changes');

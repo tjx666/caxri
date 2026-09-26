@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -23,6 +23,13 @@ export const PairingLinkScreen = ({ parameters }: PairingLinkScreenProperties) =
     const isReady = client.status !== 'booting';
     const { link, error: parameterError } = readPairingRoute(parameters);
     const [error, setError] = useState<string>();
+    const operations = useRef({ pair, cancelPairing });
+    /**
+     * Credential adoption replaces provider callbacks without creating a new route attempt.
+     */
+    useEffect(() => {
+        operations.current = { pair, cancelPairing };
+    }, [pair, cancelPairing]);
 
     useFocusEffect(
         useCallback(() => {
@@ -31,12 +38,12 @@ export const PairingLinkScreen = ({ parameters }: PairingLinkScreenProperties) =
             if (!link) return;
             return startPairingRoute({
                 link,
-                pair,
-                cancel: cancelPairing,
+                pair: (pairingLink) => operations.current.pair(pairingLink),
+                cancel: () => operations.current.cancelPairing(),
                 onSuccess: () => router.replace('/sessions'),
                 onError: setError,
             });
-        }, [cancelPairing, isForeground, link, pair, parameterError, isReady]),
+        }, [isForeground, link, parameterError, isReady]),
     );
 
     if (!error)
