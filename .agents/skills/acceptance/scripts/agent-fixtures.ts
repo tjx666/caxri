@@ -444,6 +444,7 @@ setTimeout(startInitialTurn, 50);
 const bracketedPasteStart = '\u001b[200~';
 const bracketedPasteEnd = '\u001b[201~';
 let input = '';
+let attachmentInput = '';
 let isBracketedPaste = false;
 process.stdin.setRawMode?.(true);
 process.stdin.setEncoding('utf8');
@@ -509,6 +510,18 @@ const processInput = () => {
   }
 };
 process.stdin.on('data', (chunk) => {
+  if (isPublicFrame) {
+    attachmentInput = (attachmentInput + chunk).slice(-4096);
+    const imagePath = /Attached image paths:\r?\n([^\r\n\u001b]+)/u.exec(attachmentInput)?.[1]?.trim();
+    if (imagePath) {
+      appendReceipt({
+        kind: 'imageAttachmentReceived',
+        pathValid: /^image_[0-9a-f]{32}\.jpg$/u.test(path.basename(imagePath)),
+        exists: fs.existsSync(imagePath),
+      });
+      attachmentInput = '';
+    }
+  }
   // Opt-in echo makes unsent PTY input observable without exposing a host Agent process.
   if (fs.existsSync(echoTerminalInputPath)) {
     appendReceipt({

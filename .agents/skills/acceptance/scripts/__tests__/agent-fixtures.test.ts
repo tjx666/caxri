@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { spawn } from 'node:child_process';
 import {
     access,
@@ -455,6 +456,43 @@ describe('Acceptance Agent fixtures', () => {
         );
         expect(stdout).not.toContain('\u{1B}[200~');
         expect(stdout).not.toContain('\u{1B}[201~');
+    });
+
+    it('confirms a public-frame Agent received an existing image path without recording it', async () => {
+        const userDataDirectory = await mkdtemp(join(tmpdir(), 'caxri-acceptance-agent-fixture-'));
+        directories.push(userDataDirectory);
+        const fixture = await prepareAcceptanceAgentFixture({
+            fixtureId: 'agent-features-v1',
+            isPublicFrame: true,
+            userDataDir: userDataDirectory,
+        });
+        const claudeRoot = fixture.environment.CLAUDE_CONFIG_DIR!;
+        const imagePath = join(claudeRoot, 'image_0123456789abcdef0123456789abcdef.jpg');
+        await writeFile(imagePath, Buffer.from([0xff, 0xd8, 0xff]));
+        const fixtureProcess = observeAgentFixtureProcess(
+            spawn(fixtureExecutable(fixture, 'claude'), [], {
+                env: fixture.environment,
+                stdio: ['pipe', 'pipe', 'pipe'],
+            }),
+        );
+        try {
+            fixtureProcess.child.stdin?.write(
+                `\u{1B}[200~Review image\n\nAttached image paths:\n${imagePath}\u{1B}[201~\r`,
+            );
+            await expect
+                .poll(() => readReceipts(claudeRoot))
+                .toContainEqual(
+                    expect.objectContaining({
+                        kind: 'imageAttachmentReceived',
+                        pathValid: true,
+                        exists: true,
+                    }),
+                );
+            expect(JSON.stringify(await readReceipts(claudeRoot))).not.toContain(imagePath);
+            expect(getAgentFixtureStdout(fixtureProcess)).toBe('');
+        } finally {
+            await stopAgentFixtureProcess(fixtureProcess);
+        }
     });
 
     it('waits for managed hooks before starting the initial fixture turn', async () => {
