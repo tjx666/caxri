@@ -214,6 +214,12 @@ export async function executeMobileImageAttachmentScenario(
         mode: 'attention',
         serial: environment.serial,
     });
+    const reportDirectory = dirname(environment.assetsDirectory);
+    const fixtureLaunchId = await beginAgentFixtureLifecycle(reportDirectory, {
+        availableProviders: ['claude', 'codex'],
+        caseId: environment.caseId,
+        fixtureId: 'agent-features-v1',
+    });
     const imageName = 'caxri-acceptance-image.jpg';
     const remoteImage = `/sdcard/Pictures/${imageName}`;
     let recording: Awaited<ReturnType<typeof startMobileFramebufferRecording>> | undefined;
@@ -313,5 +319,11 @@ export async function executeMobileImageAttachmentScenario(
             '-d',
             `file://${remoteImage}`,
         ]);
+        await completeAgentFixtureLifecycle(reportDirectory, {
+            caseId: environment.caseId,
+            cleanupCompleted: true,
+            launchId: fixtureLaunchId,
+            sharedProfile: false,
+        });
     }
 }
