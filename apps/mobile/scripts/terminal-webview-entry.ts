@@ -1,6 +1,7 @@
 import { Terminal } from '@xterm/xterm';
 
 import { createTerminalFrameBatch } from '../src/features/terminal/frame-batch';
+import { resetTerminalSnapshot } from '../src/features/terminal/snapshot-reset';
 
 interface TerminalBridgeWindow extends Window {
     __CAXRI_TERMINAL_ID__: string;
@@ -200,8 +201,7 @@ bridgeWindow.CaxriTerminal = {
                 Number(command.rows) <= 1_000;
             if (hasGrid && command.type === 'reset') {
                 batch.reset();
-                terminal.reset();
-                terminal.resize(Number(command.cols), Number(command.rows));
+                resetTerminalSnapshot(terminal, Number(command.cols), Number(command.rows));
                 viewState.isAtBottom = true;
                 post({ type: 'scroll', atBottom: true });
                 layout();

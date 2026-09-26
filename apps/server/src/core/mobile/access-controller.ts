@@ -17,6 +17,7 @@ import type {
     ViewIcon,
 } from '@caxri/protocol';
 import { assertNever, CaxriError } from '@caxri/protocol';
+import type { StructuredLogger } from '@caxri/system';
 
 import type { TerminalExecutionPort } from '../../domains/terminal';
 import type { AgentEndpointRegistry } from '../agent-endpoints/registry';
@@ -232,6 +233,7 @@ const projectMobileTreeItem = (item: TreeItemDto) => ({
  * Owns the default-off LAN listener and keeps paired-device authorization out of the general Server dispatcher.
  */
 export const openMobileAccessController = async (options: {
+    logger?: Pick<StructuredLogger, 'write'>;
     directory: string;
     hostDisplayName?: string;
     onOpenError?: () => Promise<void>;
@@ -291,10 +293,23 @@ export const openMobileAccessController = async (options: {
             principal,
             resource.kind === 'terminal' ? 'terminal.preview' : 'mobile.dashboard',
         );
-        if (resource.kind === 'terminal')
-            await terminalForPrincipal(domainService, current, resource.terminalId);
-        else if (resource.kind === 'conversation' || resource.kind === 'changes')
-            await sessionForPrincipal(domainService, current, resource.sessionId);
+        switch (resource.kind) {
+            case 'terminal': {
+                await terminalForPrincipal(domainService, current, resource.terminalId);
+                return;
+            }
+            case 'conversation':
+            case 'changes': {
+                await sessionForPrincipal(domainService, current, resource.sessionId);
+                return;
+            }
+            case 'dashboard': {
+                return;
+            }
+            default: {
+                assertNever(resource, 'Unhandled mobile subscription authority');
+            }
+        }
     };
     const operationKey = (deviceId: string, generation: number): string =>
         `${deviceId}:${generation}`;
@@ -337,6 +352,7 @@ export const openMobileAccessController = async (options: {
             assertOpen();
             getExtensionService = resolveExtensionService;
             gateway = new MobileGateway({
+                logger: options.logger,
                 adapters: { server: adapter },
                 bootId,
                 protocolIdentity,
@@ -373,24 +389,31 @@ export const openMobileAccessController = async (options: {
                 },
                 matchesSubscriptionEvent: async (principal, resource, event) => {
                     await authorizeSubscription(principal, resource, domainService);
-                    if (resource.kind === 'dashboard') return event.event === 'state.changed';
-                    if (resource.kind === 'terminal')
-                        return (
-                            event.event === 'terminal.output' &&
-                            event.payload.terminalId === resource.terminalId
-                        );
-                    if (resource.kind === 'changes')
-                        return (
-                            event.event === 'git.changed' &&
-                            event.payload.sessionIds.includes(resource.sessionId)
-                        );
-                    if (event.event !== 'agentTranscript.changed') return false;
-                    const terminal = await terminalForPrincipal(
-                        domainService,
-                        principal,
-                        event.payload.terminalId,
-                    );
-                    return terminal.sessionId === resource.sessionId;
+                    switch (resource.kind) {
+                        case 'dashboard':
+                            return event.event === 'state.changed';
+                        case 'terminal':
+                            return (
+                                event.event === 'terminal.output' &&
+                                event.payload.terminalId === resource.terminalId
+                            );
+                        case 'changes':
+                            return (
+                                event.event === 'git.changed' &&
+                                event.payload.sessionIds.includes(resource.sessionId)
+                            );
+                        case 'conversation': {
+                            if (event.event !== 'agentTranscript.changed') return false;
+                            const terminal = await terminalForPrincipal(
+                                domainService,
+                                principal,
+                                event.payload.terminalId,
+                            );
+                            return terminal.sessionId === resource.sessionId;
+                        }
+                        default:
+                            return assertNever(resource, 'Unhandled mobile subscription event');
+                    }
                 },
                 ...(options.selectAddress && { selectAddress: options.selectAddress }),
             });

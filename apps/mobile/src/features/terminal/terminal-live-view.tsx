@@ -77,6 +77,7 @@ function AndroidTerminalLiveView({
         >
             <View style={styles.screen}>
                 <WebView
+                    key={terminal.webviewGeneration}
                     ref={webview}
                     allowFileAccess={false}
                     allowUniversalAccessFromFileURLs={false}
@@ -85,6 +86,7 @@ function AndroidTerminalLiveView({
                     javaScriptCanOpenWindowsAutomatically={false}
                     mixedContentMode="never"
                     onMessage={(event) => terminal.onWebviewMessage(event.nativeEvent.data)}
+                    onRenderProcessGone={terminal.onWebviewTerminated}
                     onShouldStartLoadWithRequest={(request) =>
                         request.url === 'about:blank' || request.url === 'about:srcdoc'
                     }

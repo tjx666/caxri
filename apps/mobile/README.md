@@ -7,6 +7,11 @@ native rendering, live updates, and Terminal fallback.
 The [Changes guide](../../docs/mobile/CHANGES.md) describes authorized Git snapshots, bounded diffs,
 live refresh, and the commit draft boundary.
 
+The current live Terminal implementation is Android-only. iOS displays an explicit unavailable
+state for that segment, including Conversation fallback; building the iOS app does not establish
+live Terminal support. Cross-platform Terminal support remains a product target, not a verified
+capability of this build.
+
 ## Local development
 
 Run commands from the repository root:

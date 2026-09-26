@@ -20,11 +20,36 @@ import {
     parseCheckArguments,
     playwrightArguments,
     relatedE2ESpecs,
+    runLint,
     selectE2ESpecs,
     selectedTestCandidates,
     testCandidatesForFile,
     VITEST_SOURCE_ROOTS,
 } from './check';
+
+describe('final lint validation', () => {
+    it('checks formatted bytes without mutating them and propagates final failures', async () => {
+        const calls: Array<{ executable: string; arguments: string[] }> = [];
+        const run = (_root: string, executable: string, arguments_: string[]) => {
+            calls.push({ executable, arguments: arguments_ });
+            if (executable === 'eslint' && !arguments_.includes('--fix'))
+                return Promise.reject(new Error('Formatted file exceeds max-lines'));
+            return Promise.resolve();
+        };
+        await expect(runLint('/fixture', ['source.ts'], run)).rejects.toThrow('exceeds max-lines');
+        expect(calls.map(({ executable }) => executable)).toEqual([
+            'eslint',
+            'oxlint',
+            'prettier',
+            'eslint',
+        ]);
+        expect(calls.at(-1)?.arguments).toEqual([
+            '--no-warn-ignored',
+            '--max-warnings=0',
+            'source.ts',
+        ]);
+    });
+});
 
 describe('changed-file discovery', () => {
     it('includes committed branch changes while preserving staged and untracked selection', async () => {
@@ -656,8 +681,6 @@ describe('direct import test selection', () => {
         const selected = await selectedTestCandidates(process.cwd(), [source]);
 
         const expected = [
-            'apps/server/src/domains/__tests__/mobile-files.test.ts',
-            'apps/server/src/domains/__tests__/mobile-timeline.test.ts',
             'apps/server/src/domains/__tests__/root-services.test.ts',
             'apps/server/src/domains/__tests__/service-handlers.test.ts',
             'apps/server/src/domains/files/__tests__/external-links.integration.test.ts',
@@ -671,6 +694,8 @@ describe('direct import test selection', () => {
             'apps/server/src/domains/files/__tests__/search.integration.test.ts',
             'apps/server/src/domains/files/__tests__/watcher.scope.integration.test.ts',
             'apps/server/src/domains/files/__tests__/workbench-mutations.integration.test.ts',
+            'apps/server/src/domains/mobile/__tests__/files.test.ts',
+            'apps/server/src/domains/mobile/__tests__/timeline.test.ts',
             'apps/server/src/domains/terminal/__tests__/file-links.test.ts',
         ];
         expect(direct).toEqual(expected);

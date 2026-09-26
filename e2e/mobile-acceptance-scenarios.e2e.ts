@@ -486,6 +486,21 @@ test('executes one report-bound Android product scenario', async ({}) => {
                     () => fixture.menuState(),
                     ({ cols, rows }) => cols === desktopSize.cols && rows === desktopSize.rows,
                 );
+                /**
+                 * Restoring the PTY size can invalidate the mobile stream generation. The desktop grid alone does not
+                 * prove that the phone has acquired its replacement snapshot and can observe/control again.
+                 */
+                await waitForMobile(
+                    () => mobileSemantics(environment.serial),
+                    (nodes) =>
+                        nodes.some(
+                            ({ checkId, enabled }) => checkId === 'terminal-take-over' && enabled,
+                        ) &&
+                        nodes.every(
+                            ({ checkId }) =>
+                                !(checkId === 'terminal-stale' || checkId === 'terminal-error'),
+                        ),
+                );
                 await expect(surface).toHaveAttribute('data-terminal-attached', 'true');
                 await capture(environment, 'released', artifacts);
                 await finish(environment, artifacts, {

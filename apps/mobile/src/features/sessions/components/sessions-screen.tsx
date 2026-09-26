@@ -108,20 +108,23 @@ export const SessionsScreen = ({ routeSessionId }: { routeSessionId: string | nu
     const theme = useMobileTheme();
     const { height, width } = useWindowDimensions();
     const layout = mobileLayoutMode(width, height);
-    const { lastSeenAt, retryConnection, status } = useMobileClient();
+    const { getLastSeenAt, retryConnection, status } = useMobileClient();
     const { hostId, sessions } = useHostSessions();
     const { selectSession } = sessions;
-    const [now, setNow] = useState(0);
+    const [{ now, lastSeenAt }, setClock] = useState<{ now: number; lastSeenAt: number | null }>({
+        now: 0,
+        lastSeenAt: null,
+    });
 
     useEffect(() => {
-        const tick = (): void => setNow(Date.now());
+        const tick = (): void => setClock({ now: Date.now(), lastSeenAt: getLastSeenAt() });
         const initial = setTimeout(tick, 0);
         const interval = setInterval(tick, 1_000);
         return () => {
             clearTimeout(initial);
             clearInterval(interval);
         };
-    }, []);
+    }, [getLastSeenAt, status]);
 
     const fresh = isConnectionFresh(status, lastSeenAt, now);
 

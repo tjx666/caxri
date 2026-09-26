@@ -343,6 +343,43 @@ describe('AgentTimelineService', () => {
         });
     });
 
+    it('keeps concurrent append reads and their cursors coherent', async () => {
+        await writeFile(transcript, line(1) + line(2));
+        await service.read('session-fixture', 'terminal-fixture', undefined, 100);
+        await appendFile(
+            transcript,
+            `${JSON.stringify({ type: 'system', subtype: 'turn_duration', durationMs: 100 })}\n`,
+        );
+        const pages = await Promise.all(
+            Array.from({ length: 8 }, () =>
+                service.read('session-fixture', 'terminal-fixture', undefined, 100),
+            ),
+        );
+        for (const page of pages) {
+            expect(page.items).toHaveLength(3);
+            expect(new Set(page.items.map((item) => item.id)).size).toBe(3);
+        }
+        const latest = await service.read('session-fixture', 'terminal-fixture', undefined, 1);
+        const older = await service.read(
+            'session-fixture',
+            'terminal-fixture',
+            latest.olderCursor,
+            100,
+        );
+        expect(older.cursorExpired).toBe(false);
+        expect(older.items).toHaveLength(2);
+    });
+
+    it('discards reads queued before a Terminal is forgotten', async () => {
+        await writeFile(transcript, line(1));
+        const pending = service.read('session-fixture', 'terminal-fixture', undefined, 100);
+        service.forgetTerminal('terminal-fixture');
+        expect(await pending).toMatchObject({ status: 'missing', items: [] });
+        expect(
+            await service.read('session-fixture', 'terminal-fixture', undefined, 100),
+        ).toMatchObject({ status: 'available', items: [{ text: 'Message 1' }] });
+    });
+
     it('expires a cursor after a same-size file replacement', async () => {
         await writeFile(transcript, line(1, 'Old text') + line(2, 'Old text'));
         const first = await service.read('session-fixture', 'terminal-fixture', undefined, 1);
@@ -411,6 +448,17 @@ describe('AgentTimelineService', () => {
         expect(older.items).toHaveLength(1);
         expect(older.items[0]).toMatchObject({ type: 'agentMessage', text: 'I will check.' });
         expect(older.items[0]?.id).not.toBe(latest.items[0]?.id);
+
+        // Move the cursor record outside the cached tail before replaying the same older-page request.
+        await appendFile(transcript, `${'x'.repeat(4 * 1024 * 1024 + 1)}\n${line(9)}`);
+        await service.read('session-fixture', 'terminal-fixture', undefined, 1);
+        const uncachedOlder = await service.read(
+            'session-fixture',
+            'terminal-fixture',
+            latest.olderCursor,
+            1,
+        );
+        expect(uncachedOlder.items).toEqual(older.items);
     });
 
     it('does not put malformed transcript content in diagnostics', async () => {

@@ -5,6 +5,10 @@ import { z } from 'zod';
  * browser-safe protocol change instead of an unchecked string scattered across Desktop processes.
  */
 export const logEventCatalog = {
+    mobileGateway: {
+        failure: 'mobile_gateway.failure',
+        failureSummary: 'mobile_gateway.failure_summary',
+    },
     agent: {
         automaticNamingFinished: 'agent.automatic_naming_finished',
         hookTurnExpired: 'agent.hook_turn_expired',

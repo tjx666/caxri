@@ -28,7 +28,7 @@ export interface MobileCredentialStore {
     clear(): Promise<void>;
     clearIfCurrent(identity: MobileCredentialIdentity): Promise<boolean>;
     load(): Promise<MobileCredential | null>;
-    save(credential: MobileCredential): Promise<void>;
+    save(credential: MobileCredential, isCurrent?: () => boolean): Promise<void>;
 }
 
 /**
@@ -78,10 +78,21 @@ export const createMobileCredentialStore = (
                 return true;
             }),
         load: () => serialize(loadStored),
-        save: (credential) =>
+        save: (credential, isCurrent = () => true) =>
             serialize(async () => {
+                if (!isCurrent()) throw new Error('Pairing attempt was superseded.');
+                const previous = await storage.getItemAsync(MOBILE_CREDENTIAL_KEY);
+                if (!isCurrent()) throw new Error('Pairing attempt was superseded.');
                 const value = mobileCredentialSchema.parse(credential);
                 await storage.setItemAsync(MOBILE_CREDENTIAL_KEY, JSON.stringify(value));
+                /**
+                 * SecureStore writes cannot be cancelled; rollback stays inside the storage queue.
+                 */
+                if (!isCurrent()) {
+                    if (previous === null) await storage.deleteItemAsync(MOBILE_CREDENTIAL_KEY);
+                    else await storage.setItemAsync(MOBILE_CREDENTIAL_KEY, previous);
+                    throw new Error('Pairing attempt was superseded.');
+                }
             }),
     };
 };

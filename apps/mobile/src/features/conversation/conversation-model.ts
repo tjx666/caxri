@@ -58,6 +58,29 @@ export const mergeLatestConversationItems = (
     return [...current.slice(0, overlap), ...latest];
 };
 
+/**
+ * The pagination cursor belongs to the oldest retained item, not the newest live page. Adopt a new cursor only when a
+ * disjoint page replaces the retained history.
+ */
+export const applyLatestConversationPage = <State extends ConversationHistoryState>(
+    current: State,
+    page: MobileTimelineReadResult,
+): State => {
+    const retainsHistory =
+        page.status === 'available' &&
+        page.items.length > 0 &&
+        current.items.some((item) => item.id === page.items[0].id);
+    return {
+        ...current,
+        items:
+            page.status === 'available'
+                ? mergeLatestConversationItems(current.items, page.items)
+                : [],
+        olderCursor: retainsHistory ? current.olderCursor : page.olderCursor,
+        truncated: retainsHistory ? current.truncated : page.truncated,
+    };
+};
+
 export const prependConversationPage = (
     current: AgentTimelineItem[],
     page: MobileTimelineReadResult,
