@@ -315,8 +315,10 @@ export const useMobileClientController = (): MobileClientContextValue => {
 
     const pair = useCallback(
         async (pairingLink: string): Promise<void> => {
+            if (appState.current !== 'active')
+                throw new Error('Pairing is unavailable while Caxri is in the background.');
             const attempt = pairingAttempts.begin();
-            const { isCurrent } = attempt;
+            const isCurrent = () => attempt.isCurrent() && appState.current === 'active';
             replaceConnection(null);
             setStatus('connecting');
             try {
