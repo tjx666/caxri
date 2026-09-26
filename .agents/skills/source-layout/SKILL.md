@@ -14,16 +14,20 @@ skill owns placement inside those roots.
 The current topology has one independently runnable product per `apps/*` workspace and only
 importable boundaries under `packages/*`:
 
-| Work                          | Target path                   |
-| ----------------------------- | ----------------------------- |
-| Desktop                       | `apps/desktop/`               |
-| Server                        | `apps/server/`                |
-| CLI                           | `apps/cli/`                   |
-| Shared Client                 | `packages/client/src/`        |
-| Protocol schemas and registry | `packages/protocol/src/`      |
-| Extension API                 | `packages/extension-api/src/` |
-| Shared system primitives      | `packages/system/src/`        |
-| Browser-safe pure utilities   | `packages/utils/src/`         |
+| Work                             | Target path                      |
+| -------------------------------- | -------------------------------- |
+| Desktop                          | `apps/desktop/`                  |
+| Server                           | `apps/server/`                   |
+| CLI                              | `apps/cli/`                      |
+| Mobile companion                 | `apps/mobile/`                   |
+| Shared Client                    | `packages/client/src/`           |
+| Protocol schemas and registry    | `packages/protocol/src/`         |
+| Extension API                    | `packages/extension-api/src/`    |
+| Shared system primitives         | `packages/system/src/`           |
+| Browser-safe pure utilities      | `packages/utils/src/`            |
+| Mobile transport and wire format | `packages/mobile-transport/src/` |
+| Markdown rendering pipeline      | `packages/markdown/src/`         |
+| Agent skill installation         | `packages/agent-skills/src/`     |
 
 Do not create an empty future application. The repository root owns no product `src/` tree. The
 executable source of truth for ownership is `scripts/architecture-boundaries.ts`.
@@ -74,7 +78,7 @@ ESLint rule enforces the thresholds and the no-coexistence contract.
 - A helper enters `utils` only when its semantics are feature-specific. Generic helpers still
   follow the shared ladder: `es-toolkit` first, then `@caxri/utils`; a hook used by a second
   feature moves to `@/hooks`.
-- When a feature grows a cohesive sub-domain, split by sub-domain (`secondary-sidebar/panels/git/`)
+- When a feature grows a cohesive sub-domain, split by sub-domain (`view-containers/source-control/`)
   before piling onto kind folders: kind folders solve "too many files of one kind", sub-domains
   solve "the feature itself is too big". Each sub-domain directory applies the same scale rules.
 

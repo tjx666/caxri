@@ -137,7 +137,8 @@ Do not paste subagent output through. Merge, then:
 4. Keep DESIGN.md violations explicitly labeled as such — they outrank taste.
 5. Discard render findings whose cause is a deliberate design decision the code documents. The
    known one: a Panel or secondary-sidebar container stays mounted after its first show
-   (`apps/desktop/src/renderer/src/features/view-containers/view-container-surface.tsx:127`), so
+   (`apps/desktop/src/renderer/src/features/view-containers/view-container-surface.tsx`, the "stays
+   mounted (hidden) once it has been shown" comment), so
    mounting once and never unmounting is intended — a hidden container that keeps _re-rendering_
    is still a finding.
 

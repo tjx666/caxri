@@ -77,7 +77,7 @@ result. Legacy findings also require `exposure`. Use `rule_source` for conventio
       "nature": "introduced",
       "severity": "p1",
       "likelihood": "medium",
-      "location": "src/renderer/src/features/editor/useDocument.ts:87",
+      "location": "apps/desktop/src/renderer/src/features/editor/useDocument.ts:87",
       "summary": "A late read can replace the buffer for the newly selected Session.",
       "core_problem": "Because the completion is not keyed to Session identity, switching Sessions while the read is pending applies the old result to the new active buffer.",
       "scenario": "Open a large file and switch Sessions before the Runtime reply arrives.",

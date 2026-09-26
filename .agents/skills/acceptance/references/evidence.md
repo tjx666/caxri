@@ -1,6 +1,6 @@
 # Caxri evidence contract
 
-Every Caxri Acceptance case names either the `desktop` or `mobile` surface and stores its artifacts
+Every Caxri Acceptance case names exactly one surface — `desktop`, `cli`, or `mobile` — and stores its artifacts
 inside the current immutable round's `assets/` directory. A cross-device delivery may include both,
 but each case belongs to the surface whose user outcome it asks the reviewer to decide.
 
