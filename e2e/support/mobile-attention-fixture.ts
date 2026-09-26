@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import process from 'node:process';
 
 import type { AppSettings } from '@caxri/protocol';
 import type { Page } from '@playwright/test';
@@ -18,6 +19,7 @@ export async function prepareMobileAttentionAgent(userDataDirectory: string) {
     const fixture = await prepareAcceptanceAgentFixture({
         fixtureId: 'agent-features-v1',
         userDataDir: userDataDirectory,
+        sourceEnvironment: { ...process.env, CAXRI_ACCEPTANCE_PUBLIC_FRAME: '1' },
     });
     return {
         agentMode: {

@@ -135,6 +135,7 @@ const AttentionCard = ({
                             }}
                             disabled={!canAnswer}
                             key={option.label}
+                            style={{ minHeight: 44, justifyContent: 'center', paddingVertical: 8 }}
                             testID={`attention-option-${option.label}`}
                             onPress={() =>
                                 setInput((current) => {
