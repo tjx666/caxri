@@ -103,6 +103,11 @@ After installing the fixture, discover it with `ime list -a -s`: plain `ime list
 methods only, so it hides the newly installed fixture until `ime enable` runs.
 Before diagnosing a missing `testID`, verify the expected screen with a stable route marker. Start
 swipes inside the content area, away from Android's Back gesture edges, and check the route again.
+An identifier existing in source does not prove that the current Agent, device role, and segment
+render it. Choose a visible composer entry before entering text. During a mobile Terminal lease,
+Desktop's rendered grid follows the phone; verify window geometry separately, and expect the
+Desktop grid to return only after release. For pinch claims, inject one native two-pointer gesture
+and inspect the resulting framebuffer; parallel single-pointer swipes do not establish pinch behavior.
 
 ## Capture and judge
 

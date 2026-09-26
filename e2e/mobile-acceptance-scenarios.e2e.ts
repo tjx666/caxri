@@ -92,16 +92,15 @@ async function openComposerSession(serial: string, sessionId: string): Promise<v
     await tapMobileCheck(serial, `session-row-${sessionId}`);
     await waitForMobile(
         () => mobileSemantics(serial),
-        (nodes) =>
-            nodes.some(({ checkId }) => checkId === 'session-detail') &&
-            nodes.some(({ checkId }) => checkId === 'session-composer-input'),
+        (nodes) => nodes.some(({ checkId }) => checkId === 'session-detail'),
     );
-    await tapMobileCheck(serial, 'session-segment-conversation');
+    /**
+     * The synthetic Agent has no Conversation; a control device uses the composer from Changes.
+     */
+    await tapMobileCheck(serial, 'session-segment-changes');
     await waitForMobile(
         () => mobileSemantics(serial),
-        (nodes) =>
-            nodes.some(({ checkId }) => checkId === 'conversation-fallback-banner') &&
-            nodes.some(({ checkId }) => checkId === 'terminal-live-webview'),
+        (nodes) => nodes.some(({ checkId }) => checkId === 'session-composer-input'),
     );
 }
 
