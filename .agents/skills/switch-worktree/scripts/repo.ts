@@ -194,6 +194,20 @@ async function readLockOwner(path: string): Promise<LockOwner | undefined> {
 }
 
 /**
+ * Current owners publish a lock only after its owner record is durable, so an ownerless lock is either a legacy
+ * launcher mid-publish or the remains of an owner killed while deleting it. A self-hosted CI runner keeps that remnant
+ * across jobs, so after a grace period it is reclaimable instead of failing every later operation.
+ */
+async function isOwnerlessLockAbandoned(path: string): Promise<boolean> {
+    try {
+        return Date.now() - (await lstat(path)).mtimeMs > 5000;
+    } catch (error) {
+        if (errorCode(error) === 'ENOENT') return false;
+        throw error;
+    }
+}
+
+/**
  * Serialize mutations shared by every linked checkout and reclaim only a verified stale owner.
  */
 export async function withRepoLock<T>(
@@ -252,7 +266,10 @@ export async function withRepoLock<T>(
         let staleLockError: Error | undefined;
         try {
             const latest = await readLockOwner(lockPath);
-            if (latest && !(await isProcessIdentityAlive(latest.pid, latest.identity))) {
+            const isStale = latest
+                ? !(await isProcessIdentityAlive(latest.pid, latest.identity))
+                : await isOwnerlessLockAbandoned(lockPath);
+            if (isStale) {
                 await rm(lockPath, { recursive: true });
             }
         } catch (error) {
@@ -336,6 +353,10 @@ export async function withRepoLock<T>(
             }
             const lockOwner = await readLockOwner(lockPath);
             if (!lockOwner) {
+                if ((await isOwnerlessLockAbandoned(lockPath)) && (await didClaimCleanup())) {
+                    await cleanStaleLock();
+                    continue;
+                }
                 if (Date.now() >= deadline)
                     throw new CommandError('Timed out waiting for repository lock owner metadata');
                 await new Promise<void>((resolve) => setTimeout(resolve, 25));
@@ -368,7 +389,13 @@ export async function withRepoLock<T>(
     try {
         return await task();
     } finally {
-        await rm(lockPath, { recursive: true });
+        /**
+         * Retire the lock atomically before deleting its owner record, so a kill mid-delete cannot leave an ownerless
+         * lock behind.
+         */
+        const releasedPath = `${lockPath}.${process.pid}.${randomUUID()}.released`;
+        await rename(lockPath, releasedPath);
+        await rm(releasedPath, { recursive: true });
     }
 }
 
