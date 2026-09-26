@@ -531,6 +531,7 @@ describe('GitProvider', () => {
         );
         expect(loading.providers[0]?.groups[0]).toMatchObject({
             emptyMessage: 'Loading last commit…',
+            isLoading: true,
             resources: [],
         });
         expect(loading.providers[0]?.history).toBeUndefined();
@@ -594,8 +595,10 @@ describe('GitProvider', () => {
 
         expect(loading.providers[0]?.groups[0]).toMatchObject({
             emptyMessage: 'Loading pull request changes…',
+            isLoading: true,
         });
         expect(ready.providers[0]?.groups[0]).toMatchObject({ label: 'PR #42 Changes' });
+        expect(ready.providers[0]?.groups[0]?.isLoading).toBeUndefined();
 
         subscription.dispose();
         cancellation.dispose();

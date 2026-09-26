@@ -43,6 +43,7 @@ import {
     parseExternalJson,
     parseGitHubPullRequest,
 } from './project-status-parse';
+import { ReviewThreadStore } from './project-status-review-threads';
 import { loadVercelDeployments } from './project-status-vercel';
 import { VercelDeploymentStore } from './project-status-vercel-store';
 import type { WatchOutcome } from './project-status-watch';
@@ -127,6 +128,7 @@ export class ProjectStatusService {
     private readonly vercel: VercelDeploymentStore;
     private readonly acceptance: AcceptanceStore;
     private readonly github: GitHubPullRequestStore;
+    private readonly reviewThreads: ReviewThreadStore;
     private readonly linear: LinearIssueStore;
     private readonly alerts: ProjectStatusAlertTracker;
     private polledSessionId?: string;
@@ -165,6 +167,7 @@ export class ProjectStatusService {
         }
         this.github =
             options.github ?? new GitHubPullRequestStore(this.runner, { now: () => this.now() });
+        this.reviewThreads = new ReviewThreadStore(this.commandTelemetry, this.runner);
         this.vercel =
             options.vercel ?? new VercelDeploymentStore(this.runner, { now: () => this.now() });
         /**
@@ -444,7 +447,7 @@ export class ProjectStatusService {
              * Both readers work from the same already-fetched body, and neither blocks the other: a Linear outage must
              * not hide the acceptance verdict, and an `lh` that is not installed must not hide the linked issues.
              */
-            const [linear, acceptance] = await Promise.all([
+            const [linear, acceptance, pullRequest] = await Promise.all([
                 loadPullRequestLinearIssues(this.linear, cwd, parsed.body, {
                     isForced,
                     onParseFailure: (error) => this.logExternalParseFailure('linear', error),
@@ -453,9 +456,10 @@ export class ProjectStatusService {
                     isForced,
                     onParseFailure: (error) => this.logExternalParseFailure('lh', error),
                 }),
+                this.reviewThreads.attach(cwd, context, parsed.pullRequest, isForced),
             ]);
             return {
-                pullRequest: parsed.pullRequest,
+                pullRequest,
                 mergeCommit: parsed.mergeCommit,
                 linearIssues: linear.issues,
                 acceptances: acceptance.acceptances,

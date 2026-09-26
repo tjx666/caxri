@@ -18,6 +18,8 @@ import {
     GitPullRequestClosed,
     GitPullRequestDraft,
     Hourglass,
+    MessageSquare,
+    MessageSquareDot,
     MessageSquareWarning,
     Monitor,
     Package,
@@ -59,6 +61,12 @@ const themeIcons = {
     'deployment-preview': DeploymentPreviewIcon,
     'circle-x': CircleX,
     'cloud': Cloud,
+    'comment': MessageSquare,
+    /**
+     * A review thread still waiting on the author. The dot marks it as owed rather than read, which the plain `comment`
+     * glyph of each individual thread row does not claim.
+     */
+    'comment-unresolved': MessageSquareDot,
     'error': AlertTriangle,
     'eye-off': EyeOff,
     'file': File,
@@ -123,6 +131,8 @@ const themeIconClassNames: Partial<Record<ThemeIconId, string>> = {
     'circle-slash': 'text-muted',
     'circle-small-filled': 'fill-current text-warning',
     'circle-x': 'text-danger',
+    'comment': 'text-muted',
+    'comment-unresolved': 'text-warning',
     'error': 'text-danger',
     'git-merge': 'text-merged',
     'git-pull-request-open': 'text-success',

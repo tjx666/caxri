@@ -416,6 +416,7 @@ const sourceControlGroupSchema = z.object({
     hiddenCount: z.number().int().nonnegative().max(100_000).optional(),
     expandedByDefault: z.boolean(),
     emptyMessage: z.string().min(1).max(2_048),
+    isLoading: z.boolean().optional(),
     truncationMessage: z.string().min(1).max(2_048).optional(),
     actions: z.array(sourceControlActionSchema).max(32),
     resources: z.array(sourceControlResourceSchema).max(2_000),
