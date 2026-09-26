@@ -464,14 +464,14 @@ const handleCommand = (raw) => {
     else if (command === 'fixture:private-turn') { startTurn('Private acceptance topic', true); setTimeout(finishTurn, 150); }
     else if (command === 'fixture:exit') {
       appendReceipt({ kind: 'fixtureExit' });
-      process.stdout.write('Fixture Agent exiting\r\n');
+      if (!isPublicFrame) process.stdout.write('Fixture Agent exiting\r\n');
       process.exit(0);
     }
     else if (command) appendReceipt({ kind: 'terminalInput', length: command.length });
-    process.stdout.write('Fixture command accepted\r\n');
+    if (!isPublicFrame) process.stdout.write('Fixture command accepted\r\n');
   } catch (error) {
     appendReceipt({ kind: 'fixtureError', message: error.name });
-    process.stdout.write('Fixture command failed\r\n');
+    if (!isPublicFrame) process.stdout.write('Fixture command failed\r\n');
   }
 };
 const markerSuffixLength = (value, marker) => {
@@ -520,14 +520,14 @@ process.stdin.on('data', (chunk) => {
       .replaceAll(bracketedPasteStart, '')
       .replaceAll(bracketedPasteEnd, '')
       .replaceAll(/\r\n|\r|\n/gu, '\r\n');
-    process.stdout.write(visibleInput);
+    if (!isPublicFrame) process.stdout.write(visibleInput);
   }
   input += chunk;
   processInput();
 });
 process.stdin.resume();
 // Real Agent TUIs enable bracketed paste so embedded newlines remain unsent editor input.
-process.stdout.write('\u001b[?2004hFake ' + provider + ' Acceptance fixture ready\r\n');
+if (!isPublicFrame) process.stdout.write('\u001b[?2004hFake ' + provider + ' Acceptance fixture ready\r\n');
 }
 main();
 `;

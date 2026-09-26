@@ -56,6 +56,23 @@ export const SessionDetailBody = ({
             <Text style={{ color: theme.muted }}>No active Terminal for this Session.</Text>
         </View>
     );
+    const attention = (shouldFallbackToTerminal: boolean) => (
+        <AttentionCards
+            fallbackToTerminal={shouldFallbackToTerminal}
+            role={deviceRole}
+            sessionId={session.id}
+            theme={theme}
+        />
+    );
+    /**
+     * A native Agent request can arrive before its first transcript makes Conversation available.
+     */
+    const terminalWithAttention = (
+        <View style={{ flex: 1 }}>
+            {terminal}
+            {attention(false)}
+        </View>
+    );
     const conversation = (
         <View style={{ flex: 1 }}>
             <ConversationView
@@ -63,22 +80,17 @@ export const SessionDetailBody = ({
                 theme={theme}
                 timeline={conversationTimeline}
             />
-            <AttentionCards
-                fallbackToTerminal={
-                    session.lastActivityState === 'waiting' &&
-                    session.primaryTerminal?.provider !== 'claude'
-                }
-                role={deviceRole}
-                sessionId={session.id}
-                theme={theme}
-            />
+            {attention(
+                session.lastActivityState === 'waiting' &&
+                    session.primaryTerminal?.provider !== 'claude',
+            )}
         </View>
     );
     const side = segment === 'panels' ? panels : changesPanel;
     if (wideChanges && isSideSessionSegment(segment)) {
         return (
             <View style={styles.bodyRow}>
-                {wideBackgroundSegment === 'conversation' ? conversation : terminal}
+                {wideBackgroundSegment === 'conversation' ? conversation : terminalWithAttention}
                 <View
                     style={[styles.wideChanges, { borderColor: theme.border }]}
                     testID="changes-right-pane"
@@ -90,7 +102,11 @@ export const SessionDetailBody = ({
     }
     return (
         <View style={styles.body}>
-            {segment === 'conversation' ? conversation : segment === 'terminal' ? terminal : side}
+            {segment === 'conversation'
+                ? conversation
+                : segment === 'terminal'
+                  ? terminalWithAttention
+                  : side}
         </View>
     );
 };
