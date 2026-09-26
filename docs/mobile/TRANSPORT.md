@@ -25,7 +25,7 @@ for commands, subscribe, and unsubscribe.
 | Server → Client | `heartbeat-ack {nonce}`                                                           | Echo the client's probe nonce.                                      |
 | Server → Client | `revoked`                                                                         | Final encrypted revocation notice, followed by close.               |
 
-Resources are `{kind:'dashboard'}`, `{kind:'conversation',sessionId}`, and
+Resources are `{kind:'dashboard'}`, `{kind:'conversation',sessionId}`, `{kind:'changes',sessionId}`, and
 `{kind:'terminal',terminalId}`. The Server chooses opaque subscription IDs. `sequence` starts at
 zero for each subscription and increases across both `event` and `stream`. Dashboard and
 conversation events use `dashboard.changed` and `conversation.changed`; they carry no Session,
@@ -40,6 +40,8 @@ Every WebView document-ready event retires the previous observer and requests a 
 Observer cleanup also drops pending native-to-WebView output. Snapshot replacement queues a hard
 reset in xterm's input stream after sizing the grid, so old asynchronous parser writes cannot
 appear on the replacement screen. Android recreates the native WebView when its renderer exits.
+An explicit renderer failure immediately invalidates the control target and retires the observer;
+retry creates a new document. Input stays disabled until its ready event and a fresh snapshot.
 
 ## Authority and lifecycle
 
@@ -52,6 +54,13 @@ all subscriptions; close and gateway disable also clear them. Terminal subscript
 observer API, never Desktop attachment. Each Terminal is subscribed at most once per socket and
 at most four Terminal observers are retained per socket. Host gaps, generation changes, and Host
 exit send `resync-required` and end the affected subscription.
+Authorization, event publishing, and client resource routing use exhaustive resource switches so
+adding a subscription kind requires an explicit decision at every boundary.
+
+Pairing attempts carry a controller-local generation. A newer attempt, Forget, or unmount invalidates
+older work before it can become the active connection. Credential writes share one serialized queue;
+if a native write finishes after invalidation, the previous value is restored inside that queue
+before another credential operation can run. Obsolete attempts cannot overwrite a newer pairing.
 
 The gateway serializes decrypt and replay-counter checks, then dispatches up to eight commands or
 subscription operations per socket concurrently. A slow command cannot block heartbeat or another
@@ -99,6 +108,12 @@ authorized Terminal subscription and never enter the durable recovery journal or
 The gateway validates resource scope before each push, including after a same-host re-pair changes
 Project grants. Live Terminal observation and size ownership are governed by the separate Terminal
 observer contract; mobile transport does not resize Desktop's Terminal by subscribing.
+
+Gateway diagnostics record only closed failure reasons, never addresses, raw errors, credentials,
+frames, or Terminal bytes. Each reason emits one first-occurrence warning per gateway lifetime;
+repeated failures increment fixed counters. A cumulative summary is emitted on the next failure
+after a minute, and pending counts are flushed when access is disabled. This bounds log volume
+without hiding repeated admission, authentication, frame, or capacity failures.
 
 The [Conversation guide](CONVERSATION.md) covers the authorized timeline snapshot, cursor recovery,
 and native mobile rendering behind the content-free hints.
