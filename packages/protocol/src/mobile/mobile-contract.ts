@@ -3,12 +3,15 @@ import { z } from 'zod';
 import { agentEndpointRefSchema as agentEndpointReferenceSchema } from '../agent/agent-endpoint-contract.js';
 import {
     canceledResultSchema,
+    fileEntrySchema,
     identifierSchema,
+    pathSchema,
     scopedProjectSchema,
     sessionRecordSchema,
     terminalKindSchema,
     terminalRecordSchema,
 } from '../domain/domain.js';
+import { viewIdSchema } from '../domain/views.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import { principalSchema } from '../transport/principal.js';
@@ -25,6 +28,16 @@ export const MOBILE_AGENT_SUBMIT_MAX_BYTES = 16 * 1_024;
 export const MOBILE_CHANGES_MAX_FILES = 100;
 export const MOBILE_CHANGES_MAX_PATCH_BYTES = 48 * 1_024;
 export const MOBILE_CHANGES_MAX_PATCH_LINES = 1_000;
+export const MOBILE_PROJECT_BROWSE_MAX_ENTRIES = 200;
+export const MOBILE_FILES_MAX_ENTRIES = 500;
+/**
+ * Smaller than the Desktop Editor's safety limit on purpose: a mobile read is inlined in one command reply instead of
+ * streamed, so the bound protects the gateway's per-reply transport budget, not just server memory.
+ */
+export const MOBILE_FILES_READ_MAX_BYTES = 256 * 1_024;
+export const MOBILE_PANELS_MAX_CONTAINERS = 64;
+export const MOBILE_PANELS_MAX_VIEWS = 32;
+export const MOBILE_TREE_MAX_ITEMS = 500;
 export const mobileProjectIdsSchema = z
     .array(z.string().min(1).max(200))
     .min(1)
@@ -77,7 +90,7 @@ export const mobileDashboardSessionSchema = z.strictObject({
         .optional(),
 });
 
-const mobileProjectSummarySchema = scopedProjectSchema.extend({
+export const mobileProjectSummarySchema = scopedProjectSchema.extend({
     lastActivityAt: z.number().int().nonnegative().optional(),
 });
 
@@ -131,6 +144,28 @@ const timelineItemBase = {
     timestamp: z.number().int().nonnegative().optional(),
 };
 
+/**
+ * Harness-injected content the provider CLI writes into the transcript on the user's turn, never text the reader typed.
+ * `taskNotification` is a background Agent completion; `slashCommand` is a `/command` echo, including its stdout when
+ * the harness inlines one; `bashCommand` is a `!`-prefixed shell echo with its stdout/stderr; `caveat` is a one-line
+ * harness disclaimer attached to a slash command. `systemReminder` content never reaches the timeline as an item; a
+ * turn made of only a system reminder is dropped instead of rendered.
+ */
+export const agentSystemEventStatusSchema = z.enum([
+    'completed',
+    'failed',
+    'killed',
+    'running',
+    'unknown',
+]);
+
+export const agentSystemEventKindSchema = z.enum([
+    'taskNotification',
+    'slashCommand',
+    'bashCommand',
+    'caveat',
+]);
+
 export const agentTimelineItemSchema = z.discriminatedUnion('type', [
     z.strictObject({
         ...timelineItemBase,
@@ -155,6 +190,17 @@ export const agentTimelineItemSchema = z.discriminatedUnion('type', [
         ...timelineItemBase,
         type: z.literal('turnBoundary'),
         durationMs: z.number().int().nonnegative().optional(),
+    }),
+    z.strictObject({
+        ...timelineItemBase,
+        type: z.literal('systemEvent'),
+        kind: agentSystemEventKindSchema,
+        summary: z.string().min(1).max(240),
+        /**
+         * Outcome a `taskNotification` reports; absent for event kinds that carry no outcome.
+         */
+        status: agentSystemEventStatusSchema.optional(),
+        detail: z.string().max(2_048).optional(),
     }),
 ]);
 
@@ -215,6 +261,133 @@ const mobileAgentAvailabilitySchema = z.strictObject({
 const mobileAgentAvailabilityResultSchema = z.strictObject({
     agents: z.array(mobileAgentAvailabilitySchema).length(4),
 });
+
+/**
+ * Accepts either a path relative to the Mac user's home directory or an opaque absolute path; the Server validates that
+ * the resolved, symlink-followed target stays inside the home directory before it touches the filesystem.
+ */
+const mobileHomePathSchema = z.string().min(1).max(4_096);
+
+export const mobileProjectBrowseParametersSchema = z.strictObject({
+    path: mobileHomePathSchema.optional(),
+});
+
+export const mobileProjectBrowseEntrySchema = z.strictObject({
+    name: z.string().min(1).max(255),
+    relativePath: z.string().min(1).max(4_096),
+    isGitRepository: z.boolean(),
+    hasChildren: z.boolean(),
+});
+
+export const mobileProjectBrowseResultSchema = z.strictObject({
+    entries: z.array(mobileProjectBrowseEntrySchema).max(MOBILE_PROJECT_BROWSE_MAX_ENTRIES),
+    truncated: z.boolean(),
+});
+
+export const mobileProjectAddParametersSchema = z.strictObject({ path: mobileHomePathSchema });
+
+export const mobileProjectAddResultSchema = z.strictObject({
+    project: mobileProjectSummarySchema,
+});
+
+/**
+ * Bounded stand-in for the full {@link import('../domain/views.js').viewIconSchema}: a `resource` (data URL) icon is
+ * dropped rather than projected, since every core-contributed secondary-sidebar container uses a `builtin` or `theme`
+ * icon today and an extension-supplied image is not yet part of the mobile read surface.
+ */
+const mobilePanelIconSchema = z.strictObject({
+    kind: z.enum(['builtin', 'theme']),
+    id: z.string().min(1).max(100),
+});
+
+export const mobilePanelsListParametersSchema = z.strictObject({ sessionId: identifierSchema });
+
+/**
+ * How a phone renders a secondary-sidebar view: `files` browses the Project with `mobile.files.*`, `changes` is the Git
+ * source-control view served by `mobile.changes.*`, `tree` reads `mobile.tree.children`, and `unsupported` is a
+ * Desktop-only view the phone lists but cannot show.
+ */
+export const mobilePanelViewKindSchema = z.enum(['files', 'changes', 'tree', 'unsupported']);
+
+const mobilePanelViewSchema = z.strictObject({
+    id: viewIdSchema,
+    title: z.string().min(1).max(200),
+    kind: mobilePanelViewKindSchema,
+    /**
+     * Whether the view has a live badge provider. The mobile read surface does not fetch the current badge value, which
+     * requires a separate per-view Extension Host round trip; this only tells the reader one exists.
+     */
+    hasBadge: z.boolean().optional(),
+});
+
+const mobilePanelContainerSchema = z.strictObject({
+    id: z.string().min(1).max(200),
+    title: z.string().min(1).max(200),
+    icon: mobilePanelIconSchema.optional(),
+    views: z.array(mobilePanelViewSchema).max(MOBILE_PANELS_MAX_VIEWS),
+});
+
+export const mobilePanelsListResultSchema = z.strictObject({
+    panels: z.array(mobilePanelContainerSchema).max(MOBILE_PANELS_MAX_CONTAINERS),
+});
+
+export const mobileTreeChildrenParametersSchema = z.strictObject({
+    sessionId: identifierSchema,
+    viewId: viewIdSchema,
+    parentHandle: z.string().min(1).max(512).optional(),
+});
+
+/**
+ * Projects `treeItemSchema` down to what a read-only mobile row renders: label, description, a bounded icon, and
+ * collapsible state. `tooltip` and `command` are deliberately absent — mobile Conversation Tree is read-only and never
+ * executes a command from a tree row.
+ */
+const mobileTreeItemSchema = z.strictObject({
+    handle: z.string().min(1).max(512),
+    label: z.string().min(1).max(1_024),
+    description: z.string().max(1_024).optional(),
+    icon: mobilePanelIconSchema.optional(),
+    collapsibleState: z.enum(['none', 'collapsed', 'expanded']),
+});
+
+export const mobileTreeChildrenResultSchema = z.strictObject({
+    items: z.array(mobileTreeItemSchema).max(MOBILE_TREE_MAX_ITEMS),
+    reset: z.literal(true).optional(),
+});
+
+export const mobileFilesListParametersSchema = z.strictObject({
+    sessionId: identifierSchema,
+    directory: pathSchema.optional(),
+});
+
+export const mobileFilesListResultSchema = z.strictObject({
+    entries: z.array(fileEntrySchema).max(MOBILE_FILES_MAX_ENTRIES),
+    truncated: z.boolean(),
+});
+
+export const mobileFilesReadParametersSchema = z.strictObject({
+    sessionId: identifierSchema,
+    path: pathSchema,
+});
+
+export const mobileFilesReadResultSchema = z.discriminatedUnion('status', [
+    z.strictObject({
+        status: z.literal('available'),
+        path: pathSchema,
+        content: z
+            .string()
+            .refine(
+                (content) =>
+                    new TextEncoder().encode(content).length <= MOBILE_FILES_READ_MAX_BYTES,
+                'Mobile file read exceeds the byte limit',
+            ),
+        mtimeMs: z.number(),
+        size: z.number(),
+        readOnly: z.boolean().optional(),
+    }),
+    z.strictObject({ status: z.literal('binary') }),
+    z.strictObject({ status: z.literal('oversized') }),
+]);
 
 export const mobileMethods = {
     'mobile.access.status': {
@@ -336,6 +509,36 @@ export const mobileMethods = {
         params: z.strictObject({ deviceId: mobileDeviceIdSchema }),
         result: z.union([canceledResultSchema, mobileDeviceSummarySchema]),
     },
+    'mobile.project.browse': {
+        ...commandPolicy('server', 'read', ['projects.read']),
+        params: mobileProjectBrowseParametersSchema,
+        result: mobileProjectBrowseResultSchema,
+    },
+    'mobile.project.add': {
+        ...commandPolicy('server', 'write', ['projects.write']),
+        params: mobileProjectAddParametersSchema,
+        result: mobileProjectAddResultSchema,
+    },
+    'mobile.panels.list': {
+        ...commandPolicy('server', 'read', ['sessions.read']),
+        params: mobilePanelsListParametersSchema,
+        result: mobilePanelsListResultSchema,
+    },
+    'mobile.tree.children': {
+        ...commandPolicy('server', 'read', ['sessions.read']),
+        params: mobileTreeChildrenParametersSchema,
+        result: mobileTreeChildrenResultSchema,
+    },
+    'mobile.files.list': {
+        ...commandPolicy('server', 'read', ['files.read']),
+        params: mobileFilesListParametersSchema,
+        result: mobileFilesListResultSchema,
+    },
+    'mobile.files.read': {
+        ...commandPolicy('server', 'read', ['files.read']),
+        params: mobileFilesReadParametersSchema,
+        result: mobileFilesReadResultSchema,
+    },
 } as const satisfies Record<string, MethodSpec>;
 
 /**
@@ -404,12 +607,42 @@ export const mobileInternalMethods = {
         }),
         result: mobileDeviceSummarySchema,
     },
+    'mobile.project.browseInternal': {
+        ...commandPolicy('server', 'read'),
+        params: mobileProjectBrowseParametersSchema.extend({ principal: principalSchema }),
+        result: mobileProjectBrowseResultSchema,
+    },
+    'mobile.project.addInternal': {
+        ...commandPolicy('server', 'write'),
+        params: mobileProjectAddParametersSchema.extend({ principal: principalSchema }),
+        result: mobileProjectAddResultSchema,
+    },
+    'mobile.files.listInternal': {
+        ...commandPolicy('server', 'read'),
+        params: mobileFilesListParametersSchema.extend({ principal: principalSchema }),
+        result: mobileFilesListResultSchema,
+    },
+    'mobile.files.readInternal': {
+        ...commandPolicy('server', 'read'),
+        params: mobileFilesReadParametersSchema.extend({ principal: principalSchema }),
+        result: mobileFilesReadResultSchema,
+    },
 } as const satisfies Record<string, MethodSpec>;
 
 export type MobileAccessStatus = z.infer<typeof mobileAccessStatusSchema>;
 export type MobileDashboardResult = z.infer<typeof mobileDashboardResultSchema>;
 export type MobileDeviceSummary = z.infer<typeof mobileDeviceSummarySchema>;
 export type AgentTimelineItem = z.infer<typeof agentTimelineItemSchema>;
+export type AgentSystemEventKind = z.infer<typeof agentSystemEventKindSchema>;
+export type AgentSystemEventStatus = z.infer<typeof agentSystemEventStatusSchema>;
+export type MobilePanelViewKind = z.infer<typeof mobilePanelViewKindSchema>;
 export type MobileTimelineReadResult = z.infer<typeof mobileTimelineReadResultSchema>;
 export type MobileChangesListResult = z.infer<typeof mobileChangesListResultSchema>;
 export type MobileChangesDiffResult = z.infer<typeof mobileChangesDiffResultSchema>;
+export type MobileProjectSummary = z.infer<typeof mobileProjectSummarySchema>;
+export type MobileProjectBrowseResult = z.infer<typeof mobileProjectBrowseResultSchema>;
+export type MobileProjectAddResult = z.infer<typeof mobileProjectAddResultSchema>;
+export type MobilePanelsListResult = z.infer<typeof mobilePanelsListResultSchema>;
+export type MobileTreeChildrenResult = z.infer<typeof mobileTreeChildrenResultSchema>;
+export type MobileFilesListResult = z.infer<typeof mobileFilesListResultSchema>;
+export type MobileFilesReadResult = z.infer<typeof mobileFilesReadResultSchema>;

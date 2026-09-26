@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { hostname } from 'node:os';
 
 import type { MobileSubscriptionResource } from '@caxri/mobile-transport';
@@ -6,19 +7,32 @@ import type {
     CommandAdapter,
     CommandExecutionContext,
     MobileDeviceRole,
+    MobilePanelViewKind,
     Principal,
     ServerEvent,
     ServerOperationRequest,
     ServerRequest,
+    TreeItemDto,
+    ViewDescriptor,
+    ViewIcon,
 } from '@caxri/protocol';
-import { CaxriError } from '@caxri/protocol';
+import { assertNever, CaxriError } from '@caxri/protocol';
 
 import type { TerminalExecutionPort } from '../../domains/terminal';
 import type { AgentEndpointRegistry } from '../agent-endpoints/registry';
 import type { ServerDomainService } from '../domain-service';
+import type { ExtensionService } from '../extensions/service';
 import { buildMobileDashboard } from './dashboard';
 import { MobileDeviceRegistry } from './device-registry';
 import { MobileGateway } from './gateway';
+import { adoptCurrentPairedPrincipal } from './gateway/principal-grant';
+
+const mobileReadOnlyPanelMethods = [
+    'mobile.panels.list',
+    'mobile.tree.children',
+    'mobile.files.list',
+    'mobile.files.read',
+] as const;
 
 const mobileGatewayMethodsByRole = {
     view: [
@@ -29,6 +43,7 @@ const mobileGatewayMethodsByRole = {
         'mobile.changes.diff',
         'mobile.agent.availability',
         'terminal.preview',
+        ...mobileReadOnlyPanelMethods,
     ],
     reply: [
         'mobile.dashboard',
@@ -40,6 +55,7 @@ const mobileGatewayMethodsByRole = {
         'terminal.preview',
         'session.markRead',
         'mobile.agent.submit',
+        ...mobileReadOnlyPanelMethods,
     ],
     control: [
         'mobile.dashboard',
@@ -56,6 +72,9 @@ const mobileGatewayMethodsByRole = {
         'mobile.terminal.takeOver',
         'mobile.terminal.release',
         'mobile.terminal.input',
+        'mobile.project.browse',
+        'mobile.project.add',
+        ...mobileReadOnlyPanelMethods,
     ],
 } as const satisfies Record<MobileDeviceRole, readonly string[]>;
 
@@ -100,7 +119,13 @@ type MobileControlRequest = Extract<
             | 'mobile.terminal.takeOver'
             | 'mobile.terminal.release'
             | 'mobile.terminal.input'
-            | 'mobile.pairing.create';
+            | 'mobile.pairing.create'
+            | 'mobile.project.browse'
+            | 'mobile.project.add'
+            | 'mobile.panels.list'
+            | 'mobile.tree.children'
+            | 'mobile.files.list'
+            | 'mobile.files.read';
     }
 >;
 type MobileDesktopOperation = Extract<
@@ -118,6 +143,7 @@ export interface MobileAccessController {
         protocolIdentity: { serverId: string; stateEpoch: string },
         domainService: ServerDomainService,
         terminalExecution: TerminalExecutionPort,
+        getExtensionService: () => ExtensionService | undefined,
     ) => void;
     close: () => Promise<void>;
     publish: (event: ServerEvent) => void;
@@ -132,8 +158,7 @@ export interface MobileAccessController {
     validatePairedDeviceRequest: (
         request:
             | Extract<ServerRequest, { method: 'session.markRead' }>
-            | Extract<ServerRequest, { method: 'terminal.preview' }>
-            | Extract<ServerRequest, { method: 'mobile.session.create' }>,
+            | Extract<ServerRequest, { method: 'terminal.preview' }>,
         context: CommandExecutionContext,
         domainService: ServerDomainService,
     ) => Promise<void>;
@@ -173,6 +198,37 @@ const sessionForPrincipal = async (
 };
 
 /**
+ * Drops a `resource` (data URL) icon rather than projecting it. Every core-contributed secondary-sidebar container uses
+ * a `builtin` or `theme` icon today, and inlining an extension-supplied image is not yet part of the mobile read
+ * surface.
+ */
+const projectMobileIcon = (
+    icon: ViewIcon | undefined,
+): { kind: 'builtin' | 'theme'; id: string } | undefined =>
+    icon && icon.kind !== 'resource' ? { kind: icon.kind, id: icon.id } : undefined;
+
+const mobilePanelViewKind = (viewKind: ViewDescriptor['viewKind']): MobilePanelViewKind => {
+    switch (viewKind.kind) {
+        case 'resource-explorer':
+            return 'files';
+        case 'source-control':
+            return 'changes';
+        case 'tree':
+            return 'tree';
+        default:
+            return 'unsupported';
+    }
+};
+
+const projectMobileTreeItem = (item: TreeItemDto) => ({
+    handle: item.handle,
+    label: item.label,
+    ...(item.description !== undefined && { description: item.description }),
+    ...(projectMobileIcon(item.icon) && { icon: projectMobileIcon(item.icon) }),
+    collapsibleState: item.collapsibleState,
+});
+
+/**
  * Owns the default-off LAN listener and keeps paired-device authorization out of the general Server dispatcher.
  */
 export const openMobileAccessController = async (options: {
@@ -193,6 +249,7 @@ export const openMobileAccessController = async (options: {
         throw error;
     }
     let gateway: MobileGateway | undefined;
+    let getExtensionService: (() => ExtensionService | undefined) | undefined;
     const hostDisplayName = mobileHostDisplayName(options.hostDisplayName ?? hostname());
     let isClosed = false;
     let authorityTail = Promise.resolve();
@@ -216,15 +273,11 @@ export const openMobileAccessController = async (options: {
     const currentPairedPrincipal = (principal: Principal, method: string) => {
         if (principal.kind !== 'paired-device')
             throw new CaxriError('FORBIDDEN', 'Paired device principal is required');
-        const current = registry.currentPrincipal(principal.deviceId, principal.generation);
-        if (
-            current.kind !== 'paired-device' ||
-            current.id !== principal.id ||
-            current.role !== principal.role ||
-            current.projectIds.length !== principal.projectIds.length ||
-            current.projectIds.some((projectId, index) => projectId !== principal.projectIds[index])
-        )
-            throw new CaxriError('FORBIDDEN', 'Paired device authorization changed');
+        const current = adoptCurrentPairedPrincipal(
+            principal,
+            registry.currentPrincipal(principal.deviceId, principal.generation),
+        );
+        if (!current) throw new CaxriError('FORBIDDEN', 'Paired device authorization changed');
         if (!isMobileGatewayMethodAllowedForRole(current.role, method))
             throw new CaxriError('FORBIDDEN', 'Paired device role does not allow this method');
         return current;
@@ -273,8 +326,16 @@ export const openMobileAccessController = async (options: {
         authorizePairedDeviceMethod: (principal, method) => {
             currentPairedPrincipal(principal, method);
         },
-        attach: (adapter, bootId, protocolIdentity, domainService, terminalExecution) => {
+        attach: (
+            adapter,
+            bootId,
+            protocolIdentity,
+            domainService,
+            terminalExecution,
+            resolveExtensionService,
+        ) => {
             assertOpen();
+            getExtensionService = resolveExtensionService;
             gateway = new MobileGateway({
                 adapters: { server: adapter },
                 bootId,
@@ -571,8 +632,105 @@ export const openMobileAccessController = async (options: {
                         return activeGateway.createPairing(request.params.projectIds);
                     });
                 }
+                case 'mobile.project.browse': {
+                    const principal = currentPairedPrincipal(context.principal, request.method);
+                    const result = await domainService.request('mobile.project.browseInternal', {
+                        ...request.params,
+                        principal,
+                    });
+                    currentPairedPrincipal(principal, request.method);
+                    return result;
+                }
+                case 'mobile.project.add': {
+                    const principal = currentPairedPrincipal(context.principal, request.method);
+                    const result = await domainService.request('mobile.project.addInternal', {
+                        ...request.params,
+                        principal,
+                    });
+                    /**
+                     * Grants the newly added Project to the requesting device. The live connection adopts the longer
+                     * Project list through `adoptCurrentPairedPrincipal` instead of treating it as a changed device.
+                     */
+                    await registry.grantProject(
+                        principal.deviceId,
+                        principal.generation,
+                        result.project.id,
+                    );
+                    return result;
+                }
+                case 'mobile.files.list':
+                case 'mobile.files.read': {
+                    const principal = currentPairedPrincipal(context.principal, request.method);
+                    await sessionForPrincipal(domainService, principal, request.params.sessionId);
+                    const result =
+                        request.method === 'mobile.files.list'
+                            ? await domainService.request('mobile.files.listInternal', {
+                                  sessionId: request.params.sessionId,
+                                  directory: request.params.directory,
+                                  principal,
+                              })
+                            : await domainService.request('mobile.files.readInternal', {
+                                  sessionId: request.params.sessionId,
+                                  path: request.params.path,
+                                  principal,
+                              });
+                    currentPairedPrincipal(principal, request.method);
+                    return result;
+                }
+                case 'mobile.panels.list': {
+                    const principal = currentPairedPrincipal(context.principal, request.method);
+                    await sessionForPrincipal(domainService, principal, request.params.sessionId);
+                    const extensionService = getExtensionService?.();
+                    if (!extensionService)
+                        throw new CaxriError('UNAVAILABLE', 'Extension catalog is unavailable');
+                    const catalog = extensionService.catalog();
+                    const panels = catalog.containers
+                        .filter((container) => container.location === 'secondarySidebar')
+                        .map((container) => ({
+                            id: container.id,
+                            title: container.title,
+                            ...(projectMobileIcon(container.icon) && {
+                                icon: projectMobileIcon(container.icon),
+                            }),
+                            views: catalog.views
+                                .filter((view) => view.containerId === container.id)
+                                .map((view) => ({
+                                    id: view.id,
+                                    title: view.title,
+                                    kind: mobilePanelViewKind(view.viewKind),
+                                    ...(view.badge === true && { hasBadge: true }),
+                                })),
+                        }));
+                    currentPairedPrincipal(principal, request.method);
+                    return { panels };
+                }
+                case 'mobile.tree.children': {
+                    const principal = currentPairedPrincipal(context.principal, request.method);
+                    await sessionForPrincipal(domainService, principal, request.params.sessionId);
+                    const activeContext = await domainService.request('app.activeContext', {});
+                    if (activeContext.sessionId !== request.params.sessionId)
+                        throw new CaxriError(
+                            'CONFLICT',
+                            'Conversation Tree only reflects the Desktop active Session',
+                        );
+                    const extensionService = getExtensionService?.();
+                    if (!extensionService)
+                        throw new CaxriError('UNAVAILABLE', 'Extension Host is unavailable');
+                    const result = await extensionService.treeChildren({
+                        viewId: request.params.viewId,
+                        ...(request.params.parentHandle && {
+                            parentHandle: request.params.parentHandle,
+                        }),
+                        requestId: randomUUID(),
+                    });
+                    currentPairedPrincipal(principal, request.method);
+                    return {
+                        items: result.items.map((item) => projectMobileTreeItem(item)),
+                        ...(result.reset && { reset: result.reset }),
+                    };
+                }
                 default:
-                    throw new CaxriError('INTERNAL', 'Mobile control method is not implemented');
+                    return assertNever(request, 'Mobile control method is not implemented');
             }
         },
         invokeDesktopOperation: (request) =>
@@ -589,18 +747,7 @@ export const openMobileAccessController = async (options: {
                 return revocation;
             }),
         validatePairedDeviceRequest: async (request, context, domainService) => {
-            const current = currentPairedPrincipal(context.principal, request.method);
-            if (request.method === 'mobile.session.create') {
-                if (!current.projectIds.includes(request.params.projectId))
-                    throw new CaxriError('NOT_FOUND', 'Project not found');
-                const visible = await domainService.request('project.queryForPrincipal', {
-                    principal: current,
-                    query: { mode: 'show', selector: request.params.projectId },
-                });
-                if (visible.projects.every((project) => project.id !== request.params.projectId))
-                    throw new CaxriError('NOT_FOUND', 'Project not found');
-                return;
-            }
+            currentPairedPrincipal(context.principal, request.method);
             if (request.method === 'terminal.preview') {
                 await terminalForPrincipal(
                     domainService,

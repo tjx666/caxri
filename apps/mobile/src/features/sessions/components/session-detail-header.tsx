@@ -1,18 +1,86 @@
 import { useCallback, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
+import type { LucideIcon } from 'lucide-react-native';
+import {
+    ChevronLeft,
+    EllipsisVertical,
+    FileDiff,
+    MailOpen,
+    MessagesSquare,
+    PanelRight,
+    SquareTerminal,
+} from 'lucide-react-native';
+
+import { AgentGlyph } from '../../../components/agent-icon';
+import { IconButton } from '../../../components/icon-button';
 import type { MobileTheme } from '../../../theme/tokens';
 import { MobileGatewayRequestError } from '../../connection/mobile-gateway-client';
 import type { MobileSessionItem } from '../session-model';
 import type { SessionSegment } from '../session-ui-state';
 import { sessionDetailStyles as styles } from './session-detail-styles';
+import { SessionStatusGlyph } from './session-status-glyph';
 
-const segmentLabels: Record<SessionSegment, string> = {
-    conversation: 'Conversation',
-    terminal: 'Terminal',
-    changes: 'Changes',
+const segmentPresentation: Record<SessionSegment, { icon: LucideIcon; label: string }> = {
+    conversation: { icon: MessagesSquare, label: 'Conversation' },
+    terminal: { icon: SquareTerminal, label: 'Terminal' },
+    changes: { icon: FileDiff, label: 'Changes' },
+    panels: { icon: PanelRight, label: 'Panels' },
 };
-const segments: SessionSegment[] = ['conversation', 'terminal', 'changes'];
+const segments: SessionSegment[] = ['conversation', 'terminal', 'changes', 'panels'];
+
+/**
+ * Only the selected tab spells out its name. Four labelled tabs do not fit a phone at the default font scale, and the
+ * icons stay distinct enough once one of them is named; every tab keeps its full accessible name.
+ */
+const SessionSegmentTab = ({
+    changesCount,
+    onPress,
+    option,
+    selected,
+    theme,
+}: {
+    changesCount: number | null;
+    onPress: () => void;
+    option: SessionSegment;
+    selected: boolean;
+    theme: MobileTheme;
+}) => {
+    const { icon: Icon, label } = segmentPresentation[option];
+    const count = option === 'changes' && changesCount !== null ? changesCount : null;
+    const color = selected ? theme.text : theme.muted;
+    return (
+        <Pressable
+            accessibilityLabel={count === null ? label : `${label}, ${count}`}
+            accessibilityRole="tab"
+            accessibilityState={{ selected }}
+            onPress={onPress}
+            style={[styles.tab, selected ? { backgroundColor: theme.surface } : null]}
+            testID={`session-segment-${option}`}
+        >
+            <Icon color={color} size={18} strokeWidth={selected ? 2.25 : 2} />
+            {selected ? (
+                <Text numberOfLines={1} style={[styles.tabText, { color }]}>
+                    {label}
+                </Text>
+            ) : null}
+            {count === null ? null : (
+                <Text
+                    style={[
+                        styles.tabBadge,
+                        {
+                            backgroundColor: count > 0 ? theme.elevated : 'transparent',
+                            color,
+                        },
+                    ]}
+                    testID="changes-count"
+                >
+                    {count}
+                </Text>
+            )}
+        </Pressable>
+    );
+};
 
 export const SessionDetailHeader = ({
     changesCount,
@@ -53,37 +121,35 @@ export const SessionDetailHeader = ({
             <View style={[styles.header, { borderColor: theme.border }]}>
                 <View style={styles.headerLine}>
                     {onBack ? (
-                        <Pressable
+                        <IconButton
                             accessibilityHint="Returns to the Session list."
                             accessibilityLabel="Back to Sessions"
-                            accessibilityRole="button"
+                            icon={ChevronLeft}
                             onPress={onBack}
-                            style={styles.back}
+                            size={26}
                             testID="session-detail-back"
-                        >
-                            <Text style={[styles.backText, { color: theme.text }]}>←</Text>
-                        </Pressable>
+                            theme={theme}
+                        />
                     ) : null}
-                    <Text
-                        accessibilityRole="header"
-                        numberOfLines={1}
-                        style={[styles.title, { color: theme.text }]}
-                    >
-                        {session.displayTitle}
-                    </Text>
-                    <Text numberOfLines={1} style={[styles.state, { color: theme.muted }]}>
-                        {session.stateLabel}
-                    </Text>
-                    <Pressable
+                    <View style={styles.titleGroup}>
+                        <AgentGlyph kind={session.primaryTerminal?.kind} size={18} theme={theme} />
+                        <Text
+                            accessibilityRole="header"
+                            numberOfLines={1}
+                            style={[styles.title, { color: theme.text }]}
+                        >
+                            {session.displayTitle}
+                        </Text>
+                        <SessionStatusGlyph session={session} theme={theme} />
+                    </View>
+                    <IconButton
                         accessibilityLabel="Session menu"
-                        accessibilityRole="button"
-                        accessibilityState={{ expanded: isMenuOpen }}
+                        expanded={isMenuOpen}
+                        icon={EllipsisVertical}
                         onPress={() => setMenuOpen((current) => !current)}
-                        style={styles.menuButton}
                         testID="session-detail-menu"
-                    >
-                        <Text style={[styles.menuText, { color: theme.muted }]}>⋯</Text>
-                    </Pressable>
+                        theme={theme}
+                    />
                 </View>
                 {isMenuOpen ? (
                     <View
@@ -100,6 +166,7 @@ export const SessionDetailHeader = ({
                             style={styles.menuAction}
                             testID="session-mark-read"
                         >
+                            <MailOpen color={theme.muted} size={18} />
                             <Text
                                 style={[
                                     styles.menuActionText,
@@ -127,30 +194,14 @@ export const SessionDetailHeader = ({
             </View>
             <View style={[styles.tabs, { borderColor: theme.border }]}>
                 {segments.map((option) => (
-                    <Pressable
+                    <SessionSegmentTab
                         key={option}
-                        accessibilityRole="tab"
-                        accessibilityState={{ selected: segment === option }}
+                        changesCount={changesCount}
                         onPress={() => onSegmentChange(option)}
-                        style={[
-                            styles.tab,
-                            { borderColor: segment === option ? theme.primary : 'transparent' },
-                        ]}
-                        testID={`session-segment-${option}`}
-                    >
-                        <Text
-                            style={[
-                                styles.tabText,
-                                { color: segment === option ? theme.text : theme.muted },
-                            ]}
-                            testID={option === 'changes' ? 'changes-count' : undefined}
-                        >
-                            {segmentLabels[option]}
-                            {option === 'changes' && changesCount !== null
-                                ? ` ${changesCount}`
-                                : ''}
-                        </Text>
-                    </Pressable>
+                        option={option}
+                        selected={segment === option}
+                        theme={theme}
+                    />
                 ))}
             </View>
         </>

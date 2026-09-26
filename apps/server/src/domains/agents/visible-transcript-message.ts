@@ -33,13 +33,19 @@ function visibleBlockText(blocks: string[]): string {
     return blocks.map(stripInjectedTranscriptContent).filter(Boolean).join('\n');
 }
 
+interface ParsedTranscriptMessage {
+    content: unknown;
+    isGrokChunk: boolean;
+    role: string;
+}
+
 /**
- * Shared visible-message boundary for title generation and Session search. Tool bodies, sidechains and injected
- * instructions are excluded before callers truncate or combine text. No transcript data belongs in diagnostics.
+ * Shared entry parsing for every provider's message record shape (Claude Code JSONL messages, Codex response_item
+ * messages, and Grok ACP session/update chunks). Returns the role and raw, un-stripped content so a caller can choose
+ * whether to strip injected envelopes (`extractVisibleTranscriptMessage`) or pattern-match them directly
+ * (`extractRawUserTranscriptText`, used only to classify a system event before stripping would erase the evidence).
  */
-export function extractVisibleTranscriptMessage(
-    record: unknown,
-): VisibleTranscriptMessage | undefined {
+function parseTranscriptMessage(record: unknown): ParsedTranscriptMessage | undefined {
     if (!record || typeof record !== 'object') return;
     const entry = record as {
         method?: string;
@@ -64,22 +70,47 @@ export function extractVisibleTranscriptMessage(
           ? { role: entry.payload.role, content: entry.payload.content }
           : { role: entry.type, content: entry.message?.content };
     if (message.role !== 'user' && message.role !== 'assistant') return;
-    const rawText =
-        typeof message.content === 'string'
-            ? visibleBlockText([message.content])
-            : Array.isArray(message.content)
-              ? visibleBlockText(
-                    message.content.flatMap((part: unknown) => {
-                        if (!part || typeof part !== 'object') return [];
-                        const block = part as { type?: string; text?: unknown };
-                        return ['text', 'input_text', 'output_text'].includes(block.type ?? '') &&
-                            typeof block.text === 'string'
-                            ? [block.text]
-                            : [];
-                    }),
-                )
-              : '';
-    const text = isGrokChunk ? rawText : rawText.trim();
+    return { content: message.content, isGrokChunk, role: message.role };
+}
+
+function contentBlocks(content: unknown): string[] {
+    return typeof content === 'string'
+        ? [content]
+        : Array.isArray(content)
+          ? content.flatMap((part: unknown) => {
+                if (!part || typeof part !== 'object') return [];
+                const block = part as { type?: string; text?: unknown };
+                return ['text', 'input_text', 'output_text'].includes(block.type ?? '') &&
+                    typeof block.text === 'string'
+                    ? [block.text]
+                    : [];
+            })
+          : [];
+}
+
+/**
+ * Shared visible-message boundary for title generation and Session search. Tool bodies, sidechains and injected
+ * instructions are excluded before callers truncate or combine text. No transcript data belongs in diagnostics.
+ */
+export function extractVisibleTranscriptMessage(
+    record: unknown,
+): VisibleTranscriptMessage | undefined {
+    const parsed = parseTranscriptMessage(record);
+    if (!parsed) return;
+    const rawText = visibleBlockText(contentBlocks(parsed.content));
+    const text = parsed.isGrokChunk ? rawText : rawText.trim();
     if (!text) return;
-    return { role: message.role, text, isChunk: isGrokChunk };
+    return { role: parsed.role as 'user' | 'assistant', text, isChunk: parsed.isGrokChunk };
+}
+
+/**
+ * Raw, envelope-preserving text for a user-turn transcript record. Used only by timeline projection to classify a
+ * harness-injected system event (slash-command echo, bash-mode echo, task notification) before
+ * `extractVisibleTranscriptMessage` strips those same envelopes away; never exposed outside timeline projection.
+ */
+export function extractRawUserTranscriptText(record: unknown): string | undefined {
+    const parsed = parseTranscriptMessage(record);
+    if (parsed?.role !== 'user') return;
+    const raw = contentBlocks(parsed.content).join('\n').trim();
+    return raw || undefined;
 }

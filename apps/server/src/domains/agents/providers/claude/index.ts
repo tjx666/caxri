@@ -31,6 +31,7 @@ import {
     claudeTranscriptRoot,
     resolveClaudeConfigDirectory,
 } from './paths';
+import { appendClaudeTimelineRecord } from './timeline';
 
 const MAX_TRANSCRIPT_TITLE_CACHES = 64;
 /**
@@ -388,6 +389,7 @@ export const claudeProvider: AgentProviderDescriptor = {
         readClaudeState(context, resolveClaudeConfigDirectory(environment)),
     renameSession: renameClaudeSession,
     resumeArguments: (agentSessionId) => ['--resume', agentSessionId],
+    timelineProjector: appendClaudeTimelineRecord,
     transcriptBaseRoot: (environment) =>
         claudeTranscriptBaseRoot(resolveClaudeConfigDirectory(environment)),
     transcriptPath: ({ agentSessionId, cwd }, environment) =>

@@ -1,12 +1,11 @@
 import { Buffer } from 'node:buffer';
 import type { FileHandle } from 'node:fs/promises';
 
-import type { AgentTimelineItem, MobileTimelineReadResult } from '@caxri/protocol';
+import type { AgentProvider, AgentTimelineItem, MobileTimelineReadResult } from '@caxri/protocol';
 
 import type { CaxriDatabase } from '../db';
 import type { AgentEnvironment } from './contract';
-import { appendClaudeTimelineRecord } from './providers/claude/timeline';
-import { appendCodexTimelineRecord } from './providers/codex/timeline';
+import { agentProviders } from './providers';
 import { TimelineBuilder } from './timeline-model';
 import { locateAgentTranscript } from './transcript';
 import { openSafeAgentTranscript } from './transcript-security';
@@ -158,7 +157,8 @@ export class AgentTimelineService {
         const terminal = this.database.getTerminal(terminalId);
         if (terminal?.sessionId !== sessionId || !terminal.provider)
             return { status: 'missing', items: [], truncated: false, cursorExpired: false };
-        if (terminal.provider !== 'claude' && terminal.provider !== 'codex')
+        const provider = terminal.provider;
+        if (!agentProviders[provider].timelineProjector)
             return { status: 'unsupported', items: [], truncated: false, cursorExpired: false };
         const location = await locateAgentTranscript(this.database, terminalId, this.environment);
         const opened = location && (await openSafeAgentTranscript(location));
@@ -241,14 +241,8 @@ export class AgentTimelineService {
                             state.lines.some((line) => line.offset === beforePosition.offset)
                         )))
             )
-                return await this.#olderPage(
-                    handle,
-                    state,
-                    terminal.provider,
-                    beforePosition,
-                    limit,
-                );
-            return this.#page(state, terminal.provider, beforePosition, limit, isCursorExpired);
+                return await this.#olderPage(handle, state, provider, beforePosition, limit);
+            return this.#page(state, provider, beforePosition, limit, isCursorExpired);
         } finally {
             await opened.handle.close();
         }
@@ -257,7 +251,7 @@ export class AgentTimelineService {
     async #olderPage(
         handle: FileHandle,
         state: CachedTranscript,
-        provider: 'claude' | 'codex',
+        provider: AgentProvider,
         before: { offset: number; part: number },
         limit: number,
     ): Promise<MobileTimelineReadResult> {
@@ -288,17 +282,22 @@ export class AgentTimelineService {
 
     #page(
         state: CachedTranscript,
-        provider: 'claude' | 'codex',
+        provider: AgentProvider,
         before: { offset: number; part: number } | undefined,
         limit: number,
         isCursorExpired: boolean,
     ): MobileTimelineReadResult {
         const builder = new TimelineBuilder(state.generation);
+        /**
+         * Resolved once per page rather than per line: `read()` already proved this provider has a projector before any
+         * transcript byte was opened, so a missing one here would be an internal inconsistency, not user input.
+         */
+        const project = agentProviders[provider].timelineProjector;
+        if (!project) throw new Error(`Agent provider "${provider}" has no timeline projector`);
         for (const line of state.lines) {
             try {
                 const record: unknown = JSON.parse(line.text);
-                if (provider === 'claude') appendClaudeTimelineRecord(builder, record, line.offset);
-                else appendCodexTimelineRecord(builder, record, line.offset);
+                project(builder, record, line.offset);
             } catch {
                 // A partial or future provider record is a capability miss, never a diagnostic payload.
             }

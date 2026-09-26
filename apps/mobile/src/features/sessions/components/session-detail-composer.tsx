@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
 
 import { MOBILE_AGENT_SUBMIT_MAX_BYTES } from '@caxri/protocol';
+import { ArrowUp, Square } from 'lucide-react-native';
 
 import type { MobileTheme } from '../../../theme/tokens';
 import { useSessionComposer } from '../hooks/use-session-composer';
@@ -38,10 +39,11 @@ const SessionComposerInput = ({
     }, [focusComposer, isVisible, onComposerFocused]);
 
     const agentName = sessionAgentLabel(session);
+    const recipient = ['No Agent', 'Shell'].includes(agentName) ? 'Agent' : agentName;
     const placeholder =
         session.lastActivityState === 'running'
-            ? 'Agent is working — your message will be typed into the Terminal'
-            : `Message ${['No Agent', 'Shell'].includes(agentName) ? 'Agent' : agentName}`;
+            ? `Reply while ${recipient} works`
+            : `Message ${recipient}`;
 
     return (
         <TextInput
@@ -88,6 +90,7 @@ const SessionComposerActionButton = ({
     theme: MobileTheme;
 }) => {
     const isBusy = delivery.kind === 'sending' || delivery.kind === 'stopping';
+    const Icon = showStop ? Square : ArrowUp;
     return (
         <Pressable
             accessibilityLabel={showStop ? 'Stop Agent' : 'Send message'}
@@ -107,9 +110,7 @@ const SessionComposerActionButton = ({
             {isBusy ? (
                 <ActivityIndicator color={theme.primaryForeground} />
             ) : (
-                <Text style={[styles.sendLabel, { color: theme.primaryForeground }]}>
-                    {showStop ? '■ Stop Agent' : '↑'}
-                </Text>
+                <Icon color={theme.primaryForeground} size={20} strokeWidth={2.5} />
             )}
         </Pressable>
     );
@@ -151,6 +152,10 @@ export const SessionDetailComposer = ({
             session,
         });
     const feedback = composerDeliveryFeedback(delivery);
+    /**
+     * The limit only matters near it; showing `0/16384 B` on every idle composer was noise.
+     */
+    const isShowByteCount = byteLength > MOBILE_AGENT_SUBMIT_MAX_BYTES * 0.75;
 
     return (
         <View
@@ -176,23 +181,24 @@ export const SessionDetailComposer = ({
                     theme={theme}
                 />
             </View>
-            <View style={styles.composerMeta}>
-                <Text style={[styles.reason, { color: theme.muted }]}>
-                    {disabledReason ??
-                        (showStop
-                            ? 'Interrupts the current Agent.'
-                            : 'Send to the primary Agent Terminal.')}
-                </Text>
-                <Text style={[styles.byteCount, { color: theme.muted }]}>
-                    {byteLength}/{MOBILE_AGENT_SUBMIT_MAX_BYTES} B
-                </Text>
-            </View>
+            {disabledReason || isShowByteCount ? (
+                <View style={styles.composerMeta}>
+                    <Text style={[styles.reason, { color: theme.muted }]}>
+                        {disabledReason ?? ''}
+                    </Text>
+                    {isShowByteCount ? (
+                        <Text style={[styles.byteCount, { color: theme.muted }]}>
+                            {byteLength}/{MOBILE_AGENT_SUBMIT_MAX_BYTES} B
+                        </Text>
+                    ) : null}
+                </View>
+            ) : null}
             {feedback ? (
                 <Text
                     accessibilityRole={feedback.isError ? 'alert' : 'text'}
                     style={[
                         styles.sendState,
-                        { color: feedback.isError ? theme.danger : theme.primary },
+                        { color: feedback.isError ? theme.danger : theme.muted },
                     ]}
                     testID="session-composer-feedback"
                 >

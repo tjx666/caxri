@@ -13,8 +13,10 @@ Project grants around the Server read. Server Core checks the paired principal a
 before selecting that Session's primary Agent Terminal. A denied Session is an authorization error,
 not an empty timeline.
 
-The projection currently supports Claude Code and Codex records. It emits chronological
-`userMessage`, `agentMessage`, `toolCall`, and `turnBoundary` items with stable IDs. Tool items have
+The projection currently supports every Agent provider whose descriptor registers a
+`timelineProjector` (Claude Code and Codex today); a provider without one, such as Grok, reports
+`unsupported` instead of a partial or guessed timeline. It emits chronological `userMessage`,
+`agentMessage`, `toolCall`, `turnBoundary`, and `systemEvent` items with stable IDs. Tool items have
 a bounded name, summary, status, optional duration, and optional detail. Thinking and unrelated
 provider records are excluded. A successful read returns one of these statuses:
 
@@ -23,6 +25,18 @@ provider records are excluded. A successful read returns one of these statuses:
 | `available`   | A supported Agent record was opened, including an empty record.         | Render Conversation.                    |
 | `unsupported` | The primary Agent uses a provider without a timeline projection.        | Show the explanation and open Terminal. |
 | `missing`     | The Session has no primary Agent record, or it cannot be opened safely. | Show the explanation and open Terminal. |
+
+### System events
+
+A provider CLI sometimes writes harness-injected content into what is otherwise a user turn instead
+of text the reader typed: a background task notification, a `/command` echo (with its local stdout
+and any caveat), a `!`-prefixed bash-mode echo, or a standalone caveat. The Server recognizes these
+by their tags (`<task-notification>`, `<command-name>`/`<command-message>`, `<bash-input>`,
+`<local-command-caveat>`) and projects them as a `systemEvent` item — `kind` is one of
+`taskNotification`, `slashCommand`, `bashCommand`, or `caveat` — instead of a raw `userMessage`, so
+the mobile reader sees "ran `/compact`" rather than the literal envelope. A turn made of only a
+`<system-reminder>` block is not classified into any kind; it is stripped to empty text upstream and
+the empty item is dropped, so it never reaches the timeline at all.
 
 The Server reads a bounded transcript window and returns at most 80 items and roughly 48 KiB per
 page. The default page limit is 40. Individual message text is limited to 4,096 characters and
@@ -67,6 +81,7 @@ feature.
 - [Timeline projection](../../apps/server/src/domains/agents/timeline.ts),
   [Claude parser](../../apps/server/src/domains/agents/providers/claude/timeline.ts), and
   [Codex parser](../../apps/server/src/domains/agents/providers/codex/timeline.ts)
+- [System event classification](../../apps/server/src/domains/agents/system-event.ts)
 - [Transcript watcher](../../apps/server/src/domains/agents/transcript-watcher.ts) and
   [mobile observer](../../apps/mobile/src/features/conversation/use-conversation-timeline.ts)
 - [Conversation UI](../../apps/mobile/src/features/conversation/conversation-view.tsx)

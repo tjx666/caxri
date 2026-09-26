@@ -8,10 +8,12 @@ import { TerminalLiveView } from '../../terminal/terminal-live-view';
 import type { MobileSessionItem } from '../session-model';
 import { isMobileTerminalStopped } from '../session-model';
 import type { SessionSegment } from '../session-ui-state';
+import { isSideSessionSegment } from '../session-ui-state';
 import { sessionDetailStyles as styles } from './session-detail-styles';
 
 export const SessionDetailBody = ({
     changesPanel,
+    panels,
     conversationTimeline,
     deviceRole,
     isConnected,
@@ -23,6 +25,7 @@ export const SessionDetailBody = ({
     wideChanges,
 }: {
     changesPanel: ReactNode;
+    panels: ReactNode;
     conversationTimeline: ReturnType<typeof useConversationTimeline>;
     deviceRole: 'view' | 'reply' | 'control' | null;
     isConnected: boolean;
@@ -35,7 +38,7 @@ export const SessionDetailBody = ({
 }) => {
     const showTerminal =
         segment === 'terminal' ||
-        (segment === 'changes' && wideChanges && wideBackgroundSegment === 'terminal');
+        (isSideSessionSegment(segment) && wideChanges && wideBackgroundSegment === 'terminal');
     const terminalId = session.primaryTerminal?.id ?? session.primaryAgentTerminalId;
     const terminal = terminalId ? (
         <TerminalLiveView
@@ -59,7 +62,8 @@ export const SessionDetailBody = ({
             timeline={conversationTimeline}
         />
     );
-    if (segment === 'changes' && wideChanges) {
+    const side = segment === 'panels' ? panels : changesPanel;
+    if (wideChanges && isSideSessionSegment(segment)) {
         return (
             <View style={styles.bodyRow}>
                 {wideBackgroundSegment === 'conversation' ? conversation : terminal}
@@ -67,18 +71,14 @@ export const SessionDetailBody = ({
                     style={[styles.wideChanges, { borderColor: theme.border }]}
                     testID="changes-right-pane"
                 >
-                    {changesPanel}
+                    {side}
                 </View>
             </View>
         );
     }
     return (
         <View style={styles.body}>
-            {segment === 'conversation'
-                ? conversation
-                : segment === 'terminal'
-                  ? terminal
-                  : changesPanel}
+            {segment === 'conversation' ? conversation : segment === 'terminal' ? terminal : side}
         </View>
     );
 };

@@ -48,3 +48,15 @@ export const pressTerminalKey = (
     key === 'ctrl'
         ? { ctrl: !isCtrl, bytes: null }
         : { ctrl: false, bytes: encodeTerminalKey(key, isCtrl) };
+
+/**
+ * Maps a typed character to its Ctrl chord (`c` → ETX). Only the ASCII range that has a C0 control code qualifies;
+ * anything else returns null so the armed modifier is never silently dropped.
+ */
+export const controlByteFor = (text: string): string | null => {
+    if (text.length !== 1) return null;
+    const code = text.toUpperCase().codePointAt(0) ?? 0;
+    if (code >= 0x40 && code <= 0x5f) return String.fromCodePoint(code & 0x1f);
+    if (text === ' ') return '\u{0}';
+    return null;
+};
