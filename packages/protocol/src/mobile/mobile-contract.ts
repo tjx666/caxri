@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { agentEndpointRefSchema as agentEndpointReferenceSchema } from '../agent/agent-endpoint-contract.js';
+import { hexColorSchema } from '../domain/color.js';
 import {
     canceledResultSchema,
     fileEntrySchema,
@@ -11,6 +12,7 @@ import {
     terminalKindSchema,
     terminalRecordSchema,
 } from '../domain/domain.js';
+import { sessionRenameTitleSchema } from '../domain/session.js';
 import { viewIdSchema } from '../domain/views.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
@@ -89,6 +91,32 @@ export const mobileDashboardSessionSchema = z.strictObject({
         })
         .optional(),
 });
+
+/**
+ * An archived Session as the phone's Archived Sessions list shows it. Archived Sessions have no live Terminal, so only
+ * the primary Agent's kind is projected, for the row's avatar.
+ */
+export const mobileArchivedSessionSchema = z.strictObject({
+    id: identifierSchema,
+    projectId: identifierSchema,
+    displayTitle: z.string().min(1).max(100),
+    projectTitle: z.string().min(1).max(100),
+    archivedAt: z.number().int().nonnegative(),
+    agentKind: terminalKindSchema.optional(),
+});
+
+export const MOBILE_ARCHIVED_SESSIONS_MAX = 64;
+
+export const mobileArchivedSessionsResultSchema = z.strictObject({
+    sessions: z.array(mobileArchivedSessionSchema).max(MOBILE_ARCHIVED_SESSIONS_MAX),
+    total: z.number().int().nonnegative().max(4_096),
+    truncated: z.boolean(),
+});
+
+/**
+ * Session management from a phone returns only the affected identity; the dashboard subscription carries the new state.
+ */
+export const mobileSessionMutationResultSchema = z.strictObject({ sessionId: identifierSchema });
 
 export const mobileProjectSummarySchema = scopedProjectSchema.extend({
     lastActivityAt: z.number().int().nonnegative().optional(),
@@ -298,6 +326,10 @@ export const mobileProjectAddResultSchema = z.strictObject({
 const mobilePanelIconSchema = z.strictObject({
     kind: z.enum(['builtin', 'theme']),
     id: z.string().min(1).max(100),
+    /**
+     * The same externally owned glyph tint as `viewIconSchema`'s theme `color`, such as a Linear workflow state.
+     */
+    color: hexColorSchema.optional(),
 });
 
 export const mobilePanelsListParametersSchema = z.strictObject({ sessionId: identifierSchema });
@@ -468,6 +500,29 @@ export const mobileMethods = {
         }),
         result: mobileSessionCreateResultSchema,
     },
+    'mobile.session.rename': {
+        ...commandPolicy('server', 'write', ['sessions.write']),
+        params: z.strictObject({
+            sessionId: identifierSchema,
+            displayTitle: sessionRenameTitleSchema,
+        }),
+        result: mobileSessionMutationResultSchema,
+    },
+    'mobile.session.archive': {
+        ...commandPolicy('server', 'write', ['sessions.write']),
+        params: z.strictObject({ sessionId: identifierSchema }),
+        result: mobileSessionMutationResultSchema,
+    },
+    'mobile.session.restore': {
+        ...commandPolicy('server', 'write', ['sessions.write']),
+        params: z.strictObject({ sessionId: identifierSchema }),
+        result: mobileSessionMutationResultSchema,
+    },
+    'mobile.session.archived': {
+        ...commandPolicy('server', 'read', ['sessions.read']),
+        params: z.strictObject({}),
+        result: mobileArchivedSessionsResultSchema,
+    },
     'mobile.terminal.takeOver': {
         ...commandPolicy('server', 'control', ['terminals.steer']),
         params: z.strictObject({
@@ -631,6 +686,7 @@ export const mobileInternalMethods = {
 
 export type MobileAccessStatus = z.infer<typeof mobileAccessStatusSchema>;
 export type MobileDashboardResult = z.infer<typeof mobileDashboardResultSchema>;
+export type MobileArchivedSessionsResult = z.infer<typeof mobileArchivedSessionsResultSchema>;
 export type MobileDeviceSummary = z.infer<typeof mobileDeviceSummarySchema>;
 export type AgentTimelineItem = z.infer<typeof agentTimelineItemSchema>;
 export type AgentSystemEventKind = z.infer<typeof agentSystemEventKindSchema>;

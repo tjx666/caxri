@@ -5,7 +5,9 @@ import { build } from 'vite';
 import { describe, expect, it } from 'vitest';
 
 import type { MobileClientContextValue } from '../../src/features/connection/use-mobile-client-controller';
+import { terminalWebviewDocument } from '../../src/features/terminal/terminal-webview-document';
 import type { useLiveTerminal } from '../../src/features/terminal/use-live-terminal';
+import { terminalWebviewCommandScript } from '../../src/features/terminal/webview-bridge';
 
 type FixtureScope = typeof globalThis & {
     fixture: {
@@ -323,6 +325,76 @@ describe('mobile runtime browser boundaries', () => {
             const result = await page.evaluate(() => (globalThis as FixtureScope).fixture.run());
             expect(errors).toEqual([]);
             expect(result).toEqual(['NEW', 'NEW']);
+        } finally {
+            await browser.close();
+        }
+    });
+
+    it('scrolls Terminal scrollback with a vertical touch drag', async () => {
+        const browser = await chromium.launch({ headless: true });
+        try {
+            const context = await browser.newContext({
+                hasTouch: true,
+                isMobile: true,
+                viewport: { width: 390, height: 640 },
+            });
+            const page = await context.newPage();
+            const errors: string[] = [];
+            page.on('pageerror', (error) => errors.push(error.message));
+            await page.setContent(terminalWebviewDocument('terminal-1'));
+            await page.evaluate(() => {
+                const scope = globalThis as typeof globalThis & { messages: unknown[] };
+                scope.messages = [];
+                Object.assign(globalThis, {
+                    ReactNativeWebView: {
+                        postMessage: (message: string) => scope.messages.push(JSON.parse(message)),
+                    },
+                });
+            });
+            const output = Array.from({ length: 200 }, (_, index) => `line ${index}`).join('\r\n');
+            await page.evaluate(
+                terminalWebviewCommandScript({
+                    version: 1,
+                    terminalId: 'terminal-1',
+                    type: 'reset',
+                    cols: 40,
+                    rows: 20,
+                }),
+            );
+            await page.evaluate(
+                terminalWebviewCommandScript({
+                    version: 1,
+                    terminalId: 'terminal-1',
+                    type: 'append',
+                    data: output,
+                }),
+            );
+            const firstRow = () =>
+                page.evaluate(
+                    () => document.querySelector('.xterm-rows')?.firstElementChild?.textContent,
+                );
+            await expect.poll(firstRow).toBe('line 180');
+            const session = await context.newCDPSession(page);
+            const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', y: number) =>
+                session.send('Input.dispatchTouchEvent', {
+                    type,
+                    touchPoints: type === 'touchEnd' ? [] : [{ x: 150, y }],
+                });
+            await touch('touchStart', 100);
+            for (let y = 110; y <= 400; y += 10)
+                // eslint-disable-next-line no-await-in-loop -- A drag is an ordered sequence of touch moves.
+                await touch('touchMove', y);
+            await page.waitForTimeout(150);
+            await touch('touchEnd', 400);
+            await expect.poll(firstRow).not.toBe('line 180');
+            const messages = await page.evaluate(
+                () => (globalThis as typeof globalThis & { messages: unknown[] }).messages,
+            );
+            expect(messages).toContainEqual(
+                expect.objectContaining({ type: 'scroll', atBottom: false }),
+            );
+            expect(messages).not.toContainEqual(expect.objectContaining({ type: 'tap' }));
+            expect(errors).toEqual([]);
         } finally {
             await browser.close();
         }

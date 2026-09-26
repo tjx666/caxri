@@ -201,7 +201,11 @@ export async function observeMobileNode(
     return JSON.parse(source) as MobileNodeObservation;
 }
 
-export const tapMobileCheck = (serial: string, checkId: string): Promise<string> =>
+export const tapMobileCheck = (
+    serial: string,
+    checkId: string,
+    options: { isLongPress?: boolean } = {},
+): Promise<string> =>
     runMobileDeviceCommand('bun', [
         'run',
         androidDeviceScript,
@@ -210,6 +214,7 @@ export const tapMobileCheck = (serial: string, checkId: string): Promise<string>
         serial,
         '--check-id',
         checkId,
+        ...(options.isLongPress ? ['--long-press'] : []),
     ]);
 
 export async function waitForMobile<T>(

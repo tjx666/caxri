@@ -1,11 +1,13 @@
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
 import type { AgentTimelineItem } from '@caxri/protocol';
-import { Check, CircleAlert } from 'lucide-react-native';
+import { CircleAlert } from 'lucide-react-native';
 
 import type { MobileTheme } from '../../theme/tokens';
 import { formatConversationDuration } from './conversation-model';
 import { conversationStyles as styles } from './conversation-styles';
+import { ConversationToolIcon } from './conversation-tool-icon';
+import { describeTool } from './tool-presentation';
 
 type ToolCall = Extract<AgentTimelineItem, { type: 'toolCall' }>;
 
@@ -17,30 +19,49 @@ export const ConversationToolRow = ({
     onPress: (tool: ToolCall) => void;
     theme: MobileTheme;
     tool: ToolCall;
-}) => (
-    <Pressable
-        accessibilityLabel={`${tool.summary}. ${tool.status}. Open detail.`}
-        accessibilityRole="button"
-        onPress={() => onPress(tool)}
-        style={styles.toolRow}
-        testID={`conversation-tool-${tool.id}`}
-    >
-        <View style={styles.toolIcon}>
-            {tool.status === 'running' ? (
-                <ActivityIndicator color={theme.muted} size={14} />
-            ) : tool.status === 'failed' ? (
-                <CircleAlert color={theme.danger} size={15} />
-            ) : (
-                <Check color={theme.muted} size={15} />
-            )}
-        </View>
-        <Text numberOfLines={1} style={[styles.toolSummary, { color: theme.text }]}>
-            {tool.summary}
-        </Text>
-        {tool.durationMs !== undefined ? (
-            <Text style={[styles.toolDuration, { color: theme.muted }]}>
-                {formatConversationDuration(tool.durationMs)}
+}) => {
+    const presentation = describeTool(tool);
+    return (
+        <Pressable
+            accessibilityLabel={`${presentation.label} ${presentation.subject ?? ''}. ${tool.status}. Open detail.`}
+            accessibilityRole="button"
+            onPress={() => onPress(tool)}
+            style={({ pressed }) => [
+                styles.toolRow,
+                pressed ? { backgroundColor: theme.surface } : null,
+            ]}
+            testID={`conversation-tool-${tool.id}`}
+        >
+            <ConversationToolIcon kind={presentation.kind} status={tool.status} theme={theme} />
+            <Text numberOfLines={1} style={[styles.toolLabel, { color: theme.muted }]}>
+                {presentation.label}
             </Text>
-        ) : null}
-    </Pressable>
-);
+            {presentation.subject ? (
+                presentation.isCodeSubject ? (
+                    <View style={styles.toolChipSlot}>
+                        <View style={[styles.toolChip, { backgroundColor: theme.surface }]}>
+                            <Text
+                                numberOfLines={1}
+                                style={[styles.toolChipText, { color: theme.text }]}
+                            >
+                                {presentation.subject}
+                            </Text>
+                        </View>
+                    </View>
+                ) : (
+                    <Text numberOfLines={1} style={[styles.toolSubject, { color: theme.text }]}>
+                        {presentation.subject}
+                    </Text>
+                )
+            ) : (
+                <View style={styles.toolSpacer} />
+            )}
+            {tool.status === 'failed' ? <CircleAlert color={theme.danger} size={15} /> : null}
+            {tool.durationMs !== undefined ? (
+                <Text style={[styles.toolDuration, { color: theme.muted }]}>
+                    {formatConversationDuration(tool.durationMs)}
+                </Text>
+            ) : null}
+        </Pressable>
+    );
+};

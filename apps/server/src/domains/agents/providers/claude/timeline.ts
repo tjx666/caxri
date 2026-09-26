@@ -11,10 +11,26 @@ import {
     extractVisibleTranscriptMessage,
 } from '../../visible-transcript-message';
 
+/**
+ * Input fields that name what a tool acted on, in precedence order. Mobile renders the first match as the tool's
+ * subject (`Fetched <url>`, `Ran agent <description>`); a tool with none of them falls back to its name.
+ */
+const TOOL_SUBJECT_FIELDS = [
+    'command',
+    'file_path',
+    'notebook_path',
+    'path',
+    'pattern',
+    'url',
+    'query',
+    'description',
+    'skill',
+] as const;
+
 function toolInputSummary(name: string, input: unknown): string {
     const fields = timelineObject(input);
-    const subject = fields?.command ?? fields?.file_path ?? fields?.path ?? fields?.pattern;
-    return timelineSummary(subject, name);
+    const field = TOOL_SUBJECT_FIELDS.find((key) => typeof fields?.[key] === 'string');
+    return timelineSummary(field && fields?.[field], name);
 }
 
 function toolResultText(content: unknown): string | undefined {
