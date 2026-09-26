@@ -48,6 +48,20 @@ with the Save Pressable that was disabled during submission.
 semantic tap helper to verify the returned Edit button is enabled after saving. Keep the action
 away from the screen edge with a full touch target.
 
+## Assuming a native Android Photo Picker thumbnail has a resource ID
+
+**Situation:** A disposable Android 36 emulator has exactly one fixture-owned JPEG in the system
+Photo Picker.
+
+**Does not work:** Querying a guessed Photo Picker thumbnail resource ID immediately after the
+native source dialog. The picker opens asynchronously and its clickable image tile has no resource
+ID in the device hierarchy.
+
+**Works:** Confirm the gallery is empty before adding one synthetic image, wait for the picker to
+show one enabled clickable square tile, tap its verified bounds, and confirm Caxri's attachment
+state afterwards. Parse native accessibility XML only in memory and remove the temporary device dump
+without uploading or logging it.
+
 ## Using arbitrary option labels as Android check IDs
 
 **Situation:** A mobile Agent question renders clickable choices, but the sanitized Android semantic receipt

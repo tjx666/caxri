@@ -264,9 +264,7 @@ export async function executeMobileImageAttachmentScenario(
         await tapMobileCheck(environment.serial, 'session-attach-image');
         await tapMobileNativeControl(environment.serial, { text: 'PHOTO LIBRARY' });
         await capture(environment, 'picker', artifacts);
-        await tapMobileNativeControl(environment.serial, {
-            resourceId: 'com.google.android.providers.media.module:id/icon_thumbnail',
-        });
+        await tapMobileNativeControl(environment.serial, { singleImageTile: true });
         await waitForMobile(
             () =>
                 observeMobileNode(environment.serial, 'session-image-status-0', {
