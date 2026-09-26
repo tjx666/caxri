@@ -32,6 +32,9 @@ bun run --silent check [files...] [--lint] [--test] [--type] [--knip] [--e2e] [-
   It deliberately ignores dynamic and transitive imports so composition-root suites do not turn a
   focused check into a broad test run. Renderer source changes also run the design and theme
   contracts, which scan that source tree at runtime without importing individual files.
+- For added or changed production structured-log writes, explicitly include
+  `scripts/__tests__/logging-contract.test.ts` in the focused check. It scans call sites rather
+  than importing them, so import-based related-test discovery cannot select this contract.
 - `--type` runs the repository-wide TypeScript check because TypeScript cannot safely validate one
   file in isolation.
 - `--knip` runs the repository-wide dead-code and unused-export gate for Renderer or shared-contract

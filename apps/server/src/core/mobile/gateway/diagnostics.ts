@@ -1,4 +1,5 @@
 import type { StructuredLogger } from '@caxri/system';
+import { logEventCatalog } from '@caxri/system';
 
 const emptyCounts = () => ({
     admissionAddress: 0,
@@ -38,13 +39,15 @@ export class MobileGatewayDiagnostics {
         this.#counts[reason] += 1;
         this.#total += 1;
         if (this.#counts[reason] === 1)
-            this.logger?.write('warn', 'mobile_gateway.failure', { fields: { reason } });
+            this.logger?.write('warn', logEventCatalog.mobileGateway.failure, {
+                fields: { reason },
+            });
         if (this.now() - this.#lastSummaryAt >= 60_000) this.flush();
     }
 
     flush(): void {
         if (this.#total === 0) return;
-        this.logger?.write('info', 'mobile_gateway.failure_summary', {
+        this.logger?.write('info', logEventCatalog.mobileGateway.failureSummary, {
             fields: { ...this.#counts, total: this.#total },
         });
         this.#lastSummaryAt = this.now();
