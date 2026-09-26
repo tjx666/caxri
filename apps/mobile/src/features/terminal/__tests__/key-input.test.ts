@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { encodeTerminalKey, pressTerminalKey } from '../key-input';
+import { controlByteFor, encodeTerminalKey, pressTerminalKey } from '../key-input';
 
 describe('mobile Terminal key input', () => {
     it('encodes menu navigation and submission as exact terminal bytes', () => {
@@ -27,5 +27,14 @@ describe('mobile Terminal key input', () => {
         expect(pressTerminalKey(armed.ctrl, 'down')).toEqual({ ctrl: false, bytes: '\u{1B}[1;5B' });
         expect(pressTerminalKey(armed.ctrl, '1')).toEqual({ ctrl: false, bytes: null });
         expect(pressTerminalKey(true, 'ctrl')).toEqual({ ctrl: false, bytes: null });
+    });
+
+    it('turns one typed character into its Ctrl byte while Ctrl is armed', () => {
+        expect(controlByteFor('c')).toBe('\u{3}');
+        expect(controlByteFor('C')).toBe('\u{3}');
+        expect(controlByteFor('[')).toBe('\u{1B}');
+        expect(controlByteFor(' ')).toBe('\u{0}');
+        expect(controlByteFor('1')).toBeNull();
+        expect(controlByteFor('ab')).toBeNull();
     });
 });

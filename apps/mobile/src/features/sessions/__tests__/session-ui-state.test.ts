@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     emptyHostSessionUiState,
     hasKnownConversationAgent,
+    isSideSessionSegment,
     preferredSessionSegment,
     rememberSessionDraft,
     rememberSessionSegment,
@@ -114,6 +115,22 @@ describe('host Session UI state', () => {
         expect(
             rememberSessionSegment(second, 'one', 'changes', 'changes').contentSegmentBySession,
         ).toEqual(second.contentSegmentBySession);
+    });
+
+    it('treats Panels like Changes as a side view over the remembered content', () => {
+        expect(isSideSessionSegment('panels')).toBe(true);
+        expect(isSideSessionSegment('changes')).toBe(true);
+        expect(isSideSessionSegment('terminal')).toBe(false);
+        const state = rememberSessionSegment(
+            emptyHostSessionUiState(),
+            'one',
+            'panels',
+            'conversation',
+        );
+        expect(state.contentSegmentBySession).toEqual({ one: 'conversation' });
+        expect(
+            rememberSessionSegment(state, 'one', 'panels', 'changes').contentSegmentBySession,
+        ).toEqual({ one: 'conversation' });
     });
 
     it('keeps the Project filter while Session-specific state changes', () => {

@@ -155,6 +155,7 @@ export const useNewSession = () => {
         create,
         createState: newSessionCreateState,
         deviceRole: sessions.deviceRole,
+        hostId,
         isAvailabilityLoading: availability.isPending || availability.isFetching,
         isDashboardLoaded: sessions.hasLoaded,
         isAvailabilityError: availability.isError,

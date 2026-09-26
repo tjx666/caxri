@@ -1,4 +1,7 @@
+import type { ReactNode } from 'react';
 import { Pressable, Text, View } from 'react-native';
+
+import { Check } from 'lucide-react-native';
 
 import type { MobileTheme } from '../../../theme/tokens';
 import { newSessionStyles as styles } from './new-session-styles';
@@ -7,6 +10,7 @@ export const NewSessionChoice = ({
     disabled,
     isCompact,
     label,
+    leading,
     onPress,
     reason,
     selected,
@@ -16,6 +20,7 @@ export const NewSessionChoice = ({
     disabled?: boolean;
     isCompact?: boolean;
     label: string;
+    leading?: ReactNode;
     onPress: () => void;
     reason?: string;
     selected: boolean;
@@ -29,28 +34,31 @@ export const NewSessionChoice = ({
         accessibilityState={{ disabled, selected }}
         disabled={disabled}
         onPress={onPress}
-        style={[
+        style={({ pressed }) => [
             styles.choice,
             {
-                backgroundColor: theme.surface,
+                backgroundColor: selected || pressed ? theme.surface : 'transparent',
                 borderColor: selected ? theme.primary : theme.border,
+                opacity: disabled ? 0.5 : 1,
             },
             isCompact ? styles.agentChoice : null,
         ]}
         testID={testID}
     >
-        <View style={[styles.radio, { borderColor: selected ? theme.primary : theme.muted }]}>
-            {selected ? (
-                <View style={[styles.radioDot, { backgroundColor: theme.primary }]} />
-            ) : null}
-        </View>
+        {leading}
         <View style={styles.choiceBody}>
-            <Text style={[styles.choiceTitle, { color: disabled ? theme.muted : theme.text }]}>
+            <Text
+                numberOfLines={1}
+                style={[styles.choiceTitle, { color: disabled ? theme.muted : theme.text }]}
+            >
                 {label}
             </Text>
             {reason ? (
-                <Text style={[styles.choiceReason, { color: theme.muted }]}>{reason}</Text>
+                <Text numberOfLines={2} style={[styles.choiceReason, { color: theme.muted }]}>
+                    {reason}
+                </Text>
             ) : null}
         </View>
+        {selected && !isCompact ? <Check color={theme.primary} size={18} /> : null}
     </Pressable>
 );

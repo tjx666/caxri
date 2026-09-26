@@ -13,7 +13,7 @@ import {
 import type { TerminalControlTarget } from './control-input';
 import { chunkTerminalText, sendTerminalControlInput } from './control-input';
 import type { TerminalKey } from './key-input';
-import { pressTerminalKey } from './key-input';
+import { controlByteFor, pressTerminalKey } from './key-input';
 import { canAdoptTerminalLease } from './lease-admission';
 import { createTerminalOutputQueue } from './output-queue';
 import { createTerminalStreamAssembly } from './stream-assembly';
@@ -57,9 +57,15 @@ const scheduleTerminalRetry = (
     return setTimeout(onRetry, delay);
 };
 
+/**
+ * Start of every Terminal's typed-input chain; shared so the ref initializer allocates nothing per render.
+ */
+const SETTLED_INPUT = Promise.resolve();
+
 export const useLiveTerminal = ({
     injectScript,
     isConnected,
+    onTap,
     isStopped,
     role,
     terminalId,
@@ -67,6 +73,10 @@ export const useLiveTerminal = ({
 }: {
     injectScript: (script: string) => void;
     isConnected: boolean;
+    /**
+     * A deliberate tap on the Terminal surface, used to raise the keyboard while this phone holds the lease.
+     */
+    onTap?: () => void;
     isStopped: boolean;
     role: 'view' | 'reply' | 'control' | null;
     terminalId: string;
@@ -82,6 +92,8 @@ export const useLiveTerminal = ({
     const [outbound] = useState(() => createTerminalOutputQueue(MAX_PENDING_OUTPUT_BYTES));
     const outboundFrame = useRef<number | null>(null);
     const retries = useRef(0);
+    const inputChain = useRef<Promise<void>>(SETTLED_INPUT);
+    const resizeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
     const lifetime = useRef(0);
     const context = useRef({ isConnected, role, visible, subscriptionAvailable });
     const [webviewReady, setWebviewReady] = useState(false);
@@ -259,6 +271,7 @@ export const useLiveTerminal = ({
     useEffect(
         () => () => {
             if (outboundFrame.current !== null) cancelAnimationFrame(outboundFrame.current);
+            clearTimeout(resizeTimer.current);
         },
         [],
     );
@@ -296,6 +309,25 @@ export const useLiveTerminal = ({
             setError(controlError(error_));
             return 'blocked';
         }
+    };
+    /**
+     * Typed characters arrive one keystroke at a time. Chaining the sends keeps them in keystroke order even though
+     * each request resolves independently, and an armed Ctrl turns the next letter into its control byte.
+     */
+    const typeText = (text: string): Promise<void> => {
+        const bytes = ctrl ? controlByteFor(text) : text;
+        if (ctrl) setCtrl(false);
+        if (bytes === null) {
+            setError('That Ctrl key combination is not supported.');
+            return inputChain.current;
+        }
+        const previous = inputChain.current;
+        const next = async (): Promise<void> => {
+            await previous;
+            await sendInput(bytes);
+        };
+        inputChain.current = next();
+        return inputChain.current;
     };
     const pressKey = async (key: TerminalKey): Promise<void> => {
         const next = pressTerminalKey(ctrl, key);
@@ -343,6 +375,11 @@ export const useLiveTerminal = ({
                 return;
             }
             lease.current = target;
+            /**
+             * The observer stream carries only output, so the phone applies the size it just gave the PTY to its own
+             * grid. Otherwise it keeps rendering the Desktop grid while the Agent redraws for the phone.
+             */
+            sendWebview({ type: 'resize', ...phoneSize });
             setHasLease(true);
             setError(null);
         } catch (error_) {
@@ -376,8 +413,35 @@ export const useLiveTerminal = ({
                 break;
             }
             case 'size': {
+                const previous = size.current;
                 size.current = { cols: message.cols, rows: message.rows };
                 setHasSize(true);
+                /**
+                 * The keyboard and rotation change the phone's grid while it holds the lease. Re-asserting the lease
+                 * with the new size reflows the shared Terminal; the Server accepts a repeat from the same holder.
+                 */
+                if (
+                    lease.current &&
+                    (previous?.cols !== message.cols || previous.rows !== message.rows)
+                ) {
+                    clearTimeout(resizeTimer.current);
+                    resizeTimer.current = setTimeout(() => {
+                        const target = lease.current;
+                        const next = size.current;
+                        if (!target || !next) return;
+                        // eslint-disable-next-line no-void -- A failed resize keeps the previous lease size.
+                        void request('mobile.terminal.takeOver', { ...target, ...next })
+                            .then(() => {
+                                if (lease.current === target)
+                                    sendWebview({ type: 'resize', ...next });
+                            })
+                            .catch(() => {});
+                    }, 250);
+                }
+                break;
+            }
+            case 'tap': {
+                onTap?.();
                 break;
             }
             case 'error': {
@@ -407,6 +471,7 @@ export const useLiveTerminal = ({
         release,
         retry: () => setRetry((current) => current + 1),
         sendInput,
+        typeText,
         state: displayState,
         takeOver,
     };

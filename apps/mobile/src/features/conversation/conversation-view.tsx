@@ -4,6 +4,7 @@ import { Pressable, Text, View } from 'react-native';
 
 import type { FlashListRef, ListRenderItemInfo } from '@shopify/flash-list';
 import { FlashList } from '@shopify/flash-list';
+import { ArrowDown } from 'lucide-react-native';
 
 import type { MobileTheme } from '../../theme/tokens';
 import { ConversationEntry } from './conversation-entry';
@@ -209,14 +210,16 @@ export const ConversationView = ({
             ) : null}
             {shouldShowConversationJump(isAtBottom, entries.length > 0) ? (
                 <Pressable
+                    accessibilityLabel="Jump to latest"
                     accessibilityRole="button"
                     onPress={jumpToLatest}
-                    style={[styles.button, styles.jump, { backgroundColor: theme.primary }]}
+                    style={[
+                        styles.jump,
+                        { backgroundColor: theme.elevated, borderColor: theme.border },
+                    ]}
                     testID="conversation-jump-latest"
                 >
-                    <Text style={[styles.buttonText, { color: theme.primaryForeground }]}>
-                        Jump to latest
-                    </Text>
+                    <ArrowDown color={theme.text} size={20} />
                 </Pressable>
             ) : null}
         </View>

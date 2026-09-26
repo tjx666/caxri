@@ -4,11 +4,20 @@ export interface MobileTheme {
     background: string;
     border: string;
     danger: string;
+    /**
+     * Raised controls and pills that sit on `surface`.
+     */
+    elevated: string;
     muted: string;
     primary: string;
     primaryForeground: string;
+    success: string;
     surface: string;
     text: string;
+    /**
+     * Unread attention, matching Desktop's amber attention slot.
+     */
+    warning: string;
 }
 
 /**
@@ -19,9 +28,12 @@ export const mobileTheme = {
     background: draculaTheme.colors.background,
     border: draculaTheme.colors.border,
     danger: draculaTheme.colors.danger,
+    elevated: draculaTheme.colors.elevated,
     muted: draculaTheme.colors.muted,
     primary: draculaTheme.colors.accent,
     primaryForeground: draculaTheme.colors.background,
+    success: draculaTheme.colors.success,
     surface: draculaTheme.colors.surface,
     text: draculaTheme.colors.foreground,
+    warning: draculaTheme.colors.warning,
 } as const satisfies MobileTheme;

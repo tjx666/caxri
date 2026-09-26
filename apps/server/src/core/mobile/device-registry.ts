@@ -5,6 +5,7 @@ import { PAIRING_SECRET_BYTES } from '@caxri/mobile-transport';
 import type { Principal } from '@caxri/protocol';
 import {
     CaxriError,
+    MOBILE_MAX_PROJECT_GRANTS,
     mobileDeviceIdSchema,
     mobileDeviceRoleSchema,
     mobileProjectIdsSchema,
@@ -332,6 +333,36 @@ export class MobileDeviceRegistry {
             const updated = mobileDeviceRecordSchema.parse({
                 ...record,
                 lastConnectedAt: this.#now(),
+            });
+            records.set(deviceId, updated);
+            return publicRecord(updated);
+        });
+    }
+
+    /**
+     * Additive-only: an existing grant is left untouched and the credential/generation do not change, since widening a
+     * device's own visible Projects is not the security-sensitive transition {@link revoke} guards against. Connections
+     * holding the pre-grant principal adopt the longer `projectIds` list through `adoptCurrentPairedPrincipal`.
+     */
+    async grantProject(
+        deviceId: string,
+        expectedGeneration: number,
+        projectId: string,
+    ): Promise<MobileDeviceSummary> {
+        return this.#mutate((records) => {
+            const record = records.get(deviceId);
+            if (
+                !record ||
+                record.revokedAt !== undefined ||
+                record.generation !== expectedGeneration
+            )
+                throw new CaxriError('FORBIDDEN', 'Paired device authorization is unavailable');
+            if (record.projectIds.includes(projectId)) return publicRecord(record);
+            if (record.projectIds.length >= MOBILE_MAX_PROJECT_GRANTS)
+                throw new CaxriError('CAPACITY', 'Paired device Project grants are full');
+            const updated = mobileDeviceRecordSchema.parse({
+                ...record,
+                projectIds: [...record.projectIds, projectId],
             });
             records.set(deviceId, updated);
             return publicRecord(updated);

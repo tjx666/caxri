@@ -1,13 +1,18 @@
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import { Platform, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 
 import type { MobileTheme } from '../../theme/tokens';
-import { TerminalLiveControls } from './terminal-live-controls';
-import { TerminalLeaseBanner } from './terminal-live-status';
+import {
+    TerminalControlBar,
+    TerminalFloatingActions,
+    TerminalKeyboardInput,
+    TerminalStatusChip,
+} from './terminal-live-controls';
 import { terminalViewStyles as styles } from './terminal-view-styles';
 import { terminalWebviewDocument } from './terminal-webview-document';
 import { useLiveTerminal } from './use-live-terminal';
+import { useTerminalKeyboard } from './use-terminal-keyboard';
 
 interface TerminalLiveViewProperties {
     isConnected: boolean;
@@ -38,25 +43,38 @@ function AndroidTerminalLiveView({
     visible,
 }: TerminalLiveViewProperties) {
     const webview = useRef<WebView>(null);
+    const keyboard = useTerminalKeyboard();
+    const hasLeaseReference = useRef(false);
     const injectScript = useCallback((script: string): void => {
         webview.current?.injectJavaScript(script);
     }, []);
+    const { focus } = keyboard;
+    const onTap = useCallback((): void => {
+        if (hasLeaseReference.current) focus();
+    }, [focus]);
     const terminal = useLiveTerminal({
         injectScript,
         isConnected,
         isStopped,
+        onTap,
         role,
         terminalId,
         visible,
     });
+    useLayoutEffect(() => {
+        hasLeaseReference.current = terminal.hasLease;
+    }, [terminal.hasLease]);
     const html = useMemo(() => terminalWebviewDocument(terminalId), [terminalId]);
+    const takeOver = async (): Promise<void> => {
+        await terminal.takeOver();
+        keyboard.focus();
+    };
 
     return (
         <View
             style={[styles.root, { backgroundColor: theme.background }]}
             testID="terminal-live-view"
         >
-            <TerminalLeaseBanner terminal={terminal} theme={theme} />
             <View style={styles.screen}>
                 <WebView
                     ref={webview}
@@ -77,8 +95,26 @@ function AndroidTerminalLiveView({
                     testID="terminal-live-webview"
                     thirdPartyCookiesEnabled={false}
                 />
+                <TerminalStatusChip role={role} terminal={terminal} theme={theme} />
+                <TerminalFloatingActions
+                    onTakeOver={() => {
+                        // eslint-disable-next-line no-void -- The hook reports takeover failures in the UI.
+                        void takeOver();
+                    }}
+                    terminal={terminal}
+                    theme={theme}
+                />
             </View>
-            <TerminalLiveControls role={role} terminal={terminal} theme={theme} />
+            {terminal.hasLease ? (
+                <>
+                    <TerminalKeyboardInput inputReference={keyboard.input} terminal={terminal} />
+                    <TerminalControlBar
+                        onToggleKeyboard={keyboard.toggle}
+                        terminal={terminal}
+                        theme={theme}
+                    />
+                </>
+            ) : null}
         </View>
     );
 }

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import type { AgentTimelineItem } from '@caxri/protocol';
+import { ChevronDown, ChevronRight } from 'lucide-react-native';
 
 import type { MobileTheme } from '../../theme/tokens';
 import type { ConversationEntry } from './conversation-model';
@@ -22,6 +23,7 @@ export const ConversationToolGroup = ({
     theme: MobileTheme;
 }) => {
     const [expanded, setExpanded] = useState(false);
+    const Chevron = expanded ? ChevronDown : ChevronRight;
     return (
         <View style={[styles.toolGroup, { borderColor: theme.border }]}>
             <Pressable
@@ -31,9 +33,9 @@ export const ConversationToolGroup = ({
                 style={styles.toolRow}
                 testID={`conversation-group-${group.tools[0].id}`}
             >
-                <Text style={[styles.toolIcon, { color: theme.muted }]}>
-                    {expanded ? '⌄' : '›'}
-                </Text>
+                <View style={styles.toolIcon}>
+                    <Chevron color={theme.muted} size={16} />
+                </View>
                 <Text numberOfLines={1} style={[styles.toolSummary, { color: theme.text }]}>
                     {group.summary}
                 </Text>

@@ -122,6 +122,10 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
     });
     let extensionService: ExtensionService | undefined;
     let desktopRouter: ServerDesktopRouter | undefined;
+    const requireDesktopRouter = (): ServerDesktopRouter => {
+        if (!desktopRouter) throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
+        return desktopRouter;
+    };
     let stopPromise: Promise<void> | undefined;
     let commandStopFallback: NodeJS.Immediate | undefined;
     const mutationAdmission = new MutationAdmission();
@@ -519,41 +523,34 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                 }
                 case 'desktop.status':
                     return (await desktopRouter?.status()) ?? { state: 'offline' };
-                case 'desktop.focus': {
-                    if (!desktopRouter)
-                        throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
-                    return desktopRouter.focus(request.params.launchIfNeeded);
-                }
+                case 'desktop.focus':
+                    return requireDesktopRouter().focus(request.params.launchIfNeeded);
                 case 'desktop.openPath':
                 case 'desktop.openProject':
                 case 'desktop.openFile': {
-                    if (!desktopRouter)
-                        throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
                     const kind =
                         request.method === 'desktop.openPath'
                             ? undefined
                             : request.method === 'desktop.openFile'
                               ? 'file'
                               : 'directory';
-                    return desktopRouter.open('open', kind, request.params);
+                    return requireDesktopRouter().open('open', kind, request.params);
                 }
                 case 'files.reveal':
-                    if (!desktopRouter)
-                        throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
-                    return desktopRouter.open('reveal', undefined, request.params);
+                    return requireDesktopRouter().open('reveal', undefined, request.params);
                 case 'files.openWithDefaultApp':
-                    if (!desktopRouter)
-                        throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
                     // Restricted to files: handing a directory to the default application only reopens Finder, which
                     // `files.reveal` already does with a selection.
-                    return desktopRouter.open('openWithDefaultApp', 'file', request.params);
+                    return requireDesktopRouter().open(
+                        'openWithDefaultApp',
+                        'file',
+                        request.params,
+                    );
                 case 'project.openRoot':
                 case 'project.openInEditor': {
-                    if (!desktopRouter)
-                        throw new CaxriError('UNAVAILABLE', 'Desktop routing is unavailable');
                     if (request.method === 'project.openRoot')
-                        return desktopRouter.openProjectRoot(request.params);
-                    return desktopRouter.open('openInEditor', 'directory', request.params);
+                        return requireDesktopRouter().openProjectRoot(request.params);
+                    return requireDesktopRouter().open('openInEditor', 'directory', request.params);
                 }
                 case 'host.stop': {
                     if (mutationAdmission.isClosed)
@@ -656,6 +653,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             protocolIdentity,
             domainService,
             terminalExecution,
+            () => extensionService,
         );
         logger.updateBaseContext({ serverId: protocolIdentity.serverId });
         recoveryJournal.initialize(protocolIdentity, protocolRecovery);

@@ -1,0 +1,41 @@
+import { StyleSheet } from 'react-native';
+
+export const panelsStyles = StyleSheet.create({
+    root: { flex: 1, minWidth: 0 },
+    tabList: { flexGrow: 0 },
+    viewTitle: { fontSize: 13, fontWeight: '600', padding: 12 },
+    tabs: { flexDirection: 'row', gap: 6, paddingHorizontal: 12, paddingVertical: 8 },
+    tab: {
+        alignItems: 'center',
+        borderRadius: 17,
+        flexDirection: 'row',
+        gap: 6,
+        minHeight: 34,
+        paddingHorizontal: 12,
+    },
+    tabText: { fontSize: 13, fontWeight: '600' },
+    body: { flex: 1 },
+    crumbs: {
+        alignItems: 'center',
+        borderBottomWidth: 1,
+        flexDirection: 'row',
+        minHeight: 44,
+        paddingRight: 12,
+    },
+    crumbText: { flex: 1, fontSize: 13, minWidth: 0 },
+    row: {
+        alignItems: 'center',
+        flexDirection: 'row',
+        gap: 10,
+        minHeight: 44,
+        paddingHorizontal: 16,
+    },
+    rowText: { flex: 1, fontSize: 14, minWidth: 0 },
+    rowDescription: { flexShrink: 1, fontSize: 12, maxWidth: '45%' },
+    rowMeta: { fontSize: 12 },
+    status: { alignItems: 'center', gap: 12, justifyContent: 'center', padding: 32 },
+    statusText: { fontSize: 14, lineHeight: 20, textAlign: 'center' },
+    retry: { fontSize: 14, fontWeight: '700' },
+    preview: { flex: 1 },
+    previewText: { fontFamily: 'monospace', fontSize: 12, lineHeight: 18, padding: 16 },
+});

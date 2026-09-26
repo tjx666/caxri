@@ -1,3 +1,4 @@
+import { classifySystemEvent } from '../../system-event';
 import type { TimelineBuilder } from '../../timeline-model';
 import {
     timelineObject,
@@ -5,7 +6,10 @@ import {
     timelineText,
     timelineTimestamp,
 } from '../../timeline-model';
-import { extractVisibleTranscriptMessage } from '../../visible-transcript-message';
+import {
+    extractRawUserTranscriptText,
+    extractVisibleTranscriptMessage,
+} from '../../visible-transcript-message';
 
 function parsedArguments(value: unknown): Record<string, unknown> | undefined {
     if (typeof value !== 'string' || value.length > 16 * 1_024) return;
@@ -43,6 +47,13 @@ export function appendCodexTimelineRecord(
     }
     if (!payload || record.type !== 'response_item') return;
     if (payload.type === 'message') {
+        const rawUserText =
+            payload.role === 'user' ? extractRawUserTranscriptText(record) : undefined;
+        const systemEvent = rawUserText && classifySystemEvent(rawUserText);
+        if (systemEvent) {
+            builder.addSystemEvent(systemEvent, offset, 0, timestamp);
+            return;
+        }
         const visible = extractVisibleTranscriptMessage(record);
         if (visible)
             builder.addMessage(

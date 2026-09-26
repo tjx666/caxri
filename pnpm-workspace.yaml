@@ -20,6 +20,7 @@ catalog:
   '@yutengjing/eslint-config-typescript': ^4.0.0
   '@yutengjing/prettier-config': ^2.0.0
   eslint-plugin-import-x: ^4.17.1
+  lucide-react-native: ^1.48.0
   markdownlint: ^0.41.1
   markdownlint-cli2: ^0.23.3
   oxlint: ^1.83.0

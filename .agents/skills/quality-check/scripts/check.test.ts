@@ -656,6 +656,8 @@ describe('direct import test selection', () => {
         const selected = await selectedTestCandidates(process.cwd(), [source]);
 
         const expected = [
+            'apps/server/src/domains/__tests__/mobile-files.test.ts',
+            'apps/server/src/domains/__tests__/mobile-timeline.test.ts',
             'apps/server/src/domains/__tests__/root-services.test.ts',
             'apps/server/src/domains/__tests__/service-handlers.test.ts',
             'apps/server/src/domains/files/__tests__/external-links.integration.test.ts',
