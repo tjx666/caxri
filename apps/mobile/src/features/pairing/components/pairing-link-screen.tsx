@@ -1,61 +1,43 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 
 import { ActionButton } from '../../../components/action-button';
 import { LoadingScreen } from '../../../components/loading-screen';
 import { useMobileTheme } from '../../../theme/use-mobile-theme';
 import { useMobileClient } from '../../connection/mobile-client-provider';
-import { pairingErrorMessage } from '../pairing-error';
 import type { PairingRouteParameters } from '../pairing-link-route';
-import { pairingLinkFromRouteParameters } from '../pairing-link-route';
+import { readPairingRoute, startPairingRoute } from '../pairing-link-route';
 
 interface PairingLinkScreenProperties {
     parameters: PairingRouteParameters;
 }
 
-const completePairing = async (
-    pair: () => Promise<void>,
-    isMounted: () => boolean,
-    onError: (message: string) => void,
-): Promise<void> => {
-    try {
-        await pair();
-        if (isMounted()) router.replace('/sessions');
-    } catch (pairingError) {
-        if (isMounted()) onError(pairingErrorMessage(pairingError));
-    }
-};
-
 export const PairingLinkScreen = ({ parameters }: PairingLinkScreenProperties) => {
     const theme = useMobileTheme();
     const client = useMobileClient();
-    const { cancelPairing } = client;
-    const attempted = useRef(false);
-    const mounted = useRef(true);
+    const { cancelPairing, pair, isForeground } = client;
+    const isReady = client.status !== 'booting';
+    const { link, error: parameterError } = readPairingRoute(parameters);
     const [error, setError] = useState<string>();
 
-    useEffect(() => {
-        mounted.current = true;
-        return () => {
-            mounted.current = false;
-            cancelPairing();
-        };
-    }, [cancelPairing]);
-
-    useEffect(() => {
-        if (client.status === 'booting' || attempted.current) return;
-        attempted.current = true;
-        // eslint-disable-next-line no-void -- This screen owns the single bounded pairing attempt.
-        void completePairing(
-            () => client.pair(pairingLinkFromRouteParameters(parameters)),
-            () => mounted.current,
-            setError,
-        );
-    }, [client, parameters]);
+    useFocusEffect(
+        useCallback(() => {
+            if (!isReady || !isForeground) return;
+            setError(parameterError);
+            if (!link) return;
+            return startPairingRoute({
+                link,
+                pair,
+                cancel: cancelPairing,
+                onSuccess: () => router.replace('/sessions'),
+                onError: setError,
+            });
+        }, [cancelPairing, isForeground, link, pair, parameterError, isReady]),
+    );
 
     if (!error)
         return (

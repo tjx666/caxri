@@ -34,7 +34,9 @@ describe('mobile Acceptance scenario test IDs', () => {
         const source = readFileSync(path, 'utf8');
         const ids = [
             ...source.matchAll(/checkId\s*===\s*'([^']+)'/gu),
-            ...source.matchAll(/tapMobileCheck\([^,]+,\s*'([^']+)'/gu),
+            ...source.matchAll(
+                /(?:tapMobileCheck|hasCheck|observeMobileNode)\([^,]+,\s*'([^']+)'/gu,
+            ),
         ].map((match) => match[1]);
         expect(ids.length).toBeGreaterThan(0);
         const stale = ids.filter(
