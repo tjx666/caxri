@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { runCapture } from './process';
 import type { ProcessEntry, StopOperations } from './worktree-processes';
 import {
+    findOrphanedProcesses,
     isWorktreeOwnedCommand,
     parseProcessTable,
     stopProcesses,
@@ -79,6 +80,7 @@ describe('worktree process ownership', () => {
                 identity: createHash('sha256').update(identityText).digest('hex'),
                 parentPid: 1,
                 pid: 801,
+                startedAt: new Date(2026, 8, 24).getTime(),
             },
         ]);
     });
@@ -173,6 +175,64 @@ describe('worktree process ownership', () => {
         expect(isWorktreeOwnedCommand('/Applications/Caxri.app/Contents/MacOS/Caxri', '')).toBe(
             false,
         );
+    });
+});
+
+describe('finding orphaned worktree processes', () => {
+    const SIBLING = '/Users/me/code/caxri-worktrees/fix-other-9z8y7x6w';
+    const PRIMARY = '/Users/me/code/caxri';
+    const NESTED = `${PRIMARY}/.claude/worktrees/nested`;
+
+    function orphanIds(table: string, paths = [WORKTREE, SIBLING]): Record<string, number[]> {
+        return Object.fromEntries(
+            findOrphanedProcesses(parseProcessTable(table), paths)
+                .entries()
+                .map(([path, found]) => [path, found.map((entry) => entry.pid)]),
+        );
+    }
+
+    it('reports an unsupervised checkout but never one with a live launcher subtree', () => {
+        /**
+         * 599 is a backgrounded `bun run dev` launcher that launchd already adopted: its subtree is supervised, so this
+         * worktree's detached 603/604 are presumed adopted. The sibling checkout's 504 has nothing supervising it.
+         */
+        expect(orphanIds(TABLE)).toEqual({ [SIBLING]: [504] });
+    });
+
+    it('reports a detached Server once no supervised run remains in its checkout', () => {
+        const table = [
+            `  603     1 ${WORKTREE}/apps/server/dist/server/runtime/bin/node ${WORKTREE}/apps/server/dist/server/bundles/server-core.js`,
+            `  605   603 ${WORKTREE}/apps/server/dist/server/runtime/bin/node ${WORKTREE}/apps/server/dist/server/bundles/extension-host.js`,
+        ].join('\n');
+
+        expect(orphanIds(table)).toEqual({ [WORKTREE]: [603, 605] });
+    });
+
+    it('ignores a run whose parent chain still ends at a shell, Playwright, or agent', () => {
+        const table = [
+            '  900     1 /Applications/Terminal.app/Contents/MacOS/Terminal',
+            '  901   900 /bin/zsh -l',
+            `  902   901 /opt/homebrew/bin/node ${WORKTREE}/node_modules/@playwright/test/cli.js test`,
+            `  903   902 ${WORKTREE}/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron`,
+        ].join('\n');
+
+        expect(orphanIds(table)).toEqual({});
+    });
+
+    it('includes an orphaned dev window nominated by its worktree-owned child', () => {
+        const table = [
+            '  801     1 Caxri Dev',
+            `  802   801 ${WORKTREE}/apps/server/dist/server/runtime/bin/node ${WORKTREE}/apps/server/dist/server/bundles/server-core.js`,
+            `  803   802 ${WORKTREE}/apps/server/dist/server/runtime/bin/node ${WORKTREE}/apps/server/dist/server/bundles/extension-host.js`,
+        ].join('\n');
+
+        expect(orphanIds(table)).toEqual({ [WORKTREE]: [801, 802, 803] });
+    });
+
+    it('attributes a nested checkout only to its own root', () => {
+        const table = `  810     1 ${NESTED}/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron`;
+
+        expect(orphanIds(table, [PRIMARY, NESTED])).toEqual({ [NESTED]: [810] });
     });
 });
 
