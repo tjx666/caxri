@@ -2,6 +2,7 @@ import type { AgentTimelineItem, MobileTimelineReadResult } from '@caxri/protoco
 import { describe, expect, it } from 'vitest';
 
 import {
+    applyLatestConversationPage,
     applyOlderConversationPage,
     groupConversationItems,
     mergeLatestConversationItems,
@@ -33,6 +34,54 @@ const page = (items: AgentTimelineItem[], isCursorExpired = false): MobileTimeli
 });
 
 describe('Conversation projection', () => {
+    it('continues toward older history when live updates arrive between pages', () => {
+        const initial = {
+            historyExpired: false,
+            items: [message('three'), message('four')],
+            olderCursor: 'before-three',
+            truncated: false,
+        };
+        const older = applyOlderConversationPage(
+            initial,
+            { ...page([message('two')]), olderCursor: 'before-two' },
+            'before-three',
+        );
+        const live = applyLatestConversationPage(older, {
+            ...page([message('four'), message('five')]),
+            olderCursor: 'before-four',
+        });
+        expect(live.olderCursor).toBe('before-two');
+        const oldest = applyOlderConversationPage(live, page([message('one')]), 'before-two');
+        expect(oldest.items.map((item) => item.id)).toEqual([
+            'one',
+            'two',
+            'three',
+            'four',
+            'five',
+        ]);
+        const finalPage = applyLatestConversationPage(oldest, {
+            ...page([message('five'), message('six')]),
+            olderCursor: 'before-five',
+        });
+        expect(finalPage.olderCursor).toBeUndefined();
+    });
+
+    it('adopts the latest cursor after history no longer overlaps', () => {
+        const current = {
+            historyExpired: false,
+            items: [message('old')],
+            olderCursor: 'before-old',
+            truncated: false,
+        };
+        const next = applyLatestConversationPage(current, {
+            ...page([message('new')]),
+            olderCursor: 'before-new',
+            truncated: true,
+        });
+        expect(next.items).toEqual([message('new')]);
+        expect(next.olderCursor).toBe('before-new');
+        expect(next.truncated).toBe(true);
+    });
     it('groups only consecutive tool calls and keeps stable IDs', () => {
         const entries = groupConversationItems([
             message('first'),

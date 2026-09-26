@@ -4,8 +4,8 @@ import type { AgentTimelineItem, MobileTimelineReadResult } from '@caxri/protoco
 
 import { useMobileClient } from '../connection/mobile-client-provider';
 import {
+    applyLatestConversationPage,
     applyOlderConversationPage,
-    mergeLatestConversationItems,
     visibleConversationStatus,
 } from './conversation-model';
 import { startConversationReader } from './conversation-observation';
@@ -81,15 +81,9 @@ export const useConversationTimeline = ({
             onRetry: () => setRetry((value) => value + 1),
             onResult: (result) =>
                 update((current) => ({
-                    ...current,
+                    ...applyLatestConversationPage(current, result),
                     error: null,
-                    items:
-                        result.status === 'available'
-                            ? mergeLatestConversationItems(current.items, result.items)
-                            : [],
-                    olderCursor: result.olderCursor,
                     status: result.status,
-                    truncated: result.truncated,
                 })),
             onError: () =>
                 update((current) => ({

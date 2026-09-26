@@ -255,7 +255,13 @@ export class AgentTimelineService {
         before: { offset: number; part: number },
         limit: number,
     ): Promise<MobileTimelineReadResult> {
-        let end = before.offset;
+        /**
+         * A cursor inside a multi-entry record must retain its earlier siblings after cache eviction.
+         */
+        let end =
+            before.part > 0
+                ? Math.min(state.end, before.offset + MAX_LINE_BYTES + 1)
+                : before.offset;
         for (let pass = 0; pass < 4; pass++) {
             const start = Math.max(0, end - READ_WINDOW_BYTES);
             // eslint-disable-next-line no-await-in-loop -- each bounded older window begins where the previous one ended
