@@ -200,6 +200,12 @@ export class DesktopServerConnection extends EventTarget {
                     CAXRI_E2E_AGENT_UNKNOWN_RECOVERY_MS:
                         process.env.CAXRI_E2E_AGENT_UNKNOWN_RECOVERY_MS,
                 }),
+                ...(process.env.CAXRI_E2E === '1' && {
+                    CAXRI_E2E_MOBILE_PAIRING_RESULT_DELAY:
+                        process.env.CAXRI_E2E_MOBILE_PAIRING_RESULT_DELAY,
+                    CAXRI_E2E_MOBILE_DROP_SUBMIT_ACK_ONCE:
+                        process.env.CAXRI_E2E_MOBILE_DROP_SUBMIT_ACK_ONCE,
+                }),
                 ...(process.env.CAXRI_E2E === '1' &&
                     process.env.CAXRI_MOBILE_TEST_HOST_DISPLAY_NAME && {
                         CAXRI_MOBILE_TEST_HOST_DISPLAY_NAME:

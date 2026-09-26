@@ -575,6 +575,8 @@ export class MobileGateway {
                         matchesSubscriptionEvent: this.#options.matchesSubscriptionEvent,
                         now: this.#now,
                         randomSubscriptionId: () => Buffer.from(this.#random(16)).toString('hex'),
+                        reportRequest: (method) => this.#diagnostics.request(method),
+                        reportHeartbeat: () => this.#diagnostics.flushIfDue(),
                         reportTerminalResync: (reason) => this.#diagnostics.terminalResync(reason),
                         send: (payload) =>
                             new Promise<void>((resolve, reject) => {

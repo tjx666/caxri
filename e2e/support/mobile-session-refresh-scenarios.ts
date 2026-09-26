@@ -24,12 +24,26 @@ interface Environment {
 /**
  * Reads only method metadata; the report contains counts rather than raw log records.
  */
-async function sessionReadCount(path: string): Promise<number> {
+async function sessionReadSummary(
+    path: string,
+): Promise<{ count: number; timestamp: number } | undefined> {
     const lines = (await readFile(path, 'utf8')).trim().split('\n');
-    return lines.filter((line) => {
-        const record = JSON.parse(line) as { event?: string; fields?: { method?: string } };
-        return record.event === 'ipc.request' && record.fields?.method === 'mobile.session.show';
-    }).length;
+    for (const line of lines.toReversed()) {
+        const record = JSON.parse(line) as {
+            event?: string;
+            timestamp?: string;
+            fields?: { sessionReads?: number };
+        };
+        if (
+            record.event === 'mobile_gateway.session_read_summary' &&
+            typeof record.fields?.sessionReads === 'number'
+        )
+            return {
+                count: record.fields.sessionReads,
+                timestamp: Date.parse(record.timestamp ?? ''),
+            };
+    }
+    return undefined;
 }
 
 export async function executeMobileSessionRefreshScenario(
@@ -51,16 +65,18 @@ export async function executeMobileSessionRefreshScenario(
         );
         const log = join(fixture.testDirectory, 'user-data', 'logs', 'server-core.jsonl');
         const before = await waitForMobile(
-            () => sessionReadCount(log),
-            (count) => count > 0,
+            () => sessionReadSummary(log),
+            (summary) => summary !== undefined && summary.count > 0,
         );
-        const startedAt = Date.now();
-        /**
-         * The criterion measures an entire idle minute, including any periodic refresh.
-         */
-        await new Promise((resolve) => setTimeout(resolve, 60_000));
-        const elapsedMs = Date.now() - startedAt;
-        const idleReads = (await sessionReadCount(log)) - before;
+        if (!before) throw new Error('Mobile Session read summary is unavailable');
+        const after = await waitForMobile(
+            () => sessionReadSummary(log),
+            (summary) => summary !== undefined && summary.timestamp >= before.timestamp + 60_000,
+            75_000,
+        );
+        if (!after) throw new Error('Mobile Session idle summary is unavailable');
+        const elapsedMs = after.timestamp - before.timestamp;
+        const idleReads = after.count - before.count;
         expect(idleReads).toBeLessThanOrEqual(2);
         const title = 'Synthetic pushed Session';
         const changedAt = Date.now();
@@ -90,7 +106,7 @@ export async function executeMobileSessionRefreshScenario(
                     schemaVersion: 1,
                     elapsedMs,
                     idleReads,
-                    initialReads: before,
+                    initialReads: before.count,
                     fixedIntervalBaseline: {
                         intervalMs: 2_500,
                         expectedReadsPerMinute: 24,
