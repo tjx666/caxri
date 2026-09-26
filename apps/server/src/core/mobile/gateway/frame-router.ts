@@ -64,6 +64,8 @@ export interface MobileAppOptions {
     ) => Promise<boolean>;
     now: () => number;
     randomSubscriptionId: () => string;
+    reportRequest?: (method: string) => void;
+    reportHeartbeat?: () => void;
     reportTerminalResync?: (reason: MobileTerminalResyncReason) => void;
     send: (payload: MobileServerPayload) => Promise<void>;
     terminate: () => void;
@@ -139,6 +141,7 @@ export class MobileGatewayFrameRouter {
         this.#lastClientFrameAt = this.#options.now();
         switch (payload.type) {
             case 'heartbeat': {
+                this.#options.reportHeartbeat?.();
                 this.#subscriptions.renewLeases();
                 // eslint-disable-next-line no-void -- An acknowledgement must not block the inbound frame reader.
                 void this.#acknowledgeHeartbeat(payload.nonce);
@@ -155,6 +158,7 @@ export class MobileGatewayFrameRouter {
                             return forbiddenMobileReply(request);
                         throw error;
                     }
+                    this.#options.reportRequest?.(request.method);
                     const reply = await this.#options.dispatch(request, context);
                     this.#options.authorizeMethod(
                         this.#options.context().principal,
