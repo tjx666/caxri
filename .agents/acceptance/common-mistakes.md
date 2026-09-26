@@ -14,8 +14,9 @@ privacy switch through `sourceEnvironment`. The fake Agent isolation builder sel
 keys, so that switch does not reach the executable. A successful device case can still have unusable media.
 
 **Works:** Select the fixture's `isPublicFrame` source variant before generating its executable, then inspect
-the full screenshot and recording before citing them. The variant emits no transcript and uses a generic
-Session label. Follow the [Acceptance privacy rule](../skills/acceptance/SKILL.md).
+the full screenshot and recording before citing them. The variant emits no transcript or Terminal output and
+uses a generic Session label. An empty transcript routes the app to Terminal, so a pending native Agent request
+must remain reachable there. Follow the [Acceptance privacy rule](../skills/acceptance/SKILL.md).
 
 ## Using arbitrary option labels as Android check IDs
 
