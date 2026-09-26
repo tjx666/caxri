@@ -3,7 +3,6 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import { createTerminalFixturePreflightReceipt } from '../.agents/skills/acceptance/scripts/fixture-preflight.ts';
 import { writeJsonAtomic } from '../scripts/atomic-json.ts';
 import { expect, test } from './support/fixtures.ts';
 import { pageRequest } from './support/helpers.ts';
@@ -28,8 +27,8 @@ import {
 import { executeMobileNewSessionScenario } from './support/mobile-new-session-scenarios.ts';
 import { executeMobileProjectPanelsScenario } from './support/mobile-project-panels-scenarios.ts';
 import { executeMobileRecoveryScenario } from './support/mobile-recovery-scenarios.ts';
-import { createMobileTerminalAcceptanceFixture } from './support/mobile-terminal-acceptance-fixture.ts';
-import { tapTerminalKey } from './support/mobile-terminal-key.ts';
+import { executeMobileSessionRefreshScenario } from './support/mobile-session-refresh-scenarios.ts';
+import { executeMobileTerminalScenario } from './support/mobile-terminal-scenarios.ts';
 import { executeMobileUiAuditScenario } from './support/mobile-ui-audit-scenarios.ts';
 import {
     assertMobileComposerDraft,
@@ -141,6 +140,10 @@ test('executes one report-bound Android product scenario', async ({}) => {
     }
 
     switch (environment.caseId) {
+        case 'MOB-SESSION-PUSH-01':
+            test.setTimeout(180_000);
+            await executeMobileSessionRefreshScenario(environment, artifacts);
+            break;
         case 'MOB-PAIR-CANCEL-01':
         case 'MOB-RENDER-01':
         case 'MOB-STORAGE-01':
@@ -383,207 +386,15 @@ test('executes one report-bound Android product scenario', async ({}) => {
             }
             break;
         }
-        case 'MOB-TERM-01': {
-            const fixture = await createMobileTerminalAcceptanceFixture(environment.serial);
-            let recording: Awaited<ReturnType<typeof startMobileFramebufferRecording>> | undefined;
-            try {
-                const surface = fixture.running.page.locator(
-                    `.terminal-pane[data-terminal-id="${fixture.terminalId}"] .terminal-surface`,
-                );
-                await expect(surface).toHaveAttribute('data-terminal-attached', 'true');
-                await expect(surface).toHaveAttribute('data-terminal-grid', /^\d+x\d+$/u);
-                const desktopGrid = await surface.getAttribute('data-terminal-grid');
-                const grid = /^(\d+)x(\d+)$/u.exec(desktopGrid ?? '');
-                if (!grid) throw new Error('Desktop Terminal grid is unavailable');
-                const desktopSize = { cols: Number(grid[1]), rows: Number(grid[2]) };
-                await waitForMobile(
-                    () => fixture.menuState(),
-                    ({ cols, rows }) => cols === desktopSize.cols && rows === desktopSize.rows,
-                );
-
-                if (!sourceCommit || !launchId)
-                    throw new Error('Terminal fixture Acceptance identity is incomplete');
-                const observedGrid = await waitForMobile(
-                    async () => {
-                        const state = await fixture.menuState();
-                        const renderedRows = await surface
-                            .locator('.xterm-rows > div')
-                            .allTextContents();
-                        const grid = await surface.getAttribute('data-terminal-grid');
-                        return { grid, renderedRows, state };
-                    },
-                    ({ grid, renderedRows, state }) =>
-                        state.cols !== null &&
-                        state.rows !== null &&
-                        grid === `${state.cols}x${state.rows}` &&
-                        renderedRows.length === state.rows &&
-                        renderedRows[0]?.startsWith(`│${state.generation} `) &&
-                        renderedRows.every((line, index) => line === state.lines[index]),
-                );
-                if (observedGrid.state.cols === null || observedGrid.state.rows === null)
-                    throw new Error('Synthetic Terminal grid is unavailable');
-                const preflight = createTerminalFixturePreflightReceipt(
-                    {
-                        columns: observedGrid.state.cols,
-                        domRowCount: observedGrid.renderedRows.length,
-                        firstGridMarker: observedGrid.state.firstGridMarker,
-                        generation: observedGrid.state.generation,
-                        lines: observedGrid.renderedRows,
-                        rows: observedGrid.state.rows,
-                    },
-                    environment.caseId,
-                    { launchId, sourceCommit },
-                );
-                if (preflight.result.status !== 'ready')
-                    throw new Error('Synthetic Terminal formal fixture preflight was blocked');
-                const preflightName = `${environment.caseId}-fixture-preflight.json`;
-                await writeJsonAtomic(join(environment.assetsDirectory, preflightName), preflight);
-
-                await fixture.pair();
-                await tapMobileCheck(environment.serial, `session-row-${fixture.sessionId}`);
-                await waitForMobile(
-                    () => mobileSemantics(environment.serial),
-                    (nodes) => nodes.some(({ checkId }) => checkId === 'session-detail'),
-                );
-                await tapMobileCheck(environment.serial, 'session-segment-terminal');
-                await waitForMobile(
-                    () => mobileSemantics(environment.serial),
-                    (nodes) =>
-                        nodes.some(({ checkId }) => checkId === 'terminal-live-webview') &&
-                        nodes.some(
-                            ({ checkId, enabled }) => checkId === 'terminal-take-over' && enabled,
-                        ),
-                );
-                await expect(surface).toHaveAttribute('data-terminal-attached', 'true');
-                recording = await startMobileFramebufferRecording(
-                    environment.serial,
-                    requireRemoteVideoPath(),
-                );
-                const observingSize = await fixture.menuState();
-                expect({ cols: observingSize.cols, rows: observingSize.rows }).toEqual(desktopSize);
-                await capture(environment, 'observing', artifacts);
-
-                await tapMobileCheck(environment.serial, 'terminal-take-over');
-                await waitForMobile(
-                    () => mobileSemantics(environment.serial),
-                    (nodes) => nodes.some(({ checkId }) => checkId === 'terminal-release'),
-                );
-                const takenOver = await waitForMobile(
-                    () => fixture.menuState(),
-                    ({ cols }) => cols !== null && cols < desktopSize.cols,
-                );
-                await capture(environment, 'taken-over', artifacts);
-
-                const windowBounds = await fixture.running.app.evaluate(({ BrowserWindow }) =>
-                    BrowserWindow.getAllWindows()[0].getBounds(),
-                );
-                const gridAttributeName = 'data-terminal-grid';
-                try {
-                    await fixture.running.app.evaluate(
-                        ({ BrowserWindow }, bounds) =>
-                            BrowserWindow.getAllWindows()[0].setBounds(bounds),
-                        {
-                            ...windowBounds,
-                            width:
-                                windowBounds.width > 800
-                                    ? windowBounds.width - 180
-                                    : windowBounds.width + 180,
-                        },
-                    );
-                    await waitForMobile(
-                        () => surface.getAttribute(gridAttributeName),
-                        (current) => current !== desktopGrid,
-                    );
-                    for (let sample = 0; sample < 5; sample += 1) {
-                        // eslint-disable-next-line no-await-in-loop -- each sample watches the held mobile lease after Desktop resize.
-                        const nodes = await mobileSemantics(environment.serial);
-                        expect(nodes.some(({ checkId }) => checkId === 'terminal-release')).toBe(
-                            true,
-                        );
-                        expect(nodes.some(({ checkId }) => checkId === 'terminal-stale')).toBe(
-                            false,
-                        );
-                        // eslint-disable-next-line no-await-in-loop -- a brief interval catches a delayed stale chip.
-                        await new Promise((resolve) => setTimeout(resolve, 250));
-                    }
-                    const heldSize = await fixture.menuState();
-                    expect({ cols: heldSize.cols, rows: heldSize.rows }).toEqual({
-                        cols: takenOver.cols,
-                        rows: takenOver.rows,
-                    });
-                    await capture(environment, 'desktop-resized-under-lease', artifacts);
-                } finally {
-                    await fixture.running.app.evaluate(
-                        ({ BrowserWindow }, bounds) =>
-                            BrowserWindow.getAllWindows()[0].setBounds(bounds),
-                        windowBounds,
-                    );
-                    await waitForMobile(
-                        () => surface.getAttribute(gridAttributeName),
-                        (current) => current === desktopGrid,
-                    );
-                }
-
-                await tapTerminalKey(environment.serial, 'down');
-                await waitForMobile(
-                    () => fixture.menuState(),
-                    ({ selected }) => selected === 2,
-                );
-                await tapTerminalKey(environment.serial, 'enter');
-                await waitForMobile(
-                    () => fixture.menuState(),
-                    ({ submissions }) => submissions === 1,
-                );
-                await waitForMobile(
-                    () =>
-                        surface
-                            .locator('.xterm-rows')
-                            .evaluate((rows) => rows.textContent.includes('Selection submitted')),
-                    Boolean,
-                );
-                await capture(environment, 'menu-submitted', artifacts);
-
-                await tapMobileCheck(environment.serial, 'terminal-release');
-                const released = await waitForMobile(
-                    () => fixture.menuState(),
-                    ({ cols, rows }) => cols === desktopSize.cols && rows === desktopSize.rows,
-                );
-                /**
-                 * Restoring the PTY size can invalidate the mobile stream generation. The desktop grid alone does not
-                 * prove that the phone has acquired its replacement snapshot and can observe/control again.
-                 */
-                await waitForMobile(
-                    () => mobileSemantics(environment.serial),
-                    (nodes) =>
-                        nodes.some(
-                            ({ checkId, enabled }) => checkId === 'terminal-take-over' && enabled,
-                        ) &&
-                        nodes.every(
-                            ({ checkId }) =>
-                                !(checkId === 'terminal-stale' || checkId === 'terminal-error'),
-                        ),
-                );
-                await expect(surface).toHaveAttribute('data-terminal-attached', 'true');
-                await capture(environment, 'released', artifacts);
-                await finish(environment, artifacts, {
-                    desktopAttachment: 'preserved',
-                    desktopResizeUnderLease: 'mobile-control-retained-without-stale-chip',
-                    desktopSize,
-                    menuSelection: 'second-option-submitted-once',
-                    observingSize: { cols: observingSize.cols, rows: observingSize.rows },
-                    releasedSize: { cols: released.cols, rows: released.rows },
-                    status: 'passed',
-                    takenOverSize: { cols: takenOver.cols, rows: takenOver.rows },
-                });
-            } finally {
-                try {
-                    await recording?.stop();
-                } finally {
-                    await fixture.stop();
-                }
-            }
+        case 'MOB-TERM-01':
+            test.setTimeout(300_000);
+            await executeMobileTerminalScenario(
+                { ...environment, launchId, sourceCommit, remoteVideoPath },
+                artifacts,
+                capture,
+                finish,
+            );
             break;
-        }
         case 'MOB-COMPOSER-01': {
             const fixture = await createMobileAcceptanceFixture({
                 mode: 'waiting',

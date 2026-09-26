@@ -68,6 +68,16 @@ export async function executeMobileRecoveryScenario(
             });
             let recording: Awaited<ReturnType<typeof startMobileFramebufferRecording>> | undefined;
             try {
+                await adbShell(environment.serial, [
+                    'am',
+                    'start',
+                    '-W',
+                    'com.caxri.mobile/.MainActivity',
+                ]);
+                await waitForMobile(
+                    () => mobileSemantics(environment.serial),
+                    (nodes) => nodes.some(({ checkId }) => checkId === 'pairing-entry-screen'),
+                );
                 await pageRequest(fixture.running.page, 'mobile.access.enable');
                 const pairing = await pageRequest<{ pairingLink: string }>(
                     fixture.running.page,
@@ -79,17 +89,13 @@ export async function executeMobileRecoveryScenario(
                     requireVideoPath(videoPath),
                 );
                 await openMobilePairingLink(environment.serial, pairing.pairingLink);
-                // UIAutomator can take longer than the delayed pairing result to read a loading frame.
-                await new Promise((resolve) => setTimeout(resolve, 750));
+                await waitForMobile(
+                    () => mobileSemantics(environment.serial),
+                    (nodes) => nodes.some(({ checkId }) => checkId === 'loading-screen'),
+                );
                 await adbShell(environment.serial, ['input', 'keyevent', 'KEYCODE_BACK']);
-                // A deep link launched from Home returns to the Android launcher on Back.
+                // Keep the returned screen open beyond the controlled delayed handshake window.
                 await new Promise((resolve) => setTimeout(resolve, 7_000));
-                await adbShell(environment.serial, [
-                    'am',
-                    'start',
-                    '-W',
-                    'com.caxri.mobile/.MainActivity',
-                ]);
                 await waitForMobile(
                     () => mobileSemantics(environment.serial),
                     (nodes) => nodes.some(({ checkId }) => checkId === 'pairing-entry-screen'),
@@ -117,33 +123,44 @@ export async function executeMobileRecoveryScenario(
                     status: 'passed',
                 });
             } finally {
-                await recording?.stop();
-                await fixture.stop();
+                try {
+                    await recording?.stop();
+                } finally {
+                    await fixture.stop();
+                }
             }
             return;
         }
         case 'MOB-RENDER-01': {
-            await adbShell(environment.serial, [
-                'am',
-                'start',
-                '-W',
-                'com.caxri.mobile/.MainActivity',
-            ]);
-            await waitForMobile(
-                () => mobileSemantics(environment.serial),
-                (nodes) => nodes.some(({ checkId }) => checkId === 'route-error-retry'),
+            const recording = await startMobileFramebufferRecording(
+                environment.serial,
+                requireVideoPath(videoPath),
             );
-            await capture(environment, 'render-error', artifacts);
-            await tapMobileCheck(environment.serial, 'route-error-retry');
-            await waitForMobile(
-                () => mobileSemantics(environment.serial),
-                (nodes) => nodes.some(({ checkId }) => checkId === 'pairing-entry-screen'),
-            );
-            await capture(environment, 'render-recovered', artifacts);
-            await finish(environment, artifacts, {
-                retry: 'returned-to-pairing',
-                status: 'passed',
-            });
+            try {
+                await adbShell(environment.serial, [
+                    'am',
+                    'start',
+                    '-W',
+                    'com.caxri.mobile/.MainActivity',
+                ]);
+                await waitForMobile(
+                    () => mobileSemantics(environment.serial),
+                    (nodes) => nodes.some(({ checkId }) => checkId === 'route-error-retry'),
+                );
+                await capture(environment, 'render-error', artifacts);
+                await tapMobileCheck(environment.serial, 'route-error-retry');
+                await waitForMobile(
+                    () => mobileSemantics(environment.serial),
+                    (nodes) => nodes.some(({ checkId }) => checkId === 'pairing-entry-screen'),
+                );
+                await capture(environment, 'render-recovered', artifacts);
+                await finish(environment, artifacts, {
+                    retry: 'returned-to-pairing',
+                    status: 'passed',
+                });
+            } finally {
+                await recording.stop();
+            }
             return;
         }
         case 'MOB-STORAGE-01': {
@@ -151,11 +168,16 @@ export async function executeMobileRecoveryScenario(
                 mode: 'empty',
                 serial: environment.serial,
             });
+            let recording: Awaited<ReturnType<typeof startMobileFramebufferRecording>> | undefined;
             try {
                 await fixture.pair();
                 await waitForMobile(
                     () => mobileSemantics(environment.serial),
                     (nodes) => nodes.some(({ checkId }) => checkId === 'session-list'),
+                );
+                recording = await startMobileFramebufferRecording(
+                    environment.serial,
+                    requireVideoPath(videoPath),
                 );
                 await adbShell(environment.serial, ['am', 'force-stop', 'com.caxri.mobile']);
                 await adbShell(environment.serial, [
@@ -180,7 +202,11 @@ export async function executeMobileRecoveryScenario(
                     status: 'passed',
                 });
             } finally {
-                await fixture.stop();
+                try {
+                    await recording?.stop();
+                } finally {
+                    await fixture.stop();
+                }
             }
             return;
         }
