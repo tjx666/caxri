@@ -41,6 +41,9 @@ const refreshAfterAcceptedAction = async (onRefresh: () => Promise<void>): Promi
 };
 
 export const useSessionComposer = ({
+    attachmentIds,
+    hasPendingAttachment,
+    onAttachmentsSent,
     deviceRole,
     draft,
     hostId,
@@ -49,6 +52,9 @@ export const useSessionComposer = ({
     onRefresh,
     session,
 }: {
+    attachmentIds: string[];
+    hasPendingAttachment: boolean;
+    onAttachmentsSent: () => void;
     deviceRole: 'view' | 'reply' | 'control' | null;
     draft: string;
     hostId: string;
@@ -79,16 +85,23 @@ export const useSessionComposer = ({
     const isBusy = delivery.kind === 'sending' || delivery.kind === 'stopping';
     const isSending = delivery.kind === 'sending';
     const isRunning = session.lastActivityState === 'running';
-    const isShowStop = isRunning && draft.trim().length === 0;
+    const isShowStop =
+        isRunning &&
+        draft.trim().length === 0 &&
+        attachmentIds.length === 0 &&
+        !hasPendingAttachment;
     const targetReason = isShowStop
         ? stopDisabledReason(session, isConnected, deviceRole)
         : composerDisabledReason(session, isConnected, deviceRole);
     const inputError =
-        isShowStop || draft.length === 0
-            ? null
-            : composerTextError(draft, MOBILE_AGENT_SUBMIT_MAX_BYTES);
-    const disabledReason = targetReason ?? inputError;
-    const canSubmit = !isBusy && !disabledReason && (isShowStop || draft.trim().length > 0);
+        draft.trim().length === 0 ? null : composerTextError(draft, MOBILE_AGENT_SUBMIT_MAX_BYTES);
+    const disabledReason =
+        targetReason ??
+        (hasPendingAttachment ? 'Wait for the image upload to finish.' : inputError);
+    const canSubmit =
+        !isBusy &&
+        !disabledReason &&
+        (isShowStop || draft.trim().length > 0 || attachmentIds.length > 0);
 
     const updateDraft = useCallback(
         (value: string): void => {
@@ -126,13 +139,18 @@ export const useSessionComposer = ({
             return;
         }
         if (!session.primaryAgentTerminalId) return;
+        const text = draft.trim().length > 0 ? draft : 'Please inspect the attached image.';
+        const attemptKey = JSON.stringify([text, attachmentIds]);
         const mutationId = composerMutationIdForAttempt(
             current,
-            draft,
+            attemptKey,
             () => `mobile_submit_${encodeHex(Crypto.getRandomBytes(16))}`,
         );
-        const text = draft;
-        sessionComposerDeliveryStore.set(stateKey, { kind: 'sending', mutationId, text });
+        sessionComposerDeliveryStore.set(stateKey, {
+            kind: 'sending',
+            mutationId,
+            text: attemptKey,
+        });
         try {
             const result = await request('mobile.agent.submit', {
                 sessionId: session.id,
@@ -140,12 +158,18 @@ export const useSessionComposer = ({
                 endpoint: session.primaryAgentEndpoint,
                 clientMutationId: mutationId,
                 text,
+                attachmentIds,
             });
             if (result.outcome === 'unknown') {
-                sessionComposerDeliveryStore.set(stateKey, { kind: 'unknown', mutationId, text });
+                sessionComposerDeliveryStore.set(stateKey, {
+                    kind: 'unknown',
+                    mutationId,
+                    text: attemptKey,
+                });
                 return;
             }
             onDraftChange('');
+            onAttachmentsSent();
             sessionComposerDeliveryStore.set(stateKey, { kind: 'accepted', mutationId });
             await refreshAfterAcceptedAction(onRefresh);
         } catch (error) {
@@ -155,10 +179,21 @@ export const useSessionComposer = ({
                     ? { kind: 'failed', message: submitFailureMessage(error) }
                     : error instanceof Error && error.message === 'Caxri is reconnecting.'
                       ? { kind: 'failed', message: 'Reconnect to Caxri before sending again.' }
-                      : { kind: 'unknown', mutationId, text },
+                      : { kind: 'unknown', mutationId, text: attemptKey },
             );
         }
-    }, [canSubmit, draft, onDraftChange, onRefresh, request, session, isShowStop, stateKey]);
+    }, [
+        attachmentIds,
+        canSubmit,
+        draft,
+        onAttachmentsSent,
+        onDraftChange,
+        onRefresh,
+        request,
+        session,
+        isShowStop,
+        stateKey,
+    ]);
 
     return {
         byteLength: composerByteLength(draft),

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Text, View } from 'react-native';
 
 import type { MobileTheme } from '../../../theme/tokens';
+import { AttentionCards } from '../../conversation/attention-cards';
 import { ConversationView } from '../../conversation/conversation-view';
 import type { useConversationTimeline } from '../../conversation/use-conversation-timeline';
 import { TerminalLiveView } from '../../terminal/terminal-live-view';
@@ -56,11 +57,22 @@ export const SessionDetailBody = ({
         </View>
     );
     const conversation = (
-        <ConversationView
-            onRetry={conversationTimeline.refresh}
-            theme={theme}
-            timeline={conversationTimeline}
-        />
+        <View style={{ flex: 1 }}>
+            <ConversationView
+                onRetry={conversationTimeline.refresh}
+                theme={theme}
+                timeline={conversationTimeline}
+            />
+            <AttentionCards
+                fallbackToTerminal={
+                    session.lastActivityState === 'waiting' &&
+                    session.primaryTerminal?.provider !== 'claude'
+                }
+                role={deviceRole}
+                sessionId={session.id}
+                theme={theme}
+            />
+        </View>
     );
     const side = segment === 'panels' ? panels : changesPanel;
     if (wideChanges && isSideSessionSegment(segment)) {

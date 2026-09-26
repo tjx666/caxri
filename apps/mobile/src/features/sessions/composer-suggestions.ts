@@ -1,0 +1,31 @@
+export interface ComposerSuggestionTrigger {
+    kind: 'action' | 'file';
+    token: string;
+    query: string;
+}
+
+/**
+ * The composer only completes the token at the cursor's end, leaving earlier prose untouched.
+ */
+export function composerSuggestionTrigger(draft: string): ComposerSuggestionTrigger | null {
+    const match = /(?:^|\s)([/@]\S*)$/u.exec(draft);
+    if (!match) return null;
+    const token = match[1];
+    return {
+        kind: token.startsWith('/') ? 'action' : 'file',
+        token,
+        query: token.slice(1),
+    };
+}
+
+export function insertComposerSuggestion(draft: string, token: string, value: string): string {
+    if (!draft.endsWith(token)) return draft;
+    return `${draft.slice(0, -token.length)}${value} `;
+}
+
+/**
+ * The slash menu also contains skills whose Agent invocation starts with `$`.
+ */
+export function isComposerActionMatch(invocation: string, query: string): boolean {
+    return invocation.slice(1).toLowerCase().includes(query.toLowerCase());
+}

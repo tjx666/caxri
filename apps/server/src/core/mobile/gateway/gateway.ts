@@ -63,6 +63,7 @@ import {
     mobileTcpAdmissionFailure,
     mobileUpgradeFailure,
 } from './admission';
+import { hasMobileAttentionRecipient } from './attention-recipient';
 import type { MobileGatewayFailureReason } from './diagnostics';
 import { MobileGatewayDiagnostics } from './diagnostics';
 import type { MobileAppOptions } from './frame-router';
@@ -207,8 +208,12 @@ export class MobileGateway {
         };
     }
 
-    devices(): MobileDeviceSummary[] {
-        return this.#options.registry.list();
+    hasAttentionRecipient(projectId: string): boolean {
+        return hasMobileAttentionRecipient(
+            this.#activeByDevice.values(),
+            this.#options.registry,
+            projectId,
+        );
     }
 
     publish(event: ServerEvent): void {

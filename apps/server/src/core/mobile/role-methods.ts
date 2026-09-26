@@ -5,6 +5,8 @@ const mobileReadOnlyPanelMethods = [
     'mobile.tree.children',
     'mobile.files.list',
     'mobile.files.read',
+    'mobile.files.search',
+    'mobile.attention.list',
 ] as const;
 
 /**
@@ -19,6 +21,7 @@ const mobileGatewayMethodsByRole = {
         'mobile.changes.list',
         'mobile.changes.diff',
         'mobile.agent.availability',
+        'mobile.agent.actions',
         'mobile.session.archived',
         'terminal.preview',
         ...mobileReadOnlyPanelMethods,
@@ -30,10 +33,12 @@ const mobileGatewayMethodsByRole = {
         'mobile.changes.list',
         'mobile.changes.diff',
         'mobile.agent.availability',
+        'mobile.agent.actions',
         'mobile.session.archived',
         'terminal.preview',
         'session.markRead',
         'mobile.agent.submit',
+        'mobile.image.upload',
         ...mobileReadOnlyPanelMethods,
     ],
     control: [
@@ -43,9 +48,11 @@ const mobileGatewayMethodsByRole = {
         'mobile.changes.list',
         'mobile.changes.diff',
         'mobile.agent.availability',
+        'mobile.agent.actions',
         'terminal.preview',
         'session.markRead',
         'mobile.agent.submit',
+        'mobile.image.upload',
         'agent.control.interrupt',
         'mobile.session.archived',
         'mobile.session.create',
@@ -57,6 +64,8 @@ const mobileGatewayMethodsByRole = {
         'mobile.terminal.input',
         'mobile.project.browse',
         'mobile.project.add',
+        'mobile.files.write',
+        'mobile.attention.answer',
         ...mobileReadOnlyPanelMethods,
     ],
 } as const satisfies Record<MobileDeviceRole, readonly string[]>;

@@ -14,6 +14,33 @@ import { pruneStaleAgentHookSockets } from '../server';
 import { anyHandlingMs, createTestServer, send, validPayload } from './server.fixture';
 
 describe('AgentHookServer', () => {
+    it('waits for one authenticated attention answer and rejects another launch', async () => {
+        const onAttention = vi.fn(() => Promise.resolve({ decision: 'allow' as const }));
+        const { server, socketPath, onSignal } = await createTestServer(undefined, onAttention);
+        try {
+            const token = server.register('terminal-1', 'launch-1', 'claude');
+            const payload = {
+                token,
+                provider: 'claude',
+                phase: 'attentionRequested',
+                kind: 'attention',
+                attentionKind: 'permission',
+                toolName: 'Bash',
+                summary: 'git status',
+                questions: [],
+            };
+            expect(await send(socketPath, validPayload(payload))).toBe(
+                '{"ok":true,"decision":"allow"}\n',
+            );
+            expect(onAttention).toHaveBeenCalledOnce();
+            expect(onSignal).not.toHaveBeenCalled();
+            expect(
+                await send(socketPath, validPayload({ ...payload, launchId: 'other-launch' })),
+            ).toBe('{"ok":false}\n');
+        } finally {
+            await server.close();
+        }
+    });
     describe('authorize()', () => {
         it('accepts empty Stop evidence only for the authenticated main Grok turn', async () => {
             const { server, socketPath, onSignal } = await createTestServer();

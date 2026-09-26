@@ -655,7 +655,7 @@ export const methods = {
             /**
              * Each surface replaces only its own previous search within the Session.
              */
-            consumer: z.enum(['project-search', 'path-browser']),
+            consumer: z.enum(['project-search', 'path-browser', 'mobile-composer']),
             mode: fileSearchModeSchema,
             query: z.string().min(1).max(256),
             caseSensitive: z.boolean().default(false),

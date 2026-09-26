@@ -463,10 +463,16 @@ export class FileService {
         );
     }
 
-    async write(sessionId: string, path: string, content: string): Promise<FileDocument> {
+    async write(
+        sessionId: string,
+        path: string,
+        content: string,
+        expectedContentHash?: string,
+    ): Promise<FileDocument> {
         const operationPath = await this.projectRoots.resolveSessionPath(sessionId, path, true);
         return this.operations.run(
-            () => this.documents.write(sessionId, path, content, operationPath),
+            () =>
+                this.documents.write(sessionId, path, content, operationPath, expectedContentHash),
             {
                 maximumWaitMs: MAXIMUM_DOCUMENT_QUEUE_WAIT_MS,
                 paths: [operationPath.path],

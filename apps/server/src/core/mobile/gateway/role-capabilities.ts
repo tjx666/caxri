@@ -20,6 +20,7 @@ export const mobileCapabilitiesByRole = {
         'sessions.read',
         'sessions.write',
         'files.read',
+        'files.write',
         'terminals.read',
         'terminals.preview',
         'terminals.steer',

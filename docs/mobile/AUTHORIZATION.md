@@ -7,11 +7,11 @@ dispatcher also grants only the capabilities for that role.
 
 ## Current method grants
 
-| Role      | Additional methods beyond the preceding role                                                                                                                                                                                                                                        |
-| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `view`    | `mobile.dashboard`, `mobile.session.show`, `mobile.timeline.read`, `mobile.changes.list`, `mobile.changes.diff`, `mobile.agent.availability`, `mobile.session.archived`, `terminal.preview`, `mobile.panels.list`, `mobile.tree.children`, `mobile.files.list`, `mobile.files.read` |
-| `reply`   | `session.markRead`, `mobile.agent.submit`                                                                                                                                                                                                                                           |
-| `control` | `agent.control.interrupt`, `mobile.session.create`, `mobile.session.rename`, `mobile.session.archive`, `mobile.session.restore`, `mobile.terminal.takeOver`, `mobile.terminal.release`, `mobile.terminal.input`, `mobile.project.browse`, `mobile.project.add`                      |
+| Role      | Additional methods beyond the preceding role                                                                                                             |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `view`    | Dashboard, Session, timeline, changes, Terminal preview, Project panel reads, `mobile.agent.actions`, `mobile.files.search`, and `mobile.attention.list` |
+| `reply`   | `session.markRead`, `mobile.agent.submit`, and `mobile.image.upload`                                                                                     |
+| `control` | Agent interrupt, Session management, Terminal control, Project add, `mobile.files.write`, and `mobile.attention.answer`                                  |
 
 The method set is explicit. A role grant alone never authorizes a resource: dashboard, Session, and
 Terminal reads use principal-scoped queries; an Agent submission also checks the current Primary
@@ -19,16 +19,16 @@ Agent endpoint and reserves a durable receipt keyed by device ID, device generat
 `clientMutationId` before dispatching Terminal input. A request fingerprint rejects reuse of that
 identity for different input. Mobile
 Session creation checks both the device's Project grant and the current Project record before its
-durable write. Git mutations, files, and unrestricted `session.create` are outside the gateway
+durable write. Git mutations and unrestricted `session.create` are outside the gateway
 method set.
 
-The four read-only panel methods (`mobile.panels.list`, `mobile.tree.children`, `mobile.files.list`,
-`mobile.files.read`) are granted starting at `view`, since they only project state a device with
+The read-only panel methods (`mobile.panels.list`, `mobile.tree.children`, `mobile.files.list`,
+`mobile.files.read`, and `mobile.files.search`) are granted starting at `view`, since they only project state a device with
 access to the Session can already see on the dashboard. Each request re-validates the Session
 against the principal's granted Project IDs; `mobile.tree.children` additionally requires the
 Session to match Desktop's own `app.activeContext`, because the underlying Extension Host tree is
 scoped to whichever Session Desktop currently has focused, not to the requesting device. None of the
-four can execute a command or otherwise mutate state. The dispatcher capabilities per role
+reads can execute a command or otherwise mutate state. The dispatcher capabilities per role
 (`apps/server/src/core/mobile/gateway/role-capabilities.ts`) must cover every allowed method's
 required capabilities; a unit test enforces that invariant.
 

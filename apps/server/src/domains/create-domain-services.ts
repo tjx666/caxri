@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import process from 'node:process';
 
 import type {
@@ -17,6 +18,7 @@ import type { AgentDelegationService } from './agent-delegation';
 import type { AgentDispatchService } from './agent-dispatch';
 import { createAgentRuntime } from './agent-runtime';
 import { CompactionReadiness, LongPasteService } from './agents';
+import { AgentAttentionRequests } from './agents/attention-requests';
 import { createBackgroundTasks, refreshWatchSessionInBackground } from './background-tasks';
 import { createBugReportDeliveryHandler } from './bug-report-delivery';
 import { createDeletionHandlers } from './deletion-handlers';
@@ -76,10 +78,12 @@ export async function createDomainServices(
         workbenchRoots,
     } = await createRootServices(dependencies);
     const selectedSessionId = () => database.getAppState('lastSelectedSessionId') ?? undefined;
+    const attentionRequests = new AgentAttentionRequests();
     const suspensionState: { service?: TerminalSuspensionService } = {};
     const delegationState: { service?: AgentDelegationService } = {};
     const compactionReadiness = new CompactionReadiness();
     const agentRuntime = await createAgentRuntime({
+        attentionRequests,
         configuration,
         database,
         dependencies,
@@ -499,6 +503,7 @@ export async function createDomainServices(
         'mobile.pairing.create': () => mainOwned('mobile.pairing.create'),
         'mobile.device.list': () => mainOwned('mobile.device.list'),
         'mobile.dashboard': () => mainOwned('mobile.dashboard'),
+        'mobile.agent.actions': () => mainOwned('mobile.agent.actions'),
         'mobile.session.archived': () => mainOwned('mobile.session.archived'),
         'mobile.session.rename': () => mainOwned('mobile.session.rename'),
         'mobile.session.archive': () => mainOwned('mobile.session.archive'),
@@ -590,6 +595,8 @@ export async function createDomainServices(
         },
         'mobile.session.createForPrincipal': createMobileSessionForPrincipal,
         ...createMobileDomainHandlers({
+            attentionRequests,
+            imageDirectory: join(userDataPath, 'mobile-attachments'),
             configuration,
             database,
             emit: send,

@@ -297,7 +297,10 @@ describe('Agent provider hook configuration adapters', () => {
 
         expect(codex.hooks.PreToolUse).toEqual([expect.objectContaining({ matcher: '^Bash$' })]);
         expect(codex.hooks.PostToolUse).toEqual([expect.objectContaining({ matcher: '^Bash$' })]);
-        expect(claude.hooks.PreToolUse).toEqual([expect.objectContaining({ matcher: '^Bash$' })]);
+        expect(claude.hooks.PreToolUse).toEqual([
+            expect.objectContaining({ matcher: '^AskUserQuestion$' }),
+            expect.objectContaining({ matcher: '^Bash$' }),
+        ]);
         expect(claude.hooks.PostToolUse).toEqual([expect.objectContaining({ matcher: '^Bash$' })]);
         expect(claude.hooks.PostToolUseFailure).toEqual([
             expect.objectContaining({ matcher: '^Bash$' }),

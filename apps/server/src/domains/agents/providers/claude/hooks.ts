@@ -10,7 +10,13 @@ const SETTINGS_TARGET = 'settings';
 const bindings = [
     { event: 'UserPromptSubmit', phase: 'turnStarted' },
     { event: 'SubagentStart', phase: 'subagentStarted' },
-    { event: 'PermissionRequest', phase: 'attentionRequested' },
+    { event: 'PermissionRequest', phase: 'attentionRequested', interactive: 'permission' },
+    {
+        event: 'PreToolUse',
+        matcher: '^AskUserQuestion$',
+        phase: 'attentionRequested',
+        interactive: 'question',
+    },
     { event: 'Stop', phase: 'turnFinished', reply: 'emptyJson' },
     { event: 'StopFailure', phase: 'turnFinished' },
     { event: 'SubagentStop', phase: 'turnFinished', reply: 'emptyJson' },
@@ -55,7 +61,7 @@ function disabledHookPolicy(source: string | undefined): string | undefined {
 
 export const claudeHookAdapter: AgentHookAdapter = {
     bindings,
-    schemaVersion: 9,
+    schemaVersion: 10,
     configTargets: (environment) => [
         {
             id: SETTINGS_TARGET,

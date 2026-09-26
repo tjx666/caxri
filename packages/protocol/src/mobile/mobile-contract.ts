@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { agentActionSchema } from '../agent/agent-action-contract.js';
 import { agentEndpointRefSchema as agentEndpointReferenceSchema } from '../agent/agent-endpoint-contract.js';
 import { hexColorSchema } from '../domain/color.js';
 import {
@@ -18,25 +19,27 @@ import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
 import { principalSchema } from '../transport/principal.js';
 import { mobileDeviceRoleSchema } from './device-role.js';
+import {
+    mobileAttentionAnswerParametersSchema,
+    mobileAttentionRequestSchema,
+} from './mobile-attention-contract.js';
+import { MOBILE_FILES_MAX_ENTRIES, MOBILE_FILES_READ_MAX_BYTES } from './mobile-file-limits.js';
 
 export type { MobileDeviceRole } from './device-role.js';
 export { mobileDeviceRoleSchema } from './device-role.js';
+export * from './mobile-attention-contract.js';
+export { MOBILE_FILES_MAX_ENTRIES, MOBILE_FILES_READ_MAX_BYTES } from './mobile-file-limits.js';
 
 const noParameters = z.strictObject({}).default({});
 export const mobileDeviceIdSchema = z.string().regex(/^device_[0-9a-f]{32}$/u);
 export const MOBILE_MAX_PROJECT_GRANTS = 128;
 export const MOBILE_SHORT_REPLY_MAX_BYTES = 1_024;
 export const MOBILE_AGENT_SUBMIT_MAX_BYTES = 16 * 1_024;
+export const mobileAttachmentIdSchema = z.string().regex(/^image_[0-9a-f]{32}$/u);
 export const MOBILE_CHANGES_MAX_FILES = 100;
 export const MOBILE_CHANGES_MAX_PATCH_BYTES = 48 * 1_024;
 export const MOBILE_CHANGES_MAX_PATCH_LINES = 1_000;
 export const MOBILE_PROJECT_BROWSE_MAX_ENTRIES = 200;
-export const MOBILE_FILES_MAX_ENTRIES = 500;
-/**
- * Smaller than the Desktop Editor's safety limit on purpose: a mobile read is inlined in one command reply instead of
- * streamed, so the bound protects the gateway's per-reply transport budget, not just server memory.
- */
-export const MOBILE_FILES_READ_MAX_BYTES = 256 * 1_024;
 export const MOBILE_PANELS_MAX_CONTAINERS = 64;
 export const MOBILE_PANELS_MAX_VIEWS = 32;
 export const MOBILE_TREE_MAX_ITEMS = 500;
@@ -147,6 +150,7 @@ export const mobileAgentSubmitParametersSchema = z.strictObject({
     terminalId: identifierSchema,
     endpoint: agentEndpointReferenceSchema,
     clientMutationId: identifierSchema,
+    attachmentIds: z.array(mobileAttachmentIdSchema).max(3).optional(),
     text: z
         .string()
         .min(1)
@@ -160,6 +164,18 @@ export const mobileAgentSubmitParametersSchema = z.strictObject({
                 }),
             'Mobile Agent input must be bounded multiline text without control characters',
         ),
+});
+
+export const mobileImageUploadParametersSchema = z.strictObject({
+    sessionId: identifierSchema,
+    attachmentId: mobileAttachmentIdSchema,
+    chunkIndex: z.number().int().min(0).max(191),
+    chunkCount: z.number().int().min(1).max(192),
+    chunk: z
+        .string()
+        .min(4)
+        .max(24_576)
+        .regex(/^[A-Za-z0-9+/]+={0,2}$/u),
 });
 
 export const mobileAgentSubmitResultSchema = z.strictObject({
@@ -415,11 +431,34 @@ export const mobileFilesReadResultSchema = z.discriminatedUnion('status', [
             ),
         mtimeMs: z.number(),
         size: z.number(),
+        contentHash: z.string().regex(/^[0-9a-f]{64}$/u),
         readOnly: z.boolean().optional(),
     }),
     z.strictObject({ status: z.literal('binary') }),
     z.strictObject({ status: z.literal('oversized') }),
 ]);
+
+export const mobileFilesWriteParametersSchema = z.strictObject({
+    sessionId: identifierSchema,
+    path: pathSchema,
+    content: z
+        .string()
+        .refine(
+            (content) => new TextEncoder().encode(content).length <= MOBILE_FILES_READ_MAX_BYTES,
+            'Mobile file write exceeds the byte limit',
+        ),
+    expectedContentHash: z.string().regex(/^[0-9a-f]{64}$/u),
+});
+
+export const mobileAgentActionsResultSchema = z.strictObject({
+    actions: z.array(agentActionSchema).max(40),
+    truncated: z.boolean(),
+});
+
+export const mobileFilesSearchResultSchema = z.strictObject({
+    paths: z.array(z.string().min(1).max(2_048)).max(40),
+    truncated: z.boolean(),
+});
 
 export const mobileMethods = {
     'mobile.access.status': {
@@ -487,10 +526,30 @@ export const mobileMethods = {
         params: z.strictObject({ projectId: identifierSchema }),
         result: mobileAgentAvailabilityResultSchema,
     },
+    'mobile.agent.actions': {
+        ...commandPolicy('server', 'read', ['sessions.read']),
+        params: z.strictObject({ sessionId: identifierSchema, terminalId: identifierSchema }),
+        result: mobileAgentActionsResultSchema,
+    },
+    'mobile.attention.list': {
+        ...commandPolicy('server', 'read', ['sessions.read']),
+        params: z.strictObject({ sessionId: identifierSchema }),
+        result: z.strictObject({ requests: z.array(mobileAttentionRequestSchema).max(20) }),
+    },
+    'mobile.attention.answer': {
+        ...commandPolicy('server', 'control', ['terminals.steer']),
+        params: mobileAttentionAnswerParametersSchema,
+        result: z.strictObject({ status: mobileAttentionRequestSchema.shape.status }),
+    },
     'mobile.agent.submit': {
         ...commandPolicy('server', 'control', ['terminals.steer']),
         params: mobileAgentSubmitParametersSchema,
         result: mobileAgentSubmitResultSchema,
+    },
+    'mobile.image.upload': {
+        ...commandPolicy('server', 'write', ['terminals.steer']),
+        params: mobileImageUploadParametersSchema,
+        result: z.strictObject({ ready: z.boolean() }),
     },
     'mobile.session.create': {
         ...commandPolicy('server', 'write', ['sessions.write']),
@@ -594,6 +653,16 @@ export const mobileMethods = {
         params: mobileFilesReadParametersSchema,
         result: mobileFilesReadResultSchema,
     },
+    'mobile.files.search': {
+        ...commandPolicy('server', 'read', ['files.read']),
+        params: z.strictObject({ sessionId: identifierSchema, query: z.string().min(1).max(100) }),
+        result: mobileFilesSearchResultSchema,
+    },
+    'mobile.files.write': {
+        ...commandPolicy('server', 'write', ['files.write']),
+        params: mobileFilesWriteParametersSchema,
+        result: mobileFilesReadResultSchema,
+    },
 } as const satisfies Record<string, MethodSpec>;
 
 /**
@@ -601,6 +670,18 @@ export const mobileMethods = {
  * changed while the dialog was open from inheriting stale approval.
  */
 export const mobileInternalMethods = {
+    'mobile.attention.listInternal': {
+        ...commandPolicy('server', 'read'),
+        params: mobileMethods['mobile.attention.list'].params.extend({
+            principal: principalSchema,
+        }),
+        result: mobileMethods['mobile.attention.list'].result,
+    },
+    'mobile.attention.answerInternal': {
+        ...commandPolicy('server', 'control'),
+        params: mobileAttentionAnswerParametersSchema.extend({ principal: principalSchema }),
+        result: mobileMethods['mobile.attention.answer'].result,
+    },
     'mobile.changes.listInternal': {
         ...commandPolicy('server', 'read'),
         params: z.strictObject({
@@ -645,6 +726,11 @@ export const mobileInternalMethods = {
         params: mobileAgentSubmitParametersSchema.extend({ principal: principalSchema }),
         result: mobileAgentSubmitResultSchema,
     },
+    'mobile.image.uploadInternal': {
+        ...commandPolicy('server', 'write'),
+        params: mobileImageUploadParametersSchema.extend({ principal: principalSchema }),
+        result: mobileMethods['mobile.image.upload'].result,
+    },
     'mobile.session.createForPrincipal': {
         ...commandPolicy('server', 'write'),
         params: z.strictObject({
@@ -680,6 +766,16 @@ export const mobileInternalMethods = {
     'mobile.files.readInternal': {
         ...commandPolicy('server', 'read'),
         params: mobileFilesReadParametersSchema.extend({ principal: principalSchema }),
+        result: mobileFilesReadResultSchema,
+    },
+    'mobile.files.searchInternal': {
+        ...commandPolicy('server', 'read'),
+        params: mobileMethods['mobile.files.search'].params.extend({ principal: principalSchema }),
+        result: mobileFilesSearchResultSchema,
+    },
+    'mobile.files.writeInternal': {
+        ...commandPolicy('server', 'write'),
+        params: mobileFilesWriteParametersSchema.extend({ principal: principalSchema }),
         result: mobileFilesReadResultSchema,
     },
 } as const satisfies Record<string, MethodSpec>;

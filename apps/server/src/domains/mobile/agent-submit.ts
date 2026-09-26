@@ -7,12 +7,14 @@ import type { AgentEndpointLifecycle } from '../agent-endpoints';
 import type { CaxriDatabase } from '../db';
 import type { MobileTerminalMutationQueue } from '../mobile-terminal-mutation-queue';
 import type { TerminalManager } from '../terminal';
+import type { MobileImageStore } from './image-store';
 
 type Parameters = ServerOperationParameters<'mobile.agent.submitInternal'>;
 
 export function createMobileAgentSubmitHandler(options: {
     database: CaxriDatabase;
     endpoints?: AgentEndpointLifecycle;
+    images?: Pick<MobileImageStore, 'paths'>;
     queue: Pick<MobileTerminalMutationQueue, 'runProjectSessionTerminal'>;
     terminals: Pick<TerminalManager, 'submitAgentExact'>;
 }) {
@@ -20,6 +22,7 @@ export function createMobileAgentSubmitHandler(options: {
         const { principal, sessionId, terminalId, endpoint, clientMutationId, text } = parameters;
         if (principal.kind !== 'paired-device' || principal.role === 'view')
             throw new CaxriError('FORBIDDEN', 'Device cannot submit Agent input');
+        const attachmentIds = parameters.attachmentIds ?? [];
         const session = options.database.getSession(sessionId);
         if (
             !session ||
@@ -34,11 +37,25 @@ export function createMobileAgentSubmitHandler(options: {
             deviceGeneration: principal.generation,
             clientMutationId,
             requestFingerprint: createHash('sha256')
-                .update(JSON.stringify([sessionId, terminalId, endpoint, text]))
+                .update(JSON.stringify([sessionId, terminalId, endpoint, text, attachmentIds]))
                 .digest('hex'),
         };
         const previous = options.database.mobileAgentSubmitReceipts.find(identity);
         if (previous) return { terminalId, outcome: previous } as const;
+        if (attachmentIds.length > 0 && !options.images)
+            throw new CaxriError('UNAVAILABLE', 'Image attachments are unavailable');
+        const attachmentPaths =
+            attachmentIds.length > 0
+                ? options.images!.paths(
+                      `${principal.deviceId}:${principal.generation}`,
+                      sessionId,
+                      attachmentIds,
+                  )
+                : [];
+        const submission =
+            attachmentPaths.length > 0
+                ? `${text}\n\nAttached image paths:\n${attachmentPaths.join('\n')}`
+                : text;
         const terminal = options.database.getTerminal(terminalId);
         if (!terminal || terminal.sessionId !== sessionId)
             throw new CaxriError('NOT_FOUND', 'Terminal not found');
@@ -68,7 +85,7 @@ export function createMobileAgentSubmitHandler(options: {
                 terminalId,
                 sessionId,
                 target.launchId,
-                text,
+                submission,
                 signal,
             );
             if (result === 'rejected') {
