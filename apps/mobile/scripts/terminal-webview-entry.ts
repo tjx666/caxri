@@ -134,6 +134,7 @@ const scrollBy = (delta: number): void => {
         const before = viewport.scrollTop;
         viewport.scrollTop = Math.min(maxPageScroll, Math.max(0, before - remaining));
         remaining -= before - viewport.scrollTop;
+        reportScroll();
     }
     gesture.pendingY += remaining;
     const height = lineHeight();
