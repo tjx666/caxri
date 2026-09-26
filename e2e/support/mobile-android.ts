@@ -62,8 +62,23 @@ export async function runMobileDeviceCommand(
             maxBuffer: 4 * 1024 * 1024,
         });
         return output === 'capture' ? result.stdout.trim() : '';
-    } catch {
-        throw new Error('A mobile Acceptance device command failed');
+    } catch (error) {
+        /**
+         * Preserve only closed driver reasons; arbitrary stderr can contain device or credential data.
+         */
+        const stderr =
+            error !== null && typeof error === 'object' && 'stderr' in error
+                ? error.stderr
+                : undefined;
+        const reasons = new Map([
+            ['The requested Caxri control is unavailable', 'control-unavailable'],
+            ['Caxri must own the foreground Activity before semantic capture', 'foreground-lost'],
+            ['adb timed out', 'adb-timeout'],
+            ['adb failed to start', 'adb-start-failed'],
+        ]);
+        const reason = typeof stderr === 'string' ? reasons.get(stderr.trim()) : undefined;
+        // eslint-disable-next-line preserve-caught-error -- Raw subprocess causes can expose device output and credentials.
+        throw new Error(`A mobile Acceptance device command failed (${reason ?? 'driver-failed'})`);
     }
 }
 
