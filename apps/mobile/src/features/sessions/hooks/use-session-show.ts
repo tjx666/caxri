@@ -42,6 +42,10 @@ export const useSessionShow = (sessionId: string | null, shouldFetch: boolean) =
     return {
         error: query.isError ? 'Unable to open this Session.' : null,
         isLoading: query.isPending || query.isFetching,
+        /**
+         * A disabled query stays pending forever; while the phone is offline that would read as an endless "Opening".
+         */
+        isOffline: shouldFetch && query.isPending && query.fetchStatus === 'idle',
         refresh: query.refetch,
         session,
     };

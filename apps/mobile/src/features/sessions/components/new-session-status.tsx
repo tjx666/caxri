@@ -15,9 +15,16 @@ export const NewSessionStatus = ({
     return (
         <>
             {!state.isDashboardLoaded && !state.dashboardError ? (
-                <View style={styles.status}>
-                    <ActivityIndicator color={theme.primary} />
-                    <Text style={[styles.message, { color: theme.muted }]}>Loading Projects…</Text>
+                <View style={styles.status} testID="new-session-projects-pending">
+                    {/* The Project list only loads while connected; offline, a spinner would never end. */}
+                    {state.status === 'connected' ? (
+                        <ActivityIndicator color={theme.primary} />
+                    ) : null}
+                    <Text style={[styles.message, { color: theme.muted }]}>
+                        {state.status === 'connected'
+                            ? 'Loading Projects…'
+                            : 'Reconnect to load Projects.'}
+                    </Text>
                 </View>
             ) : null}
             {state.dashboardError ? (

@@ -117,3 +117,25 @@ export const canCreateNewSession = ({
     !isAvailabilityLoading &&
     !isAvailabilityError &&
     !['partial', 'uncertain', 'creating'].includes(createState.kind);
+
+/**
+ * Availability is read only while connected. Offline, before any answer arrived, the read is held back rather than in
+ * flight, so "Checking availability…" would never resolve; say what the reader has to do instead.
+ */
+export const newSessionAgentReason = ({
+    agent,
+    isConnected,
+    isError,
+    isLoading,
+}: {
+    agent: { available: boolean; reason?: string } | undefined;
+    isConnected: boolean;
+    isError: boolean;
+    isLoading: boolean;
+}): string | undefined => {
+    if (isError) return 'Availability unavailable.';
+    if (!agent && !isConnected) return 'Reconnect to check availability.';
+    if (isLoading) return 'Checking availability…';
+    if (agent?.available) return undefined;
+    return agent?.reason ?? 'Not available on this computer.';
+};

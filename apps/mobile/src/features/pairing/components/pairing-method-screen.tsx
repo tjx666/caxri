@@ -6,11 +6,90 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Clipboard from 'expo-clipboard';
 import { router } from 'expo-router';
+import { ChevronLeft } from 'lucide-react-native';
 
 import { ActionButton } from '../../../components/action-button';
+import { IconButton } from '../../../components/icon-button';
+import type { MobileTheme } from '../../../theme/tokens';
 import { useMobileTheme } from '../../../theme/use-mobile-theme';
 import { useMobileClient } from '../../connection/mobile-client-provider';
 import { pairingErrorMessage } from '../pairing-error';
+
+const PairingError = ({
+    error,
+    onScanAgain,
+    theme,
+}: {
+    error: string;
+    onScanAgain?: () => void;
+    theme: MobileTheme;
+}) => (
+    <View style={styles.errorBlock}>
+        <Text
+            accessibilityRole="alert"
+            style={[styles.error, { color: theme.danger }]}
+            testID="pairing-error"
+        >
+            {error}
+        </Text>
+        {onScanAgain ? (
+            <ActionButton
+                accessibilityHint="Allows the camera to scan the pairing code again."
+                onPress={onScanAgain}
+                testID="pairing-scan-retry-button"
+                theme={theme}
+                variant="secondary"
+            >
+                Scan again
+            </ActionButton>
+        ) : null}
+    </View>
+);
+
+/**
+ * The camera renders only once access is granted; until then the screen asks for it and keeps paste reachable.
+ */
+const ScanControls = ({
+    isBusy,
+    onScan,
+    permission,
+    requestPermission,
+    theme,
+}: {
+    isBusy: boolean;
+    onScan: (source: string) => void;
+    permission: ReturnType<typeof useCameraPermissions>[0];
+    requestPermission: () => unknown;
+    theme: MobileTheme;
+}) => {
+    if (!permission) return null;
+    if (permission.granted)
+        return (
+            <View style={[styles.cameraFrame, { borderColor: theme.border }]}>
+                <CameraView
+                    barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+                    onBarcodeScanned={isBusy ? undefined : ({ data }) => onScan(data)}
+                    style={styles.camera}
+                    testID="pairing-camera"
+                />
+            </View>
+        );
+    return (
+        <>
+            <ActionButton
+                accessibilityHint="Requests camera access to scan a Caxri pairing code."
+                onPress={requestPermission}
+                testID="pairing-camera-permission-button"
+                theme={theme}
+            >
+                Allow camera access
+            </ActionButton>
+            <Text style={[styles.fallback, { color: theme.muted }]}>
+                Camera access is optional. You can go back and paste the pairing link instead.
+            </Text>
+        </>
+    );
+};
 
 interface PairingMethodScreenProperties {
     method: 'paste' | 'scan';
@@ -77,6 +156,16 @@ export const PairingMethodScreen = ({ method }: PairingMethodScreenProperties) =
         >
             <ScrollView contentContainerStyle={styles.scroll}>
                 <View style={styles.frame}>
+                    <View style={styles.header}>
+                        <IconButton
+                            accessibilityHint="Returns to the pairing method choices."
+                            accessibilityLabel="Back"
+                            icon={ChevronLeft}
+                            onPress={() => router.back()}
+                            testID={`pairing-${method}-back-button`}
+                            theme={theme}
+                        />
+                    </View>
                     <View style={styles.copy}>
                         <Text
                             accessibilityRole="header"
@@ -87,25 +176,14 @@ export const PairingMethodScreen = ({ method }: PairingMethodScreenProperties) =
                         <Text style={[styles.description, { color: theme.muted }]}>
                             {description}
                         </Text>
-                        {method === 'scan' && cameraPermission?.granted ? (
-                            <View style={[styles.cameraFrame, { borderColor: theme.border }]}>
-                                <CameraView
-                                    barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-                                    onBarcodeScanned={busy ? undefined : ({ data }) => scan(data)}
-                                    style={styles.camera}
-                                    testID="pairing-camera"
-                                />
-                            </View>
-                        ) : null}
-                        {method === 'scan' && cameraPermission && !cameraPermission.granted ? (
-                            <ActionButton
-                                accessibilityHint="Requests camera access to scan a Caxri pairing code."
-                                onPress={requestCameraPermission}
-                                testID="pairing-camera-permission-button"
+                        {method === 'scan' ? (
+                            <ScanControls
+                                isBusy={busy}
+                                onScan={scan}
+                                permission={cameraPermission}
+                                requestPermission={requestCameraPermission}
                                 theme={theme}
-                            >
-                                Allow camera access
-                            </ActionButton>
+                            />
                         ) : null}
                         {method === 'paste' ? (
                             <ActionButton
@@ -130,46 +208,20 @@ export const PairingMethodScreen = ({ method }: PairingMethodScreenProperties) =
                             </View>
                         ) : null}
                         {error ? (
-                            <View style={styles.errorBlock}>
-                                <Text
-                                    accessibilityRole="alert"
-                                    style={[styles.error, { color: theme.danger }]}
-                                    testID="pairing-error"
-                                >
-                                    {error}
-                                </Text>
-                                {method === 'scan' ? (
-                                    <ActionButton
-                                        accessibilityHint="Allows the camera to scan the pairing code again."
-                                        onPress={() => {
-                                            lastScannedValue.current = null;
-                                            setError(null);
-                                        }}
-                                        testID="pairing-scan-retry-button"
-                                        theme={theme}
-                                        variant="secondary"
-                                    >
-                                        Scan again
-                                    </ActionButton>
-                                ) : null}
-                            </View>
-                        ) : null}
-                        {method === 'scan' && cameraPermission && !cameraPermission.granted ? (
-                            <Text style={[styles.fallback, { color: theme.muted }]}>
-                                Camera access is optional. You can go back and paste the pairing
-                                link instead.
-                            </Text>
+                            <PairingError
+                                error={error}
+                                onScanAgain={
+                                    method === 'scan'
+                                        ? () => {
+                                              lastScannedValue.current = null;
+                                              setError(null);
+                                          }
+                                        : undefined
+                                }
+                                theme={theme}
+                            />
                         ) : null}
                     </View>
-                    <ActionButton
-                        accessibilityHint="Returns to the pairing method choices."
-                        onPress={() => router.back()}
-                        testID={`pairing-${method}-back-button`}
-                        theme={theme}
-                        variant="secondary"
-                    >
-                        Back
-                    </ActionButton>
                 </View>
             </ScrollView>
         </SafeAreaView>
@@ -208,10 +260,14 @@ const styles = StyleSheet.create({
     frame: {
         alignSelf: 'center',
         flex: 1,
-        justifyContent: 'space-between',
         maxWidth: 520,
         padding: 24,
+        paddingTop: 8,
         width: '100%',
+    },
+    header: {
+        marginBottom: 12,
+        marginLeft: -12,
     },
     safeArea: {
         flex: 1,

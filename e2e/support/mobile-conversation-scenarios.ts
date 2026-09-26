@@ -29,8 +29,13 @@ interface ScenarioEnvironment {
     artifactManifestPath: string;
     assetsDirectory: string;
     caseId: string;
+    /**
+     * Binds a Terminal fixture preflight receipt to the frozen report commit and final launch.
+     */
+    launchId?: string;
     scenarioReceiptPath: string;
     serial: string;
+    sourceCommit?: string;
 }
 
 const remoteVideoPath = process.env.CAXRI_MOBILE_ACCEPTANCE_REMOTE_VIDEO_PATH;
@@ -265,6 +270,9 @@ async function preflightSyntheticShell(
             rows: state.marker.rows,
         },
         environment.caseId,
+        environment.launchId && environment.sourceCommit
+            ? { launchId: environment.launchId, sourceCommit: environment.sourceCommit }
+            : undefined,
     );
     if (receipt.result.status !== 'ready')
         throw new Error('Synthetic Shell formal fixture preflight was blocked');
@@ -577,7 +585,8 @@ export async function executeMobileConversationScenario(
             }
             break;
         }
-        case 'MOB-CONV-03': {
+        case 'MOB-CONV-03':
+        case 'MOB-UI-04': {
             const fixture = await createMobileAcceptanceFixture({
                 mode: 'shell-conversation',
                 serial: environment.serial,
@@ -600,15 +609,32 @@ export async function executeMobileConversationScenario(
                 );
                 await fixture.pair();
                 await tapMobileCheck(environment.serial, `session-row-${fixture.allowedSessionId}`);
+                /**
+                 * A plain shell opens on Terminal with no Conversation tab and no "isn't available" notice; both would
+                 * describe an Agent the user never started. Sample after the timeline answers so a late render fails.
+                 */
                 await waitForMobile(
                     () => mobileSemantics(environment.serial),
-                    (nodes) =>
-                        nodes.some(({ checkId }) => checkId === 'conversation-fallback-banner') &&
-                        nodes.some(({ checkId }) => checkId === 'terminal-live-webview'),
+                    (nodes) => nodes.some(({ checkId }) => checkId === 'terminal-live-webview'),
                 );
+                for (let sample = 0; sample < 5; sample += 1) {
+                    // eslint-disable-next-line no-await-in-loop -- each sample is one timed observation of the same screen.
+                    const nodes = await mobileSemantics(environment.serial);
+                    if (
+                        nodes.some(
+                            ({ checkId }) =>
+                                checkId === 'conversation-fallback-banner' ||
+                                checkId === 'session-segment-conversation',
+                        )
+                    )
+                        throw new Error('A plain shell still offers Conversation');
+                    // eslint-disable-next-line no-await-in-loop -- samples are spaced so a late render is caught.
+                    await new Promise((resolve) => setTimeout(resolve, 1000));
+                }
                 await capture(environment, 'shell-fallback', artifacts);
                 await finish(environment, artifacts, {
-                    fallback: 'shell-to-terminal',
+                    conversationTab: 'absent',
+                    fallback: 'shell-opens-terminal-without-notice',
                     terminalPrivacyPreflight: 'formal-grid-ready-before-phone-frame',
                     preflightReceipt,
                     status: 'passed',

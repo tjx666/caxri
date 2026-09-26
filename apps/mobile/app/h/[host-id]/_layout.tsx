@@ -17,3 +17,5 @@ export default function HostLayout() {
         </HostSessionsProvider>
     );
 }
+
+export { RouteErrorScreen as ErrorBoundary } from '../../../src/components/route-error-screen';

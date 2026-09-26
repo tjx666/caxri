@@ -97,7 +97,12 @@ function AndroidTerminalLiveView({
                     testID="terminal-live-webview"
                     thirdPartyCookiesEnabled={false}
                 />
-                <TerminalStatusChip role={role} terminal={terminal} theme={theme} />
+                <TerminalStatusChip
+                    isConnected={isConnected}
+                    role={role}
+                    terminal={terminal}
+                    theme={theme}
+                />
                 <TerminalFloatingActions
                     onTakeOver={() => {
                         // eslint-disable-next-line no-void -- The hook reports takeover failures in the UI.

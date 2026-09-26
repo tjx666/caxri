@@ -116,6 +116,15 @@ export const parseUnifiedDiff = (diff: string): ParsedDiff => {
     return { additions, deletions, lines };
 };
 
+/**
+ * The `diff --git`, `index`, and `---`/`+++` preamble repeats the path the toolbar already shows and costs a phone
+ * several rows. Keep it only when the patch has no hunk, where it is the whole message (binary or mode-only change).
+ */
+export const visibleDiffLines = (lines: readonly DiffLine[]): DiffLine[] =>
+    lines.some((line) => line.kind === 'hunk')
+        ? lines.filter((line) => line.kind !== 'header')
+        : [...lines];
+
 export const changePathParts = (path: string): { directory: string; filename: string } => {
     const slash = path.lastIndexOf('/');
     return slash === -1

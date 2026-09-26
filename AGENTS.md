@@ -154,6 +154,11 @@ directories.
   probe. Procedure: `debug`.
 - A user-visible Renderer/UI change is not done until it has been verified visually in the running
   dev app over CDP. Passing unit or e2e gates alone does not count. Procedure: `debug`.
+- A user-visible mobile change is not done until its screens were captured on the disposable
+  emulator and read as a first-time user would read them, not checked against your own intent. For
+  every screenshot check the visible labels and terminology against Desktop's names (never copy an
+  internal or conversational word such as "panel" into the UI), duplicate entries to the same data,
+  and the offline, empty, and error states. Procedure: `acceptance` (Android surface).
 - Before using a live instance to verify or disprove a Server change, confirm Server Core and
   Extension Host process start times postdate the change. Procedure: `debug`.
 

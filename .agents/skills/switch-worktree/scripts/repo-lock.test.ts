@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -33,6 +33,19 @@ afterEach(async () => {
 });
 
 describe('repository lock publication', () => {
+    it('reclaims an ownerless lock left past its grace period', async () => {
+        const context = await repoContext(await createRepo());
+        const lockPath = join(context.stateDir, 'operation.lock');
+        await mkdir(lockPath, { recursive: true });
+        const abandonedAt = new Date(Date.now() - 60_000);
+        await utimes(lockPath, abandonedAt, abandonedAt);
+
+        await expect(withRepoLock(context, () => Promise.resolve('entered'))).resolves.toBe(
+            'entered',
+        );
+        expect(await isPathPresent(lockPath)).toBe(false);
+    });
+
     it('publishes complete owner metadata atomically', async () => {
         const context = await repoContext(await createRepo());
         const lockPath = join(context.stateDir, 'operation.lock');
