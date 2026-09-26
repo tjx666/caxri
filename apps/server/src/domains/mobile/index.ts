@@ -1,0 +1,1 @@
+export { createMobileDomainHandlers } from './handlers';

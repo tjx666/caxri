@@ -1,9 +1,9 @@
 import type { AgentProvider, ServerOperationParameters } from '@caxri/protocol';
 import { agentProviderIds, CaxriError } from '@caxri/protocol';
 
-import { discoverExecutable } from './agents';
-import type { ConfigService } from './config';
-import type { CaxriDatabase } from './db';
+import { discoverExecutable } from '../agents';
+import type { ConfigService } from '../config';
+import type { CaxriDatabase } from '../db';
 
 type Parameters = ServerOperationParameters<'mobile.agent.availabilityInternal'>;
 

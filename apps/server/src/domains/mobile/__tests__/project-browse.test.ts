@@ -4,11 +4,11 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { CaxriDatabase } from '../db';
+import type { CaxriDatabase } from '../../db';
 import {
     createMobileProjectAddHandler,
     createMobileProjectBrowseHandler,
-} from '../mobile-project-browse';
+} from '../project-browse';
 
 const temporaryDirectories: string[] = [];
 

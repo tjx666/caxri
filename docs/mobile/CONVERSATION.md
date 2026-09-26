@@ -44,6 +44,9 @@ tool detail to 2,048 characters. `olderCursor` requests an earlier page. `trunca
 retained window does not include the beginning of the record; the app tells the reader that earlier
 messages are available on the computer. The Server retains at most 16 MiB of parsed source in its
 cache and initially reads only the latest 4 MiB, so this view is not a complete archive.
+Reads are serialized per Terminal, including cache updates and source-revision assignment. Two
+devices therefore cannot append the same record twice or publish inconsistent cursor generations.
+Forgetting a Terminal invalidates pending reads so they cannot repopulate its retired cache.
 
 Cursors encode source identity, byte position, and item position within a provider record.
 Rotation, shrinkage, or a detected same-file rewrite creates a new source generation. A cursor
@@ -84,7 +87,7 @@ feature.
 
 - [Timeline contract](../../packages/protocol/src/mobile/mobile-contract.ts)
 - [Gateway authorization](../../apps/server/src/core/mobile/access-controller.ts) and
-  [Server read](../../apps/server/src/domains/mobile-handlers.ts)
+  [Server read](../../apps/server/src/domains/mobile/handlers.ts)
 - [Timeline projection](../../apps/server/src/domains/agents/timeline.ts),
   [Claude parser](../../apps/server/src/domains/agents/providers/claude/timeline.ts), and
   [Codex parser](../../apps/server/src/domains/agents/providers/codex/timeline.ts)

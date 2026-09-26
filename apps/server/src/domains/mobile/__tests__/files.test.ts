@@ -1,15 +1,15 @@
 import { MOBILE_FILES_MAX_ENTRIES, MOBILE_FILES_READ_MAX_BYTES } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { AgentTimelineService } from '../agents/timeline';
-import type { AgentTranscriptWatcher } from '../agents/transcript-watcher';
-import type { ConfigService } from '../config';
-import type { CaxriDatabase } from '../db';
-import type { FileService } from '../files';
-import type { GitService } from '../git';
-import { createMobileDomainHandlers } from '../mobile-handlers';
-import type { MobileTerminalMutationQueue } from '../mobile-terminal-mutation-queue';
-import type { TerminalManager } from '../terminal';
+import type { AgentTimelineService } from '../../agents/timeline';
+import type { AgentTranscriptWatcher } from '../../agents/transcript-watcher';
+import type { ConfigService } from '../../config';
+import type { CaxriDatabase } from '../../db';
+import type { FileService } from '../../files';
+import type { GitService } from '../../git';
+import { createMobileDomainHandlers } from '../handlers';
+import type { MobileTerminalMutationQueue } from '../../mobile-terminal-mutation-queue';
+import type { TerminalManager } from '../../terminal';
 
 const principal = {
     kind: 'paired-device' as const,
