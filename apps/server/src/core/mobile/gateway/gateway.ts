@@ -783,11 +783,8 @@ export class MobileGateway {
             generation: session.generation,
         });
         const sourceFrame = this.#sealedPayload(session, revoked);
-        const closeResult = await sendFinalSealedPayload(
-            socket,
-            sourceFrame,
-            MOBILE_GATEWAY_MAX_WIRE_BYTES * 2,
-        );
+        const maxBytes = MOBILE_GATEWAY_MAX_WIRE_BYTES * 2;
+        const closeResult = await sendFinalSealedPayload(socket, sourceFrame, maxBytes);
         if (closeResult === 'failed') {
             session.application?.close();
             socket.terminate();
