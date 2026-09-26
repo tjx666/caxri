@@ -64,6 +64,15 @@ export async function executeMobileSessionRefreshScenario(
             (nodes) => nodes.some(({ checkId }) => checkId === 'session-detail-title'),
         );
         /**
+         * Metadata evidence must not capture the fallback shell's host-specific prompt. Keep this detail mounted on
+         * Project throughout the measurement and final capture.
+         */
+        await tapMobileCheck(environment.serial, 'session-segment-panels');
+        await waitForMobile(
+            () => mobileSemantics(environment.serial),
+            (nodes) => nodes.some(({ checkId }) => checkId === 'files-panel'),
+        );
+        /**
          * The detail fallback is used only after the bounded dashboard no longer contains this Session.
          */
         for (let index = 0; index < 64; index++) {
