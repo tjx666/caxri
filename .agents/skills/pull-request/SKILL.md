@@ -26,6 +26,9 @@ readback. Do not end again at local validation or PR creation. A status-only que
    PR, fetch `origin/main` and verify the topic branch base. If `origin/main` has advanced, rebase
    onto the latest `origin/main`, resolve conflicts without discarding user changes, and rerun every
    validation invalidated by the rebase. Never open a PR from a knowingly stale base.
+   Before pushing Renderer React changes, run `bun run doctor:changed` against the intended diff
+   and resolve every finding. The changed-file checker suggests this gate but does not run it;
+   a green lint/type/knip result cannot substitute for the CI React Doctor gate.
 3. Once required checks have started for a published PR head, routine `origin/main` advancement
    alone does not invalidate that evidence or require another rebase. When GitHub reports no
    conflict and branch protection does not require an up-to-date branch, let those checks finish

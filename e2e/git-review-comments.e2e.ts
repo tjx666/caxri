@@ -47,6 +47,12 @@ test('Git diff review comments collect across files and reach one Agent Terminal
         const single = page.locator('.git-file-diff .editor.modified');
         await expect(single).toBeVisible();
         await single.locator('.view-line').filter({ hasText: 'changed first' }).click();
+        await single
+            .locator('.view-line')
+            .filter({ hasText: 'changed first' })
+            .click({ button: 'right' });
+        await expect(page.getByRole('menuitem', { name: 'Add Review Comment' })).toBeVisible();
+        await page.keyboard.press('Escape');
         await page.keyboard.press('Meta+Shift+M');
         await page.getByRole('textbox', { name: 'Review comment' }).fill('Fix the first change');
         await page.getByRole('textbox', { name: 'Review comment' }).press('Meta+Enter');

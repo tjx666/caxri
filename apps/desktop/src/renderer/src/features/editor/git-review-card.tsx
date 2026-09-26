@@ -4,8 +4,9 @@ import type { GitReviewComment } from './git-review-comments';
 import { useGitReviewComments } from './git-review-comments';
 
 export function GitReviewCard({ comment }: { comment: GitReviewComment }) {
-    const [editing, setEditing] = useState(!comment.text);
-    const [draft, setDraft] = useState(comment.text);
+    const [editing, setEditing] = useState(false);
+    const [draft, setDraft] = useState('');
+    const isEditing = editing || !comment.text;
     const edit = (id: string, text: string) => useGitReviewComments.getState().edit(id, text);
     const remove = (id: string) => useGitReviewComments.getState().remove(id);
     const save = () => {
@@ -28,7 +29,7 @@ export function GitReviewCard({ comment }: { comment: GitReviewComment }) {
                     {comment.status}
                 </span>
             </div>
-            {editing ? (
+            {isEditing ? (
                 <textarea
                     autoFocus
                     aria-label="Review comment"
@@ -50,7 +51,7 @@ export function GitReviewCard({ comment }: { comment: GitReviewComment }) {
                 <p>{comment.text}</p>
             )}
             <div className="git-review-card-actions">
-                {editing ? (
+                {isEditing ? (
                     <button type="button" onClick={save}>
                         Save
                     </button>

@@ -62,11 +62,14 @@ export const useGitReviewComments = create<GitReviewCommentState>((set) => ({
     remove: (id) =>
         set((state) => ({ comments: state.comments.filter((comment) => comment.id !== id) })),
     markSent: (ids) =>
-        set((state) => ({
-            comments: state.comments.map((comment) =>
-                ids.includes(comment.id) ? { ...comment, status: 'sent' } : comment,
-            ),
-        })),
+        set((state) => {
+            const sentIds = new Set(ids);
+            return {
+                comments: state.comments.map((comment) =>
+                    sentIds.has(comment.id) ? { ...comment, status: 'sent' } : comment,
+                ),
+            };
+        }),
     clearResolved: (sessionId, repoId) =>
         set((state) => ({
             comments: state.comments.filter(

@@ -2,8 +2,8 @@ import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import type { editor as MonacoEditor } from 'monaco-editor';
-import { editor as monacoEditor, KeyCode, KeyMod } from 'monaco-editor';
 
+import { monaco } from '../../lib/monaco';
 import { GitReviewCard } from './git-review-card';
 import {
     clearActiveGitReviewComment,
@@ -94,7 +94,7 @@ export function bindGitReviewCommentEditor(
     editor.addAction({
         id: 'caxri.addReviewComment',
         label: 'Add Review Comment',
-        keybindings: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyM],
+        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyM],
         contextMenuGroupId: 'navigation',
         contextMenuOrder: 1,
         run: () => add(),
@@ -113,8 +113,8 @@ export function bindGitReviewCommentEditor(
         const target = event.target;
         const line = target.position?.lineNumber;
         const isGutter =
-            target.type === monacoEditor.MouseTargetType.GUTTER_GLYPH_MARGIN ||
-            target.type === monacoEditor.MouseTargetType.GUTTER_LINE_NUMBERS;
+            target.type === monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN ||
+            target.type === monaco.editor.MouseTargetType.GUTTER_LINE_NUMBERS;
         hoverDecorations?.clear();
         if (isGutter && line)
             hoverDecorations = editor.createDecorationsCollection([
@@ -133,7 +133,7 @@ export function bindGitReviewCommentEditor(
             ]);
     });
     const click = editor.onMouseDown((event) => {
-        if (event.target.type === monacoEditor.MouseTargetType.GUTTER_GLYPH_MARGIN)
+        if (event.target.type === monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN)
             add(event.target.position.lineNumber);
     });
     const content = editor.onDidChangeModelContent(() =>
