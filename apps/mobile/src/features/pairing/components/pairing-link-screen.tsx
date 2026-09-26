@@ -33,16 +33,18 @@ const completePairing = async (
 export const PairingLinkScreen = ({ parameters }: PairingLinkScreenProperties) => {
     const theme = useMobileTheme();
     const client = useMobileClient();
+    const { cancelPairing } = client;
     const attempted = useRef(false);
     const mounted = useRef(true);
     const [error, setError] = useState<string>();
 
-    useEffect(
-        () => () => {
+    useEffect(() => {
+        mounted.current = true;
+        return () => {
             mounted.current = false;
-        },
-        [],
-    );
+            cancelPairing();
+        };
+    }, [cancelPairing]);
 
     useEffect(() => {
         if (client.status === 'booting' || attempted.current) return;

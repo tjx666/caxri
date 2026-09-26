@@ -4,6 +4,7 @@ export interface AndroidSemanticNode {
     className: string;
     clickable: boolean;
     enabled: boolean;
+    selected: boolean;
 }
 
 export interface AndroidPoint {
@@ -52,7 +53,7 @@ const decodeXmlAttribute = (value: string): string =>
     });
 
 export const isAndroidCheckId = (value: string): boolean =>
-    /^[a-z][a-z0-9_.:-]{2,100}$/u.test(value);
+    /^[a-z][a-z0-9_.:/-]{2,100}$/u.test(value);
 
 const checkIdFromResource = (resourceId: string, expectedPackage: string): string | undefined => {
     const separator = resourceId.indexOf(':id/');
@@ -84,6 +85,7 @@ export const semanticNodesFromUiAutomator = (
             className: attribute(node, 'class') ?? 'unknown',
             clickable: attribute(node, 'clickable') === 'true',
             enabled: attribute(node, 'enabled') === 'true',
+            selected: attribute(node, 'selected') === 'true',
         });
     }
     return nodes
@@ -103,6 +105,8 @@ export const observeAndroidNodeFromUiAutomator = (
     expectedPackage = 'com.caxri.mobile',
 ): AndroidNodeObservation => {
     if (!isAndroidCheckId(checkId)) throw new Error('Android check ID is invalid');
+    if (expectedText?.kind === 'includes' && expectedText.value.length === 0)
+        throw new Error('Android includes text must not be empty');
 
     for (const match of source.matchAll(/<node\s[^>]*>/gu)) {
         const node = match[0];

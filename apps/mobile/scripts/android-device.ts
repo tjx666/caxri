@@ -39,11 +39,15 @@ const parseExpectedText = (values: string[]): AndroidNodeTextExpectation | undef
 
     const bytes = Buffer.from(encoded, 'base64');
     if (bytes.toString('base64') !== encoded) throw new Error('Invalid observe text encoding');
+    let value: string;
     try {
-        return { kind, value: new TextDecoder('utf-8', { fatal: true }).decode(bytes) };
+        value = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
     } catch {
         throw new Error('Invalid observe text encoding');
     }
+    if (kind === 'includes' && value.length === 0)
+        throw new Error('Android includes text must not be empty');
+    return { kind, value };
 };
 
 const parseArguments = (values: string[]): Arguments => {

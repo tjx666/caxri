@@ -254,6 +254,24 @@ describe('architecture-a3b-terminal-host: private protocol', () => {
         ).toBe(false);
     });
 
+    it('requires an observer gap reason at the Host boundary', () => {
+        const gap = {
+            type: 'event',
+            event: 'terminal.observer.gap',
+            identity: {
+                scope: 'terminal',
+                sessionId: terminal.sessionId,
+                terminalId: terminal.id,
+                ptyGeneration: 1,
+            },
+            sequence: 1,
+        };
+        expect(terminalHostMessageSchema.safeParse(gap).success).toBe(false);
+        expect(terminalHostMessageSchema.safeParse({ ...gap, reason: 'resize' }).success).toBe(
+            true,
+        );
+    });
+
     it('validates Agent lifecycle events and exact-launch signals', () => {
         const identity = {
             scope: 'terminal' as const,

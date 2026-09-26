@@ -16,6 +16,8 @@ import type { TerminalKey } from './key-input';
 import { controlByteFor, pressTerminalKey } from './key-input';
 import { canAdoptTerminalLease } from './lease-admission';
 import { createTerminalOutputQueue } from './output-queue';
+import type { TerminalResyncReason } from './resync-policy';
+import { terminalResyncPlan } from './resync-policy';
 import { createTerminalStreamAssembly } from './stream-assembly';
 import type { TerminalWebviewCommand } from './webview-bridge';
 import { parseTerminalWebviewMessage, terminalWebviewCommandScript } from './webview-bridge';
@@ -173,14 +175,15 @@ export const useLiveTerminal = ({
         let ownedHandle: { subscriptionId: string; unsubscribe(): Promise<void> } | null = null;
         let retryTimer: ReturnType<typeof setTimeout> | undefined;
         const assembly = createTerminalStreamAssembly(terminalId);
-        const scheduleResync = (): void => {
+        const scheduleResync = (reason: TerminalResyncReason = 'local'): void => {
             if (!isActive || retryTimer !== undefined) return;
+            const plan = terminalResyncPlan(reason);
             isStreamActive = false;
             assembly.invalidate();
             if (outboundFrame.current !== null) cancelAnimationFrame(outboundFrame.current);
             outboundFrame.current = null;
             outbound.clear();
-            setState('stale');
+            if (plan.showStale) setState('stale');
             generation.current = null;
             setCurrentGeneration(null);
             setHasSubscription(false);
@@ -197,16 +200,18 @@ export const useLiveTerminal = ({
                 ownedHandle = null;
                 subscription.current = null;
             }
-            retryTimer = scheduleTerminalRetry(retries.current++, () => {
-                if (isActive) setRetry((current) => current + 1);
-            });
+            if (plan.useBackoff)
+                retryTimer = scheduleTerminalRetry(retries.current++, () => {
+                    if (isActive) setRetry((current) => current + 1);
+                });
+            else setRetry((current) => current + 1);
         };
         if (shouldObserveTerminal({ isStopped, subscriptionAvailable, visible, webviewReady })) {
             // eslint-disable-next-line no-void -- The effect owns the bounded subscription and its cleanup.
             void subscribe({ kind: 'terminal', terminalId }, (message) => {
                 if (!isActive || !isStreamActive || !webviewValid.current) return;
                 if (message.kind === 'resync-required') {
-                    scheduleResync();
+                    scheduleResync(message.reason);
                     return;
                 }
                 if (message.type !== 'stream') return;

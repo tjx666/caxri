@@ -34,6 +34,10 @@ describe('mobile Android Acceptance cases', () => {
             recordingOwner: 'adapter',
             scenario: 'crypto-vector',
         });
+        expect(mobileAndroidAcceptanceCase('MOB-RENDER-01').scenario).toBe('render-retry');
+        expect(mobileAndroidAcceptanceCase('MOB-STORAGE-01').scenario).toBe(
+            'credential-storage-retry',
+        );
         expect(mobileAndroidAcceptanceCase('MOB-COMPOSER-03')).toEqual({
             desktopProfile: 'managed-by-isolated-e2e',
             media: ['screenshot', 'video'],
@@ -45,6 +49,18 @@ describe('mobile Android Acceptance cases', () => {
             media: ['screenshot'],
             recordingOwner: 'adapter',
             scenario: 'new-session-launch-failure',
+        });
+        expect(mobileAndroidAcceptanceCase('MOB-PROJECT-01')).toEqual({
+            desktopProfile: 'managed-by-isolated-e2e',
+            media: ['screenshot'],
+            recordingOwner: 'scenario',
+            scenario: 'add-nested-project',
+        });
+        expect(mobileAndroidAcceptanceCase('MOB-PANELS-01')).toEqual({
+            desktopProfile: 'managed-by-isolated-e2e',
+            media: ['screenshot'],
+            recordingOwner: 'scenario',
+            scenario: 'browse-panels',
         });
         expect(mobileAndroidAcceptanceCase('MOB-CONV-02')).toEqual({
             desktopProfile: 'managed-by-isolated-e2e',

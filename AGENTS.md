@@ -126,6 +126,11 @@ directories.
   site in the same change. Never leave two coexisting ways of doing the same thing.
 - Reproduce a reported bug before changing code. Demonstrate the failure against the current build
   so the fix targets the verified cause rather than the first plausible suspect.
+- After a patch adds new files alongside edits, verify each new path exists before treating the patch
+  as complete; a reported patch success does not prove every added file was written.
+- If a tool temporarily shows an existing worktree as sparse or missing, verify it from a persistent shell
+  against its absolute path and Git worktree metadata, then back up the diff before any repair. Do not recreate,
+  remove, or reset that worktree based on one tool view.
 - Controlled provider or PTY debugging may deliberately launch one explicitly selected real Agent
   CLI only through the `debug` skill's fail-closed procedure. This does not authorize ordinary E2E,
   CI, or Acceptance to discover or invoke a host provider.

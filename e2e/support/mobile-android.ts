@@ -22,6 +22,7 @@ export interface MobileSemanticNode {
     checkId: string;
     clickable: boolean;
     enabled: boolean;
+    selected: boolean;
 }
 
 export interface MobileNodeObservation {

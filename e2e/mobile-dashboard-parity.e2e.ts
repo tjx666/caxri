@@ -56,8 +56,8 @@ async function showConversation(serial: string): Promise<void> {
     await waitForMobile(
         () => mobileSemantics(serial),
         (nodes) =>
-            nodes.some(({ checkId }) => checkId === 'conversation-placeholder') &&
-            nodes.every(({ checkId }) => checkId !== 'terminal-preview-populated'),
+            nodes.some(({ checkId }) => checkId === 'conversation-fallback-banner') &&
+            nodes.some(({ checkId }) => checkId === 'terminal-live-webview'),
     );
 }
 

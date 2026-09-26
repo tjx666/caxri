@@ -17,7 +17,8 @@ public final class FixtureInsertReceiver extends BroadcastReceiver {
             return;
         }
         try {
-            if (!ime.commitFixture(base64)) {
+            boolean compose = intent.getBooleanExtra("compose", false);
+            if (!ime.commitFixture(base64, compose)) {
                 setResultCode(Activity.RESULT_CANCELED);
                 setResultData("commit-failed");
                 return;
@@ -28,6 +29,6 @@ public final class FixtureInsertReceiver extends BroadcastReceiver {
             return;
         }
         setResultCode(Activity.RESULT_OK);
-        setResultData("committed");
+        setResultData(intent.getBooleanExtra("compose", false) ? "composed" : "committed");
     }
 }

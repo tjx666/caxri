@@ -55,6 +55,7 @@ import type {
     MobileDeviceRegistry,
     MobileDeviceSummary,
 } from '../device-registry';
+import { shouldCancelDelayedPairing } from './acceptance-pairing-delay';
 import { selectMobileGatewayAddresses } from './address-selection';
 import {
     isAllowedMobilePeer,
@@ -529,6 +530,7 @@ export class MobileGateway {
                     }
                     let principal: Principal;
                     if (session.mode === 'pair') {
+                        if (await shouldCancelDelayedPairing(() => isAcceptingMessages)) return;
                         const candidate = session.candidate!;
                         await this.#options.registry.commitPair(candidate);
                         principal = this.#options.registry.currentPrincipal(
@@ -573,6 +575,7 @@ export class MobileGateway {
                         matchesSubscriptionEvent: this.#options.matchesSubscriptionEvent,
                         now: this.#now,
                         randomSubscriptionId: () => Buffer.from(this.#random(16)).toString('hex'),
+                        reportTerminalResync: (reason) => this.#diagnostics.terminalResync(reason),
                         send: (payload) =>
                             new Promise<void>((resolve, reject) => {
                                 if (!isAcceptingMessages || authenticatedSession.revoking) {

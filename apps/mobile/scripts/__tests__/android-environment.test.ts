@@ -29,14 +29,43 @@ describe('parseAndroidBuildRequest', () => {
         expect(parseAndroidBuildRequest(['--', '--build-only', '--variant', 'release'])).toEqual({
             buildOnly: true,
             expoArguments: ['--variant', 'release'],
+            gradleArguments: [],
             gradleTask: 'app:assembleRelease',
         });
+    });
+
+    it('passes only bounded release optimization flags to Gradle', () => {
+        expect(
+            parseAndroidBuildRequest([
+                '--build-only',
+                '--variant',
+                'release',
+                '--abi',
+                'arm64-v8a',
+                '--optimize',
+            ]),
+        ).toEqual({
+            buildOnly: true,
+            expoArguments: ['--variant', 'release'],
+            gradleArguments: [
+                '-PreactNativeArchitectures=arm64-v8a',
+                '-Pandroid.enableMinifyInReleaseBuilds=true',
+                '-Pandroid.enableShrinkResourcesInReleaseBuilds=true',
+            ],
+            gradleTask: 'app:assembleRelease',
+        });
+        expect(() => parseAndroidBuildRequest(['--build-only', '--abi', 'arm32'])).toThrow();
+        expect(() => parseAndroidBuildRequest(['--abi', 'arm64-v8a'])).toThrow();
+        expect(
+            parseAndroidBuildRequest(['--build-only', '--variant', 'release', '--minify'])
+                .gradleArguments,
+        ).toEqual(['-Pandroid.enableMinifyInReleaseBuilds=true']);
     });
 
     it('rejects Expo-only options in build-only mode', () => {
         expect(() =>
             parseAndroidBuildRequest(['--build-only', '--variant', 'release', '--device', 'Pixel']),
-        ).toThrow('Android build-only accepts only --variant');
+        ).toThrow('Android build-only accepts only --variant, --abi, --minify, and --optimize');
     });
 });
 

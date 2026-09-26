@@ -22,6 +22,7 @@ import {
 } from '@caxri/protocol';
 
 import type { TerminalExecutionPort, TerminalObserverEvent } from '../../../domains/terminal';
+import type { MobileTerminalResyncReason } from './diagnostics';
 import { boundedMobileReply, forbiddenMobileReply } from './reply';
 import { MobileGatewaySubscriptions } from './subscriptions';
 
@@ -63,6 +64,7 @@ export interface MobileAppOptions {
     ) => Promise<boolean>;
     now: () => number;
     randomSubscriptionId: () => string;
+    reportTerminalResync?: (reason: MobileTerminalResyncReason) => void;
     send: (payload: MobileServerPayload) => Promise<void>;
     terminate: () => void;
     terminalExecution?: TerminalExecutionPort;
@@ -92,6 +94,7 @@ export class MobileGatewayFrameRouter {
             matches: options.matchesSubscriptionEvent,
             randomId: options.randomSubscriptionId,
             send: options.send,
+            reportTerminalResync: options.reportTerminalResync,
             terminate: options.terminate,
             terminalExecution: options.terminalExecution,
             connectionId,

@@ -185,6 +185,9 @@ describe('Terminal execution output boundaries', () => {
             await expect
                 .poll(() => events.filter((event) => event.type === 'observerGap').length)
                 .toBe(1);
+            expect(events.find((event) => event.type === 'observerGap')).toMatchObject({
+                reason: 'overflow',
+            });
             await expect
                 .poll(() => events.filter((event) => event.type === 'output').length)
                 .toBe(1);
@@ -226,6 +229,7 @@ describe('Terminal execution output boundaries', () => {
                 .toBe(1);
             expect(events.find((event) => event.type === 'observerGap')).toMatchObject({
                 sequence: observed.nextSequence,
+                reason: 'overflow',
             });
         } finally {
             await Promise.all(engine.shutdown().map(({ capture }) => capture));
@@ -256,13 +260,21 @@ describe('Terminal execution output boundaries', () => {
         try {
             await engine.observe('terminal', 'observer-1');
             engine.takeOver('terminal', 'connection:subscription', { cols: 42, rows: 20 }, 12_000);
+            engine.resize('terminal', 100, 30);
             await new Promise((resolve) => setTimeout(resolve, 10));
             expect(gaps()).toBe(0);
             engine.releaseTakeOver('terminal', 'connection:subscription');
             await vi.waitFor(() => expect(gaps()).toBe(1));
+            expect(events.filter((event) => event.type === 'observerGap')).toMatchObject([
+                { reason: 'resize' },
+            ]);
             await engine.observe('terminal', 'observer-2');
             engine.resize('terminal', 60, 18);
             await vi.waitFor(() => expect(gaps()).toBe(2));
+            expect(events.filter((event) => event.type === 'observerGap')).toMatchObject([
+                { reason: 'resize' },
+                { reason: 'resize' },
+            ]);
         } finally {
             await Promise.all(engine.shutdown().map(({ capture }) => capture));
         }

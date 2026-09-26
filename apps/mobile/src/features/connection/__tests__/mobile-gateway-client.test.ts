@@ -21,6 +21,28 @@ import {
 } from './mobile-gateway-fixture';
 
 describe('mobile gateway client', () => {
+    it('closes a pending handshake immediately when its owner cancels', async () => {
+        const socket = new NeverOpenSocket();
+        const cancellation = new AbortController();
+        const runtime: MobileGatewayRuntime = {
+            openWebSocket: () => socket as unknown as WebSocket,
+            platform: 'android',
+            randomBytes: (bytes) => new Uint8Array(bytes).fill(128),
+        };
+        const { store } = memoryStore();
+        const attempt = pairMobileGateway({
+            displayName: 'Pixel fixture',
+            pairingLink,
+            runtime,
+            signal: cancellation.signal,
+            store,
+        });
+        cancellation.abort();
+        await expect(attempt).rejects.toThrow();
+        expect(socket.isClosed).toBe(true);
+        await expect(store.load()).resolves.toBeNull();
+    });
+
     it('stops waiting for a socket to open after four seconds', async () => {
         const socket = new NeverOpenSocket();
         const runtime: MobileGatewayRuntime = {
