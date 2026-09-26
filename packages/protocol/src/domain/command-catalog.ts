@@ -330,6 +330,13 @@ export const commandDefinitions: CommandDefinition[] = [
         keywords: ['mention', 'at', 'line', 'path', 'agent'],
     },
     {
+        id: 'editor.addReviewComment',
+        title: 'Add Review Comment',
+        category: 'Editor',
+        description: 'Annotate the selected lines in a Git diff',
+        keywords: ['diff', 'comment', 'review', 'agent'],
+    },
+    {
         id: 'editor.openPreview',
         title: 'Open Preview',
         category: 'Editor',

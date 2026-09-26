@@ -206,6 +206,10 @@ export const commandDefinitions: CommandDefinition[] = [
             when: (context) => context.editor.canSendReferenceToTerminal(),
         },
     ),
+    fromCatalog('editor.addReviewComment', (context) => context.editor.addReviewComment(), {
+        allowInEditable: true,
+        when: (context) => context.editor.canAddReviewComment(),
+    }),
     /**
      * `allowInEditable` so the chord fires while Monaco owns focus — opening the preview of the file you are editing is
      * the entire point, and the source editor is where the caret almost always is.

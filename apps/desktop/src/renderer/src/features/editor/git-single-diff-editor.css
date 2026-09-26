@@ -16,3 +16,79 @@
     content: '−';
     color: var(--danger);
 }
+
+.git-review-add-glyph::before {
+    content: '+';
+    display: grid;
+    place-items: center;
+    width: 15px;
+    height: 15px;
+    margin-left: 2px;
+    border-radius: 4px;
+    color: white;
+    background: var(--accent);
+    cursor: pointer;
+}
+
+.git-review-zone {
+    padding: 4px 16px 4px 40px;
+    box-sizing: border-box;
+}
+
+/** Monaco's text layer can cover view-zone controls when several cards are visible. */
+.monaco-editor .view-zones:has(.git-review-zone) {
+    z-index: 20;
+}
+
+.git-review-card {
+    height: 120px;
+    padding: 7px 10px;
+    box-sizing: border-box;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--foreground);
+    background: var(--surface);
+    font:
+        12px/1.4 system-ui,
+        sans-serif;
+}
+
+.git-review-card-heading,
+.git-review-card-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+
+.git-review-card p {
+    margin: 8px 0;
+    white-space: pre-wrap;
+    overflow: auto;
+    max-height: 40px;
+}
+.git-review-card textarea {
+    display: block;
+    width: 100%;
+    height: 54px;
+    resize: none;
+    margin: 4px 0;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--background);
+    color: var(--foreground);
+}
+.git-review-card button {
+    border: 0;
+    background: transparent;
+    color: var(--accent);
+    cursor: pointer;
+}
+.git-review-status {
+    text-transform: capitalize;
+    color: var(--muted);
+}
+.git-review-status-outdated {
+    color: var(--danger);
+}

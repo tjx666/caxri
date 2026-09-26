@@ -35,6 +35,7 @@ import {
 import { DocumentTabPathMenu } from '../editor/document-tab-path-menu';
 import { documentTabPresentation } from '../editor/document-tab-presentation';
 import { EditorTabActions } from '../editor/editor-tab-actions';
+import { GitReviewTabBadge } from '../editor/git-review-tab-badge';
 import { previewSourcePath } from '../preview/preview-commands';
 import { moveTerminalToNewSession } from '../session/session-commands';
 import { WorkTab } from '../tabs/work-tab';
@@ -196,9 +197,7 @@ function DocumentPaneTab({
 }: PaneTabProperties & { path: string }) {
     const session = usePaneViewSession();
     /**
-     * Read reactively (not through the imperative `getPaneLayout` other actions use): an on-demand store read inside
-     * the `contextMenu` JSX tree does not reliably reflect the latest layout once other tabs open or close around it,
-     * leaving "Close to the Right" etc. stuck at a stale disabled state.
+     * Keep context-menu close actions in sync when other tabs open or close.
      */
     const paneLayout = useSessionState(usePaneViewSessionId())?.paneLayout;
     const transcriptTab = parseAgentTranscriptTab(path);
@@ -233,6 +232,7 @@ function DocumentPaneTab({
     return (
         <WorkTab
             active={active}
+            accessory={<GitReviewTabBadge sessionId={session?.id} tabPath={path} />}
             fill={false}
             closable={closable}
             closeLabel="Close Editor"

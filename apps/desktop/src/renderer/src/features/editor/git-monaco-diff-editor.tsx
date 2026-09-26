@@ -1,6 +1,7 @@
 import { useEffectEvent, useLayoutEffect, useMemo, useReducer, useRef } from 'react';
 
 import type { DiffEditorProps, MonacoDiffEditor } from '@monaco-editor/react';
+import type * as MonacoModule from 'monaco-editor';
 
 import { cn } from '@/lib/utilities';
 
@@ -18,7 +19,8 @@ import { useGitDiffViewStore } from './git-diff-view-store';
 
 const DIFF_RETRY_LABEL = 'Comparing these two versions again…';
 
-type GitDiffEditorProperties = DiffEditorProps & {
+type GitDiffEditorProperties = Omit<DiffEditorProps, 'onMount'> & {
+    onMount?: (editor: MonacoDiffEditor, monaco: typeof MonacoModule) => void | (() => void);
     originalModelPath: string;
     modifiedModelPath: string;
     stacked: boolean;
@@ -92,8 +94,9 @@ function GitDiffEditorSurface(
             }),
             onOutcome: (outcome) => properties.onOutcome(outcome),
         });
-        properties.onMount?.(instance, monaco);
+        const unmount = properties.onMount?.(instance, monaco);
         return () => {
+            unmount?.();
             editor.current = null;
             cancelStallWatch();
             disposeGitDiffModels(instance, viewModel, models);

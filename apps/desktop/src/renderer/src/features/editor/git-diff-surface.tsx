@@ -17,6 +17,8 @@ import { monacoDiffEditorActions, registerDiffEditorActions } from './git-diff-a
 import { observeGitEditorContentHeight } from './git-diff-model-lifecycle';
 import { GitMonacoDiffEditor } from './git-monaco-diff-editor';
 import { initialStackedEditorHeight, maxStackedEditorHeight } from './git-multi-diff-viewport';
+import { bindGitReviewCommentEditor } from './git-review-comment-binding';
+import { useGitReviewComments } from './git-review-comments';
 import { GitSingleDiffEditor } from './git-single-diff-editor';
 
 /**
@@ -31,6 +33,7 @@ export function GitDiffSurface({
     repositoryId,
     sessionId,
     source,
+    sourceKey,
     stacked = false,
 }: {
     /**
@@ -45,6 +48,7 @@ export function GitDiffSurface({
     repositoryId: string;
     sessionId: string;
     source: GitDiffTab['source'];
+    sourceKey: string;
     /**
      * Multi-file changes mode: the editor sizes itself to its diff content (collapsing unchanged regions, VS Code
      * multi-diff style) instead of filling the parent, so the outer list owns scrolling and the wheel is never captured
@@ -56,6 +60,26 @@ export function GitDiffSurface({
     const editorReference = useRef<DiffEditorActions | null>(null);
     const diffEditorRegistrationReference = useRef<(() => void) | undefined>(undefined);
     const editorOptions = useEditorOptions();
+    useEffect(() => {
+        if (document.format !== 'contents') return;
+        const review = useGitReviewComments.getState();
+        review.refresh(
+            sessionId,
+            repositoryId,
+            sourceKey,
+            document.path,
+            'modified',
+            document.modified,
+        );
+        review.refresh(
+            sessionId,
+            repositoryId,
+            sourceKey,
+            document.originalPath ?? document.path,
+            'original',
+            document.original,
+        );
+    }, [document, sessionId, repositoryId, sourceKey]);
     const contentSizeListeners = useRef<Array<{ dispose(): void }>>([]);
     useEffect(() => {
         if (theme) applyEditorTheme(theme);
@@ -132,6 +156,8 @@ export function GitDiffSurface({
                 onContentHeightChange={stacked ? onContentHeightChange : undefined}
                 originalLanguage={originalLanguage}
                 sessionId={sessionId}
+                repositoryId={repositoryId}
+                sourceKey={sourceKey}
             />,
         );
     }
@@ -152,6 +178,7 @@ export function GitDiffSurface({
                 }}
                 options={{
                     ...editorOptions,
+                    glyphMargin: true,
                     readOnly: true,
                     wordWrap: 'off',
                     ...(stacked && { scrollbar: { alwaysConsumeMouseWheel: false } }),
@@ -182,19 +209,38 @@ export function GitDiffSurface({
                     navigationKey && editorInstanceId
                         ? registerDiffEditorActions(navigationKey, editorInstanceId, actions)
                         : undefined;
-                if (!stacked) return;
                 const original = editor.getOriginalEditor();
                 const modified = editor.getModifiedEditor();
-                contentSizeListeners.current.push(
-                    ...observeGitEditorContentHeight(
-                        [original, modified],
-                        modified,
-                        onContentHeightChange,
-                    ),
-                );
+                const unbindOriginal = bindGitReviewCommentEditor(original, {
+                    sessionId,
+                    repositoryId,
+                    sourceKey,
+                    path: document.originalPath ?? document.path,
+                    side: 'original',
+                });
+                const unbindModified = bindGitReviewCommentEditor(modified, {
+                    sessionId,
+                    repositoryId,
+                    sourceKey,
+                    path: document.path,
+                    side: 'modified',
+                });
+                const heightListeners = stacked
+                    ? observeGitEditorContentHeight(
+                          [original, modified],
+                          modified,
+                          onContentHeightChange,
+                      )
+                    : [];
+                return () => {
+                    unbindOriginal();
+                    unbindModified();
+                    for (const listener of heightListeners) listener.dispose();
+                };
             }}
             options={{
                 ...editorOptions,
+                glyphMargin: true,
                 originalEditable: false,
                 readOnly: true,
                 wordWrap: 'off',

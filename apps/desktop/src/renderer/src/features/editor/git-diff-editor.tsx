@@ -31,6 +31,7 @@ import {
     maxStackedEditorHeight,
     useNearMultiDiffViewport,
 } from './git-multi-diff-viewport';
+import { GitReviewSend } from './git-review-send';
 
 const emptyWorkClassName =
     'empty-work flex h-full flex-col items-center justify-center gap-3 text-muted';
@@ -130,6 +131,7 @@ function FileDiffResult({
                     repositoryId={tab.repositoryId}
                     sessionId={sessionId}
                     source={tab.source}
+                    sourceKey={tab.source === 'commit' ? `commit:${tab.sha}` : tab.source}
                 />
             </div>
         </div>
@@ -329,6 +331,7 @@ function GitChangesDiffResult({
             repositoryId={repositoryId}
             sessionId={sessionId}
             source={source}
+            sourceKey={source}
             onContentHeightChange={onContentHeightChange}
         />
     );
@@ -643,21 +646,33 @@ export function GitDiffEditor({
     tab: GitDiffTab;
     tabPath: string;
 }) {
-    if (tab.kind === 'commit-file')
-        return <CommitFileDiffEditor editorInstanceId={paneId} navigationKey={tabPath} tab={tab} />;
-    if (tab.kind === 'file')
-        return tab.source === 'pull-request' ? (
-            <PullRequestFileDiffEditor
-                editorInstanceId={paneId}
-                navigationKey={tabPath}
-                tab={tab}
-            />
+    const sessionId = usePaneViewSessionId();
+    const content =
+        tab.kind === 'commit-file' ? (
+            <CommitFileDiffEditor editorInstanceId={paneId} navigationKey={tabPath} tab={tab} />
+        ) : tab.kind === 'file' ? (
+            tab.source === 'pull-request' ? (
+                <PullRequestFileDiffEditor
+                    editorInstanceId={paneId}
+                    navigationKey={tabPath}
+                    tab={tab}
+                />
+            ) : (
+                <WorkingFileDiffEditor
+                    editorInstanceId={paneId}
+                    navigationKey={tabPath}
+                    tab={tab}
+                />
+            )
+        ) : tab.source === 'pull-request' ? (
+            <PullRequestChangesDiffEditor tab={tab} tabPath={tabPath} />
         ) : (
-            <WorkingFileDiffEditor editorInstanceId={paneId} navigationKey={tabPath} tab={tab} />
+            <WorkingChangesDiffEditor tab={tab} tabPath={tabPath} />
         );
-    return tab.source === 'pull-request' ? (
-        <PullRequestChangesDiffEditor tab={tab} tabPath={tabPath} />
-    ) : (
-        <WorkingChangesDiffEditor tab={tab} tabPath={tabPath} />
+    return (
+        <div className="relative h-full w-full">
+            {content}
+            {sessionId && <GitReviewSend sessionId={sessionId} repositoryId={tab.repositoryId} />}
+        </div>
     );
 }
