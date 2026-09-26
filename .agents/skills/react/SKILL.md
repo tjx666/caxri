@@ -51,8 +51,8 @@ implementation. This codebase has already paid for per-feature copies of the sam
 and time formatter drifting apart; do not add another.
 
 - A generic pure function comes from `es-toolkit` first. When it lacks one, a browser-safe,
-  dependency-free pure function goes to `@caxri/utils` (`packages/utils`) with a colocated
-  `*.test.ts` (e.g. `relativeTime`, `formatBytes` live there today).
+  dependency-free pure function goes to `@caxri/utils` (`packages/utils`) with a test under
+  `packages/utils/src/__tests__/` (e.g. `relativeTime`, `formatBytes` live there today).
 - A pure helper coupled to Renderer concerns (React, DOM, Tailwind class merging, Monaco) that two
   or more features need → `apps/desktop/src/renderer/src/lib/`, with a colocated `*.test.ts`.
 - A hook needed by two or more features → `apps/desktop/src/renderer/src/hooks/` (`@/hooks` is the

@@ -7,7 +7,7 @@ recipes live in `.agents/skills/` — load the owning skill instead of restating
 
 | Path          | Purpose                                                                                         |
 | ------------- | ----------------------------------------------------------------------------------------------- |
-| `apps/`       | Independently runnable Desktop, Server, and CLI workspaces                                      |
+| `apps/`       | Independently runnable Desktop, Server, CLI, and Mobile workspaces                              |
 | `packages/`   | Importable Client, protocol, Extension API, Agent skills, system primitives, and pure utilities |
 | `extensions/` | Bundled native ESM extensions and their packaging inputs                                        |
 | `e2e/`        | Playwright Electron workflows and shared desktop fixtures                                       |

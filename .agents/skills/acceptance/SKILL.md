@@ -53,10 +53,10 @@ Inside Go the plan stage is already owned by `acceptance_plan_tester`, so do not
 tester is the plan gate, and the acceptance-checker runs only the final evidence stage before the
 first round is published. Standalone Acceptance runs both stages with the acceptance-checker.
 
-## HARD RULE — programmatic gates are NEVER acceptance checks
+## Programmatic gates are not acceptance checks
 
-Every check MUST be an outcome a **person decides about the delivery**: what the
-user sees, hears, reads, or receives. These MUST NOT appear as a check, under any
+Every check is an outcome a **person decides about the delivery**: what the
+user sees, hears, reads, or receives. These never appear as a check, under any
 phrasing: unit / integration / regression / snapshot tests, coverage,
 `type-check` / `tsc`, lint / `eslint`, format, "compiles", "build passes",
 "CI is green". Run them, then report them as **one line of narrative**.
@@ -139,7 +139,7 @@ _would the user click accept/reject on this?_
    Simplified Chinese. The scaffold freezes it in the acceptance root so every later round must
    reuse the exact same requirement.
 4. Author `plan[]` before testing. Give each check a stable id tied to the owning GitHub issue and
-   declare its `surface` (`desktop` or `mobile`), expected behavior, required evidence, and
+   declare its `surface` (`desktop`, `cli`, or `mobile`), expected behavior, required evidence, and
    `stateIsolation`. The scaffold defaults omitted surfaces to `desktop` and every case to
    `isolated`; use `readonly_checkpoint` only for an explicitly immutable checkpoint,
    and use `restart` only with one named profile whose final launch owns cleanup. Write all

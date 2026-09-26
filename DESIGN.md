@@ -161,7 +161,7 @@ floor on both dark and light presets.
 `--muted` is secondary text, not a syntax comment color. It must clear WCAG AA (4.5:1) against
 `--background`, `--surface`, and `--elevated` alike, and a theme is not free to borrow its
 palette's comment color for it. The built-in palette is asserted against that floor in
-`runtime/__tests__/theme.test.ts`, which also pins `styles/theme.css` to the same values so the
+`domains/__tests__/theme.test.ts`, which also pins `styles/theme.css` to the same values so the
 pre-Runtime first frame cannot drift. Imported themes are held to the same floor as a requirement:
 app-color imports (full Caxri JSON and VS Code themes) are rejected before activation when
 `--muted` misses the floor on any chrome surface, while terminal-only imports preserve the active
@@ -842,8 +842,7 @@ scan would otherwise pay for context the user reads one file at a time. A name r
 center on and shows the head of the file, which is what tells a reader which of nine `index.ts` they
 found. Focus never leaves the field: `↑`/`↓` move the selection and hold at both ends rather than
 wrapping, `Enter` opens, `Command+Enter` opens to the side, and a pointer selects with one click and
-opens with two. The single click deliberately no longer opens a preview tab the way the sidebar's
-did — the pane beside the results already is that preview, and a tab opening behind a modal is a
+opens with two. A single click selects without opening a preview tab — the pane beside the results already is that preview, and a tab opening behind a modal is a
 change the user cannot see. Opening a result dismisses the overlay, and a fresh open starts empty.
 
 **Session switcher** — the hold-to-cycle MRU overlay (`Recently used Sessions`) is a modal moment

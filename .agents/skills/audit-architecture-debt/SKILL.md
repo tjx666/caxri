@@ -75,8 +75,9 @@ Read `AGENTS.md`, `DESIGN.md`, the relevant architecture references, the owning 
 tests. Use `git ls-files`, `rg --files`, and a shallow directory map to inventory the repository
 before drawing conclusions.
 
-When the user asks for historical context, inspect the project records under
-`~/.claude/projects/-Users-tj-code-caxri/` and `~/.grok/sessions/%2FUsers%2Ftj%2Fcode%2Fcaxri/`.
+When the user asks for historical context, inspect this checkout's local agent records: Claude Code
+under `~/.claude/projects/<checkout path with / replaced by ->/` and Grok Build under
+`~/.grok/sessions/<URL-encoded checkout path>/`.
 Include detached or temporary review sessions only when their prompt or metadata identifies Caxri.
 Extract prompts and final results selectively; do not load whole transcripts. Recheck every
 historical claim against the current tree.
