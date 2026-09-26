@@ -235,6 +235,26 @@ export const tapMobileCheck = (
         ...(options.isLongPress ? ['--long-press'] : []),
     ]);
 
+export async function tapMobileAttentionCheck(serial: string, checkId: string): Promise<void> {
+    const nodes = await mobileSemantics(serial);
+    const target = nodes.find((node) => node.checkId === checkId);
+    const bounds = target && androidBounds(target.bounds);
+    if (!bounds || !target.enabled) {
+        const visible = nodes
+            .filter((node) => node.checkId.startsWith('attention-'))
+            .map((node) => node.checkId);
+        throw new Error(
+            `Attention control ${checkId} is unavailable; visible: ${visible.join(',')}`,
+        );
+    }
+    await adbShell(serial, [
+        'input',
+        'tap',
+        String(Math.floor((bounds.left + bounds.right) / 2)),
+        String(Math.floor((bounds.top + bounds.bottom) / 2)),
+    ]);
+}
+
 export async function waitForMobile<T>(
     read: () => T | Promise<T>,
     isAccepted: (value: T) => boolean,
