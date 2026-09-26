@@ -84,4 +84,39 @@ describe('Status tab badge', () => {
         const healthy = summary([repo_()]);
         expect(statusBadge(healthy)).toBeUndefined();
     });
+
+    it('raises a count badge for unresolved review threads and folds them into a failure badge', () => {
+        const pullRequest = {
+            number: 1,
+            title: 'Feature',
+            url: 'https://github.com/example/repo/pull/1',
+            state: 'success' as const,
+            hiddenCheckCount: 0,
+            checks: [],
+            unresolvedReviewThreads: [
+                {
+                    url: 'https://github.com/example/repo/pull/1#discussion_r1',
+                    body: 'Rename this',
+                },
+                { url: 'https://github.com/example/repo/pull/1#discussion_r2', body: 'Add a test' },
+            ],
+        };
+        const threadsOnly = summary([repo_({ pullRequest })]);
+        expect(statusBadge(threadsOnly)).toEqual({
+            kind: 'count',
+            count: 2,
+            description: '2 unresolved comments',
+        });
+        const failing = repo_({
+            pullRequest: {
+                ...pullRequest,
+                state: 'failure',
+                checks: [{ name: 'Build', state: 'failure' }],
+            },
+        });
+        expect(statusBadge(summary([failing]))).toEqual({
+            kind: 'error',
+            description: '1 failed check, 2 unresolved comments',
+        });
+    });
 });

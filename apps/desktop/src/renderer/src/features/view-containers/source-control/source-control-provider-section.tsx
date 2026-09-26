@@ -11,6 +11,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { DisclosureMotion } from '../../../components/disclosure-motion';
 import { Button } from '../../../components/ui/button';
 import { Empty } from '../../../components/ui/empty';
+import { Spinner } from '../../../components/ui/spinner';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { openExternalUrl } from '../../../lib/external-link';
 import { cn } from '../../../lib/utilities';
@@ -409,7 +410,14 @@ export function SourceControlProviderSection({
                                                 )}
                                                 {group.resources.length === 0 && (
                                                     <Empty className="empty-panel gap-0 p-0 px-3 py-4 text-muted">
-                                                        {group.emptyMessage}
+                                                        {group.isLoading ? (
+                                                            <span className="inline-flex items-center gap-1.5">
+                                                                <Spinner size={12} />
+                                                                {group.emptyMessage}
+                                                            </span>
+                                                        ) : (
+                                                            group.emptyMessage
+                                                        )}
                                                     </Empty>
                                                 )}
                                                 {group.resources.length > 0 && (

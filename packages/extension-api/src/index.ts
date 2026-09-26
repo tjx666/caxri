@@ -277,6 +277,21 @@ export interface ProjectStatusCheck {
     completedAt?: number;
 }
 
+export interface ProjectStatusReviewThread {
+    /**
+     * Opens the thread's first comment on GitHub.
+     */
+    url: string;
+    body: string;
+    author?: string;
+    /**
+     * Epoch milliseconds of the opening comment.
+     */
+    createdAt?: number;
+    path?: string;
+    line?: number;
+}
+
 export interface ProjectStatusLinearIssue {
     identifier: string;
     title?: string;
@@ -437,6 +452,10 @@ export interface ProjectStatusRepository {
          * PR lifecycle, independent of the CI rollup; absent if the provider omits it.
          */
         lifecycle?: 'draft' | 'open' | 'merged' | 'closed';
+        /**
+         * Unresolved, non-outdated review threads; absent when they were not read.
+         */
+        unresolvedReviewThreads?: ProjectStatusReviewThread[];
     };
     linearIssues: ProjectStatusLinearIssue[];
     acceptances: ProjectStatusAcceptance[];
