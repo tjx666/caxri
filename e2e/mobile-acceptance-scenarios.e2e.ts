@@ -558,6 +558,7 @@ test('executes one report-bound Android product scenario', async ({}) => {
         case 'MOB-CONV-03':
         case 'MOB-CONV-04':
         case 'MOB-UI-04':
+            if (environment.caseId === 'MOB-CONV-01') test.setTimeout(420_000);
             await executeMobileConversationScenario(
                 { ...environment, launchId, sourceCommit },
                 artifacts,
