@@ -29,8 +29,13 @@ interface ScenarioEnvironment {
     artifactManifestPath: string;
     assetsDirectory: string;
     caseId: string;
+    /**
+     * Binds a Terminal fixture preflight receipt to the frozen report commit and final launch.
+     */
+    launchId?: string;
     scenarioReceiptPath: string;
     serial: string;
+    sourceCommit?: string;
 }
 
 const remoteVideoPath = process.env.CAXRI_MOBILE_ACCEPTANCE_REMOTE_VIDEO_PATH;
@@ -265,6 +270,9 @@ async function preflightSyntheticShell(
             rows: state.marker.rows,
         },
         environment.caseId,
+        environment.launchId && environment.sourceCommit
+            ? { launchId: environment.launchId, sourceCommit: environment.sourceCommit }
+            : undefined,
     );
     if (receipt.result.status !== 'ready')
         throw new Error('Synthetic Shell formal fixture preflight was blocked');
