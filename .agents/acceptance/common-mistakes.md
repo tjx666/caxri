@@ -62,6 +62,11 @@ show one enabled clickable square tile, tap its verified bounds, and confirm Cax
 state afterwards. Parse native accessibility XML only in memory and remove the temporary device dump
 without uploading or logging it.
 
+The public-frame Agent fixture intentionally ignores bracketed paste as a command, so a mobile
+image send does not create a `terminalInput` receipt. Require its sanitized
+`imageAttachmentReceived` receipt instead; it records only whether the referenced JPEG path is
+valid and exists, never the path or message.
+
 ## Using arbitrary option labels as Android check IDs
 
 **Situation:** A mobile Agent question renders clickable choices, but the sanitized Android semantic receipt

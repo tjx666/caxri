@@ -281,8 +281,20 @@ export async function executeMobileImageAttachmentScenario(
         await setMobileComposerUnicode(environment.serial, 'Review image');
         await tapMobileCheck(environment.serial, 'session-composer-send');
         await waitForMobile(
+            () =>
+                observeMobileNode(environment.serial, 'session-composer-feedback', {
+                    kind: 'includes',
+                    value: 'Delivered to the Terminal',
+                }),
+            ({ exists, textMatches }) => exists && textMatches === true,
+        );
+        await waitForMobile(
             () => fixture.attention!.readReceipt(),
-            (receipts) => receipts.some(({ kind }) => kind === 'terminalInput'),
+            (receipts) =>
+                receipts.some(
+                    ({ exists, kind, pathValid }) =>
+                        kind === 'imageAttachmentReceived' && exists && pathValid,
+                ),
         );
         await finish(environment, artifacts, {
             imageStored: uploaded.length === 1,

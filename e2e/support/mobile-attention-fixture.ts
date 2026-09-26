@@ -11,7 +11,9 @@ export type AttentionCommand = 'fixture:permission' | 'fixture:question' | 'fixt
 export interface AttentionReceipt {
     attentionKind?: string;
     applied?: boolean;
+    exists?: boolean;
     kind: string;
+    pathValid?: boolean;
 }
 
 export async function prepareMobileAttentionAgent(userDataDirectory: string) {
