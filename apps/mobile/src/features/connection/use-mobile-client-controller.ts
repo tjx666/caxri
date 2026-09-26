@@ -38,7 +38,7 @@ export interface MobileClientContextValue {
     forgetDevice: () => Promise<void>;
     hostId: string | null;
     isForeground: boolean;
-    lastSeenAt: number | null;
+    getLastSeenAt: () => number | null;
     pair: (pairingLink: string) => Promise<void>;
     paired: boolean;
     request: <M extends CaxriMethod>(
@@ -78,7 +78,12 @@ export const acquireMobileSubscription = async ({
 export const useMobileClientController = (): MobileClientContextValue => {
     const [credential, setCredential] = useState<MobileCredential | null>(null);
     const [connectionEpoch, setConnectionEpoch] = useState(0);
-    const [lastSeenAt, setLastSeenAt] = useState<number | null>(null);
+    // Authenticated output can arrive every frame; only the freshness clock samples this value.
+    const lastSeenAt = useRef<number | null>(null);
+    const getLastSeenAt = useCallback(() => lastSeenAt.current, []);
+    const setLastSeenAt = useCallback((value: number | null): void => {
+        lastSeenAt.current = value;
+    }, []);
     const [retryAttempt, setRetryAttempt] = useState(0);
     const [retryToken, setRetryToken] = useState(0);
     const [status, setStatus] = useState<MobileConnectionStatus>('booting');
@@ -135,7 +140,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
                     if (activeProbe.current === current) activeProbe.current = null;
                 });
         },
-        [replaceConnection],
+        [replaceConnection, setLastSeenAt],
     );
 
     const adoptConnection = useCallback(
@@ -159,7 +164,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
             if (!observation.didTerminate) setConnectionEpoch((epoch) => epoch + 1);
             return !observation.didTerminate;
         },
-        [replaceConnection],
+        [replaceConnection, setLastSeenAt],
     );
 
     useEffect(() => {
@@ -198,7 +203,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
             setRetryAttempt(0);
             setStatus('connected');
         },
-        [adoptConnection],
+        [adoptConnection, setLastSeenAt],
     );
     const rejectReconnection = useCallback((error: unknown): void => {
         if (error instanceof MobileVersionMismatchError) {
@@ -326,7 +331,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
                 throw error;
             }
         },
-        [adoptConnection, credential, replaceConnection],
+        [adoptConnection, credential, replaceConnection, setLastSeenAt],
     );
 
     const forgetDevice = useCallback(async (): Promise<void> => {
@@ -336,7 +341,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
         setLastSeenAt(null);
         setRetryAttempt(0);
         setStatus('unpaired');
-    }, [replaceConnection]);
+    }, [replaceConnection, setLastSeenAt]);
 
     const retryConnection = useCallback((): void => {
         if (!credential || status === 'version-mismatch') return;
@@ -407,7 +412,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
                 }
             }
         },
-        [isForeground, probeCurrentConnection, replaceConnection],
+        [isForeground, probeCurrentConnection, replaceConnection, setLastSeenAt],
     );
 
     const value = useMemo<MobileClientContextValue>(
@@ -419,7 +424,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
             forgetDevice,
             hostId: credential?.serverId ?? null,
             isForeground,
-            lastSeenAt,
+            getLastSeenAt,
             pair,
             paired: credential !== null,
             request,
@@ -433,7 +438,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
             credential,
             forgetDevice,
             isForeground,
-            lastSeenAt,
+            getLastSeenAt,
             pair,
             request,
             retryConnection,

@@ -107,6 +107,13 @@ export const useLiveTerminal = ({
     const [currentGeneration, setCurrentGeneration] = useState<number | null>(null);
     const [hasSubscription, setHasSubscription] = useState(false);
 
+    const onWebviewTerminated = useCallback((): void => {
+        setWebviewReady(false);
+        setState('loading');
+        size.current = null;
+        setHasSize(false);
+    }, []);
+
     useLayoutEffect(() => {
         context.current = { isConnected, role, visible, subscriptionAvailable };
     }, [isConnected, role, subscriptionAvailable, visible]);
@@ -233,6 +240,9 @@ export const useLiveTerminal = ({
             isActive = false;
             isStreamActive = false;
             assembly.invalidate();
+            if (outboundFrame.current !== null) cancelAnimationFrame(outboundFrame.current);
+            outboundFrame.current = null;
+            outbound.clear();
             lifetime.current += 1;
             clearTimeout(retryTimer);
             generation.current = null;
@@ -406,6 +416,8 @@ export const useLiveTerminal = ({
         switch (message.type) {
             case 'ready': {
                 setWebviewReady(true);
+                // Each document needs its own snapshot, even if a previous document was already ready.
+                setRetry((current) => current + 1);
                 break;
             }
             case 'scroll': {
@@ -466,6 +478,7 @@ export const useLiveTerminal = ({
         hasSize,
         jump: () => sendWebview({ type: 'jump' }),
         onWebviewMessage,
+        onWebviewTerminated,
         paste,
         pressKey,
         release,
