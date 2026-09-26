@@ -2,12 +2,13 @@ import { useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import type { MethodResult } from '@caxri/protocol';
-import { ChevronDown, ChevronRight, Dot } from 'lucide-react-native';
+import { ChevronDown, ChevronRight } from 'lucide-react-native';
 
 import type { MobileTheme } from '../../theme/tokens';
 import { MobileGatewayRequestError } from '../connection/mobile-gateway-client';
 import { PanelStatus, PendingPanelStatus } from './panel-status';
 import { panelsStyles as styles } from './panels-styles';
+import { TreeItemIcon } from './tree-item-icon';
 import { useTreeChildren } from './use-panels';
 
 type TreeItem = MethodResult<'mobile.tree.children'>['items'][number];
@@ -93,7 +94,7 @@ const TreeRow = ({
 }) => {
     const [isExpanded, setExpanded] = useState(item.collapsibleState === 'expanded');
     const isCollapsible = item.collapsibleState !== 'none';
-    const Glyph = !isCollapsible ? Dot : isExpanded ? ChevronDown : ChevronRight;
+    const Chevron = isExpanded ? ChevronDown : ChevronRight;
     return (
         <View>
             <Pressable
@@ -106,11 +107,14 @@ const TreeRow = ({
                     styles.row,
                     {
                         backgroundColor: pressed ? theme.surface : 'transparent',
-                        paddingLeft: 12 + depth * INDENT,
+                        paddingLeft: 8 + depth * INDENT,
                     },
                 ]}
             >
-                <Glyph color={theme.muted} size={16} />
+                <View style={styles.treeChevron}>
+                    {isCollapsible ? <Chevron color={theme.muted} size={16} /> : null}
+                </View>
+                {item.icon ? <TreeItemIcon icon={item.icon} theme={theme} /> : null}
                 <Text numberOfLines={1} style={[styles.rowText, { color: theme.text }]}>
                     {item.label}
                 </Text>

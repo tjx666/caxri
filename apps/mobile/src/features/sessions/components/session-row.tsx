@@ -27,6 +27,7 @@ const styles = StyleSheet.create({
 
 export const SessionRow = ({
     now,
+    onLongPress,
     onPress,
     selected,
     session,
@@ -34,6 +35,10 @@ export const SessionRow = ({
     theme,
 }: {
     now: number;
+    /**
+     * Present only for a control device, which may rename and archive Sessions.
+     */
+    onLongPress?: (session: MobileSessionItem) => void;
     onPress: (sessionId: string) => void;
     selected: boolean;
     session: MobileSessionItem;
@@ -49,8 +54,14 @@ export const SessionRow = ({
         <Pressable
             accessibilityHint="Opens this Session."
             accessibilityLabel={`${session.displayTitle}, ${sessionAgentLabel(session)}, ${session.stateLabel}`}
+            accessibilityActions={
+                onLongPress ? [{ name: 'longpress', label: 'Session actions' }] : undefined
+            }
             accessibilityRole="button"
             accessibilityState={{ selected }}
+            delayLongPress={350}
+            onAccessibilityAction={onLongPress ? () => onLongPress(session) : undefined}
+            onLongPress={onLongPress ? () => onLongPress(session) : undefined}
             onPress={handlePress}
             style={({ pressed }) => [
                 styles.row,

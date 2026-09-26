@@ -6,7 +6,6 @@ import type {
     AgentEndpointRef,
     CommandAdapter,
     CommandExecutionContext,
-    MobileDeviceRole,
     MobilePanelViewKind,
     Principal,
     ServerEvent,
@@ -27,62 +26,12 @@ import { buildMobileDashboard } from './dashboard';
 import { MobileDeviceRegistry } from './device-registry';
 import { MobileGateway } from './gateway';
 import { adoptCurrentPairedPrincipal } from './gateway/principal-grant';
-
-const mobileReadOnlyPanelMethods = [
-    'mobile.panels.list',
-    'mobile.tree.children',
-    'mobile.files.list',
-    'mobile.files.read',
-] as const;
-
-const mobileGatewayMethodsByRole = {
-    view: [
-        'mobile.dashboard',
-        'mobile.session.show',
-        'mobile.timeline.read',
-        'mobile.changes.list',
-        'mobile.changes.diff',
-        'mobile.agent.availability',
-        'terminal.preview',
-        ...mobileReadOnlyPanelMethods,
-    ],
-    reply: [
-        'mobile.dashboard',
-        'mobile.session.show',
-        'mobile.timeline.read',
-        'mobile.changes.list',
-        'mobile.changes.diff',
-        'mobile.agent.availability',
-        'terminal.preview',
-        'session.markRead',
-        'mobile.agent.submit',
-        ...mobileReadOnlyPanelMethods,
-    ],
-    control: [
-        'mobile.dashboard',
-        'mobile.session.show',
-        'mobile.timeline.read',
-        'mobile.changes.list',
-        'mobile.changes.diff',
-        'mobile.agent.availability',
-        'terminal.preview',
-        'session.markRead',
-        'mobile.agent.submit',
-        'agent.control.interrupt',
-        'mobile.session.create',
-        'mobile.terminal.takeOver',
-        'mobile.terminal.release',
-        'mobile.terminal.input',
-        'mobile.project.browse',
-        'mobile.project.add',
-        ...mobileReadOnlyPanelMethods,
-    ],
-} as const satisfies Record<MobileDeviceRole, readonly string[]>;
-
-export const isMobileGatewayMethodAllowedForRole = (
-    role: MobileDeviceRole,
-    method: string,
-): boolean => (mobileGatewayMethodsByRole[role] as readonly string[]).includes(method);
+import { isMobileGatewayMethodAllowedForRole } from './role-methods';
+import {
+    applyMobileSessionManagement,
+    readMobileArchivedSessions,
+    sessionForPrincipal,
+} from './session-management';
 
 export function resolveMobileAgentEndpoint(
     registry: AgentEndpointRegistry,
@@ -117,6 +66,10 @@ type MobileControlRequest = Extract<
             | 'mobile.agent.availability'
             | 'mobile.agent.submit'
             | 'mobile.session.create'
+            | 'mobile.session.rename'
+            | 'mobile.session.archive'
+            | 'mobile.session.restore'
+            | 'mobile.session.archived'
             | 'mobile.terminal.takeOver'
             | 'mobile.terminal.release'
             | 'mobile.terminal.input'
@@ -184,20 +137,6 @@ const terminalForPrincipal = async (
     return terminal;
 };
 
-const sessionForPrincipal = async (
-    domainService: ServerDomainService,
-    principal: Principal,
-    sessionId: string,
-) => {
-    const result = await domainService.request('session.queryForPrincipal', {
-        principal,
-        query: { mode: 'show', selector: sessionId },
-    });
-    const session = result.sessions.at(0);
-    if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
-    return session;
-};
-
 /**
  * Drops a `resource` (data URL) icon rather than projecting it. Every core-contributed secondary-sidebar container uses
  * a `builtin` or `theme` icon today, and inlining an extension-supplied image is not yet part of the mobile read
@@ -205,8 +144,12 @@ const sessionForPrincipal = async (
  */
 const projectMobileIcon = (
     icon: ViewIcon | undefined,
-): { kind: 'builtin' | 'theme'; id: string } | undefined =>
-    icon && icon.kind !== 'resource' ? { kind: icon.kind, id: icon.id } : undefined;
+): { kind: 'builtin' | 'theme'; id: string; color?: string } | undefined => {
+    if (!icon || icon.kind === 'resource') return undefined;
+    return icon.kind === 'theme' && icon.color
+        ? { kind: icon.kind, id: icon.id, color: icon.color }
+        : { kind: icon.kind, id: icon.id };
+};
 
 const mobilePanelViewKind = (viewKind: ViewDescriptor['viewKind']): MobilePanelViewKind => {
     switch (viewKind.kind) {
@@ -607,6 +550,35 @@ export const openMobileAccessController = async (options: {
                                     'CANCELLED',
                                     'Mobile Session creation was canceled',
                                 );
+                            currentPairedPrincipal(principal, request.method);
+                            return result;
+                        });
+                    } finally {
+                        await withAuthority(() => unregisterOperation(principal, cancellation));
+                    }
+                }
+                case 'mobile.session.archived': {
+                    const principal = currentPairedPrincipal(context.principal, request.method);
+                    const result = await readMobileArchivedSessions(domainService, principal);
+                    currentPairedPrincipal(principal, request.method);
+                    return result;
+                }
+                case 'mobile.session.rename':
+                case 'mobile.session.archive':
+                case 'mobile.session.restore': {
+                    const { principal, cancellation } = await withAuthority(() => {
+                        assertOpen();
+                        const principal = currentPairedPrincipal(context.principal, request.method);
+                        return { principal, cancellation: registerOperation(principal) };
+                    });
+                    try {
+                        const result = await applyMobileSessionManagement(
+                            domainService,
+                            principal,
+                            request,
+                            cancellation.signal,
+                        );
+                        return await withAuthority(() => {
                             currentPairedPrincipal(principal, request.method);
                             return result;
                         });

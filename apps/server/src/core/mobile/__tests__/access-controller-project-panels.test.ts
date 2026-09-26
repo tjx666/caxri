@@ -364,6 +364,12 @@ describe('MobileAccessController Project add, read-only panels, tree, and files'
                     collapsibleState: 'none',
                     icon: { kind: 'resource', dataUrl: 'data:image/png;base64,AA==' },
                 },
+                {
+                    handle: 'handle-3',
+                    label: 'Fix login',
+                    collapsibleState: 'none',
+                    icon: { kind: 'theme', id: 'linear-started', color: '#f2c94c' },
+                },
             ],
         });
         const extensionService = { treeChildren } as unknown as ExtensionService;
@@ -406,6 +412,12 @@ describe('MobileAccessController Project add, read-only panels, tree, and files'
                     {
                         handle: 'handle-2',
                         label: 'README.md',
+                        collapsibleState: 'none',
+                    },
+                    {
+                        handle: 'handle-3',
+                        label: 'Fix login',
+                        icon: { kind: 'theme', id: 'linear-started', color: '#f2c94c' },
                         collapsibleState: 'none',
                     },
                 ],

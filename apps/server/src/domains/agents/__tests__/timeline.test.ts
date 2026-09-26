@@ -166,6 +166,36 @@ describe('provider timeline projection', () => {
         expect(JSON.stringify(builder.entries)).not.toContain('Hidden');
     });
 
+    it('names the subject of Claude web, agent, and skill tools', () => {
+        const builder = new TimelineBuilder('fixture');
+        appendClaudeTimelineRecord(
+            builder,
+            claude('assistant', 'tools', [
+                {
+                    type: 'tool_use',
+                    id: 'call-fetch',
+                    name: 'WebFetch',
+                    input: { url: 'https://example.com/docs', prompt: 'Summarize' },
+                },
+                {
+                    type: 'tool_use',
+                    id: 'call-task',
+                    name: 'Task',
+                    input: { description: 'Survey the parser', prompt: 'Long prompt' },
+                },
+                { type: 'tool_use', id: 'call-skill', name: 'Skill', input: { skill: 'commit' } },
+                { type: 'tool_use', id: 'call-todo', name: 'TodoWrite', input: { todos: [] } },
+            ]),
+            0,
+        );
+        expect(builder.entries.map((entry) => entry.item)).toMatchObject([
+            { name: 'WebFetch', summary: 'https://example.com/docs' },
+            { name: 'Task', summary: 'Survey the parser' },
+            { name: 'Skill', summary: 'commit' },
+            { name: 'TodoWrite', summary: 'TodoWrite' },
+        ]);
+    });
+
     it('hides Claude sidechain and meta tool activity', () => {
         const builder = new TimelineBuilder('fixture');
         for (const extra of [{ isSidechain: true }, { isMeta: true }])

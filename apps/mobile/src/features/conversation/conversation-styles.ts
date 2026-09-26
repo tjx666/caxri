@@ -3,7 +3,11 @@ import { StyleSheet } from 'react-native';
 export const conversationStyles = StyleSheet.create({
     root: { flex: 1, minWidth: 0 },
     list: { flex: 1 },
-    listContent: { gap: 16, paddingBottom: 20, paddingHorizontal: 16, paddingTop: 16 },
+    listContent: { paddingBottom: 8, paddingHorizontal: 16, paddingTop: 16 },
+    /**
+     * FlashList positions cells itself and ignores `gap` on its content container, so each cell owns its spacing.
+     */
+    entry: { paddingBottom: 14 },
     message: { maxWidth: 680, width: '100%', alignSelf: 'center' },
     userRow: { alignItems: 'flex-end' },
     userBubble: { borderRadius: 16, maxWidth: '85%', paddingHorizontal: 14, paddingVertical: 10 },
@@ -14,13 +18,29 @@ export const conversationStyles = StyleSheet.create({
         alignItems: 'center',
         flexDirection: 'row',
         gap: 8,
-        minHeight: 48,
-        paddingHorizontal: 12,
+        minHeight: 46,
+        paddingHorizontal: 10,
     },
-    toolIcon: { alignItems: 'center', justifyContent: 'center', width: 20 },
-    toolSummary: { flex: 1, fontSize: 13, minWidth: 0 },
-    toolDuration: { fontSize: 12 },
-    toolChildren: { borderTopWidth: 1, paddingLeft: 16 },
+    toolIcon: {
+        alignItems: 'center',
+        borderRadius: 7,
+        height: 26,
+        justifyContent: 'center',
+        width: 26,
+    },
+    toolLabel: { flexShrink: 0, fontSize: 13, fontWeight: '500', maxWidth: '45%' },
+    toolSubject: { flex: 1, fontSize: 13, minWidth: 0 },
+    toolChipSlot: { alignItems: 'flex-start', flex: 1, minWidth: 0 },
+    toolChip: {
+        borderRadius: 6,
+        maxWidth: '100%',
+        paddingHorizontal: 7,
+        paddingVertical: 3,
+    },
+    toolChipText: { fontFamily: 'monospace', fontSize: 12 },
+    toolSpacer: { flex: 1 },
+    toolDuration: { fontSize: 12, fontVariant: ['tabular-nums'] },
+    toolChildren: { borderTopWidth: 1, paddingLeft: 12 },
     eventRow: {
         alignItems: 'center',
         borderRadius: 10,
@@ -78,5 +98,14 @@ export const conversationStyles = StyleSheet.create({
     detailHeader: { alignItems: 'center', flexDirection: 'row', gap: 8 },
     detailTitle: { flex: 1, fontSize: 17, fontWeight: '700' },
     detailClose: { fontSize: 15, fontWeight: '600', padding: 8 },
+    detailSubject: {
+        borderRadius: 8,
+        fontFamily: 'monospace',
+        fontSize: 12,
+        lineHeight: 18,
+        marginTop: 14,
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+    },
     detailBody: { fontFamily: 'monospace', fontSize: 13, lineHeight: 20, paddingTop: 16 },
 });

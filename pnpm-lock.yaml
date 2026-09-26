@@ -531,6 +531,9 @@ importers:
       '@types/react':
         specifier: ~19.2.18
         version: 19.2.18
+      '@yutengjing/vscode-icons':
+        specifier: ^0.1.1
+        version: 0.1.1
       typescript:
         specifier: ^6.0.3
         version: 6.0.3

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -10,10 +10,13 @@ import { Plus } from 'lucide-react-native';
 import type { MobileTheme } from '../../../theme/tokens';
 import { useMobileClient } from '../../connection/mobile-client-provider';
 import type { MobileLayoutMode } from '../../layout/layout-mode';
+import { useSessionManagement } from '../hooks/use-session-management';
 import type { SessionListEntry } from '../hooks/use-session-polling';
 import { activeProjectFilter, filterSessionEntries } from '../project-filter';
 import { createSessionListInteraction } from '../session-list-interaction';
+import type { MobileSessionItem } from '../session-model';
 import { useHostSessions } from './host-sessions-provider';
+import { SessionActionsSheet } from './session-actions-sheet';
 import { SessionHomeHeader } from './session-home-header';
 import { SessionHomeEmpty, SessionHomeStatus } from './session-home-status';
 import { SessionRow } from './session-row';
@@ -69,10 +72,20 @@ export const SessionHome = ({
     onOpenSession: (sessionId: string) => void;
     theme: MobileTheme;
 }) => {
-    const { forgetDevice, status } = useMobileClient();
+    const { status } = useMobileClient();
     const router = useRouter();
     const { hostId, listScrollOffsetRef, sessions, setProjectId, ui } = useHostSessions();
     const listReference = useRef<FlashListRef<SessionListEntry>>(null);
+    const management = useSessionManagement();
+    const [actionSession, setActionSession] = useState<MobileSessionItem | null>(null);
+    const { clearError } = management;
+    const openActions = useCallback(
+        (session: MobileSessionItem): void => {
+            clearError();
+            setActionSession(session);
+        },
+        [clearError],
+    );
     const hasRestoredScroll = useRef(false);
     const {
         beginListInteraction,
@@ -142,6 +155,7 @@ export const SessionHome = ({
             ) : (
                 <SessionRow
                     now={now}
+                    onLongPress={deviceRole === 'control' ? openActions : undefined}
                     onPress={onOpenSession}
                     selected={item.session.id === selectedId && layout !== 'phone'}
                     session={item.session}
@@ -149,7 +163,7 @@ export const SessionHome = ({
                     theme={theme}
                 />
             ),
-        [activeProjectId, layout, now, onOpenSession, selectedId, theme],
+        [activeProjectId, deviceRole, layout, now, onOpenSession, openActions, selectedId, theme],
     );
     return (
         <View
@@ -162,7 +176,6 @@ export const SessionHome = ({
         >
             <SessionHomeHeader
                 activeProjectId={activeProjectId}
-                forgetDevice={forgetDevice}
                 hostDisplayName={hostDisplayName}
                 onAddProject={
                     deviceRole === 'control'
@@ -170,6 +183,8 @@ export const SessionHome = ({
                         : undefined
                 }
                 onChooseProject={chooseProject}
+                onOpenArchived={() => router.navigate(`/h/${encodeURIComponent(hostId)}/archived`)}
+                onOpenSettings={() => router.navigate(`/h/${encodeURIComponent(hostId)}/settings`)}
                 projects={projects}
                 status={status}
                 theme={theme}
@@ -240,6 +255,12 @@ export const SessionHome = ({
                     </Text>
                 )}
             </Pressable>
+            <SessionActionsSheet
+                management={management}
+                onClose={() => setActionSession(null)}
+                session={actionSession}
+                theme={theme}
+            />
         </View>
     );
 };

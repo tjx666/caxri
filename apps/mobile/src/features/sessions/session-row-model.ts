@@ -23,3 +23,8 @@ export const sessionAgeLabel = (lastOpenedAt: number, now: number): string => {
     if (hours < 24) return `${hours}h`;
     return `${Math.floor(hours / 24)}d`;
 };
+
+export const archivedAgeLabel = (archivedAt: number, now: number): string => {
+    const age = sessionAgeLabel(archivedAt, now);
+    return age === 'now' ? 'archived just now' : `archived ${age} ago`;
+};
