@@ -17,7 +17,11 @@ const sdk = join(homedir(), 'Library', 'Android', 'sdk');
 const adb = join(sdk, 'platform-tools/adb');
 const fixtureImeReceiver = 'caxri.acceptance.ime/.FixtureInsertReceiver';
 
-export function mobileFixtureImeBroadcastArguments(serial: string, value: string): string[] {
+export function mobileFixtureImeBroadcastArguments(
+    serial: string,
+    value: string,
+    mode: 'commit' | 'compose' = 'commit',
+): string[] {
     if (!/^emulator-\d+$/u.test(serial))
         throw new Error('Fixture Unicode input requires a disposable emulator');
     return [
@@ -31,6 +35,7 @@ export function mobileFixtureImeBroadcastArguments(serial: string, value: string
         '--es',
         'textBase64',
         Buffer.from(value, 'utf8').toString('base64'),
+        ...(mode === 'compose' ? ['--ez', 'compose', 'true'] : []),
     ];
 }
 
@@ -68,8 +73,12 @@ async function focusMobileComposer(serial: string): Promise<void> {
  *
  * @see https://developer.android.com/reference/android/view/inputmethod/InputConnection#commitText(java.lang.CharSequence,%20int)
  */
-export async function setMobileComposerUnicode(serial: string, value: string): Promise<void> {
-    const arguments_ = mobileFixtureImeBroadcastArguments(serial, value);
+export async function setMobileComposerUnicode(
+    serial: string,
+    value: string,
+    mode: 'commit' | 'compose' = 'commit',
+): Promise<void> {
+    const arguments_ = mobileFixtureImeBroadcastArguments(serial, value, mode);
     await focusMobileComposer(serial);
     let output: string;
     try {
@@ -78,7 +87,8 @@ export async function setMobileComposerUnicode(serial: string, value: string): P
     } catch {
         throw new Error('Fixture Unicode input broadcast failed');
     }
-    if (!/result=-1\b/u.test(output) || !/data="?committed"?/u.test(output))
+    const expectedResult = mode === 'compose' ? 'composed' : 'committed';
+    if (!/result=-1\b/u.test(output) || !new RegExp(`data="?${expectedResult}"?`, 'u').test(output))
         throw new Error('Fixture Unicode input was not committed');
     await assertMobileComposerDraft(serial, value);
 }

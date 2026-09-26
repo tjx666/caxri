@@ -24,6 +24,7 @@ describe('Android content-free receipts', () => {
                 className: 'android.view.View',
                 clickable: false,
                 enabled: true,
+                selected: false,
             },
             {
                 bounds: '[0,100][100,160]',
@@ -31,6 +32,7 @@ describe('Android content-free receipts', () => {
                 className: 'android.widget.Button',
                 clickable: true,
                 enabled: true,
+                selected: false,
             },
         ]);
         expect(JSON.stringify(semanticNodesFromUiAutomator(source))).not.toContain('private');
@@ -43,6 +45,13 @@ describe('Android content-free receipts', () => {
         expect(isAndroidCheckId(checkId)).toBe(true);
         expect(semanticNodesFromUiAutomator(source).map((node) => node.checkId)).toEqual([checkId]);
         expect(isAndroidCheckId('conversation-tool-$(touch /tmp/unsafe)')).toBe(false);
+    });
+
+    it('locates nested Add Project rows by their slash-containing test ID', () => {
+        const checkId = 'add-project-folder-example/nested';
+        const source = `<node resource-id="com.caxri.mobile:id/${checkId}" class="android.view.View" package="com.caxri.mobile" clickable="true" enabled="true" bounds="[0,0][100,100]" />`;
+        expect(isAndroidCheckId(checkId)).toBe(true);
+        expect(semanticNodesFromUiAutomator(source).map((node) => node.checkId)).toEqual([checkId]);
     });
 
     it('observes focus and decoded multiline Unicode without returning device text', () => {
@@ -71,6 +80,17 @@ describe('Android content-free receipts', () => {
                 value: 'wrong',
             }),
         ).toEqual({ exists: true, focused: true, textMatches: false });
+    });
+
+    it('rejects an empty includes predicate even when the node exists', () => {
+        const source =
+            '<node resource-id="session-composer-input" package="com.caxri.mobile" text="private" />';
+        expect(() =>
+            observeAndroidNodeFromUiAutomator(source, 'session-composer-input', {
+                kind: 'includes',
+                value: '',
+            }),
+        ).toThrow('Android includes text must not be empty');
     });
 
     it('ignores wrong IDs, foreign packages, and foreign resource namespaces', () => {

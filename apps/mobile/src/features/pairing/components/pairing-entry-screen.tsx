@@ -10,7 +10,38 @@ import { useMobileClient } from '../../connection/mobile-client-provider';
 
 export const PairingEntryScreen = () => {
     const theme = useMobileTheme();
-    const { status } = useMobileClient();
+    const { retryCredentialLoad, status } = useMobileClient();
+    if (status === 'storage-error')
+        return (
+            <SafeAreaView
+                edges={['top', 'right', 'bottom', 'left']}
+                style={[styles.safeArea, { backgroundColor: theme.background }]}
+                testID="credential-storage-error"
+            >
+                <View style={styles.frame}>
+                    <View style={styles.message}>
+                        <Text
+                            accessibilityRole="header"
+                            style={[styles.title, { color: theme.text }]}
+                        >
+                            Could not read this device's pairing
+                        </Text>
+                        <Text style={[styles.description, { color: theme.muted }]}>
+                            Your saved pairing is still on this device. Try reading it again.
+                        </Text>
+                        <ActionButton
+                            accessibilityHint="Reads the saved pairing again."
+                            onPress={retryCredentialLoad}
+                            testID="credential-storage-retry"
+                            theme={theme}
+                        >
+                            Try again
+                        </ActionButton>
+                    </View>
+                </View>
+            </SafeAreaView>
+        );
+
     const wasRevoked = status === 'revoked';
 
     return (

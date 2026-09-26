@@ -61,6 +61,7 @@ export class LocalTerminalExecution extends EventTarget implements TerminalExecu
                                   terminalId: event.terminalId,
                                   generation: this.generations.get(event.terminalId) ?? 1,
                                   sequence: event.sequence,
+                                  reason: event.reason,
                               };
                     this.dispatchEvent(
                         new CustomEvent<TerminalObserverEvent>('observer', { detail }),

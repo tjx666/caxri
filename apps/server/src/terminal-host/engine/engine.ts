@@ -35,6 +35,7 @@ import {
     recordPtyThroughputSummary,
     recordPtyThroughputWindow,
 } from './observability';
+import { flushObserverOutput } from './observer-output';
 import { TerminalOutputFramer } from './output-framer';
 import type { AgentOutputRecovery } from './output-recovery';
 import { ensureLiveOutputRecovery, hasConfiguredOutputRecovery } from './output-recovery-manager';
@@ -164,6 +165,7 @@ export class TerminalExecutionEngine {
             if (live.observerDroppedBytes > 0) {
                 live.observerOutputQueue.clear();
                 live.observerNeedsResync = true;
+                live.observerResyncReason = 'overflow';
             }
             live.outputTimer ??= setTimeout(() => this.flushOutput(live), this.outputFlushMs);
         }
@@ -198,26 +200,7 @@ export class TerminalExecutionEngine {
     }
 
     private flushObserverOutput(live: LiveTerminal): void {
-        if (live.observers.size === 0) return;
-        if (live.observerNeedsResync) {
-            live.observerDroppedBytes = 0;
-            this.options.emit({
-                type: 'observerGap',
-                terminalId: live.record.id,
-                sequence: live.observerSequence++,
-            });
-            live.observerOutputQueue.clear();
-            live.observerImageOutput = new TerminalImageOutputFilter();
-            live.observerNeedsResync = false;
-            return;
-        }
-        if (live.observerOutputQueue.byteCount === 0) return;
-        this.options.emit({
-            type: 'observerOutput',
-            terminalId: live.record.id,
-            sequence: live.observerSequence++,
-            data: live.observerOutputQueue.drain(),
-        });
+        flushObserverOutput(live, this.options.emit);
     }
 
     private flushMetrics(live: LiveTerminal): void {
@@ -290,7 +273,10 @@ export class TerminalExecutionEngine {
                 live.observerDroppedBytes += live.observerImageOutput.finish(
                     live.observerOutputQueue,
                 );
-                if (live.observerDroppedBytes > 0) live.observerNeedsResync = true;
+                if (live.observerDroppedBytes > 0) {
+                    live.observerNeedsResync = true;
+                    live.observerResyncReason = 'overflow';
+                }
             } else live.observerImageOutput.finish();
         } else {
             live.imageOutput.finish();
@@ -302,6 +288,7 @@ export class TerminalExecutionEngine {
                 type: 'observerGap',
                 terminalId: live.record.id,
                 sequence: live.observerSequence++,
+                reason: 'overflow',
             });
             live.observers.clear();
         }
@@ -359,6 +346,7 @@ export class TerminalExecutionEngine {
         this.resizeObserver.recordApplied(live.record.id, { cols, rows });
         if (resyncObservers && live.observers.size > 0) {
             live.observerNeedsResync = true;
+            live.observerResyncReason ??= 'resize';
             live.outputTimer ??= setTimeout(() => this.flushOutput(live), this.outputFlushMs);
         }
         return true;
@@ -438,6 +426,7 @@ export class TerminalExecutionEngine {
             ),
             observerDroppedBytes: 0,
             observerNeedsResync: false,
+            observerResyncReason: null,
             observerSequence: 0,
             observers: new Set(),
             process: child,
@@ -458,6 +447,7 @@ export class TerminalExecutionEngine {
                         if (live.observers.size > 0) {
                             live.observerOutputQueue.clear();
                             live.observerNeedsResync = true;
+                            live.observerResyncReason = 'overflow';
                             this.flushObserverOutput(live);
                         }
                     },
@@ -630,6 +620,7 @@ export class TerminalExecutionEngine {
             live.observerImageOutput = new TerminalImageOutputFilter();
             live.observerOutputQueue.clear();
             live.observerNeedsResync = false;
+            live.observerResyncReason = null;
         }
         live.observers.add(observerId);
         const nextSequence = live.observerSequence;
@@ -656,6 +647,7 @@ export class TerminalExecutionEngine {
             live.observerOutputQueue.clear();
             live.observerImageOutput.finish();
             live.observerNeedsResync = false;
+            live.observerResyncReason = null;
             live.observerDroppedBytes = 0;
         }
     }

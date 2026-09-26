@@ -2,6 +2,7 @@ import { Terminal } from '@xterm/xterm';
 
 import { createTerminalFrameBatch } from '../src/features/terminal/frame-batch';
 import { resetTerminalSnapshot } from '../src/features/terminal/snapshot-reset';
+import { terminalViewScale } from '../src/features/terminal/view-scale';
 
 interface TerminalBridgeWindow extends Window {
     __CAXRI_TERMINAL_ID__: string;
@@ -74,14 +75,9 @@ const layout = (): void => {
     const widthFit = viewport.clientWidth / gridWidth;
     const heightFit = viewport.clientHeight / gridHeight;
     /**
-     * An observed Terminal keeps the computer's size, which is usually far wider and taller than a phone. Every row
-     * must stay visible because the newest output lands at the bottom of the grid, so the default scale never exceeds
-     * the height fit. Width only shrinks to a readable floor; wider grids pan horizontally instead, and pinching can
-     * zoom out until the whole width fits.
+     * A tall Desktop grid scrolls vertically at the readable default; pinching can still fit the whole grid.
      */
-    const fitted = Math.min(1, heightFit, Math.max(0.6, widthFit));
-    const smallest = Math.min(1, widthFit, heightFit);
-    const scale = Math.min(2, Math.max(smallest, fitted * viewState.zoom));
+    const scale = terminalViewScale({ heightFit, widthFit, zoom: viewState.zoom });
     viewState.scale = scale;
     stage.style.width = `${gridWidth}px`;
     stage.style.height = `${gridHeight}px`;

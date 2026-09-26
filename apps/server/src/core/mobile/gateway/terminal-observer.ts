@@ -5,9 +5,11 @@ import { MOBILE_STREAM_CHUNK_MAX_BYTES } from '@caxri/mobile-transport';
 import { CaxriError } from '@caxri/protocol';
 
 import type { TerminalExecutionPort, TerminalObserverEvent } from '../../../domains/terminal';
+import type { MobileTerminalResyncReason } from './diagnostics';
 
 const LEASE_TIMEOUT_MS = 12_000;
 const MAXIMUM_BUFFERED_OUTPUT_BYTES = 640 * 1_024;
+type ResyncReason = MobileTerminalResyncReason;
 
 async function ignoreHostTeardown(task: Promise<void>): Promise<void> {
     try {
@@ -23,6 +25,7 @@ interface MobileTerminalObserverOptions {
     port: TerminalExecutionPort;
     release: (bytes: number) => void;
     remove: () => void;
+    reportResync?: (reason: ResyncReason) => void;
     reserve: (bytes: number) => boolean;
     send: (payload: MobileEventPayload | MobileStreamPayload) => Promise<void>;
     subscriptionId: string;
@@ -50,7 +53,7 @@ export class MobileTerminalObserver {
     #snapshot: Buffer = Buffer.from('null');
     #snapshotSent = false;
     #sending = false;
-    #failureReason?: 'capacity' | 'generation-changed' | 'source-gap';
+    #failureReason?: ResyncReason;
 
     constructor(options: MobileTerminalObserverOptions) {
         this.#options = options;
@@ -66,6 +69,8 @@ export class MobileTerminalObserver {
             this.#options.holderId,
         );
         this.#observed = true;
+        // close() can run while observe() is pending, despite static narrowing.
+        // oxlint-disable-next-line typescript/no-unnecessary-condition -- close() may run during observe()
         if (!this.#active) {
             await ignoreHostTeardown(
                 this.#options.port.unobserve(this.#options.terminalId, this.#options.holderId),
@@ -226,7 +231,7 @@ export class MobileTerminalObserver {
             throw new CaxriError('CONFLICT', 'Terminal generation changed');
     }
 
-    #fail(reason: 'capacity' | 'generation-changed' | 'source-gap'): void {
+    #fail(reason: ResyncReason): void {
         if (this.#failureReason || !this.#active) return;
         this.#failureReason = reason;
         this.abortPendingInputs();
@@ -239,7 +244,11 @@ export class MobileTerminalObserver {
         // eslint-disable-next-line no-void -- The observer owns its independent bounded output task.
         void this.#run().finally(() => {
             this.#sending = false;
-            if (this.#active && (this.#pending.length > 0 || this.#failureReason)) this.#drain();
+            if (
+                this.#active &&
+                (!this.#snapshotSent || this.#pending.length > 0 || this.#failureReason)
+            )
+                this.#drain();
         });
     }
 
@@ -300,8 +309,11 @@ export class MobileTerminalObserver {
             if (event.sequence >= this.#hostSequence) {
                 if (event.generation !== generation)
                     return await this.#resync('generation-changed');
-                if (event.type === 'gap' || event.sequence !== this.#hostSequence)
-                    return await this.#resync('source-gap');
+                if (event.sequence !== this.#hostSequence) return await this.#resync('source-gap');
+                if (event.type === 'gap')
+                    return event.reason === 'resize'
+                        ? await this.#refreshSnapshot()
+                        : await this.#resync('source-gap');
                 this.#hostSequence += 1;
                 const bytes = Buffer.from(event.data, 'utf8');
                 const count = Math.max(1, Math.ceil(bytes.length / MOBILE_STREAM_CHUNK_MAX_BYTES));
@@ -350,7 +362,7 @@ export class MobileTerminalObserver {
         );
     }
 
-    async #resync(reason: 'capacity' | 'generation-changed' | 'source-gap'): Promise<void> {
+    async #resync(reason: ResyncReason): Promise<void> {
         if (!this.#active) return;
         try {
             await this.#options.authorize();
@@ -361,10 +373,45 @@ export class MobileTerminalObserver {
                 subscriptionId: this.#options.subscriptionId,
                 sequence: this.#nextSequence++,
             });
+            this.#options.reportResync?.(reason);
         } finally {
             this.#options.remove();
             await this.close();
         }
+    }
+
+    /**
+     * A grid reshape replaces the snapshot on this subscription, preserving its size lease.
+     */
+    async #refreshSnapshot(): Promise<void> {
+        if (!this.#active) return;
+        await this.#options.authorize();
+        for (const item of this.#pending) {
+            this.#options.release(item.bytes);
+            this.#pendingBytes -= item.bytes;
+        }
+        this.#pending.length = 0;
+        await this.#options.port.unobserve(this.#options.terminalId, this.#options.holderId);
+        this.#observed = false;
+        const observed = await this.#options.port.observe(
+            this.#options.terminalId,
+            this.#options.holderId,
+        );
+        this.#observed = true;
+        // close() can run while observe() is pending, despite static narrowing.
+        // oxlint-disable-next-line typescript/no-unnecessary-condition -- close() may run during observe()
+        if (!this.#active) {
+            await ignoreHostTeardown(
+                this.#options.port.unobserve(this.#options.terminalId, this.#options.holderId),
+            );
+            this.#observed = false;
+            return;
+        }
+        if (observed.generation !== this.#generation) return this.#resync('generation-changed');
+        this.#hostSequence = observed.nextSequence;
+        this.#snapshot = Buffer.from(JSON.stringify(observed.snapshot), 'utf8');
+        this.#snapshotSent = false;
+        this.#options.reportResync?.('resize');
     }
 }
 /* eslint-enable unicorn/consistent-class-member-order */

@@ -39,6 +39,7 @@ export function projectLiveTerminalHostEvent(
                 terminalId: identity.record.id,
                 generation: identity.generation,
                 sequence: event.sequence,
+                reason: event.reason,
             });
             return;
         case 'terminal.activity':

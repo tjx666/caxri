@@ -28,4 +28,26 @@ describe('mobile gateway diagnostics', () => {
             },
         ]);
     });
+
+    it('counts terminal resync causes separately from transport failures', () => {
+        const write = vi.fn();
+        const diagnostics = new MobileGatewayDiagnostics({ write }, () => 0);
+        diagnostics.terminalResync('resize');
+        diagnostics.terminalResync('resize');
+        diagnostics.terminalResync('source-gap');
+        diagnostics.flush();
+        expect(write).toHaveBeenCalledExactlyOnceWith(
+            'info',
+            'mobile_gateway.terminal_resync_summary',
+            {
+                fields: {
+                    capacity: 0,
+                    generationChanged: 0,
+                    sourceGap: 1,
+                    resize: 2,
+                    total: 3,
+                },
+            },
+        );
+    });
 });

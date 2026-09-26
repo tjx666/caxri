@@ -8,6 +8,7 @@ import * as Device from 'expo-device';
 import * as Network from 'expo-network';
 
 import type { MobileConnectionStatus } from './connection-state';
+import { loadMobileCredential } from './credential-load';
 import type { MobileCredential } from './credential-store';
 import { expoMobileCredentialStore } from './expo-credential-store';
 import { expoMobileGatewayRuntime } from './expo-mobile-gateway-runtime';
@@ -26,6 +27,7 @@ import {
 } from './mobile-gateway-client';
 import type { MobileNetworkWakeAction } from './network-recovery';
 import { watchMobileNetwork } from './network-recovery';
+import { createPairingAttemptOwner } from './pairing-attempt';
 import {
     foregroundRecoveryAction,
     observeMobileConnectionTermination,
@@ -33,6 +35,7 @@ import {
 import { useMobileReconnect } from './use-mobile-reconnect';
 
 export interface MobileClientContextValue {
+    cancelPairing: () => void;
     connectionEpoch: number;
     connectionScopeKey: string | null;
     forgetDevice: () => Promise<void>;
@@ -46,6 +49,7 @@ export interface MobileClientContextValue {
         ...arguments_: ParametersArgument<M>
     ) => Promise<MethodResult<M>>;
     retryConnection: () => void;
+    retryCredentialLoad: () => void;
     status: MobileConnectionStatus;
     subscribe: (
         resource: MobileSubscriptionResource,
@@ -86,10 +90,11 @@ export const useMobileClientController = (): MobileClientContextValue => {
     }, []);
     const [retryAttempt, setRetryAttempt] = useState(0);
     const [retryToken, setRetryToken] = useState(0);
+    const [credentialLoadAttempt, setCredentialLoadAttempt] = useState(0);
     const [status, setStatus] = useState<MobileConnectionStatus>('booting');
     const [isForeground, setIsForeground] = useState(AppState.currentState === 'active');
     const connection = useRef<MobileGatewayConnection | null>(null);
-    const pairingGeneration = useRef(0);
+    const [pairingAttempts] = useState(createPairingAttemptOwner);
     const backgroundedAt = useRef<number | null>(null);
     const appState = useRef(AppState.currentState);
     const activeProbe = useRef<MobileGatewayConnection | null>(null);
@@ -171,23 +176,23 @@ export const useMobileClientController = (): MobileClientContextValue => {
     useEffect(() => {
         let isActive = true;
         const loadCredential = async (): Promise<void> => {
-            try {
-                const stored = await expoMobileCredentialStore.load();
-                if (!isActive) return;
-                setCredential(stored);
-                setStatus(stored ? 'stale' : 'unpaired');
-            } catch {
-                if (isActive) setStatus('unpaired');
+            const result = await loadMobileCredential(expoMobileCredentialStore);
+            if (!isActive) return;
+            if (result.kind === 'storage-error') {
+                setStatus('storage-error');
+                return;
             }
+            setCredential(result.credential);
+            setStatus(result.credential ? 'stale' : 'unpaired');
         };
         // eslint-disable-next-line no-void -- React effects cannot return the credential-loading promise.
         void loadCredential();
         return () => {
             isActive = false;
-            pairingGeneration.current += 1;
+            pairingAttempts.invalidate();
             replaceConnection(null);
         };
-    }, [replaceConnection]);
+    }, [credentialLoadAttempt, pairingAttempts, replaceConnection]);
 
     const reconnect = useCallback(
         (storedCredential: MobileCredential) =>
@@ -308,13 +313,14 @@ export const useMobileClientController = (): MobileClientContextValue => {
 
     const pair = useCallback(
         async (pairingLink: string): Promise<void> => {
-            const generation = ++pairingGeneration.current;
-            const isCurrent = (): boolean => pairingGeneration.current === generation;
+            const attempt = pairingAttempts.begin();
+            const { isCurrent } = attempt;
             replaceConnection(null);
             setStatus('connecting');
             try {
                 const paired = await pairMobileGateway({
                     isCurrent,
+                    signal: attempt.signal,
                     displayName: Device.modelName ?? 'Mobile device',
                     pairingLink,
                     runtime: expoMobileGatewayRuntime,
@@ -339,26 +345,38 @@ export const useMobileClientController = (): MobileClientContextValue => {
                           : 'unpaired',
                 );
                 throw error;
+            } finally {
+                attempt.finish();
             }
         },
-        [adoptConnection, credential, replaceConnection, setLastSeenAt],
+        [adoptConnection, credential, pairingAttempts, replaceConnection, setLastSeenAt],
     );
 
+    const cancelPairing = useCallback((): void => {
+        if (!pairingAttempts.cancel()) return;
+        setStatus(credential ? 'stale' : 'unpaired');
+    }, [credential, pairingAttempts]);
+
     const forgetDevice = useCallback(async (): Promise<void> => {
-        pairingGeneration.current += 1;
+        pairingAttempts.invalidate();
         replaceConnection(null);
         await expoMobileCredentialStore.clear();
         setCredential(null);
         setLastSeenAt(null);
         setRetryAttempt(0);
         setStatus('unpaired');
-    }, [replaceConnection, setLastSeenAt]);
+    }, [pairingAttempts, replaceConnection, setLastSeenAt]);
 
     const retryConnection = useCallback((): void => {
         if (!credential || status === 'version-mismatch') return;
         setRetryAttempt(0);
         setStatus('stale');
     }, [credential, status]);
+    const retryCredentialLoad = useCallback((): void => {
+        if (status !== 'storage-error') return;
+        setStatus('booting');
+        setCredentialLoadAttempt((attempt) => attempt + 1);
+    }, [status]);
 
     const subscribe = useCallback(
         async (
@@ -428,6 +446,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
 
     const value = useMemo<MobileClientContextValue>(
         () => ({
+            cancelPairing,
             connectionEpoch,
             connectionScopeKey: credential
                 ? JSON.stringify([credential.serverId, credential.deviceId, credential.generation])
@@ -440,11 +459,13 @@ export const useMobileClientController = (): MobileClientContextValue => {
             paired: credential !== null,
             request,
             retryConnection,
+            retryCredentialLoad,
             status,
             subscribe,
             subscriptionAvailable: status === 'connected' && isForeground,
         }),
         [
+            cancelPairing,
             connectionEpoch,
             credential,
             forgetDevice,
@@ -453,6 +474,7 @@ export const useMobileClientController = (): MobileClientContextValue => {
             pair,
             request,
             retryConnection,
+            retryCredentialLoad,
             status,
             subscribe,
         ],

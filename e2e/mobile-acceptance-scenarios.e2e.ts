@@ -26,6 +26,8 @@ import {
     executeMobileEndToEndScenario,
 } from './support/mobile-end-to-end-scenarios.ts';
 import { executeMobileNewSessionScenario } from './support/mobile-new-session-scenarios.ts';
+import { executeMobileProjectPanelsScenario } from './support/mobile-project-panels-scenarios.ts';
+import { executeMobileRecoveryScenario } from './support/mobile-recovery-scenarios.ts';
 import { createMobileTerminalAcceptanceFixture } from './support/mobile-terminal-acceptance-fixture.ts';
 import { tapTerminalKey } from './support/mobile-terminal-key.ts';
 import { executeMobileUiAuditScenario } from './support/mobile-ui-audit-scenarios.ts';
@@ -109,8 +111,12 @@ function requireRemoteVideoPath(): string {
     return remoteVideoPath;
 }
 
-async function enterComposerText(serial: string, value: string): Promise<void> {
-    await setMobileComposerUnicode(serial, value);
+async function enterComposerText(
+    serial: string,
+    value: string,
+    mode: 'commit' | 'compose' = 'commit',
+): Promise<void> {
+    await setMobileComposerUnicode(serial, value, mode);
     await waitForMobile(
         () => mobileSemantics(serial),
         (nodes) =>
@@ -135,6 +141,11 @@ test('executes one report-bound Android product scenario', async ({}) => {
     }
 
     switch (environment.caseId) {
+        case 'MOB-PAIR-CANCEL-01':
+        case 'MOB-RENDER-01':
+        case 'MOB-STORAGE-01':
+            await executeMobileRecoveryScenario({ ...environment, remoteVideoPath }, artifacts);
+            break;
         case 'MOB-PAIR-02': {
             await adbShell(environment.serial, [
                 'am',
@@ -255,7 +266,7 @@ test('executes one report-bound Android product scenario', async ({}) => {
                     () => mobileSemantics(environment.serial),
                     (nodes) =>
                         nodes.some(({ checkId }) => checkId === 'session-detail') &&
-                        nodes.some(({ checkId }) => checkId === 'terminal-preview-populated'),
+                        nodes.some(({ checkId }) => checkId === 'terminal-live-webview'),
                 );
                 await capture(environment, 'phone-detail', artifacts);
 
@@ -283,7 +294,7 @@ test('executes one report-bound Android product scenario', async ({}) => {
                     (nodes) =>
                         nodes.some(({ checkId }) => checkId === 'session-list') &&
                         nodes.some(({ checkId }) => checkId === 'session-detail') &&
-                        nodes.some(({ checkId }) => checkId === 'terminal-preview-populated'),
+                        nodes.some(({ checkId }) => checkId === 'terminal-live-webview'),
                 );
                 await capture(environment, 'tablet-split', artifacts);
                 await restoreMobileDisplayState(environment.serial, originalDisplay);
@@ -463,6 +474,56 @@ test('executes one report-bound Android product scenario', async ({}) => {
                 );
                 await capture(environment, 'taken-over', artifacts);
 
+                const windowBounds = await fixture.running.app.evaluate(({ BrowserWindow }) =>
+                    BrowserWindow.getAllWindows()[0].getBounds(),
+                );
+                const gridAttributeName = 'data-terminal-grid';
+                try {
+                    await fixture.running.app.evaluate(
+                        ({ BrowserWindow }, bounds) =>
+                            BrowserWindow.getAllWindows()[0].setBounds(bounds),
+                        {
+                            ...windowBounds,
+                            width:
+                                windowBounds.width > 800
+                                    ? windowBounds.width - 180
+                                    : windowBounds.width + 180,
+                        },
+                    );
+                    await waitForMobile(
+                        () => surface.getAttribute(gridAttributeName),
+                        (current) => current !== desktopGrid,
+                    );
+                    for (let sample = 0; sample < 5; sample += 1) {
+                        // eslint-disable-next-line no-await-in-loop -- each sample watches the held mobile lease after Desktop resize.
+                        const nodes = await mobileSemantics(environment.serial);
+                        expect(nodes.some(({ checkId }) => checkId === 'terminal-release')).toBe(
+                            true,
+                        );
+                        expect(nodes.some(({ checkId }) => checkId === 'terminal-stale')).toBe(
+                            false,
+                        );
+                        // eslint-disable-next-line no-await-in-loop -- a brief interval catches a delayed stale chip.
+                        await new Promise((resolve) => setTimeout(resolve, 250));
+                    }
+                    const heldSize = await fixture.menuState();
+                    expect({ cols: heldSize.cols, rows: heldSize.rows }).toEqual({
+                        cols: takenOver.cols,
+                        rows: takenOver.rows,
+                    });
+                    await capture(environment, 'desktop-resized-under-lease', artifacts);
+                } finally {
+                    await fixture.running.app.evaluate(
+                        ({ BrowserWindow }, bounds) =>
+                            BrowserWindow.getAllWindows()[0].setBounds(bounds),
+                        windowBounds,
+                    );
+                    await waitForMobile(
+                        () => surface.getAttribute(gridAttributeName),
+                        (current) => current === desktopGrid,
+                    );
+                }
+
                 await tapTerminalKey(environment.serial, 'down');
                 await waitForMobile(
                     () => fixture.menuState(),
@@ -506,6 +567,7 @@ test('executes one report-bound Android product scenario', async ({}) => {
                 await capture(environment, 'released', artifacts);
                 await finish(environment, artifacts, {
                     desktopAttachment: 'preserved',
+                    desktopResizeUnderLease: 'mobile-control-retained-without-stale-chip',
                     desktopSize,
                     menuSelection: 'second-option-submitted-once',
                     observingSize: { cols: observingSize.cols, rows: observingSize.rows },
@@ -537,7 +599,7 @@ test('executes one report-bound Android product scenario', async ({}) => {
                     environment.serial,
                     requireRemoteVideoPath(),
                 );
-                await enterComposerText(environment.serial, message);
+                await enterComposerText(environment.serial, message, 'compose');
                 await capture(environment, 'multiline-draft', artifacts);
                 const before = await fixture.readCapturedInput();
                 expect(before.length).toBe(0);
@@ -562,6 +624,7 @@ test('executes one report-bound Android product scenario', async ({}) => {
                 await finish(environment, artifacts, {
                     draftAfter: 'cleared',
                     encodedInput: 'utf8-multiline-once',
+                    imeInput: 'setComposingText-finishComposingText',
                     inputBeforeSend: 'none',
                     status: 'passed',
                 });
@@ -669,6 +732,10 @@ test('executes one report-bound Android product scenario', async ({}) => {
                 { ...environment, launchId, remoteVideoPath, sourceCommit },
                 artifacts,
             );
+            break;
+        case 'MOB-PROJECT-01':
+        case 'MOB-PANELS-01':
+            await executeMobileProjectPanelsScenario(environment, artifacts);
             break;
         case 'MOB-TIMELINE-01':
         case 'MOB-CONV-01':

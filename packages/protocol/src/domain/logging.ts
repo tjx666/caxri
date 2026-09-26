@@ -8,6 +8,7 @@ export const logEventCatalog = {
     mobileGateway: {
         failure: 'mobile_gateway.failure',
         failureSummary: 'mobile_gateway.failure_summary',
+        terminalResyncSummary: 'mobile_gateway.terminal_resync_summary',
     },
     agent: {
         automaticNamingFinished: 'agent.automatic_naming_finished',

@@ -436,6 +436,7 @@ const terminalHostEventEnvelopeSchema = z.discriminatedUnion('event', [
             event: z.literal('terminal.observer.gap'),
             identity: terminalEventIdentitySchema,
             sequence: z.number().int().nonnegative(),
+            reason: z.enum(['resize', 'overflow']),
         })
         .strict(),
     z
