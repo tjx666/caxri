@@ -514,7 +514,9 @@ export async function createMobileAcceptanceFixture(
             const terminal = bound.terminals.find(
                 ({ sessionId }) => sessionId === allowedSessionId,
             );
-            const config = conversationAgentMode?.environment.CLAUDE_CONFIG_DIR;
+            const config =
+                conversationAgentMode?.environment.CLAUDE_CONFIG_DIR ??
+                attentionAgentMode?.agentMode.environment.CLAUDE_CONFIG_DIR;
             if (
                 !allowed ||
                 !terminal ||
@@ -529,6 +531,13 @@ export async function createMobileAcceptanceFixture(
                     terminal.cwd.replaceAll(/[^a-z0-9]/giu, '-'),
                     `${terminal.agentSessionId}.jsonl`,
                 );
+                if (input.mode === 'attention') {
+                    /**
+                     * An empty fixture transcript enables Conversation without recording private Agent content.
+                     */
+                    await mkdir(dirname(transcriptPath), { recursive: true });
+                    await writeFile(transcriptPath, '');
+                }
             }
             if (input.mode === 'journey') {
                 if (!menuStatePath) throw new Error('Synthetic Terminal state path is unavailable');
