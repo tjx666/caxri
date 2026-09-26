@@ -98,7 +98,6 @@ const TreeRow = ({
     return (
         <View>
             <Pressable
-                testID="tree-row"
                 accessibilityLabel={[item.label, item.description].filter(Boolean).join(', ')}
                 accessibilityRole={isCollapsible ? 'button' : 'text'}
                 accessibilityState={isCollapsible ? { expanded: isExpanded } : undefined}
