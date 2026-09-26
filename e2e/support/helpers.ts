@@ -45,10 +45,6 @@ export interface LaunchCaxriOptions {
      */
     userDataDir: string;
     /**
-     * Bounded queue time for an explicitly coordinated desktop workflow.
-     */
-    desktopLeaseWaitMs?: number;
-    /**
      * Project root exposed to the app through `CAXRI_TEST_ROOT_PATH`.
      */
     testRootPath: string;
@@ -61,6 +57,10 @@ export interface LaunchCaxriOptions {
      * Launches a packaged build instead of `.` (used by the startup benchmark).
      */
     executablePath?: string;
+    /**
+     * Bounded wait for another checkout's active desktop lease before launching this E2E instance.
+     */
+    desktopLeaseWaitMs?: number;
     /**
      * Hidden by default; use visible only for native focus, pointer, or desktop behavior.
      */
@@ -186,6 +186,7 @@ export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<Runni
         testRootPath,
         env: environment = {},
         executablePath,
+        desktopLeaseWaitMs,
         gpuMode = 'disabled',
         windowMode = 'hidden',
         agentMode = { mode: 'blocked' },
@@ -237,7 +238,7 @@ export async function launchCaxriApp(options: LaunchCaxriOptions): Promise<Runni
         {
             coordinatorToken: workerIsolation.coordinatorToken,
             namespace: workerIsolation.leaseNamespace,
-            waitMs: options.desktopLeaseWaitMs,
+            waitMs: desktopLeaseWaitMs,
         },
     );
     let releasePromise: Promise<void> | undefined;
