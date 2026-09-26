@@ -63,6 +63,16 @@ export async function executeMobileSessionRefreshScenario(
             () => mobileSemantics(environment.serial),
             (nodes) => nodes.some(({ checkId }) => checkId === 'session-detail-title'),
         );
+        /**
+         * The detail fallback is used only after the bounded dashboard no longer contains this Session.
+         */
+        for (let index = 0; index < 64; index++) {
+            // eslint-disable-next-line no-await-in-loop -- Serialized writes avoid flooding the shared Server queue.
+            await pageRequest(fixture.running.page, 'session.create', {
+                projectId: fixture.allowedProjectId,
+                defaultAgent: null,
+            });
+        }
         const log = join(fixture.testDirectory, 'user-data', 'logs', 'server-core.jsonl');
         const before = await waitForMobile(
             () => sessionReadSummary(log),
