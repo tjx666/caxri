@@ -530,12 +530,12 @@ export function eslintTargets({ codeFiles, markdownFiles }: LintBuckets): string
     return [...codeFiles, ...markdownFiles];
 }
 
-async function runLint(root: string, files: string[]): Promise<number> {
+export async function runLint(root: string, files: string[], run = runTool): Promise<number> {
     const buckets = lintBucketsForFiles(files);
     const { codeFiles, markdownFiles, otherFormatFiles } = buckets;
 
     const eslintFiles = eslintTargets(buckets);
-    if (eslintFiles.length > 0) await runTool(root, 'eslint', eslintArguments(eslintFiles));
+    if (eslintFiles.length > 0) await run(root, 'eslint', eslintArguments(eslintFiles));
     if (codeFiles.length > 0) {
         // ESLint is syntactic-only in this repository; type-aware rules run through oxlint/tsgolint
         // (see .oxlintrc.json). Run it before Prettier so its autofixes get reformatted.
@@ -546,7 +546,7 @@ async function runLint(root: string, files: string[]): Promise<number> {
             // --no-error-on-unmatched-pattern: every named file may fall inside .oxlintrc.json's
             // ignorePatterns (e.g. scripts/fixtures/eslint/**), which oxlint otherwise treats as
             // "no files found" and exits 1.
-            await runTool(root, 'oxlint', [
+            await run(root, 'oxlint', [
                 '-c',
                 '.oxlintrc.json',
                 '--type-aware',
@@ -555,22 +555,28 @@ async function runLint(root: string, files: string[]): Promise<number> {
                 ...typeAwareFiles,
             ]);
         }
-        await runTool(root, 'prettier', ['--write', ...codeFiles]);
+        await run(root, 'prettier', ['--write', ...codeFiles]);
     }
     if (markdownFiles.length > 0) {
         // markdownlint owns Markdown semantics; run its autofix before Prettier reformats the
         // same files, since a semantic fix (e.g. wrapping a bare URL) can change line width that
         // Prettier still needs to reflow.
-        await runTool(root, 'markdownlint-cli2', ['--fix', ...markdownFiles]);
+        await run(root, 'markdownlint-cli2', ['--fix', ...markdownFiles]);
     }
     if (markdownFiles.length > 0 || otherFormatFiles.length > 0) {
-        await runTool(root, 'prettier', [
+        await run(root, 'prettier', [
             '--write',
             '--no-error-on-unmatched-pattern',
             ...markdownFiles,
             ...otherFormatFiles,
         ]);
     }
+    /**
+     * Formatting can expand a previously valid file past max-lines. Validate the final bytes, not only the pre-format
+     * source, so a successful check agrees with the commit gate.
+     */
+    if (eslintFiles.length > 0)
+        await run(root, 'eslint', ['--no-warn-ignored', '--max-warnings=0', ...eslintFiles]);
     return codeFiles.length + markdownFiles.length + otherFormatFiles.length;
 }
 

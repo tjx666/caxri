@@ -20,11 +20,36 @@ import {
     parseCheckArguments,
     playwrightArguments,
     relatedE2ESpecs,
+    runLint,
     selectE2ESpecs,
     selectedTestCandidates,
     testCandidatesForFile,
     VITEST_SOURCE_ROOTS,
 } from './check';
+
+describe('final lint validation', () => {
+    it('checks formatted bytes without mutating them and propagates final failures', async () => {
+        const calls: Array<{ executable: string; arguments: string[] }> = [];
+        const run = (_root: string, executable: string, arguments_: string[]) => {
+            calls.push({ executable, arguments: arguments_ });
+            if (executable === 'eslint' && !arguments_.includes('--fix'))
+                return Promise.reject(new Error('Formatted file exceeds max-lines'));
+            return Promise.resolve();
+        };
+        await expect(runLint('/fixture', ['source.ts'], run)).rejects.toThrow('exceeds max-lines');
+        expect(calls.map(({ executable }) => executable)).toEqual([
+            'eslint',
+            'oxlint',
+            'prettier',
+            'eslint',
+        ]);
+        expect(calls.at(-1)?.arguments).toEqual([
+            '--no-warn-ignored',
+            '--max-warnings=0',
+            'source.ts',
+        ]);
+    });
+});
 
 describe('changed-file discovery', () => {
     it('includes committed branch changes while preserving staged and untracked selection', async () => {
