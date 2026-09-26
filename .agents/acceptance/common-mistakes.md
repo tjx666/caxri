@@ -35,6 +35,18 @@ then the `caxri.files` panel tab; the guessed ID fails before the file behavior 
 each navigation tap. Open `session-segment-panels`, then `panel-tab-caxri.files`, and only then
 look for `files-entry-*`.
 
+## Treating Android's clickable flag as the only proof of a Pressable
+
+**Situation:** After saving a file, the Android framebuffer still shows the Edit action and
+semantics still lists its `testID`, but the semantic `clickable` flag stays false.
+
+**Does not work:** Polling for `clickable=true` or using the strict semantic tap helper. Both
+prevent the second edit from being exercised even when the action is visible.
+
+**Works:** Use the bounds tap helper only after verifying the Caxri foreground, the expected
+`testID`, valid bounds, and `enabled=true`; then assert the next product state independently. Keep
+the action away from the screen edge with a full touch target.
+
 ## Using arbitrary option labels as Android check IDs
 
 **Situation:** A mobile Agent question renders clickable choices, but the sanitized Android semantic receipt

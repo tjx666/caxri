@@ -24,8 +24,8 @@ import {
     restoreMobileDisplayState,
     setMobileNetworkAvailable,
     startMobileFramebufferRecording,
-    tapMobileAttentionCheck,
     tapMobileCheck,
+    tapMobileCheckByBounds,
     waitForMobile,
 } from './support/mobile-android.ts';
 import { executeMobileChangesScenario } from './support/mobile-changes-scenarios.ts';
@@ -176,12 +176,12 @@ test('executes one report-bound Android product scenario', async ({}) => {
                 if (kind === 'permission') {
                     await tapMobileCheck(environment.serial, 'attention-allow-once');
                 } else {
-                    await tapMobileAttentionCheck(environment.serial, 'attention-option-0-0');
-                    await tapMobileAttentionCheck(environment.serial, 'attention-option-0-1');
-                    await tapMobileAttentionCheck(environment.serial, 'attention-answer-next');
-                    await tapMobileAttentionCheck(environment.serial, 'attention-answer-input');
+                    await tapMobileCheckByBounds(environment.serial, 'attention-option-0-0');
+                    await tapMobileCheckByBounds(environment.serial, 'attention-option-0-1');
+                    await tapMobileCheckByBounds(environment.serial, 'attention-answer-next');
+                    await tapMobileCheckByBounds(environment.serial, 'attention-answer-input');
                     await adbShell(environment.serial, ['input', 'text', 'fixture']);
-                    await tapMobileAttentionCheck(environment.serial, 'attention-answer-next');
+                    await tapMobileCheckByBounds(environment.serial, 'attention-answer-next');
                 }
                 await waitForMobile(
                     () => fixture.attention!.readReceipt(),
