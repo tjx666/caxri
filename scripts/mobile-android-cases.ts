@@ -217,6 +217,24 @@ const androidCases = {
         recordingOwner: 'adapter',
         scenario: 'conversation-shell-fallback',
     },
+    'MOB-UI-05': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'ui-audit-project-icons',
+    },
+    'MOB-UI-06': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'ui-audit-session-management',
+    },
+    'MOB-UI-07': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'ui-audit-settings',
+    },
 } as const satisfies Record<
     string,
     {

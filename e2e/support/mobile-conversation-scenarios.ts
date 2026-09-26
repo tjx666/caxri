@@ -335,6 +335,8 @@ export async function executeMobileConversationScenario(
                     'agentMessage',
                     'toolCall',
                     'toolCall',
+                    'toolCall',
+                    'toolCall',
                     'turnBoundary',
                 ]);
                 expect(second.items.map(({ id }) => id)).toEqual(first.items.map(({ id }) => id));

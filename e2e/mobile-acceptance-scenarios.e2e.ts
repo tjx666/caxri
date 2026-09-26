@@ -684,6 +684,9 @@ test('executes one report-bound Android product scenario', async ({}) => {
         case 'MOB-UI-01':
         case 'MOB-UI-02':
         case 'MOB-UI-03':
+        case 'MOB-UI-05':
+        case 'MOB-UI-06':
+        case 'MOB-UI-07':
             await executeMobileUiAuditScenario(environment, artifacts);
             break;
         case 'MOB-CHANGES-01':
