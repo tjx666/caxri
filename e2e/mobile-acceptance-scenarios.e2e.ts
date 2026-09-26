@@ -15,6 +15,7 @@ import {
     capture,
     executeMobileComposerSuggestionsScenario,
     executeMobileFileEditScenario,
+    executeMobileImageAttachmentScenario,
     finish,
 } from './support/mobile-agent-actions-scenarios.ts';
 import {
@@ -220,6 +221,14 @@ test('executes one report-bound Android product scenario', async ({}) => {
         }
         case 'MOB-COMPOSE-01': {
             await executeMobileComposerSuggestionsScenario(
+                environment,
+                artifacts,
+                requireRemoteVideoPath(),
+            );
+            break;
+        }
+        case 'MOB-COMPOSE-02': {
+            await executeMobileImageAttachmentScenario(
                 environment,
                 artifacts,
                 requireRemoteVideoPath(),

@@ -87,6 +87,50 @@ export async function runMobileDeviceCommand(
 export const adbShell = (serial: string, arguments_: string[]): Promise<string> =>
     runMobileDeviceCommand(adb, ['-s', serial, 'shell', ...arguments_], 'capture');
 
+export const pushMobileFixture = (
+    serial: string,
+    localPath: string,
+    remotePath: string,
+): Promise<string> =>
+    runMobileDeviceCommand(adb, ['-s', serial, 'push', localPath, remotePath], 'capture');
+
+/**
+ * Reads only a fixed native control's bounds; the raw accessibility tree never leaves the device probe.
+ */
+export async function tapMobileNativeControl(
+    serial: string,
+    query: { text?: string; resourceId?: string },
+): Promise<void> {
+    const dumpPath = '/data/local/tmp/caxri-acceptance-native.xml';
+    let source: string;
+    try {
+        await adbShell(serial, ['uiautomator', 'dump', dumpPath]);
+        source = await adbShell(serial, ['cat', dumpPath]);
+    } finally {
+        await adbShell(serial, ['rm', '-f', dumpPath]);
+    }
+    const candidates = source
+        .matchAll(/<node\b[^>]*>/gu)
+        .map(([node]) => node)
+        .filter((node) => {
+            const attribute = query.text ? 'text' : 'resource-id';
+            const value = query.text ?? query.resourceId;
+            return new RegExp(String.raw`\b${attribute}="([^"]*)"`, 'u').exec(node)?.[1] === value;
+        })
+        .toArray();
+    if (candidates.length !== 1) throw new Error('Native mobile control is unavailable');
+    const node = candidates[0];
+    if (!node.includes('enabled="true"')) throw new Error('Native mobile control is disabled');
+    const bounds = androidBounds(/\bbounds="([^"]+)"/u.exec(node)?.[1] ?? '');
+    if (!bounds) throw new Error('Native mobile control has no bounds');
+    await adbShell(serial, [
+        'input',
+        'tap',
+        String(Math.floor((bounds.left + bounds.right) / 2)),
+        String(Math.floor((bounds.top + bounds.bottom) / 2)),
+    ]);
+}
+
 export async function mobileDisplayState(serial: string): Promise<AndroidDisplayState> {
     const [density, fontScale, rotation, size] = await Promise.all([
         adbShell(serial, ['wm', 'density']),

@@ -19,6 +19,12 @@ const androidCases = {
         recordingOwner: 'scenario',
         scenario: 'agent-composer-suggestions',
     },
+    'MOB-COMPOSE-02': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['video'],
+        recordingOwner: 'scenario',
+        scenario: 'agent-image-attachment',
+    },
     'MOB-EDIT-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: ['screenshot'],

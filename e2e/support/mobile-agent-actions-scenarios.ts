@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 import {
@@ -9,11 +9,14 @@ import {
 import { writeJsonAtomic } from '../../scripts/atomic-json';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import {
+    adbShell,
     captureMobileFramebuffer,
     mobileSemantics,
     observeMobileNode,
+    pushMobileFixture,
     startMobileFramebufferRecording,
     tapMobileCheck,
+    tapMobileNativeControl,
     waitForMobile,
 } from './mobile-android';
 import {
@@ -199,5 +202,106 @@ export async function executeMobileFileEditScenario(
         });
     } finally {
         await fixture.stop();
+    }
+}
+
+export async function executeMobileImageAttachmentScenario(
+    environment: MobileAgentScenarioEnvironment,
+    artifacts: string[],
+    remoteVideoPath: string,
+): Promise<void> {
+    const fixture = await createMobileAcceptanceFixture({
+        mode: 'attention',
+        serial: environment.serial,
+    });
+    const imageName = 'caxri-acceptance-image.jpg';
+    const remoteImage = `/sdcard/Pictures/${imageName}`;
+    let recording: Awaited<ReturnType<typeof startMobileFramebufferRecording>> | undefined;
+    try {
+        const existingImages = await adbShell(environment.serial, [
+            'content',
+            'query',
+            '--uri',
+            'content://media/external/images/media',
+            '--projection',
+            '_id',
+        ]);
+        if (existingImages.includes('Row:'))
+            throw new Error('Disposable Android gallery contains unrelated images');
+        await pushMobileFixture(
+            environment.serial,
+            join(import.meta.dirname, '../fixtures/mobile-acceptance-image.jpg'),
+            remoteImage,
+        );
+        await adbShell(environment.serial, [
+            'am',
+            'broadcast',
+            '-a',
+            'android.intent.action.MEDIA_SCANNER_SCAN_FILE',
+            '-d',
+            `file://${remoteImage}`,
+        ]);
+        await waitForMobile(
+            () =>
+                adbShell(environment.serial, [
+                    'content',
+                    'query',
+                    '--uri',
+                    'content://media/external/images/media',
+                    '--projection',
+                    '_display_name',
+                ]),
+            (result) => result.includes(imageName),
+        );
+        await fixture.pair();
+        if (!fixture.allowedSessionId) throw new Error('Image fixture Session is unavailable');
+        await tapMobileCheck(environment.serial, `session-row-${fixture.allowedSessionId}`);
+        await waitForMobile(
+            () => mobileSemantics(environment.serial),
+            (nodes) => nodes.some(({ checkId }) => checkId === 'session-attach-image'),
+        );
+        recording = await startMobileFramebufferRecording(environment.serial, remoteVideoPath);
+        await tapMobileCheck(environment.serial, 'session-attach-image');
+        await tapMobileNativeControl(environment.serial, { text: 'Photo library' });
+        await capture(environment, 'picker', artifacts);
+        await tapMobileNativeControl(environment.serial, {
+            resourceId: 'com.google.android.providers.media.module:id/icon_thumbnail',
+        });
+        await waitForMobile(
+            () =>
+                observeMobileNode(environment.serial, 'session-image-status-0', {
+                    kind: 'equals',
+                    value: 'Ready',
+                }),
+            ({ exists, textMatches }) => exists && textMatches === true,
+        );
+        const imageDirectory = join(fixture.testDirectory, 'user-data', 'mobile-attachments');
+        const uploaded = await waitForMobile(
+            () => readdir(imageDirectory),
+            (names) => names.some((name) => /^image_[0-9a-f]{32}\.jpg$/u.test(name)),
+        );
+        await setMobileComposerUnicode(environment.serial, 'Review image');
+        await tapMobileCheck(environment.serial, 'session-composer-send');
+        await waitForMobile(
+            () => fixture.attention!.readReceipt(),
+            (receipts) => receipts.some(({ kind }) => kind === 'terminalInput'),
+        );
+        await finish(environment, artifacts, {
+            imageStored: uploaded.length === 1,
+            status: 'passed',
+            submitted: true,
+        });
+    } finally {
+        await recording?.stop();
+        await fixture.stop();
+        await adbShell(environment.serial, ['rm', '-f', remoteImage]);
+        await adbShell(environment.serial, [
+            'am',
+            'broadcast',
+            '-a',
+            'android.intent.action.MEDIA_SCANNER_SCAN_FILE',
+            '-d',
+            `file://${remoteImage}`,
+        ]);
     }
 }
