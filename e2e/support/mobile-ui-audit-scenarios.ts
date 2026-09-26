@@ -2,8 +2,11 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { writeJsonAtomic } from '../../scripts/atomic-json';
+import { pageRequest } from './helpers';
+import type { MobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import {
+    adbShell,
     captureMobileFramebuffer,
     mobileSemantics,
     setMobileNetworkAvailable,
@@ -141,6 +144,105 @@ async function offlineStates(environment: UiAuditScenarioEnvironment, artifacts:
     });
 }
 
+async function projectIcons(environment: UiAuditScenarioEnvironment, artifacts: string[]) {
+    const { serial } = environment;
+    await tapMobileCheck(serial, 'session-segment-panels');
+    await waitFor(serial, (nodes) => hasCheck(nodes, 'files-panel'));
+    await capture(environment, 'files', artifacts, 'files-panel');
+    const nodes = await mobileSemantics(serial);
+    const treeTab = nodes
+        .map(({ checkId }) => checkId)
+        .find((id) => id.startsWith('panel-tab-') && id !== 'panel-tab-caxri.files');
+    if (!treeTab) throw new Error('The Project tab lists no tree view besides Files');
+    await tapMobileCheck(serial, treeTab);
+    const viewId = treeTab.slice('panel-tab-'.length);
+    await waitFor(serial, (current) => hasCheck(current, `tree-panel-${viewId}`));
+    await capture(environment, 'tree-view', artifacts, `tree-panel-${viewId}`);
+    await finish(environment, artifacts, { status: 'passed', treeView: viewId });
+}
+
+const sessionTitle = async (fixture: MobileAcceptanceFixture, sessionId: string) => {
+    const result = await pageRequest<{
+        sessions: Array<{ archivedAt?: number; displayTitle: string }>;
+    }>(fixture.running.page, 'session.query', { mode: 'show', selector: sessionId });
+    const session = result.sessions.at(0);
+    if (!session) throw new Error('Synthetic Session disappeared');
+    return session;
+};
+
+async function sessionManagement(
+    environment: UiAuditScenarioEnvironment,
+    artifacts: string[],
+    fixture: MobileAcceptanceFixture,
+    sessionId: string,
+) {
+    const { serial } = environment;
+    const row = `session-row-${sessionId}`;
+    await tapMobileCheck(serial, row, { isLongPress: true });
+    await waitFor(serial, (nodes) => hasCheck(nodes, 'session-action-rename'));
+    await capture(environment, 'actions', artifacts, 'session-actions-sheet');
+    await tapMobileCheck(serial, 'session-action-rename');
+    await waitFor(serial, (nodes) => hasCheck(nodes, 'session-rename-input'));
+    /**
+     * The field selects its text on focus, so typed ASCII replaces the old title; `%s` is ADB's escaped space.
+     */
+    await adbShell(serial, ['input', 'text', 'Mobile%sRenamed']);
+    await capture(environment, 'rename', artifacts, 'session-rename-save');
+    await tapMobileCheck(serial, 'session-rename-save');
+    await waitFor(serial, (nodes) => !hasCheck(nodes, 'session-actions-sheet'));
+    const renamed = await sessionTitle(fixture, sessionId);
+    if (renamed.displayTitle !== 'Mobile Renamed')
+        throw new Error('The Desktop Session title did not change');
+
+    await tapMobileCheck(serial, row, { isLongPress: true });
+    await waitFor(serial, (nodes) => hasCheck(nodes, 'session-action-archive'));
+    await tapMobileCheck(serial, 'session-action-archive');
+    await waitFor(
+        serial,
+        (nodes) => !hasCheck(nodes, row) && !hasCheck(nodes, 'session-actions-sheet'),
+    );
+    if ((await sessionTitle(fixture, sessionId)).archivedAt === undefined)
+        throw new Error('The Desktop Session was not archived');
+
+    await tapMobileCheck(serial, 'forget-device-button');
+    await waitFor(serial, (nodes) => hasCheck(nodes, 'archived-sessions-action'));
+    await tapMobileCheck(serial, 'archived-sessions-action');
+    await waitFor(serial, (nodes) => hasCheck(nodes, `archived-session-restore-${sessionId}`));
+    await capture(environment, 'archived-list', artifacts, 'archived-sessions-screen');
+    await tapMobileCheck(serial, `archived-session-restore-${sessionId}`);
+    await waitFor(serial, (nodes) => !hasCheck(nodes, `archived-session-${sessionId}`));
+    await capture(environment, 'archived-empty', artifacts, 'archived-sessions-screen');
+    if ((await sessionTitle(fixture, sessionId)).archivedAt !== undefined)
+        throw new Error('The Desktop Session was not restored');
+    await tapMobileCheck(serial, 'archived-sessions-back');
+    await waitFor(serial, (nodes) => hasCheck(nodes, row));
+    await capture(environment, 'restored-home', artifacts, row);
+    await finish(environment, artifacts, {
+        archive: 'removed-from-home-and-archived-on-desktop',
+        rename: 'desktop-title-updated',
+        restore: 'listed-then-restored-to-home',
+        status: 'passed',
+    });
+}
+
+async function settingsPage(environment: UiAuditScenarioEnvironment, artifacts: string[]) {
+    const { serial } = environment;
+    await tapMobileCheck(serial, 'forget-device-button');
+    await waitFor(serial, (nodes) => hasCheck(nodes, 'settings-action'));
+    await capture(environment, 'menu', artifacts, 'settings-action');
+    await tapMobileCheck(serial, 'settings-action');
+    await waitFor(
+        serial,
+        (nodes) =>
+            hasCheck(nodes, 'settings-access-level') &&
+            hasCheck(nodes, 'forget-this-computer-action'),
+    );
+    await capture(environment, 'settings', artifacts, 'settings-screen');
+    await tapMobileCheck(serial, 'settings-back');
+    await waitFor(serial, (nodes) => hasCheck(nodes, 'new-session-button'));
+    await finish(environment, artifacts, { status: 'passed' });
+}
+
 /**
  * Runs the synthetic Acceptance cases for the page-by-page mobile UI audit.
  */
@@ -157,16 +259,29 @@ export async function executeMobileUiAuditScenario(
         await fixture.pair();
         const sessionId = fixture.allowedSessionId;
         if (!sessionId) throw new Error('Synthetic UI audit Session is unavailable');
-        await openSession(environment.serial, sessionId);
+        await waitFor(environment.serial, (nodes) => hasCheck(nodes, `session-row-${sessionId}`));
         switch (environment.caseId) {
             case 'MOB-UI-01':
+                await openSession(environment.serial, sessionId);
                 await projectTab(environment, artifacts);
                 break;
             case 'MOB-UI-02':
+                await openSession(environment.serial, sessionId);
                 await changesPolish(environment, artifacts);
                 break;
             case 'MOB-UI-03':
+                await openSession(environment.serial, sessionId);
                 await offlineStates(environment, artifacts);
+                break;
+            case 'MOB-UI-05':
+                await openSession(environment.serial, sessionId);
+                await projectIcons(environment, artifacts);
+                break;
+            case 'MOB-UI-06':
+                await sessionManagement(environment, artifacts, fixture, sessionId);
+                break;
+            case 'MOB-UI-07':
+                await settingsPage(environment, artifacts);
                 break;
             default:
                 throw new Error(`Unsupported UI audit Acceptance case: ${environment.caseId}`);
