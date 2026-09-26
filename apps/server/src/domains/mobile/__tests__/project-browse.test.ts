@@ -5,10 +5,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { CaxriDatabase } from '../../db';
-import {
-    createMobileProjectAddHandler,
-    createMobileProjectBrowseHandler,
-} from '../project-browse';
+import { createMobileProjectAddHandler, createMobileProjectBrowseHandler } from '../project-browse';
 
 const temporaryDirectories: string[] = [];
 

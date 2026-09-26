@@ -101,5 +101,5 @@ next `mobile.dashboard` read.
 
 The implementation lives in [the access controller](../../apps/server/src/core/mobile/access-controller.ts),
 [device registry](../../apps/server/src/core/mobile/device-registry.ts),
-[Project browse/add handlers](../../apps/server/src/domains/mobile-project-browse.ts), and
+[Project browse/add handlers](../../apps/server/src/domains/mobile/project-browse.ts), and
 [mobile protocol](../../packages/protocol/src/mobile/mobile-contract.ts).
