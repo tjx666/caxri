@@ -207,7 +207,6 @@ export async function executeMobileTerminalScenario(
         );
         await capture(environment, 'taken-over', artifacts);
 
-        const gridAttributeName = 'data-terminal-grid';
         try {
             await fixture.running.app.evaluate(
                 ({ BrowserWindow }, bounds) => BrowserWindow.getAllWindows()[0].setBounds(bounds),
@@ -220,8 +219,11 @@ export async function executeMobileTerminalScenario(
                 },
             );
             await waitForMobile(
-                () => surface.getAttribute(gridAttributeName),
-                (current) => current !== desktopGrid,
+                () =>
+                    fixture.running.app.evaluate(({ BrowserWindow }) =>
+                        BrowserWindow.getAllWindows()[0].getBounds(),
+                    ),
+                ({ width }) => width !== windowBounds.width,
             );
             for (let sample = 0; sample < 5; sample += 1) {
                 // eslint-disable-next-line no-await-in-loop -- each sample watches the held mobile lease after Desktop resize.
@@ -243,8 +245,19 @@ export async function executeMobileTerminalScenario(
                 windowBounds,
             );
             await waitForMobile(
-                () => surface.getAttribute(gridAttributeName),
-                (current) => current === desktopGrid,
+                () =>
+                    fixture.running.app.evaluate(({ BrowserWindow }) =>
+                        BrowserWindow.getAllWindows()[0].getBounds(),
+                    ),
+                ({ width, height }) =>
+                    width === windowBounds.width && height === windowBounds.height,
+            );
+            /**
+             * Desktop keeps the mobile-owned grid until release, even after its window is restored.
+             */
+            await expect(surface).toHaveAttribute(
+                'data-terminal-grid',
+                `${takenOver.cols}x${takenOver.rows}`,
             );
         }
 
