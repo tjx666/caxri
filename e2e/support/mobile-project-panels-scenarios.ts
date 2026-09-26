@@ -179,7 +179,7 @@ async function browsePanels(environment: Environment, artifacts: string[]): Prom
         await tapMobileCheck(environment.serial, 'session-segment-changes');
         await waitForMobile(
             () => mobileSemantics(environment.serial),
-            (nodes) => hasCheck(nodes, 'changes-summary'),
+            (nodes) => hasCheck(nodes, 'changes-empty'),
         );
         await capture(environment, 'git-changes', artifacts);
         await finish(environment, artifacts, {

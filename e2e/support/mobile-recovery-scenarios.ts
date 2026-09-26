@@ -118,7 +118,43 @@ export async function executeMobileRecoveryScenario(
                     (nodes) => nodes.some(({ checkId }) => checkId === 'pairing-entry-screen'),
                 );
                 await capture(environment, 'after-restart', artifacts);
+                const replacementPairing = await pageRequest<{ pairingLink: string }>(
+                    fixture.running.page,
+                    'mobile.pairing.create',
+                    { projectIds: [fixture.allowedProjectId] },
+                );
+                await openMobilePairingLink(environment.serial, replacementPairing.pairingLink);
+                await waitForMobile(
+                    () => mobileSemantics(environment.serial),
+                    (nodes) => nodes.some(({ checkId }) => checkId === 'loading-screen'),
+                );
+                const invalidReplacement = new URL(replacementPairing.pairingLink);
+                invalidReplacement.searchParams.set('v', '999');
+                await openMobilePairingLink(environment.serial, invalidReplacement.href);
+                await waitForMobile(
+                    () => mobileSemantics(environment.serial),
+                    (nodes) => nodes.some(({ checkId }) => checkId === 'pairing-error'),
+                );
+                await new Promise((resolve) => setTimeout(resolve, 7_000));
+                expect(
+                    (await mobileSemantics(environment.serial)).some(
+                        ({ checkId }) => checkId === 'pairing-error',
+                    ),
+                ).toBe(true);
+                await capture(environment, 'replacement-link', artifacts);
+                await adbShell(environment.serial, ['am', 'force-stop', 'com.caxri.mobile']);
+                await adbShell(environment.serial, [
+                    'am',
+                    'start',
+                    '-W',
+                    'com.caxri.mobile/.MainActivity',
+                ]);
+                await waitForMobile(
+                    () => mobileSemantics(environment.serial),
+                    (nodes) => nodes.some(({ checkId }) => checkId === 'pairing-entry-screen'),
+                );
                 await finish(environment, artifacts, {
+                    replacedLink: 'old-attempt-did-not-adopt-or-persist',
                     latePairing: 'did-not-adopt-or-persist',
                     status: 'passed',
                 });
