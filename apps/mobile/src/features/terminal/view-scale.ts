@@ -11,3 +11,10 @@ export const terminalViewScale = ({
     const smallest = Math.min(1, widthFit, heightFit);
     return Math.min(2, Math.max(smallest, fitted * zoom));
 };
+
+export const isTerminalViewAtBottom = (
+    buffer: { baseY: number; viewportY: number },
+    outer: { clientHeight: number; scrollHeight: number; scrollTop: number },
+): boolean =>
+    buffer.viewportY >= buffer.baseY &&
+    outer.scrollHeight - outer.scrollTop - outer.clientHeight < 24;
