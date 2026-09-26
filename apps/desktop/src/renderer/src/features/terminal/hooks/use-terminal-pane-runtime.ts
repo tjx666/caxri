@@ -67,6 +67,10 @@ import {
     TerminalResizeSettler,
 } from '../terminal-size';
 import { useTerminalPaneSearch } from './use-terminal-pane-search';
+import {
+    didHandleTerminalSizeOwnershipEvent,
+    useTerminalSizeOwnership,
+} from './use-terminal-size-ownership';
 import { useTerminalVisibilityRestore } from './use-terminal-visibility-restore';
 
 interface TerminalPaneRuntimeOptions {
@@ -134,6 +138,7 @@ export function useTerminalPaneRuntime({
     const containerReference = useRef<HTMLDivElement>(null);
     const xtermReference = useRef<Terminal | undefined>(undefined);
     const fitAndResizeReference = useRef<(() => void) | undefined>(undefined);
+    const resizeControllerReference = useRef<TerminalPaneResizeController | undefined>(undefined);
     /**
      * Context-menu Paste reads this effect-owned ref instead of capturing xterm across attach epochs.
      */
@@ -148,6 +153,7 @@ export function useTerminalPaneRuntime({
     const [fontsReady, setFontsReady] = useState(false);
     const [longPasteState, setLongPasteState] = useState({ id: terminalId, pending: false });
     const longPastePending = longPasteState.id === terminalId && longPasteState.pending;
+    const sizeOwnership = useTerminalSizeOwnership(terminalId, attachEpoch, processState);
     const attachedEpochReference = useRef(attachEpoch);
     const previousProcessStateReference = useRef(processState);
     const latestReference = useLatestReference({
@@ -365,6 +371,7 @@ export function useTerminalPaneRuntime({
             request: (size) => resizeTerminal(terminalId, size),
             terminalId,
         });
+        resizeControllerReference.current = resizeController;
         const resizeSettler = new TerminalResizeSettler(() => resizeController.fitAndResize());
         const scheduleResize = (): void => resizeSettler.schedule();
         fitAndResizeReference.current = scheduleResize;
@@ -492,6 +499,15 @@ export function useTerminalPaneRuntime({
                 if (wasFocused) xterm.focus();
                 return;
             }
+            if (
+                didHandleTerminalSizeOwnershipEvent(
+                    event,
+                    terminalId,
+                    resizeController,
+                    sizeOwnership,
+                )
+            )
+                return;
             if (event.event !== 'terminal.output' || event.payload.terminalId !== terminalId)
                 return;
             rendererObserver.recordOutput(event.payload.data, event.payload.droppedBytes ?? 0);
@@ -592,6 +608,8 @@ export function useTerminalPaneRuntime({
             observer.disconnect();
             resizeSettler.dispose();
             resizeController.dispose();
+            if (resizeControllerReference.current === resizeController)
+                resizeControllerReference.current = undefined;
             document.removeEventListener('focusin', trackNewerFocus);
             document.removeEventListener('keydown', trackExplicitInteraction, true);
             document.removeEventListener('pointerdown', trackExplicitInteraction, true);
@@ -628,7 +646,7 @@ export function useTerminalPaneRuntime({
             void detachTerminalQuietly(terminalId);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps -- `latestReference` is a stable ref object, intentionally excluded
-    }, [fontsReady, terminalId]);
+    }, [fontsReady, sizeOwnership.onSizeOwnership, sizeOwnership.onTerminalExit, terminalId]);
     useEffect(() => {
         rendererReference.current?.setPreference(gpuAcceleration);
     }, [gpuAcceleration]);
@@ -661,6 +679,7 @@ export function useTerminalPaneRuntime({
     useEffect(() => {
         if (attachedEpochReference.current === attachEpoch) return;
         attachedEpochReference.current = attachEpoch;
+        resizeControllerReference.current?.resetSizeOwnership();
         const replay = replayReference.current;
         const xterm = xtermReference.current;
         if (!replay || !xterm) return;
@@ -697,6 +716,7 @@ export function useTerminalPaneRuntime({
         previousProcessStateReference.current = processState;
         if (!xterm) return;
         const isRunning = processState === 'running';
+        if (!isRunning) resizeControllerReference.current?.resetSizeOwnership();
         xterm.options.disableStdin = !isRunning || longPastePending;
         const invalidateFocus = reconcileTerminalProcessFocus({
             active,
@@ -772,6 +792,7 @@ export function useTerminalPaneRuntime({
         focusTerminal,
         getFocusElement,
         longPastePending,
+        mobileSizeOwnership: sizeOwnership.mobileSizeOwnership,
         pasteFromClipboard,
         searchResults,
     };

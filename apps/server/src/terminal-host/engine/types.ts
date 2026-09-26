@@ -9,6 +9,31 @@ import type { TerminalOutputFramer } from './output-framer';
 import type { AgentOutputRecovery } from './output-recovery';
 import type { TerminalScreenState } from './screen';
 
+export type TerminalExecutionEvent =
+    | {
+          type: 'output';
+          terminalId: string;
+          data: string;
+          droppedBytes?: number;
+      }
+    | { type: 'observerOutput'; terminalId: string; data: string; sequence: number }
+    | { type: 'observerGap'; terminalId: string; sequence: number }
+    | {
+          type: 'outputRecovery';
+          terminalId: string;
+          provider: AgentProvider;
+          status: 'recovered' | 'rate-limited';
+      }
+    | { type: 'activity'; terminalId: string; processId: number }
+    | {
+          type: 'sizeOwnership';
+          terminalId: string;
+          owner: 'desktop' | 'mobile';
+          cols: number;
+          rows: number;
+      }
+    | { type: 'title'; terminalId: string; title: string };
+
 export interface LiveTerminal {
     colorQuery?: TerminalColorQueryResponder;
     imageRecovery: TerminalImageRecoveryFilter;

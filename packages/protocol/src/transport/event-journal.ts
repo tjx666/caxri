@@ -30,6 +30,7 @@ export type TransientServerEvent = Extract<
             | 'sessionPullRequests.changed'
             | 'terminal.output'
             | 'terminal.outputRecovery'
+            | 'terminal.sizeOwnership'
             | 'viewContainers.catalogChanged'
             | 'viewContainers.treeChanged'
             | 'viewContainers.viewChanged'
@@ -44,6 +45,7 @@ const TRANSIENT_SERVER_EVENT_NAMES = new Set<ServerEvent['event']>([
     'agent.automaticNamingUnavailable',
     'terminal.output',
     'terminal.outputRecovery',
+    'terminal.sizeOwnership',
     'agent.messaging.changed',
     'agent.message.held',
     'agent.message.receipt',

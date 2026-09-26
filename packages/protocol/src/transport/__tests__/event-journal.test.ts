@@ -55,6 +55,12 @@ describe('isTransientServerEvent / transient and durable schemas', () => {
         expect(
             isTransientServerEvent({ event: 'terminal.outputRecovery', payload: {} } as never),
         ).toBe(true);
+        expect(
+            isTransientServerEvent({
+                event: 'terminal.sizeOwnership',
+                payload: { terminalId: 'terminal-1', owner: 'mobile', cols: 42, rows: 20 },
+            }),
+        ).toBe(true);
         expect(isTransientServerEvent({ event: 'command.execute', payload: {} } as never)).toBe(
             true,
         );

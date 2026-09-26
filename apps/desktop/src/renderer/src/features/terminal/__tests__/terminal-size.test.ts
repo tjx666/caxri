@@ -38,6 +38,64 @@ describe('Terminal resize deduplication', () => {
         expect(request).toHaveBeenCalledWith({ cols: 131, rows: 59 });
     });
 
+    it('displays the mobile PTY grid while caching the latest desktop fit for release', () => {
+        let current = { cols: 80, rows: 24 };
+        let proposed = { cols: 80, rows: 24 };
+        const apply = vi.fn((size: { cols: number; rows: number }) => {
+            current = size;
+        });
+        const fitted = vi.fn();
+        const request = vi.fn(() => Promise.resolve());
+        const controller = new TerminalPaneResizeController({
+            apply,
+            current: () => current,
+            fitted,
+            isRunning: () => true,
+            propose: () => proposed,
+            request,
+            terminalId: 'terminal-mobile-size',
+        });
+        controller.confirmSent(proposed);
+
+        controller.setSizeOwnership('mobile', { cols: 42, rows: 20 });
+        expect(current).toEqual({ cols: 42, rows: 20 });
+        expect(fitted).toHaveBeenLastCalledWith({ cols: 42, rows: 20 });
+
+        proposed = { cols: 110, rows: 32 };
+        controller.fitAndResize();
+        expect(current).toEqual({ cols: 42, rows: 20 });
+        expect(request).toHaveBeenCalledOnce();
+        expect(request).toHaveBeenCalledWith({ cols: 110, rows: 32 });
+        expect(fitted).toHaveBeenLastCalledWith({ cols: 42, rows: 20 });
+
+        controller.setSizeOwnership('mobile', { cols: 40, rows: 18 });
+        expect(current).toEqual({ cols: 40, rows: 18 });
+        controller.setSizeOwnership('desktop', { cols: 110, rows: 32 });
+        expect(current).toEqual({ cols: 110, rows: 32 });
+        expect(request).toHaveBeenCalledOnce();
+        expect(fitted).toHaveBeenLastCalledWith({ cols: 110, rows: 32 });
+    });
+
+    it('drops stale mobile ownership before reattaching to a restarted Server', () => {
+        let current = { cols: 80, rows: 24 };
+        const controller = new TerminalPaneResizeController({
+            apply: (size) => {
+                current = size;
+            },
+            current: () => current,
+            fitted: vi.fn(),
+            isRunning: () => true,
+            propose: () => ({ cols: 110, rows: 32 }),
+            request: vi.fn(() => Promise.resolve()),
+            terminalId: 'terminal-restarted-mobile-size',
+        });
+        controller.setSizeOwnership('mobile', { cols: 42, rows: 20 });
+
+        controller.resetSizeOwnership();
+
+        expect(current).toEqual({ cols: 110, rows: 32 });
+    });
+
     it('suppresses an unchanged grid while preserving either dimension change', () => {
         expect(didTerminalSizeChange(undefined, { cols: 100, rows: 30 })).toBe(true);
         expect(didTerminalSizeChange({ cols: 100, rows: 30 }, { cols: 100, rows: 30 })).toBe(false);

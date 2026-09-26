@@ -8,6 +8,7 @@ import {
     MessageSquarePlus,
     RotateCcw,
     Settings2,
+    Smartphone,
     TriangleAlert,
     Unplug,
 } from 'lucide-react';
@@ -259,6 +260,7 @@ export function TerminalPane({
         focusTerminal,
         getFocusElement,
         longPastePending,
+        mobileSizeOwnership,
         pasteFromClipboard,
         searchResults,
     } = useTerminalPaneRuntime({
@@ -355,6 +357,19 @@ export function TerminalPane({
             }}
             style={{ backgroundColor: terminalTheme?.background ?? 'var(--background)' }}
         >
+            {mobileSizeOwnership && (
+                <div
+                    aria-live="polite"
+                    className="flex min-h-7 flex-none items-center gap-2 border-b border-border bg-surface px-2 text-[11px] text-muted"
+                    role="status"
+                >
+                    <Smartphone aria-hidden="true" size={12} />
+                    <span>Phone controls Terminal size</span>
+                    <span className="ml-auto font-mono tabular-nums">
+                        {mobileSizeOwnership.cols} × {mobileSizeOwnership.rows}
+                    </span>
+                </div>
+            )}
             <ContextMenu
                 onOpenChange={(open) => {
                     if (open) setContextMenuHasSelection(hasActiveTerminalSelection(terminalId));
