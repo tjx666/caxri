@@ -17,6 +17,12 @@ capability. While the lease is active, Desktop attach and resize update the late
 without changing the PTY. Release, disconnect, unsubscribe, device revocation, timeout, or Terminal
 retirement ends the lease; a running PTY returns to the current Desktop grid, or to its pre-lease grid
 when no Desktop view remains. Only one exact connection and subscription holder can own the lease.
+Terminal Host emits `terminal.sizeOwnership` after a takeover, mobile size change, release, timeout,
+or Desktop attach. Core forwards only the current PTY generation; the public event carries owner
+and actual grid without holder identity and stays out of durable replay. Desktop applies the actual
+mobile grid to xterm, keeps sending its fitted grid for Host to cache, and shows a non-obscuring
+status row until ownership returns. A fresh attach re-emits current ownership for late views and
+reconnects.
 Mobile control input crosses a separate Host request fenced to the current PTY generation; it never
 borrows the Desktop attachment capability. Revocation cancels input awaiting Host startup before
 send; once sent, the Host result remains authoritative because PTY input cannot be recalled.

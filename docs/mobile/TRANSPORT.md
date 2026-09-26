@@ -70,6 +70,11 @@ connection and subscription. The Host restores Desktop's latest desired size on 
 socket close, revocation, release, or its independent 12-second lease timeout. Only an explicit
 `mobile.terminal.takeOver` request can alter the PTY size; `mobile.terminal.release` returns size
 ownership to Desktop. `mobile.terminal.input` is fenced to the observed Terminal generation.
+Terminal Host publishes `terminal.sizeOwnership` with the owner and actual PTY grid on takeover,
+mobile size changes, release, timeout, and Desktop attachment. Server Core filters stale Host
+generations before relaying the event. Desktop keeps xterm at the mobile-owned grid while reporting
+its latest fitted grid for restoration. The ownership event is transient: a late or reconnected
+Desktop receives current state from its new attachment instead of replaying an expired lease.
 
 ## Backpressure and privacy
 

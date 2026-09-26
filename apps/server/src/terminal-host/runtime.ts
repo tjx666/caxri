@@ -33,6 +33,7 @@ import type {
 import { TerminalExecutionEngine } from './engine';
 import type { AgentInputHandoff } from './engine/agent-input';
 import { noOpAgentInputHandoff } from './engine/agent-input';
+import { projectTerminalExecutionEvent } from './execution-event-projection';
 import type {
     TerminalHostAuthority,
     TerminalHostMessage,
@@ -223,60 +224,9 @@ export class TerminalHostRuntime {
     private projectExecutionEvent(event: TerminalExecutionEvent): void {
         const identity = this.identities.get(event.terminalId);
         if (!identity) return;
-        const wireIdentity = this.eventIdentity(identity);
-        switch (event.type) {
-            case 'output':
-                if (!identity.attachmentId) return;
-                this.options.send({
-                    type: 'event',
-                    event: 'terminal.output',
-                    identity: { ...wireIdentity, attachmentId: identity.attachmentId },
-                    data: event.data,
-                    ...(event.droppedBytes !== undefined && { droppedBytes: event.droppedBytes }),
-                });
-                return;
-            case 'observerOutput':
-                this.options.send({
-                    type: 'event',
-                    event: 'terminal.observer.output',
-                    identity: wireIdentity,
-                    sequence: event.sequence,
-                    data: event.data,
-                });
-                return;
-            case 'observerGap':
-                this.options.send({
-                    type: 'event',
-                    event: 'terminal.observer.gap',
-                    identity: wireIdentity,
-                    sequence: event.sequence,
-                });
-                return;
-            case 'activity':
-                this.options.send({
-                    type: 'event',
-                    event: 'terminal.activity',
-                    identity: wireIdentity,
-                    processId: event.processId,
-                });
-                return;
-            case 'title':
-                this.options.send({
-                    type: 'event',
-                    event: 'terminal.title',
-                    identity: wireIdentity,
-                    title: event.title,
-                });
-                return;
-            case 'outputRecovery':
-                this.options.send({
-                    type: 'event',
-                    event: 'terminal.outputRecovery',
-                    identity: wireIdentity,
-                    provider: event.provider,
-                    status: event.status,
-                });
-        }
+        projectTerminalExecutionEvent(event, this.eventIdentity(identity), (message) =>
+            this.options.send(message),
+        );
     }
 
     private async projectExecutionExit(event: TerminalExecutionExit): Promise<void> {

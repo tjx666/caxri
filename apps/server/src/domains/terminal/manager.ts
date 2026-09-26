@@ -167,6 +167,18 @@ export class TerminalManager {
                 this.onOutputActivity?.(event.terminalId, event.processId);
                 return;
             }
+            case 'sizeOwnership': {
+                this.emit({
+                    event: 'terminal.sizeOwnership',
+                    payload: {
+                        terminalId: event.terminalId,
+                        owner: event.owner,
+                        cols: event.cols,
+                        rows: event.rows,
+                    },
+                });
+                return;
+            }
             case 'title': {
                 let listener = this.titleListeners.get(event.terminalId);
                 if (!listener) {

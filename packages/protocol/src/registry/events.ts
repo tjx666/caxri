@@ -131,6 +131,12 @@ export const serverEventPayloads = {
         data: z.string(),
         droppedBytes: z.number().optional(),
     }),
+    'terminal.sizeOwnership': z.object({
+        terminalId: identifierSchema,
+        owner: z.enum(['desktop', 'mobile']),
+        cols: z.number().int().positive().max(10_000),
+        rows: z.number().int().positive().max(10_000),
+    }),
     /**
      * One-shot, content-free feedback for a provider output recovery attempt.
      */

@@ -41,28 +41,12 @@ import { ensureLiveOutputRecovery, hasConfiguredOutputRecovery } from './output-
 import { sampleTerminalResources } from './resources';
 import { TerminalScreenState } from './screen';
 import { captureTerminalSnapshot } from './snapshot';
-import type { LiveTerminal } from './types';
+import type { LiveTerminal, TerminalExecutionEvent } from './types';
+
+export type { TerminalExecutionEvent } from './types';
 
 const MAX_OUTPUT_BATCH_BYTES = 256 * 1024;
 const ptyLogEvents = logEventCatalog.pty;
-
-export type TerminalExecutionEvent =
-    | {
-          type: 'output';
-          terminalId: string;
-          data: string;
-          droppedBytes?: number;
-      }
-    | { type: 'observerOutput'; terminalId: string; data: string; sequence: number }
-    | { type: 'observerGap'; terminalId: string; sequence: number }
-    | {
-          type: 'outputRecovery';
-          terminalId: string;
-          provider: AgentProvider;
-          status: 'recovered' | 'rate-limited';
-      }
-    | { type: 'activity'; terminalId: string; processId: number }
-    | { type: 'title'; terminalId: string; title: string };
 
 export interface TerminalExecutionStart {
     args: string[];
@@ -366,6 +350,16 @@ export class TerminalExecutionEngine {
         return true;
     }
 
+    private emitSizeOwnership(live: LiveTerminal): void {
+        this.options.emit({
+            type: 'sizeOwnership',
+            terminalId: live.record.id,
+            owner: this.sizeLeases.has(live.record.id) ? 'mobile' : 'desktop',
+            cols: live.process.cols,
+            rows: live.process.rows,
+        });
+    }
+
     private clearSizeLease(terminalId: string): void {
         const lease = this.sizeLeases.get(terminalId);
         if (!lease) return;
@@ -579,7 +573,9 @@ export class TerminalExecutionEngine {
             });
         }
         this.applySize(live, size.cols, size.rows);
-        return this.scheduleSizeLease(terminalId, holderId, timeoutMs);
+        const lease = this.scheduleSizeLease(terminalId, holderId, timeoutMs);
+        this.emitSizeOwnership(live);
+        return lease;
     }
 
     renewTakeOver(
@@ -604,6 +600,7 @@ export class TerminalExecutionEngine {
             ? (lease.desktopSize ?? this.attachments.size(terminalId) ?? lease.previousSize)
             : lease.previousSize;
         this.applySize(lease.live, size.cols, size.rows);
+        this.emitSizeOwnership(lease.live);
     }
 
     async observe(
@@ -663,6 +660,7 @@ export class TerminalExecutionEngine {
             live.outputQueue.clear();
             live.droppedBytes = 0;
         }
+        this.emitSizeOwnership(live);
         return {
             snapshot: {
                 terminalId,
