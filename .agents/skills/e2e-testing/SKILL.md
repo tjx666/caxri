@@ -225,7 +225,8 @@ The exception covers only a recorded case whose failure is unrelated to the curr
 that reproduces locally, a case nobody reran, and any failure inside the changed behavior all still
 block delivery. Recording a failure never replaces the validation that covers the changed code.
 
-Issue #116 CI evidence uses the repository-owned workflow dispatch instead of an ad-hoc command.
+Collect CI comparison evidence through the repository-owned workflow dispatch instead of an ad-hoc
+command.
 `docs/ci-performance.md` owns the current profile, pool, receipt, and comparison contract; use the
 following controls when collecting a new comparison:
 

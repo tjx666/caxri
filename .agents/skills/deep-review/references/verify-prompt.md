@@ -55,7 +55,7 @@ either set. Put explanations in the field assigned to that verdict.
     {
       "id": "life-1",
       "verdict": "confirmed",
-      "evidence": "src/renderer/src/features/editor/useDocument.ts:87 applies the reply without comparing the originating Session id, while App.tsx:211 permits switching during the request.",
+      "evidence": "apps/desktop/src/renderer/src/features/editor/useDocument.ts:87 applies the reply without comparing the originating Session id, while App.tsx:211 permits switching during the request.",
       "blocks_release": true
     },
     {

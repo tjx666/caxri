@@ -7,8 +7,8 @@ description: Prepare Caxri releases and optional local unsigned macOS artifacts.
 
 1. Confirm the requested scope. Never push, publish, notarize, upload, or create a remote release
    without explicit authorization.
-2. Run non-GUI local gates such as `bun run lint`, `bun run typecheck`, and `bun run test` as
-   needed for release readiness.
+2. Run non-GUI local gates such as `bun run lint`, `bun run typecheck`, and focused
+   `bun run check` tests as needed for release readiness; the full unit suite runs in CI.
 3. Never run `bun run test:e2e` or an unscoped Playwright suite locally. Follow `e2e-testing` for
    focused Electron coverage. GitHub Actions owns full E2E and release-level packaged-app
    validation so the developer's desktop remains usable.

@@ -35,5 +35,5 @@ Report objective repository and GitHub state separately from code findings.
 ## Not violations
 
 - Pending checks on an active draft, when clearly reported as pending
-- An external authorization failure represented as a code defect
+- An external authorization failure, when reported separately from code defects
 - Missing GitHub issue for a truly trivial maintenance change

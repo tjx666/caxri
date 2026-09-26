@@ -142,7 +142,8 @@ describe('contributor skill invocation contract', () => {
 
     it('keeps Claude on the canonical project instructions and skill root', async () => {
         await expect(access(CANONICAL_INSTRUCTIONS)).resolves.toBeUndefined();
-        expect(await readFile(CLAUDE_INSTRUCTIONS, 'utf8')).toBe('@AGENTS.md\n');
+        // Claude Code reads AGENTS.md natively; a CLAUDE.md bridge would be a second entry point.
+        await expect(access(CLAUDE_INSTRUCTIONS)).rejects.toThrow();
         expect(await readlink(CLAUDE_SKILLS)).toBe('../.agents/skills');
         expect(await realpath(CLAUDE_SKILLS)).toBe(await realpath(SKILLS_ROOT));
         expect(await readFile(join(CLAUDE_SKILLS, 'debug', 'SKILL.md'), 'utf8')).toBe(
