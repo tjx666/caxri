@@ -56,7 +56,7 @@ export const PairingEntryScreen = () => {
                                     ? 'Pairing revoked. Pair this device with Caxri again.'
                                     : 'Not connected. Pair this device with Caxri on your Mac.'
                             }
-                            style={[styles.status, { borderColor: theme.border }]}
+                            style={styles.status}
                             testID="pairing-status"
                         >
                             <View style={[styles.statusDot, { backgroundColor: theme.muted }]} />
@@ -65,6 +65,7 @@ export const PairingEntryScreen = () => {
                             </Text>
                         </View>
                         <ActionButton
+                            navigates
                             accessibilityHint="Opens the camera to scan a pairing code shown by Caxri on your Mac."
                             onPress={() => router.push('/pair/scan')}
                             testID="pairing-scan-button"
@@ -73,6 +74,7 @@ export const PairingEntryScreen = () => {
                             Scan pairing code
                         </ActionButton>
                         <ActionButton
+                            navigates
                             accessibilityHint="Reads a Caxri pairing link from the clipboard."
                             onPress={() => router.push('/pair/paste')}
                             testID="pairing-paste-button"
@@ -149,11 +151,9 @@ const styles = StyleSheet.create({
     status: {
         alignItems: 'center',
         alignSelf: 'center',
-        borderBottomWidth: 1,
         flexDirection: 'row',
         gap: 8,
         marginBottom: 6,
-        paddingBottom: 8,
         paddingHorizontal: 2,
     },
     statusDot: {

@@ -2,11 +2,17 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { ChevronRight } from 'lucide-react-native';
+
 import type { MobileTheme } from '../theme/tokens';
 
 interface ActionButtonProperties {
     accessibilityHint: string;
     children: ReactNode;
+    /**
+     * Shows a trailing chevron. Only a button that opens another screen gets one; an action in place does not.
+     */
+    navigates?: boolean;
     onPress: () => void;
     testID: string;
     theme: MobileTheme;
@@ -16,6 +22,7 @@ interface ActionButtonProperties {
 export const ActionButton = ({
     accessibilityHint,
     children,
+    navigates = false,
     onPress,
     testID,
     theme,
@@ -46,13 +53,12 @@ export const ActionButton = ({
             >
                 {children}
             </Text>
-            <Text
-                accessibilityElementsHidden
-                importantForAccessibility="no-hide-descendants"
-                style={{ color: variant === 'primary' ? theme.primaryForeground : theme.muted }}
-            >
-                →
-            </Text>
+            {navigates ? (
+                <ChevronRight
+                    color={variant === 'primary' ? theme.primaryForeground : theme.muted}
+                    size={20}
+                />
+            ) : null}
         </View>
     </Pressable>
 );

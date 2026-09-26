@@ -59,10 +59,15 @@ export const TerminalKeyboardInput = ({
  * Status that must interrupt the screen floats as a compact chip over the Terminal instead of stacking rows under it.
  */
 export const TerminalStatusChip = ({
+    isConnected,
     role,
     terminal,
     theme,
 }: {
+    /**
+     * While the phone is offline the app-wide Reconnecting banner already explains the frozen frame.
+     */
+    isConnected: boolean;
     role: 'view' | 'reply' | 'control' | null;
     terminal: LiveTerminal;
     theme: MobileTheme;
@@ -72,7 +77,7 @@ export const TerminalStatusChip = ({
         {
             loading: 'Loading Terminal…',
             ready: role === 'control' ? null : 'View only on this device',
-            stale: 'Connection lost · showing the last frame',
+            stale: isConnected ? 'Terminal updates paused · showing the last frame' : null,
             stopped: 'Terminal has stopped',
             unavailable: 'Terminal is unavailable',
             error: 'Unable to load the Terminal',

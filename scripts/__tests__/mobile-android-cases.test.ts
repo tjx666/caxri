@@ -118,6 +118,10 @@ describe('mobile Android Acceptance cases', () => {
             'MOB-CHANGES-02',
             'MOB-CHANGES-03',
             'MOB-CHANGES-04',
+            'MOB-UI-01',
+            'MOB-UI-02',
+            'MOB-UI-03',
+            'MOB-UI-04',
         ]) {
             expect(shouldCaptureAdapterScreenshot(caseId, true)).toBe(false);
         }

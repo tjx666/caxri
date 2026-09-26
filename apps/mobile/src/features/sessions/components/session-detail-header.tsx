@@ -6,9 +6,9 @@ import {
     ChevronLeft,
     EllipsisVertical,
     FileDiff,
+    FolderGit2,
     MailOpen,
     MessagesSquare,
-    PanelRight,
     SquareTerminal,
 } from 'lucide-react-native';
 
@@ -25,7 +25,7 @@ const segmentPresentation: Record<SessionSegment, { icon: LucideIcon; label: str
     conversation: { icon: MessagesSquare, label: 'Conversation' },
     terminal: { icon: SquareTerminal, label: 'Terminal' },
     changes: { icon: FileDiff, label: 'Changes' },
-    panels: { icon: PanelRight, label: 'Panels' },
+    panels: { icon: FolderGit2, label: 'Project' },
 };
 const segments: SessionSegment[] = ['conversation', 'terminal', 'changes', 'panels'];
 
@@ -47,7 +47,10 @@ const SessionSegmentTab = ({
     theme: MobileTheme;
 }) => {
     const { icon: Icon, label } = segmentPresentation[option];
-    const count = option === 'changes' && changesCount !== null ? changesCount : null;
+    /**
+     * A zero badge reads as a value to act on; an empty Changes tab says the same thing without the noise.
+     */
+    const count = option === 'changes' && changesCount ? changesCount : null;
     const color = selected ? theme.text : theme.muted;
     return (
         <Pressable
@@ -69,7 +72,7 @@ const SessionSegmentTab = ({
                     style={[
                         styles.tabBadge,
                         {
-                            backgroundColor: count > 0 ? theme.elevated : 'transparent',
+                            backgroundColor: theme.elevated,
                             color,
                         },
                     ]}
@@ -84,6 +87,7 @@ const SessionSegmentTab = ({
 
 export const SessionDetailHeader = ({
     changesCount,
+    hasConversation,
     isConnected,
     onBack,
     onMarkRead,
@@ -93,6 +97,7 @@ export const SessionDetailHeader = ({
     theme,
 }: {
     changesCount: number | null;
+    hasConversation: boolean;
     isConnected: boolean;
     onBack?: () => void;
     onMarkRead: () => Promise<void>;
@@ -193,7 +198,10 @@ export const SessionDetailHeader = ({
                 ) : null}
             </View>
             <View style={[styles.tabs, { borderColor: theme.border }]}>
-                {segments.map((option) => (
+                {(hasConversation
+                    ? segments
+                    : segments.filter((option) => option !== 'conversation')
+                ).map((option) => (
                     <SessionSegmentTab
                         key={option}
                         changesCount={changesCount}

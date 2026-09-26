@@ -28,6 +28,7 @@ import {
 import { executeMobileNewSessionScenario } from './support/mobile-new-session-scenarios.ts';
 import { createMobileTerminalAcceptanceFixture } from './support/mobile-terminal-acceptance-fixture.ts';
 import { tapTerminalKey } from './support/mobile-terminal-key.ts';
+import { executeMobileUiAuditScenario } from './support/mobile-ui-audit-scenarios.ts';
 import {
     assertMobileComposerDraft,
     assertMobileUnknownFeedback,
@@ -674,7 +675,16 @@ test('executes one report-bound Android product scenario', async ({}) => {
         case 'MOB-CONV-02':
         case 'MOB-CONV-03':
         case 'MOB-CONV-04':
-            await executeMobileConversationScenario(environment, artifacts);
+        case 'MOB-UI-04':
+            await executeMobileConversationScenario(
+                { ...environment, launchId, sourceCommit },
+                artifacts,
+            );
+            break;
+        case 'MOB-UI-01':
+        case 'MOB-UI-02':
+        case 'MOB-UI-03':
+            await executeMobileUiAuditScenario(environment, artifacts);
             break;
         case 'MOB-CHANGES-01':
         case 'MOB-CHANGES-02':

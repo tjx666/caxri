@@ -34,7 +34,7 @@ describe('host Session UI state', () => {
                 remembered: undefined,
                 status: 'loading',
             }),
-        ).toEqual({ fallback: false, segment: 'conversation' });
+        ).toEqual({ fallback: false, hasConversation: true, segment: 'conversation' });
         expect(
             resolveSessionConversationSegment({
                 hasAgentEndpoint: true,
@@ -42,7 +42,7 @@ describe('host Session UI state', () => {
                 remembered: undefined,
                 status: 'loading',
             }),
-        ).toEqual({ fallback: false, segment: 'conversation' });
+        ).toEqual({ fallback: false, hasConversation: true, segment: 'conversation' });
         expect(
             resolveSessionConversationSegment({
                 hasAgentEndpoint: true,
@@ -50,7 +50,7 @@ describe('host Session UI state', () => {
                 remembered: 'conversation',
                 status: 'unsupported',
             }),
-        ).toEqual({ fallback: true, segment: 'terminal' });
+        ).toEqual({ fallback: true, hasConversation: true, segment: 'terminal' });
         expect(
             resolveSessionConversationSegment({
                 hasAgentEndpoint: false,
@@ -58,7 +58,7 @@ describe('host Session UI state', () => {
                 remembered: undefined,
                 status: 'missing',
             }),
-        ).toEqual({ fallback: true, segment: 'terminal' });
+        ).toEqual({ fallback: true, hasConversation: true, segment: 'terminal' });
         expect(
             resolveSessionConversationSegment({
                 hasAgentEndpoint: false,
@@ -66,7 +66,7 @@ describe('host Session UI state', () => {
                 remembered: 'terminal',
                 status: 'loading',
             }),
-        ).toEqual({ fallback: false, segment: 'terminal' });
+        ).toEqual({ fallback: false, hasConversation: true, segment: 'terminal' });
         expect(
             resolveSessionConversationSegment({
                 hasAgentEndpoint: false,
@@ -74,7 +74,7 @@ describe('host Session UI state', () => {
                 remembered: 'conversation',
                 status: 'loading',
             }),
-        ).toEqual({ fallback: false, segment: 'conversation' });
+        ).toEqual({ fallback: false, hasConversation: true, segment: 'conversation' });
         expect(
             resolveSessionConversationSegment({
                 hasAgentEndpoint: false,
@@ -82,7 +82,27 @@ describe('host Session UI state', () => {
                 remembered: 'conversation',
                 status: 'unsupported',
             }),
-        ).toEqual({ fallback: true, segment: 'terminal' });
+        ).toEqual({ fallback: false, hasConversation: false, segment: 'terminal' });
+    });
+
+    it('gives a plain shell no Conversation tab and no fallback notice', () => {
+        for (const status of ['loading', 'unsupported', 'missing'] as const)
+            expect(
+                resolveSessionConversationSegment({
+                    hasAgentEndpoint: false,
+                    hasKnownAgent: false,
+                    remembered: undefined,
+                    status,
+                }),
+            ).toEqual({ fallback: false, hasConversation: false, segment: 'terminal' });
+        expect(
+            resolveSessionConversationSegment({
+                hasAgentEndpoint: false,
+                hasKnownAgent: false,
+                remembered: 'changes',
+                status: 'unsupported',
+            }),
+        ).toEqual({ fallback: false, hasConversation: false, segment: 'changes' });
     });
 
     it('remembers segment and draft independently for each Session', () => {
