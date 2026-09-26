@@ -676,7 +676,10 @@ test('executes one report-bound Android product scenario', async ({}) => {
         case 'MOB-CONV-03':
         case 'MOB-CONV-04':
         case 'MOB-UI-04':
-            await executeMobileConversationScenario(environment, artifacts);
+            await executeMobileConversationScenario(
+                { ...environment, launchId, sourceCommit },
+                artifacts,
+            );
             break;
         case 'MOB-UI-01':
         case 'MOB-UI-02':
