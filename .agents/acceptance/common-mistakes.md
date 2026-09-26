@@ -5,6 +5,21 @@ needlessly prolonged an Acceptance run. Read it before planning a desktop or mob
 Keep entries evidence-based and link to the canonical workflow rule instead of
 duplicating the full procedure here.
 
+## Freezing fixture requirements without matching runner receipts
+
+**Situation:** A mobile Agent case uses a synthetic CLI but never displays or samples a Terminal grid.
+
+**Does not work:** Adding `fixturePreflight: "terminal"` just because an Agent fixture exists. The
+Android runner can pass while emitting no Terminal preflight receipt, so finalization correctly
+rejects the round. Likewise, an `agentFixture` plan entry needs a begin/complete lifecycle receipt
+from that exact case; launching a fake Agent alone does not provide one.
+
+**Works:** Before freezing a plan, map each declared fixture requirement to the runner's actual
+receipt-producing call. Use Terminal preflight only when the case measures a rendered Terminal grid
+and writes its bounded preflight receipt. Start and complete an Agent fixture lifecycle for every
+case that declares `agentFixture`. Check the first case's artifact list before spending a full
+batch on an unpublishable plan. See the [report contract](../skills/acceptance/references/report.md).
+
 ## Capturing mobile Agent fixture content in public evidence
 
 **Situation:** An Android Acceptance case displays a synthetic Agent request over its Session conversation.
