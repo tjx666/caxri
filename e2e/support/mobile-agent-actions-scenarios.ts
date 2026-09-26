@@ -262,7 +262,7 @@ export async function executeMobileImageAttachmentScenario(
         );
         recording = await startMobileFramebufferRecording(environment.serial, remoteVideoPath);
         await tapMobileCheck(environment.serial, 'session-attach-image');
-        await tapMobileNativeControl(environment.serial, { text: 'Photo library' });
+        await tapMobileNativeControl(environment.serial, { text: 'PHOTO LIBRARY' });
         await capture(environment, 'picker', artifacts);
         await tapMobileNativeControl(environment.serial, {
             resourceId: 'com.google.android.providers.media.module:id/icon_thumbnail',
