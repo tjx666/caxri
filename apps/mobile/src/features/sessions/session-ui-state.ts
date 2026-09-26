@@ -2,7 +2,14 @@ import { shouldFallbackToTerminal } from '../conversation/conversation-model';
 import type { ConversationTimelineState } from '../conversation/use-conversation-timeline';
 import type { MobileTerminal } from './session-model';
 
-export type SessionSegment = 'conversation' | 'terminal' | 'changes';
+export type SessionSegment = 'conversation' | 'terminal' | 'changes' | 'panels';
+
+/**
+ * Side segments inspect the workspace rather than the Agent. On a wide tablet they open beside the last content
+ * segment, so switching to one must remember which content segment to keep showing.
+ */
+export const isSideSessionSegment = (segment: SessionSegment): segment is 'changes' | 'panels' =>
+    segment === 'changes' || segment === 'panels';
 
 export interface HostSessionUiState {
     contentSegmentBySession: Record<string, 'conversation' | 'terminal'>;
@@ -64,8 +71,8 @@ export const rememberSessionSegment = (
     ...state,
     contentSegmentBySession: {
         ...state.contentSegmentBySession,
-        ...(segment === 'changes'
-            ? previous && previous !== 'changes'
+        ...(isSideSessionSegment(segment)
+            ? previous && !isSideSessionSegment(previous)
                 ? { [sessionId]: previous }
                 : {}
             : { [sessionId]: segment }),

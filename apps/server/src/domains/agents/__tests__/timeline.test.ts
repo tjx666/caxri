@@ -190,6 +190,57 @@ describe('provider timeline projection', () => {
         expect(builder.entries).toEqual([]);
     });
 
+    it('projects a Claude slash-command echo as a systemEvent instead of a userMessage', () => {
+        const builder = new TimelineBuilder('fixture');
+        appendClaudeTimelineRecord(
+            builder,
+            claude('user', 'command', [
+                {
+                    type: 'text',
+                    text:
+                        '<command-name>/clear</command-name>' +
+                        '<local-command-stdout>Conversation cleared.</local-command-stdout>',
+                },
+            ]),
+            0,
+        );
+        expect(builder.entries).toHaveLength(1);
+        expect(builder.entries[0]?.item).toMatchObject({
+            type: 'systemEvent',
+            kind: 'slashCommand',
+            summary: '/clear',
+            detail: 'Conversation cleared.',
+        });
+    });
+
+    it('projects a Codex bash-mode echo as a systemEvent instead of a userMessage', () => {
+        const builder = new TimelineBuilder('fixture');
+        appendCodexTimelineRecord(
+            builder,
+            {
+                type: 'response_item',
+                payload: {
+                    type: 'message',
+                    role: 'user',
+                    content: [
+                        {
+                            type: 'input_text',
+                            text: '<bash-input>printf ready</bash-input><bash-stdout>ready</bash-stdout>',
+                        },
+                    ],
+                },
+            },
+            0,
+        );
+        expect(builder.entries).toHaveLength(1);
+        expect(builder.entries[0]?.item).toMatchObject({
+            type: 'systemEvent',
+            kind: 'bashCommand',
+            summary: 'printf ready',
+            detail: 'ready',
+        });
+    });
+
     it('removes injected wrappers from Codex call arguments and output detail', () => {
         const builder = new TimelineBuilder('fixture');
         appendCodexTimelineRecord(
@@ -278,6 +329,18 @@ describe('AgentTimelineService', () => {
         const second = await service.read('session-fixture', 'terminal-fixture', undefined, 2);
         expect(second.items.at(-1)).toMatchObject({ text: 'Message 4' });
         expect(second.items[0]?.id).toBe(first.items.at(-1)?.id);
+    });
+
+    it('reports unsupported for a provider without a timeline projector', async () => {
+        await writeFile(transcript, line(1));
+        terminal.provider = 'grok';
+        const result = await service.read('session-fixture', 'terminal-fixture', undefined, 2);
+        expect(result).toEqual({
+            status: 'unsupported',
+            items: [],
+            truncated: false,
+            cursorExpired: false,
+        });
     });
 
     it('expires a cursor after a same-size file replacement', async () => {

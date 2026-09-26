@@ -1,26 +1,28 @@
 import { useCallback } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { AgentAvatar } from '../../../components/agent-icon';
 import type { MobileTheme } from '../../../theme/tokens';
 import type { MobileSessionItem } from '../session-model';
 import { sessionAgeLabel, sessionAgentLabel } from '../session-row-model';
+import { SessionStatusGlyph } from './session-status-glyph';
 
 const styles = StyleSheet.create({
-    sessionCopy: { flex: 1, gap: 4, minWidth: 0 },
-    sessionProject: { fontSize: 13 },
-    sessionRow: {
+    copy: { flex: 1, gap: 3, minWidth: 0 },
+    meta: { fontSize: 13 },
+    row: {
         alignItems: 'center',
-        borderLeftWidth: 3,
+        borderRadius: 14,
         flexDirection: 'row',
         gap: 12,
-        minHeight: 72,
-        paddingHorizontal: 13,
+        marginHorizontal: 8,
+        minHeight: 64,
+        paddingHorizontal: 10,
         paddingVertical: 10,
     },
-    sessionTitle: { fontSize: 15, fontWeight: '600' },
-    unreadDot: { borderRadius: 4, height: 7, width: 7 },
-    stateGroup: { alignItems: 'center', flexDirection: 'row', gap: 6 },
-    stateLabel: { fontSize: 12, fontWeight: '600' },
+    status: { alignItems: 'center', justifyContent: 'center', minWidth: 20 },
+    title: { fontSize: 15, fontWeight: '500' },
+    unreadTitle: { fontWeight: '700' },
 });
 
 export const SessionRow = ({
@@ -28,52 +30,54 @@ export const SessionRow = ({
     onPress,
     selected,
     session,
+    showProject,
     theme,
 }: {
     now: number;
     onPress: (sessionId: string) => void;
     selected: boolean;
     session: MobileSessionItem;
+    /**
+     * A Project filter already names the Project, so rows drop it to keep one line of metadata short.
+     */
+    showProject: boolean;
     theme: MobileTheme;
 }) => {
     const handlePress = useCallback(() => onPress(session.id), [onPress, session.id]);
+    const age = sessionAgeLabel(session.lastOpenedAt, now);
     return (
         <Pressable
             accessibilityHint="Opens this Session."
+            accessibilityLabel={`${session.displayTitle}, ${sessionAgentLabel(session)}, ${session.stateLabel}`}
             accessibilityRole="button"
             accessibilityState={{ selected }}
             onPress={handlePress}
             style={({ pressed }) => [
-                styles.sessionRow,
+                styles.row,
                 {
-                    backgroundColor: selected ? theme.surface : theme.background,
-                    borderColor: selected ? theme.primary : 'transparent',
-                    opacity: pressed ? 0.72 : 1,
+                    backgroundColor: selected || pressed ? theme.surface : 'transparent',
                 },
             ]}
             testID={`session-row-${session.id}`}
         >
-            <View style={styles.sessionCopy}>
-                <View style={styles.stateGroup}>
-                    {session.hasUnread ? (
-                        <View
-                            accessibilityLabel="Unread"
-                            style={[styles.unreadDot, { backgroundColor: theme.primary }]}
-                        />
-                    ) : null}
-                    <Text numberOfLines={1} style={[styles.sessionTitle, { color: theme.text }]}>
-                        {session.displayTitle}
-                    </Text>
-                </View>
-                <Text numberOfLines={1} style={[styles.sessionProject, { color: theme.muted }]}>
-                    {session.projectTitle} · {sessionAgentLabel(session)} ·{' '}
-                    {sessionAgeLabel(session.lastOpenedAt, now)}
+            <AgentAvatar kind={session.primaryTerminal?.kind} theme={theme} />
+            <View style={styles.copy}>
+                <Text
+                    numberOfLines={1}
+                    style={[
+                        styles.title,
+                        session.hasUnread ? styles.unreadTitle : null,
+                        { color: theme.text },
+                    ]}
+                >
+                    {session.displayTitle}
+                </Text>
+                <Text numberOfLines={1} style={[styles.meta, { color: theme.muted }]}>
+                    {showProject ? `${session.projectTitle} · ${age}` : age}
                 </Text>
             </View>
-            <View accessible accessibilityLabel={session.stateLabel} style={styles.stateGroup}>
-                <Text style={[styles.stateLabel, { color: theme.muted }]}>
-                    {session.stateLabel}
-                </Text>
+            <View style={styles.status}>
+                <SessionStatusGlyph session={session} theme={theme} />
             </View>
         </Pressable>
     );

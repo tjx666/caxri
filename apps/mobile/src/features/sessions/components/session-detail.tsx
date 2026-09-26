@@ -5,6 +5,7 @@ import { ChangesPanel } from '../../changes/changes-panel';
 import { COMMIT_DRAFT } from '../../changes/changes-view';
 import { useChangesList } from '../../changes/use-changes';
 import type { useConversationTimeline } from '../../conversation/use-conversation-timeline';
+import { PanelsView } from '../../panels/panels-view';
 import type { MobileSessionItem } from '../session-model';
 import type { SessionSegment } from '../session-ui-state';
 import { SessionDetailBody } from './session-detail-body';
@@ -97,6 +98,9 @@ export const SessionDetail = ({
             ) : null}
             <SessionDetailBody
                 changesPanel={changesPanel}
+                panels={
+                    <PanelsView changesPanel={changesPanel} sessionId={session.id} theme={theme} />
+                }
                 conversationTimeline={conversationTimeline}
                 deviceRole={deviceRole}
                 isConnected={isConnected}
@@ -107,19 +111,25 @@ export const SessionDetail = ({
                 wideBackgroundSegment={wideBackgroundSegment}
                 wideChanges={wideChanges}
             />
-            <SessionDetailComposer
-                deviceRole={deviceRole}
-                draft={draft}
-                focusComposer={focusComposer}
-                hostId={hostId}
-                isConnected={isConnected}
-                isVisible={isVisible}
-                onComposerFocused={onComposerFocused}
-                onDraftChange={onDraftChange}
-                onRefresh={onRefresh}
-                session={session}
-                theme={theme}
-            />
+            {/*
+             * Panels only browse, and a control device types into the Terminal directly once it takes over. A reply
+             * device keeps the composer on the Terminal because it is that device's only way to answer the Agent.
+             */}
+            {segment === 'panels' || (segment === 'terminal' && deviceRole === 'control') ? null : (
+                <SessionDetailComposer
+                    deviceRole={deviceRole}
+                    draft={draft}
+                    focusComposer={focusComposer}
+                    hostId={hostId}
+                    isConnected={isConnected}
+                    isVisible={isVisible}
+                    onComposerFocused={onComposerFocused}
+                    onDraftChange={onDraftChange}
+                    onRefresh={onRefresh}
+                    session={session}
+                    theme={theme}
+                />
+            )}
         </KeyboardAvoidingView>
     );
 };

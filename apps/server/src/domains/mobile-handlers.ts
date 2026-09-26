@@ -1,14 +1,21 @@
-import type { Principal } from '@caxri/protocol';
-import { CaxriError } from '@caxri/protocol';
+import { Buffer } from 'node:buffer';
+
+import type { Principal, ServerEvent } from '@caxri/protocol';
+import { CaxriError, MOBILE_FILES_MAX_ENTRIES, MOBILE_FILES_READ_MAX_BYTES } from '@caxri/protocol';
 
 import type { AgentEndpointLifecycle } from './agent-endpoints';
 import type { AgentTimelineService, AgentTranscriptWatcher } from './agents';
 import type { ConfigService } from './config';
 import type { CaxriDatabase } from './db';
 import type { DomainHandlers } from './domain-services';
+import type { FileService } from './files';
 import type { GitService } from './git';
 import { createMobileAgentAvailabilityHandler } from './mobile-agent-availability';
 import { createMobileAgentSubmitHandler } from './mobile-agent-submit';
+import {
+    createMobileProjectAddHandler,
+    createMobileProjectBrowseHandler,
+} from './mobile-project-browse';
 import type { MobileTerminalMutationQueue } from './mobile-terminal-mutation-queue';
 import type { TerminalManager } from './terminal';
 
@@ -27,6 +34,16 @@ type MobileDomainMethods = Pick<
     | 'mobile.timeline.readInternal'
     | 'mobile.timeline.watchInternal'
     | 'mobile.timeline.unwatchInternal'
+    | 'mobile.project.browse'
+    | 'mobile.project.browseInternal'
+    | 'mobile.project.add'
+    | 'mobile.project.addInternal'
+    | 'mobile.panels.list'
+    | 'mobile.tree.children'
+    | 'mobile.files.list'
+    | 'mobile.files.listInternal'
+    | 'mobile.files.read'
+    | 'mobile.files.readInternal'
 >;
 
 function authorizedSession(database: CaxriDatabase, sessionId: string, principal: Principal) {
@@ -45,13 +62,20 @@ function authorizedSession(database: CaxriDatabase, sessionId: string, principal
 export function createMobileDomainHandlers(options: {
     configuration: ConfigService;
     database: CaxriDatabase;
+    emit: (event: ServerEvent) => void;
     endpoints?: AgentEndpointLifecycle;
+    files: FileService;
     git: GitService;
     queue: MobileTerminalMutationQueue;
     terminals: TerminalManager;
     timeline: AgentTimelineService;
     transcripts: AgentTranscriptWatcher;
 }): MobileDomainMethods {
+    const browseProject = createMobileProjectBrowseHandler({});
+    const addProject = createMobileProjectAddHandler({
+        database: options.database,
+        emit: options.emit,
+    });
     return {
         'mobile.agent.availability': () => {
             throw new CaxriError('FORBIDDEN', 'Mobile Agent availability requires a paired device');
@@ -106,6 +130,85 @@ export function createMobileDomainHandlers(options: {
         'mobile.timeline.unwatchInternal': ({ terminalId }) => {
             options.transcripts.unwatchMobile(terminalId);
             return null;
+        },
+        'mobile.project.browse': () => {
+            throw new CaxriError('FORBIDDEN', 'Mobile Project browsing requires a paired device');
+        },
+        'mobile.project.browseInternal': ({ path, principal }) => {
+            if (principal.kind !== 'paired-device' || principal.role !== 'control')
+                throw new CaxriError('FORBIDDEN', 'Adding a Project requires the control role');
+            return browseProject({ path });
+        },
+        'mobile.project.add': () => {
+            throw new CaxriError('FORBIDDEN', 'Adding a Project requires a paired device');
+        },
+        'mobile.project.addInternal': ({ path, principal }) => {
+            if (principal.kind !== 'paired-device' || principal.role !== 'control')
+                throw new CaxriError('FORBIDDEN', 'Adding a Project requires the control role');
+            return addProject({ path });
+        },
+        /**
+         * Panels and Conversation Tree read the Extension Host directly from the mobile access controller, which is the
+         * only layer holding a live `ExtensionService` reference; these entries only satisfy `DomainHandlers`
+         * completeness for a method that a paired device never reaches through `domainService.request`.
+         */
+        'mobile.panels.list': () => {
+            throw new CaxriError('FORBIDDEN', 'Mobile panels require a paired device');
+        },
+        'mobile.tree.children': () => {
+            throw new CaxriError('FORBIDDEN', 'Mobile Conversation Tree requires a paired device');
+        },
+        'mobile.files.list': () => {
+            throw new CaxriError('FORBIDDEN', 'Mobile files require a paired device');
+        },
+        'mobile.files.listInternal': async ({ sessionId, directory, principal }) => {
+            authorizedSession(options.database, sessionId, principal);
+            const listing = await options.files.listDirectory(sessionId, directory);
+            /**
+             * Desktop lists up to `MAX_FILE_LIST_ENTRIES`; the mobile reply is bounded tighter, so a large directory is
+             * cut here and reported as truncated instead of failing the reply schema.
+             */
+            return listing.entries.length > MOBILE_FILES_MAX_ENTRIES
+                ? { entries: listing.entries.slice(0, MOBILE_FILES_MAX_ENTRIES), truncated: true }
+                : listing;
+        },
+        'mobile.files.read': () => {
+            throw new CaxriError('FORBIDDEN', 'Mobile files require a paired device');
+        },
+        'mobile.files.readInternal': async ({ sessionId, path, principal }) => {
+            authorizedSession(options.database, sessionId, principal);
+            try {
+                const document = await options.files.read(sessionId, path);
+                /**
+                 * The Editor's safety limit is larger than one mobile reply may carry, so a file between the two limits
+                 * is reported as oversized rather than failing the reply schema.
+                 */
+                if (Buffer.byteLength(document.content, 'utf8') > MOBILE_FILES_READ_MAX_BYTES)
+                    return { status: 'oversized' as const };
+                return {
+                    status: 'available' as const,
+                    path: document.path,
+                    content: document.content,
+                    mtimeMs: document.mtimeMs,
+                    size: document.size,
+                    ...(document.readOnly !== undefined && { readOnly: document.readOnly }),
+                };
+            } catch (error) {
+                /**
+                 * `DocumentService.read` throws rather than returning a discriminated result; mobile matches on the
+                 * exact codes it uses for a size limit and a binary sniff so every other failure (missing file,
+                 * concurrent modification, path denial) still propagates as a hard error instead of a soft status.
+                 */
+                if (error instanceof CaxriError && error.code === 'CAPACITY')
+                    return { status: 'oversized' as const };
+                if (
+                    error instanceof CaxriError &&
+                    error.code === 'IO' &&
+                    error.message === 'Binary files cannot be opened in the editor'
+                )
+                    return { status: 'binary' as const };
+                throw error;
+            }
         },
     };
 }

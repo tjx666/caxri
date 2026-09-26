@@ -1,5 +1,6 @@
 import type { AgentTimelineItem } from '@caxri/protocol';
 
+import type { SystemEventProjection } from './system-event';
 import { stripInjectedTranscriptContent } from './visible-transcript-message';
 
 const MAX_MESSAGE_CHARS = 4_096;
@@ -133,6 +134,31 @@ export class TimelineBuilder {
             ...(durationMs !== undefined && { durationMs }),
             ...(detail && { detail: detail.slice(0, MAX_DETAIL_CHARS) }),
         };
+    }
+
+    /**
+     * A harness-injected system event is a one-shot projection of a single transcript line, never a streamed chunk, so
+     * unlike `addMessage` it needs no key-based accumulation.
+     */
+    addSystemEvent(
+        { detail, kind, status, summary }: SystemEventProjection,
+        offset: number,
+        part: number,
+        timestamp?: number,
+    ): void {
+        this.#add(
+            {
+                id: this.#id(offset, part),
+                type: 'systemEvent',
+                kind,
+                summary: summary.slice(0, 240),
+                ...(status && { status }),
+                ...(timestamp && { timestamp }),
+                ...(detail && { detail: detail.slice(0, MAX_DETAIL_CHARS) }),
+            },
+            offset,
+            part,
+        );
     }
 
     addBoundary(offset: number, part: number, durationMs?: number, timestamp?: number): void {

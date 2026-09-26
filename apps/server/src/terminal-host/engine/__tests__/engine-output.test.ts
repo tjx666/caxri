@@ -250,6 +250,24 @@ describe('Terminal execution output boundaries', () => {
             await Promise.all(engine.shutdown().map(({ capture }) => capture));
         }
     });
+    it('resyncs observers when a size change they did not request reshapes the grid', async () => {
+        const { engine, events } = fixture();
+        const gaps = () => events.filter((event) => event.type === 'observerGap').length;
+        try {
+            await engine.observe('terminal', 'observer-1');
+            engine.takeOver('terminal', 'connection:subscription', { cols: 42, rows: 20 }, 12_000);
+            await new Promise((resolve) => setTimeout(resolve, 10));
+            expect(gaps()).toBe(0);
+            engine.releaseTakeOver('terminal', 'connection:subscription');
+            await vi.waitFor(() => expect(gaps()).toBe(1));
+            await engine.observe('terminal', 'observer-2');
+            engine.resize('terminal', 60, 18);
+            await vi.waitFor(() => expect(gaps()).toBe(2));
+        } finally {
+            await Promise.all(engine.shutdown().map(({ capture }) => capture));
+        }
+    });
+
     it('reports current size ownership on takeover, late attach, mobile resize, and release', async () => {
         const { engine, events } = fixture();
         try {

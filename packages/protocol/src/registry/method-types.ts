@@ -113,6 +113,7 @@ export const effectfulCommandRecovery = {
     'mobile.terminal.takeOver': 'none',
     'mobile.terminal.release': 'none',
     'mobile.terminal.input': 'none',
+    'mobile.project.add': 'durable',
     'desktop.focus': 'durable',
     'desktop.openPath': 'durable',
     'desktop.openProject': 'durable',

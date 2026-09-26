@@ -52,6 +52,7 @@ describe('MobileAccessController role and resource authority', () => {
             },
             {} as ServerDomainService,
             terminalExecution,
+            () => {},
         );
         const started = Promise.withResolvers<void>();
         const release = Promise.withResolvers<{ sessionId: string }>();
@@ -147,6 +148,21 @@ describe('MobileAccessController role and resource authority', () => {
         ])
             expect(isMobileGatewayMethodAllowedForRole('control', method)).toBe(true);
         expect(isMobileGatewayMethodAllowedForRole('control', 'session.create')).toBe(false);
+        for (const method of ['mobile.project.browse', 'mobile.project.add']) {
+            expect(isMobileGatewayMethodAllowedForRole('view', method)).toBe(false);
+            expect(isMobileGatewayMethodAllowedForRole('reply', method)).toBe(false);
+            expect(isMobileGatewayMethodAllowedForRole('control', method)).toBe(true);
+        }
+        for (const method of [
+            'mobile.panels.list',
+            'mobile.tree.children',
+            'mobile.files.list',
+            'mobile.files.read',
+        ]) {
+            expect(isMobileGatewayMethodAllowedForRole('view', method)).toBe(true);
+            expect(isMobileGatewayMethodAllowedForRole('reply', method)).toBe(true);
+            expect(isMobileGatewayMethodAllowedForRole('control', method)).toBe(true);
+        }
     });
 
     it('rejects a mobile control method with no implementation', async () => {
@@ -163,6 +179,7 @@ describe('MobileAccessController role and resource authority', () => {
             { serverId: 'a'.repeat(32), stateEpoch: 'c'.repeat(32) },
             domainService,
             terminalExecution,
+            () => {},
         );
         try {
             const futureRequest = {
@@ -211,6 +228,7 @@ describe('MobileAccessController role and resource authority', () => {
             },
             {} as ServerDomainService,
             terminalExecution,
+            () => {},
         );
         const context: CommandExecutionContext = { capabilities: [], principal };
         const request = vi.fn(
@@ -268,8 +286,13 @@ describe('MobileAccessController role and resource authority', () => {
         });
         const domainService = { request, requestWithSignal } as unknown as ServerDomainService;
         try {
+            /**
+             * `isMobileControlRequest` intercepts every `mobile.*` method before `validatePairedDeviceRequest` ever
+             * runs, so `mobile.session.create`'s own out-of-grant Project check lives in `invokeControl` instead; this
+             * exercises that reachable path directly rather than the unreachable one.
+             */
             await expect(
-                controller.validatePairedDeviceRequest(
+                controller.invokeControl(
                     {
                         method: 'mobile.session.create',
                         params: { projectId: 'project-2', defaultAgent: 'codex' },
@@ -279,16 +302,7 @@ describe('MobileAccessController role and resource authority', () => {
                 ),
             ).rejects.toMatchObject({ code: 'NOT_FOUND' });
             expect(request).not.toHaveBeenCalled();
-            await expect(
-                controller.validatePairedDeviceRequest(
-                    {
-                        method: 'mobile.session.create',
-                        params: { projectId: 'project-1', defaultAgent: 'codex' },
-                    },
-                    context,
-                    domainService,
-                ),
-            ).resolves.toBeUndefined();
+            expect(requestWithSignal).not.toHaveBeenCalled();
             expect(() =>
                 controller.authorizePairedDeviceMethod(
                     { ...principal, role: 'view' },
@@ -359,10 +373,7 @@ describe('MobileAccessController role and resource authority', () => {
             });
             await expect(
                 controller.validatePairedDeviceRequest(
-                    {
-                        method: 'mobile.session.create',
-                        params: { projectId: 'project-1', defaultAgent: 'codex' },
-                    },
+                    { method: 'terminal.preview', params: { terminalId: 'terminal-deep' } },
                     context,
                     domainService,
                 ),
@@ -400,6 +411,7 @@ describe('MobileAccessController Agent submissions', () => {
             { serverId: 'a'.repeat(32), stateEpoch: 'c'.repeat(32) },
             {} as ServerDomainService,
             terminalExecution,
+            () => {},
         );
         const context: CommandExecutionContext = { capabilities: [], principal };
         const endpoint = { hostId: 'host-1', endpointId: 'endpoint-1', generation: 1 };

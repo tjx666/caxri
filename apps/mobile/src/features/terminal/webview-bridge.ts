@@ -6,6 +6,7 @@ const baseMessage = { version: z.literal(1), terminalId: terminalIdSchema };
 
 const fromWebviewSchema = z.discriminatedUnion('type', [
     z.strictObject({ ...baseMessage, type: z.literal('ready') }),
+    z.strictObject({ ...baseMessage, type: z.literal('tap') }),
     z.strictObject({ ...baseMessage, type: z.literal('scroll'), atBottom: z.boolean() }),
     z.strictObject({
         ...baseMessage,
@@ -20,6 +21,12 @@ const toWebviewSchema = z.discriminatedUnion('type', [
     z.strictObject({
         ...baseMessage,
         type: z.literal('reset'),
+        cols: z.number().int().min(2).max(1_000),
+        rows: z.number().int().min(1).max(1_000),
+    }),
+    z.strictObject({
+        ...baseMessage,
+        type: z.literal('resize'),
         cols: z.number().int().min(2).max(1_000),
         rows: z.number().int().min(1).max(1_000),
     }),

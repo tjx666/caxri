@@ -8,6 +8,7 @@ import { ConversationMarkdown } from './conversation-markdown';
 import type { ConversationEntry as Entry } from './conversation-model';
 import { formatConversationDuration } from './conversation-model';
 import { conversationStyles as styles } from './conversation-styles';
+import { ConversationSystemEvent } from './conversation-system-event';
 import { ConversationToolDetail } from './conversation-tool-detail';
 import { ConversationToolGroup } from './conversation-tool-group';
 import { ConversationToolRow } from './conversation-tool-row';
@@ -39,6 +40,8 @@ export const ConversationEntry = ({ entry, theme }: { entry: Entry; theme: Mobil
                 </View>
             </View>
         );
+    if (entry.type === 'systemEvent')
+        return <ConversationSystemEvent event={entry} theme={theme} />;
     if (entry.type === 'agentMessage')
         return (
             <View style={styles.message} testID={`conversation-agent-${entry.id}`}>
