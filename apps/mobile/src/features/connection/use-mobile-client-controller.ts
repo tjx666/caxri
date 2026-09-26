@@ -241,6 +241,8 @@ export const useMobileClientController = (): MobileClientContextValue => {
         const wasForeground = appState.current === 'active';
         appState.current = nextState;
         if (nextState !== 'active') {
+            if (nextState === 'background' && pairingAttempts.cancel())
+                setStatus(credential ? 'stale' : 'unpaired');
             if (wasForeground) backgroundedAt.current = Date.now();
             setIsForeground(false);
             return;
