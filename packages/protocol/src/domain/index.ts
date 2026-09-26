@@ -18,6 +18,7 @@ export * from './pane-layout-reducer.js';
 export * from './project-customization.js';
 export * from './project-status.js';
 export * from './session.js';
+export * from './session-compaction.js';
 export * from './session-content-search.js';
 export * from './session-pull-request.js';
 export * from './terminal-file-link.js';

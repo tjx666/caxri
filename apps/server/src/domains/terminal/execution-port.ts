@@ -177,10 +177,9 @@ export interface TerminalExecutionPort {
      * Admits Agent input for one exact launch in a single synchronous turn, which is what lets a caller claim the
      * Terminal and write without an `await` in between.
      *
-     * A Terminal with no Renderer attachment cannot be answered that quickly: the write travels to the Terminal Host,
-     * so the synchronous `true` only means "accepted for delivery". `onDelivered` then reports what the Host actually
-     * did, and is called exactly once for that path — never for an attached Terminal, whose return value is already the
-     * admission result.
+     * The synchronous return reports admission. When supplied, `onDelivered` reports the Host acknowledgement for both
+     * attached and background Terminals. A rejected admission needs no callback; accepted writes report exactly once.
+     * An attached Terminal uses its ordered input queue so a provider command cannot overtake previous input.
      */
     writeAgentExact(
         terminalId: string,

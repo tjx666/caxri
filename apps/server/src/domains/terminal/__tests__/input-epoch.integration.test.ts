@@ -29,7 +29,7 @@ it('retains draft-input ownership while excluding native protocol replies and in
         expect(onInput).not.toHaveBeenCalled();
         manager.write(id, 'Unsubmitted synthetic draft');
         expect(manager.inputEpoch(id)).toBe(1);
-        expect(onInput).toHaveBeenCalledWith(id);
+        expect(onInput).toHaveBeenCalledWith(id, 'Unsubmitted synthetic draft');
         manager.writeAgentExact(id, '\u{1B}', 'launch');
         expect(manager.inputEpoch(id)).toBe(2);
     } finally {

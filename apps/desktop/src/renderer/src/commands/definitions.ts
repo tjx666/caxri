@@ -92,6 +92,7 @@ export const commandDefinitions: CommandDefinition[] = [
     ),
     fromCatalog('session.rename', (context) => context.session.renameSelected()),
     fromCatalog('session.archive', (context) => context.session.archiveSelected()),
+    fromCatalog('session.compactWarm', (context) => context.session.compactWarm()),
     fromCatalog('session.detach', (context) => context.session.detachSelected()),
     fromCatalog('session.resume', (context) => context.session.resumeSelected()),
     fromCatalog('session.openPullRequest', (context) => context.session.openPullRequestSelected()),

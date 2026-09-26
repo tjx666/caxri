@@ -71,7 +71,7 @@ export interface TerminalManagerOptions {
     /**
      * Signals that Core delivered input to a Terminal; consumers receive no content.
      */
-    onInput?: (terminalId: string) => void;
+    onInput?: (terminalId: string, data: string) => void;
     shellIntegration?: (
         executable: string,
         environment: NodeJS.ProcessEnv,
