@@ -83,6 +83,7 @@ export async function executeMobileRecoveryScenario(
                 await new Promise((resolve) => setTimeout(resolve, 750));
                 await adbShell(environment.serial, ['input', 'keyevent', 'KEYCODE_BACK']);
                 // A deep link launched from Home returns to the Android launcher on Back.
+                await new Promise((resolve) => setTimeout(resolve, 7_000));
                 await adbShell(environment.serial, [
                     'am',
                     'start',
@@ -93,7 +94,6 @@ export async function executeMobileRecoveryScenario(
                     () => mobileSemantics(environment.serial),
                     (nodes) => nodes.some(({ checkId }) => checkId === 'pairing-entry-screen'),
                 );
-                await new Promise((resolve) => setTimeout(resolve, 7_000));
                 const afterDelay = await mobileSemantics(environment.serial);
                 expect(afterDelay.some(({ checkId }) => checkId === 'pairing-entry-screen')).toBe(
                     true,
