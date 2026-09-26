@@ -2,14 +2,17 @@ import { useEffect, useRef } from 'react';
 import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
 
 import { MOBILE_AGENT_SUBMIT_MAX_BYTES } from '@caxri/protocol';
-import { ArrowUp, Square } from 'lucide-react-native';
+import { ArrowUp, Paperclip, Square } from 'lucide-react-native';
 
 import type { MobileTheme } from '../../../theme/tokens';
+import { useComposerSuggestions } from '../hooks/use-composer-suggestions';
+import { useImageAttachments } from '../hooks/use-image-attachments';
 import { useSessionComposer } from '../hooks/use-session-composer';
 import type { ComposerDelivery } from '../session-composer-state';
 import { composerDeliveryFeedback } from '../session-composer-state';
 import type { MobileSessionItem } from '../session-model';
 import { sessionAgentLabel } from '../session-row-model';
+import { SessionComposerAttachments, SessionComposerSuggestions } from './session-composer-extras';
 import { sessionDetailStyles as styles } from './session-detail-styles';
 
 const SessionComposerInput = ({
@@ -141,8 +144,12 @@ export const SessionDetailComposer = ({
     session: MobileSessionItem;
     theme: MobileTheme;
 }) => {
+    const images = useImageAttachments(session.id);
     const { byteLength, canSubmit, delivery, disabledReason, showStop, submit, updateDraft } =
         useSessionComposer({
+            attachmentIds: images.readyIds,
+            hasPendingAttachment: images.hasUnsentAttachment,
+            onAttachmentsSent: images.clear,
             deviceRole,
             draft,
             hostId,
@@ -151,6 +158,7 @@ export const SessionDetailComposer = ({
             onRefresh,
             session,
         });
+    const suggestions = useComposerSuggestions(draft, session);
     const feedback = composerDeliveryFeedback(delivery);
     /**
      * The limit only matters near it; showing `0/16384 B` on every idle composer was noise.
@@ -162,7 +170,24 @@ export const SessionDetailComposer = ({
             style={[styles.composerBlock, { borderColor: theme.border }]}
             testID="session-composer"
         >
+            <SessionComposerAttachments images={images} theme={theme} />
+            <SessionComposerSuggestions
+                draft={draft}
+                suggestions={suggestions}
+                theme={theme}
+                updateDraft={updateDraft}
+            />
             <View style={styles.composerRow}>
+                {deviceRole === 'reply' || deviceRole === 'control' ? (
+                    <Pressable
+                        accessibilityLabel="Attach image"
+                        accessibilityRole="button"
+                        onPress={images.choose}
+                        testID="session-attach-image"
+                    >
+                        <Paperclip color={theme.text} size={20} />
+                    </Pressable>
+                ) : null}
                 <SessionComposerInput
                     delivery={delivery}
                     draft={draft}

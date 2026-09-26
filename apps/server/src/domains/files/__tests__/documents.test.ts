@@ -1,4 +1,5 @@
 import { Buffer } from 'node:buffer';
+import { createHash } from 'node:crypto';
 import {
     chmod,
     link,
@@ -42,6 +43,33 @@ afterEach(async () => {
 });
 
 describe('DocumentService', () => {
+    it('rejects a conditional mobile save after an external content change', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-mobile-save-'));
+        const root = await realpath(directory);
+        temporaryDirectories.push(root);
+        const path = join(root, 'notes.txt');
+        await writeFile(path, 'original');
+        const logger = createLogger(join(root, 'logs'));
+        const service = new DocumentService(
+            () => Promise.resolve({ path, root }),
+            logger,
+            () => 1_024,
+        );
+        const expectedHash = createHash('sha256').update('original').digest('hex');
+        await writeFile(path, 'changed externally');
+        await expect(
+            service.write('session-1', path, 'mobile edit', undefined, expectedHash),
+        ).rejects.toMatchObject({ code: 'CONFLICT' });
+        expect(await readFile(path, 'utf8')).toBe('changed externally');
+        await service.write(
+            'session-1',
+            path,
+            'mobile edit',
+            undefined,
+            createHash('sha256').update('changed externally').digest('hex'),
+        );
+        expect(await readFile(path, 'utf8')).toBe('mobile edit');
+    });
     it('rejects a link retargeted while its operation waits or its replacement is being written', async () => {
         const temporaryDirectory = await mkdtemp(join(tmpdir(), 'caxri-document-link-race-'));
         const directory = await realpath(temporaryDirectory);

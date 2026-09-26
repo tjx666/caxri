@@ -92,6 +92,7 @@ function buildBridgeCommand(
     desired: DesiredHookInstall,
     phase: AgentHookBinding['phase'],
     reply?: AgentHookBinding['reply'],
+    interactive?: AgentHookBinding['interactive'],
 ): string {
     return [
         shellQuote(desired.bridgePath),
@@ -102,6 +103,7 @@ function buildBridgeCommand(
         // `AgentHookBinding['reply']` currently has one literal (`'emptyJson'`); this maps it to the
         // bridge CLI's kebab-case flag value. Revisit this mapping if that union ever grows.
         ...(reply === 'emptyJson' ? ['--reply empty-json'] : []),
+        ...(interactive ? [`--interactive ${interactive}`] : []),
     ].join(' ');
 }
 
@@ -111,8 +113,13 @@ function expectedGroup(desired: DesiredHookInstall, binding: AgentHookBinding): 
         hooks: [
             {
                 type: 'command',
-                command: buildBridgeCommand(desired, binding.phase, binding.reply),
-                timeout: HOOK_TIMEOUT_SECONDS,
+                command: buildBridgeCommand(
+                    desired,
+                    binding.phase,
+                    binding.reply,
+                    binding.interactive,
+                ),
+                timeout: binding.interactive ? 130 : HOOK_TIMEOUT_SECONDS,
             },
         ],
     };
@@ -216,11 +223,12 @@ export function inspectJsonHooks(
     if (older < desired.schemaVersion) return { kind: 'stale', installedSchema: older };
     if (installed.length !== bindings.length) return { kind: 'drifted' };
     for (const binding of bindings) {
-        const matching = installed.filter((entry) => entry.event === binding.event);
-        if (
-            matching.length !== 1 ||
-            !isSameJson(matching[0]?.group, expectedGroup(desired, binding))
-        ) {
+        const matching = installed.filter(
+            (entry) =>
+                entry.event === binding.event &&
+                isSameJson(entry.group, expectedGroup(desired, binding)),
+        );
+        if (matching.length !== 1) {
             return { kind: 'drifted' };
         }
     }

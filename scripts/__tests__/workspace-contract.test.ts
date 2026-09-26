@@ -174,6 +174,8 @@ describe('pnpm workspace contract', () => {
             '@yutengjing/eslint-config-typescript',
             '@yutengjing/prettier-config',
             'eslint-plugin-import-x',
+            'expo-image-manipulator',
+            'expo-image-picker',
             'lucide-react-native',
             'markdownlint',
             'markdownlint-cli2',
@@ -188,8 +190,13 @@ describe('pnpm workspace contract', () => {
             'zod',
         ]);
         const catalogEntries = Object.entries(workspace.catalog ?? {});
-        for (const [name, range] of catalogEntries)
-            expect(`${name}: ${range}`).toMatch(/: \^\d+\.\d+\.\d+$/);
+        for (const [name, range] of catalogEntries) {
+            // Expo-managed image packages follow the SDK-compatible tilde range in stack-baseline.md.
+            const expectedRange = ['expo-image-manipulator', 'expo-image-picker'].includes(name)
+                ? /: ~\d+\.\d+\.\d+$/
+                : /: \^\d+\.\d+\.\d+$/;
+            expect(`${name}: ${range}`).toMatch(expectedRange);
+        }
         expect(workspace.allowBuilds).toEqual({
             '@parcel/watcher': false,
             'better-sqlite3': true,

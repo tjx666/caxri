@@ -118,13 +118,14 @@ export function validateAcceptanceAgentFixture(
     );
 }
 
-function sharedSource(provider: AgentProvider): string {
+function sharedSource(provider: AgentProvider, isPublicFrame = false): string {
     return String.raw`#!${process.execPath}
 const childProcess = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 function main() {
 const provider = ${JSON.stringify(provider)};
+const isPublicFrame = ${JSON.stringify(isPublicFrame)};
 if (process.argv.includes('--version')) {
   process.stdout.write(provider === 'claude' ? '2.1.251 (Claude Code)\n' : 'codex-cli 0.151.0\n');
   process.exit(0);
@@ -233,7 +234,9 @@ if (isClaudeGeneration || isCodexGeneration) {
     const mode = consumeMode();
     const count = nextCount();
     const sessionId = mode.sessionId ?? '';
-    const fallbackText = 'Repair Session Naming';
+    const fallbackText = isPublicFrame
+      ? 'Session'
+      : 'Repair Session Naming';
     const text = mode.kind === 'same' ? currentTitle(sessionId) : (mode.title ?? fallbackText);
     appendReceipt({
       argumentContainsPrivateInput: process.argv.join(' ').includes(privateMarker),
@@ -305,6 +308,7 @@ if (provider === 'claude') {
 }
 
 const appendTranscript = (topic, includePrivate) => {
+  if (isPublicFrame) return;
   const privateText = includePrivate ? privateMarker + '_PROMPT ' + privateMarker + '_RESPONSE ' : '';
   const filler = ' bounded acceptance context'.repeat(40);
   const records = provider === 'claude'
@@ -370,6 +374,42 @@ const requestAttention = () => {
   setClaudeStatus('idle');
   invokeHook('PermissionRequest');
 };
+const requestNativeAttention = (kind) => {
+  if (provider !== 'claude') return;
+  startTurn('A bounded attention fixture topic');
+  const event = kind === 'question' ? 'PreToolUse' : 'PermissionRequest';
+  const group = hookDocument().hooks[event].find((entry) => kind === 'question'
+    ? entry.matcher === '^AskUserQuestion$'
+    : !entry.matcher);
+  if (!group) throw new Error('Attention hook is unavailable');
+  const payload = kind === 'question'
+    ? { tool_name: 'AskUserQuestion', tool_input: { questions: [
+        { question: 'Choose options', header: 'Options', options: [
+          { label: 'Alpha', description: 'First choice' },
+          { label: 'Beta', description: 'Second choice' },
+        ], multiSelect: true },
+        { question: 'Add a note', header: 'Note', options: [], multiSelect: false },
+      ] } }
+    : { tool_name: 'Bash', tool_input: { command: 'echo fixture' } };
+  const child = childProcess.spawn('/bin/sh', ['-c', group.hooks[0].command], {
+    env: process.env, stdio: ['pipe', 'pipe', 'ignore'],
+  });
+  let output = '';
+  child.stdout.on('data', (chunk) => { output += chunk; });
+  child.on('close', (code) => {
+    let applied = false;
+    try {
+      const reply = JSON.parse(output);
+      applied = kind === 'question'
+        ? reply.hookSpecificOutput?.permissionDecision === 'allow' &&
+          Object.keys(reply.hookSpecificOutput?.updatedInput?.answers ?? {}).length === 2
+        : ['allow', 'deny'].includes(reply.hookSpecificOutput?.decision?.behavior);
+    } catch {}
+    appendReceipt({ kind: 'attentionAnswer', attentionKind: kind, applied, exitCode: code });
+    if (applied) finishTurn();
+  });
+  child.stdin.end(JSON.stringify(payload));
+};
 
 // Claude begins turns through UserPromptSubmit; only Codex installs a SessionStart binding.
 const requiredInitialHooks = provider === 'codex'
@@ -404,6 +444,7 @@ setTimeout(startInitialTurn, 50);
 const bracketedPasteStart = '\u001b[200~';
 const bracketedPasteEnd = '\u001b[201~';
 let input = '';
+let attachmentInput = '';
 let isBracketedPaste = false;
 process.stdin.setRawMode?.(true);
 process.stdin.setEncoding('utf8');
@@ -413,6 +454,8 @@ const handleCommand = (raw) => {
     if (command === 'fixture:start') startTurn('Long completion notification topic');
     else if (command === 'fixture:finish') finishTurn();
     else if (command === 'fixture:waiting') requestAttention();
+    else if (command === 'fixture:permission') requestNativeAttention('permission');
+    else if (command === 'fixture:question') requestNativeAttention('question');
     else if (command === 'fixture:release') fs.writeFileSync(releasePath, 'release');
     else if (command === 'fixture:hold-next') setMode({ kind: 'hold', sessionId });
     else if (command === 'fixture:fail-next') setMode({ kind: 'fail', sessionId });
@@ -422,14 +465,14 @@ const handleCommand = (raw) => {
     else if (command === 'fixture:private-turn') { startTurn('Private acceptance topic', true); setTimeout(finishTurn, 150); }
     else if (command === 'fixture:exit') {
       appendReceipt({ kind: 'fixtureExit' });
-      process.stdout.write('Fixture Agent exiting\r\n');
+      if (!isPublicFrame) process.stdout.write('Fixture Agent exiting\r\n');
       process.exit(0);
     }
     else if (command) appendReceipt({ kind: 'terminalInput', length: command.length });
-    process.stdout.write('Fixture command accepted\r\n');
+    if (!isPublicFrame) process.stdout.write('Fixture command accepted\r\n');
   } catch (error) {
     appendReceipt({ kind: 'fixtureError', message: error.name });
-    process.stdout.write('Fixture command failed\r\n');
+    if (!isPublicFrame) process.stdout.write('Fixture command failed\r\n');
   }
 };
 const markerSuffixLength = (value, marker) => {
@@ -467,6 +510,18 @@ const processInput = () => {
   }
 };
 process.stdin.on('data', (chunk) => {
+  if (isPublicFrame) {
+    attachmentInput = (attachmentInput + chunk).slice(-4096);
+    const imagePath = /Attached image paths:\r?\n([^\r\n\u001b]+)/u.exec(attachmentInput)?.[1]?.trim();
+    if (imagePath) {
+      appendReceipt({
+        kind: 'imageAttachmentReceived',
+        pathValid: /^image_[0-9a-f]{32}\.jpg$/u.test(path.basename(imagePath)),
+        exists: fs.existsSync(imagePath),
+      });
+      attachmentInput = '';
+    }
+  }
   // Opt-in echo makes unsent PTY input observable without exposing a host Agent process.
   if (fs.existsSync(echoTerminalInputPath)) {
     appendReceipt({
@@ -478,14 +533,14 @@ process.stdin.on('data', (chunk) => {
       .replaceAll(bracketedPasteStart, '')
       .replaceAll(bracketedPasteEnd, '')
       .replaceAll(/\r\n|\r|\n/gu, '\r\n');
-    process.stdout.write(visibleInput);
+    if (!isPublicFrame) process.stdout.write(visibleInput);
   }
   input += chunk;
   processInput();
 });
 process.stdin.resume();
 // Real Agent TUIs enable bracketed paste so embedded newlines remain unsent editor input.
-process.stdout.write('\u001b[?2004hFake ' + provider + ' Acceptance fixture ready\r\n');
+if (!isPublicFrame) process.stdout.write('\u001b[?2004hFake ' + provider + ' Acceptance fixture ready\r\n');
 }
 main();
 `;
@@ -503,6 +558,10 @@ function assertFixtureId(value: string): asserts value is AcceptanceAgentFixture
  */
 interface PrepareAcceptanceAgentFixtureOptions {
     fixtureId: string;
+    /**
+     * Suppress fixture transcript and use a generic title in public mobile media.
+     */
+    isPublicFrame?: boolean;
     sourceEnvironment?: NodeJS.ProcessEnv;
     userDataDir: string;
 }
@@ -545,7 +604,7 @@ export async function prepareAcceptanceAgentFixture(
                         ? grokAcceptanceSource()
                         : options.fixtureId === 'agent-delegation-v1'
                           ? delegationFixtureSource(provider)
-                          : sharedSource(provider),
+                          : sharedSource(provider, options.isPublicFrame),
                     'utf8',
                 );
                 await chmod(executable, 0o700);

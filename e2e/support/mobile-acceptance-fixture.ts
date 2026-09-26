@@ -24,10 +24,19 @@ import {
     runMobileDeviceCommand,
     waitForMobile,
 } from './mobile-android';
+import type { AttentionCommand, AttentionReceipt } from './mobile-attention-fixture';
+import {
+    enableMobileAttentionHooks,
+    mobileAttentionControl,
+    prepareMobileAttentionAgent,
+} from './mobile-attention-fixture';
 import type { MobileChangesFixtureKind } from './mobile-changes-fixture';
 import { seedMobileChangesFixture } from './mobile-changes-fixture';
+import { fakeConversationAgent } from './mobile-conversation-agent-fixture';
 import type { MobileEncryptedPeer } from './mobile-encrypted-peer';
 import { pairMobileEncryptedPeer } from './mobile-encrypted-peer';
+import type { SyntheticMenuState } from './mobile-synthetic-menu-state';
+import { readSyntheticMenuState } from './mobile-synthetic-menu-state';
 
 export interface MobileAcceptanceFixture {
     allowedProjectId: string;
@@ -48,6 +57,10 @@ export interface MobileAcceptanceFixture {
     failNextAgentLaunch(): Promise<void>;
     readCapturedInput(): Promise<Buffer>;
     appendTranscript?(records: unknown[]): Promise<void>;
+    attention?: {
+        readReceipt(): Promise<AttentionReceipt[]>;
+        trigger(command: AttentionCommand): Promise<void>;
+    };
     pairTimelineGateway?(): Promise<MobileEncryptedPeer>;
     readTimeline?(): Promise<MobileTimelineReadResult>;
     shellGridStatePath?: string;
@@ -59,7 +72,13 @@ export interface MobileAcceptanceFixture {
 
 interface CreateMobileAcceptanceFixtureInput {
     mode:
-        'empty' | 'waiting' | 'launch-failure' | 'conversation' | 'shell-conversation' | 'journey';
+        | 'empty'
+        | 'waiting'
+        | 'attention'
+        | 'launch-failure'
+        | 'conversation'
+        | 'shell-conversation'
+        | 'journey';
     serial: string;
     changes?: MobileChangesFixtureKind;
     dropSubmitAcknowledgement?: boolean;
@@ -68,33 +87,6 @@ interface CreateMobileAcceptanceFixtureInput {
 }
 
 const MOBILE_ACCEPTANCE_SAFE_OUTPUT = 'Synthetic Agent output: ready for Acceptance review.\r\n';
-
-interface SyntheticMenuState {
-    cols: number | null;
-    firstGridMarker: { columns: number; generation: string; rows: number };
-    generation: string;
-    interrupts: number;
-    lines: string[];
-    phase: 'busy' | 'menu';
-    rows: number | null;
-    selected: number;
-    submissions: number;
-}
-
-async function readSyntheticMenuState(path: string): Promise<SyntheticMenuState | null> {
-    try {
-        return JSON.parse(await readFile(path, 'utf8')) as SyntheticMenuState;
-    } catch (error) {
-        if (
-            error !== null &&
-            typeof error === 'object' &&
-            'code' in error &&
-            error.code === 'ENOENT'
-        )
-            return null;
-        throw error;
-    }
-}
 
 async function fakeWaitingAgent(userDataDirectory: string, inputCapture: string) {
     return createFakeAgentMode({
@@ -155,183 +147,6 @@ process.stderr.write('Synthetic Agent launch failed.\n');
 process.exit(7);
 `,
             },
-        },
-    });
-}
-
-/**
- * The marker is written only after raw input and the menu renderer are ready.
- */
-function syntheticMenuControllerSource(statePath: string): string {
-    return String.raw`let menuActive = false;
-let selected = 1;
-let submissions = 0;
-let interrupts = 0;
-let pending = Buffer.alloc(0);
-let generationNumber = 0;
-const menuStatePath = ${JSON.stringify(statePath)};
-const render = () => {
-  const cols = process.stdout.columns ?? 0;
-  const rows = process.stdout.rows ?? 0;
-  if (cols < 18 || rows < 4) return;
-  const generation = 'G' + (++generationNumber);
-  const labels = Array.from({ length: rows }, (_, index) => 'Synthetic row ' + String(index + 1).padStart(2, '0'));
-  labels[0] = generation + ' Agent ready';
-  labels[1] = menuActive ? (selected === 1 ? '> 1. First' : '  1. First') : 'Synthetic conversation';
-  labels[2] = menuActive ? (selected === 2 ? '> 2. Second' : '  2. Second') : 'Waiting for Stop';
-  labels[rows - 1] = menuActive ? (submissions > 0 ? 'Selection submitted' : 'Choose an option') : 'Synthetic Agent busy';
-  const lines = labels.map((label) => '│' + label.slice(0, cols - 2).padEnd(cols - 2, ' ') + '│');
-  process.stdout.write('\x1b[?7l\x1b[2J');
-  for (const [index, line] of lines.entries()) {
-    const color = index === 0 ? 32 : menuActive && index === selected ? 36 : index === rows - 1 && submissions > 0 ? 35 : 37;
-    process.stdout.write('\x1b[' + (index + 1) + ';1H\x1b[' + color + 'm' + line + '\x1b[0m');
-  }
-  process.stdout.write('\x1b[?7h');
-  fs.writeFileSync(menuStatePath + '.next', JSON.stringify({
-    cols,
-    firstGridMarker: { columns: cols, generation, rows },
-    generation,
-    interrupts,
-    lines,
-    phase: menuActive ? 'menu' : 'busy',
-    rows,
-    selected,
-    submissions,
-  }));
-  fs.renameSync(menuStatePath + '.next', menuStatePath);
-};
-const activateMenu = () => {
-  if (menuActive) return;
-  menuActive = true;
-  render();
-};
-process.stdin.on('data', (chunk) => {
-  if (!menuActive) return;
-  pending = Buffer.concat([pending, chunk]);
-  while (pending.length > 0) {
-    const first = pending[0];
-    if (first === 27) {
-      if (pending.length < 3) break;
-      if (pending[1] === 91 && pending[2] === 66) {
-        selected = 2;
-        process.stdout.write('\x1b[36mSecond selected\x1b[0m\r\n');
-      } else if (pending[1] === 91 && pending[2] === 65) {
-        selected = 1;
-        process.stdout.write('\x1b[36mFirst selected\x1b[0m\r\n');
-      }
-      pending = pending.subarray(3);
-      render();
-      continue;
-    }
-    pending = pending.subarray(1);
-    if (first !== 13 && first !== 10) continue;
-    submissions += 1;
-    render();
-  }
-});
-process.stdout.on('resize', render);
-process.on('SIGWINCH', render);
-setTimeout(render, 250);
-`;
-}
-
-async function fakeConversationAgent(
-    userDataDirectory: string,
-    conversationMenuStatePath?: string,
-    codexMenuStatePath?: string,
-    inputCapturePath?: string,
-) {
-    return createFakeAgentMode({
-        userDataDir: userDataDirectory,
-        providers: {
-            claude: {
-                executableSource: String.raw`#!${process.execPath}
-// 为隔离验收绑定合成 Claude 会话；仅修改当前临时配置中的会话状态。
-const fs = require('node:fs');
-const path = require('node:path');
-const { randomUUID } = require('node:crypto');
-if (process.argv.includes('--version')) {
-  process.stdout.write('2.1.251 (Claude Code)\n');
-  process.exit(0);
-}
-// Mobile rename forwards to Desktop's rename, which renames the provider Session through non-interactive /rename.
-const resumeIndex = process.argv.indexOf('--resume');
-const renameCommand = process.argv.at(-1) ?? '';
-if (resumeIndex >= 0 && renameCommand.startsWith('/rename ')) {
-  process.stdout.write(JSON.stringify({
-    is_error: false,
-    result: 'Session renamed to: ' + renameCommand.slice('/rename '.length),
-    session_id: process.argv[resumeIndex + 1],
-    subtype: 'success',
-    type: 'result',
-  }));
-  process.exit(0);
-}
-const now = Date.now();
-const sessionId = 'mobile-conversation-fixture-' + randomUUID();
-const sessions = path.join(process.env.CLAUDE_CONFIG_DIR, 'sessions');
-const sessionStatePath = path.join(sessions, sessionId + '.json');
-const transcriptDirectory = path.join(
-  process.env.CLAUDE_CONFIG_DIR,
-  'projects',
-  process.cwd().replace(/[^a-z0-9]/gi, '-'),
-);
-fs.mkdirSync(sessions, { recursive: true });
-fs.mkdirSync(transcriptDirectory, { recursive: true });
-fs.writeFileSync(path.join(transcriptDirectory, sessionId + '.jsonl'), '', { flag: 'wx' });
-const writeSessionState = (status) => {
-  fs.writeFileSync(sessionStatePath + '.next', JSON.stringify({
-    cwd: process.cwd(),
-    name: 'Synthetic Conversation',
-    sessionId,
-    startedAt: now,
-    status,
-    updatedAt: Date.now(),
-  }));
-  fs.renameSync(sessionStatePath + '.next', sessionStatePath);
-};
-writeSessionState('busy');
-process.stdin.setRawMode?.(true);
-${
-    inputCapturePath
-        ? `process.stdin.on('data', (chunk) => fs.appendFileSync(${JSON.stringify(inputCapturePath)}, chunk));`
-        : ''
-}
-${
-    conversationMenuStatePath
-        ? `${syntheticMenuControllerSource(conversationMenuStatePath)}
-process.on('SIGINT', () => {
-  interrupts += 1;
-  writeSessionState('idle');
-  activateMenu();
-});`
-        : `
-process.stdin.on('data', (chunk) => {
-  if (chunk.includes(3)) process.exit(130);
-});`
-}
-process.stdin.resume();
-process.stdout.write('Synthetic Conversation ready\r\n');
-${conversationMenuStatePath ? 'render();' : ''}
-`,
-            },
-            ...(codexMenuStatePath && {
-                codex: {
-                    executableSource: String.raw`#!${process.execPath}
-// 为隔离验收输出合成菜单；只修改临时选择状态文件。
-const fs = require('node:fs');
-if (process.argv.includes('--version')) {
-  process.stdout.write('codex-cli 0.151.0\n');
-  process.exit(0);
-}
-if (process.argv.includes('app-server')) process.exit(0);
-process.stdin.setRawMode?.(true);
-${syntheticMenuControllerSource(codexMenuStatePath)}
-process.stdin.resume();
-activateMenu();
-`,
-                },
-            }),
         },
     });
 }
@@ -418,19 +233,23 @@ export async function createMobileAcceptanceFixture(
                   input.mode === 'journey' ? inputCapture : undefined,
               )
             : undefined;
+    const attentionAgentMode =
+        input.mode === 'attention' ? await prepareMobileAttentionAgent(userData) : undefined;
     const syntheticShell =
         input.mode === 'shell-conversation' ? await createSyntheticShell(testDirectory) : undefined;
     const agentMode =
         input.mode === 'waiting'
             ? await fakeWaitingAgent(userData, inputCapture)
-            : input.mode === 'launch-failure'
-              ? await fakeFailingAgent(userData)
-              : (conversationAgentMode ?? ({ mode: 'blocked' } as const));
+            : attentionAgentMode && input.mode === 'attention'
+              ? attentionAgentMode.agentMode
+              : input.mode === 'launch-failure'
+                ? await fakeFailingAgent(userData)
+                : (conversationAgentMode ?? ({ mode: 'blocked' } as const));
     let running: RunningCaxri;
     try {
         running = await launchCaxri({
             agentMode,
-            desktopLeaseWaitMs: process.env.CAXRI_MOBILE_ACCEPTANCE_CASE_ID ? 120_000 : 0,
+            desktopLeaseWaitMs: process.env.CAXRI_MOBILE_ACCEPTANCE_CASE_ID ? 180_000 : undefined,
             userDataDir: userData,
             testRootPath: allowedRoot,
             env: {
@@ -499,7 +318,8 @@ export async function createMobileAcceptanceFixture(
         await running.app.evaluate(({ dialog }) => {
             dialog.showMessageBox = () => Promise.resolve({ checkboxChecked: false, response: 0 });
         });
-        if (input.mode === 'conversation' || input.mode === 'journey') {
+        if (['conversation', 'journey', 'attention'].includes(input.mode)) {
+            if (input.mode === 'attention') await enableMobileAttentionHooks(running.page);
             allowedSessionId = await createProjectSession(running.page, 'claude');
             const bound = await waitForMobile(
                 () => pageRequest<BootstrapState>(running.page, 'app.bootstrap'),
@@ -507,23 +327,42 @@ export async function createMobileAcceptanceFixture(
                     state.terminals.some(
                         (terminal) =>
                             terminal.sessionId === allowedSessionId &&
-                            terminal.agentSessionId?.startsWith('mobile-conversation-fixture-'),
+                            (input.mode === 'attention'
+                                ? Boolean(terminal.agentSessionId)
+                                : terminal.agentSessionId?.startsWith(
+                                      'mobile-conversation-fixture-',
+                                  )),
                     ),
             );
             const allowed = bound.sessions.find(({ id }) => id === allowedSessionId);
             const terminal = bound.terminals.find(
                 ({ sessionId }) => sessionId === allowedSessionId,
             );
-            const config = conversationAgentMode?.environment.CLAUDE_CONFIG_DIR;
-            if (!allowed || !config || !terminal?.agentSessionId)
+            const config =
+                conversationAgentMode?.environment.CLAUDE_CONFIG_DIR ??
+                attentionAgentMode?.agentMode.environment.CLAUDE_CONFIG_DIR;
+            if (
+                !allowed ||
+                !terminal ||
+                (input.mode !== 'attention' && (!config || !terminal.agentSessionId))
+            )
                 throw new Error('Synthetic Conversation binding is unavailable');
             conversationTerminalId = terminal.id;
-            transcriptPath = join(
-                config,
-                'projects',
-                terminal.cwd.replaceAll(/[^a-z0-9]/giu, '-'),
-                `${terminal.agentSessionId}.jsonl`,
-            );
+            if (config && terminal.agentSessionId) {
+                transcriptPath = join(
+                    config,
+                    'projects',
+                    terminal.cwd.replaceAll(/[^a-z0-9]/giu, '-'),
+                    `${terminal.agentSessionId}.jsonl`,
+                );
+                if (input.mode === 'attention') {
+                    /**
+                     * An empty fixture transcript enables Conversation without recording private Agent content.
+                     */
+                    await mkdir(dirname(transcriptPath), { recursive: true });
+                    await writeFile(transcriptPath, '');
+                }
+            }
             if (input.mode === 'journey') {
                 if (!menuStatePath) throw new Error('Synthetic Terminal state path is unavailable');
                 const menu = await pageRequest<{
@@ -676,6 +515,15 @@ export async function createMobileAcceptanceFixture(
             }),
         ...((input.mode === 'waiting' || input.mode === 'journey') && { inputCapture }),
         ...(shellGridStatePath && { shellGridStatePath }),
+        ...(input.mode === 'attention' &&
+            attentionAgentMode &&
+            conversationTerminalId && {
+                attention: mobileAttentionControl(
+                    running.page,
+                    conversationTerminalId,
+                    attentionAgentMode.receiptPath,
+                ),
+            }),
         ...(transcriptPath && {
             appendTranscript: async (records: unknown[]) => {
                 await mkdir(dirname(transcriptPath), { recursive: true });

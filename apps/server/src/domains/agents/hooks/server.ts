@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import type { AgentProvider } from '@caxri/protocol';
-import { agentProviderIds } from '@caxri/protocol';
+import { agentProviderIds, mobileAttentionQuestionSchema } from '@caxri/protocol';
 import { ensureUnixSocketDirectory } from '@caxri/system';
 
 import { isOpaqueAgentSessionId } from '../contract';
@@ -19,6 +19,7 @@ import type {
 import { agentLifecyclePhases } from './contract';
 
 const MAX_SIGNAL_BYTES = 4_096;
+const MAX_ATTENTION_BYTES = 64 * 1_024;
 const MAX_PHASE_LENGTH = 64;
 const MAX_AGENT_CWD_LENGTH = 1_024;
 const MAX_AGENT_ID_LENGTH = 256;
@@ -68,7 +69,20 @@ interface HookWireBridgeStarted extends HookWireContext {
     kind: 'bridgeStarted';
 }
 
-type HookWirePacket = HookWireBridgeStarted | HookWireSignal;
+export interface HookWireAttention extends HookWireContext {
+    kind: 'attention';
+    attentionKind: 'permission' | 'question';
+    toolName: string;
+    summary: string;
+    questions: Array<{
+        question: string;
+        header: string;
+        multiSelect: boolean;
+        options: Array<{ label: string; description?: string }>;
+    }>;
+}
+
+type HookWirePacket = HookWireBridgeStarted | HookWireSignal | HookWireAttention;
 
 export type AgentHookSignalRejectionReason =
     | 'downstreamRejected'
@@ -301,6 +315,22 @@ function parsePacket(
             },
         };
     }
+    if (signal.kind === 'attention') {
+        if (
+            signal.provider !== 'claude' ||
+            signal.phase !== 'attentionRequested' ||
+            !['permission', 'question'].includes(String(signal.attentionKind)) ||
+            typeof signal.toolName !== 'string' ||
+            signal.toolName.length > 100 ||
+            typeof signal.summary !== 'string' ||
+            signal.summary.length > 500 ||
+            !mobileAttentionQuestionSchema.array().max(4).safeParse(signal.questions).success ||
+            (signal.attentionKind === 'question' &&
+                (!Array.isArray(signal.questions) || signal.questions.length === 0))
+        )
+            return { reason: 'invalidSignal' };
+        return { packet: signal as unknown as HookWireAttention };
+    }
     if (signal.kind === 'bridgeStarted')
         return { packet: signal as unknown as HookWireBridgeStarted };
     if (signal.kind !== undefined) return { reason: 'invalidSignal' };
@@ -439,7 +469,7 @@ function diagnosticFields(signal: HookWireSignal) {
 
 function packetDiagnosticFields(packet: HookWirePacket) {
     return {
-        ...(packet.kind !== 'bridgeStarted' && {
+        ...(packet.kind === undefined && {
             hasAgentSessionId: packet.agentSessionId !== undefined,
         }),
         phase: packet.phase,
@@ -467,6 +497,13 @@ export class AgentHookServer {
             signal: AgentLifecycleSignal,
         ) => AgentHookSignalResult | Promise<AgentHookSignalResult>,
         private readonly onDiagnostic: (diagnostic: AgentHookSignalDiagnostic) => void = () => {},
+        private readonly onAttention: (
+            request: HookWireAttention,
+            signal: AbortSignal,
+        ) => Promise<{
+            decision?: 'allow' | 'deny';
+            answers?: Record<string, string>;
+        } | null> = () => Promise.resolve(null),
     ) {}
 
     private accept(socket: Socket): void {
@@ -474,6 +511,7 @@ export class AgentHookServer {
         let source = '';
         let isSettled = false;
         let receivedAt: number | undefined;
+        const attentionAbort = new AbortController();
         const didSettle = (diagnostic: AgentHookSignalDiagnostic): boolean => {
             if (isSettled) return false;
             isSettled = true;
@@ -492,7 +530,10 @@ export class AgentHookServer {
             if (isSettled) return;
             receivedAt ??= performance.now();
             source += chunk;
-            if (Buffer.byteLength(source, 'utf8') > MAX_SIGNAL_BYTES) {
+            if (
+                Buffer.byteLength(source, 'utf8') >
+                (source.includes('"kind":"attention"') ? MAX_ATTENTION_BYTES : MAX_SIGNAL_BYTES)
+            ) {
                 didSettle({ outcome: 'rejected', reason: 'payloadTooLarge' });
                 socket.destroy();
             }
@@ -560,6 +601,22 @@ export class AgentHookServer {
                 socket.end('{"ok":true}\n');
                 return;
             }
+            if (packet.kind === 'attention') {
+                socket.setTimeout(125_000);
+                try {
+                    const answer = await this.onAttention(packet, attentionAbort.signal);
+                    didSettle({ ...packetDiagnosticFields(packet), outcome: 'accepted' });
+                    socket.end(`${JSON.stringify({ ok: Boolean(answer), ...answer })}\n`);
+                } catch {
+                    didSettle({
+                        ...packetDiagnosticFields(packet),
+                        outcome: 'rejected',
+                        reason: 'downstreamRejected',
+                    });
+                    socket.end('{"ok":false}\n');
+                }
+                return;
+            }
             const signal = packet;
             let result: AgentHookSignalResult;
             try {
@@ -594,8 +651,10 @@ export class AgentHookServer {
             );
         });
         socket.on('error', () => {
+            attentionAbort.abort();
             didSettle({ outcome: 'rejected', reason: 'transportError' });
         });
+        socket.on('close', () => attentionAbort.abort());
     }
 
     /**

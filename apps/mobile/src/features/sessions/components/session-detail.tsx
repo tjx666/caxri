@@ -101,7 +101,7 @@ export const SessionDetail = ({
             ) : null}
             <SessionDetailBody
                 changesPanel={changesPanel}
-                panels={<PanelsView sessionId={session.id} theme={theme} />}
+                panels={<PanelsView deviceRole={deviceRole} sessionId={session.id} theme={theme} />}
                 conversationTimeline={conversationTimeline}
                 deviceRole={deviceRole}
                 isConnected={isConnected}
