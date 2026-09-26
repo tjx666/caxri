@@ -1,13 +1,11 @@
 import { Buffer } from 'node:buffer';
-import { dirname, join } from 'node:path';
+import { dirname } from 'node:path';
 import process from 'node:process';
 
 import {
     beginAgentFixtureLifecycle,
     completeAgentFixtureLifecycle,
 } from '../.agents/skills/acceptance/scripts/agent-fixture-lifecycle.ts';
-import { createTerminalFixturePreflightReceipt } from '../.agents/skills/acceptance/scripts/fixture-preflight.ts';
-import { writeJsonAtomic } from '../scripts/atomic-json.ts';
 import { expect, test } from './support/fixtures.ts';
 import { pageRequest } from './support/helpers.ts';
 import { createMobileAcceptanceFixture } from './support/mobile-acceptance-fixture.ts';
