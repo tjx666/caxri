@@ -133,7 +133,7 @@ export async function executeMobileFileEditScenario(
     artifacts: string[],
 ): Promise<void> {
     const fixture = await createMobileAcceptanceFixture({
-        mode: 'shell-conversation',
+        mode: 'attention',
         serial: environment.serial,
     });
     try {
@@ -142,7 +142,16 @@ export async function executeMobileFileEditScenario(
         await fixture.pair();
         if (!fixture.allowedSessionId) throw new Error('File edit fixture Session is unavailable');
         await tapMobileCheck(environment.serial, `session-row-${fixture.allowedSessionId}`);
-        await tapMobileCheck(environment.serial, 'session-segment-files');
+        await waitForMobile(
+            () => mobileSemantics(environment.serial),
+            (nodes) => nodes.some(({ checkId }) => checkId === 'session-segment-panels'),
+        );
+        await tapMobileCheck(environment.serial, 'session-segment-panels');
+        await waitForMobile(
+            () => mobileSemantics(environment.serial),
+            (nodes) => nodes.some(({ checkId }) => checkId === 'panel-tab-caxri.files'),
+        );
+        await tapMobileCheck(environment.serial, 'panel-tab-caxri.files');
         await waitForMobile(
             () => mobileSemantics(environment.serial),
             (nodes) => nodes.some(({ checkId }) => checkId === 'files-entry-acceptance-note.txt'),

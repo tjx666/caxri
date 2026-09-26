@@ -20,6 +20,21 @@ Agent request must remain reachable there. An empty fixture-owned transcript fil
 its composer available without visible conversation content. Follow the
 [Acceptance privacy rule](../skills/acceptance/SKILL.md).
 
+For a file-edit case, the `shell-conversation` fixture still paints synthetic Terminal rows. Use a
+content-free fixture when capturing a report-bound failure screenshot; a synthetic transcript is
+still Agent output under the same privacy rule.
+
+## Guessing a mobile tab check ID from its destination
+
+**Situation:** An Android case opens a Session's Files panel after pairing.
+
+**Does not work:** Tapping `session-segment-files`. Files belongs to the Session's Project segment,
+then the `caxri.files` panel tab; the guessed ID fails before the file behavior is exercised.
+
+**Works:** Check the mounted component's `testID` and wait for that ID in device semantics before
+each navigation tap. Open `session-segment-panels`, then `panel-tab-caxri.files`, and only then
+look for `files-entry-*`.
+
 ## Using arbitrary option labels as Android check IDs
 
 **Situation:** A mobile Agent question renders clickable choices, but the sanitized Android semantic receipt
