@@ -10,9 +10,9 @@ description: Build Caxri's Electron Desktop and standalone Server artifact, incl
    current changes.
 3. Run `bun run spike:native`, `bun run spike:pty`, and the applicable `bun run spike:agents` probe
    after Electron, native-module, Agent adapter, or packaging changes.
-4. For complete validation, run the root `bun run typecheck` and `bun run test` commands once. Use
-   `build:workspaces`, `typecheck:workspaces`, or `test:workspaces` only to isolate a failing
-   workspace; the root commands already own that workspace coverage.
+4. For complete validation, run the root `bun run typecheck` once; the full unit suite is a CI
+   gate (see `quality-check`). Use `build:workspaces` or `typecheck:workspaces`
+   only to isolate a failing workspace; the root commands already own that workspace coverage.
 5. Run `bun run build` once and verify `apps/server/dist/server`, `out/main`, `out/preload/index.cjs`,
    and `out/renderer` exist. Keep Monaco in a separate lazy `CodeEditor` chunk rather than the
    terminal-first Renderer entry.

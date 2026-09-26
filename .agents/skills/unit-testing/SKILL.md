@@ -38,8 +38,8 @@ Validate the smallest observable behavior below the Electron desktop boundary.
 
 6. Keep fixtures content-free. Never copy real tokens, user code, Terminal output, Agent
    transcripts, production paths, or credentials into tests or artifacts.
-7. Run the full `bun run test` suite only for release/CI parity, when explicitly requested, or when
-   a shared cross-cutting contract makes focused coverage insufficient.
+7. Leave the full `bun run test` suite to CI; it refuses to run locally unless the user sets
+   `CAXRI_FULL_SUITE_AUTHORIZED=1` (see `quality-check`).
 
 This skill does not own Playwright, Electron desktop lifecycle, real PTYs, window focus, remote
 full E2E, or the guarded Go fallback. Call the Skill tool with "e2e-testing" for those surfaces.

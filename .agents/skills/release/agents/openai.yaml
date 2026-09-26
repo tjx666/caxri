@@ -1,4 +1,4 @@
 interface:
   display_name: 'Release Caxri'
-  short_description: 'Prepare a local unsigned Caxri release artifact'
-  default_prompt: 'Use $release to prepare a local Caxri release artifact.'
+  short_description: 'Prepare, publish, and verify Caxri releases'
+  default_prompt: 'Use $release to prepare, publish, or verify a Caxri release.'

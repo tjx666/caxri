@@ -53,7 +53,6 @@ nearest same-kind implementation before accepting a new route or helper.
 - `.agents/skills/project-architecture/references/packages.md`
 - `.agents/skills/project-architecture/references/ipc.md`
 - `packages/protocol/src` and the nearest owning domain
-  re-exports only)
 
 ## Not violations
 

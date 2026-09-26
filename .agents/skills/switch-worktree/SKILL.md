@@ -33,9 +33,8 @@ not need to say "commit", "open a PR", or "merge" separately. Only an explicit a
 local-only, or no-merge restriction narrows that scope.
 
 1. Ensure a GitHub issue tracks the task: when the request references an existing issue, use it;
-   otherwise create one first (`gh issue create`, Simplified Chinese title and body, technical
-   identifiers in English) capturing the request, scope, and acceptance expectations, then link it
-   from the branch work and the eventual PR.
+   otherwise Call the Skill tool with "file-issue" to create one capturing the request, scope, and
+   acceptance expectations, then link it from the branch work and the eventual PR.
 2. Implement and validate the change in the isolated worktree.
 3. Review the completed local work (light `deep-review` scope) and repair validated P0/P1 findings.
 4. Call the Skill tool with "pull-request" to push the branch and create or update the delivery
@@ -44,8 +43,7 @@ local-only, or no-merge restriction narrows that scope.
    replacement, repair failures, and re-push until checks are green. Do not enqueue sibling pull
    requests against the shared runner for fixes that belong to the same delivery.
 6. Merge the PR, close the linked issues, and synchronize the primary checkout.
-7. File a GitHub issue (same language conventions) for any debt or follow-up the delivery leaves
-   behind — deferred findings, known flakes, consciously skipped scope — so nothing survives only
+7. Call the Skill tool with "file-issue" for any debt or follow-up the delivery leaves behind — deferred findings, known flakes, consciously skipped scope — so nothing survives only
    in the session transcript.
 
 Narrow this flow only when the user explicitly limits delivery (e.g. "只实现，不提交" or

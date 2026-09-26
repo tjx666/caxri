@@ -127,7 +127,8 @@ mounts  updates  firstMs  lastMs  hidden  instance
 ### Known-intended patterns — do not report these
 
 - A Panel or secondary-sidebar container **stays mounted after its first show**
-  (`apps/desktop/src/renderer/src/features/view-containers/view-container-surface.tsx:127`). So the
+  (`apps/desktop/src/renderer/src/features/view-containers/view-container-surface.tsx`, the "stays
+  mounted (hidden) once it has been shown" comment). So the
   first switch to a view is mostly mounts and every later switch is updates only. A hidden container
   that keeps _re-rendering_ on unrelated updates is still a finding.
 - `RendererPerformanceProfiler`, `FloatingTree`, `MenuPortal`, `TooltipPortal` and friends are
@@ -207,8 +208,9 @@ request fixed all three at once:
 `FileTreeItem`, `FileTreeItemMenu`, `DirectoryEntries` and `ControlledViewProvider` left the
 Session-switch sample entirely. What remains is tracked rather than unexplained:
 
-- The 51 mounts are the whole `PaneView` subtree, which `workbench.tsx` rebuilds per Session by
-  design — issue #657 owns keeping it alive, and no memoization can lower it before then.
+- The 51 mounts are the `PaneView` subtree of a Session not yet in the workbench's recently used
+  keep-alive set; a switch between retained Sessions should mount nothing, so mounts there are a
+  finding.
 - The ~200 remaining updates are the 5 Session cards and their menu wrappers, and their cause is
   **not yet named** — issue #1108 owns finding it. Recorded here because the first answer was wrong
   in an instructive way: "`app.bootstrap` is replaced wholesale, so every derived array is a new
