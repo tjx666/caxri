@@ -20,3 +20,5 @@ export default function RootLayout() {
         </SafeAreaProvider>
     );
 }
+
+export { RouteErrorScreen as ErrorBoundary } from '../src/components/route-error-screen';

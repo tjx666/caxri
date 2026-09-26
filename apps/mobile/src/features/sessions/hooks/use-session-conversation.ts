@@ -29,6 +29,7 @@ export const useSessionConversation = ({
     return {
         timeline,
         fallback: selection.fallback,
+        hasConversation: selected ? selection.hasConversation : false,
         segment: selected ? selection.segment : 'terminal',
     };
 };

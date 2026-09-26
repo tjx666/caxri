@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    canAddProjectBrowserEntry,
     canAddProjectBrowserLevel,
     currentProjectBrowserLevel,
     enterProjectBrowserLevel,
@@ -26,5 +27,15 @@ describe('Add Project browser levels', () => {
     it('never offers home itself as a Project', () => {
         expect(canAddProjectBrowserLevel(PROJECT_BROWSER_HOME)).toBe(false);
         expect(canAddProjectBrowserLevel({ name: 'code', path: 'code' })).toBe(true);
+    });
+
+    it('offers Add on a row only where the footer cannot be reached or a repository is the obvious choice', () => {
+        expect(canAddProjectBrowserEntry({ hasChildren: true, isGitRepository: true })).toBe(true);
+        expect(canAddProjectBrowserEntry({ hasChildren: false, isGitRepository: false })).toBe(
+            true,
+        );
+        expect(canAddProjectBrowserEntry({ hasChildren: true, isGitRepository: false })).toBe(
+            false,
+        );
     });
 });

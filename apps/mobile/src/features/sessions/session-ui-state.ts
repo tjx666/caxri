@@ -38,6 +38,11 @@ export const hasKnownConversationAgent = (
     terminal?.provider === 'claude' ||
     terminal?.provider === 'codex';
 
+/**
+ * A plain shell has no Conversation to show, so it gets no Conversation tab and no "isn't available" notice: both would
+ * describe an Agent the user never started. A timeline that turns up anyway, or one the user was already reading and is
+ * still loading, keeps the tab.
+ */
 export const resolveSessionConversationSegment = ({
     hasAgentEndpoint,
     hasKnownAgent,
@@ -48,7 +53,19 @@ export const resolveSessionConversationSegment = ({
     hasKnownAgent: boolean;
     remembered: SessionSegment | undefined;
     status: ConversationTimelineState['status'];
-}): { fallback: boolean; segment: SessionSegment } => {
+}): { fallback: boolean; hasConversation: boolean; segment: SessionSegment } => {
+    const hasConversation =
+        hasAgentEndpoint ||
+        hasKnownAgent ||
+        status === 'available' ||
+        (remembered === 'conversation' && status === 'loading');
+    if (!hasConversation)
+        return {
+            fallback: false,
+            hasConversation,
+            segment:
+                remembered === undefined || remembered === 'conversation' ? 'terminal' : remembered,
+        };
     const fallback =
         (remembered === undefined || remembered === 'conversation') &&
         shouldFallbackToTerminal(status);
@@ -58,6 +75,7 @@ export const resolveSessionConversationSegment = ({
         (hasKnownAgent && status === 'loading');
     return {
         fallback,
+        hasConversation,
         segment: fallback ? 'terminal' : preferredSessionSegment(remembered, available),
     };
 };

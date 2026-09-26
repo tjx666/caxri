@@ -5,6 +5,7 @@ import {
     changesSummary,
     hasMultipleRepositories,
     parseUnifiedDiff,
+    visibleDiffLines,
 } from '../changes-model';
 
 describe('parseUnifiedDiff', () => {
@@ -64,4 +65,22 @@ it('shows repository names when paths can be ambiguous across repositories', () 
             { ...file, repositoryId: 'repo-two', repositoryName: 'backend' },
         ]),
     ).toBe(true);
+});
+
+describe('visibleDiffLines', () => {
+    it('drops the Git preamble once the patch has a hunk', () => {
+        const { lines } = parseUnifiedDiff(
+            'diff --git a/a b/a\nindex 1..2 100644\n--- a/a\n+++ b/a\n@@ -1 +1 @@\n-old\n+new\n',
+        );
+        expect(visibleDiffLines(lines).map((line) => line.kind)).toEqual([
+            'hunk',
+            'removed',
+            'added',
+        ]);
+    });
+
+    it('keeps the preamble when it is the whole message', () => {
+        const { lines } = parseUnifiedDiff('--- a/a\n+++ b/a\nBinary files a/a and b/a differ\n');
+        expect(visibleDiffLines(lines)).toEqual(lines);
+    });
 });

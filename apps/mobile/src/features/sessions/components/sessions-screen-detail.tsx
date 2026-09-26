@@ -28,7 +28,7 @@ export const SessionsScreenDetail = ({
     routeSessionId: string | null;
     theme: ReturnType<typeof useMobileTheme>;
 }) => {
-    const { sessions, ui } = useHostSessions();
+    const { hostId, sessions, ui } = useHostSessions();
     const { selectSession } = sessions;
 
     useEffect(() => {
@@ -86,6 +86,9 @@ export const SessionsScreenDetail = ({
             <SessionRouteStatus
                 error={shown.error}
                 isLoading={shown.isLoading}
+                isOffline={shown.isOffline}
+                hasBack={layout === 'phone'}
+                hostId={hostId}
                 onRetry={shown.refresh}
                 theme={theme}
             />

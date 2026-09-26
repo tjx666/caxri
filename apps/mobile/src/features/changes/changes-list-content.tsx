@@ -7,6 +7,12 @@ import type { ChangedFile, ChangesViewState } from './changes-model';
 import { changePathParts, changeStatusLabel, hasMultipleRepositories } from './changes-model';
 import { changesStyles as styles } from './changes-styles';
 
+/**
+ * Matches Desktop's Source Control letters: added reads green, modified amber, deleted red, renamed in the accent.
+ */
+const statusColor = (status: ChangedFile['status'], theme: MobileTheme): string =>
+    ({ A: theme.success, D: theme.danger, M: theme.warning, R: theme.primary })[status];
+
 const ChangeFileRow = ({
     file,
     index,
@@ -34,7 +40,7 @@ const ChangeFileRow = ({
                     styles.status,
                     {
                         backgroundColor: theme.surface,
-                        color: file.status === 'D' ? theme.danger : theme.primary,
+                        color: statusColor(file.status, theme),
                     },
                 ]}
             >

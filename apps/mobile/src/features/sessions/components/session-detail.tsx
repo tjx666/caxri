@@ -19,6 +19,7 @@ export const SessionDetail = ({
     conversationFallback,
     conversationTimeline,
     focusComposer,
+    hasConversation,
     hostId,
     isConnected,
     isVisible,
@@ -39,6 +40,7 @@ export const SessionDetail = ({
     conversationFallback: boolean;
     conversationTimeline: ReturnType<typeof useConversationTimeline>;
     focusComposer?: boolean;
+    hasConversation: boolean;
     hostId: string;
     isConnected: boolean;
     isVisible: boolean;
@@ -76,6 +78,7 @@ export const SessionDetail = ({
         >
             <SessionDetailHeader
                 changesCount={changes.state.snapshot?.changedFileCount ?? null}
+                hasConversation={hasConversation}
                 isConnected={isConnected}
                 onBack={onBack}
                 onMarkRead={onMarkRead}
@@ -98,9 +101,7 @@ export const SessionDetail = ({
             ) : null}
             <SessionDetailBody
                 changesPanel={changesPanel}
-                panels={
-                    <PanelsView changesPanel={changesPanel} sessionId={session.id} theme={theme} />
-                }
+                panels={<PanelsView sessionId={session.id} theme={theme} />}
                 conversationTimeline={conversationTimeline}
                 deviceRole={deviceRole}
                 isConnected={isConnected}

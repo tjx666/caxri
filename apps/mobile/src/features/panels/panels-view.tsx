@@ -1,15 +1,14 @@
-import type { ReactNode } from 'react';
 import { memo, useState } from 'react';
 import type { ListRenderItemInfo } from 'react-native';
 import { FlatList, Pressable, Text, View } from 'react-native';
 
 import type { MethodResult } from '@caxri/protocol';
 import type { LucideProps } from 'lucide-react-native';
-import { FolderTree, GitBranch, ListTree } from 'lucide-react-native';
+import { FolderTree, ListTree } from 'lucide-react-native';
 
 import type { MobileTheme } from '../../theme/tokens';
 import { FilesPanel } from './files-panel';
-import { PanelStatus } from './panel-status';
+import { PanelStatus, PendingPanelStatus } from './panel-status';
 import { panelsStyles as styles } from './panels-styles';
 import { TreePanel } from './tree-panel';
 import { usePanelsList } from './use-panels';
@@ -20,17 +19,14 @@ type PanelView = Panel['views'][number];
 const PanelIcon = ({ panel, ...iconProperties }: LucideProps & { panel: Panel }) => {
     const kind = panel.views[0]?.kind;
     if (kind === 'files') return <FolderTree {...iconProperties} />;
-    if (kind === 'changes') return <GitBranch {...iconProperties} />;
     return <ListTree {...iconProperties} />;
 };
 
 const PanelBody = ({
-    changesPanel,
     sessionId,
     theme,
     view,
 }: {
-    changesPanel: ReactNode;
     sessionId: string;
     theme: MobileTheme;
     view: PanelView;
@@ -38,8 +34,6 @@ const PanelBody = ({
     switch (view.kind) {
         case 'files':
             return <FilesPanel sessionId={sessionId} theme={theme} />;
-        case 'changes':
-            return changesPanel;
         case 'tree':
             return <TreePanel key={view.id} sessionId={sessionId} theme={theme} viewId={view.id} />;
         default:
@@ -85,21 +79,25 @@ const PanelTab = memo(
 );
 
 /**
- * Mirrors Desktop's right sidebar (Files, Git, Status, and any extension panel) for one Session, read-only. The Git
- * panel reuses the Changes view because Desktop's source-control view is the same data behind a richer editor.
+ * Desktop's Git view is left out: the Session's Changes tab already shows the same data, and a second entry would read
+ * as a different view.
  */
-export const PanelsView = ({
-    changesPanel,
-    sessionId,
-    theme,
-}: {
-    changesPanel: ReactNode;
-    sessionId: string;
-    theme: MobileTheme;
-}) => {
+const withoutChanges = (panels: readonly Panel[]): Panel[] =>
+    panels
+        .map((panel) => ({
+            ...panel,
+            views: panel.views.filter((view) => view.kind !== 'changes'),
+        }))
+        .filter((panel) => panel.views.length > 0);
+
+/**
+ * Mirrors Desktop's right sidebar (Files, Status, and any extension panel) for one Session, read-only.
+ */
+export const PanelsView = ({ sessionId, theme }: { sessionId: string; theme: MobileTheme }) => {
     const panels = usePanelsList(sessionId);
     const [selectedId, setSelectedId] = useState<string | null>(null);
-    if (panels.isPending) return <PanelStatus isLoading theme={theme} />;
+    if (panels.isPending)
+        return <PendingPanelStatus fetchStatus={panels.fetchStatus} theme={theme} />;
     if (panels.isError)
         return (
             <PanelStatus
@@ -112,9 +110,15 @@ export const PanelsView = ({
                 theme={theme}
             />
         );
-    const available = panels.data.panels.filter((panel) => panel.views.length > 0);
+    const available = withoutChanges(panels.data.panels);
     const selected = available.find((panel) => panel.id === selectedId) ?? available.at(0);
-    if (!selected) return <PanelStatus message="No panels are available." theme={theme} />;
+    if (!selected)
+        return (
+            <PanelStatus
+                message="Nothing from this Project is available on your phone yet."
+                theme={theme}
+            />
+        );
     const renderTab = ({ item }: ListRenderItemInfo<Panel>) => (
         <PanelTab
             isSelected={item.id === selected.id}
@@ -137,24 +141,14 @@ export const PanelsView = ({
             />
             <View style={styles.body}>
                 {selected.views.length === 1 ? (
-                    <PanelBody
-                        changesPanel={changesPanel}
-                        sessionId={sessionId}
-                        theme={theme}
-                        view={selected.views[0]}
-                    />
+                    <PanelBody sessionId={sessionId} theme={theme} view={selected.views[0]} />
                 ) : (
                     selected.views.map((view) => (
                         <View key={view.id} style={styles.body}>
                             <Text style={[styles.viewTitle, { color: theme.muted }]}>
                                 {view.title}
                             </Text>
-                            <PanelBody
-                                changesPanel={changesPanel}
-                                sessionId={sessionId}
-                                theme={theme}
-                                view={view}
-                            />
+                            <PanelBody sessionId={sessionId} theme={theme} view={view} />
                         </View>
                     ))
                 )}

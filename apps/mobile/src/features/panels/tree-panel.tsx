@@ -6,7 +6,7 @@ import { ChevronDown, ChevronRight, Dot } from 'lucide-react-native';
 
 import type { MobileTheme } from '../../theme/tokens';
 import { MobileGatewayRequestError } from '../connection/mobile-gateway-client';
-import { PanelStatus } from './panel-status';
+import { PanelStatus, PendingPanelStatus } from './panel-status';
 import { panelsStyles as styles } from './panels-styles';
 import { useTreeChildren } from './use-panels';
 
@@ -31,7 +31,10 @@ const TreeChildren = ({
     viewId: string;
 }) => {
     const children = useTreeChildren(sessionId, viewId, parentHandle);
-    if (children.isPending) return depth === 0 ? <PanelStatus isLoading theme={theme} /> : null;
+    if (children.isPending)
+        return depth === 0 ? (
+            <PendingPanelStatus fetchStatus={children.fetchStatus} theme={theme} />
+        ) : null;
     if (children.isError) {
         /**
          * Extension trees follow the Session active on Desktop, and the phone never changes that selection, so a

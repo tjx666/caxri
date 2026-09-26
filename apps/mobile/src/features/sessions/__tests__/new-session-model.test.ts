@@ -5,6 +5,7 @@ import {
     availableNewSessionAgent,
     canCreateNewSession,
     markUncertainSessionsChecked,
+    newSessionAgentReason,
     selectedNewSessionProject,
     sortNewSessionProjects,
 } from '../new-session-model';
@@ -83,5 +84,23 @@ describe('New Session choices', () => {
         const checked = markUncertainSessionsChecked(uncertain);
         expect(checked).toEqual({ ...uncertain, checkedSessions: true });
         expect(acknowledgeCheckedUncertainCreate(checked)).toEqual({ kind: 'idle' });
+    });
+
+    it('asks to reconnect instead of checking forever while offline without an answer', () => {
+        const base = { isConnected: false, isError: false, isLoading: true };
+        expect(newSessionAgentReason({ ...base, agent: undefined })).toBe(
+            'Reconnect to check availability.',
+        );
+        expect(newSessionAgentReason({ ...base, agent: undefined, isConnected: true })).toBe(
+            'Checking availability…',
+        );
+        expect(
+            newSessionAgentReason({
+                ...base,
+                agent: { available: true },
+                isConnected: true,
+                isLoading: false,
+            }),
+        ).toBeUndefined();
     });
 });

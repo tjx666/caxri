@@ -1,5 +1,7 @@
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
+import { ChevronLeft } from 'lucide-react-native';
+
 import type { MobileTheme } from '../../theme/tokens';
 import { ChangesDiffLines } from './changes-diff-lines';
 import { changesStyles as styles } from './changes-styles';
@@ -36,7 +38,7 @@ export const ChangesDiff = ({
                     style={styles.back}
                     testID="changes-diff-back"
                 >
-                    <Text style={[styles.backText, { color: theme.text }]}>←</Text>
+                    <ChevronLeft color={theme.text} size={22} />
                 </Pressable>
                 <Text numberOfLines={1} style={[styles.detailPath, { color: theme.text }]}>
                     {path}

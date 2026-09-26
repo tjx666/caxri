@@ -11,7 +11,7 @@ import { IconButton } from '../../components/icon-button';
 import type { MobileTheme } from '../../theme/tokens';
 import { useMobileTheme } from '../../theme/use-mobile-theme';
 import { addProjectStyles as styles } from './add-project-styles';
-import { canAddProjectBrowserLevel } from './project-browser-model';
+import { canAddProjectBrowserEntry, canAddProjectBrowserLevel } from './project-browser-model';
 import { useProjectBrowser } from './use-project-browser';
 
 type BrowseEntry = MethodResult<'mobile.project.browse'>['entries'][number];
@@ -48,7 +48,7 @@ const FolderRow = memo(
                     </Text>
                     {entry.hasChildren ? <ChevronRight color={theme.muted} size={18} /> : null}
                 </Pressable>
-                {entry.isGitRepository ? (
+                {canAddProjectBrowserEntry(entry) ? (
                     <Pressable
                         accessibilityLabel={`Add ${entry.name} as a Project`}
                         accessibilityRole="button"
@@ -118,7 +118,7 @@ const AddProjectFooter = ({
             </Pressable>
         ) : (
             <Text style={[styles.hint, { color: theme.muted }]}>
-                Open a folder to add it, or tap Add on a Git repository.
+                Open a folder to add it, or tap Add beside one.
             </Text>
         )}
     </View>

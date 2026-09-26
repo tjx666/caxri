@@ -57,6 +57,7 @@ export const SelectedSessionDetail = ({
             deviceRole={sessions.deviceRole}
             draft={ui.draftBySession[selected.id] ?? ''}
             focusComposer={focusComposerSessionId === selected.id}
+            hasConversation={conversation.hasConversation}
             hostId={hostId}
             isConnected={fresh}
             isVisible={isDetailVisible}

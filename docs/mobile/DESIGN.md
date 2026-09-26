@@ -29,8 +29,8 @@ In scope:
 
 - Pairing over LAN or Tailscale IPv4, fast reconnect, and foreground recovery.
 - Session home ordered by attention, with a Project filter.
-- Session screen with four segments: **Conversation**, **Terminal**, **Changes**, and **Panels**
-  (read-only Files, Git, and Status, mirroring Desktop's right sidebar).
+- Session screen with four segments: **Conversation**, **Terminal**, **Changes**, and **Project**
+  (read-only Files, Status, and extension panels, mirroring Desktop's right sidebar).
 - Composer that types into the Primary Agent Terminal, and a Stop action.
 - Creating a Session in a granted Project, and adding a Project from a `control` device.
 - Phone layout plus a tablet split layout.
@@ -151,8 +151,9 @@ added without moving screens. Query keys include the same host identity.
 - Default segment: **Conversation** when the Agent's conversation is available, otherwise
   **Terminal**. Remember the last segment per Session for the app session.
 - Segments are icon tabs; the selected tab adds its label, and every tab keeps an accessible name.
-  The Changes tab shows the changed-file count as a badge when known.
-- The composer is hidden on Panels, and on Terminal for a `control` device, which types through the
+  The Changes tab shows the changed-file count as a badge when it is non-zero. A plain shell Session
+  with no Agent has no Conversation tab.
+- The composer is hidden on Project, and on Terminal for a `control` device, which types through the
   Terminal's own keyboard instead. A `reply` device keeps the composer on Terminal because it is its
   only way to answer.
 - Mark read happens automatically when the Session screen is visible and fresh; the menu keeps a
@@ -198,14 +199,17 @@ commands · 12s`). Tapping expands the group; tapping a row opens its bounded de
   jump-to-latest button; never pull the reader down.
 - Truncated history starts with `Earlier messages are available on your computer.`
 - Unsupported Agents or missing records fall back to Terminal with `Conversation view isn't available
-for this Agent. Showing the Terminal.`
+for this Agent. Showing the Terminal.` A plain shell never shows this notice.
+- Markdown headings are scaled for a chat bubble (19/17/16/15), not document sizes.
 
 ### Terminal
 
 - A live Terminal rendered by xterm inside a WebView whose assets ship with the app. The WebView has
   no network access; the native side owns the authenticated connection and forwards batched output.
 - The Terminal fills the segment. Status that must interrupt (loading, stale, stopped, view only,
-  errors) floats as a compact chip at the top instead of stacking rows under the output.
+  errors) floats as a compact chip at the top instead of stacking rows under the output. While the
+  phone itself is offline the app-wide `Reconnecting…` banner already explains the frozen frame, so
+  the stale chip only appears when the connection is up but Terminal updates stopped.
 - **Observe** (default): the Terminal keeps Desktop's columns and rows. Every row always fits the
   height, so the newest line is never hidden. The width scales down to a readable minimum; below
   that the view pans horizontally by drag. Pinch zooms out far enough to show the whole width.
@@ -226,21 +230,25 @@ for this Agent. Showing the Terminal.`
 - Output follows the bottom unless the reader scrolled up; then a round jump-to-latest button
   appears.
 
-### Panels
+### Project
 
-Read-only mirrors of Desktop's right sidebar for the Session's Project: **Files**, **Git**, and
-**Status**, switched by a sub-tab row. Files browses the Project root (symlinks reached through the
-root included) and opens bounded text previews; binary and oversized files say so. Git and Status
-render the same extension tree nodes Desktop shows, without running their commands. Panels are
-available to every role; nothing in them mutates the Project.
+Read-only mirrors of Desktop's right sidebar for the Session's Project: **Files**, **Status**, and
+any extension panel, switched by a sub-tab row. Desktop's Git panel is omitted because the Changes
+tab already shows the same data. Files browses the Project root (symlinks reached through the root
+included) and opens bounded text previews; binary and oversized files say so. Status and extension
+panels render the same tree nodes Desktop shows, without running their commands. The Project tab is
+available to every role; nothing in it mutates the Project. Offline with nothing cached, it asks the
+reader to reconnect instead of showing an empty folder or a spinner.
 
 ### Changes
 
-- Header: `3 files changed · +42 −8`, plus a refresh action.
-- File rows: status letter (`M`, `A`, `D`, `R`) with a text label for accessibility, path with the
-  file name emphasized, and line counts.
+- Header: `3 files changed · +42 −8`, plus a refresh action. Outside a Git repository only the
+  empty state shows.
+- File rows: status letter (`M`, `A`, `D`, `R`, colored like Desktop's Source Control) with a text
+  label for accessibility, path with the file name emphasized, and line counts.
 - Tapping a file opens its diff: unified view, monospace, line numbers, horizontal scroll, added and
-  removed lines marked by both color and a `+`/`−` gutter. Binary and oversized files show
+  removed lines marked by both color and a `+`/`−` gutter. The Git preamble (`diff --git`, `index`,
+  `---`/`+++`) is hidden when the patch has hunks. Binary and oversized files show
   `This file is too large or not text. Review it on your computer.`
 - An `Ask Agent to commit` chip fills the composer with `Commit the current changes with a clear
 message.` The user sends it; nothing is sent automatically.
@@ -274,7 +282,8 @@ message.` The user sends it; nothing is sent automatically.
 A `control` device can add a folder from the computer's home directory as a Project. The screen
 browses child folders starting at home (hidden folders omitted, Git repositories marked); choosing
 `Add` creates the Project through the same path Desktop uses and grants it to this device, so it
-appears in the Project filter immediately. Folders outside home, including through symlinks, are
+appears in the Project filter immediately. Git repositories and folders without subfolders carry an
+`Add` action on their row; any other folder is added from the footer after opening it. Folders outside home, including through symlinks, are
 rejected by the Server. `view` and `reply` devices never see the entry point.
 
 ## Layout
@@ -284,7 +293,7 @@ rejected by the Server. `view` and `reply` devices never see the entry point.
 - **Tablet**: at `700dp` wide with a short side of at least `600dp`, show the Session list at `320dp`
   and the Session screen beside it, separated by one semantic border. Selection uses a left accent
   and accessible selected state, not background color alone.
-- **Wide tablet**: at `1100dp` and wider, Changes and Panels open as a right pane beside Conversation or
+- **Wide tablet**: at `1100dp` and wider, Changes and Project open as a right pane beside Conversation or
   Terminal instead of replacing them.
 - Keep readable text columns at or below `680dp`. Pairing content is capped at `520dp`.
 - Foldables (second priority): folding or unfolding keeps the selected Session, segment, drafts, and
@@ -310,7 +319,10 @@ rejected by the Server. `view` and `reply` devices never see the entry point.
 - Body, muted, primary-action, and danger color pairs must retain WCAG AA contrast in automated tests.
 - Never rely on color alone. Every status includes a label and, where useful, a shape or icon.
 - `loading`, `empty`, `error`, `offline/stale`, and `ready` are first-class states on every remote
-  surface.
+  surface. A read that cannot start because the phone is offline says so and offers a way back; it
+  never shows a spinner that cannot end (Session deep link, New Session Projects, Project tab).
+- A screen that throws renders a generic `Something went wrong` screen with `Try again`. It never
+  shows the error message or stack, which can carry Session, path, or Terminal details.
 
 ## Accessibility
 
@@ -347,7 +359,8 @@ rejected by the Server. `view` and `reply` devices never see the entry point.
 
 - The first screen says `Pair with Caxri` and `Connect to Caxri running on your computer.` Its two
   actions are `Scan pairing code` and `Paste pairing link`; the footnote points to
-  `Settings → Mobile` on the computer.
+  `Settings → Mobile` on the computer. Only buttons that open another screen carry a trailing
+  chevron; the scan and paste screens go back through a header chevron.
 - Camera access is optional. Refusal keeps paste pairing reachable and never blocks the rest of the
   app.
 - Pairing links and one-time secrets are never written to app-owned durable storage. Copy places the
@@ -365,7 +378,7 @@ rejected by the Server. `view` and `reply` devices never see the entry point.
 | Offline outbox                    | Bounded Agent-submit receipts can remain unknown and do not prove Agent execution; automatic resend is unsafe.  |
 | System push and Live Activities   | Requires a push service outside LAN/Tailscale; designed together with notification privacy (#499).              |
 | Multiple hosts                    | Routes and query keys already carry `hostId`; the UI waits for demand.                                          |
-| File editing, image attachments   | Panels are read-only; editing belongs on Desktop until the remote-control loop needs it.                        |
+| File editing, image attachments   | Project panels are read-only; editing belongs on Desktop until the remote-control loop needs it.                |
 | `@file` and `/command` completion | Composer polish after the core loop is proven.                                                                  |
 | Voice beyond system dictation     | The system keyboard's dictation already works in the composer.                                                  |
 | iPad keyboard shortcuts           | Tablet layout ships first; hardware-keyboard behavior follows.                                                  |

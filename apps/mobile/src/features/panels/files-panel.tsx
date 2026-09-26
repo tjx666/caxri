@@ -7,7 +7,7 @@ import { ChevronLeft, ChevronRight, File, Folder, FolderSymlink } from 'lucide-r
 
 import { IconButton } from '../../components/icon-button';
 import type { MobileTheme } from '../../theme/tokens';
-import { PanelStatus } from './panel-status';
+import { PanelStatus, PendingPanelStatus } from './panel-status';
 import { panelsStyles as styles } from './panels-styles';
 import { useFileRead, useFilesList } from './use-panels';
 
@@ -77,7 +77,8 @@ const FilePreview = ({
 }) => {
     const file = useFileRead(sessionId, entry.path);
     const body = (() => {
-        if (file.isPending) return <PanelStatus isLoading theme={theme} />;
+        if (file.isPending)
+            return <PendingPanelStatus fetchStatus={file.fetchStatus} theme={theme} />;
         if (file.isError)
             return (
                 <PanelStatus
@@ -180,7 +181,7 @@ export const FilesPanel = ({ sessionId, theme }: { sessionId: string; theme: Mob
                 keyExtractor={(entry) => entry.path}
                 ListEmptyComponent={
                     listing.isPending ? (
-                        <PanelStatus isLoading theme={theme} />
+                        <PendingPanelStatus fetchStatus={listing.fetchStatus} theme={theme} />
                     ) : listing.isError ? (
                         <PanelStatus
                             message="Unable to list this folder."
