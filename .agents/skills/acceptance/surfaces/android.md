@@ -25,6 +25,11 @@ Freeze that serial in the new report round and stop only the
 instance this task launched. If Android reports `PACKAGE UPDATED` during a case, investigate
 another installer before attributing the interruption to an app crash.
 
+The guarded release runner holds a repository-wide lock for that emulator serial from build and
+installation through fixture IME restoration and device cleanup. If another worktree owns the
+serial, wait for its run to finish before starting another round. Do not select the fixture IME or
+clear the package outside the serial lock while another Acceptance run is active.
+
 For a user-owned wireless device, keep the phone's pairing screen open while completing the Mac
 side. Use Android Studio's Device Manager pairing UI when computer control is available; inspect
 whether that version offers a device `Pair` action or a QR flow, then verify the resulting explicit

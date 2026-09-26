@@ -233,7 +233,9 @@ if (isClaudeGeneration || isCodexGeneration) {
     const mode = consumeMode();
     const count = nextCount();
     const sessionId = mode.sessionId ?? '';
-    const fallbackText = 'Repair Session Naming';
+    const fallbackText = process.env.CAXRI_ACCEPTANCE_PUBLIC_FRAME === '1'
+      ? 'Session'
+      : 'Repair Session Naming';
     const text = mode.kind === 'same' ? currentTitle(sessionId) : (mode.title ?? fallbackText);
     appendReceipt({
       argumentContainsPrivateInput: process.argv.join(' ').includes(privateMarker),
@@ -305,6 +307,7 @@ if (provider === 'claude') {
 }
 
 const appendTranscript = (topic, includePrivate) => {
+  if (process.env.CAXRI_ACCEPTANCE_PUBLIC_FRAME === '1') return;
   const privateText = includePrivate ? privateMarker + '_PROMPT ' + privateMarker + '_RESPONSE ' : '';
   const filler = ' bounded acceptance context'.repeat(40);
   const records = provider === 'claude'
