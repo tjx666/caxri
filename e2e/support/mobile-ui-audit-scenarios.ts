@@ -107,6 +107,19 @@ async function changesPolish(environment: UiAuditScenarioEnvironment, artifacts:
 
 async function offlineStates(environment: UiAuditScenarioEnvironment, artifacts: string[]) {
     const { serial } = environment;
+    /**
+     * The Project tab is opened for the first time while offline, so its reads are pending but idle; it must explain
+     * the missing connection instead of spinning. It runs before the Terminal ever mounts so the capture stays clean.
+     */
+    await setMobileNetworkAvailable(serial, false);
+    try {
+        await tapMobileCheck(serial, 'session-segment-panels');
+        await waitFor(serial, (nodes) => hasCheck(nodes, 'panels-offline'));
+        await capture(environment, 'project-offline', artifacts, 'panels-offline');
+    } finally {
+        await setMobileNetworkAvailable(serial, true);
+    }
+    await waitFor(serial, (nodes) => !hasCheck(nodes, 'connection-stale-banner'));
     await tapMobileCheck(serial, 'session-segment-terminal');
     await waitFor(serial, (nodes) => hasCheck(nodes, 'terminal-live-webview'));
     await setMobileNetworkAvailable(serial, false);
@@ -122,6 +135,7 @@ async function offlineStates(environment: UiAuditScenarioEnvironment, artifacts:
         await setMobileNetworkAvailable(serial, true);
     }
     await finish(environment, artifacts, {
+        offlineProjectTab: 'reconnect-message',
         offlineTerminalStaleChip: 'absent-while-banner-shown',
         status: 'passed',
     });
