@@ -9,6 +9,7 @@ import * as ImagePicker from 'expo-image-picker';
 
 import { useMobileClient } from '../../connection/mobile-client-provider';
 import { splitMobileImage } from '../image-attachment';
+import { didUploadImageChunks } from '../image-upload';
 
 interface Attachment {
     id: string;
@@ -27,24 +28,26 @@ export const useImageAttachments = (sessionId: string) => {
     const upload = async (item: Attachment) => {
         try {
             const chunks = splitMobileImage(item.base64);
-            for (const [chunkIndex, chunk] of chunks.entries()) {
-                if (cancelled.current.has(item.id)) return;
-                // eslint-disable-next-line no-await-in-loop -- The Server requires ordered chunks for this attachment ID.
-                await request('mobile.image.upload', {
-                    sessionId,
-                    attachmentId: item.id,
-                    chunkIndex,
-                    chunkCount: chunks.length,
-                    chunk,
-                });
-                setAttachments((current) =>
-                    current.map((candidate) =>
-                        candidate.id === item.id
-                            ? { ...candidate, progress: (chunkIndex + 1) / chunks.length }
-                            : candidate,
+            const completed = await didUploadImageChunks(
+                chunks,
+                async (chunkIndex, chunk, chunkCount) => {
+                    await request('mobile.image.upload', {
+                        sessionId,
+                        attachmentId: item.id,
+                        chunkIndex,
+                        chunkCount,
+                        chunk,
+                    });
+                },
+                () => cancelled.current.has(item.id),
+                (progress) =>
+                    setAttachments((current) =>
+                        current.map((candidate) =>
+                            candidate.id === item.id ? { ...candidate, progress } : candidate,
+                        ),
                     ),
-                );
-            }
+            );
+            if (!completed) return;
             setAttachments((current) =>
                 current.map((candidate) =>
                     candidate.id === item.id
