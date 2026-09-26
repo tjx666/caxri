@@ -35,17 +35,18 @@ then the `caxri.files` panel tab; the guessed ID fails before the file behavior 
 each navigation tap. Open `session-segment-panels`, then `panel-tab-caxri.files`, and only then
 look for `files-entry-*`.
 
-## Treating Android's clickable flag as the only proof of a Pressable
+## Reusing a disabled native button for another action
 
 **Situation:** After saving a file, the Android framebuffer still shows the Edit action and
-semantics still lists its `testID`, but the semantic `clickable` flag stays false.
+semantics still lists its `testID`, but the action remains `enabled=false`.
 
-**Does not work:** Polling for `clickable=true` or using the strict semantic tap helper. Both
-prevent the second edit from being exercised even when the action is visible.
+**Does not work:** Treating the visible label as proof that the action is enabled, or bypassing the
+disabled state with a coordinate tap. React can reconcile a conditionally rendered Edit Pressable
+with the Save Pressable that was disabled during submission.
 
-**Works:** Use the bounds tap helper only after verifying the Caxri foreground, the expected
-`testID`, valid bounds, and `enabled=true`; then assert the next product state independently. Keep
-the action away from the screen edge with a full touch target.
+**Works:** Give the mutually exclusive native actions distinct React keys, then use the strict
+semantic tap helper to verify the returned Edit button is enabled after saving. Keep the action
+away from the screen edge with a full touch target.
 
 ## Using arbitrary option labels as Android check IDs
 

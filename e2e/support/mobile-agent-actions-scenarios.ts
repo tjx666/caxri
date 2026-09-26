@@ -14,7 +14,6 @@ import {
     observeMobileNode,
     startMobileFramebufferRecording,
     tapMobileCheck,
-    tapMobileCheckByBounds,
     waitForMobile,
 } from './mobile-android';
 import {
@@ -162,7 +161,7 @@ export async function executeMobileFileEditScenario(
             () => mobileSemantics(environment.serial),
             (nodes) => nodes.some(({ checkId, enabled }) => checkId === 'files-edit' && enabled),
         );
-        await tapMobileCheckByBounds(environment.serial, 'files-edit');
+        await tapMobileCheck(environment.serial, 'files-edit');
         await insertMobileInputUnicode(environment.serial, 'files-editor', 'accepted', 'accepted');
         await tapMobileCheck(environment.serial, 'files-save');
         await waitForMobile(
@@ -173,7 +172,7 @@ export async function executeMobileFileEditScenario(
             () => mobileSemantics(environment.serial),
             (nodes) => nodes.some(({ checkId, enabled }) => checkId === 'files-edit' && enabled),
         );
-        await tapMobileCheckByBounds(environment.serial, 'files-edit');
+        await tapMobileCheck(environment.serial, 'files-edit');
         await insertMobileInputUnicode(
             environment.serial,
             'files-editor',

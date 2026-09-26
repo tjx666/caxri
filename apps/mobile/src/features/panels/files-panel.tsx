@@ -143,10 +143,12 @@ const FilePreview = ({
             <View style={styles.preview}>
                 {deviceRole === 'control' && !document.readOnly ? (
                     <View style={[styles.crumbs, styles.fileActions]}>
+                        {/* Distinct keys prevent the disabled Save native view from becoming Edit after a write. */}
                         {draft === null ? (
                             <Pressable
                                 accessibilityLabel="Edit file"
                                 accessibilityRole="button"
+                                key="edit"
                                 onPress={() => {
                                     setDraft(document.content);
                                     setExpectedContentHash(document.contentHash);
@@ -163,6 +165,7 @@ const FilePreview = ({
                                     accessibilityRole="button"
                                     accessibilityState={{ disabled: saving }}
                                     disabled={saving}
+                                    key="save"
                                     onPress={async () => {
                                         await save();
                                     }}
