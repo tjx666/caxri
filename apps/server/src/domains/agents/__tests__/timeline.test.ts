@@ -411,6 +411,17 @@ describe('AgentTimelineService', () => {
         expect(older.items).toHaveLength(1);
         expect(older.items[0]).toMatchObject({ type: 'agentMessage', text: 'I will check.' });
         expect(older.items[0]?.id).not.toBe(latest.items[0]?.id);
+
+        // Move the cursor record outside the cached tail before replaying the same older-page request.
+        await appendFile(transcript, `${'x'.repeat(4 * 1024 * 1024 + 1)}\n${line(9)}`);
+        await service.read('session-fixture', 'terminal-fixture', undefined, 1);
+        const uncachedOlder = await service.read(
+            'session-fixture',
+            'terminal-fixture',
+            latest.olderCursor,
+            1,
+        );
+        expect(uncachedOlder.items).toEqual(older.items);
     });
 
     it('does not put malformed transcript content in diagnostics', async () => {
