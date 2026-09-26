@@ -142,6 +142,7 @@ export const SessionDetailHeader = ({
                             accessibilityRole="header"
                             numberOfLines={1}
                             style={[styles.title, { color: theme.text }]}
+                            testID="session-detail-title"
                         >
                             {session.displayTitle}
                         </Text>

@@ -51,13 +51,13 @@ const androidCases = {
     },
     'MOB-RENDER-01': {
         desktopProfile: 'not-required',
-        media: ['screenshot'],
+        media: ['screenshot', 'video'],
         recordingOwner: 'scenario',
         scenario: 'render-retry',
     },
     'MOB-STORAGE-01': {
         desktopProfile: 'managed-by-isolated-e2e',
-        media: ['screenshot'],
+        media: ['screenshot', 'video'],
         recordingOwner: 'scenario',
         scenario: 'credential-storage-retry',
     },
@@ -72,6 +72,12 @@ const androidCases = {
         media: ['video'],
         recordingOwner: 'adapter',
         scenario: 'session-reconnect',
+    },
+    'MOB-SESSION-PUSH-01': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot'],
+        recordingOwner: 'scenario',
+        scenario: 'session-detail-push',
     },
     'MOB-TERM-01': {
         desktopProfile: 'managed-by-isolated-e2e',

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import type { BootstrapState } from '@caxri/protocol';
 
 import { writeJsonAtomic } from '../../scripts/atomic-json';
+import { allowE2EErrors } from './fixtures';
 import { pageRequest } from './helpers';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import {
@@ -147,6 +148,15 @@ async function browsePanels(environment: Environment, artifacts: string[]): Prom
             (nodes) => hasCheck(nodes, 'files-entry-removed-folder'),
         );
         await rm(removedFolder, { recursive: true });
+        allowE2EErrors([
+            {
+                source: 'server-core',
+                event: 'ipc.request_failed',
+                method: 'mobile.files.list',
+                code: 'NOT_FOUND',
+                count: 1,
+            },
+        ]);
         await tapMobileCheck(environment.serial, 'files-entry-removed-folder');
         await waitForMobile(
             () => mobileSemantics(environment.serial),
