@@ -109,6 +109,49 @@ describe('architecture-a3b-terminal-host: RemoteTerminalExecution view attachmen
         });
         await execution.unobserve(terminal.id, 'observer-1');
     });
+    it('projects size ownership only for the current PTY generation', async () => {
+        const { control, execution } = createExecution();
+        const desktop = vi.fn();
+        execution.onEvent(desktop);
+        await execution.reserve(terminal);
+        await execution.start({
+            args: [],
+            environment: {},
+            executable: '/bin/zsh',
+            initialSnapshot: null,
+            record: terminal,
+        });
+        const identity = {
+            scope: 'terminal' as const,
+            sessionId: terminal.sessionId,
+            terminalId: terminal.id,
+            ptyGeneration: 1,
+        };
+        control.emit({
+            type: 'event',
+            event: 'terminal.sizeOwnership',
+            identity: { ...identity, ptyGeneration: 0 },
+            owner: 'mobile',
+            cols: 42,
+            rows: 20,
+        });
+        control.emit({
+            type: 'event',
+            event: 'terminal.sizeOwnership',
+            identity,
+            owner: 'mobile',
+            cols: 42,
+            rows: 20,
+        });
+        expect(desktop).toHaveBeenCalledOnce();
+        expect(desktop).toHaveBeenCalledWith({
+            type: 'sizeOwnership',
+            terminalId: terminal.id,
+            owner: 'mobile',
+            cols: 42,
+            rows: 20,
+        });
+    });
     it('replays a pre-launch view reservation and preserves synchronous input acceptance', async () => {
         const { control, execution } = createExecution();
         const output = vi.fn();
