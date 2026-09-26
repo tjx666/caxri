@@ -100,6 +100,7 @@ const AttentionCard = ({
                     <Pressable
                         accessibilityLabel="Allow once"
                         accessibilityRole="button"
+                        testID="attention-allow-once"
                         onPress={async () => {
                             await send({ decision: 'allow' });
                         }}
@@ -109,6 +110,7 @@ const AttentionCard = ({
                     <Pressable
                         accessibilityLabel="Deny"
                         accessibilityRole="button"
+                        testID="attention-deny"
                         onPress={async () => {
                             await send({ decision: 'deny' });
                         }}
@@ -133,6 +135,7 @@ const AttentionCard = ({
                             }}
                             disabled={!canAnswer}
                             key={option.label}
+                            testID={`attention-option-${option.label}`}
                             onPress={() =>
                                 setInput((current) => {
                                     if (!question.multiSelect) return option.label;
@@ -168,6 +171,7 @@ const AttentionCard = ({
                                     padding: 8,
                                 }}
                                 value={input}
+                                testID="attention-answer-input"
                             />
                             <Pressable
                                 accessibilityLabel={
@@ -178,6 +182,7 @@ const AttentionCard = ({
                                 accessibilityRole="button"
                                 accessibilityState={{ disabled: !input.trim() }}
                                 disabled={!input.trim()}
+                                testID="attention-answer-next"
                                 onPress={advance}
                             >
                                 <Text style={{ color: theme.primary }}>
