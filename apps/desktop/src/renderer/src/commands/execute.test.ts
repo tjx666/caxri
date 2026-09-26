@@ -141,6 +141,8 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 saveActive: record('editor.save'),
                 canSendReferenceToTerminal: () => true,
                 sendReferenceToTerminal: record('editor.sendReferenceToTerminal'),
+                canAddReviewComment: () => true,
+                addReviewComment: record('editor.addReviewComment'),
                 canOpenPreview: () => true,
                 openPreview: record('editor.openPreview'),
                 openPreviewToSide: record('editor.openPreviewToSide'),

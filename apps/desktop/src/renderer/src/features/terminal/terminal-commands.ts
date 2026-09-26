@@ -433,8 +433,16 @@ export function sendTerminalSequence(terminalId: string, text: string): void {
  * The PTY write behind xterm's `onData`. Rejection is deliberately propagated: the pane decides whether a failed write
  * is worth a toast, because a Terminal torn down mid-keystroke rejects the same way a transport failure does.
  */
-export async function sendTerminalInput(terminalId: string, data: string): Promise<void> {
-    await caxri.request('terminal.input', { terminalId, data });
+export async function sendTerminalInput(
+    terminalId: string,
+    data: string,
+    requiresRunningAgent = false,
+): Promise<void> {
+    await caxri.request('terminal.input', {
+        terminalId,
+        data,
+        ...(requiresRunningAgent && { requireRunningAgent: true }),
+    });
 }
 
 /**

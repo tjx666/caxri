@@ -9,6 +9,7 @@ import type { editor as Monaco } from 'monaco-editor';
 
 import { useEditorOptions } from '@/hooks/use-editor-options';
 
+import { bindGitReviewCommentEditor } from './git-review-comment-binding';
 import { bindSingleDiffEditor } from './git-single-diff-binding';
 
 /**
@@ -24,7 +25,9 @@ export function GitSingleDiffEditor({
     navigationKey,
     onContentHeightChange,
     originalLanguage,
+    repositoryId,
     sessionId,
+    sourceKey,
 }: {
     document: GitDiffDocument;
     editorInstanceId?: string;
@@ -33,7 +36,9 @@ export function GitSingleDiffEditor({
     navigationKey?: string;
     onContentHeightChange?: (height: number) => void;
     originalLanguage: string | undefined;
+    repositoryId: string;
     sessionId: string;
+    sourceKey: string;
 }) {
     const isAdded = document.original === '';
     const kind = isAdded ? 'added' : 'deleted';
@@ -41,12 +46,35 @@ export function GitSingleDiffEditor({
     const editorOptions = useEditorOptions();
     useLayoutEffect(() => {
         if (!editor) return;
-        return bindSingleDiffEditor(editor, kind, {
+        const unbindDiff = bindSingleDiffEditor(editor, kind, {
             editorInstanceId,
             navigationKey,
             onContentHeightChange,
         });
-    }, [editor, kind, editorInstanceId, navigationKey, onContentHeightChange]);
+        const unbindReview = bindGitReviewCommentEditor(editor, {
+            sessionId,
+            repositoryId,
+            sourceKey,
+            path: isAdded ? document.path : (document.originalPath ?? document.path),
+            side: isAdded ? 'modified' : 'original',
+        });
+        return () => {
+            unbindReview();
+            unbindDiff();
+        };
+    }, [
+        editor,
+        kind,
+        editorInstanceId,
+        navigationKey,
+        onContentHeightChange,
+        sessionId,
+        repositoryId,
+        sourceKey,
+        document.path,
+        document.originalPath,
+        isAdded,
+    ]);
     return (
         <Editor
             className="git-single-diff-editor h-full w-full"
@@ -62,6 +90,7 @@ export function GitSingleDiffEditor({
             onMount={setEditor}
             options={{
                 ...editorOptions,
+                glyphMargin: true,
                 ariaLabel: kind === 'added' ? 'Added file contents' : 'Deleted file contents',
                 readOnly: true,
                 wordWrap: 'off',

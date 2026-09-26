@@ -21,10 +21,22 @@ interface TerminalInputHandlerOptions {
 export function createTerminalInputHandler(
     options: TerminalInputHandlerOptions,
 ): DomainHandlers['terminal.input'] {
-    return async ({ terminalId, data }, abortSignal) => {
+    return async ({ terminalId, data, requireRunningAgent }, abortSignal) => {
         const terminal = options.database.getTerminal(terminalId);
         assertE2EAgentInputFromEnvironment(terminal?.provider);
-        const accepted = await options.terminals.writeAcknowledged(terminalId, data, abortSignal);
+        /**
+         * A batch submit must never fall through to the shell after its Agent exits.
+         */
+        const agentLaunchId = requireRunningAgent
+            ? options.terminals.agentLaunchId(terminalId)
+            : undefined;
+        if (requireRunningAgent && !agentLaunchId)
+            throw new CaxriError('CONFLICT', 'Managed Agent is no longer running');
+        const accepted = agentLaunchId
+            ? options.terminals.writeAgentExact(terminalId, data, agentLaunchId)
+            : await options.terminals.writeAcknowledged(terminalId, data, abortSignal);
+        if (requireRunningAgent && !accepted)
+            throw new CaxriError('CONFLICT', 'Managed Agent changed before review input');
         const didSubmit =
             accepted &&
             options.terminals.processId(terminalId) !== undefined &&
