@@ -199,6 +199,38 @@ describe('observeExternalStatusCommand', () => {
         });
     });
 
+    it('warns once per steady prerequisite state instead of on every poll', async () => {
+        const logger = await createLogger();
+        const telemetry = new ExternalStatusCommandTelemetry(logger, 'session_pull_requests.cli');
+        const missing = new ExternalStatusCliError('gh', 'not-found', 'gh was not found');
+        const signedOut = new ExternalStatusCliError('gh', 'not-logged-in', 'run gh auth login');
+        const run = (outcome: Error | string) => () =>
+            typeof outcome === 'string' ? Promise.resolve(outcome) : Promise.reject(outcome);
+        for (const outcome of [missing, missing, missing, signedOut, signedOut, '{}', missing]) {
+            try {
+                // eslint-disable-next-line no-await-in-loop -- the latch is order-dependent by design
+                await telemetry.observe({
+                    command: 'gh',
+                    arguments: ['pr', 'view'],
+                    run: run(outcome),
+                });
+            } catch {
+                // Each failure is asserted through its log record below.
+            }
+        }
+        const failures = (await records(logger)).filter(
+            (record) => record.fields?.result === 'failure',
+        );
+        expect(failures.map((record) => [record.level, record.fields?.failureKind])).toEqual([
+            ['warn', 'not-found'],
+            ['debug', 'not-found'],
+            ['debug', 'not-found'],
+            ['warn', 'not-logged-in'],
+            ['debug', 'not-logged-in'],
+            ['warn', 'not-found'],
+        ]);
+    });
+
     it('keeps an optional command failure at debug', async () => {
         const logger = await createLogger();
         const error = new ExternalStatusCliError('git', 'other', 'no upstream configured', 1);

@@ -21,4 +21,13 @@ describe('describeGitFailure', () => {
             'The Git operation failed. Open Logs for details.',
         );
     });
+
+    it('names the missing Xcode Command Line Tools instead of a generic failure', () => {
+        const shimError = Object.assign(new Error('exit 1'), {
+            stderr: 'xcrun: error: invalid active developer path (/Library/Developer/CommandLineTools), missing xcrun at: /Library/Developer/CommandLineTools/usr/bin/xcrun',
+        });
+        expect(describeGitFailure(shimError)).toBe(
+            'Git needs the Xcode Command Line Tools. Run xcode-select --install in Terminal, then retry.',
+        );
+    });
 });

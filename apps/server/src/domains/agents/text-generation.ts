@@ -128,7 +128,13 @@ export function runAgentTextCommand(options: AgentTextCommandOptions): Promise<s
          */
         child.once('close', (code) => {
             if (!isSettled)
-                settle(code === 0 ? undefined : new Error(`${options.operation} failed`));
+                settle(
+                    code === 0
+                        ? undefined
+                        : Object.assign(new Error(`${options.operation} failed`), {
+                              exitCode: code,
+                          }),
+                );
         });
         child.stdin.end(options.input);
     });

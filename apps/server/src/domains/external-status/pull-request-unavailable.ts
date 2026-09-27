@@ -10,7 +10,6 @@ export function pullRequestUnavailable(error: unknown): PullRequestUnavailable {
     const classified = error instanceof ExternalStatusCliError ? error.kind : failureReason(error);
     let reason: PullRequestUnavailable['reason'];
     switch (classified) {
-        case 'permission-denied':
         case 'invalid-arguments':
         case 'no-pull-request': {
             reason = 'other';
@@ -33,6 +32,8 @@ export function pullRequestUnavailable(error: unknown): PullRequestUnavailable {
         'not-logged-in': 'GitHub CLI is not signed in. Run gh auth login, then refresh.',
         'not-linked':
             'GitHub CLI is not configured for this repository. Check gh auth status, then refresh.',
+        'permission-denied':
+            'GitHub denied access to this repository. Run gh auth refresh, authorize SSO for the organization if it requires it, then refresh.',
         'rate-limited': retryTime
             ? `GitHub API rate limit reached. Caxri retries after ${retryTime}.`
             : 'GitHub API rate limit reached. Refresh after the limit resets.',

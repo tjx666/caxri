@@ -1,10 +1,11 @@
 import process from 'node:process';
 
 import type { TerminalRecord } from '@caxri/protocol';
-import { defaultAgentProviderSettings } from '@caxri/protocol';
+import { CaxriError, defaultAgentProviderSettings } from '@caxri/protocol';
 import { StructuredLogger } from '@caxri/system';
 import { describe, expect, it, vi } from 'vitest';
 
+import { resolveTerminalExecutable } from '../launch';
 import { TerminalLaunchPlanner } from '../launch-plan';
 
 const record: TerminalRecord = {
@@ -21,6 +22,39 @@ const record: TerminalRecord = {
     lastProcessState: 'starting',
     lastAgentProcessState: 'starting',
 };
+
+describe('default shell resolution', () => {
+    it('falls back to the system shell when SHELL names an uninstalled shell', async () => {
+        vi.stubEnv('SHELL', '/nonexistent/caxri-test/fish');
+        try {
+            await expect(resolveTerminalExecutable('shell', undefined, undefined)).resolves.toBe(
+                '/bin/zsh',
+            );
+        } finally {
+            vi.unstubAllEnvs();
+        }
+    });
+
+    it('names a missing shell instead of reporting a generic spawn failure', async () => {
+        const planner = new TerminalLaunchPlanner({
+            logger: new StructuredLogger('/tmp/caxri-launch-plan-test-logs'),
+            resolveExecutable: () =>
+                Promise.reject(
+                    new CaxriError('UNAVAILABLE', 'Shell /bin/zsh was not found', {
+                        reason: 'shell_not_found',
+                    }),
+                ),
+        });
+
+        await expect(
+            planner.resolve({ ...record, kind: 'shell', provider: undefined }),
+        ).resolves.toMatchObject({
+            ok: false,
+            failureReason: 'executable_not_found',
+            failureDetail: 'Shell /bin/zsh was not found',
+        });
+    });
+});
 
 describe('TerminalLaunchPlanner managed Agent launch', () => {
     it('keeps the missing provider name when executable resolution fails', async () => {

@@ -58,7 +58,7 @@ function unavailableReason(error: unknown): TerminalReferencePreview {
     // `not-found` is `ExternalStatusCliError`'s word for "the CLI itself is not on this machine", not for a missing issue.
     if (failure.kind === 'not-found' || failure.code === 'ENOENT')
         return { kind: 'unavailable', reason: 'cli-missing' };
-    if (failure.kind === 'not-logged-in' || failure.kind === 'not-linked')
+    if (['not-logged-in', 'not-linked', 'permission-denied'].includes(failure.kind ?? ''))
         return { kind: 'unavailable', reason: 'not-authenticated' };
     if (failure.kind === 'rate-limited') return { kind: 'unavailable', reason: 'rate-limited' };
     return { kind: 'unavailable', reason: 'failed' };

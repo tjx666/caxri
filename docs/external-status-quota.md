@@ -289,6 +289,23 @@ The id survives only inside the link the row opens.
 above their respective success TTLs. This is the invariant the original bug violated; keep it when
 tuning either number.
 
+## Local CLI prerequisites
+
+Every source CLI (`gh`, `lh`, `linear`, `vc`) resolves through `runExternalCommand` and the
+login-shell PATH, never the constrained launchd PATH a packaged app inherits. A missing executable is
+never cached as absent; when the login PATH itself is older than a minute, a miss re-reads it once, so
+a CLI installed into a brand-new PATH directory is found without restarting Caxri.
+
+Failures that describe the machine rather than one request — `not-found`, `not-logged-in`,
+`not-linked`, and `permission-denied` — render as prerequisites with the command that fixes them.
+`permission-denied` covers a signed-in account the service still refuses: an organization enforcing
+SAML SSO, a token missing a scope, or a plain 403. It is matched after the rate limit, because GitHub
+also answers an exhausted budget with 403.
+
+These steady states repeat identically on every poll of every Session, so the per-command failure
+record is `warn` only on the transition into each state and `debug` until the command succeeds or
+fails differently. The window aggregate still counts every failure.
+
 ## Non-goals
 
 - No token handling, HTTP client, or API SDK in Caxri. Every read is the user's own authenticated

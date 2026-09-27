@@ -10,6 +10,12 @@ const LOGIN_PATH_MARKER = '__CAXRI_LOGIN_PATH__';
 const MAX_LOGIN_PATH_BYTES = 32 * 1024;
 const LOGIN_SHELL_TIMEOUT_MS = 5_000;
 const MAX_EXECUTABLE_CACHE_ENTRIES = 32;
+/**
+ * Minimum age of a login-shell PATH before a missing executable re-reads it. Installing a CLI can add a PATH directory
+ * (a first Homebrew install, a new version-manager shim); without a re-read that install stays invisible until restart.
+ * The floor keeps a machine without the CLI from spawning a login shell on every status poll.
+ */
+const LOGIN_PATH_REFRESH_MS = 60_000;
 
 type RunFile = (
     executable: string,
@@ -47,10 +53,12 @@ function pathDirectories(path: string | undefined): string[] {
 export class ExecutableResolver {
     private readonly executableCache = new Map<string, string>();
     private loginPathRequest: Promise<string | undefined> | undefined;
+    private loginPathRequestedAt = 0;
 
     constructor(
         private readonly sourceEnvironment: () => NodeJS.ProcessEnv = () => process.env,
         private readonly run: RunFile = runFile,
+        private readonly now: () => number = Date.now,
     ) {}
 
     private cache(name: string, path: string): string {
@@ -75,7 +83,10 @@ export class ExecutableResolver {
     }
 
     private loginPath(): Promise<string | undefined> {
-        this.loginPathRequest ??= this.readLoginPath();
+        if (!this.loginPathRequest) {
+            this.loginPathRequestedAt = this.now();
+            this.loginPathRequest = this.readLoginPath();
+        }
         return this.loginPathRequest;
     }
 
@@ -110,6 +121,7 @@ export class ExecutableResolver {
     clear(): void {
         this.executableCache.clear();
         this.loginPathRequest = undefined;
+        this.loginPathRequestedAt = 0;
     }
 
     async resolve(requestedExecutable: string): Promise<string | undefined> {
@@ -133,7 +145,11 @@ export class ExecutableResolver {
         if (direct) return this.cache(requested, direct);
         const login = await this.loginPath();
         const discovered = await this.findInPath(requested, login);
-        return discovered ? this.cache(requested, discovered) : undefined;
+        if (discovered) return this.cache(requested, discovered);
+        if (this.now() - this.loginPathRequestedAt < LOGIN_PATH_REFRESH_MS) return undefined;
+        this.loginPathRequest = undefined;
+        const refreshed = await this.findInPath(requested, await this.loginPath());
+        return refreshed ? this.cache(requested, refreshed) : undefined;
     }
 
     /**
