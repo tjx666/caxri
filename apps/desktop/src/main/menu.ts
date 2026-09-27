@@ -106,8 +106,8 @@ function commandLabel(definition: CommandDefinition, keybindings: readonly Keybi
 
 /**
  * Native accelerators cannot return an intercepted key to Monaco when a Terminal command declines it. The Terminal
- * actions also run in the Agent Commander window, which dispatches their chords itself; a native accelerator would
- * reach Main instead, which drops a shortcut typed in that window.
+ * actions, Restart included, also run in the Agent Commander window, which dispatches their chords itself; a native
+ * accelerator would reach Main instead, which drops a shortcut typed in that window.
  */
 function isRendererOwnedShortcut(commandId: string): boolean {
     return [
@@ -115,6 +115,7 @@ function isRendererOwnedShortcut(commandId: string): boolean {
         'terminal.clear',
         'terminal.find',
         'terminal.openDetectedLink',
+        'terminal.restart',
         'panel.toggle',
     ].includes(commandId);
 }
