@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
 
 import { MOBILE_AGENT_SUBMIT_MAX_BYTES } from '@caxri/protocol';
@@ -13,6 +13,7 @@ import type { ComposerDelivery } from '../session-composer-state';
 import { composerDeliveryFeedback } from '../session-composer-state';
 import type { MobileSessionItem } from '../session-model';
 import { sessionAgentLabel } from '../session-row-model';
+import { ImageSourceSheet } from './image-source-sheet';
 import { SessionComposerAttachments, SessionComposerSuggestions } from './session-composer-extras';
 import { sessionDetailStyles as styles } from './session-detail-styles';
 
@@ -146,6 +147,7 @@ export const SessionDetailComposer = ({
     theme: MobileTheme;
 }) => {
     const images = useImageAttachments(session.id);
+    const [isChoosingImage, setChoosingImage] = useState(false);
     const { byteLength, canSubmit, delivery, disabledReason, showStop, submit, updateDraft } =
         useSessionComposer({
             attachmentIds: images.readyIds,
@@ -181,10 +183,14 @@ export const SessionDetailComposer = ({
             <View style={styles.composerRow}>
                 {deviceRole === 'reply' || deviceRole === 'control' ? (
                     <IconButton
+                        accessibilityHint={
+                            images.canAdd ? undefined : 'Up to 3 images per message.'
+                        }
                         accessibilityLabel="Attach image"
                         color={theme.muted}
+                        disabled={!images.canAdd}
                         icon={Paperclip}
-                        onPress={images.choose}
+                        onPress={() => setChoosingImage(true)}
                         size={22}
                         testID="session-attach-image"
                         theme={theme}
@@ -231,6 +237,16 @@ export const SessionDetailComposer = ({
                 >
                     {feedback.message}
                 </Text>
+            ) : null}
+            {isChoosingImage ? (
+                <ImageSourceSheet
+                    onClose={() => setChoosingImage(false)}
+                    onPick={(source) => {
+                        // eslint-disable-next-line no-void -- The hook reports attach failures itself.
+                        void images.add(source);
+                    }}
+                    theme={theme}
+                />
             ) : null}
         </View>
     );

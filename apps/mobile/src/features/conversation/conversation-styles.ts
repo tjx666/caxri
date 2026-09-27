@@ -87,14 +87,10 @@ export const conversationStyles = StyleSheet.create({
     },
     history: { alignItems: 'center', gap: 6, paddingBottom: 8 },
     historyText: { fontSize: 12, textAlign: 'center' },
-    detailOverlay: { flex: 1, justifyContent: 'flex-end' },
-    detailBackdrop: { ...StyleSheet.absoluteFill },
-    detailSheet: {
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        maxHeight: '65%',
-        padding: 20,
-    },
+    /**
+     * Flexes inside the sheet's height cap so the detail body scrolls instead of overflowing.
+     */
+    detailContent: { flexShrink: 1, paddingHorizontal: 8 },
     detailHeader: { alignItems: 'center', flexDirection: 'row', gap: 8 },
     detailTitle: { flex: 1, fontSize: 17, fontWeight: '700' },
     detailClose: { fontSize: 15, fontWeight: '600', padding: 8 },
