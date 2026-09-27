@@ -98,6 +98,18 @@ export const SessionHome = ({
         },
         [clearError, closeOpenSwipe],
     );
+    const handleSwipeClose = useCallback((methods: SwipeableMethods): void => {
+        if (openSwipeReference.current === methods) openSwipeReference.current = null;
+    }, []);
+    const archiveFromSwipe = useCallback(
+        async (sessionId: string): Promise<boolean> => {
+            const done = await archive(sessionId);
+            // The archived row unmounts without a close event, so forget it before the next tap.
+            if (done) openSwipeReference.current = null;
+            return done;
+        },
+        [archive],
+    );
     /**
      * Like a chat list, the first tap after revealing a row's action dismisses it instead of opening a Session.
      */
@@ -185,11 +197,14 @@ export const SessionHome = ({
                 <View>
                     {deviceRole === 'control' ? (
                         <SessionSwipeRow
+                            // FlashList recycles row views; an open swipe must not reappear on another Session.
+                            key={item.session.id}
                             busy={
                                 management.pending?.action === 'archive' &&
                                 management.pending.sessionId === item.session.id
                             }
-                            onArchive={archive}
+                            onArchive={archiveFromSwipe}
+                            onClose={handleSwipeClose}
                             onOpen={handleSwipeOpen}
                             sessionId={item.session.id}
                             theme={theme}
@@ -226,8 +241,9 @@ export const SessionHome = ({
             ),
         [
             activeProjectId,
-            archive,
+            archiveFromSwipe,
             deviceRole,
+            handleSwipeClose,
             handleSwipeOpen,
             layout,
             management.pending,
