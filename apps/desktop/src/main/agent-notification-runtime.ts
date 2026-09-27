@@ -76,6 +76,8 @@ export function createDesktopAgentNotifications({
         },
         loadBootstrap: () => supervisor.request('app.bootstrap'),
         loadRecords: (parameters) => supervisor.request('app.records', parameters),
+        loadReplySummary: async (sessionId) =>
+            (await supervisor.request('agent.replySummary', { sessionId })).summary,
         loadSettings: async () => (await supervisor.request('settings.get')).value,
         onDecision: (decision) => {
             if (
@@ -96,6 +98,7 @@ export function createDesktopAgentNotifications({
                     attentionKind: decision.attentionKind ?? null,
                     durationMs: decision.durationMs ?? null,
                     outcome: decision.outcome,
+                    replySummary: decision.replySummary ?? null,
                     sessionId: decision.sessionId,
                 },
             });

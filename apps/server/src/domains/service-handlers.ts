@@ -6,11 +6,13 @@ import { agentSkillHealthReader } from './agent-skills';
 import type {
     AgentEnvironment,
     AgentHookManager,
+    AgentTimelineService,
     AgentTranscriptWatcher,
     LongPasteService,
 } from './agents';
 import {
     listAgentActions,
+    readAgentReplySummary,
     readAgentTranscript,
     recordRecentAgentAction,
     SessionContentSearch,
@@ -33,6 +35,18 @@ import { SessionPullRequestService } from './session-pull-requests';
 import { resolveTerminalFileLink } from './terminal';
 
 type ServiceHandlerMethods =
+    | 'agent.message.send'
+    | 'agent.message.reply'
+    | 'agent.message.wait'
+    | 'agent.message.check'
+    | 'agent.message.receipt'
+    | 'agent.message.policy.get'
+    | 'agent.message.policy.set'
+    | 'agent.message.held'
+    | 'agent.message.held.get'
+    | 'agent.message.approve'
+    | 'agent.message.deny'
+    | 'agent.replySummary'
     | 'agent.delegation.access.bootstrap'
     | 'agentActions.list'
     | 'agentActions.recordRecent'
@@ -137,6 +151,7 @@ export function createServiceHandlers(services: {
     logger: StructuredLogger;
     projectStatus: ProjectStatusService;
     sessionContext: SessionContextService;
+    timeline: AgentTimelineService;
     transcripts: AgentTranscriptWatcher;
     userDataPath: string;
     vercel: VercelDeploymentStore;
@@ -158,6 +173,7 @@ export function createServiceHandlers(services: {
         logger,
         projectStatus,
         sessionContext,
+        timeline,
         transcripts,
         userDataPath,
         vercel,
@@ -184,6 +200,19 @@ export function createServiceHandlers(services: {
         sessionPullRequests,
     });
     return {
+        'agent.message.send': () => mainOwned('agent.message.send'),
+        'agent.message.reply': () => mainOwned('agent.message.reply'),
+        'agent.message.wait': () => mainOwned('agent.message.wait'),
+        'agent.message.check': () => mainOwned('agent.message.check'),
+        'agent.message.receipt': () => mainOwned('agent.message.receipt'),
+        'agent.message.policy.get': () => mainOwned('agent.message.policy.get'),
+        'agent.message.policy.set': () => mainOwned('agent.message.policy.set'),
+        'agent.message.held': () => mainOwned('agent.message.held'),
+        'agent.message.held.get': () => mainOwned('agent.message.held.get'),
+        'agent.message.approve': () => mainOwned('agent.message.approve'),
+        'agent.message.deny': () => mainOwned('agent.message.deny'),
+        'agent.replySummary': ({ sessionId }) =>
+            readAgentReplySummary(database, timeline, sessionId),
         'agent.delegation.access.bootstrap': async ({
             rootPath,
             callerProvider,

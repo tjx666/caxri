@@ -32,14 +32,14 @@ describe('resolveDevelopmentDockIconPath', () => {
 });
 
 describe('resolveNotificationAppIconPath', () => {
-    it('uses the bundled icns in a packaged app and the Dock icon in development', () => {
+    it('uses the rounded bundled notification icon in a packaged app and the Dock icon in development', () => {
         expect(
             resolveNotificationAppIconPath({
                 currentDirectory: '/application/out/main',
                 isPackaged: true,
                 resourcesPath: '/Applications/Caxri.app/Contents/Resources',
             }),
-        ).toBe('/Applications/Caxri.app/Contents/Resources/icon.icns');
+        ).toBe('/Applications/Caxri.app/Contents/Resources/notification-icon.png');
         expect(
             resolveNotificationAppIconPath({
                 currentDirectory: '/project/out/main',

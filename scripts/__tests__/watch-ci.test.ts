@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import type { WatchedJob } from '../watch-ci';
-import { formatRunSummary, isHeartbeatStale, newlyFailedJobs, nextBackoffMs } from '../watch-ci';
+import {
+    formatCiNotification,
+    formatRunSummary,
+    isHeartbeatStale,
+    newlyFailedJobs,
+    nextBackoffMs,
+} from '../watch-ci';
 
 const job = (name: string, status: string, conclusion: string): WatchedJob => ({
     conclusion,
@@ -50,5 +56,57 @@ describe('watch-ci', () => {
             runId: '123',
         });
         expect(summary).toBe('run 123: in progress\n  checks: success\n  e2e: in_progress');
+    });
+
+    it('names the branch, PR title, workflow, and failing jobs in notifications', () => {
+        const run = {
+            branch: 'feat/example',
+            conclusion: '',
+            displayTitle: 'feat: example change',
+            jobs: [job('checks', 'completed', 'failure'), job('e2e', 'in_progress', '')],
+            runId: '123',
+            status: 'in_progress',
+            workflowName: 'CI',
+        };
+        expect(formatCiNotification(run, ['checks'])).toEqual({
+            title: 'CI failed · feat/example',
+            subtitle: 'feat: example change',
+            message: 'CI failed: checks',
+        });
+        expect(
+            formatCiNotification({
+                ...run,
+                conclusion: 'timed_out',
+                jobs: [job('checks', 'completed', 'failure'), job('e2e', 'completed', 'timed_out')],
+                status: 'completed',
+            }),
+        ).toEqual({
+            title: 'CI failed · feat/example',
+            subtitle: 'feat: example change',
+            message: 'CI timed out: checks, e2e',
+        });
+        expect(
+            formatCiNotification({
+                ...run,
+                conclusion: 'success',
+                jobs: [job('checks', 'completed', 'success')],
+                status: 'completed',
+            }),
+        ).toEqual({
+            title: 'CI passed · feat/example',
+            subtitle: 'feat: example change',
+            message: 'CI succeeded',
+        });
+    });
+
+    it('falls back to the run id when status-only polling lost the run identity', () => {
+        expect(
+            formatCiNotification({
+                conclusion: 'failure',
+                jobs: [],
+                runId: '123',
+                status: 'completed',
+            }),
+        ).toEqual({ title: 'CI failed · run 123', message: 'CI failure' });
     });
 });
