@@ -640,6 +640,36 @@ describe('registerTerminalLinks', () => {
         expect(openUrl).not.toHaveBeenCalled();
     });
 
+    it('offers only the link kinds its pane can open, through every detection path', async () => {
+        const text = 'src/file.ts:12 f36a02ac https://example.com/plain';
+        const terminal = createTerminal(text, cellsFor(text));
+        const { context, openCommit, openFile, openUrl } = baseContext();
+        const registration = registerTerminalLinks(terminal.terminal, {
+            ...context,
+            linkKinds: new Set(['url']),
+        });
+
+        const links = await terminal.links();
+        expect(links?.map((link) => link.text)).toEqual(['https://example.com/plain']);
+        expect(registration.getViewportLinks()).toMatchObject([
+            { kind: 'url', target: 'https://example.com/plain' },
+        ]);
+        const handler = terminal.terminal.options.linkHandler;
+        expect(handler?.allowNonHttpProtocols).toBe(false);
+        const range = { start: { x: 1, y: 1 }, end: { x: 1, y: 1 } };
+        handler?.activate({ metaKey: true } as MouseEvent, 'src/file.ts:12', range);
+        handler?.activate({ metaKey: true } as MouseEvent, 'https://example.com/osc', range);
+        expect(openFile).not.toHaveBeenCalled();
+        expect(openCommit).not.toHaveBeenCalled();
+        expect(openUrl).toHaveBeenCalledWith('https://example.com/osc');
+
+        terminal.setCursor(0, 0);
+        terminal.osc8(';src/osc.ts');
+        terminal.setCursor(0, 4);
+        terminal.osc8(';');
+        expect(registration.getAllOscLinks()).toEqual([]);
+    });
+
     it('routes a modified click on a commit candidate through the Git resolver callback', async () => {
         const text = 'f36a02ac';
         const terminal = createTerminal(text, cellsFor(text));

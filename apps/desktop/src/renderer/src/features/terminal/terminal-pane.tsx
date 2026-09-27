@@ -23,7 +23,6 @@ import { readCommandShortcut, useCommandShortcut } from '../../lib/keybindings';
 import { isAgentProcessRunning } from '../../lib/terminal-agent-runtime';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
-import { openSettings } from '../../stores/dialogs';
 import { useSessionById, useSettings, useTerminal, useTheme } from '../../stores/selectors';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { useTerminalLinkPicker } from './hooks/use-terminal-link-picker';
@@ -42,6 +41,7 @@ import { getTerminalExitPresentation } from './terminal-exit-presentation';
 import { terminalFontFamily } from './terminal-fonts';
 import { openTerminalLinkPicker } from './terminal-link-actions';
 import { TerminalLinkPicker } from './terminal-link-picker';
+import { terminalPaneHost } from './terminal-pane-host';
 import type { TerminalSearchOptions } from './terminal-search';
 import {
     initialTerminalSearchState,
@@ -108,7 +108,7 @@ function TerminalRecoveryActions({
                         className="terminal-recovery-action min-h-6 flex-none px-2 text-inherit"
                         size="sm"
                         variant="ghost"
-                        onClick={() => openSettings()}
+                        onClick={() => terminalPaneHost().openSettings()}
                     >
                         <Settings2 size={12} /> Open Settings
                     </Button>

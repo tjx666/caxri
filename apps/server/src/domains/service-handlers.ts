@@ -204,6 +204,7 @@ const MAIN_OWNED_METHODS = [
     'contextMenu.show',
     'processExplorer.open',
     'agentCommander.open',
+    'agentCommander.openSettings',
     'agentCommander.revealSession',
     'agentCommander.stop',
     'dialog.selectDirectory',

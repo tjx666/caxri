@@ -10,6 +10,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { ErrorBoundary } from './components/error-boundary';
 import { AgentCommanderApp } from './features/agent-commander/agent-commander-app';
 import { readAgentCommanderWorkbench } from './features/agent-commander/commander-client';
+import { configureCommanderTerminalHost } from './features/agent-commander/commander-commands';
 import { configureCommanderToastActions } from './features/agent-commander/commander-toast-actions';
 import { installStoreInspector } from './lib/store';
 import { observeWindowActive } from './lib/window-active';
@@ -24,6 +25,7 @@ observeWindowActive();
 // Commander-scoped snapshot by the time a Terminal pane can trigger one.
 configureWorkbenchSnapshotSource(readAgentCommanderWorkbench);
 configureCommanderToastActions();
+configureCommanderTerminalHost();
 
 createRoot(document.querySelector('#root')!).render(
     <StrictMode>

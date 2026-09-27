@@ -25,6 +25,7 @@ function handler(request: (method: string, parameters?: unknown) => Promise<unkn
     return createMainMethodHandler({
         getAgentCommander: vi.fn(),
         revealSessionInWorkbench: () => Promise.resolve(),
+        openSettingsInWorkbench: () => Promise.resolve(),
         getProcessExplorer: () => ({}) as ProcessExplorerWindowController,
         getRemoteDebugging: () => ({ port: '9223', transport: 'port' }) as const,
         getUserDataPath: () => '/user-data',

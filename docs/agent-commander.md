@@ -32,8 +32,9 @@ The window runs with the Desktop principal. Main therefore authorizes it separat
 - **Always admitted.** A short read list (`commander.board`, Settings, keybindings, theme,
   `events.recover`), the Commander's own lifecycle (`commander.ensure`, `commander.snapshot`, and
   `agentCommander.stop` for the title bar's Stop button), `external.open`, the Terminal pane's
-  context menu (`contextMenu.show`), and one Workbench hand-off, `agentCommander.revealSession`.
-  Main pops that menu over the Commander window, not the Workbench: the IPC boundary records the
+  context menu (`contextMenu.show`), and two Workbench hand-offs: `agentCommander.revealSession`
+  and `agentCommander.openSettings`, which the pane's Open Settings sends when the Agent CLI is
+  missing. Each raises the Workbench, reopening it if needed, before it acts. Main pops that menu over the Commander window, not the Workbench: the IPC boundary records the
   requesting window (`request-window.ts`) because the command dispatcher carries no Electron
   objects. The menu only reports the chosen entry back, and that entry's action is a separate
   request this policy admits on its own. The window cannot call `commander.stop` directly; Main
@@ -59,6 +60,13 @@ Main routes events through the same policy:
   `desktop.openRequested`, so a menu accelerator never runs twice.
 
 Each window tracks its own events-ready state.
+
+The Commander window has no Settings, editor, or Git view, so its entry installs a Terminal pane
+host (`terminal-pane-host.ts`) before the first render. The pane's Open Settings hands off to the
+Workbench, and only URLs are links: file paths and commit SHAs get no underline, hint, or Open
+Detected Link entry, and a reference's hover card keeps its basic content instead of loading
+details. Opening a file from the Commander Terminal in the Workbench would need a target Session
+and Project, so it is not offered.
 
 Closing or reloading the Commander window detaches its view of the Commander Terminal, but the PTY
 keeps running and the next window re-attaches from a snapshot. Closing the main window detaches
