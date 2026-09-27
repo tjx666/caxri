@@ -1,4 +1,5 @@
 import type {
+    AgentProvider,
     AppSettings,
     BootstrapState,
     ServerEvent,
@@ -17,6 +18,10 @@ export interface AgentSystemNotification {
     body: string;
     groupId: string;
     id: string;
+    /**
+     * Second line under the title; Electron's macOS-only `subtitle` option and alerter's `--subtitle`.
+     */
+    subtitle?: string;
     title: string;
 }
 
@@ -37,7 +42,11 @@ type AgentNotificationOutcome =
     | 'noProvider'
     | 'belowThreshold'
     | 'unsupportedAttention'
-    | 'settingsStale';
+    | 'settingsStale'
+    /**
+     * The Session changed (newer attention, read, or became visible) while the reply summary was loading.
+     */
+    | 'superseded';
 
 export interface AgentNotificationDecision {
     attentionEpoch: number;
@@ -47,8 +56,18 @@ export interface AgentNotificationDecision {
      */
     durationMs?: number;
     outcome: AgentNotificationOutcome;
+    /**
+     * How the completed-turn reply summary resolved; present only for completed-turn banners that reached delivery.
+     */
+    replySummary?: ReplySummaryOutcome;
     sessionId: string;
 }
+
+/**
+ * `included` is the only case with text; `empty` means the transcript had no closing reply (or the provider has no
+ * transcript parser), `timeout` and `failed` mean the read itself did not answer.
+ */
+export type ReplySummaryOutcome = 'included' | 'empty' | 'timeout' | 'failed';
 
 interface AgentNotificationCoordinatorOptions {
     activateSession(sessionId: string): Promise<void>;
@@ -58,6 +77,10 @@ interface AgentNotificationCoordinatorOptions {
         sessionIds: string[];
         terminalIds: string[];
     }): Promise<{ sessions: SessionRecord[]; terminals: TerminalRecord[] }>;
+    /**
+     * The Primary Agent's latest reply as one line, or `undefined` when it cannot be read. Never logged or retained.
+     */
+    loadReplySummary?(sessionId: string): Promise<string | undefined>;
     loadSettings(): Promise<AppSettings>;
     onNotificationsSuppressed?(count: number): void;
     /**
@@ -81,9 +104,33 @@ export interface AgentNotificationCoordinator {
 const TURN_START_REASONS = new Set(['user_submission', 'agent_started']);
 
 /**
+ * How long a completed-turn banner waits for its reply summary before falling back to the duration line. The read holds
+ * the coordinator queue, so it must stay short enough that a slow transcript never delays later attention.
+ */
+const REPLY_SUMMARY_TIMEOUT_MS = 1_500;
+
+export function formatTurnDuration(durationMs: number): string {
+    const totalSeconds = Math.max(1, Math.round(durationMs / 1_000));
+    const hours = Math.floor(totalSeconds / 3_600);
+    const minutes = Math.floor((totalSeconds % 3_600) / 60);
+    if (hours > 0) return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+    const seconds = totalSeconds % 60;
+    if (minutes > 0) return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+    return `${seconds}s`;
+}
+
+interface PendingBanner {
+    decide(outcome: AgentNotificationOutcome, replySummary?: ReplySummaryOutcome): void;
+    durationMs?: number;
+    provider: AgentProvider;
+    session: SessionRecord;
+}
+
+/**
  * Derives native notifications from Caxri's durable, content-free Session attention state. Startup establishes a
  * baseline instead of replaying old attention, while later reconciliations compare monotonic epochs so Renderer
- * lifetime and transient hook delivery never become notification state.
+ * lifetime and transient hook delivery never become notification state. The only content a banner carries is the
+ * completed turn's one-line reply summary, fetched on demand and dropped once the banner is shown.
  */
 export function createAgentNotificationCoordinator(
     options: AgentNotificationCoordinatorOptions,
@@ -104,6 +151,7 @@ export function createAgentNotificationCoordinator(
     let settings: AppSettings | undefined;
     let tail = Promise.resolve();
     const sessions = new Map<string, SessionRecord>();
+    const projectTitles = new Map<string, string>();
     const terminals = new Map<string, TerminalRecord>();
     const turnStartedAt = new Map<string, number>();
     const notifications = new Map<string, AgentSystemNotificationHandle>();
@@ -165,8 +213,15 @@ export function createAgentNotificationCoordinator(
         return turnStartedAt.get(session.id);
     };
 
-    const reconcileSession = (session: SessionRecord, shouldNotify: boolean): void => {
-        if (isDisposed) return;
+    /**
+     * Applies one Session record and returns the banner it earned, if any. Showing is deferred to `deliverBanners` so
+     * the synchronous gate order stays intact while a completed turn waits for its reply summary.
+     */
+    const reconcileSession = (
+        session: SessionRecord,
+        shouldNotify: boolean,
+    ): PendingBanner | undefined => {
+        if (isDisposed) return undefined;
         const previous = sessions.get(session.id);
         const startedAt = rememberTurnStart(session, previous);
         sessions.set(session.id, session);
@@ -176,13 +231,17 @@ export function createAgentNotificationCoordinator(
             shouldNotify && session.attentionEpoch > (previous?.attentionEpoch ?? 0);
         const durationMs =
             startedAt === undefined ? undefined : session.lastSessionActivityAt - startedAt;
-        const decide = (outcome: AgentNotificationOutcome): void => {
+        const decide = (
+            outcome: AgentNotificationOutcome,
+            replySummary?: ReplySummaryOutcome,
+        ): void => {
             if (!isNewAttention) return;
             options.onDecision?.({
                 attentionEpoch: session.attentionEpoch,
                 attentionKind: session.lastAttentionKind,
                 ...(durationMs !== undefined && { durationMs }),
                 outcome,
+                ...(replySummary !== undefined && { replySummary }),
                 sessionId: session.id,
             });
         };
@@ -190,71 +249,107 @@ export function createAgentNotificationCoordinator(
         if (session.archivedAt !== undefined) {
             closeNotification(session.id);
             decide('archived');
-            return;
+            return undefined;
         }
         if (!session.hasUnread) {
             closeNotification(session.id);
             decide('read');
-            return;
+            return undefined;
         }
         if (options.isSessionVisible(session.id, selectedSessionId)) {
             closeNotification(session.id);
             decide('visible');
-            return;
+            return undefined;
         }
         if (!settings?.['agents.notifications.enabled']) {
             closeNotification(session.id);
             decide('disabled');
-            return;
+            return undefined;
         }
-        if (!isNewAttention) return;
+        if (!isNewAttention) return undefined;
 
         const provider = providerForSession(session);
         if (!provider) {
             closeNotification(session.id);
             decide('noProvider');
-            return;
+            return undefined;
         }
 
-        let body: string;
-        if (session.lastAttentionKind === 'waiting') {
-            body = `${agentProviderCatalog[provider].displayName} is waiting for your input.`;
-        } else if (session.lastAttentionKind === 'completed') {
+        if (session.lastAttentionKind === 'completed') {
             const thresholdMs = settings['agents.notifications.completionThresholdSeconds'] * 1_000;
             if (durationMs === undefined || durationMs < thresholdMs) {
                 closeNotification(session.id);
                 decide('belowThreshold');
-                return;
+                return undefined;
             }
-            body = `${agentProviderCatalog[provider].displayName} completed a turn.`;
-        } else {
+        } else if (session.lastAttentionKind !== 'waiting') {
             closeNotification(session.id);
             decide('unsupportedAttention');
-            return;
+            return undefined;
         }
 
         if (isSettingsStale) {
             suppressedNotificationCount += 1;
             decide('settingsStale');
-            return;
+            return undefined;
         }
 
-        closeNotification(session.id);
-        decide('shown');
+        return { decide, ...(durationMs !== undefined && { durationMs }), provider, session };
+    };
 
+    const loadReplySummary = async (
+        sessionId: string,
+    ): Promise<{ outcome: ReplySummaryOutcome; summary?: string }> => {
+        if (!options.loadReplySummary) return { outcome: 'empty' };
+        const request = async (): Promise<{ outcome: ReplySummaryOutcome; summary?: string }> => {
+            try {
+                const summary = await options.loadReplySummary?.(sessionId);
+                return summary ? { outcome: 'included', summary } : { outcome: 'empty' };
+            } catch {
+                return { outcome: 'failed' };
+            }
+        };
+        const timeout = Promise.withResolvers<{ outcome: ReplySummaryOutcome }>();
+        const timer = setTimeout(
+            () => timeout.resolve({ outcome: 'timeout' }),
+            REPLY_SUMMARY_TIMEOUT_MS,
+        );
+        try {
+            return await Promise.race([request(), timeout.promise]);
+        } finally {
+            clearTimeout(timer);
+        }
+    };
+
+    const showBanner = (
+        { durationMs, provider, session }: PendingBanner,
+        summary: string | undefined,
+    ): void => {
+        const providerName = agentProviderCatalog[provider].displayName;
+        const projectTitle = projectTitles.get(session.projectId);
+        let body: string;
+        if (session.lastAttentionKind === 'waiting') body = 'Waiting for your input';
+        else if (summary) body = summary;
+        else
+            body =
+                durationMs === undefined
+                    ? 'Turn finished'
+                    : `Finished in ${formatTurnDuration(durationMs)}`;
+
+        closeNotification(session.id);
         const handle = options.showNotification(
             {
                 id: `caxri-agent-session-${session.id}`,
                 groupId: 'caxri-agent-sessions',
                 /**
-                 * The sidebar keeps `Untitled` because its row already shows the provider icon, but a native banner has
-                 * no such icon, so an unnamed Session is announced by its provider instead. The substitute is derived
-                 * from the Terminal's provider alone and can never carry prompt or transcript content.
+                 * The provider leads the title so the banner says which Agent spoke even without the sidebar's icon. An
+                 * unnamed Session is announced by its provider alone rather than by the sidebar's `Untitled`.
                  */
                 title:
                     session.displayTitle === DEFAULT_SESSION_TITLE
-                        ? `${agentProviderCatalog[provider].displayName} session`
-                        : session.displayTitle,
+                        ? providerName
+                        : `${providerName} · ${session.displayTitle}`,
+                ...(projectTitle !== undefined && { subtitle: projectTitle }),
                 body,
             },
             () => {
@@ -268,9 +363,54 @@ export function createAgentNotificationCoordinator(
         if (handle) notifications.set(session.id, handle);
     };
 
-    const applyBootstrap = (bootstrap: BootstrapState, shouldNotify: boolean): void => {
+    /**
+     * Shows the banners one reconciliation earned. A completed turn first loads its reply summary; because that read is
+     * asynchronous, the Session is re-checked afterwards so a banner never announces attention the user already saw.
+     */
+    const deliverBanners = async (banners: Array<PendingBanner | undefined>): Promise<void> => {
+        const pending = banners.filter((banner) => banner !== undefined);
+        if (pending.length === 0) return;
+        /**
+         * Summaries load concurrently so a reconnect that surfaces several finished turns still holds the queue for one
+         * timeout at most; banners are then shown in reconciliation order.
+         */
+        const replies = await Promise.all(
+            pending.map((banner) =>
+                banner.session.lastAttentionKind === 'completed'
+                    ? loadReplySummary(banner.session.id)
+                    : Promise.resolve(undefined),
+            ),
+        );
+        if (isDisposed) return;
+        for (const [index, banner] of pending.entries()) {
+            const reply = replies[index];
+            const current = sessions.get(banner.session.id);
+            if (
+                current?.attentionEpoch !== banner.session.attentionEpoch ||
+                !current.hasUnread ||
+                options.isSessionVisible(current.id, selectedSessionId) ||
+                !settings?.['agents.notifications.enabled']
+            ) {
+                // The previous turn's banner is just as stale as the one being dropped.
+                if (current?.attentionEpoch === banner.session.attentionEpoch)
+                    closeNotification(banner.session.id);
+                banner.decide('superseded', reply?.outcome);
+                continue;
+            }
+            banner.decide('shown', reply?.outcome);
+            showBanner(banner, reply?.summary);
+        }
+    };
+
+    const applyBootstrap = (
+        bootstrap: BootstrapState,
+        shouldNotify: boolean,
+    ): Array<PendingBanner | undefined> => {
         selectedSessionId = bootstrap.selectedSessionId;
         settings = bootstrap.settings;
+        projectTitles.clear();
+        for (const project of bootstrap.projects)
+            projectTitles.set(project.id, project.displayTitle);
         if (!settings['agents.notifications.enabled']) closeAllNotifications();
         terminals.clear();
         for (const terminal of bootstrap.terminals) terminals.set(terminal.id, terminal);
@@ -282,11 +422,11 @@ export function createAgentNotificationCoordinator(
             turnStartedAt.delete(sessionId);
             closeNotification(sessionId);
         }
-        for (const session of bootstrap.sessions) reconcileSession(session, shouldNotify);
+        return bootstrap.sessions.map((session) => reconcileSession(session, shouldNotify));
     };
 
     const reconcileFull = async (): Promise<void> => {
-        applyBootstrap(await options.loadBootstrap(), true);
+        await deliverBanners(applyBootstrap(await options.loadBootstrap(), true));
     };
 
     const reconcileRecords = async (
@@ -303,7 +443,7 @@ export function createAgentNotificationCoordinator(
         if (fullReconciliationGeneration !== expectedFullGeneration) return;
         for (const terminalId of terminalIds) terminals.delete(terminalId);
         for (const terminal of records.terminals) terminals.set(terminal.id, terminal);
-        for (const session of records.sessions) reconcileSession(session, true);
+        await deliverBanners(records.sessions.map((session) => reconcileSession(session, true)));
     };
 
     const initializeOnce = async (): Promise<void> => {

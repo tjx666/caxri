@@ -6,6 +6,7 @@ export * from './agent-dispatch-contract.js';
 export * from './agent-endpoint-contract.js';
 export * from './agent-endpoint-control.js';
 export * from './agent-inbox-contract.js';
+export * from './agent-notification-contract.js';
 export * from './agent-skill-contract.js';
 export * from './agents.js';
 export * from './delegation-access-contract.js';

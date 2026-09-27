@@ -11,6 +11,7 @@ import {
 } from '../agent/agent-dispatch-contract.js';
 import { agentEndpointMethods } from '../agent/agent-endpoint-contract.js';
 import { agentInboxMethods } from '../agent/agent-inbox-contract.js';
+import { agentNotificationInternalMethods } from '../agent/agent-notification-contract.js';
 import { agentSkillHealthSchema } from '../agent/agent-skill-contract.js';
 import {
     delegationAccessInternalMethods,
@@ -720,6 +721,7 @@ export const methods = {
  * Internal Server operations that are never reachable from the Renderer request allowlist.
  */
 export const internalMethods = {
+    ...agentNotificationInternalMethods,
     ...agentDispatchInternalMethods,
     ...agentDelegationInternalMethods,
     ...delegationAccessInternalMethods,

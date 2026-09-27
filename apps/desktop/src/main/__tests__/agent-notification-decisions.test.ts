@@ -146,7 +146,7 @@ describe('Agent notification decisions', () => {
             attentionKind: 'waiting',
             outcome: 'shown',
         });
-        expect(app.shown).toEqual(['Claude Code is waiting for your input.']);
+        expect(app.shown).toEqual(['Waiting for your input']);
     });
 
     it('names the gate that suppressed a raised attention', async () => {

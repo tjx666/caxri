@@ -1,129 +1,15 @@
-import type {
-    AppSettings,
-    BootstrapState,
-    ServerEvent,
-    SessionRecord,
-    TerminalRecord,
-} from '@caxri/protocol';
+import type { BootstrapState, SessionRecord, TerminalRecord } from '@caxri/protocol';
 import { defaultAppSettings } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import type {
-    AgentSystemNotification,
-    AgentSystemNotificationHandle,
-} from '../agent-notifications';
 import { createAgentNotificationCoordinator } from '../agent-notifications';
-
-function session(patch: Partial<SessionRecord> & Pick<SessionRecord, 'id'>): SessionRecord {
-    const { id, ...overrides } = patch;
-    return {
-        id,
-        projectId: 'project-1',
-        workbenchProjectId: 'project-1',
-        rootPath: '/project',
-        createdAt: 1,
-        lastOpenedAt: 1,
-        sidebarOrder: 0,
-        lastSessionActivityAt: 1_000,
-        lastSessionActivityReason: 'created',
-        lastActivityState: 'completed',
-        attentionEpoch: 0,
-        readAttentionEpoch: 0,
-        hasUnread: false,
-        displayTitle: 'Investigate hooks',
-        titleMode: 'automatic',
-        primaryAgentTerminalId: 'terminal-1',
-        ...overrides,
-    };
-}
-
-function terminal(patch: Partial<TerminalRecord> = {}): TerminalRecord {
-    return {
-        id: 'terminal-1',
-        sessionId: 'session-1',
-        kind: 'claude',
-        provider: 'claude',
-        cwd: '/project',
-        title: 'Claude Code',
-        icon: 'claude',
-        orderIndex: 0,
-        lastProcessState: 'running',
-        createdAt: 1,
-        updatedAt: 1,
-        ...patch,
-    };
-}
-
-function bootstrap(
-    current: SessionRecord,
-    settings: AppSettings = defaultAppSettings,
-): BootstrapState {
-    return {
-        projects: [],
-        sessions: [current],
-        terminals: [terminal({ sessionId: current.id })],
-        selectedSessionId: undefined,
-        sessionStates: [],
-        settings,
-        keybindings: [],
-        keybindingConflicts: [],
-        theme: {},
-        runtime: { status: 'ready', restartCount: 0 },
-    } as unknown as BootstrapState;
-}
-
-function harness(initial: SessionRecord) {
-    let current = initial;
-    let selectedSessionId: string | undefined;
-    let isVisible = false;
-    let settings = defaultAppSettings;
-    const shown: AgentSystemNotification[] = [];
-    const clicks: Array<() => void> = [];
-    const closed: boolean[] = [];
-    const activateSession = vi.fn<() => Promise<void>>(() => Promise.resolve());
-    const coordinator = createAgentNotificationCoordinator({
-        activateSession,
-        isSessionVisible: (sessionId, selected) => isVisible && selected === sessionId,
-        loadBootstrap: () =>
-            Promise.resolve({ ...bootstrap(current, settings), selectedSessionId }),
-        loadRecords: () =>
-            Promise.resolve({
-                sessions: [current],
-                terminals: [terminal({ sessionId: current.id })],
-            }),
-        loadSettings: () => Promise.resolve(settings),
-        showNotification: (notification, onClick): AgentSystemNotificationHandle => {
-            shown.push(notification);
-            clicks.push(onClick);
-            const index = closed.push(false) - 1;
-            return { close: () => (closed[index] = true) };
-        },
-    });
-    return {
-        activateSession,
-        clicks,
-        closed,
-        coordinator,
-        select(sessionId: string | undefined): void {
-            selectedSessionId = sessionId;
-        },
-        setSession(next: SessionRecord): void {
-            current = next;
-        },
-        setSettings(next: AppSettings): void {
-            settings = next;
-        },
-        setVisible(isNextVisible: boolean): void {
-            isVisible = isNextVisible;
-        },
-        shown,
-    };
-}
-
-const recordsChanged = {
-    event: 'state.changed',
-    payload: { kind: 'records', sessionIds: ['session-1'], terminalIds: [] },
-} satisfies ServerEvent;
+import {
+    bootstrap,
+    harness,
+    recordsChanged,
+    session,
+    terminal,
+} from './support/agent-notification-harness';
 
 describe('Agent notification coordinator', () => {
     it('does not replay unread attention from the startup baseline', async () => {
@@ -165,8 +51,9 @@ describe('Agent notification coordinator', () => {
             {
                 id: 'caxri-agent-session-session-1',
                 groupId: 'caxri-agent-sessions',
-                title: 'Investigate hooks',
-                body: 'Claude Code is waiting for your input.',
+                title: 'Claude Code · Investigate hooks',
+                subtitle: 'caxri',
+                body: 'Waiting for your input',
             },
         ]);
     });
@@ -186,7 +73,7 @@ describe('Agent notification coordinator', () => {
         );
         test.coordinator.observe(recordsChanged);
         await test.coordinator.flush();
-        expect(test.shown.map((shown) => shown.title)).toEqual(['Claude Code session']);
+        expect(test.shown.map((shown) => shown.title)).toEqual(['Claude Code']);
     });
 
     it('only notifies for a completed turn after the configured duration', async () => {
@@ -228,7 +115,121 @@ describe('Agent notification coordinator', () => {
         longTurn.coordinator.observe(recordsChanged);
         await longTurn.coordinator.flush();
         expect(longTurn.shown).toHaveLength(1);
-        expect(longTurn.shown[0]?.body).toBe('Claude Code completed a turn.');
+        expect(longTurn.shown[0]?.body).toBe('Finished in 1m');
+    });
+
+    it('uses the latest reply as the completed-turn body and falls back when it is late', async () => {
+        const running = session({
+            id: 'session-1',
+            lastActivityState: 'running',
+            lastSessionActivityAt: 10_000,
+            lastSessionActivityReason: 'agent_started',
+        });
+        const completed = (attentionEpoch: number, at: number) =>
+            session({
+                id: 'session-1',
+                attentionEpoch,
+                hasUnread: true,
+                lastAttentionKind: 'completed',
+                lastSessionActivityAt: at,
+                lastSessionActivityReason: 'agent_completed',
+            });
+        const test = harness(running);
+        await test.coordinator.initialize();
+        test.setReplySummary(() => Promise.resolve('Fixed the flaky test and pushed the branch.'));
+        test.setSession(completed(1, 200_000));
+        test.coordinator.observe(recordsChanged);
+        await test.coordinator.flush();
+        expect(test.shown.at(-1)).toMatchObject({
+            title: 'Claude Code · Investigate hooks',
+            subtitle: 'caxri',
+            body: 'Fixed the flaky test and pushed the branch.',
+        });
+
+        vi.useFakeTimers();
+        try {
+            test.setReplySummary(() => new Promise(() => {}));
+            test.setSession({ ...running, lastSessionActivityAt: 300_000 });
+            test.coordinator.observe(recordsChanged);
+            await vi.advanceTimersByTimeAsync(0);
+            test.setSession(completed(2, 425_000));
+            test.coordinator.observe(recordsChanged);
+            await vi.advanceTimersByTimeAsync(1_500);
+            await test.coordinator.flush();
+        } finally {
+            vi.useRealTimers();
+        }
+        expect(test.shown.at(-1)?.body).toBe('Finished in 2m 5s');
+    });
+
+    it('drops a banner when the Session becomes visible while its summary loads', async () => {
+        const test = harness(
+            session({
+                id: 'session-1',
+                lastActivityState: 'running',
+                lastSessionActivityAt: 10_000,
+                lastSessionActivityReason: 'agent_started',
+            }),
+        );
+        // Selected but in a background window; the user focuses Caxri while the summary is still loading.
+        test.select('session-1');
+        await test.coordinator.initialize();
+        test.setReplySummary(() => {
+            test.setVisible(true);
+            return Promise.resolve('done');
+        });
+        test.setSession(
+            session({
+                id: 'session-1',
+                attentionEpoch: 1,
+                hasUnread: true,
+                lastAttentionKind: 'completed',
+                lastSessionActivityAt: 200_000,
+                lastSessionActivityReason: 'agent_completed',
+            }),
+        );
+        test.coordinator.observe(recordsChanged);
+        await test.coordinator.flush();
+        expect(test.shown).toEqual([]);
+    });
+
+    it('closes the previous turn banner when the next one is superseded', async () => {
+        const completed = (attentionEpoch: number, at: number) =>
+            session({
+                id: 'session-1',
+                attentionEpoch,
+                hasUnread: true,
+                lastAttentionKind: 'completed',
+                lastSessionActivityAt: at,
+                lastSessionActivityReason: 'agent_completed',
+            });
+        const running = (at: number) =>
+            session({
+                id: 'session-1',
+                lastActivityState: 'running',
+                lastSessionActivityAt: at,
+                lastSessionActivityReason: 'agent_started',
+            });
+        const test = harness(running(10_000));
+        test.select('session-1');
+        await test.coordinator.initialize();
+        test.setSession(completed(1, 200_000));
+        test.coordinator.observe(recordsChanged);
+        await test.coordinator.flush();
+        expect(test.shown).toHaveLength(1);
+
+        test.setSession({ ...running(300_000), attentionEpoch: 1, hasUnread: true });
+        test.coordinator.observe(recordsChanged);
+        await test.coordinator.flush();
+        test.setReplySummary(() => {
+            test.setVisible(true);
+            return Promise.resolve('done');
+        });
+        test.setSession(completed(2, 500_000));
+        test.coordinator.observe(recordsChanged);
+        await test.coordinator.flush();
+        expect(test.shown).toHaveLength(1);
+        expect(test.closed).toEqual([true]);
     });
 
     it('does not let a secondary Terminal submission reset the primary Agent turn duration', async () => {

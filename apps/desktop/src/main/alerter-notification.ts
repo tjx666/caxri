@@ -7,7 +7,12 @@ import type { AgentSystemNotification, AgentSystemNotificationHandle } from './a
 
 const ALERTER_CANDIDATES = ['/opt/homebrew/bin/alerter', '/usr/local/bin/alerter'] as const;
 const ALERTER_OUTPUT_LIMIT = 16 * 1024;
-const ALERTER_TIMEOUT_SECONDS = 10;
+/**
+ * How long a banner stays before alerter withdraws it, which also removes it from Notification Center. Each banner owns
+ * a waiting alerter process so a click can still route back to its Session; 30 seconds leaves time to read the reply
+ * summary while bounding that process lifetime.
+ */
+const ALERTER_TIMEOUT_SECONDS = 30;
 const MAX_ACTIVE_ALERTERS = 32;
 
 type AlerterNotificationFailure =
@@ -45,6 +50,7 @@ export function buildAlerterArguments(
         ...(appIconPath === undefined ? [] : ['--app-icon', appIconPath]),
         '--title',
         notification.title,
+        ...(notification.subtitle === undefined ? [] : ['--subtitle', notification.subtitle]),
         '--message',
         notification.body,
         '--sound',
