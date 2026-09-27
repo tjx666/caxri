@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 import {
     authorityOptions,
     bootstrap,
+    fakeLogger,
     registerTemporaryDirectories,
 } from './path-browser-authority.fixture';
 
@@ -22,7 +23,11 @@ interface BrowseResult {
 describe('path browser Project-wide name search', () => {
     async function searchFixture(
         searchResult: (query: string) => unknown,
-        options: { browse?: BrowseResult; root?: string } = {},
+        options: {
+            browse?: BrowseResult;
+            logger?: ReturnType<typeof fakeLogger>;
+            root?: string;
+        } = {},
     ): Promise<{
         browse: (input: string) => Promise<MethodResult<'pathBrowser.browse'>>;
         request: ReturnType<typeof vi.fn>;
@@ -30,6 +35,7 @@ describe('path browser Project-wide name search', () => {
         const workbenchRoot =
             options.root ?? (await realpath(await temporaryDirectory('caxri-path-search-')));
         const { authority, request } = authorityOptions(workbenchRoot, workbenchRoot, {
+            logger: options.logger,
             request(method, parameters) {
                 if (method === 'app.bootstrap')
                     return Promise.resolve(bootstrap(workbenchRoot, workbenchRoot));
@@ -275,6 +281,102 @@ describe('path browser Project-wide name search', () => {
         expect(listed.projectSearch).toBe('unavailable');
         expect(listed.entries).toEqual([]);
         expect(listed.truncated).toBe(false);
+    });
+
+    it('logs a closed reason enum, never the query, when the search engine cannot start', async () => {
+        const logger = fakeLogger();
+        const { browse } = await searchFixture(
+            () => {
+                throw new CaxriError('UNAVAILABLE', 'Project search engine is unavailable');
+            },
+            { logger },
+        );
+
+        const listed = await browse('anything');
+
+        expect(listed.projectSearch).toBe('unavailable');
+        expect(listed.entries).toEqual([]);
+        const [level, event, options] = logger.calls.at(-1)!;
+        expect(level).toBe('warn');
+        expect(event).toBe('path_browser.search_failed');
+        expect(options.fields).toEqual({ reason: 'unavailable' });
+        expect(typeof options.durationMs).toBe('number');
+        expect(JSON.stringify(options)).not.toContain('anything');
+    });
+
+    it('maps an IO failure and a lost connection to their own reason instead of one bucket', async () => {
+        const io = fakeLogger();
+        await (
+            await searchFixture(
+                () => {
+                    throw new CaxriError('IO', 'Project root changed during search');
+                },
+                { logger: io },
+            )
+        ).browse('a');
+        expect(io.calls.at(-1)![2].fields).toEqual({ reason: 'io' });
+
+        const disconnected = fakeLogger();
+        await (
+            await searchFixture(
+                () => {
+                    throw new CaxriError(
+                        'CANCELLED',
+                        'Desktop Host connection is no longer active',
+                    );
+                },
+                { logger: disconnected },
+            )
+        ).browse('a');
+        expect(disconnected.calls.at(-1)![2].fields).toEqual({ reason: 'disconnected' });
+
+        const other = fakeLogger();
+        await (
+            await searchFixture(
+                () => {
+                    throw new Error('boom');
+                },
+                { logger: other },
+            )
+        ).browse('a');
+        expect(other.calls.at(-1)![2].fields).toEqual({ reason: 'other' });
+    });
+
+    it('logs the fallback outcome with memo/root-check/budget metrics on a normal run', async () => {
+        const root = await realpath(await temporaryDirectory('caxri-path-search-log-'));
+        const outside = await realpath(await temporaryDirectory('caxri-path-search-log-outside-'));
+        const logger = fakeLogger();
+        const { browse } = await searchFixture(
+            () => ({
+                matches: [
+                    { path: join(root, 'a/kept.ts'), relativePath: 'a/kept.ts' },
+                    { path: join(outside, 'dropped.ts'), relativePath: '../dropped.ts' },
+                ],
+                canceled: false,
+                truncated: false,
+            }),
+            { logger, root },
+        );
+
+        await browse('kept');
+
+        const fresh = logger.calls.at(-1)!;
+        expect(fresh[0]).toBe('debug');
+        expect(fresh[1]).toBe('path_browser.search_fallback');
+        expect(fresh[2].fields).toEqual({
+            memoHit: false,
+            matchCount: 2,
+            droppedByRootCheck: 1,
+            displayedCount: 1,
+            truncated: false,
+            canceled: false,
+        });
+        expect(typeof fresh[2].durationMs).toBe('number');
+
+        // A second, longer filter refines the memoized result instead of asking Server again.
+        await browse('kept.t');
+        const memoized = logger.calls.at(-1)!;
+        expect(memoized[2].fields).toMatchObject({ memoHit: true, matchCount: 1 });
     });
 
     it('still searches the Project when the directory listing itself was truncated', async () => {

@@ -64,6 +64,8 @@ export function workbenchRootHarness(dialog: ElectronDialogMock) {
                 getServer: () => options.getServer ?? unusedServer,
                 getWindow: () => options.window as never,
                 grants,
+                // These suites do not assert on path-browser logging; `path-browser-authority.fixture.ts` covers that.
+                logger: () => {},
                 nextTestRoot: options.nextTestRoot ?? (() => {}),
             }),
         };
