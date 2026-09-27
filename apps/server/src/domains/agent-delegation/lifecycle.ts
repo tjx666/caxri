@@ -1,4 +1,5 @@
 import type { AgentDelegationReceipt } from '@caxri/protocol';
+import { isDelegationActive } from '@caxri/protocol';
 
 import type { AgentLifecycleSignal } from '../agents';
 /**
@@ -7,18 +8,6 @@ import type { AgentLifecycleSignal } from '../agents';
 // react-doctor-disable-next-line react-doctor/no-barrel-import
 import { delegationAdapter } from '../agents';
 import type { StoredAgentDelegation } from '../db';
-
-export function isDelegationActive(receipt: AgentDelegationReceipt): boolean {
-    return [
-        'requested',
-        'launching',
-        'awaiting_ready',
-        'submitting',
-        'running',
-        'collecting',
-        'blocked',
-    ].includes(receipt.status);
-}
 
 /**
  * Whether `failure` may settle this task: any active task, and also a startup already interrupted by `target_changed`

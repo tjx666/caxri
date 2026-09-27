@@ -10,11 +10,10 @@ import type {
 } from '@caxri/protocol';
 import {
     commanderBoardGroupIds,
+    isDelegationActive,
     isTopLevelProject,
     MAX_COMMANDER_BOARD_ROWS,
 } from '@caxri/protocol';
-
-import { isDelegationActive } from '../agent-delegation/lifecycle';
 
 /**
  * How long a completed Session stays under "Recently finished". Longer than the Workbench Activity view's window
