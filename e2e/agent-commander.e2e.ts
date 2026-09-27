@@ -7,7 +7,7 @@ import { isDeepStrictEqual } from 'node:util';
 import type { AppSettings, CommanderSnapshot, CommanderStatus } from '@caxri/protocol';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
-import { expect, test } from './support/fixtures.ts';
+import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import {
     createShellSession,
     launchCaxri,
@@ -391,6 +391,101 @@ test('Agent Commander board moves a task stuck at Agent startup to Needs attenti
         await expect(task).toHaveText('Needs you', { timeout: 45_000 });
         await testInfo.attach('commander-board-needs-you', {
             body: await commander.locator('.commander-board').screenshot(),
+            contentType: 'image/png',
+        });
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+/**
+ * The Commander window has no Settings surface of its own, so the failed Terminal's Open Settings must bring the
+ * Workbench forward with Settings open instead of updating a dialog store nothing in this window renders.
+ */
+// eslint-disable-next-line no-empty-pattern -- Playwright requires object destructuring for its fixture argument
+test('Agent Commander Terminal opens Settings in the Workbench when its Agent CLI is missing', async ({}, testInfo) => {
+    allowE2EErrors([
+        { source: 'server-core', event: 'pty.spawn_failed', code: 'UNAVAILABLE', count: 1 },
+    ]);
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-commander-missing-cli-e2e-'));
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root);
+    const running = await launchCaxri({
+        agentMode: { mode: 'blocked' },
+        userDataDir: userData,
+        testRootPath: root,
+        env: { PATH: '/caxri-e2e-missing', SHELL: '/usr/bin/false' },
+    });
+    try {
+        await pageRequest(running.page, 'agentCommander.open');
+        await expect.poll(() => running.app.windows().length).toBe(2);
+        const commander = running.app.windows().find((page) => page !== running.page)!;
+        const failed = commander.locator('[data-terminal-exit-state="failed"]');
+        await expect(failed).toContainText('Codex CLI was not found');
+        await testInfo.attach('commander-missing-cli', {
+            body: await failed.screenshot(),
+            contentType: 'image/png',
+        });
+
+        await failed.getByRole('button', { name: 'Open Settings' }).click();
+        await expect(running.page.locator('[data-settings-page]')).toBeVisible();
+        await testInfo.attach('workbench-settings-from-commander', {
+            body: await running.page.screenshot(),
+            contentType: 'image/png',
+        });
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+/**
+ * File and commit links open the Workbench editor and Git view, which the Commander window does not have, so its
+ * Terminal leaves them unlinked; a URL still opens in the browser.
+ */
+// eslint-disable-next-line no-empty-pattern -- Playwright requires object destructuring for its fixture argument
+test('Agent Commander Terminal links URLs but not files it cannot open', async ({}, testInfo) => {
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-commander-links-e2e-'));
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root);
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: {
+            codex: { startupOutput: 'Edited notes.md:3 see https://example.com/commander' },
+        },
+    });
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        await createShellSession(running.page);
+        await pageRequest(running.page, 'agentCommander.open');
+        await expect.poll(() => running.app.windows().length).toBe(2);
+        const commander = running.app.windows().find((page) => page !== running.page)!;
+        const pane = commander.locator('.terminal-pane');
+        await expect(pane.locator('.xterm-rows')).toContainText('https://example.com/commander');
+
+        await pane.locator('.xterm-screen').click({ button: 'right' });
+        await chooseContextMenuItem(running.app, 'Open Detected Link…');
+        const picker = commander.getByRole('dialog', { name: 'Open Detected Link' });
+        await expect(
+            picker.getByRole('option', {
+                name: 'Open external link https://example.com/commander',
+                exact: true,
+            }),
+        ).toBeVisible();
+        await expect(picker.getByRole('option')).toHaveCount(1);
+        await testInfo.attach('commander-detected-links', {
+            body: await commander.screenshot(),
             contentType: 'image/png',
         });
     } finally {

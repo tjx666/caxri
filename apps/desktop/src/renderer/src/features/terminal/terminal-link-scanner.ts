@@ -8,7 +8,7 @@ import type {
 import {
     appendBoundedDetectedLink,
     createDetectedLink,
-    findTerminalLinks,
+    findContextTerminalLinks,
     readLogicalLine,
 } from './terminal-links';
 import type { VisibleOscLink } from './terminal-osc-link-tracker';
@@ -55,13 +55,7 @@ function scanPlainTextLineRange(
         const logicalLine = readLogicalLine(terminal, line + 1, context.wordSeparators);
         if (!logicalLine || visitedLogicalLines.has(logicalLine.firstBufferLine)) continue;
         visitedLogicalLines.add(logicalLine.firstBufferLine);
-        for (const match of findTerminalLinks(
-            logicalLine.text,
-            context.wordSeparators,
-            undefined,
-            undefined,
-            context.referenceContext,
-        )) {
+        for (const match of findContextTerminalLinks(logicalLine.text, context)) {
             const key = `${match.kind}:${match.text}`;
             const result = appendBoundedDetectedLink(budget, key, match.text, () =>
                 createDetectedLink(

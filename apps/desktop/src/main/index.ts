@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import type {
     CaxriRequest,
     CommandAdapter,
+    CommandId,
     Keybinding,
     PersistedWindowState,
     ServerEvent,
@@ -500,6 +501,13 @@ if (ownsProfileInstance) {
             }),
     );
 
+    function dispatchWorkbenchCommand(command: CommandId, isViaAccelerator: boolean): void {
+        sendEvent({
+            event: 'command.execute',
+            payload: { command, viaAccelerator: isViaAccelerator },
+        });
+    }
+
     const handleMainMethod = createMainMethodHandler({
         ...gpuRecovery.mainMethodOptions,
         getProcessExplorer: () => processExplorer,
@@ -507,6 +515,11 @@ if (ownsProfileInstance) {
         revealSessionInWorkbench: async (sessionId) => {
             await supervisor.request('session.select', { sessionId });
             await focusMainWindow();
+        },
+        openSettingsInWorkbench: async () => {
+            // Unlike a menu pick, wait for the Workbench Renderer: a reopened window must be listening for the command.
+            await focusMainWindow();
+            dispatchWorkbenchCommand('settings.open', false);
         },
         getRemoteDebugging: () => remoteDebuggingState(desktopProfile),
         getUserDataPath: () => desktopProfile.userDataPath,
@@ -602,11 +615,7 @@ if (ownsProfileInstance) {
             Menu.buildFromTemplate(
                 buildAppMenuTemplate({
                     keybindings,
-                    dispatchCommand: (command, isViaAccelerator) =>
-                        sendEvent({
-                            event: 'command.execute',
-                            payload: { command, viaAccelerator: isViaAccelerator },
-                        }),
+                    dispatchCommand: dispatchWorkbenchCommand,
                     openProcessExplorer: () => processExplorer.open(),
                     openAgentCommander: () => agentCommander?.open(),
                     stopAgentCommander: () => {

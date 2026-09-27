@@ -29,9 +29,10 @@ import {
     registerTerminalLinkScanner,
 } from './terminal-link-actions';
 import { createTerminalLinkScanner } from './terminal-link-scanner';
-import type { TerminalLinkContext } from './terminal-links';
+import type { TerminalLinkContext, TerminalLinkMatch } from './terminal-links';
 import { registerTerminalLinks } from './terminal-links';
 import type { Osc52BlockReason } from './terminal-osc52-clipboard';
+import { terminalPaneHost } from './terminal-pane-host';
 import type { TerminalLinkReferenceContext } from './terminal-reference-links';
 import {
     basicReferencePreviewCard,
@@ -160,6 +161,8 @@ const TERMINAL_FILE_LINK_REFUSALS: Record<TerminalFileLinkRefusalReason, string>
         'That file is in a Git worktree no Session is using as its Workbench Root. Continue a Session in the worktree first.',
 };
 
+const URL_LINKS_ONLY: ReadonlySet<TerminalLinkMatch['kind']> = new Set(['url']);
+
 /**
  * Wires `registerTerminalLinks` to the pane's live state snapshot: link providers are registered once per attach, so
  * every field reads through `latest()` instead of capturing values that would go stale on session or settings changes.
@@ -261,13 +264,15 @@ export function registerTerminalPaneLinks(
         }
     };
     const previews = new TerminalReferencePreviewStore(loadTerminalReferencePreview);
+    const { hasWorkbenchLinks } = terminalPaneHost();
     const context: TerminalLinkContext = {
+        ...(!hasWorkbenchLinks && { linkKinds: URL_LINKS_ONLY }),
         get referenceContext() {
             return latest().referenceContext;
         },
         previewReference(match) {
             const card = basicReferencePreviewCard(match);
-            const request = terminalReferencePreviewRequest(match);
+            const request = hasWorkbenchLinks ? terminalReferencePreviewRequest(match) : undefined;
             if (!request) return { card };
             const { terminalId } = latest();
             return {

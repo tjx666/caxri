@@ -2,22 +2,45 @@ import { CaxriError } from '@caxri/protocol';
 import type { Terminal } from '@xterm/xterm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type * as TerminalLinkHint from '../terminal-link-hint';
+
 const mocks = vi.hoisted(() => ({
     caxriRequest: vi.fn((): Promise<unknown> => Promise.resolve(undefined)),
+    hintShow: vi.fn(),
 }));
 
 vi.mock('../../../lib/caxri', () => ({ caxri: { request: mocks.caxriRequest } }));
+/**
+ * Records what a hover hands the hint, so a test can see whether a reference card would load details.
+ */
+vi.mock('../terminal-link-hint', async (importOriginal) => ({
+    ...(await importOriginal<typeof TerminalLinkHint>()),
+    createTerminalLinkHintController: () => ({
+        dispose: vi.fn(),
+        hide: vi.fn(),
+        isLinkHovered: () => false,
+        leave: vi.fn(),
+        show: mocks.hintShow,
+    }),
+}));
 
 import { dismissToast, getToasts } from '../../../stores/toasts';
 import { canSendTerminalInput, didPasteIntoTerminal } from '../terminal-commands';
+import { TERMINAL_DEFAULT_WORD_SEPARATORS } from '../terminal-file-candidate';
+import { configureTerminalPaneHost, terminalPaneHost } from '../terminal-pane-host';
 import {
     opaqueSearchColor,
     registerTerminalInputHandlers,
+    registerTerminalPaneLinks,
     reportTerminalOperationError,
     xtermThemeWithoutOverviewRulerBorder,
 } from '../terminal-pane-support';
+import { cellsFor, createTerminal } from './terminal-links-test-helpers';
+
+const workbenchHost = terminalPaneHost();
 
 beforeEach(() => {
+    configureTerminalPaneHost(workbenchHost);
     dismissToast();
     mocks.caxriRequest.mockReset();
     mocks.caxriRequest.mockResolvedValue(undefined);
@@ -241,5 +264,62 @@ describe('registerTerminalInputHandlers', () => {
         );
         unregister();
         expect(binaryDisposable.dispose).toHaveBeenCalledOnce();
+    });
+});
+
+describe('registerTerminalPaneLinks', () => {
+    const text = 'src/file.ts:12 f36a02ac https://example.com/plain';
+
+    async function paneLinks(line: string) {
+        const terminal = createTerminal(line, cellsFor(line));
+        const registration = registerTerminalPaneLinks(terminal.terminal, () => ({
+            referenceContext: {
+                githubRepositories: [{ owner: 'example', repo: 'project' }],
+                rules: [],
+            },
+            terminalId: 'terminal-1',
+            wordSeparators: TERMINAL_DEFAULT_WORD_SEPARATORS,
+        }));
+        try {
+            return (await terminal.links()) ?? [];
+        } finally {
+            registration.dispose();
+        }
+    }
+
+    async function linkedTexts(): Promise<string[]> {
+        return (await paneLinks(text)).map((link) => link.text);
+    }
+
+    async function hoveredReferencePreview() {
+        mocks.hintShow.mockClear();
+        const [reference] = await paneLinks('example/project#12');
+        reference.hover?.({} as MouseEvent, reference.text);
+        expect(mocks.hintShow).toHaveBeenCalledOnce();
+        return mocks.hintShow.mock.lastCall?.[4] as { load?: unknown } | undefined;
+    }
+
+    it('links files, commits, and URLs in the Workbench', async () => {
+        expect(await linkedTexts()).toEqual([
+            'src/file.ts:12',
+            'f36a02ac',
+            'https://example.com/plain',
+        ]);
+    });
+
+    it('links only URLs in a window whose host has no Workbench to open the rest in', async () => {
+        configureTerminalPaneHost({ openSettings: vi.fn(), hasWorkbenchLinks: false });
+
+        expect(await linkedTexts()).toEqual(['https://example.com/plain']);
+    });
+
+    it('loads reference hover details only where the Workbench can answer them', async () => {
+        expect((await hoveredReferencePreview())?.load).toEqual(expect.any(Function));
+
+        configureTerminalPaneHost({ openSettings: vi.fn(), hasWorkbenchLinks: false });
+
+        const preview = await hoveredReferencePreview();
+        expect(preview).toBeDefined();
+        expect(preview?.load).toBeUndefined();
     });
 });

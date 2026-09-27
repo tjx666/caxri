@@ -17,6 +17,7 @@ function handler(overrides: Partial<Parameters<typeof createMainMethodHandler>[0
     return createMainMethodHandler({
         getAgentCommander: vi.fn(),
         revealSessionInWorkbench: () => Promise.resolve(),
+        openSettingsInWorkbench: () => Promise.resolve(),
         getProcessExplorer: () => ({}) as ProcessExplorerWindowController,
         getRemoteDebugging: () => ({ port: '9223', transport: 'port' }) as const,
         getUserDataPath: () => '/user-data',
