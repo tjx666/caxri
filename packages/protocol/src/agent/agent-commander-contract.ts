@@ -218,4 +218,13 @@ export const commanderMethods = {
         params: z.object({ sessionId: identifierSchema }),
         result: z.null(),
     },
+    /**
+     * Brings the Workbench forward with Settings open. The Commander window has no Settings of its own, so its
+     * Terminal's Open Settings, offered when the Agent CLI is missing, hands off here.
+     */
+    'agentCommander.openSettings': {
+        ...commandPolicy('desktop', 'control'),
+        params: noParameters,
+        result: z.null(),
+    },
 } as const satisfies Record<string, MethodSpec>;

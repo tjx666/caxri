@@ -16,6 +16,10 @@ import {
     parseTerminalFileLocation,
     TERMINAL_FILE_LOCATION_SUFFIX_PATTERN,
 } from './terminal-file-location';
+import {
+    hasLinkActivationModifier,
+    registerMouseTrackingLinkClickGuard,
+} from './terminal-link-click-guard';
 import type { TerminalLinkHintController, TerminalLinkHintPreview } from './terminal-link-hint';
 import { createTerminalLinkHintController } from './terminal-link-hint';
 import type { TerminalLinkClosingBracket } from './terminal-link-token';
@@ -108,6 +112,11 @@ export interface TerminalLinkScanMetrics {
 }
 
 export interface TerminalLinkContext {
+    /**
+     * Link kinds the pane can open; absent means every kind. Detection itself honors it, so a link the pane cannot open
+     * gets no underline, hint, or picker entry.
+     */
+    linkKinds?: ReadonlySet<TerminalLinkMatch['kind']>;
     referenceContext: TerminalLinkReferenceContext;
     wordSeparators: string;
     openCommit(reference: string): void;
@@ -401,11 +410,22 @@ export function findTerminalLinks(
 }
 
 /**
- * Matches VS Code/iTerm2: a link only activates while the platform's "open" modifier is held, instead of on a bare
- * click. Caxri ships only on macOS, where Ctrl+click is reserved for the secondary-click gesture.
+ * The plain-text links a pane offers: `findTerminalLinks` with the pane's separators and references, narrowed to the
+ * kinds it can open after overlap resolution, so a dropped kind never lets a shadowed match through.
  */
-function hasLinkActivationModifier(event: MouseEvent): boolean {
-    return event.metaKey;
+export function findContextTerminalLinks(
+    text: string,
+    context: Pick<TerminalLinkContext, 'linkKinds' | 'referenceContext' | 'wordSeparators'>,
+): TerminalLinkMatch[] {
+    const matches = findTerminalLinks(
+        text,
+        context.wordSeparators,
+        undefined,
+        undefined,
+        context.referenceContext,
+    );
+    const kinds = context.linkKinds;
+    return kinds ? matches.filter((match) => kinds.has(match.kind)) : matches;
 }
 
 /**
@@ -422,36 +442,6 @@ function activateLink(match: TerminalLinkMatch, context: TerminalLinkContext): v
         return;
     }
     context.openFile(match.target, match.location);
-}
-
-/**
- * Keeps a Cmd+click on a link from also reaching a foreground app that enabled mouse tracking. xterm's mouse report
- * drops `metaKey`, so an app such as Codex's fullscreen transcript sees a plain left click on the same link and opens
- * it a second time. Like iTerm2 and Ghostty, Caxri owns that click: xterm's Linkifier listens on `.xterm-screen` and
- * still activates the link, while stopping the bubble there keeps the event from xterm's mouse service on the enclosing
- * `.xterm` element, which never sends the press or arms its release listener. Every other click is still forwarded.
- */
-function registerMouseTrackingLinkClickGuard(
-    terminal: Terminal,
-    hint: TerminalLinkHintController,
-): () => void {
-    const screen = terminal.screenElement;
-    if (!screen) return () => {};
-    const onMouseDown = (event: MouseEvent) => {
-        if (
-            event.button !== 0 ||
-            !hasLinkActivationModifier(event) ||
-            terminal.modes.mouseTrackingMode === 'none' ||
-            !hint.isLinkHovered()
-        )
-            return;
-        event.stopPropagation();
-        // The skipped mouse service would have suppressed native selection and focused the Terminal.
-        event.preventDefault();
-        terminal.focus();
-    };
-    screen.addEventListener('mousedown', onMouseDown);
-    return () => screen.removeEventListener('mousedown', onMouseDown);
 }
 
 function activateLinkFromPointer(
@@ -605,13 +595,7 @@ function linksForLogicalLine(
     context: TerminalLinkContext,
     hint: TerminalLinkHintController,
 ): ILink[] {
-    return findTerminalLinks(
-        logicalLine.text,
-        context.wordSeparators,
-        undefined,
-        undefined,
-        context.referenceContext,
-    ).flatMap((match) => {
+    return findContextTerminalLinks(logicalLine.text, context).flatMap((match) => {
         // `.at()` (rather than `[index]`) keeps an out-of-range index's `undefined` case in the type, since this
         // project does not enable `noUncheckedIndexedAccess`.
         const start = logicalLine.positions.at(match.startIndex);
@@ -663,13 +647,7 @@ function viewportPlainTextLinks(
         const logicalLine = readLogicalLine(terminal, line + 1, context.wordSeparators);
         if (!logicalLine || visitedLogicalLines.has(logicalLine.firstBufferLine)) continue;
         visitedLogicalLines.add(logicalLine.firstBufferLine);
-        for (const match of findTerminalLinks(
-            logicalLine.text,
-            context.wordSeparators,
-            undefined,
-            undefined,
-            context.referenceContext,
-        )) {
+        for (const match of findContextTerminalLinks(logicalLine.text, context)) {
             const key = `${match.kind}:${match.text}`;
             const result = appendBoundedDetectedLink(budget, key, match.text, () =>
                 createDetectedLink(
@@ -712,14 +690,20 @@ function boundedDetectedLinks(
 
 function exactTerminalLinkTarget(
     target: string,
-    wordSeparators: string,
+    context: TerminalLinkContext,
 ): TerminalLinkMatch | undefined {
-    return findTerminalLinks(target, wordSeparators, undefined, EXPLICIT_TERMINAL_URL_PATTERN).find(
+    const match = findTerminalLinks(
+        target,
+        context.wordSeparators,
+        undefined,
+        EXPLICIT_TERMINAL_URL_PATTERN,
+    ).find(
         (candidate) =>
             candidate.endIndex === target.length &&
             (candidate.startIndex === 0 ||
                 CJK_PROSE_BOUNDARIES.has(target[candidate.startIndex - 1])),
     );
+    return match && (context.linkKinds?.has(match.kind) ?? true) ? match : undefined;
 }
 
 /**
@@ -740,11 +724,11 @@ export function registerTerminalLinks(
     });
     terminal.options.linkHandler = {
         activate(event, text) {
-            const match = exactTerminalLinkTarget(text, context.wordSeparators);
+            const match = exactTerminalLinkTarget(text, context);
             if (match) activateLinkFromPointer(event, match, context);
         },
         hover(event, text, range) {
-            const match = exactTerminalLinkTarget(text, context.wordSeparators);
+            const match = exactTerminalLinkTarget(text, context);
             if (match)
                 hint.show(
                     event,
@@ -760,12 +744,13 @@ export function registerTerminalLinks(
             hint.leave();
         },
         /**
-         * File URLs are allowed into the handler, then constrained by the Server-rooted read.
+         * File URLs are allowed into the handler, then constrained by the Server-rooted read. xterm underlines every
+         * link this admits before asking the handler, so a pane that cannot open files keeps it to http(s).
          */
-        allowNonHttpProtocols: true,
+        allowNonHttpProtocols: context.linkKinds?.has('file') ?? true,
     };
     const oscTracker = registerTerminalOscLinkTracker(terminal, (target) =>
-        exactTerminalLinkTarget(target, context.wordSeparators),
+        exactTerminalLinkTarget(target, context),
     );
     return {
         getAllOscLinks: () => oscTracker.getAllLinks(),
