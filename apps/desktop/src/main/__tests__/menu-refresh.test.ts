@@ -12,6 +12,7 @@ function terminalCopyLabel(keybindings: Keybinding[]): string | undefined {
     const template = buildAppMenuTemplate({
         dispatchCommand: vi.fn(),
         keybindings,
+        openAgentCommander: vi.fn(),
         openProcessExplorer: vi.fn(),
     });
     const terminalMenu = template.find((item) => item.label === 'Terminal');

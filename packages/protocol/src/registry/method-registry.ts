@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { agentActionMethods } from '../agent/agent-action-contract.js';
+import { commanderMethods } from '../agent/agent-commander-contract.js';
 import {
     agentDelegationInternalMethods,
     agentDelegationMethods,
@@ -192,6 +193,7 @@ export const methods = {
     ...agentActionMethods,
     ...agentDispatchMethods,
     ...agentDelegationMethods,
+    ...commanderMethods,
     ...delegationAccessMethods,
     ...agentEndpointMethods,
     ...agentInboxMethods,

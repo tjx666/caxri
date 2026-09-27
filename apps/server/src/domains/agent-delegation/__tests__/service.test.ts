@@ -191,6 +191,52 @@ describe('AgentDelegationService', () => {
         ).toThrow(/another Agent/u);
     });
 
+    it('fills an Agent Commander Session pane without anchoring to the out-of-Session caller', async () => {
+        const f = await fixture();
+        const commanderRoot = await mkdtemp(join(tmpdir(), 'caxri-delegation-commander-'));
+        onTestFinished(() => rm(commanderRoot, { recursive: true, force: true }));
+        const commanderProject = f.database.createProject(commanderRoot);
+        const commander = f.database.createSession(commanderProject.id, 'codex');
+        const target = f.database.createSession(f.input.projectId, null).session;
+        f.database.setAppState('agentCommander', {
+            projectId: commanderProject.id,
+            sessionId: commander.session.id,
+            terminalId: commander.terminal!.id,
+            sessionIds: [target.id],
+        });
+        let launched: string | undefined;
+        f.start.mockImplementation((_id, _principal, _input, options) => {
+            const terminal = f.database.createTerminal(target.id, 'claude');
+            launched = terminal.id;
+            options?.prepared(terminal);
+            return Promise.resolve({ status: 'running' } as Awaited<
+                ReturnType<AgentDispatchService['start']>
+            >);
+        });
+        const authority = {
+            principal: {
+                kind: 'agent' as const,
+                id: 'commander',
+                endpointId: 'commander',
+                generation: 1,
+                projectIds: [commanderProject.id],
+            },
+            callerTerminalId: commander.terminal!.id,
+        };
+
+        const receipt = await f.service.create(f.id, authority, {
+            ...f.input,
+            sessionId: target.id,
+        });
+
+        expect(receipt.terminalId).toBe(launched);
+        expect(f.start.mock.calls[0]?.[3]?.cwd).toBeUndefined();
+        expect(JSON.stringify(f.database.getSessionState(target.id).paneLayout)).toContain(
+            launched!,
+        );
+        expect(f.service.status(f.id, authority).delegationId).toBe(f.id);
+    });
+
     it('returns a timeout without resending or interrupting the task', async () => {
         const f = await fixture();
         await f.service.create(f.id, owner, f.input);

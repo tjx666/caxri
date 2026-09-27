@@ -81,6 +81,7 @@ export const commandIds = [
     'pathBrowser.open',
     'commandPalette.open',
     'processExplorer.open',
+    'agentCommander.open',
     'developer.toggleScreencastMode',
     'developer.reportBug',
     'diagnostics.export',

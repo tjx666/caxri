@@ -6,6 +6,7 @@ import {
     firstSelectableProject,
     selectFallbackAfterDeletion,
 } from '../session-policy';
+import { agentCommanderProjectId } from './commander-rows';
 import type { CaxriDatabaseConnection } from './database-connection';
 
 /**
@@ -48,10 +49,14 @@ export function isRestorableProjectRoot(
 
 /**
  * Projects the Workbench presents. Authorization and root identity still read the full Project list, because a hidden
- * row keeps its root registered for the moment it is added back.
+ * row keeps its root registered for the moment it is added back. The Agent Commander's system Project is never
+ * presented: it exists only to host the Commander Terminal in its own window.
  */
 export function listVisibleProjects(database: CaxriDatabaseConnection): ProjectRecord[] {
-    return database.projects.list().filter((project) => project.hiddenAt === undefined);
+    const commanderProjectId = agentCommanderProjectId(database);
+    return database.projects
+        .list()
+        .filter((project) => project.hiddenAt === undefined && project.id !== commanderProjectId);
 }
 
 /**
@@ -59,16 +64,18 @@ export function listVisibleProjects(database: CaxriDatabaseConnection): ProjectR
  * pull-request lookup, CLI queries — reads this instead of the full Session list.
  */
 export function listVisibleSessions(database: CaxriDatabaseConnection): SessionRecord[] {
-    const hiddenProjectIds = new Set(
+    const excludedProjectIds = new Set(
         database.projects
             .list()
             .filter((project) => project.hiddenAt !== undefined)
             .map((project) => project.id),
     );
+    const commanderProjectId = agentCommanderProjectId(database);
+    if (commanderProjectId) excludedProjectIds.add(commanderProjectId);
     const sessions = database.sessions.list();
-    return hiddenProjectIds.size === 0
+    return excludedProjectIds.size === 0
         ? sessions
-        : sessions.filter((session) => !hiddenProjectIds.has(session.projectId));
+        : sessions.filter((session) => !excludedProjectIds.has(session.projectId));
 }
 
 /**
@@ -88,7 +95,7 @@ export function moveSelectionOffProjects(
 ): void {
     const selectedProjectId = database.appState.get('lastSelectedProjectId');
     if (!selectedProjectId || !projectIds.includes(selectedProjectId)) return;
-    const fallbackProject = firstSelectableProject(database.projects.list());
+    const fallbackProject = firstSelectableProject(listVisibleProjects(database));
     const fallbackSession = fallbackProject
         ? firstActiveSession(database.sessions.list(fallbackProject.id))
         : undefined;

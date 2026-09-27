@@ -5,6 +5,7 @@ import {
     settingsPatchChangeSchema,
 } from '@caxri/protocol';
 
+import { COMMANDER_COMMANDS } from './commander';
 import { DELEGATION_COMMANDS } from './delegation';
 import { DELEGATION_ACCESS_COMMANDS } from './delegation-access';
 import { DELEGATION_IMPORT_COMMAND } from './delegation-import';
@@ -327,6 +328,7 @@ function terminalSend(tokens: readonly string[]): Record<string, unknown> {
 
 export const CLI_COMMANDS = [
     ...DELEGATION_COMMANDS,
+    ...COMMANDER_COMMANDS,
     ...DELEGATION_ACCESS_COMMANDS,
     DELEGATION_IMPORT_COMMAND,
     {

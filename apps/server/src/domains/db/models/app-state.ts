@@ -15,6 +15,15 @@ const appStateValueSchemas = {
     }),
     activeThemeId: z.string().min(1),
     externalDelegationSessions: z.record(z.string(), identifierSchema),
+    /**
+     * The Agent Commander's system rows and the Sessions it created in user Projects. See `commander-rows.ts`.
+     */
+    agentCommander: z.strictObject({
+        projectId: identifierSchema,
+        sessionId: identifierSchema,
+        terminalId: identifierSchema.optional(),
+        sessionIds: z.array(identifierSchema).max(1_000),
+    }),
 } as const;
 
 export type AppStateKey = keyof typeof appStateValueSchemas;

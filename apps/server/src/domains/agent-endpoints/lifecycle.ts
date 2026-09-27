@@ -141,6 +141,7 @@ export class AgentEndpointLifecycle {
         projectId: string,
         settings: AgentProviderSettings,
         launchId: string = randomUUID(),
+        role?: AgentEndpointBeginParameters['role'],
     ): Promise<NodeJS.ProcessEnv> {
         if (terminal.kind === 'shell') return {};
         await this.retire(terminal.id);
@@ -156,6 +157,7 @@ export class AgentEndpointLifecycle {
              * A credential exists for the child env before spawn, but the Server keeps it inert.
              */
             messaging: pendingMessagingCapability(),
+            role,
         });
         this.active.set(terminal.id, {
             activated: false,

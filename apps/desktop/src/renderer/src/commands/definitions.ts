@@ -338,6 +338,7 @@ export const commandDefinitions: CommandDefinition[] = [
         allowInEditable: true,
     }),
     fromCatalog('processExplorer.open', (context) => context.windows.openProcessExplorer()),
+    fromCatalog('agentCommander.open', (context) => context.windows.openAgentCommander()),
     fromCatalog(
         'developer.toggleScreencastMode',
         (context) => context.developer.toggleScreencastMode(),

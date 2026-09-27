@@ -43,6 +43,8 @@ describe('CLI business command catalog', () => {
                 'agent message receipt',
                 'agent message policy',
                 'agent message policy-set',
+                'commander board',
+                'commander session create',
                 'terminal send',
                 'skills list',
                 'skills get',

@@ -18,6 +18,7 @@ describe('application menu', () => {
         const template = buildAppMenuTemplate({
             keybindings: [],
             dispatchCommand: vi.fn(),
+            openAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
         });
 
@@ -30,6 +31,7 @@ describe('application menu', () => {
         const template = buildAppMenuTemplate({
             keybindings: [],
             dispatchCommand: vi.fn(),
+            openAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
         });
         const actual = template.flatMap((menu) =>
@@ -57,6 +59,7 @@ describe('application menu', () => {
                 { command: 'terminal.new', key: 'cmd+shift+t' },
             ],
             dispatchCommand,
+            openAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
         });
         const item = submenu(template, 'Terminal').find(
@@ -80,6 +83,7 @@ describe('application menu', () => {
                 { command: 'terminal.clear', key: 'cmd+k' },
             ],
             dispatchCommand: vi.fn(),
+            openAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
         });
         const item = submenu(template, 'Terminal').find(
@@ -101,6 +105,7 @@ describe('application menu', () => {
                 { command: 'settings.openKeybindings', key: 'cmd+k cmd+s' },
             ],
             dispatchCommand: vi.fn(),
+            openAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
         });
         const item = submenu(template, 'Terminal').find(
@@ -118,6 +123,7 @@ describe('application menu', () => {
         const template = buildAppMenuTemplate({
             keybindings: [{ command: 'terminal.new', key: 'cmd+k t' }],
             dispatchCommand: vi.fn(),
+            openAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
         });
         const item = submenu(template, 'Terminal').find(
@@ -134,6 +140,7 @@ describe('application menu', () => {
             const template = buildAppMenuTemplate({
                 keybindings: defaultKeybindings,
                 dispatchCommand: vi.fn(),
+                openAgentCommander: vi.fn(),
                 openProcessExplorer: vi.fn(),
             });
             const item = submenu(template, 'Terminal').find(
@@ -149,6 +156,7 @@ describe('application menu', () => {
         const template = buildAppMenuTemplate({
             keybindings: [{ command: 'terminal.copy', key: 'cmd+c' }],
             dispatchCommand,
+            openAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
         });
         const item = submenu(template, 'Terminal').find(
@@ -165,6 +173,7 @@ describe('application menu', () => {
         const template = buildAppMenuTemplate({
             keybindings: [{ command: 'terminal.copy', key: 'cmd+shift+c' }],
             dispatchCommand: vi.fn(),
+            openAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
         });
         const item = submenu(template, 'Terminal').find(
@@ -181,6 +190,7 @@ describe('application menu', () => {
         const template = buildAppMenuTemplate({
             keybindings: [{ command: 'terminal.copy', key: '+' }],
             dispatchCommand: vi.fn(),
+            openAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
         });
         const item = submenu(template, 'Terminal').find(
@@ -204,6 +214,7 @@ describe('application menu', () => {
                 { command: 'terminal.nextCommand', key: 'cmd+shift+arrowdown' },
             ],
             dispatchCommand: vi.fn(),
+            openAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
         });
         const accelerators = template.flatMap((menu) =>
@@ -228,6 +239,7 @@ describe('application menu', () => {
         const template = buildAppMenuTemplate({
             keybindings: [],
             dispatchCommand,
+            openAgentCommander: vi.fn(),
             openProcessExplorer,
         });
         const item = submenu(template, 'Help').find(
@@ -243,6 +255,7 @@ describe('application menu', () => {
         const template = buildAppMenuTemplate({
             keybindings: defaultKeybindings,
             dispatchCommand: vi.fn(),
+            openAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
         });
         const help = submenu(template, 'Help');

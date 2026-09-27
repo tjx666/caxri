@@ -21,6 +21,7 @@ import type { DelegationAuthority } from './admission';
 import {
     authorizeDelegationSession,
     delegationCaller,
+    delegationPaneCaller,
     delegationRoster,
     resolveDelegationAdmission,
 } from './admission';
@@ -463,6 +464,7 @@ export class AgentDelegationService {
                     return await (input.resumeFrom
                         ? this.resumeTask(record, authority, previous)
                         : this.followUp(record, authority, previous));
+                const pane = delegationPaneCaller(this.options.database, authority, input);
                 const prepared = await prepareDelegationLaunch(
                     this.options.userDataPath,
                     id,
@@ -507,12 +509,10 @@ export class AgentDelegationService {
                                 );
                             assertDelegationLayout(
                                 this.options.database.getSessionState(input.sessionId).paneLayout,
-                                authority.callerTerminalId,
+                                pane?.id,
                             );
                         },
-                        cwd: authority.callerTerminalId
-                            ? this.options.database.getTerminal(authority.callerTerminalId)?.cwd
-                            : undefined,
+                        cwd: pane?.cwd,
                         prepared: (terminal) => {
                             record = this.owned(id, authority);
                             if (!isDelegationActive(record.receipt))
@@ -530,10 +530,8 @@ export class AgentDelegationService {
                                 paneLayout: delegationLayout(
                                     state.paneLayout,
                                     terminal.id,
-                                    authority.callerTerminalId,
-                                    authority.callerTerminalId
-                                        ? this.options.dimensions?.(authority.callerTerminalId)
-                                        : undefined,
+                                    pane?.id,
+                                    pane && this.options.dimensions?.(pane.id),
                                 ),
                             });
                         },

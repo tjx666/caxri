@@ -75,7 +75,9 @@ The workbench preload exposes one `request` method backed by a fixed method unio
 a content-free `reportError` classifier. The Process Explorer preload has the same error classifier
 beside its read-only snapshot/theme methods. Renderer entries report only `page-exception` or
 `unhandled-rejection`; exception values never cross the bridge. Main validates both the sender and
-kind, then writes stable structured events. The preload does not expose `ipcRenderer`, Electron
+kind, then writes stable structured events. The Agent Commander window reuses the workbench preload;
+Main identifies it as the companion sender and applies `AgentCommanderRendererPolicy` before dispatch
+(see `docs/agent-commander.md`). The preload does not expose `ipcRenderer`, Electron
 objects, environment data, or generic filesystem/process access. Server Core, Desktop Main, Terminal
 Host, and Extension Host observe fatal runtime errors through `uncaughtExceptionMonitor`, which
 preserves their crash/exit behavior, and use a bounded early-startup buffer plus a synchronous bootstrap

@@ -37,7 +37,9 @@ For a directly managed Agent PTY, Server Core creates a separate Endpoint creden
 the Terminal Host spawn request. Server Core stores only its digest and fences every command by Server,
 Endpoint, generation, and launch identity; restart, exit, close, deletion, Server Core crash, and
 expiry revoke it. The inherited Agent credential supplies same-Project read capabilities by default,
-while bounded generation grants add debug, business-write, or Agent-control capabilities. A Shell
+while bounded generation grants add debug, business-write, or Agent-control capabilities. The Agent
+Commander's Endpoint alone carries the fixed `commander` capability for `commander board` and
+`commander session create` (see `docs/agent-commander.md`). A Shell
 promotion never receives an Endpoint. These bearer capabilities are a product authorization boundary,
 not a sandbox from same-user code that can independently read the private owner manifest.
 

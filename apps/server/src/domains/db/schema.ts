@@ -338,10 +338,11 @@ export const sessionState = sqliteTable('session_state', {
 });
 
 /**
- * Typed key/value cells validated by `AppStateModel`. `lastSelectedProjectId`, `lastSelectedSessionId`, and
- * `externalDelegationSessions` hold row IDs inside JSON, where no foreign key reaches them: every Project or Session
- * deletion path must move the selection (`moveSelectionOffProjects`, `CaxriDatabase.deleteSession`), and readers of
- * `externalDelegationSessions` drop bindings whose Session no longer exists.
+ * Typed key/value cells validated by `AppStateModel`. `lastSelectedProjectId`, `lastSelectedSessionId`,
+ * `externalDelegationSessions`, and `agentCommander` hold row IDs inside JSON, where no foreign key reaches them: every
+ * Project or Session deletion path must move the selection (`moveSelectionOffProjects`, `CaxriDatabase.deleteSession`),
+ * readers of `externalDelegationSessions` drop bindings whose Session no longer exists, and `agentCommanderRows`
+ * verifies every Commander row before trusting it.
  */
 export const appState = sqliteTable('app_state', {
     key: text('key').primaryKey(),
