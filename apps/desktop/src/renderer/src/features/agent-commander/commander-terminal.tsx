@@ -1,6 +1,9 @@
+import type { DragEvent } from 'react';
+
 import { Button } from '../../components/ui/button';
 import { Spinner } from '../../components/ui/spinner';
 import { useTerminal } from '../../stores/selectors';
+import { didPasteDropIntoTerminal, isTerminalPasteDrag } from '../terminal/terminal-drop';
 import { TerminalPane } from '../terminal/terminal-pane';
 import { useAgentCommanderStore } from './commander-client';
 import type { AgentCommanderStatus } from './use-agent-commander';
@@ -9,6 +12,10 @@ import type { AgentCommanderStatus } from './use-agent-commander';
  * The Commander's own Terminal, rendered by the ordinary Terminal pane against the Commander-scoped snapshot. It mounts
  * only once `commander.ensure` resolved, because Main admits `terminal.*` for this Terminal only after it saw that
  * reply.
+ *
+ * The Workbench accepts drops on its pane surface, which this window does not mount, so the Commander accepts them
+ * here: files from Finder, most often a screenshot for the Commander to hand on, and Workbench Files entries, Editor
+ * tabs, or Projects insert their paths while the Terminal runs.
  */
 export function CommanderTerminal({
     onRetry,
@@ -39,12 +46,27 @@ export function CommanderTerminal({
                 <span>Starting Agent Commander…</span>
             </div>
         );
+    const canAcceptDrop = (event: DragEvent<HTMLElement>): boolean => {
+        if (terminal.lastProcessState !== 'running' || !isTerminalPasteDrag(event)) return false;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'copy';
+        return true;
+    };
     return (
-        <TerminalPane
-            active
-            ariaLabel={`Agent Commander: ${terminal.title}`}
-            isPaneVisible
-            terminalId={terminal.id}
-        />
+        <div
+            className="commander-terminal-drop h-full"
+            onDragEnter={canAcceptDrop}
+            onDragOver={canAcceptDrop}
+            onDrop={(event) => {
+                if (canAcceptDrop(event)) didPasteDropIntoTerminal(event, terminal);
+            }}
+        >
+            <TerminalPane
+                active
+                ariaLabel={`Agent Commander: ${terminal.title}`}
+                isPaneVisible
+                terminalId={terminal.id}
+            />
+        </div>
     );
 }

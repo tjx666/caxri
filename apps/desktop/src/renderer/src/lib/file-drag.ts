@@ -23,12 +23,34 @@ export function startFilePathDrag(
     dataTransfer.setData(isMovable ? FILE_TREE_DRAG_TYPE : FILE_REFERENCE_DRAG_TYPE, path);
 }
 
-export function terminalDragPath(event: DragEvent): string | undefined {
-    return event.dataTransfer.getData(FILE_REFERENCE_DRAG_TYPE) || dragPath(event);
+/**
+ * The type Chromium gives a drag that carries files from another application, such as Finder or a screenshot thumbnail.
+ */
+const OS_FILES_DRAG_TYPE = 'Files';
+
+export function hasOsFiles(dataTransfer: Pick<DataTransfer, 'types'>): boolean {
+    return dataTransfer.types.includes(OS_FILES_DRAG_TYPE);
+}
+
+/**
+ * The paths a drop inserts into a Terminal. A Caxri Files entry carries its own path. Files from another application
+ * carry none the page can read, so the preload resolves each one; a file with no path on disk resolves to `''` and is
+ * left out.
+ */
+export function terminalDragPaths(event: DragEvent): string[] {
+    const path = event.dataTransfer.getData(FILE_REFERENCE_DRAG_TYPE) || dragPath(event);
+    if (path) return [path];
+    return Array.from(event.dataTransfer.files, (file) =>
+        globalThis.caxri.pathForFile(file),
+    ).filter(Boolean);
 }
 
 export function hasTerminalDraggedPath(event: DragEvent): boolean {
-    return event.dataTransfer.types.includes(FILE_REFERENCE_DRAG_TYPE) || hasDraggedPath(event);
+    return (
+        event.dataTransfer.types.includes(FILE_REFERENCE_DRAG_TYPE) ||
+        hasOsFiles(event.dataTransfer) ||
+        hasDraggedPath(event)
+    );
 }
 
 function isWithinDirectory(path: string, directory: string): boolean {
