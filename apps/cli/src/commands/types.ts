@@ -41,7 +41,16 @@ export interface RemoteCommandDefinition {
     requiresServerVersionMatch?: boolean;
     requiresHumanOwner?: boolean;
     summary: string;
+    /**
+     * The result field holding the entries `--quiet` prints, when the result is not itself the entry or entry list.
+     */
     quietKey?: string;
+    /**
+     * The entry field `--quiet` prints, when the entry's stable ID is not `id` (for example a board row's `sessionId`).
+     * `catalog.test.ts` checks every declared pair against the method's result schema, because a quiet read that fails
+     * after a mutation already ran reports failure for work that happened.
+     */
+    quietIdKey?: string;
     stream?: 'events' | 'logs';
     usage?: string;
 }
