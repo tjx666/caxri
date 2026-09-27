@@ -19,6 +19,7 @@ describe('application menu', () => {
             keybindings: [],
             dispatchCommand: vi.fn(),
             openAgentCommander: vi.fn(),
+            stopAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
         });
 
@@ -32,6 +33,7 @@ describe('application menu', () => {
             keybindings: [],
             dispatchCommand: vi.fn(),
             openAgentCommander: vi.fn(),
+            stopAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
         });
         const actual = template.flatMap((menu) =>
@@ -51,6 +53,31 @@ describe('application menu', () => {
             );
     });
 
+    it('runs the Agent Commander items in Main instead of the Workbench Renderer', () => {
+        const dispatchCommand = vi.fn();
+        const openAgentCommander = vi.fn();
+        const stopAgentCommander = vi.fn();
+        const template = buildAppMenuTemplate({
+            keybindings: [],
+            dispatchCommand,
+            openAgentCommander,
+            stopAgentCommander,
+            openProcessExplorer: vi.fn(),
+        });
+        const view = submenu(template, 'View');
+        const click = (id: string) =>
+            view
+                .find((item) => item.id === id)
+                ?.click?.({} as MenuItem, undefined, { triggeredByAccelerator: false });
+
+        click('command.agentCommander.open');
+        click('command.agentCommander.stop');
+
+        expect(openAgentCommander).toHaveBeenCalledOnce();
+        expect(stopAgentCommander).toHaveBeenCalledOnce();
+        expect(dispatchCommand).not.toHaveBeenCalled();
+    });
+
     it('uses configured accelerators and preserves accelerator-aware dispatch', () => {
         const dispatchCommand = vi.fn();
         const template = buildAppMenuTemplate({
@@ -60,6 +87,7 @@ describe('application menu', () => {
             ],
             dispatchCommand,
             openAgentCommander: vi.fn(),
+            stopAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
         });
         const item = submenu(template, 'Terminal').find(
@@ -84,6 +112,7 @@ describe('application menu', () => {
             ],
             dispatchCommand: vi.fn(),
             openAgentCommander: vi.fn(),
+            stopAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
         });
         const item = submenu(template, 'Terminal').find(
@@ -106,6 +135,7 @@ describe('application menu', () => {
             ],
             dispatchCommand: vi.fn(),
             openAgentCommander: vi.fn(),
+            stopAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
         });
         const item = submenu(template, 'Terminal').find(
@@ -124,6 +154,7 @@ describe('application menu', () => {
             keybindings: [{ command: 'terminal.new', key: 'cmd+k t' }],
             dispatchCommand: vi.fn(),
             openAgentCommander: vi.fn(),
+            stopAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
         });
         const item = submenu(template, 'Terminal').find(
@@ -141,6 +172,7 @@ describe('application menu', () => {
                 keybindings: defaultKeybindings,
                 dispatchCommand: vi.fn(),
                 openAgentCommander: vi.fn(),
+                stopAgentCommander: vi.fn(),
                 openProcessExplorer: vi.fn(),
             });
             const item = submenu(template, 'Terminal').find(
@@ -157,6 +189,7 @@ describe('application menu', () => {
             keybindings: [{ command: 'terminal.copy', key: 'cmd+c' }],
             dispatchCommand,
             openAgentCommander: vi.fn(),
+            stopAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
         });
         const item = submenu(template, 'Terminal').find(
@@ -174,6 +207,7 @@ describe('application menu', () => {
             keybindings: [{ command: 'terminal.copy', key: 'cmd+shift+c' }],
             dispatchCommand: vi.fn(),
             openAgentCommander: vi.fn(),
+            stopAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
         });
         const item = submenu(template, 'Terminal').find(
@@ -191,6 +225,7 @@ describe('application menu', () => {
             keybindings: [{ command: 'terminal.copy', key: '+' }],
             dispatchCommand: vi.fn(),
             openAgentCommander: vi.fn(),
+            stopAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
         });
         const item = submenu(template, 'Terminal').find(
@@ -215,6 +250,7 @@ describe('application menu', () => {
             ],
             dispatchCommand: vi.fn(),
             openAgentCommander: vi.fn(),
+            stopAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
         });
         const accelerators = template.flatMap((menu) =>
@@ -240,6 +276,7 @@ describe('application menu', () => {
             keybindings: [],
             dispatchCommand,
             openAgentCommander: vi.fn(),
+            stopAgentCommander: vi.fn(),
             openProcessExplorer,
         });
         const item = submenu(template, 'Help').find(
@@ -256,6 +293,7 @@ describe('application menu', () => {
             keybindings: defaultKeybindings,
             dispatchCommand: vi.fn(),
             openAgentCommander: vi.fn(),
+            stopAgentCommander: vi.fn(),
             openProcessExplorer: vi.fn(),
         });
         const help = submenu(template, 'Help');

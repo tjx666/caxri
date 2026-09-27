@@ -674,11 +674,26 @@ export async function createDomainServices(
             agentHooks,
             awaitAgentSettingsReconcile: agentRuntime.awaitSettingsReconcile,
             commander: {
+                cancelRestore: (sessionId) => {
+                    commanderRestores.cancel(sessionId);
+                    return commanderRestores.settled(sessionId);
+                },
                 createAndStartTerminal,
                 probeTerminal: (terminalId) => coordinator.probeTerminal(terminalId),
-                restoreTerminals: (sessionId) => restoreCommanderTerminals(sessionId),
+                /**
+                 * `includeDetached` is what lets an explicit reopen resume a Commander the user stopped:
+                 * `commander.stop` parks it as `detached`, which an ordinary restore leaves alone.
+                 */
+                restoreTerminals: (sessionId) =>
+                    restoreCommanderTerminals(sessionId, { includeDetached: true }),
                 scopedWorkbench: snapshots.commander,
                 sendFullStateChange: () => sendFullStateChange('session.create'),
+                sendTerminalChange: (terminalId) =>
+                    send({
+                        event: 'state.changed',
+                        payload: { kind: 'records', sessionIds: [], terminalIds: [terminalId] },
+                    }),
+                stopTerminal: (terminalId) => terminals.suspend(terminalId, 'detached'),
             },
             configuration,
             database,

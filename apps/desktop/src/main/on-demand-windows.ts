@@ -28,6 +28,7 @@ export function createOnDemandWindows(options: {
         isPackaged: app.isPackaged,
         logger: () => options.logger,
         rendererUrl: process.env.ELECTRON_RENDERER_URL,
+        stopCommander: () => supervisor.request('commander.stop'),
         windowMode,
     });
     const processExplorer: ProcessExplorerWindowController = new ProcessExplorerWindowController({

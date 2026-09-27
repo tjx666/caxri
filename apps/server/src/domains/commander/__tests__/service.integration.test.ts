@@ -38,7 +38,14 @@ async function fixture() {
     );
     const sendFullStateChange = vi.fn();
     const restoreTerminals = vi.fn();
+    const cancelRestore = vi.fn<(sessionId: string) => Promise<void>>(() => Promise.resolve());
+    const sendTerminalChange = vi.fn();
+    const stopTerminal = vi.fn((terminalId: string) => {
+        database.updateTerminalState(terminalId, 'detached');
+        return Promise.resolve();
+    });
     const service = new AgentCommanderService({
+        cancelRestore,
         database,
         createAndStartTerminal,
         now: () => 1_000,
@@ -48,15 +55,20 @@ async function fixture() {
         scopedWorkbench: (identity: CommanderIdentity) =>
             ({ selectedSessionId: identity.sessionId }) as BootstrapState,
         sendFullStateChange,
+        sendTerminalChange,
+        stopTerminal,
         userDataPath: directory,
     });
     return {
+        cancelRestore,
         createAndStartTerminal,
         database,
         directory,
         restoreTerminals,
         sendFullStateChange,
+        sendTerminalChange,
         service,
+        stopTerminal,
         terminalIdsAtStart,
         userProject,
         userSession,
@@ -94,6 +106,115 @@ describe('Agent Commander service', () => {
             first.identity.sessionId,
         );
         expect(service.snapshot()?.identity).toEqual(first.identity);
+    });
+
+    it('reports its run state from the Terminal process first, then the Session activity', async () => {
+        const { database, service } = await fixture();
+        expect(service.status()).toEqual({ state: 'stopped' });
+
+        const { identity } = await service.ensure();
+        const session = database.getSession(identity.sessionId)!;
+        const activity = vi.spyOn(database, 'getSession');
+        database.updateTerminalState(identity.terminalId, 'starting');
+        expect(service.status()).toEqual({ state: 'starting' });
+
+        database.updateTerminalState(identity.terminalId, 'running');
+        database.updateAgentProcessState(identity.terminalId, 'starting');
+        expect(service.status()).toEqual({ state: 'starting' });
+
+        database.updateAgentProcessState(identity.terminalId, 'running');
+        for (const [lastActivityState, state] of [
+            ['running', 'working'],
+            ['waiting', 'waiting'],
+            ['completed', 'idle'],
+        ] as const) {
+            activity.mockReturnValue({ ...session, lastActivityState });
+            expect(service.status()).toEqual({ state });
+        }
+
+        activity.mockReturnValue({ ...session, lastActivityState: 'running' });
+        database.updateAgentProcessState(identity.terminalId, 'stopped');
+        expect(service.status()).toEqual({ state: 'stopped' });
+
+        database.updateAgentProcessState(identity.terminalId, 'running');
+        database.updateTerminalState(identity.terminalId, 'detached');
+        expect(service.status()).toEqual({ state: 'stopped' });
+    });
+
+    it('stops the Commander idempotently and restores it on the next ensure', async () => {
+        const { cancelRestore, restoreTerminals, sendTerminalChange, service, stopTerminal } =
+            await fixture();
+        await expect(service.stop()).resolves.toBeNull();
+        expect(stopTerminal).not.toHaveBeenCalled();
+
+        const { identity } = await service.ensure();
+        await service.stop();
+        expect(cancelRestore).toHaveBeenCalledExactlyOnceWith(identity.sessionId);
+        expect(stopTerminal).toHaveBeenCalledExactlyOnceWith(identity.terminalId);
+        expect(sendTerminalChange).toHaveBeenCalledExactlyOnceWith(identity.terminalId);
+        expect(service.status()).toEqual({ state: 'stopped' });
+
+        restoreTerminals.mockClear();
+        const reopened = await service.ensure();
+        expect(reopened.identity).toEqual(identity);
+        expect(restoreTerminals).toHaveBeenCalledExactlyOnceWith(identity.sessionId);
+    });
+
+    it('orders a racing stop and reopen so the reopen restores the stopped Terminal', async () => {
+        const { restoreTerminals, service, stopTerminal } = await fixture();
+        const { identity } = await service.ensure();
+        restoreTerminals.mockClear();
+        let finishStop!: () => void;
+        stopTerminal.mockImplementationOnce(
+            () => new Promise<void>((resolve) => (finishStop = resolve)),
+        );
+
+        const stopping = service.stop();
+        const reopening = service.ensure();
+        await vi.waitFor(() => expect(stopTerminal).toHaveBeenCalledOnce());
+        expect(restoreTerminals).not.toHaveBeenCalled();
+        finishStop();
+        await Promise.all([stopping, reopening]);
+
+        expect(restoreTerminals).toHaveBeenCalledExactlyOnceWith(identity.sessionId);
+    });
+
+    it('stops the process a spawning restore produces instead of racing its spawn', async () => {
+        const { cancelRestore, service, stopTerminal } = await fixture();
+        await service.ensure();
+        const spawning = Promise.withResolvers<void>();
+        cancelRestore.mockImplementationOnce(() => spawning.promise);
+
+        const stopping = service.stop();
+        await vi.waitFor(() => expect(cancelRestore).toHaveBeenCalledOnce());
+        expect(stopTerminal).not.toHaveBeenCalled();
+        spawning.resolve();
+        await stopping;
+
+        expect(stopTerminal).toHaveBeenCalledOnce();
+    });
+
+    it('runs a reopen that arrives during a stop after it, even while the first ensure is still starting', async () => {
+        const { createAndStartTerminal, restoreTerminals, service, stopTerminal } = await fixture();
+        const creating = Promise.withResolvers<void>();
+        const create = createAndStartTerminal.getMockImplementation()!;
+        createAndStartTerminal.mockImplementationOnce(async (...parameters) => {
+            await creating.promise;
+            return create(...parameters);
+        });
+
+        const opening = service.ensure();
+        const stopping = service.stop();
+        const reopening = service.ensure();
+        creating.resolve();
+        const [first, , reopened] = await Promise.all([opening, stopping, reopening]);
+
+        expect(reopened.identity).toEqual(first.identity);
+        expect(stopTerminal).toHaveBeenCalledExactlyOnceWith(first.identity.terminalId);
+        expect(restoreTerminals).toHaveBeenCalledExactlyOnceWith(first.identity.sessionId);
+        expect(stopTerminal.mock.invocationCallOrder[0]).toBeLessThan(
+            restoreTerminals.mock.invocationCallOrder[0],
+        );
     });
 
     it('makes the workspace its own Git repository even inside another repository', async () => {

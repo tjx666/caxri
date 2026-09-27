@@ -1,0 +1,27 @@
+import { Bot } from 'lucide-react';
+
+import { executeCommand } from '../../commands/execute';
+import { useCaxriQuery } from '../../queries/client';
+import { commanderStatusChipCopy } from './commander-status-label';
+import { StatusItem } from './status-item';
+
+/**
+ * Shows that the Agent Commander keeps running after its window closes. Muted like the other mode chips (DESIGN.md
+ * status bar redline). `state.changed` invalidates the read, so it follows the Commander without polling.
+ */
+export function CommanderStatusChip() {
+    const { data } = useCaxriQuery('commander.status', {});
+    const copy = data && commanderStatusChipCopy(data.state);
+    if (!copy) return null;
+    return (
+        <StatusItem
+            icon={<Bot />}
+            ariaLabel={copy.description}
+            title={copy.description}
+            className="commander-status-chip text-muted"
+            onClick={() => executeCommand('agentCommander.open')}
+        >
+            {copy.text}
+        </StatusItem>
+    );
+}

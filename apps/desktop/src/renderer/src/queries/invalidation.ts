@@ -39,6 +39,11 @@ const CATALOG_QUERY_KEY: readonly [CaxriMethod] = ['viewContainers.catalog'];
 const PULL_REQUESTS_QUERY_KEY: readonly [CaxriMethod] = ['session.pullRequests'];
 const AGENT_ACTIONS_QUERY_KEY: readonly [CaxriMethod] = ['agentActions.list'];
 /**
+ * The Commander's rows are excluded from Workbench records, so no record-scoped change names them; any state change may
+ * be the Commander's, and the read is one cheap row lookup.
+ */
+const COMMANDER_STATUS_QUERY_KEY: readonly [CaxriMethod] = ['commander.status'];
+/**
  * Every repository's pending review comment count, across every Session — no arguments, so one invalidation covers
  * every mounted reader (the quit reminder, "Show Pending Review Comments") the same way `PULL_REQUESTS_QUERY_KEY`
  * does.
@@ -483,6 +488,8 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
             return;
         }
         if (event.event === 'state.changed') {
+            // eslint-disable-next-line no-void -- React Query owns the invalidation lifecycle
+            void queryClient.invalidateQueries({ queryKey: COMMANDER_STATUS_QUERY_KEY });
             if (event.payload.kind === 'full') invalidateAgentTranscriptQuery(queryClient);
             else {
                 for (const terminalId of event.payload.terminalIds)

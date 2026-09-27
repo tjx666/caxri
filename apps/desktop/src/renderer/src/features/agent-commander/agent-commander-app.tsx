@@ -1,9 +1,13 @@
-import { TooltipProvider } from '../../components/ui/tooltip';
+import { Power } from 'lucide-react';
+
+import { Button } from '../../components/ui/button';
+import { Tooltip, TooltipProvider } from '../../components/ui/tooltip';
 import { useWorkbenchAppearance } from '../../hooks/use-workbench-appearance';
 import { ConfirmationDialog } from '../confirmations/confirmation-dialog';
 import { ToastOutlet } from '../toasts/toast-outlet';
 import { CommanderBoardView } from './commander-board-view';
 import { useAgentCommanderStore } from './commander-client';
+import { stopCommander } from './commander-commands';
 import { CommanderTerminal } from './commander-terminal';
 import { useAgentCommander } from './use-agent-commander';
 
@@ -53,6 +57,17 @@ function AgentCommanderHeader() {
                     {workspacePath}
                 </span>
             )}
+            <Tooltip content="Stop the Commander and close this window. Tasks it delegated keep running, and opening it again resumes the same conversation.">
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    className="agent-commander-stop ml-auto flex-none text-muted [-webkit-app-region:no-drag]"
+                    onClick={stopCommander}
+                >
+                    <Power size={13} />
+                    Stop
+                </Button>
+            </Tooltip>
         </header>
     );
 }

@@ -14,6 +14,15 @@ export function revealCommanderSession(sessionId: string): void {
     );
 }
 
+/**
+ * Main closes this window, then stops the Commander on the Server; a failure surfaces here before the window goes.
+ */
+export function stopCommander(): void {
+    // Fire-and-forget: tryCommand reports a failed stop through a toast.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+    void tryCommand('Unable to stop Agent Commander', () => caxri.request('agentCommander.stop'));
+}
+
 export function openCommanderPullRequest(url: string): void {
     // Fire-and-forget: openExternalUrl reports its own rejection through the callback.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
