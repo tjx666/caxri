@@ -1,3 +1,4 @@
+import type { AgentDelegationReceipt } from '@caxri/protocol';
 import {
     agentDelegationAnswerSchema,
     agentDelegationCreateSchema,
@@ -96,6 +97,19 @@ export class AgentDelegationsModel {
                 }),
             ),
         ];
+    }
+
+    /**
+     * Receipts only: callers that summarize tasks never need their private prompt, launch, or answer.
+     */
+    receiptsForSessions(sessionIds: readonly string[]): AgentDelegationReceipt[] {
+        if (sessionIds.length === 0) return [];
+        return this.database
+            .select({ recordJson: agentDelegations.recordJson })
+            .from(agentDelegations)
+            .where(inArray(agentDelegations.sessionId, [...sessionIds]))
+            .all()
+            .map((row) => storedDelegationSchema.parse(JSON.parse(row.recordJson)).receipt);
     }
 
     forTerminal(terminalId: string): StoredAgentDelegation[] {

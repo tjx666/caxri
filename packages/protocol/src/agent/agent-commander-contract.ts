@@ -14,6 +14,10 @@ import {
 } from '../domain/session-pull-request.js';
 import type { MethodSpec } from '../transport/method-spec.js';
 import { commandPolicy } from '../transport/method-spec.js';
+import {
+    agentDelegationFailureSchema,
+    agentDelegationStatusSchema,
+} from './agent-delegation-contract.js';
 
 /**
  * Upper bound on board rows, far above any real Workbench, so one malformed database cannot produce an unbounded reply.
@@ -82,6 +86,17 @@ export const commanderBoardRowSchema = z.strictObject({
      * True when the Commander created this Session, which is the only kind it may delegate new tasks into.
      */
     commanderSession: z.boolean(),
+    /**
+     * The latest task the Commander delegated into this Session: its receipt state only, never its answer.
+     */
+    task: z
+        .strictObject({
+            delegationId: identifierSchema,
+            status: agentDelegationStatusSchema,
+            failure: agentDelegationFailureSchema.optional(),
+            updatedAt: z.number(),
+        })
+        .optional(),
 });
 
 const commanderBoardProjectSchema = z.strictObject({

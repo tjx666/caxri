@@ -5,6 +5,7 @@ import {
     commanderBoardSections,
     commanderPullRequestBadge,
     commanderRowPresentation,
+    commanderTaskBadge,
 } from '../commander-board';
 
 function row(overrides: Partial<CommanderBoardRow> = {}): CommanderBoardRow {
@@ -199,5 +200,35 @@ describe('commanderPullRequestBadge', () => {
 
         expect(badge).toMatchObject({ stateLabel: 'Merged', toneClassName: 'text-merged' });
         expect(badge?.checksLabel).toBeUndefined();
+    });
+});
+
+describe('commanderTaskBadge', () => {
+    it('shows nothing for a Session the Commander never delegated into', () => {
+        expect(commanderTaskBadge(undefined)).toBeUndefined();
+    });
+
+    it.each([
+        ['awaiting_ready', 'Starting', 'text-muted'],
+        ['collecting', 'Running', 'text-muted'],
+        ['completed', 'Answered', 'text-muted'],
+        ['blocked', 'Blocked', 'text-warning'],
+        ['answer_unavailable', 'Failed', 'text-danger'],
+    ] as const)('labels a %s task as %s', (status, label, toneClassName) => {
+        expect(commanderTaskBadge({ delegationId: 'task-1', status, updatedAt: 1 })).toMatchObject({
+            label,
+            toneClassName,
+        });
+    });
+
+    it('names the delegation and its failure reason in the tooltip', () => {
+        expect(
+            commanderTaskBadge({
+                delegationId: 'task-1',
+                status: 'failed',
+                failure: 'startup_not_ready',
+                updatedAt: 1,
+            })?.title,
+        ).toBe('Commander task task-1: Failed (startup not ready)');
     });
 });
