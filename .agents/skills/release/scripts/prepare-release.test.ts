@@ -18,6 +18,7 @@ const manifests = [
     'package.json',
     'apps/cli/package.json',
     'apps/desktop/package.json',
+    'apps/mobile/package.json',
     'apps/server/package.json',
     'packages/agent-skills/package.json',
     'packages/client/package.json',
@@ -117,7 +118,7 @@ describe('release version preparation', () => {
             previousVersion: '0.0.24',
             version: '0.0.25',
         });
-        expect(result.changedPaths).toHaveLength(12);
+        expect(result.changedPaths).toHaveLength(13);
         expect(sourcePaths).toEqual(result.changedPaths);
         await expect(
             isExactReleasePreparationDelta(cwd, result.changedPaths, readPreviousSource),

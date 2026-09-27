@@ -59,6 +59,8 @@ type MobileDomainMethods = Pick<
     | 'mobile.files.search'
     | 'mobile.files.searchInternal'
     | 'mobile.files.write'
+    | 'mobile.update.check'
+    | 'mobile.update.prepare'
     | 'mobile.files.writeInternal'
 >;
 
@@ -310,6 +312,15 @@ export function createMobileDomainHandlers(options: {
         },
         'mobile.files.write': () => {
             throw new CaxriError('FORBIDDEN', 'Mobile file writes require a paired device');
+        },
+        /**
+         * The update bundle and its download tokens live with the gateway's HTTP endpoint in the access controller.
+         */
+        'mobile.update.check': () => {
+            throw new CaxriError('FORBIDDEN', 'Mobile updates require a paired device');
+        },
+        'mobile.update.prepare': () => {
+            throw new CaxriError('FORBIDDEN', 'Mobile updates require a paired device');
         },
         'mobile.files.search': () => {
             throw new CaxriError('FORBIDDEN', 'Mobile file search requires a paired device');

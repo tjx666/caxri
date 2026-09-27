@@ -9,6 +9,7 @@ export const PRODUCT_MANIFEST_PATHS = [
     'package.json',
     'apps/cli/package.json',
     'apps/desktop/package.json',
+    'apps/mobile/package.json',
     'apps/server/package.json',
     'packages/agent-skills/package.json',
     'packages/client/package.json',

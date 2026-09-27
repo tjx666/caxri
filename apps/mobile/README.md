@@ -6,6 +6,8 @@ The [Conversation guide](../../docs/mobile/CONVERSATION.md) describes the author
 native rendering, live updates, and Terminal fallback.
 The [Changes guide](../../docs/mobile/CHANGES.md) describes authorized Git snapshots, bounded diffs,
 live refresh, and the commit draft boundary.
+The [update guide](../../docs/mobile/UPDATE.md) describes how a paired Desktop delivers and installs
+the matching release APK.
 The [APK size guide](../../docs/mobile/APK-SIZE.md) records internal Android build variants,
 measurement, and upgrade identity checks.
 
@@ -29,17 +31,20 @@ local development build does not require an Expo or EAS account.
 
 ## Internal Android APK
 
-`app.config.ts` owns the launcher icon, app version, and Android `versionCode`; keep its version in
-sync with `package.json`. Regenerate the ignored native project after changing any of these values,
-then build the release APK:
+`app.config.ts` owns the launcher icon and derives the app version and Android `versionCode` from
+`package.json`, which `release:prepare` bumps with Desktop. Regenerate the ignored native project
+after changing any of these values, then build the release APK:
 
 ```sh
 bun run --cwd apps/mobile prebuild:android -- --clean
 bun run --cwd apps/mobile android -- --build-only --variant release
 ```
 
-The APK is written to `apps/mobile/android/app/build/outputs/apk/release/app-release.apk`. This
-release variant currently uses the generated debug keystore and is for internal testing. Before an
+The APK is written to `apps/mobile/android/app/build/outputs/apk/release/app-release.apk`. Without
+the `CAXRI_ANDROID_*` signing variables the release variant falls back to the generated debug
+keystore and is for internal testing only. Desktop releases carry the release-signed arm64 APK and
+install it on paired phones; see the [update guide](../../docs/mobile/UPDATE.md) for the signing
+variables and `build:update-bundle`. Before an
 in-place upgrade, verify the APK package, `versionCode`, and signing certificate against the
 installed build; then use `adb -s <serial> install -r <apk-path>` and inspect the launcher icon on
 the device. If the signing certificate differs, stop instead of uninstalling or clearing app data.
