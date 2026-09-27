@@ -31,6 +31,7 @@ export const SessionSwipeRow = ({
     busy,
     children,
     onArchive,
+    onClose,
     onOpen,
     sessionId,
     theme,
@@ -38,6 +39,7 @@ export const SessionSwipeRow = ({
     busy: boolean;
     children: ReactNode;
     onArchive: (sessionId: string) => Promise<boolean>;
+    onClose: (methods: SwipeableMethods) => void;
     onOpen: (methods: SwipeableMethods) => void;
     sessionId: string;
     theme: MobileTheme;
@@ -46,6 +48,9 @@ export const SessionSwipeRow = ({
     const handleOpen = useCallback((): void => {
         if (swipeableReference.current) onOpen(swipeableReference.current);
     }, [onOpen]);
+    const handleClose = useCallback((): void => {
+        if (swipeableReference.current) onClose(swipeableReference.current);
+    }, [onClose]);
     const archive = useCallback(async (): Promise<void> => {
         const done = await onArchive(sessionId);
         // A successful archive removes the row; a failed one closes so the list error stays in view.
@@ -83,6 +88,7 @@ export const SessionSwipeRow = ({
         <ReanimatedSwipeable
             childrenContainerStyle={{ backgroundColor: theme.background }}
             friction={1.5}
+            onSwipeableClose={handleClose}
             onSwipeableWillOpen={handleOpen}
             overshootRight={false}
             ref={swipeableReference}
