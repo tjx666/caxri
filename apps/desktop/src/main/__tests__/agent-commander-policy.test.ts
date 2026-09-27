@@ -111,4 +111,22 @@ describe('Agent Commander Renderer policy', () => {
             workbench: true,
         });
     });
+
+    /**
+     * Both are transient, so they once reached only the Workbench: after a sleep/wake reconnect the Commander pane
+     * never re-attached and froze at the last byte it had, and its board ignored pull request changes until its next
+     * poll.
+     */
+    it.each(['host.connectionChanged', 'sessionPullRequests.changed'])(
+        'delivers %s to both windows',
+        (event) => {
+            const policy = new AgentCommanderRendererPolicy(() => {});
+            ensured(policy);
+
+            expect(policy.route({ event, payload: {} })).toEqual({
+                commander: true,
+                workbench: true,
+            });
+        },
+    );
 });
