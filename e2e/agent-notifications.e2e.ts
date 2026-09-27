@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -16,6 +16,7 @@ import {
 } from './support/helpers.ts';
 
 const SESSION_TITLE = 'Background notification source';
+const REPLY_SUMMARY = 'All checks passed on the notification fixture.';
 /**
  * `AGENT_METADATA_REFRESH_DELAY_MS` (2 seconds) in the Server's Agent coordinator, plus slack for the probe itself.
  */
@@ -69,6 +70,33 @@ async function writeClaudeMetadata(
     );
     await rename(temporary, target);
     await writeFile(join(configDirectory, 'trigger'), String(Date.now()), 'utf8');
+}
+
+/**
+ * Writes the turn's closing reply where Claude Code keeps its transcript, so the banner body proves the full Desktop
+ * Main → `agent.replySummary` → transcript timeline path rather than the duration fallback.
+ */
+async function writeClaudeTranscript(configDirectory: string, root: string): Promise<void> {
+    /**
+     * The Terminal records its canonical cwd, so the macOS `/var` → `/private/var` symlink must be resolved the same
+     * way.
+     */
+    const cwd = await realpath(root);
+    const directory = join(configDirectory, 'projects', cwd.replaceAll(/[^a-z0-9]/giu, '-'));
+    await mkdir(directory, { recursive: true });
+    const record = (type: 'assistant' | 'user', uuid: string, text: string) =>
+        `${JSON.stringify({
+            type,
+            uuid,
+            timestamp: new Date().toISOString(),
+            message: { content: [{ type: 'text', text }] },
+        })}\n`;
+    await writeFile(
+        join(directory, 'claude-notification-session.jsonl'),
+        record('user', 'notification-prompt', 'Run the checks') +
+            record('assistant', 'notification-reply', `**${REPLY_SUMMARY}**`),
+        'utf8',
+    );
 }
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires the first test argument to use object destructuring
@@ -176,6 +204,7 @@ setInterval(() => {
             )
             .toBe(0);
 
+        await writeClaudeTranscript(config, root);
         await writeClaudeMetadata(config, root, startedAt, 'idle');
         await expect
             .poll(() =>
@@ -199,8 +228,7 @@ setInterval(() => {
             )
             .toEqual([
                 {
-                    // The fake Claude writes no transcript, so the reply summary falls back to the duration line.
-                    body: expect.stringMatching(/^Finished in \d+[hms]/u),
+                    body: REPLY_SUMMARY,
                     groupId: 'caxri-agent-sessions',
                     id: `caxri-agent-session-${sourceSessionId}`,
                     title: `Claude Code · ${SESSION_TITLE}`,
