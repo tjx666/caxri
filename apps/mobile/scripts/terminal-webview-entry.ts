@@ -327,6 +327,16 @@ const restartCursorBlink = (): void => {
         ? setInterval(() => document.body.classList.toggle('caxri-cursor-off'), 600)
         : 0;
 };
+const jumpToLatest = (): void => {
+    stopMomentum();
+    terminal.scrollToBottom();
+    viewport.scrollTop = viewport.scrollHeight;
+    reportScroll();
+};
+/**
+ * Taking over is about to type, so the view jumps to the latest output where the cursor and prompt are instead of
+ * keeping an earlier reading position.
+ */
 const applyControl = (isLeased: boolean, canForwardScroll: boolean): void => {
     viewState.canForwardScroll = canForwardScroll;
     if (viewState.isLeased === isLeased) return;
@@ -335,6 +345,7 @@ const applyControl = (isLeased: boolean, canForwardScroll: boolean): void => {
     terminal.refresh(0, terminal.rows - 1);
     restartCursorBlink();
     layout();
+    if (isLeased) jumpToLatest();
 };
 
 const layoutObserver = new ResizeObserver(layout);
@@ -405,12 +416,7 @@ bridgeWindow.CaxriTerminal = {
                 typeof command.canForwardScroll === 'boolean'
             )
                 applyControl(command.isLeased, command.canForwardScroll);
-            else if (command.type === 'jump') {
-                stopMomentum();
-                terminal.scrollToBottom();
-                viewport.scrollTop = viewport.scrollHeight;
-                reportScroll();
-            }
+            else if (command.type === 'jump') jumpToLatest();
         } catch {
             post({ type: 'error', code: 'render-failed' });
         }
