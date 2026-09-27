@@ -552,6 +552,80 @@ test('Agent Commander Terminal runs the shortcuts its context menu offers', asyn
     }
 });
 
+/**
+ * A Commander that quits on `Ctrl+D`, as the Codex CLI does, which hands its Terminal back to the Shell underneath.
+ */
+const QUITTING_COMMANDER_SOURCE = `#!${process.execPath}
+if (process.argv.includes('--version')) { console.log('codex-cli 0.153.4'); process.exit(0); }
+if (process.argv[2] === 'app-server') process.exit(0);
+process.stdout.write('Commander is running');
+process.stdin.setRawMode?.(true);
+process.stdin.on('data', (data) => {
+  if (data.includes(4)) process.stdout.write(' Commander quit', () => process.exit(0));
+});
+`;
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires object destructuring for its fixture argument
+test('Agent Commander Terminal restarts from its shortcut after it exits', async ({}, testInfo) => {
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-commander-restart-e2e-'));
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root);
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: { codex: { executableSource: QUITTING_COMMANDER_SOURCE } },
+    });
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        await createShellSession(running.page);
+        await pageRequest(running.page, 'agentCommander.open');
+        await expect.poll(() => running.app.windows().length).toBe(2);
+        const commander = running.app.windows().find((page) => page !== running.page)!;
+        const pane = commander.locator('.terminal-pane');
+        const terminalInput = pane.locator('.xterm-helper-textarea');
+        const commanderTerminal = async () => {
+            const { identity, workbench } = await pageRequest<CommanderSnapshot>(
+                running.page,
+                'commander.snapshot',
+            );
+            return workbench.terminals.find(({ id }) => id === identity.terminalId);
+        };
+        await expect(pane.locator('.xterm-rows')).toContainText('Commander is running');
+        const exitedProcessId = (await commanderTerminal())?.processId;
+
+        await terminalInput.press('Control+d');
+        // The Agent quits back to its Shell; typing before it is gone would feed the Agent instead.
+        await expect(pane.locator('.xterm-rows')).toContainText('Commander quit');
+        await terminalInput.pressSequentially('exit');
+        await terminalInput.press('Enter');
+        const stopped = commander.locator('[data-terminal-exit-state="stopped"]');
+        await expect(stopped).toContainText('Process exited normally');
+
+        await commander.keyboard.press('Meta+Shift+R');
+        await expect(stopped).toHaveCount(0);
+        await expect
+            .poll(async () => {
+                const terminal = await commanderTerminal();
+                return (
+                    terminal?.lastProcessState === 'running' &&
+                    terminal.processId !== exitedProcessId
+                );
+            })
+            .toBe(true);
+        await testInfo.attach('commander-restarted-from-shortcut', {
+            body: await commander.screenshot(),
+            contentType: 'image/png',
+        });
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
 // eslint-disable-next-line no-empty-pattern -- Playwright requires object destructuring for its fixture argument
 test('Agent Commander Terminal inserts the path of a screenshot dropped from Finder', async ({}, testInfo) => {
     const directory = await realpath(await mkdtemp(`${tmpdir()}/caxri-commander-drop-e2e-`));

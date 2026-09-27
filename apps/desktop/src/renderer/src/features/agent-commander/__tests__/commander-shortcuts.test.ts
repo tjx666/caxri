@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({ ran: [] as string[] }));
 vi.mock('../../terminal/terminal-commands', () => ({
     clearActiveTerminal: (terminalId: string) => mocks.ran.push(`clear ${terminalId}`),
     findInActiveTerminal: (terminalId: string) => mocks.ran.push(`find ${terminalId}`),
+    restartActiveTerminal: (terminalId: string) => mocks.ran.push(`restart ${terminalId}`),
 }));
 vi.mock('../../terminal/terminal-link-actions', () => ({
     openTerminalLinkPicker: (terminalId: string) => mocks.ran.push(`links ${terminalId}`),
@@ -16,7 +17,12 @@ import { useDialogStore } from '../../../stores/dialogs';
 import { useWorkbenchStore } from '../../../stores/workbench';
 import { createCommanderShortcutState, dispatchCommanderKeydown } from '../commander-shortcuts';
 
-const TERMINAL_TARGET = { closest: (selector: string) => (selector === '.xterm' ? {} : null) };
+/**
+ * The focused input of a running xterm, which matches both the Terminal and the editable-surface selectors.
+ */
+const TERMINAL_TARGET = {
+    closest: (selector: string) => (selector.split(', ').includes('.xterm') ? {} : null),
+};
 
 function keydown(
     key: string,
@@ -69,8 +75,19 @@ describe('Agent Commander shortcuts', () => {
             keydown('o', { metaKey: true, shiftKey: true }),
             'terminal-1',
         );
+        // A stopped Terminal gives up focus.
+        dispatchCommanderKeydown(
+            state,
+            keydown('r', { metaKey: true, shiftKey: true }, null),
+            'terminal-1',
+        );
 
-        expect(mocks.ran).toEqual(['find terminal-1', 'clear terminal-1', 'links terminal-1']);
+        expect(mocks.ran).toEqual([
+            'find terminal-1',
+            'clear terminal-1',
+            'links terminal-1',
+            'restart terminal-1',
+        ]);
     });
 
     it('leaves every Workbench command and chord to the focused surface', () => {
@@ -87,6 +104,15 @@ describe('Agent Commander shortcuts', () => {
         expect(newTerminal.preventDefault).not.toHaveBeenCalled();
         expect(chordStart.preventDefault).not.toHaveBeenCalled();
         expect(typedAfterChordStart.preventDefault).not.toHaveBeenCalled();
+    });
+
+    it('leaves Restart to a running Terminal that has focus, as the Workbench does', () => {
+        const restart = keydown('r', { metaKey: true, shiftKey: true });
+
+        dispatchCommanderKeydown(createCommanderShortcutState(), restart, 'terminal-1');
+
+        expect(mocks.ran).toEqual([]);
+        expect(restart.preventDefault).not.toHaveBeenCalled();
     });
 
     it('keeps Terminal-focused bindings to the Terminal', () => {
