@@ -119,17 +119,24 @@ The board (`commander.board`) projects every non-archived Session in a visible t
 into one of six groups, in this order: `attention`, `working`, `waiting`, `failed`, `finished`, and
 `idle`. Each row carries:
 
-- the primary Agent's process state;
+- the primary Agent's process state: the Agent CLI's own state while its Shell is up, because an
+  Agent can exit and leave its Shell running. A turn recorded as running or waiting without a live
+  Agent groups as `idle`, and the window shows it as exited rather than working;
 - the cached pull request from the `session.pullRequests` snapshot, with the snapshot's
-  `pullRequestsRefreshedAt`;
+  `pullRequestsRefreshedAt`. When the last lookup failed the window hides the pull request, as the
+  Activity view does, because its state and checks may be stale;
 - whether the Commander created the Session;
 - for a Commander Session, its current Commander task: its delegation ID, status, failure reason,
-  and update time. A task answered by a follow-up is superseded by it, and an unsettled task
-  (running or blocked) wins over a newer settled one. Only receipt state leaves the database; the
+  and update time. An unsettled task (running or blocked) wins over a settled one, and the newest
+  wins otherwise. A follow-up is admitted only after its parent settled, so a continued task shows
+  its newest link, and a follow-up rejected because its parent still runs never hides that parent.
+  Only receipt state leaves the database; the
   task's prompt and answer never reach the board. The window prints it next to the `Commander`
   marker as `Starting`, `Running`, `Answered`, `Blocked`, `Taken over`, `Stopped`, or `Failed`.
   A task `blocked` with `startup_waiting` reads `Needs you` and moves its row to `attention`: its
   Agent is running but waits at startup, usually on a first-run prompt only the user can answer.
+  A `failed` or `answer_unavailable` task moves its row to `failed`, since a task that never
+  started often left no Session activity to group by.
   `Answered` means the Agent gave its final answer, not that the Commander verified it.
 
 The board never waits on GitHub. The window refetches the board, debounced, on every `state.changed`

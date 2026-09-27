@@ -41,6 +41,7 @@ function terminal(overrides: Partial<TerminalRecord> = {}): TerminalRecord {
         icon: 'codex',
         orderIndex: 0,
         lastProcessState: 'running',
+        lastAgentProcessState: 'running',
         createdAt: 1,
         updatedAt: 1,
         ...overrides,
@@ -97,6 +98,48 @@ describe('Commander board grouping', () => {
         ).toBe(group);
     });
 
+    it.each([
+        [
+            'an Agent that exited inside a live Shell',
+            { lastAgentProcessState: 'stopped' },
+            'idle',
+            'stopped',
+        ],
+        [
+            'an Agent whose state was never recorded',
+            { lastAgentProcessState: undefined },
+            'idle',
+            'stopped',
+        ],
+        [
+            'a starting Shell',
+            { lastProcessState: 'starting', lastAgentProcessState: undefined },
+            'working',
+            'starting',
+        ],
+        [
+            'a plain Shell',
+            { kind: 'shell', lastAgentProcessState: undefined },
+            'working',
+            'running',
+        ],
+    ] as const)(
+        'groups a running turn in %s by the process it describes',
+        (_, overrides, group, processState) => {
+            const board = commanderBoard({
+                commanderSessionIds: new Set(),
+                now: NOW,
+                projects: [project],
+                pullRequests: { pullRequests: {}, refreshedAt: 0 },
+                sessions: [session({ lastActivityState: 'running' })],
+                tasks: [],
+                terminals: [terminal(overrides)],
+            });
+
+            expect(board.rows[0]).toMatchObject({ group, agent: { processState } });
+        },
+    );
+
     it('orders rows by group, then by recency, and drops archived or foreign Sessions', () => {
         const board = commanderBoard({
             commanderSessionIds: new Set(['session-2']),
@@ -135,10 +178,10 @@ describe('Commander board grouping', () => {
 
         expect(board.projects.map(({ id }) => id)).toEqual(['project-1']);
         expect(board.pullRequestsRefreshedAt).toBe(42);
-        expect(board.rows.map(({ sessionId }) => sessionId)).toEqual([
-            'session-3',
-            'session-2',
-            'session-1',
+        expect(board.rows.map(({ sessionId, group }) => [sessionId, group])).toEqual([
+            ['session-3', 'attention'],
+            ['session-2', 'failed'],
+            ['session-1', 'idle'],
         ]);
         expect(board.rows[1]).toMatchObject({
             agent: { terminalId: 'terminal-2', kind: 'codex', processState: 'running' },
@@ -166,7 +209,7 @@ describe('Commander board grouping', () => {
                 task({
                     delegationId: 'asked',
                     sessionId: 'session-1',
-                    status: 'blocked',
+                    status: 'completed',
                     createdAt: 1,
                 }),
                 task({
@@ -202,6 +245,74 @@ describe('Commander board grouping', () => {
                 board.rows.map(({ sessionId, task }) => [sessionId, task?.delegationId]),
             ),
         ).toEqual({ 'session-1': 'answer', 'session-2': 'stuck' });
+    });
+
+    it('keeps a waiting task on the board when its follow-up is rejected', () => {
+        const board = commanderBoard({
+            commanderSessionIds: new Set(['session-1']),
+            now: NOW,
+            projects: [project],
+            pullRequests: { pullRequests: {}, refreshedAt: 0 },
+            sessions: [session({ id: 'session-1' })],
+            tasks: [
+                task({
+                    delegationId: 'stuck',
+                    sessionId: 'session-1',
+                    status: 'blocked',
+                    failure: 'startup_waiting',
+                    createdAt: 1,
+                }),
+                task({
+                    delegationId: 'rejected',
+                    sessionId: 'session-1',
+                    followUpOf: 'stuck',
+                    status: 'failed',
+                    failure: 'target_busy',
+                    createdAt: 2,
+                }),
+            ],
+            terminals: [terminal({ sessionId: 'session-1' })],
+        });
+
+        expect(board.rows[0]).toMatchObject({
+            group: 'attention',
+            task: { delegationId: 'stuck', status: 'blocked' },
+        });
+    });
+
+    it.each([
+        ['failed', 'startup_not_ready', 'idle'],
+        ['failed', 'launch_failed', 'completed'],
+        ['answer_unavailable', 'result_missing', 'completed'],
+    ] as const)(
+        'moves a %s task (%s) to failed over a Session that looks %s',
+        (status, failure, lastActivityState) => {
+            const board = commanderBoard({
+                commanderSessionIds: new Set(['session-1']),
+                now: NOW,
+                projects: [project],
+                pullRequests: { pullRequests: {}, refreshedAt: 0 },
+                sessions: [session({ id: 'session-1', lastActivityState })],
+                tasks: [task({ sessionId: 'session-1', status, failure })],
+                terminals: [terminal({ sessionId: 'session-1' })],
+            });
+
+            expect(board.rows[0]?.group).toBe('failed');
+        },
+    );
+
+    it('keeps unread ahead of a failed task', () => {
+        const board = commanderBoard({
+            commanderSessionIds: new Set(['session-1']),
+            now: NOW,
+            projects: [project],
+            pullRequests: { pullRequests: {}, refreshedAt: 0 },
+            sessions: [session({ id: 'session-1', hasUnread: true })],
+            tasks: [task({ sessionId: 'session-1', status: 'failed', failure: 'launch_failed' })],
+            terminals: [terminal({ sessionId: 'session-1' })],
+        });
+
+        expect(board.rows[0]?.group).toBe('attention');
     });
 
     it('puts a Session whose Agent waits at startup under attention', () => {
