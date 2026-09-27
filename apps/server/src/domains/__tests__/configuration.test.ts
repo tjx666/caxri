@@ -15,6 +15,7 @@ import parcelWatcher from '@parcel/watcher';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+    createEventGate,
     createWatchDiagnosticHub,
     createWatchFailureProbe,
 } from '../../__tests__/support/watch-diagnostics';
@@ -473,33 +474,24 @@ describe('ConfigurationService', () => {
     it('reloads settings after an external atomic replacement', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-'));
         temporaryDirectories.push(directory);
-        const events: ServerEvent[] = [];
+        const gate = createEventGate<ServerEvent>();
         const watchHub = createWatchDiagnosticHub();
-        const service = new ConfigService(
-            directory,
-            (event) => {
-                events.push(event);
-            },
-            undefined,
-            { watchHub },
-        );
+        const service = new ConfigService(directory, gate.push, undefined, { watchHub });
         await service.initialize();
 
         try {
-            const diagnose = createWatchFailureProbe(watchHub, 'config', () => events.length);
+            const diagnose = createWatchFailureProbe(watchHub, 'config', () => gate.events.length);
             const source = `${JSON.stringify({ ...service.getSettings().value, 'terminal.fontSize': 16 }, null, 2)}\n`;
             const temporaryPath = `${service.settingsPath}.external.tmp`;
             await writeFile(temporaryPath, source, 'utf8');
             await rename(temporaryPath, service.settingsPath);
 
-            await diagnose(
-                expect
-                    .poll(() => service.getSettings().value['terminal.fontSize'], {
-                        timeout: 5_000,
-                    })
-                    .toBe(16),
-            );
-            expect(events.filter((event) => event.event === 'settings.changed')).toEqual([
+            // A push-based wait for the specific `settings.changed` event settles the instant the watcher (native
+            // callback or fallback poll) actually processes the replacement, instead of resampling on a fixed
+            // interval that itself competes for the same event loop under CI load — see issue #1259.
+            await diagnose(gate.waitFor((event) => event.event === 'settings.changed'));
+            expect(service.getSettings().value['terminal.fontSize']).toBe(16);
+            expect(gate.events.filter((event) => event.event === 'settings.changed')).toEqual([
                 { event: 'settings.changed', payload: { source } },
             ]);
         } finally {
@@ -511,16 +503,9 @@ describe('ConfigurationService', () => {
     it('keeps last-known-good sources after oversized external replacements', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-config-oversized-reload-'));
         temporaryDirectories.push(directory);
-        const events: ServerEvent[] = [];
+        const gate = createEventGate<ServerEvent>();
         const watchHub = createWatchDiagnosticHub();
-        const service = new ConfigService(
-            directory,
-            (event) => {
-                events.push(event);
-            },
-            undefined,
-            { watchHub },
-        );
+        const service = new ConfigService(directory, gate.push, undefined, { watchHub });
         await service.initialize();
         const cases = [
             {
@@ -542,11 +527,11 @@ describe('ConfigurationService', () => {
 
         try {
             for (const testCase of cases) {
-                events.length = 0;
+                gate.events.length = 0;
                 const diagnose = createWatchFailureProbe(
                     watchHub,
                     'config',
-                    () => events.filter((event) => event.event === testCase.event).length,
+                    () => gate.events.filter((event) => event.event === testCase.event).length,
                 );
                 const previousSource = testCase.getSource();
                 const temporaryPath = `${testCase.path}.external.tmp`;
@@ -556,27 +541,25 @@ describe('ConfigurationService', () => {
                     ' '.repeat(MAX_CONFIGURATION_SOURCE_BYTES + 1),
                     'utf8',
                 );
-                // eslint-disable-next-line no-await-in-loop -- rename must complete before polling for this case's event; cases share watched state and cannot run concurrently.
+                // eslint-disable-next-line no-await-in-loop -- rename must complete before waiting for this case's event; cases share watched state and cannot run concurrently.
                 await rename(temporaryPath, testCase.path);
 
-                // eslint-disable-next-line no-await-in-loop -- polling this case's outcome must finish before resetting shared `events` state for the next case.
-                await diagnose(
-                    expect
-                        .poll(
-                            () => {
-                                const payload = events.find(
-                                    (event) => event.event === testCase.event,
-                                )?.payload as { error?: string; source: string } | undefined;
-                                return payload?.error;
-                            },
-                            { timeout: 5_000 },
-                        )
-                        .toContain('configuration source limit'),
+                // Push-based wait (see issue #1259): settles the instant the rejection event arrives instead of
+                // resampling `gate.events` on a fixed interval that itself competes for the same event loop under load.
+                // eslint-disable-next-line no-await-in-loop -- waiting for this case's outcome must finish before resetting shared `gate.events` state for the next case.
+                const rejected = await diagnose(
+                    gate.waitFor(
+                        (event) =>
+                            event.event === testCase.event &&
+                            typeof (event.payload as { error?: string }).error === 'string' &&
+                            (event.payload as { error: string }).error.includes(
+                                'configuration source limit',
+                            ),
+                    ),
                 );
                 expect(testCase.getSource()).toBe(previousSource);
-                const payload = events.find((event) => event.event === testCase.event)?.payload as
-                    { error?: string; source: string } | undefined;
-                expect(payload?.source).toBe(previousSource);
+                const payload = rejected.payload as { error?: string; source: string };
+                expect(payload.source).toBe(previousSource);
             }
         } finally {
             await service.close();
