@@ -303,10 +303,11 @@ export function findTerminalLinks(
             text: trimmed.text,
         });
     }
-    const quotedFileLinks = findQuotedPathLinks(text, urlLinks, wordSeparators);
+    const quotedPathLinks = findQuotedPathLinks(text, urlLinks, wordSeparators);
+    const quotedExclusions = quotedPathLinks.excludedRanges;
     const locationFileLinks = withoutCoveredLinks(
         findLocationFileLinks(text, urlLinks, wordSeparators),
-        quotedFileLinks,
+        quotedPathLinks.links,
     );
     let locationLinkIndex = 0;
     let quotedLinkIndex = 0;
@@ -327,14 +328,11 @@ export function findTerminalLinks(
             if (metrics) metrics.detectedLinkRangeVisits += 1;
             if (startIndex < urlLink.endIndex && endIndex > urlLink.startIndex) continue;
         }
-        while (quotedFileLinks[quotedLinkIndex]?.endIndex <= startIndex) quotedLinkIndex += 1;
-        const quotedLink = quotedFileLinks.at(quotedLinkIndex);
-        if (quotedLink && startIndex < quotedLink.endIndex && endIndex > quotedLink.startIndex)
+        while (quotedExclusions[quotedLinkIndex]?.endIndex <= startIndex) quotedLinkIndex += 1;
+        const exclusion = quotedExclusions.at(quotedLinkIndex);
+        if (exclusion && startIndex < exclusion.endIndex && endIndex > exclusion.startIndex)
             continue;
-        /**
-         * Both collections follow source order. Retire each completed range once, then compare the current token with
-         * at most the next range instead of restarting from the first range.
-         */
+        // Every reserved-range collection here follows source order, so each entry retires once instead of rescanning.
         while (unsupportedHomes[unsupportedHomeIndex]?.endIndex <= startIndex) {
             if (metrics) metrics.unsupportedHomeRangeVisits += 1;
             unsupportedHomeIndex += 1;
@@ -370,7 +368,7 @@ export function findTerminalLinks(
         });
     }
     const fileLinks = mergeTerminalLinks(
-        quotedFileLinks,
+        quotedPathLinks.links,
         mergeTerminalLinks(locationFileLinks, wordFileLinks),
     );
     const references = referenceContext

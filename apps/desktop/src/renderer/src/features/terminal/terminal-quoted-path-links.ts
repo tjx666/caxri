@@ -16,19 +16,44 @@ const EXPLICIT_PATH_MARKER_PATTERN = /^(?:\/|~\/|\.\.?\/|file:\/\/)/iu;
 
 /**
  * Accepts a spaced quoted span only when every part after the first space still reads as path text. A shell error
- * quotes a whole command as readily as a producer quotes a path, and `failed to run "/usr/bin/env node --version"` must
- * not become one link — that would also suppress the correct `/usr/bin/env` link the word pass already reports. An
- * option flag disqualifies the span outright, and the closing part must carry a separator or an extension dot, which
- * keeps `Application Support/…` and a spaced file name such as `My File.txt` while rejecting trailing prose.
+ * quotes a whole command as readily as a producer quotes a path, and neither `failed to run "/usr/bin/env node
+ * --version"` nor `failed to run "/usr/bin/env node index.js"` must become one link — that would also suppress the
+ * correct `/usr/bin/env` link the word pass already reports. Command arguments are indistinguishable from a bare
+ * relative segment on shape alone (`index.js` and a spaced filename both end in an extension), so every continuation
+ * except the last must itself carry a `/` to prove it is a path segment rather than a word; only the final continuation
+ * may be a bare filename, which keeps `Application Support/…` and a spaced file name such as `My File.txt` while
+ * rejecting trailing prose or a bare command argument. An option flag disqualifies the span outright at any position.
+ * The accepted trade-off (see issue #1022) is that a real path with two or more interior spaces
+ * (`/Users/me/Documents/My Project Files/a.txt`) falls back to the existing fragment-link behavior, because `Project`
+ * alone cannot be told apart from a command argument either.
  */
 function hasQuotedPathContinuations(candidate: string): boolean {
     const [, ...continuations] = candidate.split(/\s+/u);
-    const closing = continuations.at(-1);
-    return (
-        closing !== undefined &&
-        /[/.]/u.test(closing) &&
-        continuations.every((continuation) => !continuation.startsWith('-'))
-    );
+    if (continuations.length === 0) return false;
+    const lastIndex = continuations.length - 1;
+    return continuations.every((continuation, index) => {
+        if (continuation.startsWith('-')) return false;
+        if (index < lastIndex) return continuation.includes('/');
+        return /[/.]/u.test(continuation);
+    });
+}
+
+interface TerminalLinkRange {
+    endIndex: number;
+    startIndex: number;
+}
+
+export interface QuotedPathLinkResult {
+    links: TerminalLinkMatch[];
+    /**
+     * Ranges the word/token pass must never independently re-link. Covers every accepted `links` entry (so its interior
+     * words are not re-reported) and, per issue #1022, every argument of a quoted span that opened like a path but
+     * whose shape resolved to a command line instead (see {@link hasQuotedPathContinuations}) — a trailing bare argument
+     * such as `index.js` in `"/usr/bin/env node index.js"` would otherwise still qualify as its own bare-filename link
+     * once the merged candidate is rejected. The leading segment (`/usr/bin/env`) is deliberately left out so the word
+     * pass can still report it on its own.
+     */
+    excludedRanges: TerminalLinkRange[];
 }
 
 /**
@@ -46,8 +71,9 @@ export function findQuotedPathLinks(
     text: string,
     urlLinks: TerminalLinkMatch[],
     wordSeparators: string,
-): TerminalLinkMatch[] {
+): QuotedPathLinkResult {
     const links: TerminalLinkMatch[] = [];
+    const excludedRanges: TerminalLinkRange[] = [];
     let urlIndex = 0;
     for (const quoted of text.matchAll(QUOTED_LINK_PATTERN)) {
         const inner = quoted[2];
@@ -64,15 +90,25 @@ export function findQuotedPathLinks(
          * wrapper characters; re-reporting it here would duplicate the link.
          */
         if (!/\s/u.test(candidate) || !EXPLICIT_PATH_MARKER_PATTERN.test(candidate)) continue;
-        if (!hasQuotedPathContinuations(candidate)) continue;
+        const startIndex = quoted.index + 1 + (inner.length - inner.trimStart().length);
+        if (!hasQuotedPathContinuations(candidate)) {
+            // See issue #1022: the arguments of a rejected quoted command line must stay unlinkable too.
+            const firstSeparator = /\s+/u.exec(candidate);
+            if (firstSeparator)
+                excludedRanges.push({
+                    endIndex: startIndex + candidate.length,
+                    startIndex: startIndex + firstSeparator.index + firstSeparator[0].length,
+                });
+            continue;
+        }
         const location = parseTerminalFileLocation(candidate);
         if (location.invalidLocation || !isLikelyFilePath(location.target)) continue;
-        const startIndex = quoted.index + 1 + (inner.length - inner.trimStart().length);
         const endIndex = startIndex + candidate.length;
         while (urlLinks[urlIndex]?.endIndex <= startIndex) urlIndex += 1;
         const url = urlLinks.at(urlIndex);
         if (url && startIndex < url.endIndex && endIndex > url.startIndex) continue;
         links.push({ ...location, endIndex, kind: 'file', startIndex, text: candidate });
+        excludedRanges.push({ endIndex, startIndex });
     }
-    return links;
+    return { links, excludedRanges };
 }
