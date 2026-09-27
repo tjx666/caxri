@@ -134,3 +134,73 @@ it('withholds an admitted response when access is revoked while waiting', async 
     });
     await rejected;
 });
+
+/**
+ * A wait's own deadline is authoritative. The CLI mirrors `--timeout` into the client's request deadline, and the
+ * client starts that clock before the Server starts its wait, so a generic client timer would always fire first and
+ * turn a normal "nothing ready yet" into a TIMEOUT error.
+ */
+it("returns the Server's wait timeout instead of racing it with the client deadline", async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'caxri-external-wait-timeout-'));
+    const lease = await acquireServerProfile({ userDataPath, version: '1.0.0' });
+    const registry = await DelegationAccessRegistry.open(
+        lease.paths.directory,
+        join(lease.paths.directory, 'clients.json'),
+    );
+    const issued = await registry.create(
+        { projectId: 'project', sessionId: 'session', callerProvider: 'codex' },
+        60_000,
+    );
+    const timeoutMs = 500;
+    const server = new ControlServer({
+        identity: lease.identity,
+        desktopCredential: lease.desktopCredential,
+        adapters: {
+            server: {
+                invoke: () =>
+                    new Promise((resolve) => {
+                        setTimeout(
+                            () =>
+                                resolve({
+                                    outcome: 'timeout',
+                                    receipt: {
+                                        delegationId: 'task',
+                                        projectId: 'project',
+                                        sessionId: 'session',
+                                        provider: 'claude',
+                                        status: 'running',
+                                        revision: 1,
+                                        createdAt: 1,
+                                        updatedAt: 1,
+                                    },
+                                }),
+                            timeoutMs,
+                        );
+                    }),
+            },
+        },
+        authenticateDelegation: (credential) => registry.authenticate(credential),
+        refreshContext: (context) =>
+            context.principal.kind === 'delegation-client'
+                ? registry.refresh(context.principal)
+                : context,
+    });
+    const resources: { client?: ServerClient } = {};
+    onTestFinished(async () => {
+        resources.client?.close();
+        await server.close();
+        await lease.release();
+        await rm(userDataPath, { recursive: true, force: true });
+    });
+    await lease.publish(await server.start());
+    resources.client = await ServerClient.connect(lease.manifest, timeoutMs, {
+        kind: 'delegation-client',
+        clientId: issued.clientId,
+        generation: issued.generation,
+        token: issued.token,
+    });
+
+    await expect(
+        resources.client.request('agent.delegation.wait', { delegationId: 'task', timeoutMs }),
+    ).resolves.toMatchObject({ outcome: 'timeout', receipt: { status: 'running' } });
+});

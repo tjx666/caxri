@@ -23,6 +23,10 @@ export class RequestCancellationRegistry {
     private static readonly maximumTombstones = 256;
     private static readonly tombstoneTtlMs = 30_000;
     private readonly controllers = new Map<string, AbortController>();
+    /**
+     * Requests that only observe state, so aborting one when its caller goes away loses no work.
+     */
+    private readonly disconnectable = new Set<string>();
     private readonly tombstones = new Map<string, number>();
 
     private pruneTombstones(now = Date.now()): void {
@@ -32,7 +36,11 @@ export class RequestCancellationRegistry {
             this.tombstones.delete(this.tombstones.keys().next().value!);
     }
 
-    async run<T>(key: string, task: (signal: AbortSignal) => Promise<T>): Promise<T> {
+    private async register<T>(
+        key: string,
+        task: (signal: AbortSignal) => Promise<T>,
+        isDisconnectable: boolean,
+    ): Promise<T> {
         this.pruneTombstones();
         if (this.tombstones.delete(key))
             throw new CaxriError('CANCELLED', 'Runtime request was canceled before registration');
@@ -40,11 +48,35 @@ export class RequestCancellationRegistry {
             throw new CaxriError('CONFLICT', 'Request identity is already in flight');
         const controller = new AbortController();
         this.controllers.set(key, controller);
+        if (isDisconnectable) this.disconnectable.add(key);
         try {
             return await task(controller.signal);
         } finally {
-            if (this.controllers.get(key) === controller) this.controllers.delete(key);
+            if (this.controllers.get(key) === controller) {
+                this.controllers.delete(key);
+                this.disconnectable.delete(key);
+            }
         }
+    }
+
+    run<T>(key: string, task: (signal: AbortSignal) => Promise<T>): Promise<T> {
+        return this.register(key, task, false);
+    }
+
+    /**
+     * Runs a request that only observes state, which `disconnect` may abort once its caller goes away.
+     */
+    runDisconnectable<T>(key: string, task: (signal: AbortSignal) => Promise<T>): Promise<T> {
+        return this.register(key, task, true);
+    }
+
+    /**
+     * Aborts a request whose caller disconnected, but only one registered as disconnectable: most forwarded operations
+     * are durable mutations that must finish even when nobody is left to read the answer. Unlike `cancel`, an unknown
+     * key leaves no tombstone, since a disconnected caller never sends that request again.
+     */
+    disconnect(key: string): void {
+        if (this.disconnectable.has(key)) this.controllers.get(key)?.abort();
     }
 
     cancel(key: string): boolean {
