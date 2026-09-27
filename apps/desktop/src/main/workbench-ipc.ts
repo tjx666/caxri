@@ -13,10 +13,11 @@ import {
 } from '@caxri/protocol';
 import type { EventLoopStallSummary, StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
-import type { WebContents } from 'electron';
+import type { BrowserWindow, WebContents } from 'electron';
 import { ipcMain } from 'electron';
 
 import type { createElectronIpcCommandAdapter } from './ipc-command-adapter';
+import { runInRequestWindow } from './request-window';
 
 /**
  * Failure codes that typically originate from ordinary Renderer-side user input (e.g. an unresolved path while the user
@@ -65,6 +66,10 @@ export interface WorkbenchIpcOptions {
 
 export interface CompanionRendererPolicy {
     renderer(): WebContents | undefined;
+    /**
+     * The window a Main method presents native UI over for this companion's requests, such as its context menu.
+     */
+    window(): BrowserWindow | undefined;
     /**
      * Throws a classified `CaxriError` when the companion may not send this request envelope.
      */
@@ -372,7 +377,10 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
                     ok: false,
                     error: toWireError(new CaxriError('CANCELLED', 'Application is quitting')),
                 };
-            const reply = await options.transport.dispatch(raw);
+            const reply = await runInRequestWindow(
+                role === 'companion' ? options.companion?.window() : undefined,
+                () => options.transport.dispatch(raw),
+            );
             if (role === 'companion' && reply.ok) options.companion?.observeReply?.(raw, reply);
             /**
              * In-flight reads can outlive the window once quit closes the Server attachment; the consumer is gone.

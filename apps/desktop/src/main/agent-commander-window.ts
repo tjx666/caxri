@@ -57,6 +57,7 @@ export class AgentCommanderWindowController {
     companion(): CompanionRendererPolicy {
         return {
             renderer: () => this.renderer(),
+            window: () => (this.window?.isDestroyed() ? undefined : this.window),
             admit: (raw) => this.policy.admit(raw),
             observeReply: (raw, reply) => this.policy.observeReply(raw, reply),
             onEventsReady: () => {

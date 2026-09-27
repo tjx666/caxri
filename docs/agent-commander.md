@@ -31,8 +31,12 @@ The window runs with the Desktop principal. Main therefore authorizes it separat
 
 - **Always admitted.** A short read list (`commander.board`, Settings, keybindings, theme,
   `events.recover`), the Commander's own lifecycle (`commander.ensure`, `commander.snapshot`, and
-  `agentCommander.stop` for the title bar's Stop button), `external.open`, and one Workbench
-  hand-off, `agentCommander.revealSession`. The window cannot call `commander.stop` directly; Main
+  `agentCommander.stop` for the title bar's Stop button), `external.open`, the Terminal pane's
+  context menu (`contextMenu.show`), and one Workbench hand-off, `agentCommander.revealSession`.
+  Main pops that menu over the Commander window, not the Workbench: the IPC boundary records the
+  requesting window (`request-window.ts`) because the command dispatcher carries no Electron
+  objects. The menu only reports the chosen entry back, and that entry's action is a separate
+  request this policy admits on its own. The window cannot call `commander.stop` directly; Main
   closes the window before it stops the Commander. `app.bootstrap` and
   `app.records` are refused: the window reads its rows only through `commander.snapshot`.
 - **Terminal requests** (attach, detach, input, resize, restart, long paste, and the pane's
