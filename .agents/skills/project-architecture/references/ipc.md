@@ -17,7 +17,11 @@ owner availability, and results before it returns `{ protocolVersion, ok, result
 commands may execute again; write and control commands coalesce the same principal/request ID and
 reject an ID reused with different command content. The Electron adapter additionally validates the
 requesting WebContents before invoking that dispatcher. Internal Server methods remain outside the
-public command registry.
+public command registry. Desktop Main reaches an internal method only when it is listed in
+`desktopServerOperationIds`; `DesktopServerConnection.request` rejects any other internal method
+before it reaches the wire, and unit tests inject their own request fakes, so a missing entry only
+surfaces as a silently failing feature. `apps/desktop/src/main/__tests__/server-operation-routing.test.ts`
+enforces the list for every `request('…')` literal in Main.
 
 Controlled view operations use the public protocol union and exhaustive metadata for provider
 routing, cancellation, and request lifetime. Host dispatch must remain exhaustive over that union;

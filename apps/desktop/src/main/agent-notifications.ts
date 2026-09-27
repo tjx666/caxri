@@ -368,14 +368,22 @@ export function createAgentNotificationCoordinator(
      * asynchronous, the Session is re-checked afterwards so a banner never announces attention the user already saw.
      */
     const deliverBanners = async (banners: Array<PendingBanner | undefined>): Promise<void> => {
-        for (const banner of banners) {
-            if (!banner) continue;
-            const reply =
+        const pending = banners.filter((banner) => banner !== undefined);
+        if (pending.length === 0) return;
+        /**
+         * Summaries load concurrently so a reconnect that surfaces several finished turns still holds the queue for one
+         * timeout at most; banners are then shown in reconciliation order.
+         */
+        const replies = await Promise.all(
+            pending.map((banner) =>
                 banner.session.lastAttentionKind === 'completed'
-                    ? // eslint-disable-next-line no-await-in-loop -- banners keep their reconciliation order
-                      await loadReplySummary(banner.session.id)
-                    : undefined;
-            if (isDisposed) return;
+                    ? loadReplySummary(banner.session.id)
+                    : Promise.resolve(undefined),
+            ),
+        );
+        if (isDisposed) return;
+        for (const [index, banner] of pending.entries()) {
+            const reply = replies[index];
             const current = sessions.get(banner.session.id);
             if (
                 current?.attentionEpoch !== banner.session.attentionEpoch ||
@@ -383,6 +391,9 @@ export function createAgentNotificationCoordinator(
                 options.isSessionVisible(current.id, selectedSessionId) ||
                 !settings?.['agents.notifications.enabled']
             ) {
+                // The previous turn's banner is just as stale as the one being dropped.
+                if (current?.attentionEpoch === banner.session.attentionEpoch)
+                    closeNotification(banner.session.id);
                 banner.decide('superseded', reply?.outcome);
                 continue;
             }
