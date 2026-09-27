@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer';
 
-import type { AgentTranscriptLocation } from './transcript-security';
+import type { AgentTranscriptLocation, TranscriptScanFailureReason } from './transcript-security';
 import { openSafeAgentTranscript } from './transcript-security';
 
 const MAX_TRANSCRIPT_SCAN_BYTES_PER_READ = 4 * 1024 * 1024;
@@ -19,6 +19,13 @@ export interface TranscriptScanCursor {
 }
 
 export interface TranscriptScanOptions {
+    /**
+     * Reports why a pass produced nothing, distinguishing a routine capability miss (`missing`, before an Agent's first
+     * line) from a security rejection (`symlinkRejected`, `hardlinkRejected`, `identityMismatch`, `structureRejected`)
+     * and an IO failure (`openFailed`, `readFailed`). Optional and purely additive: omitting it reproduces the exact
+     * prior silent-failure behavior.
+     */
+    onFailure?: (reason: TranscriptScanFailureReason) => void;
     /**
      * Invoked once when the transcript shrank below the cursor (the provider rewrote it), so the caller can drop any
      * state derived from bytes that no longer exist before the rescan from byte zero starts.
@@ -39,7 +46,7 @@ export async function scanTranscriptLines(
     options: TranscriptScanOptions = {},
 ): Promise<number | undefined> {
     try {
-        const opened = await openSafeAgentTranscript(location);
+        const opened = await openSafeAgentTranscript(location, options.onFailure);
         if (!opened) return;
         const { handle, stats } = opened;
         try {
@@ -99,8 +106,12 @@ export async function scanTranscriptLines(
         }
     } catch {
         /**
-         * A missing or unreadable transcript is a normal capability miss; keep any previously scanned state.
+         * `openSafeAgentTranscript` already reported its own rejection reason (or found nothing to report, a routine
+         * capability miss); reaching this catch instead means the file opened but a later read of its bytes failed.
+         * Either way, keep any previously scanned state — a missing or unreadable transcript is not fatal to the
+         * caller.
          */
+        options.onFailure?.('readFailed');
         return undefined;
     }
 }

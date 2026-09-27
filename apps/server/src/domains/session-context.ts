@@ -1,4 +1,5 @@
 import type { SessionRecord } from '@caxri/protocol';
+import type { StructuredLogger } from '@caxri/system';
 import { rememberBounded } from '@caxri/utils';
 
 import type { AcceptanceReference } from './acceptance-link';
@@ -21,6 +22,7 @@ import {
     scanTranscriptToEnd,
 } from './agents';
 import type { CaxriDatabase } from './db';
+import { SessionContextTelemetry } from './session-context-telemetry';
 import { SingleFlight } from './single-flight';
 
 const MAX_TRANSCRIPT_SCANS = 128;
@@ -78,12 +80,15 @@ export class SessionContextService {
     private readonly environment: AgentEnvironment;
     private readonly reads = new SingleFlight<string, SessionTranscriptContext>();
     private readonly scans = new Map<string, SessionTranscriptScan>();
+    private readonly telemetry: SessionContextTelemetry;
 
     constructor(
         private readonly database: CaxriDatabase,
+        logger: StructuredLogger,
         environment: AgentEnvironment = defaultAgentEnvironment(),
     ) {
         this.environment = environment;
+        this.telemetry = new SessionContextTelemetry(logger);
     }
 
     /**
@@ -112,6 +117,11 @@ export class SessionContextService {
             };
             rememberBounded(this.scans, location.path, current, MAX_TRANSCRIPT_SCANS);
             const { context, pullRequests } = current;
+            const startedAt = performance.now();
+            const offsetBefore = context.offset;
+            // A plain property (not a bare `let`) so the reset flag set from inside the nested `onReset` callback is
+            // unambiguous to read back below, including for type-aware lint's flow analysis across the closure.
+            const pass = { didReset: false };
             await scanTranscriptToEnd(
                 location,
                 context,
@@ -120,12 +130,23 @@ export class SessionContextService {
                     scanTranscriptPullRequestLine(line, pullRequests);
                 },
                 {
+                    onFailure: (reason) => this.telemetry.recordFailure(session.id, reason),
                     onReset: () => {
                         resetTranscriptSessionContextScan(context);
                         resetTranscriptPullRequestScan(pullRequests);
+                        pass.didReset = true;
+                        this.telemetry.recordReset(session.id);
                     },
                 },
             );
+            // `context.offset` is the shared cursor scanTranscriptToEnd advanced; its net movement approximates bytes
+            // scanned this pass (an undercount only when a per-record-oversized skip or the 4 MiB per-poll ceiling
+            // also applied, both already bounded). A pass that reset restarted the cursor at byte zero, so its whole
+            // post-reset offset — not the delta against the pre-reset value — is what this pass actually read.
+            const bytesScanned = pass.didReset
+                ? context.offset
+                : Math.max(0, context.offset - offsetBefore);
+            this.telemetry.recordScan(session.id, performance.now() - startedAt, bytesScanned);
             return {
                 acceptanceReferences: context.acceptanceReferences.toReversed(),
                 branches: context.branches.toReversed(),
