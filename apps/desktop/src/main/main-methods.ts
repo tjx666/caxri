@@ -39,6 +39,7 @@ import {
 import { showContextMenu } from './context-menu';
 import { openExternalUrl } from './external-links';
 import type { ProcessExplorerWindowController } from './process-explorer-window';
+import { currentRequestWindow } from './request-window';
 import type { DesktopServerConnection } from './server-connection';
 import type { UpdateService } from './updates';
 import type { createWorkbenchRootAuthority } from './workbench-root-authority';
@@ -413,10 +414,12 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 );
                 return { choice: unsavedChangesChoice(result.response) };
             }
-            case 'contextMenu.show':
-                if (!mainWindow || mainWindow.isDestroyed())
+            case 'contextMenu.show': {
+                const window = currentRequestWindow() ?? mainWindow;
+                if (!window || window.isDestroyed())
                     throw new CaxriError('UNAVAILABLE', 'No window is available for the menu');
-                return showContextMenu(mainWindow, request.params);
+                return showContextMenu(window, request.params);
+            }
             case 'processExplorer.open':
                 options.getProcessExplorer().open();
                 return null;
