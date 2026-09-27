@@ -77,6 +77,23 @@ test('Files tree virtualizes rows and keeps ancestor directories pinned while th
         ).not.toBe('none');
         await running.page.screenshot({ path: test.info().outputPath('file-tree-sticky.png') });
 
+        /**
+         * A hovered pinned row stays opaque: the list hover color is translucent, and painting it in place of the row's
+         * surface let the rows scrolling underneath show through the pinned name.
+         */
+        await stickyRow('level-3').hover();
+        expect(
+            await stickyRow('level-3').evaluate((element) => {
+                const probe = document.createElement('canvas').getContext('2d')!;
+                probe.fillStyle = getComputedStyle(element).backgroundColor;
+                probe.fillRect(0, 0, 1, 1);
+                return probe.getImageData(0, 0, 1, 1).data[3];
+            }),
+        ).toBe(255);
+        await running.page.screenshot({
+            path: test.info().outputPath('file-tree-sticky-hover.png'),
+        });
+
         // Clicking a pinned ancestor scrolls its real row back into place and focuses it, as VS Code does.
         await stickyRow('level-3').click();
         const level3 = tree.getByRole('treeitem', { name: 'level-3', exact: true });

@@ -8,7 +8,6 @@ import { GitFileStatusLetter } from '../../../components/git-file-status-letter'
 import { ContextMenu, ContextMenuTrigger } from '../../../components/ui/context-menu';
 import { Input } from '../../../components/ui/input';
 import { FileTypeIcon } from '../../../icons/files/file-type-icon';
-import { setLabelDragImage } from '../../../lib/drag-image';
 import { hasDraggedPath, startFilePathDrag } from '../../../lib/file-drag';
 import type { GitChildRepoKind, GitDecoration } from '../../../lib/git-decorations';
 import { gitDecorationClassName } from '../../../lib/git-decorations';
@@ -447,7 +446,6 @@ export function FileTreeItem({
             }}
             onDragStart={(event) => {
                 startFilePathDrag(event.dataTransfer, entry.path, editable);
-                setLabelDragImage(event.dataTransfer, entry.name);
             }}
             onDrop={dropIntoDirectory}
             onPaste={(event) => {
