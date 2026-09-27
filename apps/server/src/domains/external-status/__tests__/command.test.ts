@@ -72,6 +72,15 @@ describe('runExternalStatusCommand', () => {
         ],
         ['gh: To get started with GitHub CLI, please run: gh auth login', 'not-logged-in'],
         ['Error: No existing credentials found. Please run `vc login`', 'not-logged-in'],
+        [
+            'GraphQL: Resource protected by organization SAML enforcement. You must grant your OAuth token access to this organization.',
+            'permission-denied',
+        ],
+        [
+            "GraphQL: Your token has not been granted the required scopes to execute this query. The 'login' field requires one of the following scopes: ['read:org']",
+            'permission-denied',
+        ],
+        ['HTTP 403: API rate limit exceeded for user', 'rate-limited'],
     ] as const)('classifies %s for the status UI', async (message, kind) => {
         await expect(
             runExternalStatusCommand('vc', ['ls'], '/repo', {

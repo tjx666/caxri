@@ -151,6 +151,21 @@ describe('AgentWorkTracker', () => {
         });
     });
 
+    it('retires a failed subagent without surfacing it as the parent turn', () => {
+        const tracker = new AgentWorkTracker(vi.fn());
+        tracker.observe(signal('subagentStarted', 'subagent-1'));
+        tracker.observe(signal('subagentStarted', 'subagent-2'));
+
+        expect(tracker.observe(signal('turnFailed', 'subagent-1'))).toEqual({
+            deferCompletion: false,
+            outcome: 'subagentPending',
+        });
+        expect(tracker.observe(signal('turnFailed', 'subagent-unknown'))).toEqual({
+            deferCompletion: false,
+            outcome: 'subagentUnmatched',
+        });
+    });
+
     it('forgets deferred work when the Terminal launch ends', () => {
         const onDeferredParentFinished = vi.fn();
         const tracker = new AgentWorkTracker(onDeferredParentFinished);

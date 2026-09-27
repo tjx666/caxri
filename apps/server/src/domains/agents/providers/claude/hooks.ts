@@ -18,7 +18,12 @@ const bindings = [
         interactive: 'question',
     },
     { event: 'Stop', phase: 'turnFinished', reply: 'emptyJson' },
-    { event: 'StopFailure', phase: 'turnFinished' },
+    /**
+     * Claude fires StopFailure instead of Stop when the turn ends on an API error (expired login, rate limit, billing,
+     * quota). Binding it to `turnFinished` recorded those turns as `completed`, so a signed-out Claude looked idle and
+     * successful in the sidebar and in completion notifications.
+     */
+    { event: 'StopFailure', phase: 'turnFailed' },
     { event: 'SubagentStop', phase: 'turnFinished', reply: 'emptyJson' },
     { event: 'PreToolUse', matcher: '^Bash$', phase: 'shellToolStarted' },
     { event: 'PostToolUse', matcher: '^Bash$', phase: 'shellToolFinished' },
@@ -61,7 +66,7 @@ function disabledHookPolicy(source: string | undefined): string | undefined {
 
 export const claudeHookAdapter: AgentHookAdapter = {
     bindings,
-    schemaVersion: 10,
+    schemaVersion: 11,
     configTargets: (environment) => [
         {
             id: SETTINGS_TARGET,

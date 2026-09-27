@@ -109,6 +109,8 @@ const CLI_PROVIDERS = {
         displayName: 'GitHub CLI',
         installHint:
             'Pull requests for this repository need the GitHub CLI. Install it, then recheck.',
+        accessHint:
+            'Run gh auth refresh, authorize SSO for the organization if it requires it, then recheck.',
         loginCommand: 'gh auth login',
         providerName: 'GitHub',
         resource: 'pull requests',
@@ -118,6 +120,7 @@ const CLI_PROVIDERS = {
         displayName: 'LobeHub CLI',
         installHint:
             'Acceptance reports need the LobeHub CLI. Install it with npm i -g @lobehub/cli, then recheck.',
+        accessHint: 'Check that your LobeHub account can read this report, then recheck.',
         loginCommand: 'lh login',
         providerName: 'LobeHub',
         resource: 'acceptance reports',
@@ -127,6 +130,7 @@ const CLI_PROVIDERS = {
         displayName: 'Linear CLI',
         installHint: 'Linked issues need the Linear CLI. Install it, then recheck.',
         linkHint: 'Run linear config in this repository, then recheck.',
+        accessHint: 'Check that your Linear account can see this team, then recheck.',
         loginCommand: 'linear auth login',
         providerName: 'Linear',
         resource: 'linked issues',
@@ -138,6 +142,7 @@ const CLI_PROVIDERS = {
             'Deployments for this repository need the Vercel CLI. Install it with npm i -g vercel, then recheck.',
         linkHint: 'Run vc link in this repository, then recheck.',
         linkMessage: 'Repository not linked to Vercel',
+        accessHint: 'Check that your Vercel account can access this project, then recheck.',
         loginCommand: 'vc login',
         providerName: 'Vercel',
         resource: 'deployments',
@@ -146,6 +151,10 @@ const CLI_PROVIDERS = {
 } as const satisfies Record<
     Exclude<ExternalStatusSource, 'git'>,
     {
+        /**
+         * Recovery for a signed-in account the service still refuses (SSO, scopes, team membership).
+         */
+        accessHint: string;
         displayName: string;
         installHint: string;
         linkHint?: string;
@@ -196,6 +205,14 @@ export function projectStatusCliError(
             kind: 'prerequisite',
             message: linkMessage ?? `${displayName} not linked`,
             hint: linkHint ?? `Configure ${providerName} for this repository, then recheck.`,
+        };
+    }
+    if (kind === 'permission-denied') {
+        return {
+            source,
+            kind: 'prerequisite',
+            message: `${displayName} access denied`,
+            hint: provider.accessHint,
         };
     }
     if (kind === 'network')

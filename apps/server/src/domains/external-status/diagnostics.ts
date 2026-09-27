@@ -28,6 +28,18 @@ const SUMMARY_EVENTS = {
 type ExternalStatusCommandEvent = keyof typeof SUMMARY_EVENTS;
 
 /**
+ * Failures that describe the machine rather than one request: they repeat identically on every poll of every Session
+ * until the user installs, signs in, links, or re-authorizes the CLI. The status UI already names the fix without
+ * linking Logs, so only the transition into each state keeps a `warn` record.
+ */
+const STEADY_FAILURE_KINDS: ReadonlySet<string> = new Set([
+    'not-found',
+    'not-logged-in',
+    'not-linked',
+    'permission-denied',
+]);
+
+/**
  * `countFields` builds `failure<Reason>` names, so kebab-case reasons such as `no-pull-request` become camel case.
  */
 function camelCase(value: string): string {
@@ -81,6 +93,11 @@ function exitCodeOf(error: unknown): number | null {
  */
 export class ExternalStatusCommandTelemetry {
     private readonly operations = new Map<string, OperationWindow>();
+    /**
+     * The steady failure kind each command is currently in, so its repeats drop to `debug` until the command succeeds
+     * or fails differently.
+     */
+    private readonly steadyFailures = new Map<ExternalStatusSource, string>();
     private startedAt: number;
     private lastEventAt: number;
 
@@ -135,18 +152,27 @@ export class ExternalStatusCommandTelemetry {
             try {
                 const result = await options.run();
                 this.record(fields.command, fields.operation, performance.now() - startedAt);
+                this.steadyFailures.delete(options.command);
                 return result;
             } catch (error) {
                 const durationMs = performance.now() - startedAt;
                 const reason = failureReason(error);
                 this.record(fields.command, fields.operation, durationMs, reason);
-                const isExpected = options.isOptional === true || isNoPullRequest(error);
+                const kind = error instanceof ExternalStatusCliError ? error.kind : 'other';
+                const isRepeatedSteadyFailure =
+                    STEADY_FAILURE_KINDS.has(kind) &&
+                    this.steadyFailures.get(options.command) === kind;
+                if (STEADY_FAILURE_KINDS.has(kind)) this.steadyFailures.set(options.command, kind);
+                const isExpected =
+                    options.isOptional === true ||
+                    isNoPullRequest(error) ||
+                    isRepeatedSteadyFailure;
                 this.logger.write(isExpected ? 'debug' : 'warn', this.event, {
                     durationMs,
                     fields: {
                         ...fields,
                         result: 'failure',
-                        failureKind: error instanceof ExternalStatusCliError ? error.kind : 'other',
+                        failureKind: kind,
                         failureReason: reason,
                         exitCode: exitCodeOf(error),
                     },

@@ -11,6 +11,7 @@ export const pullRequestUnavailableSchema = z.object({
         'not-found',
         'not-logged-in',
         'not-linked',
+        'permission-denied',
         'rate-limited',
         'timeout',
         'network',
