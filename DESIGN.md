@@ -436,20 +436,14 @@ the tree's single Tab stop. Archiving clears the pin, because an archived Sessio
 keep sitting at the top of the sidebar; unarchiving does not restore it, since the pin was a separate
 decision.
 
-A Session working in a Git worktree rather than its Project root is marked by the VS Code `worktree`
-codicon in a leading fixed-width 14px column, reserved for the whole Project group at once so every
-marker in a group lands on one vertical line and titles never shift sideways as Sessions come and
-go. A Project with no such Session reserves nothing. It is a second fixed track rather than a share
-of the trailing one, which is sized for exactly one glyph and already arbitrates between lifecycle
-status and the pull request. The glyph is deliberately neither `FolderGit2`, which already means
-"Workbench Root" in the root picker and "repository" in Source Control, nor `FolderSymlink`: at 12px
-beside the trailing pull request glyph either one read as a third folder or Git mark on the same
-row. The full worktree name stays in the Session hover card.
+A Session working in a Git worktree rather than its Project root carries no mark on its row: in
+daily use a leading worktree glyph added a column without changing what the user did next. The
+worktree name stays in the Session hover card and the row's accessible description.
 
 Adopting a worktree as a Workbench Root auto-registers a Project for it, and that Project never
 occupies a top-level slot in the PrimarySidebar. The list shows the Projects the user added; a
-worktree is a property of the Session working in it, which the marker above already says on the
-Session's own row. A second top-level row per worktree would double the list without naming
+worktree is a property of the Session working in it, which the Session's hover card already
+names. A second top-level row per worktree would double the list without naming
 anything new, and no PrimarySidebar affordance — reorder, delete, disclosure — applies to a row the
 user never created. The consequence is that such a Project is reachable only through its owner:
 deleting the owner deletes it, and the confirmation names the ones about to go.

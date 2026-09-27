@@ -108,9 +108,8 @@ function WorktreeOptions({
 /**
  * The status bar chip that opens the menu.
  *
- * `isWorktree` decides the glyph: the same one the PrimarySidebar puts on a Session working in a linked worktree, under
- * the same condition, so one Session cannot read as a worktree in the sidebar and as a plain Workbench Root here.
- * `FolderGit2` stays for the ordinary case, where it still means "Workbench Root".
+ * `isWorktree` decides the glyph: VS Code's `worktree` codicon for a Session working in a linked worktree. `FolderGit2`
+ * stays for the ordinary case, where it still means "Workbench Root".
  */
 function WorkbenchRootTrigger({
     branch,
