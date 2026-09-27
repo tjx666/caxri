@@ -490,6 +490,9 @@ export class AgentDispatchService {
         });
     }
 
+    /**
+     * `isAnnounced` is false only for Server restart retirement, which runs before the durable event journal exists.
+     */
     private update(
         dispatchId: string,
         patch: {
@@ -499,6 +502,7 @@ export class AgentDispatchService {
             failure?: AgentDispatchFailure;
         },
         reason?: TransitionReason,
+        isAnnounced = true,
     ): AgentDispatchReceipt {
         const previous = this.options.database.getAgentDispatch(dispatchId)?.receipt;
         const stored = this.options.database.updateAgentDispatch(dispatchId, {
@@ -520,7 +524,7 @@ export class AgentDispatchService {
                               : 'launchStarted'),
                 previous?.status,
             );
-        this.publish(stored.receipt);
+        if (isAnnounced) this.publish(stored.receipt);
         return stored.receipt;
     }
 
@@ -556,13 +560,18 @@ export class AgentDispatchService {
 
     initialize(): void {
         /**
-         * A Server restart cannot retain its PTY/Endpoint proof; never retry an ambiguous spawn.
+         * A Server restart cannot retain its PTY/Endpoint proof; never retry an ambiguous spawn. Retiring stays silent:
+         * the journal's bounded startup queue holds fewer events than the receipt table holds rows, no wait can be
+         * pending yet, and nothing reads these events at startup: Desktop windows reload on reconnect, and a later
+         * `status` or `wait` reads the retired receipt itself.
          */
         for (const { receipt } of this.options.database.activeAgentDispatches())
-            this.update(receipt.dispatchId, {
-                status: 'failed',
-                failure: { code: 'UNAVAILABLE', reason: 'host_reset' },
-            });
+            this.update(
+                receipt.dispatchId,
+                { status: 'failed', failure: { code: 'UNAVAILABLE', reason: 'host_reset' } },
+                undefined,
+                false,
+            );
     }
 
     start(

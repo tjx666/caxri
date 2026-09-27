@@ -2,9 +2,9 @@ import { lstat, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { AgentDispatchReceipt, Principal, TerminalRecord } from '@caxri/protocol';
+import type { AgentDispatchReceipt, Principal, ServerEvent, TerminalRecord } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
-import { StructuredLogger } from '@caxri/system';
+import { logEventCatalog, StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createTestTerminalManager } from '../../../__tests__/support/terminal';
@@ -85,6 +85,7 @@ function createService(
     terminalDirectoryIdentity: (path: string) => Promise<TerminalWorkingDirectoryIdentity> = (
         path,
     ) => Promise.resolve({ device: '1', inode: '1', path }),
+    emit: (event: ServerEvent) => void = vi.fn(),
 ) {
     const service = new AgentDispatchService({
         logger,
@@ -99,7 +100,7 @@ function createService(
         launchSettings: () => ({ executable: '/fixture/codex', args: [] }),
         terminalDirectoryIdentity,
         terminalWorkingDirectory: ({ defaultRoot }) => Promise.resolve(defaultRoot),
-        emit: vi.fn(),
+        emit,
     });
     services.push(service);
     return service;
@@ -649,6 +650,58 @@ describe('AgentDispatchService', () => {
 
         service.observeTerminalState(receipt.terminalId!, state);
         expect(service.status(receipt.dispatchId, null)).toMatchObject(expected);
+    });
+
+    /**
+     * Retiring runs before the durable event journal exists, and that journal's startup queue holds fewer events than
+     * the receipt table holds rows, so one event per dispatch could stop Server Core from starting.
+     */
+    it('retires active dispatches on Server restart without announcing each one', async () => {
+        const { database, project, service, session } = await seededDispatch();
+        const dispatchIds = ['dispatch-1', 'dispatch-2'];
+        const start = (dispatchId: string) =>
+            service.start(dispatchId, PRINCIPAL, {
+                projectId: project.id,
+                sessionId: session.id,
+                provider: 'codex',
+            });
+        await start('dispatch-1');
+        await start('dispatch-2');
+        const emit = vi.fn();
+        const logger = {
+            write: vi.fn<(level: string, event: unknown, entry: { fields: object }) => void>(),
+        };
+        const restarted = createService(
+            database,
+            undefined,
+            undefined,
+            logger as never,
+            undefined,
+            emit,
+        );
+
+        restarted.initialize();
+
+        for (const dispatchId of dispatchIds)
+            expect(restarted.status(dispatchId, null)).toMatchObject({
+                status: 'failed',
+                failure: { code: 'UNAVAILABLE', reason: 'host_reset' },
+            });
+        expect(emit).not.toHaveBeenCalled();
+        expect(logger.write.mock.calls).toEqual(
+            dispatchIds.map((dispatchId) => [
+                'info',
+                logEventCatalog.agentDispatch.transitioned,
+                {
+                    fields: expect.objectContaining({
+                        dispatchId,
+                        previousStatus: 'running',
+                        status: 'failed',
+                        reason: 'hostRestart',
+                    }) as object,
+                },
+            ]),
+        );
     });
 
     it('marks a running dispatch interrupted through the restart retirement event', async () => {

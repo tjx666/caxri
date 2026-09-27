@@ -71,9 +71,9 @@ export class AgentDelegationService {
     }
 
     /**
-     * `isAnnounced` is false only for Server restart recovery. Every client re-reads the whole Workbench after a
-     * restart, and one event per recovered task would overflow the bounded queue that holds startup events until the
-     * event journal opens, failing Server Core startup.
+     * `isAnnounced` is false only for Server restart recovery. Desktop windows reload their state on reconnect and a
+     * later `status` or `wait` reads the recovered receipt itself, while one event per recovered task would overflow
+     * the bounded queue that holds startup events until the event journal opens, failing Server Core startup.
      */
     private save(record: StoredAgentDelegation, isAnnounced = true): StoredAgentDelegation {
         /**
