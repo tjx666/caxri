@@ -76,6 +76,10 @@ export const commanderBoardRowSchema = z.strictObject({
             terminalId: identifierSchema,
             kind: terminalKindSchema,
             title: z.string(),
+            /**
+             * The Agent CLI's process state while its Shell is up, otherwise the Shell's: an Agent can exit and leave
+             * its Shell running. A plain Shell Terminal always reports the Shell.
+             */
             processState: terminalRecordSchema.shape.lastProcessState,
             operation: terminalRecordSchema.shape.agentOperation,
         })
