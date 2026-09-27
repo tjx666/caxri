@@ -2,13 +2,12 @@ import type { TerminalWheelInput } from '@caxri/protocol';
 import type { Terminal as HeadlessTerminal } from '@xterm/headless';
 
 /**
- * DECSET encodings mirrored from xterm's mode handler: SGR is encoded here; UTF-8 (1005), urxvt (1015), and SGR pixel
- * (1016) reports are refused rather than sent in a format the application did not request.
+ * The encodings xterm itself switches on DECSET/DECRST: SGR (1006) is encoded here, while SGR pixel (1016) reports are
+ * refused because the Host has no pixel coordinates. xterm ignores UTF-8 (1005) and urxvt (1015), so they do not change
+ * the tracked encoding either.
  */
 const MOUSE_ENCODINGS = new Map<number, 'sgr' | 'unsupported'>([
-    [1005, 'unsupported'],
     [1006, 'sgr'],
-    [1015, 'unsupported'],
     [1016, 'unsupported'],
 ]);
 const WHEEL_UP_BUTTON = 64;
