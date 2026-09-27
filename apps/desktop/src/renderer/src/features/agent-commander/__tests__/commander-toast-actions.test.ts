@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
     getBootstrap: vi.fn(),
+    request: vi.fn(),
     refreshTerminalState: vi.fn(),
     restartTerminalWithRecovery: vi.fn(),
 }));
@@ -11,6 +12,7 @@ vi.mock('../../terminal/terminal-commands', () => ({
     restartTerminalWithRecovery: mocks.restartTerminalWithRecovery,
 }));
 vi.mock('../../../stores/selectors', () => ({ getBootstrap: mocks.getBootstrap }));
+vi.mock('../../../lib/caxri', () => ({ caxri: { request: mocks.request } }));
 
 import { runToastAction, UNKNOWN_TOAST_ACTION_REASON } from '../../../stores/toast-actions';
 import { configureCommanderToastActions } from '../commander-toast-actions';
@@ -38,6 +40,13 @@ describe('Agent Commander toast actions', () => {
     it('refreshes the Commander Terminal from its notification', () => {
         expect(runToastAction({ id: 'terminal.refresh' })).toBeUndefined();
         expect(mocks.refreshTerminalState).toHaveBeenCalledOnce();
+    });
+
+    it('opens Settings in the Workbench from the software-rendering notification', () => {
+        mocks.request.mockResolvedValue(undefined);
+
+        expect(runToastAction({ id: 'settings.openHardwareAcceleration' })).toBeUndefined();
+        expect(mocks.request).toHaveBeenCalledWith('agentCommander.openSettings');
     });
 
     it('refuses a follow-up only the Workbench window can run', () => {

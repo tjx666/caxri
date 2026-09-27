@@ -18,7 +18,7 @@ export function revealCommanderSession(sessionId: string): void {
 /**
  * Main raises the Workbench, reopening it if needed, and opens Settings there: this window has no Settings of its own.
  */
-function openWorkbenchSettings(): void {
+export function openWorkbenchSettings(): void {
     // Fire-and-forget: tryCommand reports a failed hand-off through a toast.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void tryCommand('Unable to open Settings in the Workbench', () =>
