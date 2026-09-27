@@ -36,7 +36,14 @@ import {
     resolvePackagedServerLaunch,
 } from './environment';
 import type { CliOutputMode } from './output';
-import { exitCodeFor, normalizeCliError, quietLines, renderHumanValue, stableJson } from './output';
+import {
+    exitCodeFor,
+    hasQuietIds,
+    normalizeCliError,
+    quietLines,
+    renderHumanValue,
+    stableJson,
+} from './output';
 import { CLI_PROTOCOL_VERSION, CLI_VERSION } from './version';
 
 export interface CliIo {
@@ -230,13 +237,19 @@ function renderHelp(
     return `${lines.join('\n')}\n`;
 }
 
-function writeSuccess(io: CliIo, mode: CliOutputMode, value: unknown, human?: string): void {
+function writeSuccess(
+    io: CliIo,
+    mode: CliOutputMode,
+    value: unknown,
+    human?: string,
+    quietIdKey?: string,
+): void {
     if (mode === 'json') {
         io.writeStdout(`${stableJson(value)}\n`);
         return;
     }
     if (mode === 'quiet') {
-        io.writeStdout(`${quietLines(value).join('\n')}\n`);
+        io.writeStdout(`${quietLines(value, quietIdKey).join('\n')}\n`);
         return;
     }
     io.writeStdout(human ?? `${renderHumanValue(value)}\n`);
@@ -631,6 +644,19 @@ export async function runCli(
             );
         const isMutates =
             methods[command.method].effect !== 'read' && (command.mutates?.(parameters) ?? true);
+        /**
+         * Quiet output is read only after the request ran, so a mutation whose result has no stable ID would report
+         * `VALIDATION` for work that already happened and invite a retry that repeats it. Refuse it up front instead.
+         */
+        if (
+            mode === 'quiet' &&
+            isMutates &&
+            !hasQuietIds(methods[command.method].result, command.quietKey, command.quietIdKey)
+        )
+            throw new CaxriError(
+                'VALIDATION',
+                'This command has no stable ID to print with --quiet; use --json',
+            );
         if (isMutates && !endpointCredential && !parsed.profile)
             throw new CaxriError(
                 'VALIDATION',
@@ -677,6 +703,7 @@ export async function runCli(
             mode,
             mode === 'quiet' ? quietProjection(command, result) : result,
             humanRemote(command, result),
+            command.quietIdKey,
         );
         return 0;
     } catch (error) {
