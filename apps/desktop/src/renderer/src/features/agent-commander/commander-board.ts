@@ -4,7 +4,6 @@ import type {
     CommanderBoardGroupId,
     CommanderBoardRow,
     ProcessState,
-    SessionPullRequest,
 } from '@caxri/protocol';
 import { agentProviderCatalog, commanderBoardGroupIds } from '@caxri/protocol';
 
@@ -107,7 +106,19 @@ interface CommanderRowPresentation {
  */
 export function commanderRowPresentation(row: CommanderBoardRow): CommanderRowPresentation {
     const { agent } = row;
-    const activity = sessionActivityPresentation(row.activityState, agent?.operation);
+    /**
+     * A turn or question recorded before the Agent exited is not happening any more. Without a live Agent the row reads
+     * idle, as the Server groups it, instead of spinning next to `Exited`.
+     */
+    const isAgentAlive = agent?.processState === 'running' || agent?.processState === 'starting';
+    const activityState =
+        isAgentAlive || (row.activityState !== 'running' && row.activityState !== 'waiting')
+            ? row.activityState
+            : 'idle';
+    const activity = sessionActivityPresentation(
+        activityState,
+        isAgentAlive ? agent.operation : undefined,
+    );
     const processPhrase = agent ? PROCESS_PHRASES[agent.processState] : undefined;
     const statePhrase = agent ? (processPhrase ?? activity.label) : 'No Terminal';
     const agentLabel =
@@ -120,12 +131,13 @@ export function commanderRowPresentation(row: CommanderBoardRow): CommanderRowPr
             statePhrase,
             toneClassName: TONE_TEXT_CLASSNAME.neutral,
         };
-    const isLive = row.activityState === 'running' || agent?.operation === 'compacting';
-    const glyph = isLive ? 'spinner' : GLYPH_BY_STATE[row.activityState];
+    const isLive =
+        activityState === 'running' || (isAgentAlive && agent.operation === 'compacting');
+    const glyph = isLive ? 'spinner' : GLYPH_BY_STATE[activityState];
     const tone: SessionActivityPresentation['tone'] = isLive
         ? 'success'
         : row.group === 'attention' && row.hasUnread
-          ? sessionUnreadTone(row.activityState)
+          ? sessionUnreadTone(activityState)
           : row.group === 'failed'
             ? 'danger'
             : 'neutral';
@@ -155,12 +167,14 @@ interface CommanderPullRequestBadge {
 /**
  * The board's pull request chip: number, lifecycle, and CI, reusing the PrimarySidebar's presentation so a PR reads the
  * same in both windows. Lifecycle and checks keep separate tones, because a red open PR was once mistaken for a closed
- * one.
+ * one. A failed lookup hides the chip, as the Activity view does, since the cached state and checks may be stale.
  */
-export function commanderPullRequestBadge(
-    pullRequest: SessionPullRequest | undefined,
-): CommanderPullRequestBadge | undefined {
-    if (!pullRequest) return undefined;
+export function commanderPullRequestBadge({
+    pullRequest,
+    pullRequestUnavailable,
+}: Pick<CommanderBoardRow, 'pullRequest' | 'pullRequestUnavailable'>):
+    CommanderPullRequestBadge | undefined {
+    if (!pullRequest || pullRequestUnavailable) return undefined;
     const presentation = sessionPullRequestPresentation(pullRequest);
     return {
         ariaLabel: `${presentation.ariaLabel} Open in browser.`,
