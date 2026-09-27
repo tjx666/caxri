@@ -163,6 +163,7 @@
             },
             "apps/mobile": {
                 "entry": [
+                    "plugins/with-android-release-signing.ts",
                     "plugins/with-android-sdk-download-disabled.ts",
                     "plugins/with-mobile-network-policy.ts"
                 ],
@@ -297,6 +298,10 @@
             {
                 "from": "apps/server/dist/server",
                 "to": "server"
+            },
+            {
+                "from": "out/mobile-update",
+                "to": "mobile"
             }
         ],
         "files": [

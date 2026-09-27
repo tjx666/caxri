@@ -11,6 +11,7 @@ import { isConnectionFresh } from '../../connection/connection-state';
 import { useMobileClient } from '../../connection/mobile-client-provider';
 import type { MobileLayoutMode } from '../../layout/layout-mode';
 import { mobileLayoutMode } from '../../layout/layout-mode';
+import { MobileUpdateBanner } from '../../update/mobile-update-banner';
 import { ConnectionBanner } from './connection-banner';
 import { useHostSessions } from './host-sessions-provider';
 import { SessionHome } from './session-home';
@@ -164,6 +165,7 @@ export const SessionsScreen = ({ routeSessionId }: { routeSessionId: string | nu
                 status={status}
                 theme={theme}
             />
+            <MobileUpdateBanner theme={theme} />
             <SessionsScreenLayout
                 detail={detail}
                 layout={layout}

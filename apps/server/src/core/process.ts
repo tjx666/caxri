@@ -18,6 +18,7 @@ import {
 
 import { createDesktopLauncher } from './desktop-launcher';
 import { extensionRootsForServer } from './extensions/discovery';
+import { mobileUpdateDirectoryForServer } from './mobile/update-bundle';
 import { startServerCore } from './server-core';
 
 const userDataPath = process.env.CAXRI_USER_DATA_PATH;
@@ -78,6 +79,11 @@ const app = await startServerCore({
         mobileHostDisplayName: process.env.CAXRI_MOBILE_TEST_HOST_DISPLAY_NAME,
     }),
     logger,
+    mobileUpdateDirectory: mobileUpdateDirectoryForServer({
+        environment: process.env,
+        ...(serverBundleDirectory.includes('.asar') &&
+            process.resourcesPath && { resourcesPath: process.resourcesPath }),
+    }),
     projectSearch: {
         executablePath: join(serverBundleDirectory, '../runtime/bin/rg'),
         workerPath: join(serverBundleDirectory, 'project-search-worker.js'),

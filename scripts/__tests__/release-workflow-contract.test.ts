@@ -95,6 +95,18 @@ describe('Release workflow contract', () => {
         expect(two.stderr).toContain('Caxri-0.0.9-arm64.dmg');
     });
 
+    it('stages the release-signed Android bundle before packaging and proves it shipped', () => {
+        const bundle = stepScript('Build Android update bundle');
+        expect(workflow.indexOf('name: Build Android update bundle')).toBeLessThan(
+            workflow.indexOf('name: Package unsigned Apple Silicon DMG'),
+        );
+        expect(bundle).toContain('trap \'rm -f "$keystore"\' EXIT');
+        expect(bundle).toContain('bun run --cwd apps/mobile build:update-bundle');
+        expect(stepScript('Package unsigned Apple Silicon DMG')).toContain(
+            'cmp out/mobile-update/caxri-mobile.apk',
+        );
+    });
+
     it('keeps publication credentials bounded and cleans the local runner', () => {
         expect(workflow).toContain('contents: write');
         expect(workflow).toContain('persist-credentials: false');

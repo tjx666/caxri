@@ -6,6 +6,10 @@ Terminal observer snapshots, Host output sequences, and generation-fenced contro
 `version-mismatch` frame before authentication; all application frames after authentication are
 sealed with the session key and monotonically increasing counters.
 
+The same HTTP server also serves `GET /mobile/update/<token>` for the update APK. That route carries
+no application frames: the bearer token is issued over the sealed channel and the payload is checked
+against a sealed MD5; see [UPDATE.md](UPDATE.md).
+
 ## Application frames
 
 The shared transport package validates each outer frame. `request.request` and `reply.reply` are

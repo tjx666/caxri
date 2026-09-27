@@ -22,6 +22,10 @@ Session creation checks both the device's Project grant and the current Project 
 durable write. Git mutations and unrestricted `session.create` are outside the gateway
 method set.
 
+`mobile.update.check` and `mobile.update.prepare` are granted to every role: they expose only the
+update bundle Desktop ships and a short-lived download token for the requesting device; see
+[UPDATE.md](UPDATE.md).
+
 The read-only panel methods (`mobile.panels.list`, `mobile.tree.children`, `mobile.files.list`,
 `mobile.files.read`, and `mobile.files.search`) are granted starting at `view`, since they only project state a device with
 access to the Session can already see on the dashboard. Each request re-validates the Session

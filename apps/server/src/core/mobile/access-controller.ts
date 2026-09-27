@@ -6,14 +6,10 @@ import type {
     AgentEndpointRef,
     CommandAdapter,
     CommandExecutionContext,
-    MobilePanelViewKind,
     Principal,
     ServerEvent,
     ServerOperationRequest,
     ServerRequest,
-    TreeItemDto,
-    ViewDescriptor,
-    ViewIcon,
 } from '@caxri/protocol';
 import { assertNever, CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
@@ -29,6 +25,7 @@ import { MobileDeviceRegistry } from './device-registry';
 import { invokeMobileFileRequest } from './file-requests';
 import { MobileGateway } from './gateway';
 import { adoptCurrentPairedPrincipal } from './gateway/principal-grant';
+import { mobilePanelViewKind, projectMobileIcon, projectMobileTreeItem } from './panel-projection';
 import { isMobileGatewayMethodAllowedForRole } from './role-methods';
 import {
     applyMobileSessionManagement,
@@ -36,6 +33,7 @@ import {
     sessionForPrincipal,
 } from './session-management';
 import { invokeMobileTerminalRequest } from './terminal-requests';
+import { createMobileUpdateRequests } from './update-bundle';
 
 export function resolveMobileAgentEndpoint(
     registry: AgentEndpointRegistry,
@@ -90,7 +88,9 @@ type MobileControlRequest = Extract<
             | 'mobile.files.list'
             | 'mobile.files.read'
             | 'mobile.files.search'
-            | 'mobile.files.write';
+            | 'mobile.files.write'
+            | 'mobile.update.check'
+            | 'mobile.update.prepare';
     }
 >;
 type MobileDesktopOperation = Extract<
@@ -136,41 +136,6 @@ const requiredGateway = (gateway: MobileGateway | undefined): MobileGateway => {
 };
 
 /**
- * Drops a `resource` (data URL) icon rather than projecting it. Every core-contributed secondary-sidebar container uses
- * a `builtin` or `theme` icon today, and inlining an extension-supplied image is not yet part of the mobile read
- * surface.
- */
-const projectMobileIcon = (
-    icon: ViewIcon | undefined,
-): { kind: 'builtin' | 'theme'; id: string; color?: string } | undefined => {
-    if (!icon || icon.kind === 'resource') return undefined;
-    return icon.kind === 'theme' && icon.color
-        ? { kind: icon.kind, id: icon.id, color: icon.color }
-        : { kind: icon.kind, id: icon.id };
-};
-
-const mobilePanelViewKind = (viewKind: ViewDescriptor['viewKind']): MobilePanelViewKind => {
-    switch (viewKind.kind) {
-        case 'resource-explorer':
-            return 'files';
-        case 'source-control':
-            return 'changes';
-        case 'tree':
-            return 'tree';
-        default:
-            return 'unsupported';
-    }
-};
-
-const projectMobileTreeItem = (item: TreeItemDto) => ({
-    handle: item.handle,
-    label: item.label,
-    ...(item.description !== undefined && { description: item.description }),
-    ...(projectMobileIcon(item.icon) && { icon: projectMobileIcon(item.icon) }),
-    collapsibleState: item.collapsibleState,
-});
-
-/**
  * Owns the default-off LAN listener and keeps paired-device authorization out of the general Server dispatcher.
  */
 export const openMobileAccessController = async (options: {
@@ -180,6 +145,10 @@ export const openMobileAccessController = async (options: {
     onOpenError?: () => Promise<void>;
     registryPath: string;
     selectAddress?: () => string;
+    /**
+     * Directory holding the Android update bundle shipped with this Desktop build, when there is one.
+     */
+    updateDirectory?: string;
 }): Promise<MobileAccessController> => {
     let registry: MobileDeviceRegistry;
     try {
@@ -194,6 +163,7 @@ export const openMobileAccessController = async (options: {
     let gateway: MobileGateway | undefined;
     let getExtensionService: (() => ExtensionService | undefined) | undefined;
     const hostDisplayName = mobileHostDisplayName(options.hostDisplayName ?? hostname());
+    const updateRequests = createMobileUpdateRequests(options.updateDirectory);
     let isClosed = false;
     let authorityTail = Promise.resolve();
     const inFlightOperations = new Map<string, Set<AbortController>>();
@@ -709,6 +679,13 @@ export const openMobileAccessController = async (options: {
                     return invokeMobileFileRequest(request, principal, domainService, () => {
                         currentPairedPrincipal(principal, request.method);
                     });
+                }
+                case 'mobile.update.check':
+                case 'mobile.update.prepare': {
+                    currentPairedPrincipal(context.principal, request.method);
+                    return updateRequests.invoke(request, (source) =>
+                        activeGateway.prepareUpdateDownload(context, source),
+                    );
                 }
                 case 'mobile.panels.list': {
                     const principal = currentPairedPrincipal(context.principal, request.method);
