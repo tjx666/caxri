@@ -3,7 +3,7 @@ import { chmod, mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import type { AgentLaunchSettings } from '@caxri/protocol';
+import type { AgentDelegationReceipt, AgentLaunchSettings } from '@caxri/protocol';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import type { AgentDispatchService } from '../../agent-dispatch';
@@ -119,6 +119,52 @@ describe('AgentDelegationService', () => {
                 failure: 'startup_not_ready',
             }),
         );
+    });
+
+    it('announces a startup block no lifecycle hook reports, but not an internal-only save', async () => {
+        const changes = vi.fn<(receipt: AgentDelegationReceipt) => void>();
+        let epoch = 0;
+        const f = await fixture({
+            currentLaunchId: () => 'launch',
+            inputEpoch: () => epoch,
+            onReceiptChanged: changes,
+            submissionTimeoutMs: 1,
+        });
+        await f.service.create(f.id, owner, f.input);
+        expect(changes).toHaveBeenCalledWith(
+            expect.objectContaining({ delegationId: f.id, status: 'requested' }),
+        );
+        f.service.bindLaunch(f.terminal.id, 'launch');
+        await vi.waitFor(() =>
+            expect(changes).toHaveBeenLastCalledWith(
+                expect.objectContaining({
+                    sessionId: f.input.sessionId,
+                    status: 'blocked',
+                    failure: 'startup_waiting',
+                }),
+            ),
+        );
+        const announced = changes.mock.calls.length;
+
+        epoch += 1;
+        f.service.interruptTerminal(f.terminal.id, true);
+        expect(f.database.agentDelegations.get(f.id)!.inputEpoch).toBe(1);
+        expect(changes).toHaveBeenCalledTimes(announced);
+    });
+
+    it('recovers active tasks on Server restart without announcing each one', async () => {
+        const changes = vi.fn<(receipt: AgentDelegationReceipt) => void>();
+        const f = await fixture({ onReceiptChanged: changes });
+        await f.service.create(f.id, owner, f.input);
+        f.service.bindLaunch(f.terminal.id, 'launch');
+        changes.mockClear();
+
+        f.service.initialize();
+        expect(f.service.status(f.id, owner)).toMatchObject({
+            status: 'interrupted',
+            failure: 'host_reset',
+        });
+        expect(changes).not.toHaveBeenCalled();
     });
 
     it('confines external clients to their bound caller and Session and rejects sibling client access', async () => {
@@ -381,7 +427,8 @@ describe('AgentDelegationService', () => {
     });
 
     it('collects only the exact applied turn and keeps its answer through recovery', async () => {
-        const f = await fixture();
+        const changes = vi.fn<(receipt: AgentDelegationReceipt) => void>();
+        const f = await fixture({ onReceiptChanged: changes });
         const clock = vi.spyOn(performance, 'now').mockReturnValue(1000);
         onTestFinished(() => clock.mockRestore());
         await f.service.create(f.id, owner, f.input);
@@ -445,6 +492,9 @@ describe('AgentDelegationService', () => {
         });
         clock.mockReturnValue(1300);
         expect((await f.service.result(f.id, owner)).answer?.text).toBe('Answer');
+        expect(changes).toHaveBeenLastCalledWith(
+            expect.objectContaining({ delegationId: f.id, status: 'completed' }),
+        );
         f.service.initialize();
         expect((await f.service.result(f.id, owner)).receipt.status).toBe('completed');
     });
