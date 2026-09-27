@@ -4,6 +4,7 @@ import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-nativ
 import { MOBILE_AGENT_SUBMIT_MAX_BYTES } from '@caxri/protocol';
 import { ArrowUp, Paperclip, Square } from 'lucide-react-native';
 
+import { IconButton } from '../../../components/icon-button';
 import type { MobileTheme } from '../../../theme/tokens';
 import { useComposerSuggestions } from '../hooks/use-composer-suggestions';
 import { useImageAttachments } from '../hooks/use-image-attachments';
@@ -179,14 +180,15 @@ export const SessionDetailComposer = ({
             />
             <View style={styles.composerRow}>
                 {deviceRole === 'reply' || deviceRole === 'control' ? (
-                    <Pressable
+                    <IconButton
                         accessibilityLabel="Attach image"
-                        accessibilityRole="button"
+                        color={theme.muted}
+                        icon={Paperclip}
                         onPress={images.choose}
+                        size={22}
                         testID="session-attach-image"
-                    >
-                        <Paperclip color={theme.text} size={20} />
-                    </Pressable>
+                        theme={theme}
+                    />
                 ) : null}
                 <SessionComposerInput
                     delivery={delivery}

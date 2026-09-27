@@ -9,6 +9,7 @@ import {
     rememberSessionSegment,
     resolveSessionConversationSegment,
     selectSessionProject,
+    sessionSegmentDirection,
 } from '../session-ui-state';
 
 describe('host Session UI state', () => {
@@ -157,5 +158,11 @@ describe('host Session UI state', () => {
         const filtered = selectSessionProject(emptyHostSessionUiState(), 'project-one');
         const afterNavigation = rememberSessionSegment(filtered, 'session-one', 'changes');
         expect(afterNavigation.projectId).toBe('project-one');
+    });
+
+    it('reports the tab strip direction for the incoming panel', () => {
+        expect(sessionSegmentDirection('conversation', 'changes')).toBe(1);
+        expect(sessionSegmentDirection('panels', 'terminal')).toBe(-1);
+        expect(sessionSegmentDirection('terminal', 'terminal')).toBe(0);
     });
 });

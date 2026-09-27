@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
+import Animated, { FadeIn, LinearTransition } from 'react-native-reanimated';
 
 import type { LucideIcon } from 'lucide-react-native';
 import {
@@ -18,8 +19,16 @@ import type { MobileTheme } from '../../../theme/tokens';
 import { MobileGatewayRequestError } from '../../connection/mobile-gateway-client';
 import type { MobileSessionItem } from '../session-model';
 import type { SessionSegment } from '../session-ui-state';
+import { SESSION_SEGMENTS } from '../session-ui-state';
 import { sessionDetailStyles as styles } from './session-detail-styles';
 import { SessionStatusGlyph } from './session-status-glyph';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+/**
+ * The selected tab grows to fit its label, so every tab animates its frame instead of snapping its neighbours aside.
+ */
+const tabLayoutTransition = LinearTransition.duration(200);
+const tabLabelEntering = FadeIn.duration(160).delay(60);
 
 const segmentPresentation: Record<SessionSegment, { icon: LucideIcon; label: string }> = {
     conversation: { icon: MessagesSquare, label: 'Conversation' },
@@ -27,7 +36,6 @@ const segmentPresentation: Record<SessionSegment, { icon: LucideIcon; label: str
     changes: { icon: FileDiff, label: 'Changes' },
     panels: { icon: FolderGit2, label: 'Project' },
 };
-const segments: SessionSegment[] = ['conversation', 'terminal', 'changes', 'panels'];
 
 /**
  * Only the selected tab spells out its name. Four labelled tabs do not fit a phone at the default font scale, and the
@@ -53,19 +61,24 @@ const SessionSegmentTab = ({
     const count = option === 'changes' && changesCount ? changesCount : null;
     const color = selected ? theme.text : theme.muted;
     return (
-        <Pressable
+        <AnimatedPressable
             accessibilityLabel={count === null ? label : `${label}, ${count}`}
             accessibilityRole="tab"
             accessibilityState={{ selected }}
+            layout={tabLayoutTransition}
             onPress={onPress}
             style={[styles.tab, selected ? { backgroundColor: theme.surface } : null]}
             testID={`session-segment-${option}`}
         >
             <Icon color={color} size={18} strokeWidth={selected ? 2.25 : 2} />
             {selected ? (
-                <Text numberOfLines={1} style={[styles.tabText, { color }]}>
+                <Animated.Text
+                    entering={tabLabelEntering}
+                    numberOfLines={1}
+                    style={[styles.tabText, { color }]}
+                >
                     {label}
-                </Text>
+                </Animated.Text>
             ) : null}
             {count === null ? null : (
                 <Text
@@ -81,7 +94,7 @@ const SessionSegmentTab = ({
                     {count}
                 </Text>
             )}
-        </Pressable>
+        </AnimatedPressable>
     );
 };
 
@@ -200,8 +213,8 @@ export const SessionDetailHeader = ({
             </View>
             <View style={[styles.tabs, { borderColor: theme.border }]}>
                 {(hasConversation
-                    ? segments
-                    : segments.filter((option) => option !== 'conversation')
+                    ? SESSION_SEGMENTS
+                    : SESSION_SEGMENTS.filter((option) => option !== 'conversation')
                 ).map((option) => (
                     <SessionSegmentTab
                         key={option}

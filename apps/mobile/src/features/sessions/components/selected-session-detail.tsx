@@ -39,8 +39,11 @@ export const SelectedSessionDetail = ({
         ui,
     } = useHostSessions();
     const { refresh } = sessions;
+    /**
+     * Pops back to the list the detail was pushed from; a detail opened without that history replaces itself instead.
+     */
     const goHome = useCallback((): void => {
-        router.replace(`/h/${encodeURIComponent(hostId)}`);
+        router.dismissTo(`/h/${encodeURIComponent(hostId)}`);
     }, [hostId, router]);
     const markRead = useCallback(async (): Promise<void> => {
         await request('session.markRead', {

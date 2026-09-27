@@ -271,13 +271,12 @@ export async function executeMobileImageAttachmentScenario(
         await tapMobileNativeControl(environment.serial, { text: 'PHOTO LIBRARY' });
         await capture(environment, 'picker', artifacts);
         await tapMobileNativeControl(environment.serial, { singleImageTile: true });
+        // A ready thumbnail drops its progress scrim, so the attachment is ready once only its remove control remains.
         await waitForMobile(
-            () =>
-                observeMobileNode(environment.serial, 'session-image-status-0', {
-                    kind: 'equals',
-                    value: 'Ready',
-                }),
-            ({ exists, textMatches }) => exists && textMatches === true,
+            () => mobileSemantics(environment.serial),
+            (nodes) =>
+                nodes.some(({ checkId }) => checkId === 'session-image-remove-0') &&
+                nodes.every(({ checkId }) => checkId !== 'session-image-status-0'),
         );
         const imageDirectory = join(fixture.testDirectory, 'user-data', 'mobile-attachments');
         const uploaded = await waitForMobile(
