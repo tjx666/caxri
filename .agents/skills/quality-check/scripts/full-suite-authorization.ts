@@ -26,7 +26,7 @@ const REVIEW_RECEIPT_VARIABLE = 'CAXRI_FULL_SUITE_REVIEW_RECEIPT';
  * Written by the primary agent from an independent reviewer's verdict. `head` binds it to one commit, so a receipt for
  * an earlier head cannot be replayed after later edits change what the full run would validate.
  */
-export interface FullSuiteReviewReceipt {
+interface FullSuiteReviewReceipt {
     /**
      * Full commit SHA the reviewer judged.
      */
@@ -152,7 +152,7 @@ const GUIDANCE = new Map<FullSuiteRunner, string>([
 /**
  * Accepts only a well-formed `run` verdict for the current head. Any read or parse failure refuses, never authorizes.
  */
-export function isReviewReceiptValid(
+function isReviewReceiptValid(
     path: string,
     dependencies: FullSuiteAuthorizationDependencies = DEFAULT_DEPENDENCIES,
 ): boolean {
