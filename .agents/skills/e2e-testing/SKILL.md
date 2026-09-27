@@ -222,7 +222,8 @@ A loaded-runner reproduction belongs to that collective work rather than to this
 `parallel-safe` race can need the repository-owned namespaced two-worker pool to appear at all,
 because loaded-runner conditions expose stale async state and hidden warmup surfaces that one worker
 cannot reproduce. Run that pool while repairing the recorded case, not as a gate on the delivery
-that reported it:
+that reported it. It is a full-pool run, so it needs the authorization described in
+[Local full-suite review](#local-full-suite-review):
 
 ```bash
 bun run build
@@ -281,10 +282,11 @@ pushing, never as a reason to iterate through full runs.
 
 ## Remote full suite
 
-Never run `bun run test:e2e` locally during an ordinary run. The command enforces this itself: both
-`bun run test:e2e` and a bare `playwright test` refuse to start without authorization, before the
-desktop build runs. Only the user grants it, by setting `CAXRI_FULL_SUITE_AUTHORIZED=1`; an agent
-never sets that variable on its own judgement. GitHub Actions is authorized by its own `CI`
+Never run `bun run test:e2e` locally during an ordinary run. The command enforces this itself:
+`bun run test:e2e`, a bare `playwright test`, and every `scripts/run-e2e-pools.ts --pool` refuse to
+start without authorization, before the desktop build runs. The user grants it by setting
+`CAXRI_FULL_SUITE_AUTHORIZED=1`; an agent never sets that variable on its own judgement. While the
+user is away, the only other authorization is the independent review below. GitHub Actions is authorized by its own `CI`
 variable. When focused coverage is insufficient,
 use an authorized topic branch and draft PR; GitHub Actions runs checks and the full Electron suite
 on the repository self-hosted `m2-24` runner. `docs/self-hosted-runner.md` owns its labels, offline
@@ -294,6 +296,33 @@ checks. Do not merge or close without delivery authorization.
 Use `bun run --silent test:smoke` for the cheap post-change Electron launch gate when broad desktop
 startup confidence is useful but focused product E2E is unnecessary. Keep implementation subagents
 scoped to explicit specs and test names; never delegate the full `bun run test:e2e` gate.
+
+## Local full-suite review
+
+A full local run always looks like diligence from inside the session that wants it, which is why
+the requesting agent never judges it alone. When the user is not available to authorize one:
+
+1. Ask a subagent or another harness (`dianjiang`) for a read-only verdict. Give it the exact
+   question the run must answer, the focused specs already run with their results, why remote CI
+   cannot answer it, and the runner cost. Ask for `run` or `skip` plus one sentence of reasoning.
+2. Record the verdict as JSON outside the repository, bound to the head the run will execute:
+
+   ```json
+   {
+     "head": "<git rev-parse HEAD>",
+     "reviewer": "subagent:general-purpose",
+     "verdict": "run",
+     "reason": "The toast only reproduces under three-worker pool concurrency"
+   }
+   ```
+
+3. Pass it with `CAXRI_FULL_SUITE_REVIEW_RECEIPT=<path>`. The guard accepts only a `run` verdict
+   whose `head` matches the current commit, so commit first and get a new verdict after later
+   commits. A `skip` verdict ends the question: follow the reviewer's narrower alternative.
+4. Name the reviewer, verdict, and result in the report to the user.
+
+One verdict authorizes one run. A rerun after a stale build, a mid-run edit, or a new commit needs
+a new verdict.
 
 ## Guarded Go fallback
 
