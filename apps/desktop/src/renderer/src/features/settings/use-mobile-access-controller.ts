@@ -11,6 +11,7 @@ import {
     revokeMobileDevice,
     setMobileAccessEnabled,
 } from './mobile-access-client';
+import { summarizeProjectAccess } from './mobile-access-summary';
 
 export interface MobilePairingState {
     expiresAt: number;
@@ -292,9 +293,9 @@ export const useMobileAccessController = () => {
         return new Map(
             activeDevices.map((device) => [
                 device.deviceId,
-                device.projectIds
-                    .map((projectId) => projectTitles.get(projectId) ?? 'Unavailable Project')
-                    .join(', '),
+                summarizeProjectAccess(
+                    device.projectIds.map((projectId) => projectTitles.get(projectId)),
+                ),
             ]),
         );
     }, [activeDevices, state.projects]);
