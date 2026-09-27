@@ -225,29 +225,61 @@ this path does not invoke Vitest for an E2E-only repair.
 `mode` belongs to `RetryPolicyDecision`; the remaining three values belong to
 `CIExecutionPlan`. The table is a behavior map, not a second implementation of the state machine.
 
-| Input and validated precondition                                                    | `mode`       | `checksScope`               | `e2eProfile`                        | `runE2E`       |
-| ----------------------------------------------------------------------------------- | ------------ | --------------------------- | ----------------------------------- | -------------- |
-| Eligible unchanged-tree PR retry                                                    | `e2e-only`   | `skipped`                   | `control`                           | yes            |
-| Eligible modified-existing-spec-only repair                                         | `e2e-repair` | `focused-e2e`               | `focused`                           | yes            |
-| Product, shared E2E support, protected, unknown, or spec-add/delete repair delta    | `full`       | Continue with the event row | Continue with the event row         | event row      |
-| Missing or rejected retry evidence                                                  | `full`       | Continue with the event row | Continue with the event row         | event row      |
-| `workflow_dispatch`, profile `skip` / `control` / `optimized`                       | `full`       | `full`                      | `control` / `control` / `optimized` | no / yes / yes |
-| PR strict-ancestor full-green reuse; delta is documentation only                    | `full`       | `focused-docs`              | `control`                           | no             |
-| PR strict-ancestor full-green reuse; delta includes only `go` / `acceptance` skills | `full`       | `focused-skills`            | `control`                           | no             |
-| PR documentation only                                                               | `full`       | `focused-docs`              | `control`                           | no             |
-| PR repository-skill and documentation only                                          | `full`       | `focused-skills`            | `control`                           | no             |
-| Draft PR with any remaining source change                                           | `full`       | `focused-source`            | `control`                           | no             |
-| Ready PR with any remaining source change                                           | `full`       | `full`                      | `optimized`                         | yes            |
-| Non-release `push` containing only documentation or repository skills               | `full`       | `full`                      | `optimized`                         | no             |
-| Non-release `push` with product, test, workflow, or unknown delta                   | `full`       | `full`                      | `optimized`                         | yes            |
-| Exact `release:prepare` output; PR CI passed                                        | `full`       | `skipped`                   | `control`                           | no             |
-| Unknown or missing event                                                            | `full`       | `full`                      | `control`                           | yes            |
+| Input and validated precondition                                                       | `mode`       | `checksScope`               | `e2eProfile`                        | `runE2E`       |
+| -------------------------------------------------------------------------------------- | ------------ | --------------------------- | ----------------------------------- | -------------- |
+| Eligible unchanged-tree PR retry                                                       | `e2e-only`   | `skipped`                   | `control`                           | yes            |
+| Eligible modified-existing-spec-only repair                                            | `e2e-repair` | `focused-e2e`               | `focused`                           | yes            |
+| Product, shared E2E support, protected, unknown, or spec-add/delete repair delta       | `full`       | Continue with the event row | Continue with the event row         | event row      |
+| Missing or rejected retry evidence                                                     | `full`       | Continue with the event row | Continue with the event row         | event row      |
+| `workflow_dispatch`, profile `skip` / `control` / `optimized`                          | `full`       | `full`                      | `control` / `control` / `optimized` | no / yes / yes |
+| PR strict-ancestor full-green reuse; delta is documentation only                       | `full`       | `focused-docs`              | `control`                           | no             |
+| PR strict-ancestor full-green reuse; delta includes only `go` / `acceptance` skills    | `full`       | `focused-skills`            | `control`                           | no             |
+| PR documentation only                                                                  | `full`       | `focused-docs`              | `control`                           | no             |
+| PR repository-skill and documentation only                                             | `full`       | `focused-skills`            | `control`                           | no             |
+| Draft PR with any remaining source change                                              | `full`       | `focused-source`            | `control`                           | no             |
+| Ready PR whose delta touches a full-validation path or has a malformed E2E declaration | `full`       | `full`                      | `optimized`                         | yes            |
+| Ready PR with any remaining source change                                              | `full`       | `affected`                  | `focused`                           | yes            |
+| `schedule` (nightly) whose head differs from the previous completed nightly            | `full`       | `full`                      | `optimized`                         | yes            |
+| `schedule` (nightly) whose head equals the previous completed nightly                  | `full`       | `skipped`                   | `control`                           | no             |
+| Non-release `push` containing only documentation or repository skills                  | `full`       | `full`                      | `optimized`                         | no             |
+| Non-release `push` with product, test, workflow, or unknown delta                      | `full`       | `full`                      | `optimized`                         | yes            |
+| Exact `release:prepare` output; PR CI passed                                           | `full`       | `skipped`                   | `control`                           | no             |
+| Unknown or missing event                                                               | `full`       | `full`                      | `control`                           | yes            |
 
 The pure retry, execution-plan, and green-reuse evaluators each have focused tests. The ordered
 GitHub lookup and `main` orchestration glue remain fail-closed but do not have a direct IO-level
 unit test; this is accepted while no concrete glue regression justifies extracting or mocking that
 boundary. Adding a new decision dimension must update the pure policy tests and this matrix before
 changing workflow wiring.
+
+## Affected pull requests and the nightly full suite
+
+A ready source PR no longer runs the full suite. `scripts/ci-execution-plan.ts` routes it to the
+`affected` scope:
+
+- **Checks** — changed-file lint and repository typecheck through `bun run check`, then
+  `vitest related --run` over the changed sources. `related` walks the whole import graph, so a
+  change in a shared package reaches every suite that transitively imports it.
+- **E2E** — the union of specs declared in the PR body with one
+  `CI-E2E-Tests: ["e2e/example.e2e.ts"]` line, ordinary specs the PR changed, and specs that directly
+  import a changed source file, each run once. The policy job has no dependency install, so the E2E
+  job adds the import-derived specs. With nothing selected, the PR runs `e2e/smoke.e2e.ts`.
+  Protected specs (performance, real Agent, failure isolation) never run on this path.
+- **Full-suite fallback** — a delta that touches a retry-protected path (workflows, CI runners,
+  `e2e/support/**`, toolchain files) or any workspace `package.json`, `tsconfig*.json`,
+  `vite`/`vitest`/`electron.vite`/`playwright` config, or `patches/**` keeps the full optimized
+  suite, as does a malformed or protected `CI-E2E-Tests` declaration.
+
+Knip, React Doctor, bundle budgets, the Renderer performance gate, and every unselected E2E spec now
+run only in the nightly full suite. The `schedule` trigger runs it on `main` at 00:00 UTC (08:00
+Asia/Shanghai) in its own concurrency group, so a release push cannot cancel it. When `main` has
+not moved since the previous completed nightly, the run skips every gate. A failed nightly runs
+`scripts/ci-nightly-report.ts`, which opens or comments on the single open `Nightly 全量 CI 失败`
+issue with the failed jobs and steps plus every PR merged since the previous green nightly. The
+workflow token cannot edit the owner Project, so whoever picks the issue up adds it to the Project
+through `file-issue`.
+
+Ordinary pushes to `main` stay skipped at the workflow level; only `release: v…` commits run CI.
 
 ## Current single-runner execution contract
 

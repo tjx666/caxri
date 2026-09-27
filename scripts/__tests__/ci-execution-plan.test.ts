@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { evaluateCIExecutionPlan } from '../ci-execution-plan';
+import { evaluateCIExecutionPlan, SMOKE_E2E_SPEC } from '../ci-execution-plan';
 
 describe('CI execution plan', () => {
     it('keeps documentation pull requests focused without macOS E2E', () => {
@@ -53,7 +53,7 @@ describe('CI execution plan', () => {
         }
     });
 
-    it('uses focused source checks for drafts and full gates for ready source pull requests', () => {
+    it('uses focused source checks for drafts and affected tests for ready source pull requests', () => {
         const input = {
             changedFiles: ['apps/server/src/domains/index.ts'],
             eventName: 'pull_request',
@@ -63,11 +63,68 @@ describe('CI execution plan', () => {
             checksScope: 'focused-source',
             runE2E: false,
         });
-        expect(evaluateCIExecutionPlan({ ...input, pullRequestDraft: false })).toMatchObject({
+        expect(
+            evaluateCIExecutionPlan({
+                ...input,
+                affectedE2ETests: [
+                    'e2e/terminal.e2e.ts',
+                    'e2e/settings.e2e.ts',
+                    'e2e/terminal.e2e.ts',
+                ],
+                pullRequestDraft: false,
+            }),
+        ).toMatchObject({
+            checksScope: 'affected',
+            e2eProfile: 'focused',
+            e2eTests: ['e2e/settings.e2e.ts', 'e2e/terminal.e2e.ts'],
+            runE2E: true,
+        });
+    });
+
+    it('falls back to the launch smoke spec when no E2E spec is affected', () => {
+        expect(
+            evaluateCIExecutionPlan({
+                changedFiles: ['apps/server/src/domains/index.ts'],
+                eventName: 'pull_request',
+                pullRequestDraft: false,
+            }),
+        ).toMatchObject({ checksScope: 'affected', e2eTests: [SMOKE_E2E_SPEC] });
+    });
+
+    it('keeps the full suite for global configuration changes and failed E2E selection', () => {
+        const input = {
+            changedFiles: ['apps/server/src/domains/index.ts'],
+            eventName: 'pull_request',
+            pullRequestDraft: false,
+        };
+
+        expect(evaluateCIExecutionPlan({ ...input, hasFullValidationPath: true })).toMatchObject({
             checksScope: 'full',
             e2eProfile: 'optimized',
             runE2E: true,
         });
+        expect(
+            evaluateCIExecutionPlan({ ...input, affectedSelectionError: 'bad CI-E2E-Tests' }),
+        ).toMatchObject({
+            checksScope: 'full',
+            e2eProfile: 'optimized',
+            reason: 'affected E2E selection failed closed: bad CI-E2E-Tests',
+        });
+    });
+
+    it('runs the nightly full suite unless main has not moved since the previous nightly', () => {
+        expect(evaluateCIExecutionPlan({ changedFiles: [], eventName: 'schedule' })).toMatchObject({
+            checksScope: 'full',
+            e2eProfile: 'optimized',
+            runE2E: true,
+        });
+        expect(
+            evaluateCIExecutionPlan({
+                changedFiles: [],
+                eventName: 'schedule',
+                isNightlyHeadUnchanged: true,
+            }),
+        ).toMatchObject({ checksScope: 'skipped', runE2E: false });
     });
 
     it('does not let future Acceptance source files bypass the type boundary', () => {
@@ -80,7 +137,7 @@ describe('CI execution plan', () => {
             checksScope: 'focused-source',
         });
         expect(evaluateCIExecutionPlan({ ...input, pullRequestDraft: false })).toMatchObject({
-            checksScope: 'full',
+            checksScope: 'affected',
         });
     });
 
@@ -124,7 +181,7 @@ describe('CI execution plan', () => {
         });
     });
 
-    it('ignores an invalid reuse receipt and keeps full ready-PR coverage', () => {
+    it('ignores an invalid reuse receipt and keeps affected ready-PR coverage', () => {
         expect(
             evaluateCIExecutionPlan({
                 changedFiles: ['apps/server/src/domains/index.ts'],
@@ -136,7 +193,7 @@ describe('CI execution plan', () => {
                     runId: 123,
                 },
             }),
-        ).toMatchObject({ checksScope: 'full', runE2E: true });
+        ).toMatchObject({ checksScope: 'affected', runE2E: true });
     });
 
     it('runs source main pushes with optimized E2E and skips duplicate gates for release commits', () => {
@@ -227,9 +284,14 @@ describe('CI execution plan', () => {
     it('never selects concurrent full checks without the E2E job that owns them', () => {
         const inputs = [
             {
-                changedFiles: ['apps/server/src/domains/index.ts'],
+                changedFiles: ['package.json'],
                 eventName: 'pull_request',
+                hasFullValidationPath: true,
                 pullRequestDraft: false,
+            },
+            {
+                changedFiles: [],
+                eventName: 'schedule',
             },
             {
                 changedFiles: ['apps/desktop/src/main/index.ts'],
