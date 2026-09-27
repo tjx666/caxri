@@ -82,7 +82,7 @@ describe('stageAgentHookBridge', () => {
                         '--phase',
                         event === 'UserPromptSubmit'
                             ? 'turnStarted'
-                            : provider === 'grok' && event === 'StopFailure'
+                            : event === 'StopFailure'
                               ? 'turnFailed'
                               : 'turnFinished',
                     ],

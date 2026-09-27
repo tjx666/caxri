@@ -1,7 +1,77 @@
 import { CaxriError, isCaxriError } from '@caxri/protocol';
 import { ProjectStatusSummaryErrorMessage } from 'caxri';
 
+import { resolveServerExecutable, serverProcessEnvironment } from '../executables';
+
 const GENERIC_GIT_FAILURE_MESSAGE = 'The Git operation failed. Open Logs for details.';
+
+/**
+ * Closed cause of a failed Git command for structured logs. `exit` is Git answering with a non-zero status; every other
+ * reason means Git could not answer at all.
+ */
+export type GitFailureReason =
+    'exit' | 'not-found' | 'output-limit' | 'timeout' | 'xcode-license' | 'xcode-tools-missing';
+
+interface GitFailureShape {
+    code?: string;
+    killed?: boolean;
+    message?: string;
+    stderr?: string;
+}
+
+/**
+ * MacOS ships `/usr/bin/git` as an `xcrun` shim; without the Command Line Tools it exits with this stderr (and asks the
+ * OS to offer an install) instead of running Git.
+ */
+const XCODE_TOOLS_MISSING =
+    /xcrun: error: invalid active developer path|no developer tools were found/;
+
+export function classifyGitFailure(error: unknown): GitFailureReason {
+    const failure = error as GitFailureShape;
+    if (failure.code === 'ENOENT') return 'not-found';
+    if (failure.killed || failure.message?.toLowerCase().includes('timed out')) return 'timeout';
+    if (
+        failure.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER' ||
+        failure.message?.includes('maxBuffer')
+    )
+        return 'output-limit';
+    const stderr = failure.stderr?.toLowerCase() ?? '';
+    if (stderr.includes('you have not agreed to the xcode license agreements'))
+        return 'xcode-license';
+    if (XCODE_TOOLS_MISSING.test(stderr)) return 'xcode-tools-missing';
+    return 'exit';
+}
+
+/**
+ * `allowFailure` callers treat a non-zero exit as an answer ("no blame yet", "no origin"), so that outcome stays at
+ * debug. A missing Git, a timeout, or a blocked toolchain is never an answer: it silently blanks the same features, so
+ * it keeps its warn record and cause even when the caller tolerates it.
+ */
+export function gitFailureLogLevel(
+    reason: GitFailureReason,
+    allowFailure: boolean | undefined,
+): 'debug' | 'warn' {
+    return allowFailure === true && reason === 'exit' ? 'debug' : 'warn';
+}
+
+/**
+ * Git resolves through the login-shell PATH boundary like every other external CLI: a packaged app inherits launchd's
+ * constrained PATH, so the helpers Git itself execs (credential helpers, GPG signing, LFS filters, hooks) would
+ * otherwise miss Homebrew-style directories. An unresolvable Git raises the same ENOENT shape `execFile` would, so it
+ * is classified exactly like one the OS could not spawn.
+ */
+export async function resolveGitLaunch(): Promise<{
+    environment: NodeJS.ProcessEnv;
+    executable: string;
+}> {
+    const executable = await resolveServerExecutable('git');
+    if (!executable) {
+        const missing = new Error('git was not found') as NodeJS.ErrnoException;
+        missing.code = 'ENOENT';
+        throw missing;
+    }
+    return { executable, environment: await serverProcessEnvironment() };
+}
 
 export function describeGitFailure(
     error: unknown,
@@ -10,24 +80,28 @@ export function describeGitFailure(
     // Deliberately not `NodeJS.ErrnoException` here: that type inherits `Error`'s required
     // `message: string`, but `error` is `unknown` at this catch boundary and a thrown value is not
     // guaranteed to be an `Error` instance with a `message` at runtime.
-    const failure = error as {
-        code?: string;
-        killed?: boolean;
-        message?: string;
-        stderr?: string;
-    };
-    if (failure.code === 'ENOENT') return 'Git is not installed or is unavailable on PATH.';
-    if (failure.killed || failure.message?.toLowerCase().includes('timed out'))
-        return 'The Git operation timed out.';
-    if (
-        failure.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER' ||
-        failure.message?.includes('maxBuffer')
-    ) {
-        return 'Git output exceeded the safety limit.';
+    const failure = error as GitFailureShape;
+    switch (classifyGitFailure(error)) {
+        case 'not-found': {
+            return 'Git is not installed or is unavailable on PATH.';
+        }
+        case 'timeout': {
+            return 'The Git operation timed out.';
+        }
+        case 'output-limit': {
+            return 'Git output exceeded the safety limit.';
+        }
+        case 'xcode-license': {
+            return 'Git is blocked by the Xcode license agreement. Run sudo xcodebuild -license in Terminal, then retry.';
+        }
+        case 'xcode-tools-missing': {
+            return 'Git needs the Xcode Command Line Tools. Run xcode-select --install in Terminal, then retry.';
+        }
+        case 'exit': {
+            break;
+        }
     }
     const stderr = failure.stderr?.toLowerCase() ?? '';
-    if (stderr.includes('you have not agreed to the xcode license agreements'))
-        return 'Git is blocked by the Xcode license agreement. Run sudo xcodebuild -license in Terminal, then retry.';
     if (missingRepoRoot && stderr.includes('not a git repository'))
         return ProjectStatusSummaryErrorMessage.missingGitRepository;
     // Sync (pull/push) failures the user can act on directly; anything else falls through to the

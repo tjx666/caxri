@@ -165,6 +165,13 @@ export class TerminalLaunchPlanner {
                 };
             }
         } catch (error) {
+            if (isCaxriError(error) && error.details?.reason === 'shell_not_found')
+                return {
+                    ok: false,
+                    error,
+                    failureReason: 'executable_not_found',
+                    failureDetail: error.message,
+                };
             return { ok: false, error, failureReason: 'spawn_failed' };
         }
     }

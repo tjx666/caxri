@@ -195,7 +195,11 @@ export class AgentWorkTracker {
     observe(signal: AgentLifecycleSignal): AgentWorkObservation {
         if (signal.phase === 'subagentStarted')
             return { deferCompletion: false, outcome: this.subagentStarted(signal) };
-        if (signal.agentId && signal.phase === 'turnFinished')
+        /**
+         * Claude subagents inherit the parent's hooks, so a Task that ends on an API error sends a scoped `turnFailed`.
+         * It retires that child like a scoped finish; it must never reach Session state as the parent turn failing.
+         */
+        if (signal.agentId && (signal.phase === 'turnFinished' || signal.phase === 'turnFailed'))
             return { deferCompletion: false, outcome: this.subagentFinished(signal) };
         if (signal.agentId) {
             this.touchSubagent(signal);

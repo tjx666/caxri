@@ -32,14 +32,14 @@ export type CliFailureKind =
     | 'not-found'
     | 'not-logged-in'
     | 'not-linked'
+    | 'permission-denied'
     | 'rate-limited'
     | 'timeout'
     | 'network'
     | 'tls'
     | 'other';
 
-export type FailureReason =
-    CliFailureKind | 'permission-denied' | 'invalid-arguments' | 'no-pull-request';
+export type FailureReason = CliFailureKind | 'invalid-arguments' | 'no-pull-request';
 
 export type ExternalStatusRunner = (
     source: ExternalStatusSource,
@@ -149,6 +149,17 @@ function classifyCliFailure(
         return 'not-logged-in';
     if (/not linked|no project|run.*link|link this directory|not configured/i.test(stderr))
         return 'not-linked';
+    /*
+     * Signed in, but the account cannot see this resource: an organization enforcing SAML SSO the token was never
+     * authorized for, a token missing a scope, or a plain 403. Checked after the rate limit because GitHub also answers
+     * an exhausted budget with 403. The recovery is re-authorizing the token, which "Open Logs" would never suggest.
+     */
+    if (
+        /SAML enforcement|\bSSO\b|required scopes|missing required scope|HTTP 403|forbidden|not authorized|access denied/i.test(
+            stderr,
+        )
+    )
+        return 'permission-denied';
     return 'other';
 }
 
