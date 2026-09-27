@@ -13,7 +13,7 @@ import {
     tapMobileCheck,
     waitForMobile,
 } from './mobile-android';
-import { pinchReadOnlyTerminal } from './mobile-native-pinch';
+import { pinchTerminal } from './mobile-native-pinch';
 import { createMobileTerminalAcceptanceFixture } from './mobile-terminal-acceptance-fixture';
 import { tapTerminalKey } from './mobile-terminal-key';
 
@@ -118,9 +118,9 @@ export async function executeMobileTerminalScenario(
         const observingSize = await fixture.menuState();
         expect({ cols: observingSize.cols, rows: observingSize.rows }).toEqual(desktopSize);
         await capture(environment, 'observing', artifacts);
-        await pinchReadOnlyTerminal(environment.serial, 'pinch-in');
+        await pinchTerminal(environment.serial, 'pinch-in');
         await capture(environment, 'fit-to-screen', artifacts);
-        await pinchReadOnlyTerminal(environment.serial, 'pinch-out');
+        await pinchTerminal(environment.serial, 'pinch-out');
         await capture(environment, 'readable-default-restored', artifacts);
         const afterPinch = await fixture.menuState();
         expect({ cols: afterPinch.cols, rows: afterPinch.rows }).toEqual(desktopSize);
@@ -321,7 +321,7 @@ export async function executeMobileTerminalScenario(
             );
         }
 
-        await pinchReadOnlyTerminal(environment.serial, 'pinch-out');
+        await pinchTerminal(environment.serial, 'pinch-out', 'leased');
         const zoomed = await waitForMobile(
             () => fixture.menuState(),
             ({ cols }) => cols !== null && takenOver.cols !== null && cols < takenOver.cols,
