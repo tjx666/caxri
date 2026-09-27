@@ -17,6 +17,8 @@ import {
     recordRecentAgentAction,
     SessionContentSearch,
 } from './agents';
+import type { AgentCommanderServiceOptions } from './commander';
+import { AgentCommanderService } from './commander';
 import type { ConfigService } from './config';
 import type { CaxriDatabase } from './db';
 import { DeliveryFocusRefresh } from './delivery-focus-refresh';
@@ -97,6 +99,10 @@ type ServiceHandlerMethods =
     | 'projectStatus.summary'
     | 'projectStatus.overview'
     | 'session.pullRequests'
+    | 'commander.ensure'
+    | 'commander.snapshot'
+    | 'commander.board'
+    | 'commander.session.create'
     | 'session.refreshDeliveryOnFocus'
     | 'session.searchContent'
     | 'settings.get'
@@ -195,6 +201,8 @@ const MAIN_OWNED_METHODS = [
     'gpu.testInjectContextLoss',
     'contextMenu.show',
     'processExplorer.open',
+    'agentCommander.open',
+    'agentCommander.revealSession',
     'dialog.selectDirectory',
     'editor.confirmDiscard',
     'diagnostics.export',
@@ -232,6 +240,7 @@ export function createServiceHandlers(services: {
     agentEnvironment: AgentEnvironment;
     agentHooks: AgentHookManager;
     awaitAgentSettingsReconcile: () => Promise<void>;
+    commander: Omit<AgentCommanderServiceOptions, 'database' | 'pullRequests' | 'userDataPath'>;
     configuration: ConfigService;
     database: CaxriDatabase;
     emit: DomainDependencies['send'];
@@ -287,6 +296,12 @@ export function createServiceHandlers(services: {
         },
     );
     projectStatus.useSessionPullRequests((sessionId) => sessionPullRequests.resolve(sessionId));
+    const commander = new AgentCommanderService({
+        ...services.commander,
+        database,
+        pullRequests: () => sessionPullRequests.snapshot(),
+        userDataPath,
+    });
     const deliveryFocusRefresh = new DeliveryFocusRefresh({
         logger,
         projectStatus,
@@ -426,6 +441,10 @@ export function createServiceHandlers(services: {
             projectStatus.summary(sessionId, refreshToken),
         'projectStatus.overview': ({ sessionId }) => projectStatus.overview(sessionId),
         'session.pullRequests': () => sessionPullRequests.snapshot(),
+        'commander.ensure': () => commander.ensure(),
+        'commander.snapshot': () => commander.snapshot(),
+        'commander.board': () => commander.board(),
+        'commander.session.create': ({ projectId }) => commander.createSession(projectId),
         'session.refreshDeliveryOnFocus': ({ sessionId }) => {
             // Fire-and-forget: the refresh logs its own outcome and the change events converge the UI.
             // eslint-disable-next-line no-void -- intentional floating-promise discard, see above

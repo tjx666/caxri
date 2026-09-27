@@ -64,6 +64,11 @@ export class TerminalSuspensionService {
     private async suspendDecided(): Promise<string[]> {
         const { database } = this.options;
         this.observeSelection();
+        /**
+         * The Agent Commander's Session is never selected in the Workbench, so without this exemption it would always
+         * look abandoned; its Terminal is supervised by its own window instead.
+         */
+        const commanderSessionId = database.agentCommanderRows()?.sessionId;
         const decisions = decideTerminalSuspensions({
             deselectedAt: (sessionId) => this.deselectedAt.get(sessionId),
             now: this.now(),
@@ -72,7 +77,9 @@ export class TerminalSuspensionService {
             session: (sessionId) => database.getSession(sessionId) ?? undefined,
             settings: this.options.settings(),
             startedAt: this.startedAt,
-            terminals: database.listTerminals(),
+            terminals: database
+                .listTerminals()
+                .filter((terminal) => terminal.sessionId !== commanderSessionId),
         });
         const suspended: string[] = [];
         // Suspensions run one at a time so each restart barrier and snapshot capture finishes before the next kill.

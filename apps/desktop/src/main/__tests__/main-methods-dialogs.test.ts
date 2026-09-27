@@ -39,6 +39,8 @@ function options(overrides: {
     >;
 }) {
     return {
+        getAgentCommander: vi.fn(),
+        revealSessionInWorkbench: () => Promise.resolve(),
         getProcessExplorer: () =>
             overrides.processExplorer ?? ({} as ProcessExplorerWindowController),
         getRemoteDebugging: () => ({ port: '9223', transport: 'port' }) as const,

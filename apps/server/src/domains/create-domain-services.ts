@@ -2,7 +2,6 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import type {
-    BootstrapState,
     FullStateChangeReason,
     PersistedWindowState,
     SessionRestorePlacement,
@@ -56,6 +55,7 @@ import { resolveTerminalWorkingDirectory } from './terminal-working-directory';
 import * as provenance from './workbench-provenance';
 import { validateWorkbenchRequestContext } from './workbench-request-context';
 import { createWorkbenchRootHandlers } from './workbench-root-handlers';
+import { createWorkbenchSnapshots } from './workbench-snapshot';
 
 const DEFAULT_WINDOW_BOUNDS: PersistedWindowState['bounds'] = { width: 1440, height: 900 };
 const VISIBLE_TERMINAL_RESTORE_GRID_WAIT_MS = 5_000;
@@ -161,6 +161,7 @@ export async function createDomainServices(
                 session.projectId,
                 providerSettings,
                 launchId,
+                database.agentCommanderRows()?.terminalId === terminal.id ? 'commander' : undefined,
             );
             if (!dependencies.agentEndpoints.preparedEndpointForTerminal(terminal.id))
                 throw new CaxriError(
@@ -280,47 +281,12 @@ export async function createDomainServices(
         git.evictSessions(sessionIds);
         projectStatus.evictSessions(sessionIds);
     };
-    function bootstrapState(): BootstrapState {
-        const settings = configuration.getSettings();
-        const keybindings = configuration.getKeybindings();
-        const theme = configuration.getTheme();
-        const sessions = database.listVisibleSessions();
-        const visibleSessionIds = new Set(sessions.map((session) => session.id));
-        // A hidden Project's Sessions keep their Terminal and layout rows, but none reaches the Workbench.
-        const terminalRecords = database
-            .listTerminals()
-            .filter((terminal) => visibleSessionIds.has(terminal.sessionId));
-        const notices = agentRuntime.automaticNaming.automaticNamingNotices();
-        return {
-            projects: database.listVisibleProjects(),
-            sessions,
-            terminals: terminalRecords.map(liveTerminalRecord),
-            selectedProjectId: database.getAppState('lastSelectedProjectId') ?? undefined,
-            selectedSessionId: database.getAppState('lastSelectedSessionId') ?? undefined,
-            sessionStates: database
-                .listSessionStates(terminalRecords)
-                .filter((state) => visibleSessionIds.has(state.sessionId)),
-            settings: settings.value,
-            keybindings: keybindings.value,
-            keybindingConflicts: keybindings.conflicts,
-            configurationErrors: configuration.getErrors(),
-            theme: theme.value,
-            runtime: { status: 'ready', restartCount: 0 },
-            ...(notices.length > 0 && { automaticNamingUnavailable: notices }),
-        };
-    }
-    function recordState(sessionIds: readonly string[], terminalIds: readonly string[]) {
-        return {
-            sessions: [...new Set(sessionIds)].flatMap((sessionId) => {
-                const session = database.getSession(sessionId);
-                return session ? [session] : [];
-            }),
-            terminals: [...new Set(terminalIds)].flatMap((terminalId) => {
-                const terminal = database.getTerminal(terminalId);
-                return terminal ? [liveTerminalRecord(terminal)] : [];
-            }),
-        };
-    }
+    const snapshots = createWorkbenchSnapshots({
+        automaticNamingNotices: () => agentRuntime.automaticNaming.automaticNamingNotices(),
+        configuration,
+        database,
+        liveTerminalRecord,
+    });
     const terminalWorkingDirectory = (options: {
         authorizedRoots: readonly string[];
         defaultRoot: string;
@@ -335,6 +301,7 @@ export async function createDomainServices(
         sessionId: string,
         kind: TerminalKind,
         requestedCwd?: string,
+        beforeStart?: (terminal: TerminalRecord) => void,
     ): Promise<TerminalRecord> {
         const session = database.getSession(sessionId);
         if (!session) throw new CaxriError('NOT_FOUND', 'Session not found');
@@ -347,6 +314,7 @@ export async function createDomainServices(
         });
         const expectedWorkingDirectory = await terminalDirectoryIdentity(cwd);
         const terminal = database.createTerminal(sessionId, kind, cwd);
+        beforeStart?.(terminal);
         coordinator.prepareTerminalStart(terminal.id);
         try {
             return await terminals.start(terminal, { expectedWorkingDirectory });
@@ -354,19 +322,36 @@ export async function createDomainServices(
             return database.getTerminal(terminal.id)!;
         }
     }
-    const restoreInterruptedTerminals = createInterruptedTerminalRestorer({
+    const restorerOptions = {
         coordinator,
         database,
         logger,
         send,
         terminalDirectoryIdentity,
-        terminalRestores,
         terminals,
         visibleGridWaitMs:
             dependencies.terminalRestoreGridWaitMs ?? VISIBLE_TERMINAL_RESTORE_GRID_WAIT_MS,
+    };
+    const restoreInterruptedTerminals = createInterruptedTerminalRestorer({
+        ...restorerOptions,
+        terminalRestores,
     });
     const { restoreInterruptedTerminalsInBackground, watchSessionInBackground } =
         createBackgroundTasks(logger, files, git, restoreInterruptedTerminals);
+    /**
+     * The Agent Commander Session is never selected, so it restores through its own supervisor: sharing the Workbench's
+     * would let the next Session selection abort the Commander's resume.
+     */
+    const commanderRestores = new TerminalRestoreSupervisor(1);
+    const restoreCommanderTerminals = createBackgroundTasks(
+        logger,
+        files,
+        git,
+        createInterruptedTerminalRestorer({
+            ...restorerOptions,
+            terminalRestores: commanderRestores,
+        }),
+    ).restoreInterruptedTerminalsInBackground;
     /**
      * The one place that tells background services which Session is now current. Project Status polls only this
      * Session, so every path that changes durable selection must go through here: a missed update either leaves the
@@ -432,6 +417,7 @@ export async function createDomainServices(
         isClosed = true;
         projectStatus.dispose();
         terminalRestores.close();
+        commanderRestores.close();
         await terminalSuspension.close();
         coordinator.close();
         longPastes.close();
@@ -462,9 +448,9 @@ export async function createDomainServices(
         ...mainOwnedHandlers,
         'session.compactWarm': (_parameters, signal) => compaction.run(signal),
         ...agentCommands.handlers,
-        'app.bootstrap': () => bootstrapState(),
+        'app.bootstrap': () => snapshots.bootstrap(),
         'app.activeContext': () => readActiveContext(database),
-        'app.records': ({ sessionIds, terminalIds }) => recordState(sessionIds, terminalIds),
+        'app.records': ({ sessionIds, terminalIds }) => snapshots.records(sessionIds, terminalIds),
         'app.health': () => ({
             ready: true,
             pid,
@@ -509,7 +495,7 @@ export async function createDomainServices(
         ...createOrderingHandlers({ database, sendFullStateChange }),
         ...createProjectHidingHandlers({
             database,
-            bootstrapState,
+            bootstrapState: snapshots.bootstrap,
             evictSessions: evictSessionCaches,
             restoreSelection: () => observeSelectedSession(selectedSessionId(), true),
             sendFullStateChange,
@@ -603,7 +589,7 @@ export async function createDomainServices(
             database,
             delegations: agentCommands.delegationService,
             mobileTerminalMutations,
-            bootstrapState,
+            bootstrapState: snapshots.bootstrap,
             forgetSessionRuntime,
             evictSessions: evictSessionCaches,
             projectDeleted: (ids) => workbenchRoots.projectDeleted(ids),
@@ -677,6 +663,7 @@ export async function createDomainServices(
             introspection.records.terminal(query, principal),
         'terminal.terminateAll': async () => {
             terminalRestores.close();
+            commanderRestores.close();
             coordinator.close();
             await terminals.shutdown('terminate');
             return null;
@@ -686,6 +673,13 @@ export async function createDomainServices(
             agentEnvironment,
             agentHooks,
             awaitAgentSettingsReconcile: agentRuntime.awaitSettingsReconcile,
+            commander: {
+                createAndStartTerminal,
+                probeTerminal: (terminalId) => coordinator.probeTerminal(terminalId),
+                restoreTerminals: (sessionId) => restoreCommanderTerminals(sessionId),
+                scopedWorkbench: snapshots.commander,
+                sendFullStateChange: () => sendFullStateChange('session.create'),
+            },
             configuration,
             database,
             emit: send,

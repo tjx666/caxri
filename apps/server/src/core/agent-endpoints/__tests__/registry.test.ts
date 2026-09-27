@@ -53,6 +53,22 @@ describe('AgentEndpointRegistry', () => {
         expect(registry.authenticate(credential).capabilities).not.toContain('agents.delegate');
     });
 
+    it('grants the Agent Commander role board and delegation authority without general control', () => {
+        const registry = new AgentEndpointRegistry('host-1', { token: () => TOKEN });
+        const commander = begin(registry, { role: 'commander' });
+        const ordinary = begin(registry, { terminalId: 'terminal-2', launchId: 'launch-2' });
+        activate(registry, commander);
+        activate(registry, ordinary, 'launch-2');
+
+        const granted = registry.authenticate({ ...commander.ref, token: TOKEN }).capabilities;
+        expect(granted).toEqual(expect.arrayContaining(['agents.delegate', 'commander']));
+        expect(granted).not.toContain('agents.control');
+        expect(granted).not.toContain('terminals.steer');
+        expect(registry.authenticate({ ...ordinary.ref, token: TOKEN }).capabilities).not.toContain(
+            'commander',
+        );
+    });
+
     it('keeps a pre-spawn credential pending until its exact launch activates', () => {
         const registry = new AgentEndpointRegistry('host-1', { token: () => TOKEN });
         const endpoint = begin(registry);

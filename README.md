@@ -103,6 +103,7 @@ architecture contracts live in the owning `.agents/skills/` entries. Bundle budg
 | [docs/agent-actions.md](docs/agent-actions.md)                                         | Unified Agent skills and slash-command picker                 |
 | [docs/grok-build.md](docs/grok-build.md)                                               | Grok Build launch, identity, lifecycle, and capability limits |
 | [docs/activity-view.md](docs/activity-view.md)                                         | Cross-Project queue of Sessions waiting on you                |
+| [docs/agent-commander.md](docs/agent-commander.md)                                     | Second-window Codex commander and cross-Project Agent board   |
 | [docs/notifications.md](docs/notifications.md)                                         | Notification history and reminder preferences                 |
 | [docs/keybindings.md](docs/keybindings.md)                                             | Binding format, `Cmd+K` chord sequences, Monaco ownership     |
 | [docs/file-preview.md](docs/file-preview.md)                                           | Markdown and SVG preview tabs, and adding a format            |

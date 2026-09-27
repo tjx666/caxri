@@ -55,6 +55,10 @@ the selected profile's delegation configuration. It requires owner capability
 Session and caller provider; it grants only delegation and does not start a Server implicitly.
 See [external callers](agent-delegation.md#external-callers-and-directory-authorization).
 
+`commander board` and `commander session create --project <id>` belong to the
+[Agent Commander](agent-commander.md). They require the `commander` capability, which only the
+Commander's own Agent Endpoint and the human owner hold.
+
 Agent automation deliberately separates Peer Messages (`agent message`), durable Agent lifecycle
 operations (`agent dispatch` and `agent control`), and owner-only simulated input
 (`terminal send`). They do not alias or fall back to one another. See

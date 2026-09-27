@@ -1,0 +1,121 @@
+import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
+import { describe, expect, it } from 'vitest';
+
+import { COMMANDER_FINISHED_RETENTION_MS, commanderBoard, commanderBoardGroup } from '../board';
+
+const NOW = 10 * COMMANDER_FINISHED_RETENTION_MS;
+
+function session(overrides: Partial<SessionRecord> = {}): SessionRecord {
+    return {
+        id: 'session-1',
+        projectId: 'project-1',
+        workbenchProjectId: 'project-1',
+        rootPath: '/workspace/project',
+        createdAt: 1,
+        lastOpenedAt: 1,
+        lastSessionActivityAt: NOW - 1_000,
+        sidebarOrder: 0,
+        lastSessionActivityReason: 'created',
+        lastActivityState: 'idle',
+        attentionEpoch: 0,
+        readAttentionEpoch: 0,
+        hasUnread: false,
+        displayTitle: 'Fix the parser',
+        titleMode: 'automatic',
+        ...overrides,
+    };
+}
+
+function terminal(overrides: Partial<TerminalRecord> = {}): TerminalRecord {
+    return {
+        id: 'terminal-1',
+        sessionId: 'session-1',
+        kind: 'codex',
+        cwd: '/workspace/project',
+        title: 'Codex',
+        icon: 'codex',
+        orderIndex: 0,
+        lastProcessState: 'running',
+        createdAt: 1,
+        updatedAt: 1,
+        ...overrides,
+    };
+}
+
+const project = {
+    id: 'project-1',
+    rootPath: '/workspace/project',
+    displayTitle: 'project',
+    orderIndex: 0,
+    createdAt: 1,
+    lastOpenedAt: 1,
+} satisfies ProjectRecord;
+
+describe('Commander board grouping', () => {
+    it.each([
+        [{ hasUnread: true, lastActivityState: 'running' }, 'running', 'attention'],
+        [{ lastActivityState: 'failed' }, 'dead', 'failed'],
+        [{ lastActivityState: 'running' }, 'running', 'working'],
+        [{ lastActivityState: 'running' }, 'dead', 'idle'],
+        [{ lastActivityState: 'waiting' }, 'running', 'waiting'],
+        [{ lastActivityState: 'completed' }, 'running', 'finished'],
+        [
+            {
+                lastActivityState: 'completed',
+                lastSessionActivityAt: NOW - COMMANDER_FINISHED_RETENTION_MS,
+            },
+            'running',
+            'idle',
+        ],
+    ] as const)('groups %o with a %s Terminal as %s', (overrides, processState, group) => {
+        expect(
+            commanderBoardGroup(
+                session(overrides),
+                terminal({ lastProcessState: processState }),
+                NOW,
+            ),
+        ).toBe(group);
+    });
+
+    it('orders rows by group, then by recency, and drops archived or foreign Sessions', () => {
+        const board = commanderBoard({
+            commanderSessionIds: new Set(['session-2']),
+            now: NOW,
+            projects: [project, { ...project, id: 'worktree', ownerProjectId: 'project-1' }],
+            pullRequests: {
+                pullRequests: {
+                    'session-2': {
+                        number: 7,
+                        title: 'Fix',
+                        url: 'https://example.com/pull/7',
+                        state: 'open',
+                        source: 'branch',
+                    },
+                },
+                refreshedAt: 42,
+            },
+            sessions: [
+                session({ id: 'session-1', lastSessionActivityAt: NOW - 2_000 }),
+                session({ id: 'session-2', lastSessionActivityAt: NOW - 1_000 }),
+                session({ id: 'session-3', hasUnread: true }),
+                session({ id: 'session-4', archivedAt: 1 }),
+                session({ id: 'session-5', projectId: 'worktree' }),
+            ],
+            terminals: [terminal({ sessionId: 'session-2', id: 'terminal-2' })],
+        });
+
+        expect(board.projects.map(({ id }) => id)).toEqual(['project-1']);
+        expect(board.pullRequestsRefreshedAt).toBe(42);
+        expect(board.rows.map(({ sessionId }) => sessionId)).toEqual([
+            'session-3',
+            'session-2',
+            'session-1',
+        ]);
+        expect(board.rows[1]).toMatchObject({
+            agent: { terminalId: 'terminal-2', kind: 'codex', processState: 'running' },
+            commanderSession: true,
+            pullRequest: { number: 7 },
+        });
+        expect(board.rows[2]).toMatchObject({ agent: null, commanderSession: false });
+    });
+});

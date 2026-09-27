@@ -54,20 +54,53 @@ export interface WorkbenchIpcOptions {
     readEventLoopStalls?(): EventLoopStallSummary | undefined;
     onEventsReady?(): void;
     renderer(): WebContents | undefined;
+    /**
+     * Optional second Renderer (the Agent Commander window) that shares the Workbench preload and Main's single
+     * Desktop↔Server connection. It is trusted only for the requests its policy admits; diagnostics and Workbench
+     * readiness stay bound to the main window.
+     */
+    companion?: CompanionRendererPolicy;
     transport: ReturnType<typeof createElectronIpcCommandAdapter>;
+}
+
+export interface CompanionRendererPolicy {
+    renderer(): WebContents | undefined;
+    /**
+     * Throws a classified `CaxriError` when the companion may not send this request envelope.
+     */
+    admit(raw: unknown): void;
+    /**
+     * Observes a successful reply so the policy can learn identities it later admits (for example its Terminal).
+     */
+    observeReply?(raw: unknown, reply: CaxriReply): void;
+    onEventsReady(): void;
+    onRendererError(kind: 'page-exception' | 'unhandled-rejection'): void;
 }
 
 /**
  * Installs the authenticated Electron transport without leaking Electron into the protocol.
  */
 export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
-    function assertSender(sender: WebContents): void {
-        if (!options.renderer() || sender !== options.renderer())
-            throw new CaxriError('PATH_DENIED', 'Untrusted IPC sender');
+    function senderRole(sender: WebContents): 'companion' | 'workbench' | undefined {
+        if (options.renderer() && sender === options.renderer()) return 'workbench';
+        const companion = options.companion?.renderer();
+        if (companion && sender === companion) return 'companion';
+        return undefined;
+    }
+
+    function assertSender(sender: WebContents): 'companion' | 'workbench' {
+        const role = senderRole(sender);
+        if (!role) throw new CaxriError('PATH_DENIED', 'Untrusted IPC sender');
+        return role;
     }
 
     ipcMain.on(RENDERER_ERROR_CHANNELS.workbench, (event, rawKind: unknown) => {
-        if (event.sender !== options.renderer() || !isRendererErrorKind(rawKind)) return;
+        if (!isRendererErrorKind(rawKind)) return;
+        if (senderRole(event.sender) === 'companion') {
+            options.companion?.onRendererError(rawKind);
+            return;
+        }
+        if (event.sender !== options.renderer()) return;
         options
             .logger()
             ?.write(
@@ -312,13 +345,17 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
         });
     });
     ipcMain.on('caxri:renderer-events-ready', (event) => {
-        assertSender(event.sender);
+        if (assertSender(event.sender) === 'companion') {
+            options.companion?.onEventsReady();
+            return;
+        }
         options.onEventsReady?.();
     });
     ipcMain.handle('caxri:request', async (event, raw: unknown): Promise<CaxriReply> => {
         let isTrustedRenderer = false;
         try {
-            assertSender(event.sender);
+            const role = assertSender(event.sender);
+            if (role === 'companion') options.companion?.admit(raw);
             isTrustedRenderer = true;
             /**
              * Refuse queued Renderer work; explicit quit owns final Server I/O and shutdown.
@@ -336,6 +373,7 @@ export function installWorkbenchIpc(options: WorkbenchIpcOptions): void {
                     error: toWireError(new CaxriError('CANCELLED', 'Application is quitting')),
                 };
             const reply = await options.transport.dispatch(raw);
+            if (role === 'companion' && reply.ok) options.companion?.observeReply?.(raw, reply);
             /**
              * In-flight reads can outlive the window once quit closes the Server attachment; the consumer is gone.
              */

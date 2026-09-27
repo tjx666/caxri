@@ -36,6 +36,13 @@ process events without reading output or silence. Server Core and Terminal Host 
 launch ID before an interrupt or stop reaches the current Caxri-owned Agent child; control never targets the
 long-lived Shell root. A client disconnect explicitly cancels its dispatch long poll.
 
+The Agent Commander Endpoint is the one fixed exception to grant-only delegation. Domain services begin
+it with `role: 'commander'`, which adds `commander` and `agents.delegate` while its Project scope stays
+the Commander's system Project. Server Core defers the delegation target check for that principal to the
+delegation domain, which admits only the exact recorded Commander Terminal delegating into a non-archived
+Session it created through `commander.session.create` in a visible top-level Project. It never gains
+dispatch, control, steer, or Settings write authority. See `docs/agent-commander.md`.
+
 Managed launch failure, interruption causes, and content-free transition logs are documented in
 [Agent dispatch receipts](../../../../docs/agent-dispatch-receipts.md).
 

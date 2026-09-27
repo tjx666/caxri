@@ -148,6 +148,7 @@
             "apps/desktop": {
                 "entry": [
                     "src/preload/process-explorer.ts",
+                    "src/renderer/src/agent-commander-main.tsx",
                     "src/renderer/src/main.tsx",
                     "src/renderer/src/process-explorer-main.tsx"
                 ]

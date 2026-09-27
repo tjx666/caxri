@@ -294,7 +294,8 @@ describe('operatorContext', () => {
          */
         expect(context.capabilities).toContain('settings.delegation.write');
         expect(context.capabilities).toContain('agents.delegation.access');
-        expect(context.capabilities).toHaveLength(18);
+        expect(context.capabilities).toContain('commander');
+        expect(context.capabilities).toHaveLength(19);
     });
 
     it('derives the principal id from the profile id it is given', () => {
