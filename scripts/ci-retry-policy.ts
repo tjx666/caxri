@@ -12,6 +12,13 @@ import type {
 import { evaluateCIExecutionPlan } from './ci-execution-plan';
 import type { GreenRunEvidence } from './ci-green-reuse';
 import { evaluateGreenReusePolicy } from './ci-green-reuse';
+import {
+    isFullValidationPath,
+    isProtectedRetryPath,
+    ordinaryE2ESpecPattern,
+    parsePullRequestE2ETests,
+    selectAffectedE2ETests,
+} from './ci-path-policy';
 
 export interface RetryHint {
     baseRunId: number;
@@ -83,42 +90,6 @@ export interface RetryPolicyDecision {
     reason: string;
     retryKind?: 'metadata-only' | 'spec-only';
 }
-
-const protectedPathPatterns = [
-    /^\.github\/workflows\//,
-    /^\.github\/actions\//,
-    /^\.bun-version$/,
-    /^package\.json$/,
-    /^(?:mise\.toml|pnpm-lock\.yaml|pnpm-workspace\.yaml)$/,
-    /^(?:electron\.vite|eslint|knip|playwright|tsconfig|vite|vitest)(?:\.[^/]+)?$/,
-    /^scripts\/(?:doctor-changed|native-spike)\.ts$/,
-    /^scripts\/(?:ci-bundle-budget|ci-checks-worktree|ci-concurrent-validation|ci-execution-plan|ci-green-reuse|ci-metrics|ci-platform-checks|ci-platform-gates|ci-retry-policy|report-e2e-manifest|run-ci-focused-checks|run-ci-parity|self-hosted-runner)\.ts$/,
-    // Every `run-e2e-*` runner and everything under `scripts/fixtures/` participates in E2E job
-    // steps (census fixture included), so protect them by prefix instead of enumerating each file
-    // and re-creating the omission that let census infrastructure bypass full validation.
-    /^scripts\/run-e2e-[^/]+\.ts$/,
-    /^scripts\/fixtures\//,
-    /^scripts\/reporters\/e2e-receipt-reporter\.ts$/,
-    /^e2e\/support\//,
-    /^e2e\/editor\.performance\.e2e\.ts$/,
-    /^e2e\/failure-isolation\.e2e\.ts$/,
-    /^e2e\/mobile-acceptance-scenarios\.e2e\.ts$/,
-    /^e2e\/mobile-pairing-desktop-acceptance\.e2e\.ts$/,
-    /^e2e\/real-agent-smoke\.e2e\.ts$/,
-    /^e2e\/renderer\.performance\.e2e\.ts$/,
-    /^e2e\/startup\.performance\.e2e\.ts$/,
-    /^\.agents\/skills\/(?:quality-check|switch-worktree)\//,
-    /^\.agents\/skills\/e2e-testing\//,
-    /^\.agents\/skills\/(?:build|release)\//,
-    /^build\//,
-    /^RELEASING\.md$/,
-];
-
-export function isProtectedRetryPath(path: string): boolean {
-    return protectedPathPatterns.some((pattern) => pattern.test(path));
-}
-
-const ordinaryE2ESpecPattern = /^e2e\/[a-z0-9][a-z0-9-]*\.e2e\.ts$/u;
 
 export function retryDiffArguments(ancestor: string, current: string): string[] {
     return ['diff', '--no-renames', '--name-only', '-z', `${ancestor}...${current}`];
@@ -563,7 +534,7 @@ async function writeDecision(
                 `reason=${reason}`,
                 `base_run=${decision.baseRunId ?? ''}`,
                 `retry_kind=${decision.retryKind ?? ''}`,
-                `e2e_tests=${JSON.stringify(decision.e2eTests ?? [])}`,
+                `e2e_tests=${JSON.stringify(execution.e2eTests ?? decision.e2eTests ?? [])}`,
                 `e2e_pool=${decision.e2ePool ?? 'control'}`,
                 `checks_scope=${execution.checksScope}`,
                 `run_e2e=${String(execution.runE2E)}`,
@@ -577,10 +548,27 @@ async function writeDecision(
     if (summary) {
         await appendFile(
             summary,
-            `## CI execution plan\n\n- Mode: \`${decision.mode}\`\n- Retry kind: \`${decision.retryKind ?? 'none'}\`\n- Retry reason: ${reason}\n- Checks: \`${execution.checksScope}\`\n- E2E: ${execution.runE2E ? `\`${execution.e2eProfile}\`` : 'skipped'}\n- Plan reason: ${execution.reason}\n- Base run: ${decision.baseRunId ?? 'none'}\n- Focused E2E: ${decision.e2eTests?.map((path) => `\`${path}\``).join(', ') ?? 'none'}\n- Failed E2E pool: \`${decision.e2ePool ?? 'control'}\`\n- Reused E2E run: ${greenReuse.reusableGreenRun?.runId ?? 'none'}\n- Reused E2E head: \`${greenReuse.reusableGreenRun?.headSha ?? 'none'}\`\n- Green reuse: ${greenReuse.reason.replaceAll(/[\r\n]+/gu, ' ')}\n- Pull-request changed files: ${allChangedFiles.length}\n- Current checks changed files: ${executionChangedFiles.length}\n`,
+            `## CI execution plan\n\n- Mode: \`${decision.mode}\`\n- Retry kind: \`${decision.retryKind ?? 'none'}\`\n- Retry reason: ${reason}\n- Checks: \`${execution.checksScope}\`\n- E2E: ${execution.runE2E ? `\`${execution.e2eProfile}\`` : 'skipped'}\n- Plan reason: ${execution.reason}\n- Base run: ${decision.baseRunId ?? 'none'}\n- Focused E2E: ${(execution.e2eTests ?? decision.e2eTests)?.map((path) => `\`${path}\``).join(', ') ?? 'none'}\n- Failed E2E pool: \`${decision.e2ePool ?? 'control'}\`\n- Reused E2E run: ${greenReuse.reusableGreenRun?.runId ?? 'none'}\n- Reused E2E head: \`${greenReuse.reusableGreenRun?.headSha ?? 'none'}\`\n- Green reuse: ${greenReuse.reason.replaceAll(/[\r\n]+/gu, ' ')}\n- Pull-request changed files: ${allChangedFiles.length}\n- Current checks changed files: ${executionChangedFiles.length}\n`,
         );
     }
     process.stdout.write(`${JSON.stringify(decision)}\n`);
+}
+
+/**
+ * A scheduled run repeats nothing when `main` has not moved since the previous scheduled run finished, whatever that
+ * run concluded: a red nightly already filed its report, and rerunning the same tree would only spend the runner.
+ */
+async function isNightlyHeadUnchanged(repo: string, currentHeadSha: string): Promise<boolean> {
+    const query = new URLSearchParams({ event: 'schedule', per_page: '5', status: 'completed' });
+    const value = (await githubJson(
+        `/repos/${repo}/actions/workflows/ci.yml/runs?${query.toString()}`,
+    )) as { workflow_runs?: WorkflowRunRecord[] };
+    const previous = (value.workflow_runs ?? []).find(
+        (run) =>
+            String(run.id) !== process.env.GITHUB_RUN_ID &&
+            (run.conclusion === 'success' || run.conclusion === 'failure'),
+    );
+    return previous?.head_sha === currentHeadSha;
 }
 
 async function main(): Promise<void> {
@@ -592,6 +580,7 @@ async function main(): Promise<void> {
         inputs?: { e2e_profile?: 'control' | 'optimized' | 'skip' };
         pull_request?: {
             base?: { sha?: string };
+            body?: string | null;
             draft?: boolean;
             head?: { ref?: string };
             number?: number;
@@ -665,10 +654,33 @@ async function main(): Promise<void> {
     const isVerifiedReleaseCommit =
         hasReleaseIdentity &&
         (await isExactReleasePreparationDelta(process.cwd(), allChangedFiles));
+    const eventName = process.env.GITHUB_EVENT_NAME ?? '';
+    let affectedE2ETests: string[] = [];
+    let affectedSelectionError: string | undefined;
+    if (eventName === 'pull_request') {
+        try {
+            const existingSpecs = new Set(
+                nullSeparatedPaths(await capture('git', ['ls-files', '-z', '--', 'e2e/*.e2e.ts'])),
+            );
+            affectedE2ETests = selectAffectedE2ETests({
+                changedFiles: allChangedFiles,
+                declared: parsePullRequestE2ETests(event.pull_request?.body ?? undefined),
+                existingSpecs,
+                related: [],
+            });
+        } catch (error) {
+            affectedSelectionError = error instanceof Error ? error.message : String(error);
+        }
+    }
     const executionInput: CIExecutionPlanInput = {
+        affectedE2ETests,
+        affectedSelectionError,
         changedFiles: allChangedFiles,
         dispatchE2EProfile: event.inputs?.e2e_profile,
-        eventName: process.env.GITHUB_EVENT_NAME ?? '',
+        eventName,
+        hasFullValidationPath: allChangedFiles.some(isFullValidationPath),
+        isNightlyHeadUnchanged:
+            eventName === 'schedule' && (await isNightlyHeadUnchanged(repo, currentHeadSha)),
         isVerifiedReleaseCommit,
         pullRequestDraft: event.pull_request?.draft,
         retryMode: retryDecision.mode === 'full' ? undefined : retryDecision.mode,

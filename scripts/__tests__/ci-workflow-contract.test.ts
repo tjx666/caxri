@@ -160,7 +160,7 @@ describe('CI workflow contract', () => {
     });
 
     it('uses one shared setup action with runner-local caches and pinned tools', () => {
-        expect(workflow.match(/uses: \.\/\.github\/actions\/setup-caxri-job/gu)).toHaveLength(3);
+        expect(workflow.match(/uses: \.\/\.github\/actions\/setup-caxri-job/gu)).toHaveLength(4);
         expect(workflow).not.toContain('actions/cache@');
         expect(setupAction).toContain(
             'uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7',
@@ -206,7 +206,7 @@ describe('CI workflow contract', () => {
         expect(workflow).toContain('Server artifact native compatibility');
         expect(workflow).toContain('bun run spike:native');
         expect(workflow).toContain(
-            "install-playwright-shell: ${{ needs.retry-policy.outputs.checks_scope == 'full' || needs.retry-policy.outputs.checks_scope == 'focused-source' }}",
+            "install-playwright-shell: ${{ needs.retry-policy.outputs.checks_scope == 'full' || needs.retry-policy.outputs.checks_scope == 'focused-source' || needs.retry-policy.outputs.checks_scope == 'affected' }}",
         );
         expect(workflow).toContain(
             "install-playwright-shell: ${{ needs.retry-policy.outputs.mode == 'full' && needs.retry-policy.outputs.checks_scope == 'full' && needs.retry-policy.outputs.e2e_profile == 'optimized' }}",
@@ -246,10 +246,10 @@ describe('CI workflow contract', () => {
     });
 
     it('always tears down the self-hosted boundary, including a partial setup failure', () => {
-        expect(workflow.match(/name: Clean self-hosted runner boundary/gu)).toHaveLength(3);
+        expect(workflow.match(/name: Clean self-hosted runner boundary/gu)).toHaveLength(4);
         expect(
             workflow.match(/name: Clean self-hosted runner boundary\n {8}if: always\(\)/gu),
-        ).toHaveLength(3);
+        ).toHaveLength(4);
         expect(workflow).not.toContain("steps.setup.outputs.prepared == 'true'");
     });
 
@@ -530,7 +530,7 @@ describe('CI workflow contract', () => {
         const retryPolicyJob = workflow.match(/\n {2}retry-policy:\n([\s\S]*?)\n {2}checks:/u)?.[1];
         const checksJob = workflow.match(/\n {2}checks:\n([\s\S]*?)\n {2}e2e:/u)?.[1];
         const e2eJob = workflow.match(/\n {2}e2e:\n([\s\S]*?)\n {2}ci:/u)?.[1];
-        const gateJob = workflow.match(/\n {2}ci:\n([\s\S]*)$/u)?.[1];
+        const gateJob = workflow.match(/\n {2}ci:\n([\s\S]*?)\n {2}nightly-report:/u)?.[1];
 
         expect(retryPolicyJob).toContain('runs-on: [self-hosted, macOS, ARM64, caxri-ci]');
         expect(checksJob).toContain('runs-on: [self-hosted, macOS, ARM64, caxri-ci]');
@@ -544,7 +544,7 @@ describe('CI workflow contract', () => {
     it('executes repository source only after the shared trusted-owner gate', () => {
         const retryPolicyJob = workflow.match(/\n {2}retry-policy:\n([\s\S]*?)\n {2}checks:/u)?.[1];
         const e2eJob = workflow.match(/\n {2}e2e:\n([\s\S]*?)\n {2}ci:/u)?.[1];
-        const gateJob = workflow.match(/\n {2}ci:\n([\s\S]*)$/u)?.[1];
+        const gateJob = workflow.match(/\n {2}ci:\n([\s\S]*?)\n {2}nightly-report:/u)?.[1];
 
         expect(retryPolicyJob).toContain('uses: ./.github/actions/verify-trust-boundary');
         expect(e2eJob).toContain("needs.retry-policy.result == 'success'");
@@ -560,15 +560,39 @@ describe('CI workflow contract', () => {
         const e2eJob = workflow.match(/\n {2}e2e:\n([\s\S]*?)\n {2}ci:/u)?.[1];
 
         expect(setupAction).toContain('bun run scripts/self-hosted-runner.ts prepare');
-        expect(workflow.match(/bun run scripts\/self-hosted-runner\.ts cleanup/gu)).toHaveLength(3);
-        expect(workflow.match(/persist-credentials: false/gu)).toHaveLength(3);
+        expect(workflow.match(/bun run scripts\/self-hosted-runner\.ts cleanup/gu)).toHaveLength(4);
+        expect(workflow.match(/persist-credentials: false/gu)).toHaveLength(4);
         expect(workflow).toContain('CAXRI_RUNNER_OWNER:');
-        expect(workflow.match(/CAXRI_RUNNER_AGENT_DISCOVERY: blocked/gu)).toHaveLength(3);
+        expect(workflow.match(/CAXRI_RUNNER_AGENT_DISCOVERY: blocked/gu)).toHaveLength(4);
         expect(checksJob).not.toContain('CAXRI_E2E_AGENT_MODE');
         expect(e2eJob).toContain('CAXRI_E2E_AGENT_MODE: blocked');
         expect(
             workflow.match(/name: Clean self-hosted runner boundary\n {8}if: always\(\)/gu),
-        ).toHaveLength(3);
+        ).toHaveLength(4);
         expect(e2eJob).toContain('bun run scripts/report-e2e-manifest.ts');
+    });
+
+    it('runs the full suite nightly and reports a red nightly as an issue', () => {
+        const nightlyJob = workflow.match(/\n {2}nightly-report:\n([\s\S]*)$/u)?.[1];
+
+        expect(workflow).toContain("- cron: '0 0 * * *'");
+        expect(workflow).toContain(
+            "group: ci-${{ github.event_name == 'schedule' && 'nightly' || github.ref }}",
+        );
+        expect(nightlyJob).toContain("github.event_name == 'schedule'");
+        expect(nightlyJob).toContain("contains(needs.*.result, 'failure')");
+        expect(nightlyJob).toContain('issues: write');
+        expect(nightlyJob).toContain('uses: ./.github/actions/verify-trust-boundary');
+        expect(nightlyJob).toContain('bun run scripts/ci-nightly-report.ts');
+    });
+
+    it('runs affected E2E specs once with source-importing specs added', () => {
+        expect(workflow).toContain(
+            "CI_E2E_REPEAT: ${{ needs.retry-policy.outputs.checks_scope == 'affected' && '1' || '3' }}",
+        );
+        expect(workflow).toContain(
+            "CI_E2E_AFFECTED_FILES: ${{ needs.retry-policy.outputs.checks_scope == 'affected' && needs.retry-policy.outputs.changed_files || '' }}",
+        );
+        expect(workflow).toContain('test "$CHECKS_SCOPE" = affected');
     });
 });

@@ -3,10 +3,12 @@ import { access, mkdtemp, rm } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
 
+import { relatedE2ESpecs } from '../.agents/skills/quality-check/scripts/source-imports';
 import {
     acquireDesktopLease,
     releaseDesktopLease,
 } from '../.agents/skills/switch-worktree/scripts/desktop-lease';
+import { selectAffectedE2ETests } from './ci-path-policy';
 import { waitForChildExit } from './exec';
 
 type E2EPool = 'control' | 'desktop-exclusive' | 'parallel-safe';
@@ -25,6 +27,43 @@ export function parseSpecPaths(raw: string | undefined): string[] {
         throw new Error('CI_E2E_TESTS must contain validated E2E spec paths');
     }
     return [...new Set(paths as string[])];
+}
+
+/**
+ * Repair runs repeat each spec three times to prove determinism; an affected pull-request run only needs one pass.
+ */
+export function parseE2ERepeat(raw: string | undefined): number {
+    if (raw === undefined || raw === '') return 3;
+    if (raw !== '1' && raw !== '3') throw new Error('CI_E2E_REPEAT must be 1 or 3');
+    return Number(raw);
+}
+
+/**
+ * Adds specs that import a changed source file. Runs here rather than in the policy job because resolving imports needs
+ * the installed TypeScript compiler.
+ */
+async function withRelatedSpecs(
+    paths: readonly string[],
+    rawChangedFiles: string | undefined,
+): Promise<string[]> {
+    if (!rawChangedFiles) return [...paths];
+    const value: unknown = JSON.parse(rawChangedFiles);
+    if (!Array.isArray(value) || value.some((path) => typeof path !== 'string')) {
+        throw new Error('CI_E2E_AFFECTED_FILES must be a JSON array of repository paths');
+    }
+    const changedFiles = value as string[];
+    const related = await relatedE2ESpecs(
+        process.cwd(),
+        changedFiles.filter((path) => !path.startsWith('e2e/')),
+    );
+    const selected = selectAffectedE2ETests({
+        changedFiles: [],
+        declared: paths,
+        existingSpecs: new Set([...paths, ...related]),
+        related,
+    });
+    if (related.length > 0) console.log(`Affected E2E specs: ${selected.join(', ')}`);
+    return selected;
 }
 
 export function parseE2EPool(raw: string | undefined): E2EPool | 'control' {
@@ -84,6 +123,7 @@ export function createParallelSafeRepairEnvironment(
 async function runFocused(
     paths: readonly string[],
     workers: number,
+    repeat: number,
     environment: NodeJS.ProcessEnv = process.env,
 ): Promise<number> {
     const child = spawn(
@@ -93,7 +133,7 @@ async function runFocused(
             'test',
             ...paths,
             `--workers=${workers}`,
-            '--repeat-each=3',
+            `--repeat-each=${repeat}`,
             '--reporter=line',
         ],
         { env: environment, stdio: 'inherit' },
@@ -102,8 +142,12 @@ async function runFocused(
 }
 
 async function main(): Promise<void> {
-    const paths = parseSpecPaths(process.env.CI_E2E_TESTS);
+    const paths = await withRelatedSpecs(
+        parseSpecPaths(process.env.CI_E2E_TESTS),
+        process.env.CI_E2E_AFFECTED_FILES,
+    );
     const pool = parseE2EPool(process.env.CI_E2E_POOL);
+    const repeat = parseE2ERepeat(process.env.CI_E2E_REPEAT);
     await Promise.all(paths.map((path) => access(path)));
     let code: number;
     if (pool === 'parallel-safe') {
@@ -126,6 +170,7 @@ async function main(): Promise<void> {
                 code = await runFocused(
                     paths,
                     1,
+                    repeat,
                     createParallelSafeRepairEnvironment(
                         process.env,
                         coordinator.token,
@@ -137,6 +182,7 @@ async function main(): Promise<void> {
                     code = await runFocused(
                         paths,
                         2,
+                        repeat,
                         createParallelSafeRepairEnvironment(
                             process.env,
                             coordinator.token,
@@ -153,7 +199,7 @@ async function main(): Promise<void> {
                 await rm(temporaryDirectory, { force: true, recursive: true });
             }
         }
-    } else code = await runFocused(paths, 1);
+    } else code = await runFocused(paths, 1, repeat);
     if (code !== 0) process.exitCode = code;
 }
 

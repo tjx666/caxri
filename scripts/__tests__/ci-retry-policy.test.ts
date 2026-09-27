@@ -2,13 +2,18 @@ import { readFile } from 'node:fs/promises';
 
 import { describe, expect, it } from 'vitest';
 
+import {
+    isFullValidationPath,
+    isProtectedRetryPath,
+    parsePullRequestE2ETests,
+    selectAffectedE2ETests,
+} from '../ci-path-policy';
 import type { RetryPolicyInput } from '../ci-retry-policy';
 import {
     evaluateRetryPolicy,
     extractBaseRunIdentity,
     extractGreenRunEvidence,
     greenReuseDiffArguments,
-    isProtectedRetryPath,
     parseRetryHint,
     retryAddedOrDeletedDiffArguments,
     retryDiffArguments,
@@ -502,5 +507,56 @@ describe('CI retry policy', () => {
         for (const script of executedScripts) {
             expect(isProtectedRetryPath(script), script).toBe(true);
         }
+    });
+
+    it('keeps dependency, toolchain, and workspace configuration changes on the full suite', () => {
+        for (const path of [
+            'package.json',
+            'apps/desktop/package.json',
+            'packages/protocol/tsconfig.json',
+            'apps/server/vitest.config.ts',
+            'patches/xterm.patch',
+            'pnpm-lock.yaml',
+            '.github/workflows/ci.yml',
+            'e2e/support/electron-app.ts',
+        ]) {
+            expect(isFullValidationPath(path), path).toBe(true);
+        }
+        expect(isFullValidationPath('apps/server/src/domains/index.ts')).toBe(false);
+        expect(isFullValidationPath('e2e/terminal.e2e.ts')).toBe(false);
+    });
+
+    it('reads declared E2E specs from the pull-request body and rejects protected or malformed entries', () => {
+        expect(parsePullRequestE2ETests(undefined)).toEqual([]);
+        expect(parsePullRequestE2ETests('## Summary\n\nNo specs declared.')).toEqual([]);
+        expect(
+            parsePullRequestE2ETests(
+                '## Validation\n\nCI-E2E-Tests: ["e2e/settings.e2e.ts", "e2e/settings.e2e.ts"]\n',
+            ),
+        ).toEqual(['e2e/settings.e2e.ts']);
+        expect(() =>
+            parsePullRequestE2ETests('CI-E2E-Tests: ["e2e/real-agent-smoke.e2e.ts"]'),
+        ).toThrow('ordinary E2E spec paths');
+        expect(() => parsePullRequestE2ETests('CI-E2E-Tests: e2e/settings.e2e.ts')).toThrow();
+    });
+
+    it('unions declared, changed, and related specs that still exist', () => {
+        expect(
+            selectAffectedE2ETests({
+                changedFiles: [
+                    'apps/server/src/index.ts',
+                    'e2e/terminal.e2e.ts',
+                    'e2e/removed.e2e.ts',
+                ],
+                declared: ['e2e/settings.e2e.ts'],
+                existingSpecs: new Set([
+                    'e2e/files.e2e.ts',
+                    'e2e/settings.e2e.ts',
+                    'e2e/terminal.e2e.ts',
+                    'e2e/renderer.performance.e2e.ts',
+                ]),
+                related: ['e2e/files.e2e.ts', 'e2e/renderer.performance.e2e.ts'],
+            }),
+        ).toEqual(['e2e/files.e2e.ts', 'e2e/settings.e2e.ts', 'e2e/terminal.e2e.ts']);
     });
 });
