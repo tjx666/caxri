@@ -45,6 +45,7 @@ import * as Toggle from '@/components/ui/toggle';
 import * as ToggleGroup from '@/components/ui/toggle-group';
 import * as Tooltip from '@/components/ui/tooltip';
 import * as useContainerWidth from '@/hooks/use-container-width';
+import * as useContextMenu from '@/hooks/use-context-menu';
 import * as useDebouncedValue from '@/hooks/use-debounced-value';
 import * as useEditorOptions from '@/hooks/use-editor-options';
 import * as useFocusOnRevision from '@/hooks/use-focus-on-revision';
@@ -58,6 +59,7 @@ import * as useRelativeTime from '@/hooks/use-relative-time';
 import * as useResourceLoad from '@/hooks/use-resource-load';
 import * as useScrollEdge from '@/hooks/use-scroll-edge';
 import * as useShouldReduceMotion from '@/hooks/use-should-reduce-motion';
+import * as useStartupLoaderRemoval from '@/hooks/use-startup-loader-removal';
 import * as motionLib from '@/lib/motion';
 import * as utilities from '@/lib/utilities';
 
@@ -101,6 +103,7 @@ export default {
     '@/components/ui/toggle-group': ToggleGroup,
     '@/components/ui/tooltip': Tooltip,
     '@/hooks/use-container-width': useContainerWidth,
+    '@/hooks/use-context-menu': useContextMenu,
     '@/hooks/use-debounced-value': useDebouncedValue,
     '@/hooks/use-editor-options': useEditorOptions,
     '@/hooks/use-focus-on-revision': useFocusOnRevision,
@@ -114,4 +117,5 @@ export default {
     '@/hooks/use-resource-load': useResourceLoad,
     '@/hooks/use-scroll-edge': useScrollEdge,
     '@/hooks/use-should-reduce-motion': useShouldReduceMotion,
+    '@/hooks/use-startup-loader-removal': useStartupLoaderRemoval,
 };
