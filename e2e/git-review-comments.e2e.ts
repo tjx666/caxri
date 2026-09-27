@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { execFileAsync } from '@caxri/system';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
-import { allowE2EErrors, expect, test } from './support/fixtures.ts';
+import { expect, test } from './support/fixtures.ts';
 import {
     clickGitGroupAction,
     createProjectSession,
@@ -60,7 +60,7 @@ test('Git diff review comments collect across files and reach one Agent Terminal
 
         await single.locator('.view-line').filter({ hasText: 'first' }).first().click();
         await page.keyboard.press('Meta+Shift+M');
-        const draft = single.locator('.git-review-card').filter({ hasText: 'modified L1' });
+        const draft = single.locator('.git-review-card').filter({ hasText: 'New L1' });
         await draft.getByRole('textbox', { name: 'Review comment' }).fill('Keep this draft');
         await single.locator('.view-line').filter({ hasText: 'last' }).click();
         await page.keyboard.press('Meta+Shift+M');
@@ -69,7 +69,7 @@ test('Git diff review comments collect across files and reach one Agent Terminal
         );
         await single
             .locator('.git-review-card')
-            .filter({ hasText: 'modified L3' })
+            .filter({ hasText: 'New L3' })
             .getByRole('button', { name: 'Delete' })
             .click();
         await draft.getByRole('button', { name: 'Delete' }).click();
@@ -95,7 +95,9 @@ test('Git diff review comments collect across files and reach one Agent Terminal
         await expect.poll(async () => readFile(capture, 'utf8')).toContain('Fix the first change');
         await expect.poll(async () => readFile(capture, 'utf8')).toContain('Fix the second change');
         await page.getByRole('tab', { name: 'Changes: project' }).click();
-        await expect(page.getByRole('button', { name: 'Send 0 comments to Agent' })).toBeDisabled();
+        await expect(
+            page.getByRole('button', { name: /^Send \d+ comments? to Agent$/ }),
+        ).toHaveCount(0);
         await expect(second.locator('.git-review-card')).toContainText('sent');
     } finally {
         await running.app.close();
@@ -104,7 +106,6 @@ test('Git diff review comments collect across files and reach one Agent Terminal
 });
 
 test('Review comments become outdated after a changed line and survive a missing Agent', async () => {
-    allowE2EErrors([{ source: 'renderer', event: 'toast', code: 'ERROR_TOAST', count: 1 }]);
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-review-outdated-e2e-'));
     const root = join(testDirectory, 'project');
     await mkdir(root, { recursive: true });
@@ -131,11 +132,12 @@ test('Review comments become outdated after a changed line and survive a missing
         await page.getByRole('textbox', { name: 'Review comment' }).fill('Keep the old behavior');
         await page.getByRole('textbox', { name: 'Review comment' }).press('Meta+Enter');
         await page.getByRole('button', { name: 'Send 1 comment to Agent' }).click();
-        await page
-            .getByRole('dialog', { name: 'Send review comments to Agent' })
-            .getByRole('button', { name: 'Send 1 comment' })
-            .click();
-        await expect(page.getByText('No running Agent Terminal in this Session')).toBeVisible();
+        const sendDialog = page.getByRole('dialog', { name: 'Send review comments to Agent' });
+        await sendDialog.getByRole('button', { name: 'Send 1 comment' }).click();
+        // The failure is reported inline in the dialog instead of as an error toast.
+        await expect(sendDialog.getByRole('alert')).toHaveText(
+            'No running Agent Terminal in this Session',
+        );
         await page.screenshot({
             path: test.info().outputPath('missing-agent.png'),
             mask: [page.locator('.xterm')],
@@ -145,7 +147,9 @@ test('Review comments become outdated after a changed line and survive a missing
         await writeFile(join(root, 'tracked.txt'), 'one\nchanged again\nthree\n');
         await page.getByRole('button', { name: 'Refresh Git', exact: true }).click();
         await expect(page.locator('.git-review-card')).toContainText('outdated');
-        await expect(page.getByRole('button', { name: 'Send 0 comments to Agent' })).toBeDisabled();
+        await expect(
+            page.getByRole('button', { name: /^Send \d+ comments? to Agent$/ }),
+        ).toHaveCount(0);
         await page.screenshot({
             path: test.info().outputPath('outdated-comment.png'),
             mask: [page.locator('.xterm')],

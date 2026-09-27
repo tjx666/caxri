@@ -21,11 +21,19 @@ export function GitReviewTabBadge({
     ).length;
     if (count === 0) return null;
     return (
-        <span
-            aria-hidden="true"
-            className="rounded-full bg-accent px-1.5 text-[10px] text-accent-foreground"
-        >
-            {count}
-        </span>
+        <>
+            <span
+                aria-hidden="true"
+                className="rounded-full bg-badge px-1.5 text-[10px] text-badge-foreground"
+            >
+                {count}
+            </span>
+            {/* The chip is a decorative tally; fold the fact into words so the tab's accessible name (this renders
+                inside the tab's `role="tab"` button, see `work-tab.tsx`) carries it too, the same way a Git decoration
+                becomes a spoken description instead of leaving only a colored letter. */}
+            <span className="sr-only">
+                {count} pending review comment{count === 1 ? '' : 's'}
+            </span>
+        </>
     );
 }

@@ -589,7 +589,13 @@ export function buildSourceControlViewModel({
                 countLabel:
                     mode === 'pull-request' && detailErrorsByRepo.has(repo.id)
                         ? ' · Unavailable'
-                        : `${mode === 'working' ? ` · ↑${repo.ahead} ↓${repo.behind}` : ''} · ${count}${unpushedCommitCount > 0 ? ` · ${unpushedCommitCount} unpushed` : ''}${uncommittedCount > 0 ? ` · ${uncommittedCount} uncommitted` : ''}`,
+                        : formatRepoCountLabel({
+                              ahead: mode === 'working' ? repo.ahead : 0,
+                              behind: mode === 'working' ? repo.behind : 0,
+                              count,
+                              uncommittedCount,
+                              unpushedCommitCount,
+                          }),
                 ...(uncommittedCount > 0 && {
                     uncommittedNotice: {
                         modeId: 'working',
@@ -656,4 +662,32 @@ export function buildSourceControlViewModel({
         }),
         ...(emptyMessage && { emptyMessage, emptyKind }),
     };
+}
+
+/**
+ * Joins a repository row's trailing counts, omitting every zero part: a synced, clean repository shows no `↑0 ↓0 · 0`
+ * noise, only the parts that ask for attention.
+ */
+export function formatRepoCountLabel(counts: {
+    ahead: number;
+    behind: number;
+    count: number;
+    uncommittedCount: number;
+    unpushedCommitCount: number;
+}): string {
+    const sync = [
+        counts.ahead > 0 ? `↑${counts.ahead}` : '',
+        counts.behind > 0 ? `↓${counts.behind}` : '',
+    ]
+        .filter(Boolean)
+        .join(' ');
+    return [
+        sync,
+        counts.count > 0 ? `${counts.count}` : '',
+        counts.unpushedCommitCount > 0 ? `${counts.unpushedCommitCount} unpushed` : '',
+        counts.uncommittedCount > 0 ? `${counts.uncommittedCount} uncommitted` : '',
+    ]
+        .filter(Boolean)
+        .map((part) => ` · ${part}`)
+        .join('');
 }

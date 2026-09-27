@@ -15,6 +15,7 @@ import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { WorktreeIcon } from '../../icons/codicons/worktree-icon';
 import { cn } from '../../lib/utilities';
 import type { SessionRenameController } from '../primary-sidebar/hooks/use-session-rename';
+import type { SessionTitleScroll } from '../primary-sidebar/hooks/use-session-title-scroll';
 import { SessionPullRequestIndicator } from '../primary-sidebar/session-pull-request-indicator';
 import { didSelectSession } from '../session/session-commands';
 import type { AgentActivityGlyphId } from './agent-activity-glyph';
@@ -49,6 +50,7 @@ export function AgentActivityRowTrigger({
     row,
     selected,
     sessionRename,
+    titleScroll,
     visiblePullRequest,
     worktreeProject,
 }: {
@@ -62,18 +64,24 @@ export function AgentActivityRowTrigger({
     row: AgentActivityRow;
     selected: boolean;
     sessionRename: SessionRenameController;
+    /**
+     * Owned by the caller: this is a plain function returning the HoverCard trigger element, not a component, so it
+     * must not call hooks — React Compiler may skip re-running it and React would see a changed hook count.
+     */
+    titleScroll: SessionTitleScroll;
     visiblePullRequest: SessionPullRequest | undefined;
     worktreeProject: ProjectRecord | undefined;
 }) {
     const { project, session, terminal } = row;
     const glyph = agentActivityGlyph(row);
     const GlyphIcon = GLYPH_COMPONENTS[glyph.id];
+    const { viewportReference, textReference, setHovered, setFocused } = titleScroll;
     return (
         <div
             className={cn(
                 'agent-activity-row relative flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-foreground',
                 'hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)]',
-                'focus-visible:ring-1 focus-visible:ring-accent focus-visible:outline-none',
+                'focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-none',
                 selected && 'active bg-elevated',
                 /*
                  * The Project tree's hover-action rule: while the mark-read chip shows, the text makes room for it and
@@ -92,7 +100,13 @@ export function AgentActivityRowTrigger({
             aria-selected={selected}
             aria-keyshortcuts={canMarkRead && !isRenaming ? 'Delete Backspace' : undefined}
             tabIndex={isRenaming ? undefined : roving ? 0 : -1}
-            onFocus={() => onFocusChange(session.id)}
+            onBlur={() => setFocused(false)}
+            onFocus={(event) => {
+                onFocusChange(session.id);
+                // `SessionRowTrigger` gates the title reveal on `:focus-visible` the same way, so a pointer click that
+                // lands focus here does not also start scrolling the title.
+                setFocused(event.currentTarget.matches(':focus-visible'));
+            }}
             onClick={() => {
                 // Fire-and-forget: the selection reports its own failures through a toast.
                 // eslint-disable-next-line no-void -- intentional floating-promise discard
@@ -138,9 +152,12 @@ export function AgentActivityRowTrigger({
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <AgentActivityRowTitle
                     isRenaming={isRenaming}
+                    onTitleHoverChange={setHovered}
                     sessionId={session.id}
                     sessionRename={sessionRename}
+                    textReference={textReference}
                     title={session.displayTitle}
+                    viewportReference={viewportReference}
                 />
                 <span className="agent-activity-metadata flex h-4 min-w-0 flex-wrap items-start gap-x-1.5 overflow-hidden text-[11px] leading-4 text-muted">
                     {/*
@@ -154,7 +171,7 @@ export function AgentActivityRowTrigger({
                         <span className="flex size-3 flex-none items-center justify-center">
                             <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={12} />
                         </span>
-                        <span className="agent-activity-project max-w-[calc(100%-1rem)] min-w-0 shrink-0 truncate">
+                        <span className="agent-activity-project overflow-fade max-w-[calc(100%-1rem)] min-w-0 shrink-0">
                             {project.displayTitle}
                         </span>
                         {worktreeProject && (
@@ -163,7 +180,9 @@ export function AgentActivityRowTrigger({
                                 data-session-worktree={worktreeProject.displayTitle}
                             >
                                 <WorktreeIcon className="flex-none" size={11} />
-                                <span className="truncate">{worktreeProject.displayTitle}</span>
+                                <span className="overflow-fade">
+                                    {worktreeProject.displayTitle}
+                                </span>
                             </span>
                         )}
                     </span>

@@ -19,16 +19,24 @@ const descriptions: Record<SessionCompactionOutcome, string> = {
 const batch = { running: false };
 const progressMessage = 'Checking Sessions for warm-cache compaction…';
 
-function describeSessionCompaction(result: SessionCompactionResult): string {
+/**
+ * A short headline plus at most one trailing clause, not the four-clause sentence this used to compose: `pushToast` has
+ * no generic description slot to hold the skipped/unconfirmed breakdown separately (`stores/toasts.ts` reserves
+ * `description` for the reminder mute menu), so that breakdown stays the one clause a toast is allowed, and the "cache
+ * availability is estimated" / "requests continue in their Agent windows" boilerplate is dropped rather than folded in
+ * beside it.
+ */
+export function describeSessionCompaction(result: SessionCompactionResult): string {
     const counts = new Map<SessionCompactionOutcome, number>();
     for (const item of result.items) counts.set(item.outcome, (counts.get(item.outcome) ?? 0) + 1);
     const submitted = counts.get('submitted') ?? 0;
     counts.delete('submitted');
     const details = [...counts].map(([outcome, count]) => `${count} ${descriptions[outcome]}`);
     if (result.deferred) details.push(`${result.deferred} beyond the 200-Session batch limit`);
-    return `${submitted ? `Compaction requested for ${submitted} ${submitted === 1 ? 'Session' : 'Sessions'}.` : 'No Sessions were eligible for compaction.'} ${
-        details.length > 0 ? `Skipped or unconfirmed: ${details.join('; ')}. ` : ''
-    }Cache availability is estimated.${submitted ? ' Submitted requests continue in their Agent windows.' : ''}`;
+    const headline = submitted
+        ? `Compaction requested for ${submitted} ${submitted === 1 ? 'Session' : 'Sessions'}.`
+        : 'No Sessions were eligible for compaction.';
+    return details.length > 0 ? `${headline} Skipped: ${details.join('; ')}.` : headline;
 }
 
 /**

@@ -9,11 +9,13 @@ import {
     createShellSession,
     launchCaxri,
     pageRequest,
+    pressNewTerminal,
     revealSettingsSection,
     selectedSessionId,
     sessionCard,
     typeTerminal,
     VISIBLE_SESSION,
+    waitForNewTerminalId,
 } from './support/helpers.ts';
 
 function osc52(payload: string, selection = 'c'): string {
@@ -176,19 +178,26 @@ test('OSC 52 clipboard writes honor opt-out and remain bounded, write-only, and 
             `${VISIBLE_SESSION} .work-tab.active[data-terminal-id]`,
         );
         const secondTerminalId = await secondTerminalTab.getAttribute('data-terminal-id');
-        expect(secondTerminalId).toBeTruthy();
+        if (!secondTerminalId) throw new Error('Second Terminal identity was not rendered');
         await typeTerminal(running.page, osc52(encoded('SECOND_SESSION_WRITE')));
         await expect.poll(() => running.clipboard.textEquals('SECOND_SESSION_WRITE')).toBe(true);
         await running.clipboard.claimText('SECOND_SESSION_WRITE');
 
         await running.page.waitForTimeout(1_050);
         await running.clipboard.writeText('CLOSE_SENTINEL');
+        /**
+         * Terminal > Close Terminal now archives a Session on its true last tab, same as `Cmd+W`, instead of destroying
+         * the Terminal — so give this Session a sibling Terminal and re-select `secondTerminalId`'s own tab first,
+         * keeping the close below an ordinary one that actually destroys the Terminal this clipboard assertion tracks.
+         * Done before typing the delayed write so the 0.5s race against the close below is unchanged.
+         */
+        await pressNewTerminal(running.page);
+        await waitForNewTerminalId(running.page, [firstTerminalId, secondTerminalId]);
+        await running.page.locator(`.work-tab[data-terminal-id="${secondTerminalId}"]`).click();
         await typeTerminal(
             running.page,
             `(sleep 0.5; ${osc52(encoded('CLOSED_TERMINAL_WRITE'))}) &`,
         );
-        // A lone tab renders no close button, and `Cmd+W` on a Session's last tab archives the Session instead, so close
-        // the Terminal through the Terminal > Close Terminal menu command.
         await running.app.evaluate(({ Menu }) => {
             Menu.getApplicationMenu()
                 ?.getMenuItemById('command.terminal.close')

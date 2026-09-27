@@ -361,6 +361,9 @@ All non-archived Project and
 Session names and navigation icons use `--foreground`, including inactive rows. Overflowing Session
 and Project names clip with a right-edge fade instead of an ellipsis — the ellipsis glyph spends
 row width on punctuation. The fade is about one character at the 13px UI size, matching Codex.
+A Project heading's Customize Icon and New Session buttons follow the same hover-cluster rule: at
+rest they reserve no width, so the name runs to the row's edge; on hover, keyboard focus, or while
+the New Session menu is open the name makes room and fades before them.
 Clipped Session names reveal their tail after a 600ms title hover or keyboard-focus pause, moving
 at a steady reading speed and holding at the end. Leaving restores the fade; short names remain
 still.
@@ -515,8 +518,9 @@ remaining width with their full displayed content as the minimum. Crowded bars s
 truncating Terminal labels or imposing a fixed filename cap.
 While the whole workbench holds exactly one tab across every
 pane, that tab drops the accent top border: an "active" marker distinguishes nothing when there is
-nothing to distinguish it from, and the pane ring still carries focus. The New Terminal + keeps a
-stable slot at the bar's trailing edge, revealed on bar hover or keyboard focus. Hovering + opens
+nothing to distinguish it from, and the pane ring still carries focus. The New Terminal + reserves
+no slot then: it floats over that tab's trailing end, revealed on bar hover or keyboard focus, so the
+tab's fill reaches the bar's edge instead of leaving a block of bar color beside it. Hovering + opens
 the Agent list; pressing it opens the same list for pointer and keyboard users. The chosen Agent
 starts as another Terminal in the same Session. With two or more tabs, + stays visible and keeps
 the same menu behavior. An empty pane uses its own labelled New Terminal action.
@@ -763,14 +767,16 @@ editors omit the disclosure entirely. Repository-scoped `Commits` stays nested u
 and keeps its optional path input and commit-details disclosure.
 
 File and folder rows do not open a hover tooltip: the path is already the row's accessible name, and
-a cursor-anchored card over the adjacent diff is worse than a truncated label. Repository rows still
-carry the hover text their own width cannot — branch, and in Pull Request mode the pull request
-Option-click opens. Option-click is the panel's one modifier gesture and it always means "skip the
-row's default and go to the thing itself": on a file row it opens the working file instead of its
-diff, and on a repository row or its `PR #<n> Changes` caption it opens that pull request in the
-default browser. A file row that offers it advertises `aria-keyshortcuts` without spending a tooltip
-on the gesture. Trailing Discard actions and the panel header keep their tooltips. A deleted file
-has no working copy left, so it keeps the diff activation only.
+a cursor-anchored card over the adjacent diff is worse than a truncated label. Repository rows and
+their `PR #<n> Changes` caption still carry the hover text their own width cannot — branch, and in
+Pull Request mode the pull request Command-click opens in the default browser. Option-click is the
+panel's modifier gesture for recursive disclosure there: on a repository row, a group caption, or a
+folder row it expands or collapses everything below instead of just that row. A file row keeps
+Option-click's other meaning instead — it skips the row's default and goes to the thing itself,
+opening the working file rather than its diff. A file or folder row that offers a modifier gesture
+advertises it through `aria-keyshortcuts` without spending a tooltip on it. Trailing Discard actions
+and the panel header keep their tooltips. A deleted file has no working copy left, so it keeps the
+diff activation only.
 
 A submodule the panel already lists as its own repository section does not also appear as a gitlink
 row in its parent's change list — the section carries the same submodule with its branch and its

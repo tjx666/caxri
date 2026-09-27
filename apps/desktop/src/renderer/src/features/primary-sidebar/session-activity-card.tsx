@@ -110,7 +110,7 @@ function SessionPullRequestDetails({
 }) {
     if (unavailable)
         return (
-            <div className="mt-2 text-[10px] leading-[1.45] text-muted">
+            <div className="mt-2 text-[11px] leading-[1.45] text-muted">
                 {/*
                  * The same named label the status-bar chip shows. A card that said `PR unknown` for all eight reasons
                  * contradicted the chip sitting on the same screen, which has named them apart since `7763bd34`.
@@ -229,7 +229,7 @@ export function SessionActivityCard({
                         <h3 className="m-0 text-[13px] font-semibold wrap-break-word">
                             {session.displayTitle}
                         </h3>
-                        <p className="mt-0.5 mb-0 flex items-center gap-1 truncate text-[10px] text-muted">
+                        <p className="mt-0.5 mb-0 flex items-center gap-1 truncate text-[11px] text-muted">
                             <ProjectIcon icon={project.icon} size={11} />
                             <span className="truncate">
                                 {project.displayTitle} · {agentLabel}
@@ -247,7 +247,7 @@ export function SessionActivityCard({
                         />
                         <span>{activity.label}</span>
                     </div>
-                    <p className="mt-1 mb-0 text-[10px] leading-[1.45] text-muted">
+                    <p className="mt-1 mb-0 text-[11px] leading-[1.45] text-muted">
                         {activity.description}
                     </p>
                 </div>
@@ -257,21 +257,21 @@ export function SessionActivityCard({
                     unavailable={pullRequestUnavailable}
                 />
                 {worktreeProject && (
-                    <div className="session-card-worktree mt-2 flex items-center justify-between gap-3 text-[10px] text-muted">
+                    <div className="session-card-worktree mt-2 flex items-center justify-between gap-3 text-[11px] text-muted">
                         <span className="flex-none">Worktree</span>
                         <span className="min-w-0 truncate text-right text-foreground">
                             {worktreeProject.displayTitle}
                         </span>
                     </div>
                 )}
-                <div className="mt-2 flex items-center justify-between gap-3 text-[10px] text-muted">
+                <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-muted">
                     <span>Last opened</span>
                     <span className="text-right text-foreground">{lastOpened}</span>
                 </div>
                 {unread && unreadAttention && (
                     <p
                         className={cn(
-                            'mt-2 mb-0 rounded px-2 py-1.5 text-[10px]',
+                            'mt-2 mb-0 rounded px-2 py-1.5 text-[11px]',
                             sessionToneCalloutClassName(unreadAttention.tone),
                         )}
                     >

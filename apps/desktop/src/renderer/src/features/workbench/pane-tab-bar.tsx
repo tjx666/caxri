@@ -363,9 +363,7 @@ function ScrollFade({ edge, fill }: { edge: 'end' | 'start'; fill: ScrollFadeFil
 }
 
 /**
- * The strip at the trailing end of the bar. A pane with tabs reserves a stable New Terminal slot; with only one
- * Workbench tab, the button appears on hover or keyboard focus instead of adding resting chrome beside that tab. An
- * empty pane has its own full-width New Terminal action and needs no tab-bar slot.
+ * The bar's trailing strip. With one tab, + floats over its end: a reserved slot showed the bar's fill as a block.
  */
 function PaneTabActions({
     editorPath,
@@ -380,13 +378,15 @@ function PaneTabActions({
 }) {
     if (!editorPath && !hasPaneTabs) return null;
     return (
-        <div className="tab-actions flex h-11 flex-none items-center px-1 [-webkit-app-region:no-drag]">
+        <div
+            className={`tab-actions relative flex h-11 flex-none items-center [-webkit-app-region:no-drag] ${editorPath || hasTabsToSwitch ? 'px-1' : ''}`}
+        >
             {editorPath && <EditorTabActions paneId={paneId} path={editorPath} />}
             {hasPaneTabs && (
                 <div
                     className={cn(
                         !hasTabsToSwitch &&
-                            'opacity-0 group-hover/work-tabs:opacity-100 focus-within:opacity-100 has-[[data-popup-open]]:opacity-100',
+                            'absolute top-0 right-full z-[5] flex h-11 items-center pr-1 opacity-0 [-webkit-app-region:no-drag] group-hover/work-tabs:opacity-100 focus-within:opacity-100 has-[[data-popup-open]]:opacity-100',
                     )}
                 >
                     <NewTerminalButton paneId={paneId} />

@@ -8,10 +8,18 @@ import { changePathParts, changeStatusLabel, hasMultipleRepositories } from './c
 import { changesStyles as styles } from './changes-styles';
 
 /**
- * Matches Desktop's Source Control letters: added reads green, modified amber, deleted red, renamed in the accent.
+ * Matches Desktop's Source Control letters, reading from the dedicated `--git-*` roles rather than `success` /
+ * `warning` / `danger` / `primary`: those identify pull requests, connection health, and focus, and collapse distinct
+ * change kinds onto colors that mean something else. `renamed` shares `gitUntracked` rather than the accent, mirroring
+ * Desktop's `gitDecorationClassName` (VS Code's two decoration defaults resolve to the same green).
  */
 const statusColor = (status: ChangedFile['status'], theme: MobileTheme): string =>
-    ({ A: theme.success, D: theme.danger, M: theme.warning, R: theme.primary })[status];
+    ({
+        A: theme.gitAdded,
+        D: theme.gitDeleted,
+        M: theme.gitModified,
+        R: theme.gitUntracked,
+    })[status];
 
 const ChangeFileRow = ({
     file,

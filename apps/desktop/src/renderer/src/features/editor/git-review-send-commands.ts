@@ -3,7 +3,6 @@ import { isLongPasteWithinLimit } from '@caxri/protocol';
 import { caxri } from '../../lib/caxri';
 import { isAgentProcessRunning } from '../../lib/terminal-agent-runtime';
 import { getBootstrap, getSessionState } from '../../stores/selectors';
-import { pushToast } from '../../stores/toasts';
 import {
     activateTerminal,
     focusTerminalById,
@@ -16,14 +15,19 @@ import { chooseReferenceTerminal } from './file-reference';
 import type { GitReviewComment } from './git-review-comments';
 import { formatReviewTerminalInput, useGitReviewComments } from './git-review-comments';
 
+export type GitReviewSendResult = { ok: true } | { ok: false; message: string };
+
 /**
- * Keep review drafts until the complete Terminal write succeeds.
+ * Keep review drafts until the complete Terminal write succeeds. This always runs while the send Dialog is open, so a
+ * failure is returned rather than pushed as a toast: DESIGN.md's Dialogs/Toasts rule says a failure the dialog can
+ * report in place belongs in the dialog, not in a toast behind it. The caller renders the message inline and keeps the
+ * dialog open with Send re-enabled.
  */
-export async function didSendGitReviewComments(
+export async function sendGitReviewComments(
     sessionId: string,
     comments: readonly GitReviewComment[],
     prompt: string,
-): Promise<boolean> {
+): Promise<GitReviewSendResult> {
     const bootstrap = getBootstrap();
     const agent =
         bootstrap &&
@@ -35,14 +39,12 @@ export async function didSendGitReviewComments(
             sessionId,
             getSessionState()?.paneLayout,
         );
-    if (!agent) {
-        pushToast('error', 'No running Agent Terminal in this Session');
-        return false;
-    }
-    if (!isLongPasteWithinLimit(prompt)) {
-        pushToast('error', 'Review comments exceed the 16 MiB input limit');
-        return false;
-    }
+    if (!agent) return { ok: false, message: 'No running Agent Terminal in this Session' };
+    if (!isLongPasteWithinLimit(prompt))
+        return {
+            ok: false,
+            message: 'These review comments are too long to send at once. Send fewer comments.',
+        };
     try {
         activateTerminal(agent.id);
         if (!(await whenTerminalAttached(agent.id, 3000)))
@@ -64,12 +66,11 @@ export async function didSendGitReviewComments(
         } else await sendTerminalInput(agent.id, formatReviewTerminalInput(prompt), true);
         useGitReviewComments.getState().markSent(comments.map((comment) => comment.id));
         focusTerminalById(agent.id);
-        return true;
+        return { ok: true };
     } catch (error) {
-        pushToast(
-            'error',
-            error instanceof Error ? error.message : 'Unable to send review comments',
-        );
-        return false;
+        return {
+            ok: false,
+            message: error instanceof Error ? error.message : 'Unable to send review comments',
+        };
     }
 }

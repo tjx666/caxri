@@ -45,7 +45,7 @@ describe('Session Composer state', () => {
                 '🙂'.repeat(MOBILE_AGENT_SUBMIT_MAX_BYTES / 4 + 1),
                 MOBILE_AGENT_SUBMIT_MAX_BYTES,
             ),
-        ).toContain('bytes');
+        ).toContain('KB');
     });
 
     it('rejects control bytes and blank input without dropping the draft', () => {

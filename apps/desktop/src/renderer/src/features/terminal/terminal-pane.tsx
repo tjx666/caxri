@@ -358,14 +358,23 @@ export function TerminalPane({
             style={{ backgroundColor: terminalTheme?.background ?? 'var(--background)' }}
         >
             {mobileSizeOwnership && (
+                // Absolutely positioned over `.terminal-surface` instead of a flex row above it: the alternative —
+                // reserving this row whenever a mobile observer is attached — pushes the xterm viewport down and back
+                // up every time mobile takeover starts and ends. `TerminalPaneResizeController.fit()` already displays
+                // `mobileSize` in place of the local container proposal while mobile owns the grid, so xterm's cols and
+                // rows never come from this pane's content-box height; nothing here depends on the reserved space, so
+                // overlaying it is free. `pointer-events-none` keeps the terminal underneath fully clickable and
+                // selectable while the banner floats above it.
                 <div
                     aria-live="polite"
-                    className="flex min-h-7 flex-none items-center gap-2 border-b border-border bg-surface px-2 text-[11px] text-muted"
+                    className="pointer-events-none absolute inset-x-0 top-0 z-[4] flex min-h-7 items-center gap-2 border-b border-border bg-surface px-2 text-[11px] text-muted"
                     role="status"
                 >
                     <Smartphone aria-hidden="true" size={12} />
                     <span>Phone controls Terminal size</span>
-                    <span className="ml-auto font-mono tabular-nums">
+                    {/* Ticks on every mobile resize; `aria-hidden` keeps it out of the live region so screen readers
+                    announce the ownership sentence once instead of re-announcing a grid size on every tick. */}
+                    <span aria-hidden="true" className="ml-auto font-mono tabular-nums">
                         {mobileSizeOwnership.cols} × {mobileSizeOwnership.rows}
                     </span>
                 </div>

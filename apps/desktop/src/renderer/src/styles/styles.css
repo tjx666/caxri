@@ -37,8 +37,22 @@
     z-index: 80;
 }
 
+/*
+ * Sonner lays every child (icon, content, cancel/action buttons) out as one flex row by default, so a message long
+ * enough to need an action button had nowhere to shrink but its own text column (issue: text wrapped into a narrow
+ * strip beside a fixed-width button). The grid below keeps the icon and message text on row 1 across the full card
+ * width, and — because `[data-button]`/`[data-action]` are the only children still explicitly placed in column 2 with
+ * no row set — the auto-placement algorithm drops them to row 2 whenever row 1's cell is already taken, so an action
+ * button always lands on its own row under the text instead of squeezing it. The close button stays `position:
+ * absolute` (Sonner's own layout), just re-anchored to the top-right corner instead of Sonner's default top-left.
+ */
 .caxri-toaster[data-sonner-toaster] [data-sonner-toast][data-styled='true'] {
-    padding: 10px 12px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: 8px;
+    row-gap: 8px;
+    align-items: start;
+    padding: 10px 32px 10px 12px;
     border-left: 3px solid var(--muted);
     box-shadow: 0 8px 24px var(--shadow);
 }
@@ -56,6 +70,7 @@
 }
 
 .caxri-toaster [data-icon] {
+    grid-column: 1;
     color: var(--muted);
 }
 
@@ -71,18 +86,30 @@
     color: var(--danger);
 }
 
+.caxri-toaster[data-sonner-toaster] [data-sonner-toast] [data-content] {
+    grid-column: 2;
+    width: 100%;
+}
+
 .caxri-toaster[data-sonner-toaster] [data-sonner-toast] [data-title] {
     font-size: inherit;
     font-weight: 400;
 }
 
 .caxri-toaster[data-sonner-toaster] [data-sonner-toast] [data-button] {
+    grid-column: 2;
+    justify-self: end;
+    margin: 0;
     color: var(--foreground);
     background: var(--elevated);
     border: 1px solid var(--border);
 }
 
 .caxri-toaster[data-sonner-toaster] [data-sonner-toast] [data-close-button] {
+    top: 6px;
+    right: 6px;
+    left: auto;
+    transform: none;
     color: var(--muted);
     background: var(--elevated);
     border-color: var(--border);
@@ -185,8 +212,12 @@
 /*
  * The inset shadow is painted on the shell, not the overflow box: an inset `box-shadow` on `.project-list` would sit
  * in its padding, above the first visible row, instead of overlaying it the way VS Code's `.shadow.top` does.
+ * `.agent-activity-shell` is the same shell/scroller pair for the Activity queue (`agent-activity-view.tsx`), bound to
+ * the same `bindScrollEdge`/`useScrollEdge` hook (`primary-sidebar/hooks/use-scroll-edge.ts`), so both bodies of the
+ * PrimarySidebar signal hidden content above the same way.
  */
-.project-list-shell:has(> .project-list[data-scrolled='true'])::after {
+.project-list-shell:has(> .project-list[data-scrolled='true'])::after,
+.agent-activity-shell:has(> .agent-activity[data-scrolled='true'])::after {
     content: '';
     position: absolute;
     inset-inline: 0;

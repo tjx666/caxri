@@ -6,7 +6,8 @@ import type { LucideProps } from 'lucide-react-native';
 import type { MobileTheme } from '../theme/tokens';
 
 /**
- * A glyph-only control with a 48dp touch target. The accessible name is mandatory because nothing visible names it.
+ * A glyph-only control with a 44dp touch target, expanded by a 4dp `hitSlop` on every edge. The accessible name is
+ * mandatory because nothing visible names it.
  */
 export const IconButton = ({
     accessibilityHint,

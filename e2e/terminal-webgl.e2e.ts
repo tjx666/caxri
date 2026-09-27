@@ -338,7 +338,7 @@ test('WebGL modes hot-switch and every Terminal recovers from one GPU process lo
          * therefore both pins that decision and clears the overlay before the renderer checks below.
          */
         const recoveryNotification = running.page.getByText(
-            'A graphics failure interrupted drawing. Caxri switched the affected Terminals to software rendering; they keep working, but drawing may feel slower.',
+            'A graphics failure interrupted drawing. Affected Terminals switched to software rendering. Retry GPU rendering from the status bar.',
             { exact: true },
         );
         await expect(recoveryNotification).toHaveCount(1, { timeout: 8_000 });

@@ -674,6 +674,7 @@ describe('direct import test selection', () => {
             'extensions/status/src/__tests__/status-fallback.test.ts',
             'extensions/status/src/__tests__/status-review-threads.test.ts',
             'extensions/status/src/__tests__/status-tree-acceptance.test.ts',
+            'extensions/status/src/__tests__/status-tree-branch.test.ts',
             'extensions/status/src/__tests__/status-tree.test.ts',
         ]);
     });

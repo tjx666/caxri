@@ -298,8 +298,9 @@ test('the tab bar reveals the Agent menu on hover with one tab and accents only 
         await waitForTabMotionToSettle(running.page);
 
         /**
-         * Nothing to switch between: the active accent stays absent, while the reserved creation slot reveals its
-         * action only when the user reaches the tab bar.
+         * Nothing to switch between: the active accent stays absent, and the creation action floats over the tab's
+         * trailing end without a slot of its own, revealed only when the user reaches the tab bar. A reserved slot
+         * showed the bar's fill beside the full-width tab as a block.
          */
         const accentHeight = (element: Element) =>
             // eslint-disable-next-line unicorn/prefer-number-coercion -- the computed height carries a "px" suffix, which `Number()` cannot parse
@@ -307,6 +308,10 @@ test('the tab bar reveals the Agent menu on hover with one tab and accents only 
         expect(await tabs.first().evaluate(accentHeight)).toBe(0);
         await expect(newTerminal).toHaveCount(1);
         await expect(newTerminalSlot).toHaveCSS('opacity', '0');
+        const reservedActionWidth = await running.page
+            .locator('.work-tabs .tab-actions')
+            .evaluate((element) => element.getBoundingClientRect().width);
+        expect(reservedActionWidth).toBe(0);
         await tabs.first().hover();
         await expect(newTerminalSlot).toHaveCSS('opacity', '1');
         await newTerminal.hover();
@@ -733,10 +738,9 @@ test('the bar hides "+" with no tabs at all and reserves its drag corner only wi
         await running.page.keyboard.press('Meta+BracketLeft');
         await expect(dragCorner).toHaveCount(0);
 
-        // The empty pane offers its own New Terminal button, so the tab bar loses the reserved + slot.
         const onlyTab = running.page.locator('.work-tabs .work-tab').first();
-        // With one tab, the close button and active accent stay absent; closing it reveals the empty pane's own New
-        // Terminal action. Terminal > Close Terminal remains available, while `cmd+w` archives the Session.
+        // With one tab, the close button and active accent stay absent. Terminal > Close Terminal on that last tab
+        // archives the Session, the same meaning as `cmd+w`, instead of leaving an empty pane behind.
         await onlyTab.hover();
         await expect(onlyTab.getByRole('button', { name: 'Close Terminal' })).toHaveCount(0);
         await running.app.evaluate(({ Menu }) => {
@@ -744,9 +748,9 @@ test('the bar hides "+" with no tabs at all and reserves its drag corner only wi
                 ?.getMenuItemById('command.terminal.close')
                 ?.click({ triggeredByAccelerator: false });
         });
-        await expect(running.page.getByText('No Terminal in this Session.')).toBeVisible();
-        await expect(running.page.locator('.work-tabs .work-tab')).toHaveCount(0);
-        await expect(actions).toHaveCount(0);
+        await expect(running.page.locator('aside .archived-sessions-entry')).toHaveAccessibleName(
+            'Archived Sessions (1)',
+        );
     } finally {
         await closeAppQuietly(running.app);
         await removeQuitTestDirectory(testDirectory);

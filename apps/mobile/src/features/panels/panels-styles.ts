@@ -10,7 +10,7 @@ export const panelsStyles = StyleSheet.create({
         borderRadius: 17,
         flexDirection: 'row',
         gap: 6,
-        minHeight: 34,
+        minHeight: 44,
         paddingHorizontal: 12,
     },
     tabText: { fontSize: 13, fontWeight: '600' },

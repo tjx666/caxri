@@ -56,3 +56,5 @@ export function useSessionTitleScroll(title: string, isDisabled: boolean) {
 
     return { viewportReference, textReference, setHovered, setFocused };
 }
+
+export type SessionTitleScroll = ReturnType<typeof useSessionTitleScroll>;
