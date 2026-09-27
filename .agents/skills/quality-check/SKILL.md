@@ -86,4 +86,4 @@ Use these when a focused `check` is the wrong width, not as the default after ev
   authorizes a local full run, by setting `CAXRI_FULL_SUITE_AUTHORIZED=1`; an agent never sets that
   variable on its own judgement or on another agent's verdict, including while repairing CI. Use
   `bun run check <changed files>` or name the test files with
-  `rtk vitest run <file>` instead.
+  `bunx vitest run <file>` instead.

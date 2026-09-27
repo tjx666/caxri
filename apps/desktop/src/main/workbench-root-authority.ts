@@ -9,6 +9,7 @@ import { dialog } from 'electron';
 import { readExternalFileSnapshot } from './external-file-snapshot';
 import type { PathBrowserOpenTarget } from './path-browser-authority';
 import { createPathBrowserAuthority } from './path-browser-authority';
+import type { PathBrowserLogger } from './path-browser-log';
 import type { ProjectRootGrants } from './root-grants';
 import type { DesktopServerConnection } from './server-connection';
 
@@ -29,6 +30,7 @@ interface WorkbenchRootAuthorityOptions {
     getServer(): DesktopServerConnection;
     getWindow(): BrowserWindow | undefined;
     grants: ProjectRootGrants;
+    logger(): PathBrowserLogger | undefined;
     nextTestRoot(): string | undefined;
 }
 
@@ -189,6 +191,7 @@ export function createWorkbenchRootAuthority(options: WorkbenchRootAuthorityOpti
 
     const pathBrowser = createPathBrowserAuthority({
         getServer: () => options.getServer(),
+        logger: () => options.logger(),
         openFile: openPathBrowserFile,
     });
 

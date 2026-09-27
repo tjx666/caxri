@@ -648,7 +648,7 @@ describe('subscribeRuntimeQueryInvalidation', () => {
         unsubscribe();
     });
 
-    it('invalidates only the refreshed Session Project Status query', () => {
+    it('invalidates only the refreshed Session Project Status summary and overview queries', () => {
         const queryClient = new QueryClient();
         queryClient.setQueryData(['projectStatus.summary', { sessionId: 'session-a' }], {});
         queryClient.setQueryData(
@@ -656,6 +656,8 @@ describe('subscribeRuntimeQueryInvalidation', () => {
             {},
         );
         queryClient.setQueryData(['projectStatus.summary', { sessionId: 'session-b' }], {});
+        queryClient.setQueryData(['projectStatus.overview', { sessionId: 'session-a' }], {});
+        queryClient.setQueryData(['projectStatus.overview', { sessionId: 'session-b' }], {});
         const unsubscribe = subscribeRuntimeQueryInvalidation(queryClient);
 
         mocks.state.handler?.({
@@ -675,6 +677,48 @@ describe('subscribeRuntimeQueryInvalidation', () => {
         ).toBe(true);
         expect(
             queryClient.getQueryState(['projectStatus.summary', { sessionId: 'session-b' }])
+                ?.isInvalidated,
+        ).toBe(false);
+        // The status bar's `projectStatus.overview` read converges in the same event, instead of waiting out its own
+        // poll (issue caxri#1310).
+        expect(
+            queryClient.getQueryState(['projectStatus.overview', { sessionId: 'session-a' }])
+                ?.isInvalidated,
+        ).toBe(true);
+        expect(
+            queryClient.getQueryState(['projectStatus.overview', { sessionId: 'session-b' }])
+                ?.isInvalidated,
+        ).toBe(false);
+        unsubscribe();
+    });
+
+    /**
+     * `session.pullRequests` (the sidebar row) and `projectStatus.overview` (the status bar) both resolve a Session's
+     * pull request through `SessionPullRequestService`/`ProjectStatusService`'s shared `GitHubPullRequestStore`, so a
+     * `sessionPullRequests.changed` sweep must invalidate both instead of leaving the status bar on its own poll (issue
+     * caxri#1310).
+     */
+    it('invalidates the shared pull-request query and only the affected Sessions’ overview reads', () => {
+        const queryClient = new QueryClient();
+        queryClient.setQueryData(['session.pullRequests', undefined], {});
+        queryClient.setQueryData(['projectStatus.overview', { sessionId: 'session-a' }], {});
+        queryClient.setQueryData(['projectStatus.overview', { sessionId: 'session-b' }], {});
+        const unsubscribe = subscribeRuntimeQueryInvalidation(queryClient);
+
+        mocks.state.handler?.({
+            event: 'sessionPullRequests.changed',
+            payload: { sessionIds: ['session-a'] },
+        });
+
+        expect(queryClient.getQueryState(['session.pullRequests', undefined])?.isInvalidated).toBe(
+            true,
+        );
+        expect(
+            queryClient.getQueryState(['projectStatus.overview', { sessionId: 'session-a' }])
+                ?.isInvalidated,
+        ).toBe(true);
+        expect(
+            queryClient.getQueryState(['projectStatus.overview', { sessionId: 'session-b' }])
                 ?.isInvalidated,
         ).toBe(false);
         unsubscribe();

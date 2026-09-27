@@ -40,15 +40,26 @@ describe('projectStatusCliError', () => {
             message: 'Vercel CLI not installed',
             hint: 'Deployments for this repository need the Vercel CLI. Install it with npm i -g vercel, then recheck.',
         });
+        // Issue #1345: a VERCEL_TOKEN-only user is genuinely signed in in their own shell, but Caxri's external
+        // commands never forward it, so the hint must say why instead of implying they were never signed in.
         expect(projectStatusCliError('vc', 'not-logged-in')).toMatchObject({
             kind: 'prerequisite',
             message: 'Vercel CLI not signed in',
-            hint: 'Run vc login in a Terminal, then recheck.',
+            hint: 'Run vc login in a Terminal, then recheck. A VERCEL_TOKEN environment variable alone is not enough — Caxri does not forward personal shell credentials to CLI checks.',
         });
         expect(projectStatusCliError('vc', 'not-linked')).toMatchObject({
             kind: 'prerequisite',
             message: 'Repository not linked to Vercel',
             hint: 'Run vc link in this repository, then recheck.',
+        });
+    });
+
+    // Issue #1345: same gap as GitHub and Vercel above, for a LINEAR_API_KEY-only user.
+    it('names the unforwarded LINEAR_API_KEY variable in the Linear not-logged-in hint', () => {
+        expect(projectStatusCliError('linear', 'not-logged-in')).toMatchObject({
+            kind: 'prerequisite',
+            message: 'Linear CLI not signed in',
+            hint: 'Run linear auth login in a Terminal, then recheck. A LINEAR_API_KEY environment variable alone is not enough — Caxri does not forward personal shell credentials to CLI checks.',
         });
     });
 

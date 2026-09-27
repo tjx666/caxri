@@ -11,7 +11,7 @@ import type {
 } from '@caxri/protocol';
 
 import type { AgentDelegationAdapter } from './delegation-contract';
-import type { AgentHookAdapter } from './hooks/contract';
+import type { AgentHookAdapter, AgentLifecycleSignal } from './hooks/contract';
 import type { TimelineBuilder } from './timeline-model';
 import type { AgentTranscriptLocation } from './transcript-security';
 
@@ -213,6 +213,18 @@ export interface AgentProviderDescriptor {
         context: Pick<AgentSnapshotContext, 'agentSessionId' | 'agentTurnId'>,
         environment: AgentEnvironment,
     ): Promise<LocalAgentState['status']>;
+    /**
+     * Classifies an already-accepted `turnFinished` signal's own turn as a provider failure the CLI's hooks could not
+     * report, from that provider's persisted transcript content. Only a provider with no native StopFailure-class hook
+     * event needs this (issue caxri#1345); Claude and Grok already report their own failure classification through
+     * `hooks.ts`. An undefined result leaves the signal exactly as `turnFinished` — this only ever adds a failure the
+     * transcript unambiguously proves, never guesses one from an inconclusive read.
+     */
+    resolvePrimaryTurnFailure?(
+        this: void,
+        content: string,
+        agentTurnId: string,
+    ): AgentLifecycleSignal['agentFailure'] | undefined;
     generateTitle?(context: AgentProviderLowCostGenerationContext): Promise<string>;
     actions?: AgentActionDiscoveryAdapter;
     hooks?: AgentHookAdapter;

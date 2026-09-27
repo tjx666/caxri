@@ -1,8 +1,9 @@
-import { appendFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import type { SessionRecord } from '@caxri/protocol';
+import type { StructuredLogger } from '@caxri/system';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { CaxriDatabase } from '../db';
@@ -44,8 +45,13 @@ describe('SessionContextService', () => {
         await rm(home, { force: true, recursive: true });
     });
 
-    function service(): SessionContextService {
-        return new SessionContextService({ getTerminal } as unknown as CaxriDatabase, {
+    function fakeLogger(): { logger: StructuredLogger; write: ReturnType<typeof vi.fn> } {
+        const write = vi.fn();
+        return { logger: { write } as unknown as StructuredLogger, write };
+    }
+
+    function service(logger: StructuredLogger = fakeLogger().logger): SessionContextService {
+        return new SessionContextService({ getTerminal } as unknown as CaxriDatabase, logger, {
             homeDirectory: home,
             variables: {},
         });
@@ -196,5 +202,62 @@ describe('SessionContextService', () => {
         await writeFile(transcript, claudeRecord('cd /gamma', cwd));
 
         expect((await instance.read(session)).pullRequests).toEqual({});
+    });
+
+    it('logs a routine missing transcript at debug, distinct from a security rejection', async () => {
+        const { logger, write } = fakeLogger();
+        getTerminal.mockReturnValueOnce({
+            id: 't1',
+            provider: 'claude',
+            agentSessionId: 'no-transcript-yet-0000',
+            cwd,
+        });
+
+        const context = await service(logger).read(session);
+
+        expect(context).toEqual({
+            acceptanceReferences: [],
+            branches: [],
+            directories: [],
+            linearReferences: [],
+            pullRequests: {},
+        });
+        const failures = write.mock.calls.filter(
+            ([, event]) => event === 'session_context.scan_failed',
+        );
+        expect(failures).toHaveLength(1);
+        expect(failures[0][0]).toBe('debug');
+        expect(failures[0][2]).toMatchObject({ fields: { reason: 'missing' } });
+    });
+
+    it('logs a symlinked transcript as a security rejection at warn, not as a missing file', async () => {
+        const { logger, write } = fakeLogger();
+        await rm(transcript, { force: true });
+        await symlink(join(home, 'outside.jsonl'), transcript);
+
+        await service(logger).read(session);
+
+        const failures = write.mock.calls.filter(
+            ([, event]) => event === 'session_context.scan_failed',
+        );
+        expect(failures).toHaveLength(1);
+        expect(failures[0][0]).toBe('warn');
+        expect(failures[0][2]).toMatchObject({ fields: { reason: 'symlinkRejected' } });
+    });
+
+    it('logs a cursor reset as its own state transition when a transcript shrinks', async () => {
+        const { logger, write } = fakeLogger();
+        const instance = service(logger);
+        await appendFile(transcript, claudeRecord('cd /worktrees/alpha', cwd));
+        await instance.read(session);
+        await writeFile(transcript, claudeRecord('cd /gamma', cwd));
+
+        await instance.read(session);
+
+        const resets = write.mock.calls.filter(
+            ([, event]) => event === 'session_context.cursor_reset',
+        );
+        expect(resets).toHaveLength(1);
+        expect(resets[0][0]).toBe('info');
     });
 });

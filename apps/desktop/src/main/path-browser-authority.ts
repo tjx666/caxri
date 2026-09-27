@@ -17,6 +17,8 @@ import {
     pathFailure,
     validateDirectory,
 } from './path-browser-identity';
+import type { PathBrowserLogger } from './path-browser-log';
+import { logSearchFailed, logSearchFallback } from './path-browser-log';
 import type { ProjectSearchMatch } from './path-browser-search';
 import {
     memoizedProjectSearch,
@@ -98,6 +100,7 @@ export interface PathBrowserOpenTarget {
 
 interface PathBrowserAuthorityOptions {
     getServer(): DesktopServerConnection;
+    logger(): PathBrowserLogger | undefined;
     openFile(target: PathBrowserOpenTarget): Promise<{ canceled: true } | { opened: true }>;
     userHome?: string;
 }
@@ -324,8 +327,19 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
         context: BrowserContext,
         filter: string,
     ): Promise<{ matches: readonly ProjectSearchMatch[]; status: Snapshot['projectSearch'] }> {
+        const startedAt = performance.now();
         const memoized = memoizedProjectSearch(context.searchedFilters, filter);
-        if (memoized) return { matches: memoized, status: 'complete' };
+        if (memoized) {
+            logSearchFallback(options.logger(), performance.now() - startedAt, {
+                memoHit: true,
+                matchCount: memoized.length,
+                droppedByRootCheck: 0,
+                displayedCount: memoized.length,
+                truncated: false,
+                canceled: false,
+            });
+            return { matches: memoized, status: 'complete' };
+        }
         let result: MethodResult<'files.search'>;
         try {
             result = await options.getServer().request('files.search', {
@@ -334,10 +348,12 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
                 mode: 'name',
                 query: filter,
             });
-        } catch {
+        } catch (error) {
             // The directory listing is authoritative on its own, so a search engine that cannot start must not turn
             // into a dialog-wide error. It says so in its own group instead, because a group that simply vanished
-            // would read as "this name exists nowhere else".
+            // would read as "this name exists nowhere else". A closed reason still reaches the structured log, so a
+            // packaged install missing ripgrep is diagnosable instead of reading like the Project has no such file.
+            logSearchFailed(options.logger(), performance.now() - startedAt, error);
             return { matches: [], status: 'unavailable' };
         }
         const inRoot: ProjectSearchMatch[] = result.matches.flatMap((match) =>
@@ -358,6 +374,14 @@ export function createPathBrowserAuthority(options: PathBrowserAuthorityOptions)
          */
         const isIncomplete = result.truncated || result.canceled;
         if (!isIncomplete) rememberProjectSearch(context.searchedFilters, filter, inRoot);
+        logSearchFallback(options.logger(), performance.now() - startedAt, {
+            memoHit: false,
+            matchCount: result.matches.length,
+            droppedByRootCheck: result.matches.length - inRoot.length,
+            displayedCount: inRoot.length,
+            truncated: result.truncated,
+            canceled: result.canceled,
+        });
         return { matches: inRoot, status: isIncomplete ? 'incomplete' : 'complete' };
     }
 

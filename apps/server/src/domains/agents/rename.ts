@@ -37,6 +37,25 @@ export async function agentCommandEnvironment(
     };
 }
 
+const RENAME_FAILURE_DETAIL_MAX_LENGTH = 300;
+
+/**
+ * Extracts the CLI's own account for a rejected rename, so "not logged in" or "rate limited" is visible instead of only
+ * the generic fallback below (issue caxri#1345). `execFileAsync`'s documented `promisify` special case attaches
+ * `stderr` to the rejected `Error`, which is the CLI's actual complaint; `message` is Node's own "Command failed: …"
+ * wrapper around it and is used only when the CLI produced no stderr (e.g. a spawn-level failure). Bounded so a
+ * pathological CLI cannot inflate the rename toast or its log record.
+ */
+function renameFailureDetail(error: unknown): string | undefined {
+    if (!(error instanceof Error)) return undefined;
+    const stderr = (error as Error & { stderr?: unknown }).stderr;
+    const detail = (typeof stderr === 'string' ? stderr : '').trim() || error.message.trim();
+    if (!detail) return undefined;
+    return detail.length > RENAME_FAILURE_DETAIL_MAX_LENGTH
+        ? `${detail.slice(0, RENAME_FAILURE_DETAIL_MAX_LENGTH)}…`
+        : detail;
+}
+
 export function throwAgentRenameError(
     provider: AgentProvider,
     error: unknown,
@@ -57,8 +76,9 @@ export function throwAgentRenameError(
             'TIMEOUT',
             `${agentProviderCatalog[provider].displayName} Session rename timed out`,
         );
+    const detail = renameFailureDetail(error);
     throw new CaxriError(
         'UNAVAILABLE',
-        `${agentProviderCatalog[provider].displayName} could not rename the Agent session`,
+        `${agentProviderCatalog[provider].displayName} could not rename the Agent session${detail ? `: ${detail}` : ''}`,
     );
 }

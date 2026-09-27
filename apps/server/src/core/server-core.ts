@@ -23,6 +23,7 @@ import {
 import { logEventCatalog, startEventLoopMonitor, StructuredLogger } from '@caxri/system';
 
 import { createServerDomainService } from '../core/create-domain-service';
+import { warmServerExecutablePath } from '../domains/executables';
 import { agentCommandRequest } from './agent-command-request';
 import { createAgentEndpointControl } from './agent-endpoints/control';
 import { AgentEndpointRegistry } from './agent-endpoints/registry';
@@ -76,6 +77,8 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             resolveLogLevel(process.env),
         );
     const eventLoopMonitor = startEventLoopMonitor(logger);
+    // Fired before any `await` so the login-shell PATH probe overlaps startup instead of blocking the first command.
+    warmServerExecutablePath();
     const lease = await acquireServerProfile({
         startedAt,
         userDataPath: options.userDataPath,

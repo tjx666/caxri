@@ -108,11 +108,13 @@ export class RemoteMobileTerminalControl {
         terminalId: string,
         expectedGeneration: number,
         wheel: TerminalWheelInput,
+        signal?: AbortSignal,
     ): Promise<boolean> {
         const identity = this.requireGeneration(terminalId, expectedGeneration);
         const result = (await this.supervisor.request(
             { method: 'terminal.observer.scroll', params: wheel },
             terminalScope(identity, 'terminal.mobile.input'),
+            signal,
         )) as { accepted: boolean };
         return result.accepted;
     }

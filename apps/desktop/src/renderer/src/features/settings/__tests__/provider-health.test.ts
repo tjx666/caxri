@@ -18,9 +18,15 @@ describe('hookHealthLabel', () => {
 
     it('maps every health kind to user language and appends the detail message', () => {
         expect(hookHealthLabel(true, { kind: 'active' })).toBe('Active');
-        expect(hookHealthLabel(true, { kind: 'notInstalled' })).toBe(
-            'Not in effect — install the agent CLI first',
-        );
+        expect(hookHealthLabel(true, { kind: 'notInstalled' })).toBe('Not in effect');
+        // Issue #1345: `health.message` already carries the actionable instruction ("Install the {CLI} CLI, then
+        // restart Caxri."), so the base label must not restate "install" — regression for the duplicated wording.
+        expect(
+            hookHealthLabel(true, {
+                kind: 'notInstalled',
+                message: 'Install the Codex CLI, then restart Caxri.',
+            }),
+        ).toBe('Not in effect — Install the Codex CLI, then restart Caxri.');
         expect(hookHealthLabel(true, { kind: 'installedPending' })).toBe(
             'Not in effect until your next Agent session',
         );

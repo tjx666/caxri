@@ -43,6 +43,7 @@ export interface MobileSubscriptionOptions {
     randomId: () => string;
     send: (payload: MobileEventPayload | MobileStreamPayload) => Promise<void>;
     reportTerminalResync?: (reason: MobileTerminalResyncReason) => void;
+    reportHumanSteer?: (terminalId: string) => void;
     terminate: () => void;
     connectionId: string;
     beginConversation?: (principal: Principal, sessionId: string) => Promise<() => void>;
@@ -131,6 +132,7 @@ export class MobileGatewaySubscriptions {
                 release: (bytes) => this.#release(subscription, bytes),
                 send: this.#options.send,
                 reportResync: this.#options.reportTerminalResync,
+                reportHumanSteer: this.#options.reportHumanSteer,
                 remove: () => this.unsubscribe(id),
                 terminate: this.#options.terminate,
             });

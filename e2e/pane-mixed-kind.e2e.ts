@@ -377,3 +377,64 @@ test('a cancelled drag and a context-menu close both leave focus and the active 
         await rm(testDirectory, { recursive: true, force: true });
     }
 });
+
+/**
+ * Regression for #815: `PaneMountPortal` moves a pane's stable content into whichever DOM slot the split tree currently
+ * gives it, and every earlier test here only exercises that move as a runtime split — one pane's portal already homed,
+ * a sibling's freshly appended beside it. A reload instead builds a brand-new Renderer tree from an already-split
+ * persisted layout, so both panes' portals mount for the first time in the same commit as `PaneView` itself: the
+ * original "parent ready later than child" scenario the portal's slot-relocation effect has to handle without one
+ * pane's content racing the other's onto screen. Nothing here waits or retries for that race — a plain visibility
+ * assertion is what would flake if the effect still ran on the wrong signal.
+ */
+test('a Session with a mixed-kind split layout renders every pane on a fresh mount', async () => {
+    const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-pane-mixed-kind-reload-e2e-'));
+    const userData = join(testDirectory, 'user-data');
+    const rootInput = join(testDirectory, 'project');
+    await execFileAsync('mkdir', ['-p', rootInput]);
+    const root = await realpath(rootInput);
+    await writeFile(join(root, 'notes.ts'), 'export const notes = 1;\n', 'utf8');
+
+    const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
+    try {
+        await createProjectSession(running.page);
+        const terminalId = await terminalIdOf(running.page);
+        const terminalTab = running.page.locator(`.work-tab[data-terminal-id="${terminalId}"]`);
+        const panes = running.page.locator('.workbench-pane');
+        await openAndPinFile(running.page, 'notes.ts');
+        await terminalTab.click({ button: 'right' });
+        await chooseContextMenuItem(running.app, 'Split Right');
+        await expect(panes).toHaveCount(2);
+
+        await running.page.reload();
+        await expect(panes).toHaveCount(2);
+        const paneIds = await panes.evaluateAll((nodes) =>
+            nodes.map((node) => (node as HTMLElement).dataset.paneId),
+        );
+        const [documentPaneId, terminalPaneId] = paneIds;
+        expect(documentPaneId).toBeTruthy();
+        expect(terminalPaneId).toBeTruthy();
+
+        const documentPane = running.page.locator(
+            `.workbench-pane[data-pane-id="${documentPaneId}"]`,
+        );
+        const terminalPane = running.page.locator(
+            `.workbench-pane[data-pane-id="${terminalPaneId}"]`,
+        );
+        await expect(documentPane.locator('.monaco-editor .view-lines')).toContainText(
+            'export const notes',
+        );
+        await expect(
+            terminalPane.locator(
+                `.terminal-pane[data-terminal-id="${terminalId}"] .terminal-surface[data-terminal-attached="true"]`,
+            ),
+        ).toBeVisible();
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close failures during cleanup.
+        }
+        await rm(testDirectory, { recursive: true, force: true });
+    }
+});

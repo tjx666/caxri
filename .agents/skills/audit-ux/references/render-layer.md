@@ -211,13 +211,47 @@ Session-switch sample entirely. What remains is tracked rather than unexplained:
 - The 51 mounts are the `PaneView` subtree of a Session not yet in the workbench's recently used
   keep-alive set; a switch between retained Sessions should mount nothing, so mounts there are a
   finding.
-- The ~200 remaining updates are the 5 Session cards and their menu wrappers, and their cause is
-  **not yet named** — issue #1108 owns finding it. Recorded here because the first answer was wrong
-  in an instructive way: "`app.bootstrap` is replaced wholesale, so every derived array is a new
-  reference" is false. `stores/structural-sharing.ts:63` already merges every snapshot against the
-  previous state and keeps the identity of each deep-equal branch. A cause that sounds mechanical
-  is still a guess until the reference is actually compared across the switch, and §7 is what that
-  rule exists for.
+- The ~200 remaining updates are the 5 Session cards and their menu wrappers. Issue #1108 named the
+  cause: recorded here because the first answer was wrong in an instructive way — "`app.bootstrap`
+  is replaced wholesale, so every derived array is a new reference" is false.
+  `stores/structural-sharing.test.ts` proves the real merge function keeps `sessions`/`projects`
+  reference-stable across a snapshot that only changes `selectedSessionId`, so `bootstrap` was never
+  the source. A cause that sounds mechanical is still a guess until the reference is actually
+  compared, and §7 is what that rule exists for.
+
+  The real cause: `primary-sidebar/hooks/use-session-order.ts` and `use-session-rename.ts` each
+  returned a fresh object literal on every call — every property, including the `startDrag` /
+  `dragOver` / `keyDown` / `drop` / `beginRename` / `cancelRename` / `commitRename` methods, was a
+  new closure identity on every render of `PrimarySidebarProjectTree`, which itself re-renders on
+  every Session switch because it reads `selectedSessionId`. Those objects and methods are passed
+  straight down as props to `ProjectGroupList`/`PinnedSessionGroup` and each Session card, so a
+  switch invalidated every card's own render-skip regardless of whether its content changed — even
+  though `ActiveSessionRow`, the card component itself, compiles cleanly under React Compiler
+  (verified by running `babel-plugin-react-compiler` directly against it: zero bailouts) and would
+  otherwise have skipped the re-render.
+
+  Confirmed React Compiler does **not** cover either hook — not assumed, verified by transforming
+  both files with the exact `babel-plugin-react-compiler` version this repo pins and reading the
+  `CompileError`/bailout events from its `logger` option:
+  - `use-session-order.ts`: an arrow function written as a destructuring default
+    (`groupOf = (session) => session.projectId`) hits
+    `BuildHIR::node.lowerReorderableExpression: Expression type 'ArrowFunctionExpression' cannot be
+safely reordered`; independently, `persist`'s `try { … } finally { … }` with no `catch` hits
+    `BuildHIR::lowerStatement: Handle TryStatement without a catch clause`. Either bailout alone
+    disqualifies the whole hook.
+  - `use-session-rename.ts`: the compiler's blanket policy disqualifies any function containing an
+    ESLint rule suppression — this hook has one `eslint-disable-next-line react-hooks/exhaustive-deps`
+    (a deliberate one; not something to remove for this).
+
+  Fix landed: both hooks now wrap their inline methods in `useCallback` and their returned
+  controller object in `useMemo`, with `react-hooks/exhaustive-deps` verifying every dependency
+  array by lint rather than by hand. The two call sites that passed an inline arrow as `groupOf`
+  (the hook's own default, and `use-pinned-session-group.ts`'s Pinned-group override) were hoisted
+  to named module-level functions, since a fresh function passed in on every render would have
+  defeated the new memoization from the outside. Numbers not yet re-sampled here: this fix was made
+  without dev-app/CDP access, so the `session-switch` row above still needs one
+  `render-count.ts sample --label session-switch` pass on this branch to confirm the instance/update
+  counts actually drop and record the after numbers next to the `726 → 229` row.
 
 ## 7. Naming the cause
 

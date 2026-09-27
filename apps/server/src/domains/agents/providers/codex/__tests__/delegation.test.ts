@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { codexDelegationAdapter, extractCodexDelegationCompletion } from '../delegation';
+import {
+    codexDelegationAdapter,
+    codexPrimaryTurnFailure,
+    extractCodexDelegationCompletion,
+} from '../delegation';
 
 const evidence = {
     sessionId: 'synthetic-session',
@@ -87,6 +91,59 @@ describe('Codex delegation completion', () => {
                 evidence,
             ),
         ).toEqual({ kind: 'failed', failure: 'provider_failed' });
+    });
+});
+
+describe('codexPrimaryTurnFailure', () => {
+    // Issue #1345: Codex has no StopFailure-class hook event, so a login expiry or rate limit during the primary
+    // turn still fires a plain `Stop`. This generalizes `extractCodexDelegationCompletion`'s rollout-JSONL
+    // correlation so that turn can be reported as failed instead of completed.
+    it.each([
+        ['rate_limit_exceeded', 'rate_limit'],
+        ['unauthorized', 'authentication_failed'],
+        ['usage_limit_exceeded', 'billing_error'],
+        ['session_budget_exceeded', 'billing_error'],
+        ['context_window_exceeded', 'max_output_tokens'],
+        ['unknown_future_error', 'provider_failed'],
+    ])('maps an explicit %s provider error to %s', (code, agentFailure) => {
+        const content = event({
+            type: 'task_complete',
+            turn_id: evidence.turnId,
+            last_agent_message: null,
+            error: { codex_error_info: code, message: 'Synthetic private diagnostic' },
+        });
+        expect(codexPrimaryTurnFailure(content, evidence.turnId)).toBe(agentFailure);
+    });
+    it('maps a native abort to a provider failure', () => {
+        const content = event({ type: 'turn_aborted', turn_id: evidence.turnId });
+        expect(codexPrimaryTurnFailure(content, evidence.turnId)).toBe('provider_failed');
+    });
+    it('leaves an ordinary completed turn unclassified', () => {
+        expect(
+            codexPrimaryTurnFailure(complete('Final synthetic answer'), evidence.turnId),
+        ).toBeUndefined();
+    });
+    it('does not guess a failure from an inconclusive or unrelated read', () => {
+        // Stop fired but the rollout has no matching completion text and no error: a correlation gap, not a proven
+        // provider error, so this must stay `turnFinished` rather than report a failure it cannot prove.
+        expect(
+            codexPrimaryTurnFailure(
+                event({
+                    type: 'task_complete',
+                    turn_id: evidence.turnId,
+                    last_agent_message: null,
+                }),
+                evidence.turnId,
+            ),
+        ).toBeUndefined();
+        // More than one terminal event for the same turn id is a correlation problem, not evidence of failure.
+        expect(
+            codexPrimaryTurnFailure([complete('One'), complete('Two')].join('\n'), evidence.turnId),
+        ).toBeUndefined();
+        // No matching turn id at all.
+        expect(
+            codexPrimaryTurnFailure(complete('Other', 'other-turn'), evidence.turnId),
+        ).toBeUndefined();
     });
 });
 

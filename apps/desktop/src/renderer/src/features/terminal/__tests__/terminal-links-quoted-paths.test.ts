@@ -103,6 +103,22 @@ describe('findTerminalLinks quoted paths', () => {
         ).toMatchObject([{ kind: 'file', target: '/usr/bin/env' }]);
     });
 
+    // Regression for issue #1022: the closing argument `index.js` carries no option flag and ends in an
+    // extension, so the old shape rule (closing segment must have `/` or `.`) let the whole command line through
+    // and suppressed the correct `/usr/bin/env` link.
+    it('keeps only the executable link when a quoted command line ends in a bare file argument', () => {
+        expect(
+            findTerminalLinks('error: failed to run "/usr/bin/env node index.js"'),
+        ).toMatchObject([{ kind: 'file', target: '/usr/bin/env' }]);
+    });
+
+    it('still links the full quoted path with spaces from issue #1007', () => {
+        const original = '/Users/me/Library/Application Support/Caxri/pastes/paste-a1b2c3.txt';
+        expect(findTerminalLinks(`Original file: "${original}"`)).toMatchObject([
+            { kind: 'file', target: original, text: original },
+        ]);
+    });
+
     it.each([
         'error: "/repo/src/a.ts 已被删除，请重新生成"',
         'hint: "/repo/src/a.ts and try again"',

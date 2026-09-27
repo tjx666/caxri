@@ -28,6 +28,15 @@ const rendererDiagnosticChannel = 'caxri:renderer-diagnostic';
  */
 // eslint-disable-next-line n/prefer-global/process -- required by Electron's sandboxed preload runtime
 const isE2E = process.env.CAXRI_E2E === '1';
+/**
+ * Set only by `switch-worktree dev` (see `.agents/skills/switch-worktree/scripts/worktree.ts`), never by a packaged
+ * install or a bare `bun run dev`. Exposed below as `globalThis.__caxriWorktree` so a CDP connection can verify it
+ * reached this worktree's window instead of a sibling worktree's sharing the same `Electron/...` user agent.
+ *
+ * @see https://github.com/tjx666/caxri/issues/1016
+ */
+// eslint-disable-next-line n/prefer-global/process -- required by Electron's sandboxed preload runtime
+const worktreePath = process.env.CAXRI_WORKTREE_PATH;
 interface E2ERequestGate {
     markReached: () => void;
     reached: Promise<void>;
@@ -157,6 +166,8 @@ const bridge: CaxriBridge = {
 };
 
 contextBridge.exposeInMainWorld('caxri', bridge);
+
+if (worktreePath) contextBridge.exposeInMainWorld('__caxriWorktree', worktreePath);
 
 if (isE2E) {
     /**

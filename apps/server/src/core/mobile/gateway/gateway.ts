@@ -7,7 +7,6 @@ import type { Socket } from 'node:net';
 import type {
     HandshakeTranscript,
     MobileClientHello,
-    MobileSessionKeys,
     MobileSubscriptionResource,
 } from '@caxri/mobile-transport';
 import {
@@ -16,13 +15,10 @@ import {
     encodeHex,
     HANDSHAKE_NONCE_BYTES,
     handshakeConfirmation,
-    isHandshakeConfirmationValid,
     MOBILE_GATEWAY_MAX_WIRE_BYTES,
     MOBILE_TRANSPORT_VERSION,
-    mobileClientConfirmationSchema,
     mobileClientHelloSchema,
     MobileFrameCounter,
-    mobilePairingResultSchema,
     mobilePublicKey,
     MobileReplayGuard,
     mobileRevokedSchema,
@@ -40,7 +36,6 @@ import type {
     CommandExecutionContext,
     MobileAccessStatus,
     Principal,
-    ProtocolConnectionIdentity,
     ServerEvent,
 } from '@caxri/protocol';
 import { CaxriError, createCommandDispatcher } from '@caxri/protocol';
@@ -55,7 +50,6 @@ import type {
     MobileDeviceSummary,
 } from '../device-registry';
 import type { MobileUpdateSource } from '../update-bundle';
-import { shouldCancelDelayedPairing } from './acceptance-pairing-delay';
 import { selectMobileGatewayAddresses } from './address-selection';
 import {
     isAllowedMobilePeer,
@@ -64,12 +58,15 @@ import {
     mobileUpgradeFailure,
 } from './admission';
 import { hasMobileAttentionRecipient } from './attention-recipient';
+import type { AuthenticateConnectionDependencies } from './authenticate-connection';
+import { authenticateConnection } from './authenticate-connection';
 import { bindMobileGatewayServer } from './bind';
 import type { MobileGatewayFailureReason } from './diagnostics';
 import { MobileGatewayDiagnostics } from './diagnostics';
 import type { MobileAppOptions } from './frame-router';
-import { MobileGatewayFrameRouter } from './frame-router';
+import type { GatewaySession } from './gateway-session';
 import { dummyCandidate } from './handshake-candidate';
+import { MobilePairingLedger } from './pairing-ledger';
 import { adoptCurrentPairedPrincipal, currentPrincipalAdapter } from './principal-grant';
 import { mobileCapabilitiesByRole } from './role-capabilities';
 import { createServerSealedPayload, sendFinalSealedPayload } from './sealed-payload';
@@ -82,35 +79,11 @@ export { selectMobileGatewayAddress } from './address-selection';
 export { boundedMobileReply } from './reply';
 
 const HANDSHAKE_TIMEOUT_MS = 10_000;
-const PAIRING_TTL_MS = 2 * 60_000;
-const MAXIMUM_PENDING_PAIRINGS = 8;
 
-interface PendingPairing {
-    expiresAt: number;
-    pairingId: string;
-    projectIds: string[];
-    secret: string;
-}
-
-interface GatewaySession {
-    application?: MobileGatewayFrameRouter;
-    candidate?: MobileDeviceRecord;
-    connection: ProtocolConnectionIdentity;
-    deviceId: string;
-    generation: number;
-    inbound: MobileReplayGuard;
-    keys: MobileSessionKeys;
-    /**
-     * The gateway address this phone reached; update download URLs reuse it.
-     */
-    localAddress?: string;
-    mode: 'connect' | 'pair';
-    outbound: MobileFrameCounter;
-    principal?: Principal;
-    revoking?: boolean;
-    transcript: HandshakeTranscript;
-    valid: boolean;
-}
+/**
+ * Marker for `MobileReplayGuard`'s counter-sequence rejection so it logs as `replayRejected`, not `invalidFrame`.
+ */
+class MobileFrameReplayRejected extends Error {}
 
 export interface MobileGatewayOptions {
     logger?: Pick<StructuredLogger, 'write'>;
@@ -140,6 +113,10 @@ export interface MobileGatewayOptions {
      * Test seam; production always selects one private IPv4 interface.
      */
     selectAddress?: () => string;
+    /**
+     * Test seam for driving a real handshake timeout without a 10-second wait; production always uses the default.
+     */
+    handshakeTimeoutMs?: number;
 }
 
 /**
@@ -148,11 +125,13 @@ export interface MobileGatewayOptions {
 /* eslint-disable unicorn/consistent-class-member-order -- The public lifecycle API stays together before handshake internals. */
 export class MobileGateway {
     readonly #activeByDevice = new Map<string, Map<WebSocket, GatewaySession>>();
+    readonly #authenticationDependencies: AuthenticateConnectionDependencies;
     readonly #dispatch: CommandDispatcher;
     readonly #diagnostics: MobileGatewayDiagnostics;
+    readonly #handshakeTimeoutMs: number;
     readonly #now: () => number;
     readonly #options: MobileGatewayOptions;
-    readonly #pairings = new Map<string, PendingPairing>();
+    readonly #pairings: MobilePairingLedger;
     readonly #random: (bytes: number) => Uint8Array;
     readonly #sockets = new Set<WebSocket>();
     readonly #sourceAttempts: SourceAttemptLimiter;
@@ -170,9 +149,11 @@ export class MobileGateway {
     constructor(options: MobileGatewayOptions) {
         this.#options = options;
         this.#now = options.now ?? Date.now;
+        this.#handshakeTimeoutMs = options.handshakeTimeoutMs ?? HANDSHAKE_TIMEOUT_MS;
         this.#diagnostics = new MobileGatewayDiagnostics(options.logger, this.#now);
         this.#sourceAttempts = new SourceAttemptLimiter({ now: this.#now });
         this.#random = options.random ?? randomBytes;
+        this.#pairings = new MobilePairingLedger(this.#now, this.#random);
         this.#updateDownloads = new MobileUpdateDownloads({
             ...options,
             now: this.#now,
@@ -193,10 +174,28 @@ export class MobileGateway {
             server: currentPrincipalAdapter(options.adapters.server, options.registry),
             maximumReceipts: 256,
         });
+        this.#authenticationDependencies = {
+            context: (session) => this.#context(session),
+            dispatch: this.#dispatch,
+            diagnostics: this.#diagnostics,
+            now: this.#now,
+            options: {
+                authorizeMethod: options.authorizePairedDeviceMethod,
+                authorizeSubscription: options.authorizeSubscription,
+                beginConversationSubscription: options.beginConversationSubscription,
+                logger: options.logger,
+                matchesSubscriptionEvent: options.matchesSubscriptionEvent,
+                registry: options.registry,
+                terminalExecution: options.terminalExecution,
+            },
+            random: this.#random,
+            sendSealed: (socket, session, payload, onSent) =>
+                this.#sendSealed(socket, session, payload, onSent),
+        };
     }
 
     status(): MobileAccessStatus {
-        this.#removeExpiredPairings();
+        this.#pairings.removeExpired();
         return {
             enabled: Boolean(this.#server?.listening),
             ...(this.#addresses?.[0] && { address: this.#addresses[0] }),
@@ -268,8 +267,8 @@ export class MobileGateway {
             if (this.#updateDownloads.handle(request, response)) return;
             response.writeHead(404, { Connection: 'close' }).end();
         });
-        server.headersTimeout = HANDSHAKE_TIMEOUT_MS;
-        server.requestTimeout = HANDSHAKE_TIMEOUT_MS;
+        server.headersTimeout = this.#handshakeTimeoutMs;
+        server.requestTimeout = this.#handshakeTimeoutMs;
         server.keepAliveTimeout = 1_000;
         server.maxConnections = MAXIMUM_MOBILE_CONNECTIONS;
         server.on('drop', () => this.#diagnostics.failure('admissionCapacity'));
@@ -287,7 +286,7 @@ export class MobileGateway {
                 return;
             }
             this.#tcpSockets.add(socket);
-            socket.setTimeout(HANDSHAKE_TIMEOUT_MS, () => socket.destroy());
+            socket.setTimeout(this.#handshakeTimeoutMs, () => socket.destroy());
             socket.once('close', () => this.#tcpSockets.delete(socket));
         });
         server.on('upgrade', (request, socket, head) => {
@@ -319,22 +318,15 @@ export class MobileGateway {
         this.#port = port;
         this.#server = server;
         this.#webSocketServer = webSocketServer;
+        this.#diagnostics.gatewayEnabled();
         return this.status();
     }
 
     createPairing(projectIds: string[]): { expiresAt: number; pairingLink: string } {
         if (!this.#server?.listening || !this.#addresses || !this.#port)
             throw new CaxriError('UNAVAILABLE', 'Mobile access is disabled');
-        this.#removeExpiredPairings();
-        if (this.#pairings.size >= MAXIMUM_PENDING_PAIRINGS)
-            throw new CaxriError('CAPACITY', 'Too many mobile pairings are pending');
-        const pairing: PendingPairing = {
-            pairingId: Buffer.from(this.#random(16)).toString('hex'),
-            secret: Buffer.from(this.#random(PAIRING_SECRET_BYTES)).toString('hex'),
-            projectIds: [...projectIds],
-            expiresAt: this.#now() + PAIRING_TTL_MS,
-        };
-        this.#pairings.set(pairing.pairingId, pairing);
+        const pairing = this.#pairings.create(projectIds);
+        this.#diagnostics.pairingOutcome('started');
         return {
             expiresAt: pairing.expiresAt,
             pairingLink: serializeMobilePairingLink({
@@ -378,6 +370,7 @@ export class MobileGateway {
     }
 
     async disable(): Promise<MobileAccessStatus> {
+        const wasEnabled = Boolean(this.#server?.listening);
         this.#pairings.clear();
         this.#sourceAttempts.clear();
         this.#updateDownloads.clear();
@@ -395,6 +388,7 @@ export class MobileGateway {
         if (server?.listening) await new Promise<void>((resolve) => server.close(() => resolve()));
         this.#webSocketServer?.close();
         this.#webSocketServer = undefined;
+        if (wasEnabled) this.#diagnostics.gatewayDisabled();
         this.#diagnostics.flush();
         return this.status();
     }
@@ -403,12 +397,6 @@ export class MobileGateway {
         this.#stopObserverEvents?.();
         this.#stopHostExit?.();
         return this.disable();
-    }
-
-    #removeExpiredPairings(): void {
-        const now = this.#now();
-        for (const [pairingId, pairing] of this.#pairings)
-            if (pairing.expiresAt <= now) this.#pairings.delete(pairingId);
     }
 
     #accept(socket: WebSocket, localAddress: string | undefined): void {
@@ -429,7 +417,7 @@ export class MobileGateway {
             socket.terminate();
         };
         this.#terminators.set(socket, terminate);
-        const timer = setTimeout(() => terminate('handshakeTimeout'), HANDSHAKE_TIMEOUT_MS);
+        const timer = setTimeout(() => terminate('handshakeTimeout'), this.#handshakeTimeoutMs);
         timer.unref();
         const remove = (): void => {
             isAcceptingMessages = false;
@@ -439,6 +427,8 @@ export class MobileGateway {
             if (!isReady) this.#handshakes = Math.max(0, this.#handshakes - 1);
             if (!session) return;
             session.application?.close();
+            if (session.readyAt !== undefined)
+                this.#diagnostics.connectionEnded(session.deviceId, this.#now() - session.readyAt);
             const active = this.#activeByDevice.get(session.deviceId);
             active?.delete(socket);
             if (active?.size === 0) this.#activeByDevice.delete(session.deviceId);
@@ -502,85 +492,19 @@ export class MobileGateway {
                     return;
                 }
                 if (!isReady) {
-                    const confirmation = mobileClientConfirmationSchema.parse(raw);
-                    if (
-                        confirmation.connectionId !== session.connection.connectionId ||
-                        !session.valid ||
-                        !isHandshakeConfirmationValid(
-                            decodeHex(confirmation.confirmation, 32),
-                            session.keys,
-                            'client',
-                        )
-                    ) {
-                        terminate('authenticationFailed');
-                        return;
-                    }
-                    let principal: Principal;
-                    if (session.mode === 'pair') {
-                        if (await shouldCancelDelayedPairing(() => isAcceptingMessages)) return;
-                        const candidate = session.candidate!;
-                        await this.#options.registry.commitPair(candidate);
-                        principal = this.#options.registry.currentPrincipal(
-                            candidate.deviceId,
-                            candidate.generation,
-                        );
-                        const pairingResult = mobilePairingResultSchema.parse({
-                            type: 'paired',
-                            deviceId: candidate.deviceId,
-                            generation: candidate.generation,
-                            credential: candidate.credential,
-                            projectIds: candidate.projectIds,
-                        });
-                        this.#sendSealed(socket, session, pairingResult);
-                    } else {
-                        principal = this.#options.registry.currentPrincipal(
-                            session.deviceId,
-                            session.generation,
-                        );
-                        await this.#options.registry.markConnected(
-                            session.deviceId,
-                            session.generation,
-                        );
-                        this.#sendSealed(socket, session, {
-                            type: 'ready',
-                            deviceId: session.deviceId,
-                            generation: session.generation,
-                        });
-                    }
-                    session.principal = principal;
-                    const authenticatedSession = session;
-                    session.application = new MobileGatewayFrameRouter({
-                        authorizeMethod: this.#options.authorizePairedDeviceMethod,
-                        authorizeSubscription: this.#options.authorizeSubscription,
-                        beginConversationSubscription: this.#options.beginConversationSubscription,
-                        context: () => this.#context(authenticatedSession),
-                        dispatch: this.#dispatch,
-                        isActive: () =>
-                            isAcceptingMessages &&
-                            !authenticatedSession.revoking &&
-                            socket.readyState === 1,
-                        matchesSubscriptionEvent: this.#options.matchesSubscriptionEvent,
-                        now: this.#now,
-                        randomSubscriptionId: () => Buffer.from(this.#random(16)).toString('hex'),
-                        reportRequest: (method) => this.#diagnostics.request(method),
-                        reportHeartbeat: () => this.#diagnostics.flushIfDue(),
-                        reportTerminalResync: (reason) => this.#diagnostics.terminalResync(reason),
-                        send: (payload) =>
-                            new Promise<void>((resolve, reject) => {
-                                if (!isAcceptingMessages || authenticatedSession.revoking) {
-                                    reject(new Error('Mobile session is no longer active'));
-                                    return;
-                                }
-                                this.#context(authenticatedSession);
-                                this.#sendSealed(socket, authenticatedSession, payload, (error) => {
-                                    if (error) reject(error);
-                                    else resolve();
-                                });
-                            }),
+                    const app = await authenticateConnection(
+                        this.#authenticationDependencies,
+                        session,
+                        socket,
+                        raw,
+                        () => isAcceptingMessages,
                         terminate,
-                        terminalExecution: this.#options.terminalExecution,
-                    });
+                    );
+                    if (!app) return;
+                    session.application = app;
                     isReady = true;
+                    session.readyAt = this.#now();
+                    this.#diagnostics.connectionEstablished(session.deviceId);
                     this.#handshakes = Math.max(0, this.#handshakes - 1);
                     clearTimeout(timer);
                     const active =
@@ -595,8 +519,9 @@ export class MobileGateway {
             queue = (async (): Promise<void> => {
                 try {
                     await currentMessage;
-                } catch {
-                    terminate(isReady ? 'invalidFrame' : 'invalidHandshake');
+                } catch (error) {
+                    if (error instanceof MobileFrameReplayRejected) terminate('replayRejected');
+                    else terminate(isReady ? 'invalidFrame' : 'invalidHandshake');
                 } finally {
                     releaseQueueCapacity();
                 }
@@ -616,10 +541,10 @@ export class MobileGateway {
         let candidate: MobileDeviceRecord | undefined;
         let isValid: boolean;
         if (hello.mode === 'pair') {
-            this.#removeExpiredPairings();
-            const pairing = this.#pairings.get(hello.pairingId);
-            if (pairing) this.#pairings.delete(hello.pairingId);
-            isValid = Boolean(pairing && pairing.expiresAt > this.#now());
+            const taken = this.#pairings.take(hello.pairingId);
+            const pairing = taken.pairing;
+            isValid = taken.isValid;
+            if (!isValid) this.#diagnostics.pairingOutcome(pairing ? 'expired' : 'not-found');
             candidate = isValid
                 ? this.#options.registry.preparePair({
                       displayName: hello.displayName,
@@ -689,7 +614,13 @@ export class MobileGateway {
         const frame = mobileSealedFrameSchema.parse(raw);
         if (frame.connectionId !== session.connection.connectionId)
             throw new Error('Encrypted frame connection identity changed');
-        session.inbound.assertAndAdvance(frame.counter);
+        // Narrowed to a distinct error type so the outer catch can log `replayRejected` instead of folding a replayed
+        // or out-of-order counter into the generic `invalidFrame` bucket it shares with malformed payloads.
+        try {
+            session.inbound.assertAndAdvance(frame.counter);
+        } catch (error) {
+            throw new MobileFrameReplayRejected(error instanceof Error ? error.message : undefined);
+        }
         const plaintext = openMobileFrame(
             session.keys.clientToServer,
             {

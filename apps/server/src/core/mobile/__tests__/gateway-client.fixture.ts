@@ -1,4 +1,7 @@
 import { Buffer } from 'node:buffer';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import type { HandshakeTranscript } from '@caxri/mobile-transport';
 import {
@@ -15,12 +18,53 @@ import {
     openMobileFrame,
     sealMobileFrame,
 } from '@caxri/mobile-transport';
+import type { Principal } from '@caxri/protocol';
+import { CaxriError } from '@caxri/protocol';
 import { expect } from 'vitest';
 import type { ClientOptions } from 'ws';
 import WebSocket from 'ws';
 
 import type { MobileDeviceRecord } from '../device-registry';
+import { MobileDeviceRegistry } from '../device-registry';
 import type { MobileGateway } from '../gateway';
+import { isMobileGatewayMethodAllowedForRole } from '../role-methods';
+
+const registryDirectories: string[] = [];
+
+/**
+ * Creates an isolated on-disk device registry for a single test. Call `cleanupRegistryDirectories` from the test file's
+ * own `afterEach` to remove every directory this fixture created.
+ */
+export async function registryFixture() {
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-mobile-gateway-'));
+    registryDirectories.push(directory);
+    let byte = 1;
+    return MobileDeviceRegistry.open({
+        directory,
+        path: join(directory, 'mobile-devices.json'),
+        now: () => 1_788_106_000_000 + byte,
+        random: (bytes) => new Uint8Array(bytes).fill(byte++),
+    });
+}
+
+export async function cleanupRegistryDirectories(): Promise<void> {
+    const paths = [...registryDirectories];
+    registryDirectories.length = 0;
+    await Promise.all(paths.map((path) => rm(path, { recursive: true, force: true })));
+}
+
+export function authorizeMethod(principal: Principal, method: string): void {
+    if (
+        principal.kind !== 'paired-device' ||
+        !isMobileGatewayMethodAllowedForRole(principal.role, method)
+    )
+        throw new CaxriError('FORBIDDEN', 'Paired device role does not allow this method');
+}
+
+export const subscriptionOptions = {
+    authorizeSubscription: () => Promise.resolve(),
+    matchesSubscriptionEvent: () => Promise.resolve(true),
+};
 
 export function nextMessage(socket: WebSocket): Promise<unknown> {
     return new Promise((resolve, reject) => {
@@ -115,12 +159,16 @@ export async function connectDevice(gateway: MobileGateway, record: MobileDevice
         else received.push(payload);
     });
     let counter = 0;
-    const send = (request: unknown): void => {
+    /**
+     * `counterOverride` lets a replay-attack test resend an already-consumed counter deliberately.
+     */
+    const send = (request: unknown, counterOverride?: number): void => {
+        const frameCounter = counterOverride ?? counter++;
         const ciphertext = sealMobileFrame(
             keys.clientToServer,
             {
                 connectionId: transcript.connectionId,
-                counter: counter++,
+                counter: frameCounter,
                 deviceId: record.deviceId,
                 direction: 'client-to-server',
             },
@@ -131,7 +179,7 @@ export async function connectDevice(gateway: MobileGateway, record: MobileDevice
                 type: 'sealed',
                 version: MOBILE_TRANSPORT_VERSION,
                 connectionId: challenge.connectionId,
-                counter: counter - 1,
+                counter: frameCounter,
                 ciphertext: encodeHex(ciphertext),
             }),
         );

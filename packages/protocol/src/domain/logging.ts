@@ -14,6 +14,12 @@ export const logEventCatalog = {
          * One record per Android update download request, with a closed `outcome`, served bytes, and duration.
          */
         updateDownload: 'mobile_gateway.update_download',
+        enabled: 'mobile_gateway.enabled',
+        disabled: 'mobile_gateway.disabled',
+        connectionEstablished: 'mobile_gateway.connection_established',
+        connectionEnded: 'mobile_gateway.connection_ended',
+        pairingOutcome: 'mobile_gateway.pairing_outcome',
+        pairingSummary: 'mobile_gateway.pairing_summary',
     },
     agent: {
         automaticNamingFinished: 'agent.automatic_naming_finished',
@@ -169,6 +175,20 @@ export const logEventCatalog = {
         recordsDropped: 'log.records_dropped',
         rotated: 'log.rotated',
     },
+    pathBrowser: {
+        /**
+         * One record per `pathBrowser.browse` call that ran the Project-wide name search (memo hit or a fresh
+         * `files.search`), success or not. `file.search` already covers Server Core's own view of the scan; this event
+         * covers what Main did with the result — the memo/root-containment/budget steps a slow or missing search engine
+         * would otherwise hide behind an unremarkable empty result. See issue caxri#924.
+         */
+        searchFallback: 'path_browser.search_fallback',
+        /**
+         * The Project-wide name search could not run at all. Carries `PathBrowserSearchFailureReason` instead of the
+         * thrown error's message so a packaged install missing ripgrep reads as a diagnosable reason, not as silence.
+         */
+        searchFailed: 'path_browser.search_failed',
+    },
     process: {
         eventLoopStall: 'process.event_loop_stall',
     },
@@ -211,6 +231,29 @@ export const logEventCatalog = {
     },
     sessionCompaction: {
         checked: 'session.compaction_checked',
+    },
+    /**
+     * `SessionContextService`'s incremental Agent-transcript scan (issue caxri#1032): the same reader the Workbench
+     * Root picker, the status bar's Linear chip, and `SessionPullRequestService` all share.
+     */
+    sessionContext: {
+        /**
+         * One scan pass produced nothing. Carries a closed `fields.reason` (`TranscriptScanFailureReason` from
+         * `apps/server/src/domains/agents/transcript-security.ts`) so a routine capability miss (`missing`, before an
+         * Agent's first line) never looks like a security rejection or an IO failure in the log.
+         */
+        scanFailed: 'session_context.scan_failed',
+        /**
+         * The provider rewrote a transcript below the cursor, so the scan restarted from byte zero. A state transition,
+         * not a failure: recorded so a shrinking transcript is visible without waiting for the windowed aggregate
+         * below.
+         */
+        cursorReset: 'session_context.cursor_reset',
+        /**
+         * One aggregate per Session per window: scan count, total/max duration, and approximate bytes scanned, so this
+         * every-60-seconds-per-visible-Session path stays answerable without a per-poll record.
+         */
+        scanWindow: 'session_context.scan_window',
     },
     sessionRename: {
         providerSyncSkipped: 'session_rename.provider_sync_skipped',
@@ -377,3 +420,22 @@ export const logEventNameSchema = z.enum(logEventNames);
  */
 export type SessionRenameProviderSyncSkipReason =
     'agent-session-unidentified' | 'provider-rename-unsupported';
+
+/**
+ * Closed reason set for `path_browser.search_failed`. `files.search` and the Desktop-Server connection share the same
+ * `UNAVAILABLE` wire code for two different situations — a packaged install missing the ripgrep binary or worker
+ * script, or Main not currently attached to Server Core — so both fold into `'unavailable'` rather than inferring a
+ * split from an error message string. `'disconnected'` is reserved for the connection's own terminal `CANCELLED`
+ * outcome (replaced/disposed): an ordinary superseded search never throws, it resolves with `canceled: true`, so a
+ * `CANCELLED` reaching this classifier is unambiguous.
+ */
+export type PathBrowserSearchFailureReason = 'disconnected' | 'io' | 'other' | 'unavailable';
+
+/**
+ * Closed reason set for `mobile_gateway.pairing_outcome`. `'started'` is the pairing link itself being issued;
+ * `'succeeded'` is a device completing that link's handshake; `'expired'` is an attempt against a link whose TTL
+ * already elapsed; `'not-found'` is an attempt against a `pairingId` the Server never issued or already consumed.
+ * Keeping these apart is what makes a stuck QR code (expired) distinguishable from a forged or replayed one (not-found)
+ * after the fact.
+ */
+export type MobilePairingOutcomeReason = 'expired' | 'not-found' | 'started' | 'succeeded';

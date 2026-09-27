@@ -1,6 +1,6 @@
 import type { MobileServerPayload } from '@caxri/mobile-transport';
 // oxlint-disable typescript/require-await, typescript/unbound-method -- Async Host mocks and Vitest method assertions have no this binding.
-import type { TerminalSnapshot } from '@caxri/protocol';
+import type { TerminalSnapshot, TerminalWheelInput } from '@caxri/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { TerminalExecutionPort } from '../../../../domains/terminal';
@@ -240,6 +240,58 @@ describe('MobileTerminalObserver', () => {
         expect(port.releaseTakeOver).toHaveBeenCalledOnce();
     });
 
+    // MOB-HUMAN-STEER-01: mobile-issued Terminal input must be distinguishable from a desktop/CLI principal's in the
+    // shared `terminal.human_steer` log event (issue caxri#739), so a successful mobile send reports its terminalId.
+    it('reports human steering after a successful mobile input send', async () => {
+        const reportHumanSteer = vi.fn();
+        const port = {
+            observe: vi.fn(async () => ({ snapshot: null, nextSequence: 0, generation: 1 })),
+            unobserve: vi.fn(async () => {}),
+            inputForGeneration: vi.fn(async () => true),
+        } as unknown as TerminalExecutionPort;
+        const observer = new MobileTerminalObserver({
+            terminalId: 'terminal-1',
+            subscriptionId: 'subscription-1',
+            holderId: 'connection-1:subscription-1',
+            port,
+            authorize: async () => {},
+            reserve: () => true,
+            release: vi.fn(),
+            send: async () => {},
+            remove: vi.fn(),
+            reportHumanSteer,
+            terminate: vi.fn(),
+        });
+        await observer.start();
+        await observer.input(1, 'ls -la');
+        expect(reportHumanSteer).toHaveBeenCalledExactlyOnceWith('terminal-1');
+    });
+
+    it('does not report human steering when the input send fails', async () => {
+        const reportHumanSteer = vi.fn();
+        const port = {
+            observe: vi.fn(async () => ({ snapshot: null, nextSequence: 0, generation: 1 })),
+            unobserve: vi.fn(async () => {}),
+            inputForGeneration: vi.fn(async () => false),
+        } as unknown as TerminalExecutionPort;
+        const observer = new MobileTerminalObserver({
+            terminalId: 'terminal-1',
+            subscriptionId: 'subscription-1',
+            holderId: 'connection-1:subscription-1',
+            port,
+            authorize: async () => {},
+            reserve: () => true,
+            release: vi.fn(),
+            send: async () => {},
+            remove: vi.fn(),
+            reportHumanSteer,
+            terminate: vi.fn(),
+        });
+        await observer.start();
+        await expect(observer.input(1, 'ls -la')).rejects.toThrow('Terminal generation changed');
+        expect(reportHumanSteer).not.toHaveBeenCalled();
+    });
+
     it('scrolls without a size lease but only for the current generation', async () => {
         const port = {
             observe: vi.fn(async () => ({ snapshot: null, nextSequence: 0, generation: 2 })),
@@ -263,10 +315,59 @@ describe('MobileTerminalObserver', () => {
         const wheel = { col: 4, lines: -3, row: 9 };
         await observer.scroll(2, wheel);
         expect(authorize).toHaveBeenCalledOnce();
-        expect(port.scrollForGeneration).toHaveBeenCalledExactlyOnceWith('terminal-1', 2, wheel);
+        expect(port.scrollForGeneration).toHaveBeenCalledExactlyOnceWith(
+            'terminal-1',
+            2,
+            wheel,
+            expect.any(AbortSignal),
+        );
         await expect(observer.scroll(1, wheel)).rejects.toMatchObject({ code: 'CONFLICT' });
         expect(port.scrollForGeneration).toHaveBeenCalledOnce();
         await observer.close();
+    });
+
+    // MOB-SCROLL-ABORT-01: a scroll request that outlives its subscription must abort instead of
+    // reaching the Terminal Host after the mobile client disconnected or cancelled the request.
+    it('aborts a queued Host scroll when its subscription closes before Host admission', async () => {
+        const admitted = Promise.withResolvers<void>();
+        const releaseHost = Promise.withResolvers<void>();
+        const port = {
+            observe: vi.fn(async () => ({ snapshot: null, nextSequence: 0, generation: 1 })),
+            unobserve: vi.fn(async () => {}),
+            scrollForGeneration: vi.fn(
+                async (
+                    _id: string,
+                    _generation: number,
+                    _wheel: TerminalWheelInput,
+                    signal: AbortSignal,
+                ) => {
+                    admitted.resolve();
+                    await releaseHost.promise;
+                    if (signal.aborted) throw new Error('Canceled before Host send');
+                    return true;
+                },
+            ),
+        } as unknown as TerminalExecutionPort;
+        const observer = new MobileTerminalObserver({
+            terminalId: 'terminal-1',
+            subscriptionId: 'subscription-1',
+            holderId: 'connection-1:subscription-1',
+            port,
+            authorize: async () => {},
+            reserve: () => true,
+            release: vi.fn(),
+            send: async () => {},
+            remove: vi.fn(),
+            terminate: vi.fn(),
+        });
+        await observer.start();
+        const wheel = { col: 4, lines: -3, row: 9 };
+        const scrolling = observer.scroll(1, wheel);
+        await admitted.promise;
+        await observer.close();
+        releaseHost.resolve();
+        await expect(scrolling).rejects.toThrow('Canceled before Host send');
+        expect(port.scrollForGeneration).toHaveBeenCalledOnce();
     });
 
     it('renews an idle lease and releases only its exact holder on close', async () => {

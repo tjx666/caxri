@@ -1,7 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
 import { createConnection } from 'node:net';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 
 import type { HandshakeTranscript } from '@caxri/mobile-transport';
 import {
@@ -22,47 +19,22 @@ import {
     parseMobilePairingLink,
     sealMobileFrame,
 } from '@caxri/mobile-transport';
-import type { CommandAdapter, Principal } from '@caxri/protocol';
-import { CAXRI_PROTOCOL_VERSION, CaxriError } from '@caxri/protocol';
+import type { CommandAdapter } from '@caxri/protocol';
+import { CAXRI_PROTOCOL_VERSION } from '@caxri/protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { MobileDeviceRegistry } from '../device-registry';
 import { MobileGateway, selectMobileGatewayAddress } from '../gateway';
-import { isMobileGatewayMethodAllowedForRole } from '../role-methods';
-import { connectDevice, nextMessage, openSocket } from './gateway-client.fixture';
+import {
+    authorizeMethod,
+    cleanupRegistryDirectories,
+    connectDevice,
+    nextMessage,
+    openSocket,
+    registryFixture,
+    subscriptionOptions,
+} from './gateway-client.fixture';
 
-const temporaryDirectories: string[] = [];
-
-async function registryFixture() {
-    const directory = await mkdtemp(join(tmpdir(), 'caxri-mobile-gateway-'));
-    temporaryDirectories.push(directory);
-    let byte = 1;
-    return MobileDeviceRegistry.open({
-        directory,
-        path: join(directory, 'mobile-devices.json'),
-        now: () => 1_788_106_000_000 + byte,
-        random: (bytes) => new Uint8Array(bytes).fill(byte++),
-    });
-}
-
-function authorizeMethod(principal: Principal, method: string): void {
-    if (
-        principal.kind !== 'paired-device' ||
-        !isMobileGatewayMethodAllowedForRole(principal.role, method)
-    )
-        throw new CaxriError('FORBIDDEN', 'Paired device role does not allow this method');
-}
-
-const subscriptionOptions = {
-    authorizeSubscription: () => Promise.resolve(),
-    matchesSubscriptionEvent: () => Promise.resolve(true),
-};
-
-afterEach(async () => {
-    const paths = [...temporaryDirectories];
-    temporaryDirectories.length = 0;
-    await Promise.all(paths.map((path) => rm(path, { recursive: true, force: true })));
-});
+afterEach(cleanupRegistryDirectories);
 
 describe('MobileGateway', () => {
     it('records bounded transport causes without peer or payload contents', async () => {
@@ -114,7 +86,12 @@ describe('MobileGateway', () => {
                 fields: { invalidHandshake: 2, binaryFrame: 1, total: 3 },
             },
         ]);
-        expect(write).toHaveBeenCalledTimes(3);
+        // Filtered instead of a bare `toHaveBeenCalledTimes` so this assertion survives additive
+        // lifecycle instrumentation (e.g. `enabled`/`disabled`) unrelated to failure reporting.
+        const failureWrites = write.mock.calls.filter(
+            ([, event]) => typeof event === 'string' && event.startsWith('mobile_gateway.failure'),
+        );
+        expect(failureWrites).toHaveLength(3);
         expect(JSON.stringify(write.mock.calls)).not.toMatch(
             /private-fixture-payload|127\.0\.0\.1/u,
         );

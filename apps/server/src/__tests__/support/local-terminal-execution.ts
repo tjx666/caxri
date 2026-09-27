@@ -172,7 +172,10 @@ export class LocalTerminalExecution extends EventTarget implements TerminalExecu
         terminalId: string,
         expectedGeneration: number,
         wheel: TerminalWheelInput,
+        signal?: AbortSignal,
     ): Promise<boolean> {
+        if (signal?.aborted)
+            throw new CaxriError('CANCELLED', 'Terminal scroll was cancelled before admission');
         this.requireGeneration(terminalId, expectedGeneration);
         return Promise.resolve(this.engine.scroll(terminalId, wheel));
     }
