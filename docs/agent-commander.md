@@ -132,12 +132,14 @@ into one of six groups, in this order: `attention`, `working`, `waiting`, `faile
   Agent is running but waits at startup, usually on a first-run prompt only the user can answer.
   `Answered` means the Agent gave its final answer, not that the Commander verified it.
 
-The board never waits on GitHub. The window has no polling: it refetches the board, debounced, on
-every `state.changed`. Delegation receipts therefore announce themselves: creating a task, or
-changing its status or failure reason, sends a `state.changed` naming the task's Session, because
-many of those transitions (a startup deadline, an asynchronous result collection, a rejected
-follow-up) change no Session or Terminal record. Saves that only advance bookkeeping stay silent, as
-does Server restart recovery, since every client re-reads everything after a restart.
+The board never waits on GitHub. The window refetches the board, debounced, on every `state.changed`
+and `sessionPullRequests.changed`, and polls it every 10 seconds while visible so cached pull
+request and CI state keeps moving. Delegation receipts announce themselves rather than waiting for
+that poll: creating a task, or changing its status or failure reason, sends a `state.changed` naming
+the task's Session, because many of those transitions (a startup deadline, an asynchronous result
+collection, a rejected follow-up) change no Session or Terminal record. Saves that only advance
+bookkeeping stay silent, as does Server restart recovery, since every client re-reads everything
+after a restart.
 
 ## How the Commander works
 
