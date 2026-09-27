@@ -27,6 +27,7 @@ export function AgentIdentityIcon({
         return <Bot aria-hidden="true" data-agent-icon="unknown" size={size} />;
     const resolved = resolveAgentIconRenderSource(icon, tone);
     if (!resolved) return null;
+    const scale = icon.opticalScale ?? 1;
     if (resolved.kind === 'image')
         return (
             <img
@@ -37,13 +38,14 @@ export function AgentIdentityIcon({
                 draggable={false}
                 height={size}
                 src={resolved.src}
+                style={scale === 1 ? undefined : { padding: (size * (1 - scale)) / 2 }}
                 width={size}
             />
         );
     const style = {
         '--agent-icon-mask': `url("${resolved.src}")`,
         'height': size,
-        'mask': 'var(--agent-icon-mask) center / contain no-repeat',
+        'mask': `var(--agent-icon-mask) center / ${scale === 1 ? 'contain' : `${scale * 100}%`} no-repeat`,
         'width': size,
     } as CSSProperties;
     return (
