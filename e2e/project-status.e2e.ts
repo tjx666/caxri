@@ -67,6 +67,7 @@ if [ "$1" = "api" ]; then
   cat ${JSON.stringify(branchResponsePath)}
   exit 0
 fi
+if [ "$1 $2" = "pr list" ]; then printf '%s' '[{"number":42,"state":"MERGED","isDraft":false}]'; exit 0; fi
 sleep "$(cat ${JSON.stringify(statusDelayPath)})"
 printf 'request\n' >> ${JSON.stringify(statusRequestLogPath)}
 status_title=$(cat ${JSON.stringify(statusTitlePath)})
