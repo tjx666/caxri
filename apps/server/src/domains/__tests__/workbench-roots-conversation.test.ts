@@ -8,6 +8,7 @@ const EMPTY: SessionTranscriptContext = {
     branches: [],
     directories: [],
     linearReferences: [],
+    pullRequests: {},
 };
 
 describe('Workbench Root conversation recommendations', () => {

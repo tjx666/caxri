@@ -776,6 +776,7 @@ export async function createDomainServices(
             longPastes,
             logger,
             projectStatus,
+            sessionContext,
             transcripts,
             userDataPath,
             vercel,

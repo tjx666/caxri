@@ -1,18 +1,24 @@
 # Session conversation context
 
-Durable record of how Caxri reads a Session's own Agent conversation to answer two questions the
-repository alone cannot: _which worktree is this Session actually working in_ and _which Linear issue
-is this branch about_. Source lives in
-`apps/server/src/domains/agents/transcript-session-context.ts` (the scanner),
+Durable record of how Caxri reads a Session's own Agent conversation to answer three questions the
+repository alone cannot: _which worktree is this Session actually working in_, _which Linear issue
+is this branch about_, and _which pull request did this Session deliver_. Source lives in
+`apps/server/src/domains/agents/transcript-session-context.ts` and
+`apps/server/src/domains/agents/transcript-pull-requests.ts` (the scanners),
 `apps/server/src/domains/session-context.ts` (the shared reader), and
 `apps/server/src/domains/project-status-linear.ts` (candidate precedence).
 
-## The two surfaces
+## The surfaces
 
-| Surface                               | Question                                | Read through             |
-| ------------------------------------- | --------------------------------------- | ------------------------ |
-| Workbench Root picker's leading group | Which worktrees did this Session visit? | `session.workbenchRoots` |
-| Status bar's Linear chip              | Which issue is this branch delivering?  | `projectStatus.overview` |
+| Surface                               | Question                                  | Read through             |
+| ------------------------------------- | ----------------------------------------- | ------------------------ |
+| Workbench Root picker's leading group | Which worktrees did this Session visit?   | `session.workbenchRoots` |
+| Status bar's Linear chip              | Which issue is this branch delivering?    | `projectStatus.overview` |
+| Session pull request                  | Which pull request did this Session open? | `session.pullRequests`   |
+
+The Session pull request is owned by `SessionPullRequestService`; the status bar and the Status
+panel follow its answer instead of asking by branch (see
+[External delivery-status queries](external-status-quota.md#which-pull-request-a-session-delivers)).
 
 Neither surface added a query or a poll. The picker's query already ran only while the menu was
 open, and the status bar overview already refreshed on a fixed 60s interval; the conversation read
@@ -21,13 +27,16 @@ rides along with both.
 ## What the scanner takes, and what it refuses
 
 One pass over a transcript produces three bounded, most-recently-named-last lists: working
-directories, branch names, and Linear markers.
+directories, branch names, and Linear markers. The same pass feeds the pull request scanner, which
+keeps only the pull request a `gh pr create` returned and the one the Agent last linked in its own
+prose.
 
 It reads **prose** — what the user typed and what the Agent wrote — and **tool invocations** — a
 shell command line, a `workdir` argument, a `cwd` field. It deliberately does **not** read tool
 _output_. A `git worktree list` or a `git log` dump would otherwise backfill the lists with paths and
 identifiers nobody in the conversation chose, and the most recently _printed_ worktree is not the one
-the Session is working in.
+the Session is working in. The single exception is the result of a `gh pr create` the Agent itself
+ran: that output is the pull request this Session delivered.
 
 It also strips harness-injected envelopes before looking for issue markers: `<INSTRUCTIONS>` (Codex's
 `AGENTS.md` injection), `<system-reminder>`, `<user_instructions>`, hook output, and command
@@ -60,8 +69,9 @@ Scanning is **incremental and shared**. `SessionContextService` keeps one cursor
 and reads only the bytes appended since the previous visit, so a first visit to a long transcript pays
 once and the status bar's minute poll costs a `stat` plus whatever the Agent wrote in that minute. A
 transcript that shrank below the cursor (a rewritten or rotated file) resets and rescans from zero.
-Both consumers join the same in-flight read through `SingleFlight`, so a user opening the picker
-during a status-bar refresh does not double the work.
+Every consumer joins the same in-flight read through `SingleFlight`, so a user opening the picker
+during a status-bar refresh does not double the work, and the sidebar's pull request sweep keeps no
+transcript cursor of its own.
 
 Per line, a record carrying neither prose nor a command is answered from the raw text with two regular
 expressions and no `JSON.parse` — which is the overwhelming majority of a real transcript
