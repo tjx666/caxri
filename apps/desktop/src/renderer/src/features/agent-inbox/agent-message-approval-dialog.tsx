@@ -67,10 +67,7 @@ export function AgentMessageApprovalDialog() {
             : undefined;
     const isBodyReady = readyDetail !== undefined;
     /**
-     * The only state that should hold `Approve message` disabled: the very first read attempt (or a Retry) has not
-     * settled yet. A failed read is a display problem, not a permission gate — approving still only delivers inert text
-     * and grants nothing (see the dialog's own description) — so leaving `Approve` disabled forever alongside it would
-     * recreate the original bug this issue fixed, just moved one step later than Escape.
+     * Only an unsettled read holds Approve: a failed read is a display problem, and approving grants nothing.
      */
     const isBodyLoading = !isBodyReady && !detailFailed;
 
@@ -132,9 +129,8 @@ export function AgentMessageApprovalDialog() {
 
     /**
      * Base UI resolves `initialFocus` while the body is still loading, when `Approve message` is disabled and cannot
-     * accept focus, so it resolves to the popup itself. Hand the confirming button its focus once the first read
-     * attempt settles — the body arrived or the read failed, `isBodyLoading` covers both — and only from that parked
-     * state, so a user who already moved to another action keeps where they are.
+     * accept focus, so it resolves to the popup itself. Hand the confirming button its focus once the read settles, and
+     * only from that parked state, so a user who already moved to another action keeps where they are.
      *
      * Why a listener and not a single attempt: Base UI resolves `initialFocus` in a microtask and only calls `.focus()`
      * a frame later (`FloatingFocusManager` through `enqueueFocus`). A body that lands between those two points finds
