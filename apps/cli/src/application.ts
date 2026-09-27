@@ -38,6 +38,7 @@ import {
 import type { CliOutputMode } from './output';
 import {
     exitCodeFor,
+    formatEndpointReference,
     hasQuietIds,
     normalizeCliError,
     quietLines,
@@ -402,14 +403,10 @@ const messagingActions: Record<AgentEndpointSummary['messaging']['nextAction'], 
     none: '',
 };
 
-function endpointReference(endpoint: AgentEndpointSummary): string {
-    return `${endpoint.ref.hostId}:${endpoint.ref.endpointId}:${endpoint.ref.generation}`;
-}
-
 function humanAgentEndpoint(endpoint: AgentEndpointSummary): string {
     const lines = [
         `${endpoint.name} (${endpoint.provider})`,
-        `Endpoint: ${endpointReference(endpoint)}`,
+        `Endpoint: ${formatEndpointReference(endpoint.ref)}`,
         `Project: ${endpoint.projectId}`,
         `Delivery: ${endpoint.messaging.deliveryMode}`,
         `Health: ${endpoint.messaging.health}`,
