@@ -1,8 +1,7 @@
 import type { SubmitEvent } from 'react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { FileEntry } from '@caxri/protocol';
-import { useQuery } from '@tanstack/react-query';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 
 import { GitFileStatusLetter } from '../../../components/git-file-status-letter';
@@ -13,20 +12,14 @@ import { hasDraggedPath, startFilePathDrag } from '../../../lib/file-drag';
 import type { GitChildRepoKind, GitDecoration } from '../../../lib/git-decorations';
 import { gitDecorationClassName } from '../../../lib/git-decorations';
 import { cn } from '../../../lib/utilities';
-import { useToastOnQueryError } from '../../../queries/client';
 import { useGitChildRepo, useGitDecoration } from '../../../stores/git-decorations';
 import { describeFailure } from '../../../stores/toasts';
 import { useResourceExplorerClient } from '../controlled-view-context';
-import {
-    isViewContainerQueryEnabled,
-    useCancelViewContainerQueryWhenHidden,
-    useIsViewContainerActive,
-} from '../view-container-activity';
-import { controlledViewQueryKey } from '../view-operation-client';
 import { createItem, rememberFile, renameFile } from './file-actions';
 import { FileTreeItemMenu } from './file-tree-item-menu';
 import type { EditRequest, FocusTarget } from './file-tree-item-types';
 import { fileTreeLeafIndent, fileTreeRowStyle } from './file-tree-row-style';
+import { useFileTreeItemInteractions } from './hooks/use-file-tree-item-interactions';
 import {
     activeResourceExplorerScope,
     clearStaleScopeFocusPath,
@@ -35,12 +28,8 @@ import {
     useIsPathExpanded,
     useIsPathFocusRequested,
     useIsPathSelected,
-    usePathRevealRevision,
 } from './resource-explorer-scope-store';
 import { fileTreeRowDescription, fileTreeRowTooltip } from './resource-explorer-state';
-import { useFileTreeItemInteractions } from './use-file-tree-item-interactions';
-
-export { type EditRequest, type FocusTarget };
 
 /**
  * Expansion, selection, focus requests, and file-operation blocking are not props: every row subscribes to its own
@@ -50,14 +39,22 @@ export { type EditRequest, type FocusTarget };
  * The Session identity behind those booleans is not a prop either, for the same reason one level up — it lives in the
  * scope store, so switching Session re-renders only the rows whose own state differs in the new scope.
  */
-export interface TreeProperties {
-    depth?: number;
-    directory: string;
+export interface FileTreeItemProperties {
+    depth: number;
     editing?: EditRequest;
+    entry: FileEntry;
+    /**
+     * Zero-based position within the parent listing.
+     */
+    index: number;
     projectId: string;
     projectRoot: string;
     requestFocus: (target: FocusTarget) => void;
     setEditing: (editing?: EditRequest) => void;
+    /**
+     * Number of entries in the parent listing, for `aria-setsize`.
+     */
+    setSize: number;
 }
 
 /**
@@ -158,106 +155,85 @@ function InlineFileName({
     );
 }
 
-export function DirectoryEntries({
+/**
+ * The inline "New file" / "New folder" field, drawn as its own row at the top of the directory it creates into.
+ */
+export function FileTreeCreateRow({
+    depth,
     directory,
-    depth = 0,
     editing,
-    projectId,
-    projectRoot,
     requestFocus,
     setEditing,
-}: TreeProperties) {
+}: {
+    depth: number;
+    directory: string;
+    editing: Extract<EditRequest, { kind: 'create' }>;
+    requestFocus: (target: FocusTarget) => void;
+    setEditing: (editing?: EditRequest) => void;
+}) {
     const client = useResourceExplorerClient();
-    const isContainerActive = useIsViewContainerActive();
-    // Listings are cached per Project, not per Session: every Session of a Project shares the same root, so a
-    // Session switch reuses the loaded tree instead of clearing it and refetching each directory. Hidden keep-alive
-    // panels keep that cache on screen and pause the listing until the Files tab is selected again.
-    const queryKey = useMemo(
-        () => controlledViewQueryKey(client.viewId, 'files.list', { directory }, projectId),
-        [client.viewId, directory, projectId],
-    );
-    useCancelViewContainerQueryWhenHidden(queryKey, isContainerActive);
-    const { data, isError, isPending, error } = useQuery({
-        queryKey,
-        queryFn: ({ signal }) => client.listDirectory(directory, signal),
-        enabled: isViewContainerQueryEnabled(isContainerActive),
-    });
-    const entries = data?.entries ?? [];
-    useToastOnQueryError(isError, error, 'Unable to read directory');
-    const isComposingHere = editing?.kind === 'create' && editing.directory === directory;
-    const isShowEmptyState = !isPending && !isError && entries.length === 0 && !isComposingHere;
-
     return (
-        // Depth 0 is the root list, a direct child of the `role="tree"` container above it; only a
-        // nested list (an expanded directory's children) needs `role="group"` to stay owned by its
-        // parent treeitem in the accessibility tree.
-        <div className="file-list" role={depth > 0 ? 'group' : undefined}>
-            {isComposingHere && (
-                <InlineFileName
-                    depth={depth}
-                    initialValue=""
-                    label={editing.itemKind === 'directory' ? 'New folder name' : 'New file name'}
-                    failureLabel={
-                        editing.itemKind === 'directory'
-                            ? 'Unable to create folder'
-                            : 'Unable to create file'
-                    }
-                    onCancel={() => {
-                        setEditing(undefined);
-                        requestFocus(editing.returnFocus);
-                    }}
-                    onSubmit={async (name) => {
-                        const scope = activeResourceExplorerScope();
-                        if (!scope) return;
-                        const created = await createItem(
-                            client,
-                            scope.sessionId,
-                            directory,
-                            name,
-                            editing.itemKind,
-                        );
-                        if (!created) {
-                            setEditing(undefined);
-                            requestFocus(editing.returnFocus);
-                            return;
-                        }
-                        setScopeSelectedPath(scope.scopeId, created.path);
-                        setEditing(undefined);
-                        requestFocus({ kind: 'path', path: created.path });
-                    }}
-                />
-            )}
-            {entries.map((entry, index) => (
-                <FileTreeItem
-                    key={entry.path}
-                    depth={depth}
-                    editing={editing}
-                    entry={entry}
-                    index={index}
-                    projectId={projectId}
-                    projectRoot={projectRoot}
-                    requestFocus={requestFocus}
-                    setEditing={setEditing}
-                />
-            ))}
-            {isShowEmptyState && (
-                <div
-                    className="px-2 py-1 text-[11px] text-muted italic"
-                    style={{ paddingLeft: fileTreeLeafIndent(depth) }}
-                >
-                    Empty folder
-                </div>
-            )}
-            {data?.truncated && (
-                <div
-                    role="status"
-                    aria-live="polite"
-                    className="px-2 py-1 text-[11px] text-muted italic"
-                    style={{ paddingLeft: fileTreeLeafIndent(depth) }}
-                >
-                    Showing the first {entries.length.toLocaleString()} items
-                </div>
-            )}
+        <InlineFileName
+            depth={depth}
+            initialValue=""
+            label={editing.itemKind === 'directory' ? 'New folder name' : 'New file name'}
+            failureLabel={
+                editing.itemKind === 'directory'
+                    ? 'Unable to create folder'
+                    : 'Unable to create file'
+            }
+            onCancel={() => {
+                setEditing(undefined);
+                requestFocus(editing.returnFocus);
+            }}
+            onSubmit={async (name) => {
+                const scope = activeResourceExplorerScope();
+                if (!scope) return;
+                const created = await createItem(
+                    client,
+                    scope.sessionId,
+                    directory,
+                    name,
+                    editing.itemKind,
+                );
+                if (!created) {
+                    setEditing(undefined);
+                    requestFocus(editing.returnFocus);
+                    return;
+                }
+                setScopeSelectedPath(scope.scopeId, created.path);
+                setEditing(undefined);
+                requestFocus({ kind: 'path', path: created.path });
+            }}
+        />
+    );
+}
+
+/**
+ * The "Empty folder" and "Showing the first N items" notices under a listing.
+ */
+export function FileTreeNotice({
+    depth,
+    truncatedCount,
+}: {
+    depth: number;
+    truncatedCount?: number;
+}) {
+    return truncatedCount === undefined ? (
+        <div
+            className="px-2 py-1 text-[11px] text-muted italic"
+            style={{ paddingLeft: fileTreeLeafIndent(depth) }}
+        >
+            Empty folder
+        </div>
+    ) : (
+        <div
+            role="status"
+            aria-live="polite"
+            className="px-2 py-1 text-[11px] text-muted italic"
+            style={{ paddingLeft: fileTreeLeafIndent(depth) }}
+        >
+            Showing the first {truncatedCount.toLocaleString()} items
         </div>
     );
 }
@@ -266,7 +242,7 @@ export function DirectoryEntries({
  * Everything drawn inside the row button. Split out of {@link FileTreeItem}, which is left owning the row's
  * interactions, drag handling, and aria wiring.
  */
-function FileTreeRowContent({
+export function FileTreeRowContent({
     childRepo,
     decoration,
     description,
@@ -311,16 +287,17 @@ function FileTreeRowContent({
     );
 }
 
-function FileTreeItem({
+export function FileTreeItem({
     entry,
     index,
-    depth = 0,
+    depth,
     editing,
     projectId,
     projectRoot,
     requestFocus,
     setEditing,
-}: Omit<TreeProperties, 'directory'> & { entry: FileEntry; index: number }) {
+    setSize,
+}: FileTreeItemProperties) {
     const client = useResourceExplorerClient();
     const decoration = useGitDecoration(entry.path);
     const childRepo = useGitChildRepo(entry.path);
@@ -328,7 +305,6 @@ function FileTreeItem({
     const selected = useIsPathSelected(entry.path);
     const hasSelection = useHasScopeSelection();
     const isFocusRequested = useIsPathFocusRequested(entry.path);
-    const revealRevision = usePathRevealRevision(entry.path);
     const {
         activateEntry,
         clipboard,
@@ -366,7 +342,6 @@ function FileTreeItem({
         isFocusRequested,
         isSelected: selected,
         projectId,
-        revealRevision,
         setEditing,
     });
 
@@ -412,7 +387,9 @@ function FileTreeItem({
             aria-describedby={rowDescription ? rowDescriptionId : undefined}
             aria-expanded={isDirectory ? expanded : undefined}
             aria-level={depth + 1}
+            aria-posinset={index + 1}
             aria-selected={selected}
+            aria-setsize={setSize}
             tabIndex={isRovingTabStop ? 0 : -1}
             className={treeRowClassName}
             data-cut={clipboard?.mode === 'cut' && clipboard.path === entry.path}
@@ -420,11 +397,7 @@ function FileTreeItem({
             data-git-ignored={entry.gitIgnored}
             data-selected={selected}
             draggable={!dragBlocked}
-            style={fileTreeRowStyle({
-                depth,
-                isDirectory,
-                isExpanded: expanded,
-            })}
+            style={fileTreeRowStyle({ depth, isDirectory })}
             title={fileTreeRowTooltip(entry, childRepo)}
             onClick={(event) =>
                 discard(
@@ -493,7 +466,7 @@ function FileTreeItem({
         </button>
     );
 
-    const item = isContextMenuRendered ? (
+    return isContextMenuRendered ? (
         <ContextMenu>
             <ContextMenuTrigger render={row} />
             <FileTreeItemMenu
@@ -515,23 +488,4 @@ function FileTreeItem({
     ) : (
         row
     );
-
-    return (
-        <div>
-            {item}
-            {isDirectory && expanded && (
-                <DirectoryEntries
-                    depth={depth + 1}
-                    directory={entry.path}
-                    editing={editing}
-                    projectId={projectId}
-                    projectRoot={projectRoot}
-                    requestFocus={requestFocus}
-                    setEditing={setEditing}
-                />
-            )}
-        </div>
-    );
 }
-
-export { BUSY_DISABLED_REASON } from './file-tree-item-types';

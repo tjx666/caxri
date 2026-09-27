@@ -327,8 +327,9 @@ rendered as text; an optional URL must be credential-free HTTP(S), is validated 
 Host, and still crosses Main's trusted-origin confirmation before the operating system can open it.
 Arbitrary Markdown, HTML, scripts, commands, and `command:` URLs are not part of this contract.
 
-The shared Renderer owns virtualization, ThemeIcon rendering, roving focus, arrow/Home/End
-navigation, expansion, loading/empty/provider-error rows, local Retry, tooltip presentation, and
+The shared Renderer owns virtualization, the side bar scroll cue
+([secondary-sidebar-trees.md](secondary-sidebar-trees.md)), ThemeIcon rendering, roving focus,
+arrow/Home/End navigation, expansion, loading/empty/provider-error rows, local Retry, tooltip presentation, and
 ARIA tree semantics. Provider `Expanded` is applied only the first time a logical item appears;
 later user expansion wins. Bounded stable-ID expansion and focus state is stored in the existing
 Session/Workbench-Root JSON per View, so it survives root/target refresh and restart without leaking

@@ -10,39 +10,34 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 
 import type { FileEntry } from '@caxri/protocol';
 
-import { dragPath } from '../../../lib/file-drag';
-import { resolveEntryKind } from '../../../lib/file-entry';
-import { parentDirectoryPath } from '../../../lib/file-path';
-import { tryCommand } from '../../../stores/toasts';
-import { openFileForSession } from '../../editor/document-commands';
-import { useResourceExplorerClient } from '../controlled-view-context';
-import { didTrashFile, duplicateFile, moveFile, pasteFile, rememberFile } from './file-actions';
-import type { FileClipboardEntry } from './file-clipboard';
-import { useFileClipboardStore } from './file-clipboard';
-import { useIsPathBlockedByFileOperations } from './file-operation-state';
-import type { RowContextMenuGesture } from './file-tree-context-menu-mount';
+import { dragPath } from '../../../../lib/file-drag';
+import { resolveEntryKind } from '../../../../lib/file-entry';
+import { parentDirectoryPath } from '../../../../lib/file-path';
+import { tryCommand } from '../../../../stores/toasts';
+import { openFileForSession } from '../../../editor/document-commands';
+import { useResourceExplorerClient } from '../../controlled-view-context';
+import { didTrashFile, duplicateFile, moveFile, pasteFile, rememberFile } from '../file-actions';
+import type { FileClipboardEntry } from '../file-clipboard';
+import { useFileClipboardStore } from '../file-clipboard';
+import { useIsPathBlockedByFileOperations } from '../file-operation-state';
+import type { RowContextMenuGesture } from '../file-tree-context-menu-mount';
 import {
     claimRowContextMenuGesture,
     replayRowContextMenu,
     shouldRenderRowContextMenu,
-} from './file-tree-context-menu-mount';
-import type { EditRequest } from './file-tree-item-types';
-import { BUSY_DISABLED_REASON } from './file-tree-item-types';
-import {
-    focusAdjacentTreeItem,
-    focusParentTreeItem,
-    focusTreeItemEdge,
-} from './file-tree-navigation';
+} from '../file-tree-context-menu-mount';
+import type { EditRequest } from '../file-tree-item-types';
+import { BUSY_DISABLED_REASON } from '../file-tree-item-types';
+import { useFileTreeNavigator } from '../file-tree-navigation-context';
 import {
     activeResourceExplorerScope,
-    clearScopeRevealPath,
     setScopeFocusPath,
     setScopePathExpanded,
     setScopeSelectedPath,
     setScopeSubtreeExpanded,
     useResourceExplorerScopeStore,
-} from './resource-explorer-scope-store';
-import { isFileTreeDirectory } from './resource-explorer-state';
+} from '../resource-explorer-scope-store';
+import { isFileTreeDirectory } from '../resource-explorer-state';
 
 export interface UseFileTreeItemInteractionsOptions {
     depth: number;
@@ -57,7 +52,6 @@ export interface UseFileTreeItemInteractionsOptions {
     isFocusRequested: boolean;
     isSelected: boolean;
     projectId: string;
-    revealRevision?: number;
     setEditing: (editing?: EditRequest) => void;
 }
 
@@ -127,10 +121,10 @@ export function useFileTreeItemInteractions({
     isFocusRequested,
     isSelected,
     projectId,
-    revealRevision,
     setEditing,
 }: UseFileTreeItemInteractionsOptions): UseFileTreeItemInteractionsResult {
     const client = useResourceExplorerClient();
+    const navigator = useFileTreeNavigator();
     const [isDropTarget, setIsDropTarget] = useState(false);
     const rowReference = useRef<HTMLButtonElement>(null);
     const activation = useRef(0);
@@ -274,22 +268,22 @@ export function useFileTreeItemInteractions({
     const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>): void => {
         if (event.key === 'ArrowDown') {
             event.preventDefault();
-            focusAdjacentTreeItem(event.currentTarget, 1);
+            navigator.move(entry.path, 'next');
             return;
         }
         if (event.key === 'ArrowUp') {
             event.preventDefault();
-            focusAdjacentTreeItem(event.currentTarget, -1);
+            navigator.move(entry.path, 'previous');
             return;
         }
         if (event.key === 'Home') {
             event.preventDefault();
-            focusTreeItemEdge(event.currentTarget, 'first');
+            navigator.move(entry.path, 'first');
             return;
         }
         if (event.key === 'End') {
             event.preventDefault();
-            focusTreeItemEdge(event.currentTarget, 'last');
+            navigator.move(entry.path, 'last');
             return;
         }
         if (event.key === 'ArrowRight') {
@@ -300,13 +294,13 @@ export function useFileTreeItemInteractions({
             if (!expanded) {
                 // eslint-disable-next-line no-void -- activateEntry owns error presentation
                 void activateEntry({ directoriesOnly: true });
-            } else focusAdjacentTreeItem(event.currentTarget, 1);
+            } else navigator.move(entry.path, 'next');
             return;
         }
         if (event.key === 'ArrowLeft') {
             event.preventDefault();
             if (expanded && isDirectory) setExpanded(false);
-            else focusParentTreeItem(event.currentTarget);
+            else navigator.move(entry.path, 'parent');
             return;
         }
         if (isEditable && event.key === 'Enter') {
@@ -364,25 +358,21 @@ export function useFileTreeItemInteractions({
         if (row) replayRowContextMenu(row, gesture);
     });
 
-    // Both effects below run off a store-derived boolean that is already scope-aware, so the scope is read rather than
-    // listed as a dependency: adding it would re-fire every row's effects on a Session switch that changed nothing
-    // about that row.
+    /*
+     * Runs off a store-derived boolean that is already scope-aware, so the scope is read rather than listed as a
+     * dependency: adding it would re-fire every row's effect on a Session switch that changed nothing about that row.
+     *
+     * A focus request may target a row the virtualizer has not mounted yet; the tree scrolls it into view first, and
+     * this effect then fires on mount. `preventScroll` keeps the browser from re-scrolling a row the tree already
+     * placed below its sticky ancestors, which native `focus()` scrolling knows nothing about.
+     */
     useEffect(() => {
         if (isRenaming || !isFocusRequested) return;
         const scope = activeResourceExplorerScope();
         if (!scope) return;
-        rowReference.current?.focus();
+        rowReference.current?.focus({ preventScroll: true });
         setScopeFocusPath(scope.scopeId, undefined);
     }, [isFocusRequested, isRenaming]);
-
-    useEffect(() => {
-        if (isRenaming || revealRevision === undefined) return;
-        const scope = activeResourceExplorerScope();
-        const row = rowReference.current;
-        if (!scope || !row) return;
-        row.scrollIntoView({ block: 'nearest' });
-        clearScopeRevealPath(scope.scopeId, { path: entry.path, revision: revealRevision });
-    }, [entry.path, isRenaming, revealRevision]);
 
     return {
         activateEntry,

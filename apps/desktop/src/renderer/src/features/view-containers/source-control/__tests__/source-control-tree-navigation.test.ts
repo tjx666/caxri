@@ -4,7 +4,7 @@ import {
     adjacentTreeItemIndex,
     parentTreeItemIndex,
     treeNavigationAction,
-} from '../file-tree-navigation';
+} from '../source-control-tree-navigation';
 
 describe('adjacentTreeItemIndex', () => {
     it('returns the next index within bounds', () => {

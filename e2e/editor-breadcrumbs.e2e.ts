@@ -36,6 +36,13 @@ test('Editor breadcrumbs browse siblings with one keyboard focus model', async (
         const fileList = running.page.locator('.file-list').first();
         await fileList.getByRole('treeitem', { name: 'src', exact: true }).click();
         await fileList.getByRole('treeitem', { name: 'components', exact: true }).click();
+        // The tree is virtualized: current.ts sits below 40 siblings, so bring it into the mounted window first.
+        await expect(
+            fileList.getByRole('treeitem', { name: 'a-00.ts', exact: true }),
+        ).toBeVisible();
+        await fileList.evaluate((element) => {
+            element.scrollTop = element.scrollHeight;
+        });
         await fileList.getByRole('treeitem', { name: 'current.ts', exact: true }).click();
 
         const breadcrumbs = running.page.getByRole('navigation', {

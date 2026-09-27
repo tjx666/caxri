@@ -1,5 +1,5 @@
+import { useResourceExplorerController } from './hooks/use-resource-explorer-controller';
 import { ResourceExplorerContent } from './resource-explorer-content';
-import { useResourceExplorerController } from './use-resource-explorer-controller';
 
 export function ResourceExplorerView() {
     const controller = useResourceExplorerController();
