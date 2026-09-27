@@ -10,6 +10,10 @@ export const logEventCatalog = {
         failure: 'mobile_gateway.failure',
         failureSummary: 'mobile_gateway.failure_summary',
         terminalResyncSummary: 'mobile_gateway.terminal_resync_summary',
+        /**
+         * One record per Android update download request, with a closed `outcome`, served bytes, and duration.
+         */
+        updateDownload: 'mobile_gateway.update_download',
     },
     agent: {
         automaticNamingFinished: 'agent.automatic_naming_finished',

@@ -174,8 +174,10 @@ describe('pnpm workspace contract', () => {
             '@yutengjing/eslint-config-typescript',
             '@yutengjing/prettier-config',
             'eslint-plugin-import-x',
+            'expo-file-system',
             'expo-image-manipulator',
             'expo-image-picker',
+            'expo-intent-launcher',
             'lucide-react-native',
             'markdownlint',
             'markdownlint-cli2',
@@ -191,8 +193,8 @@ describe('pnpm workspace contract', () => {
         ]);
         const catalogEntries = Object.entries(workspace.catalog ?? {});
         for (const [name, range] of catalogEntries) {
-            // Expo-managed image packages follow the SDK-compatible tilde range in stack-baseline.md.
-            const expectedRange = ['expo-image-manipulator', 'expo-image-picker'].includes(name)
+            // Expo-managed native modules follow the SDK-compatible tilde range in stack-baseline.md.
+            const expectedRange = name.startsWith('expo-')
                 ? /: ~\d+\.\d+\.\d+$/
                 : /: \^\d+\.\d+\.\d+$/;
             expect(`${name}: ${range}`).toMatch(expectedRange);

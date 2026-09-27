@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { randomBytes } from 'node:crypto';
-import type { Server } from 'node:http';
+import type { IncomingMessage, Server } from 'node:http';
 import { createServer } from 'node:http';
 import type { Socket } from 'node:net';
 
@@ -35,7 +35,6 @@ import {
     X25519_KEY_BYTES,
 } from '@caxri/mobile-transport';
 import type {
-    CommandAdapter,
     CommandDispatcher,
     CommandDispatcherOptions,
     CommandExecutionContext,
@@ -55,6 +54,7 @@ import type {
     MobileDeviceRegistry,
     MobileDeviceSummary,
 } from '../device-registry';
+import type { MobileUpdateSource } from '../update-bundle';
 import { shouldCancelDelayedPairing } from './acceptance-pairing-delay';
 import { selectMobileGatewayAddresses } from './address-selection';
 import {
@@ -64,17 +64,19 @@ import {
     mobileUpgradeFailure,
 } from './admission';
 import { hasMobileAttentionRecipient } from './attention-recipient';
+import { bindMobileGatewayServer } from './bind';
 import type { MobileGatewayFailureReason } from './diagnostics';
 import { MobileGatewayDiagnostics } from './diagnostics';
 import type { MobileAppOptions } from './frame-router';
 import { MobileGatewayFrameRouter } from './frame-router';
 import { dummyCandidate } from './handshake-candidate';
-import { adoptCurrentPairedPrincipal } from './principal-grant';
+import { adoptCurrentPairedPrincipal, currentPrincipalAdapter } from './principal-grant';
 import { mobileCapabilitiesByRole } from './role-capabilities';
 import { createServerSealedPayload, sendFinalSealedPayload } from './sealed-payload';
 import { messageByteLength, messageText } from './socket-message';
 import { MobileSocketQueueBudget } from './socket-queue-budget';
 import { SourceAttemptLimiter } from './source-attempt-limiter';
+import { MobileUpdateDownloads } from './update-downloads';
 
 export { selectMobileGatewayAddress } from './address-selection';
 export { boundedMobileReply } from './reply';
@@ -98,6 +100,10 @@ interface GatewaySession {
     generation: number;
     inbound: MobileReplayGuard;
     keys: MobileSessionKeys;
+    /**
+     * The gateway address this phone reached; update download URLs reuse it.
+     */
+    localAddress?: string;
     mode: 'connect' | 'pair';
     outbound: MobileFrameCounter;
     principal?: Principal;
@@ -152,6 +158,7 @@ export class MobileGateway {
     readonly #sourceAttempts: SourceAttemptLimiter;
     readonly #tcpSockets = new Set<Socket>();
     readonly #terminators = new Map<WebSocket, () => void>();
+    readonly #updateDownloads: MobileUpdateDownloads;
     readonly #stopObserverEvents?: () => void;
     readonly #stopHostExit?: () => void;
     #addresses?: string[];
@@ -166,6 +173,11 @@ export class MobileGateway {
         this.#diagnostics = new MobileGatewayDiagnostics(options.logger, this.#now);
         this.#sourceAttempts = new SourceAttemptLimiter({ now: this.#now });
         this.#random = options.random ?? randomBytes;
+        this.#updateDownloads = new MobileUpdateDownloads({
+            ...options,
+            now: this.#now,
+            random: this.#random,
+        });
         this.#stopObserverEvents = options.terminalExecution?.onObserverEvent((event) => {
             for (const sockets of this.#activeByDevice.values())
                 for (const session of sockets.values())
@@ -177,23 +189,10 @@ export class MobileGateway {
                     for (const terminalId of terminalIds)
                         session.application?.invalidateTerminal(terminalId);
         });
-        const adapter: CommandAdapter = {
-            invoke: (request, context, invocation) => {
-                if (context.principal.kind !== 'paired-device')
-                    throw new CaxriError('FORBIDDEN', 'Paired device principal is required');
-                const principal = options.registry.currentPrincipal(
-                    context.principal.deviceId,
-                    context.principal.generation,
-                );
-                return options.adapters.server.invoke(
-                    request,
-                    { ...context, principal },
-                    invocation,
-                );
-            },
-            isAvailable: () => options.adapters.server.isAvailable?.() !== false,
-        };
-        this.#dispatch = createCommandDispatcher({ server: adapter, maximumReceipts: 256 });
+        this.#dispatch = createCommandDispatcher({
+            server: currentPrincipalAdapter(options.adapters.server, options.registry),
+            maximumReceipts: 256,
+        });
     }
 
     status(): MobileAccessStatus {
@@ -226,23 +225,27 @@ export class MobileGateway {
         subscriptionId: string,
         terminalId: string,
     ) {
-        if (context.principal.kind !== 'paired-device')
-            throw new CaxriError('FORBIDDEN', 'Paired device principal is required');
-        const principal = context.principal;
-        const connectionId = context.connection?.connectionId;
-        if (!connectionId) throw new CaxriError('FORBIDDEN', 'Mobile connection is required');
-        const sessions = this.#activeByDevice.get(principal.deviceId);
-        const session = [...(sessions?.values() ?? [])].find(
-            (item) =>
-                item.connection.connectionId === connectionId &&
-                item.generation === principal.generation &&
-                !item.revoking,
-        );
-        if (!session) throw new CaxriError('NOT_FOUND', 'Mobile connection not found');
-        this.#context(session);
+        const session = this.#authenticatedSession(context);
         if (!session.application)
             throw new CaxriError('NOT_FOUND', 'Terminal subscription not found');
         return session.application.terminalSubscription(subscriptionId, terminalId);
+    }
+
+    /**
+     * Issues a download URL on the same address and port the requesting phone is connected through.
+     */
+    prepareUpdateDownload(
+        context: CommandExecutionContext,
+        source: MobileUpdateSource,
+    ): { expiresAt: number; url: string } {
+        const session = this.#authenticatedSession(context);
+        if (!this.#port || !session.localAddress)
+            throw new CaxriError('UNAVAILABLE', 'Mobile access is disabled');
+        return this.#updateDownloads.issue(
+            { deviceId: session.deviceId, generation: session.generation },
+            source,
+            `http://${session.localAddress}:${this.#port}`,
+        );
     }
 
     async enable(): Promise<MobileAccessStatus> {
@@ -262,6 +265,7 @@ export class MobileGateway {
                 request.socket.destroy();
                 return;
             }
+            if (this.#updateDownloads.handle(request, response)) return;
             response.writeHead(404, { Connection: 'close' }).end();
         });
         server.headersTimeout = HANDSHAKE_TIMEOUT_MS;
@@ -303,41 +307,16 @@ export class MobileGateway {
                 webSocketServer.emit('connection', connection, request);
             });
         });
-        webSocketServer.on('connection', (socket) => this.#accept(socket));
-        const preferredPort = this.#options.registry.preferredPort();
-        try {
-            await new Promise<void>((resolve, reject) => {
-                const onError = (error: Error): void => reject(error);
-                server.once('error', onError);
-                server.listen(preferredPort ?? 0, '0.0.0.0', () => {
-                    server.off('error', onError);
-                    resolve();
-                });
-            });
-        } catch {
-            webSocketServer.close();
-            throw new CaxriError(
-                'UNAVAILABLE',
-                preferredPort
-                    ? 'The paired mobile endpoint is already in use'
-                    : 'Mobile access could not open a local network endpoint',
-            );
-        }
-        const bound = server.address();
-        if (!bound || typeof bound === 'string') {
-            webSocketServer.close();
-            await new Promise<void>((resolve) => server.close(() => resolve()));
-            throw new CaxriError('UNAVAILABLE', 'Mobile gateway did not publish a TCP endpoint');
-        }
-        try {
-            await this.#options.registry.rememberPort(bound.port);
-        } catch (error) {
-            webSocketServer.close();
-            await new Promise<void>((resolve) => server.close(() => resolve()));
-            throw error;
-        }
+        webSocketServer.on('connection', (socket, request: IncomingMessage) =>
+            this.#accept(socket, request.socket.localAddress),
+        );
+        const port = await bindMobileGatewayServer({
+            registry: this.#options.registry,
+            server,
+            webSocketServer,
+        });
         this.#addresses = addresses;
-        this.#port = bound.port;
+        this.#port = port;
         this.#server = server;
         this.#webSocketServer = webSocketServer;
         return this.status();
@@ -394,12 +373,14 @@ export class MobileGateway {
                 ),
             );
         this.#activeByDevice.delete(deviceId);
+        this.#updateDownloads.revokeDevice(deviceId);
         return revoked;
     }
 
     async disable(): Promise<MobileAccessStatus> {
         this.#pairings.clear();
         this.#sourceAttempts.clear();
+        this.#updateDownloads.clear();
         for (const sockets of this.#activeByDevice.values())
             for (const session of sockets.values()) session.application?.close();
         for (const socket of this.#sockets) socket.terminate();
@@ -430,7 +411,7 @@ export class MobileGateway {
             if (pairing.expiresAt <= now) this.#pairings.delete(pairingId);
     }
 
-    #accept(socket: WebSocket): void {
+    #accept(socket: WebSocket, localAddress: string | undefined): void {
         this.#sockets.add(socket);
         this.#handshakes += 1;
         let session: GatewaySession | undefined;
@@ -505,6 +486,7 @@ export class MobileGateway {
                         return;
                     }
                     session = this.#beginHandshake(mobileClientHelloSchema.parse(raw));
+                    session.localAddress = localAddress;
                     const confirmation = handshakeConfirmation(session.keys, 'server');
                     const challenge = mobileServerHelloSchema.parse({
                         type: 'challenge',
@@ -720,6 +702,24 @@ export class MobileGateway {
         );
         const source = new TextDecoder().decode(plaintext);
         session.application?.accept(JSON.parse(source) as unknown);
+    }
+
+    #authenticatedSession(context: CommandExecutionContext): GatewaySession {
+        if (context.principal.kind !== 'paired-device')
+            throw new CaxriError('FORBIDDEN', 'Paired device principal is required');
+        const principal = context.principal;
+        const connectionId = context.connection?.connectionId;
+        if (!connectionId) throw new CaxriError('FORBIDDEN', 'Mobile connection is required');
+        const sessions = this.#activeByDevice.get(principal.deviceId);
+        const session = [...(sessions?.values() ?? [])].find(
+            (item) =>
+                item.connection.connectionId === connectionId &&
+                item.generation === principal.generation &&
+                !item.revoking,
+        );
+        if (!session) throw new CaxriError('NOT_FOUND', 'Mobile connection not found');
+        this.#context(session);
+        return session;
     }
 
     #context(session: GatewaySession): CommandExecutionContext {

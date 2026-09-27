@@ -27,12 +27,18 @@ catalogs:
     eslint-plugin-import-x:
       specifier: ^4.17.1
       version: 4.17.1
+    expo-file-system:
+      specifier: ~57.0.7
+      version: 57.0.7
     expo-image-manipulator:
       specifier: ~57.0.19
       version: 57.0.20
     expo-image-picker:
       specifier: ~57.0.19
       version: 57.0.20
+    expo-intent-launcher:
+      specifier: ~57.0.1
+      version: 57.0.1
     lucide-react-native:
       specifier: ^1.48.0
       version: 1.48.0
@@ -473,12 +479,18 @@ importers:
       expo-device:
         specifier: ~57.0.2
         version: 57.0.2(expo@57.0.24)
+      expo-file-system:
+        specifier: 'catalog:'
+        version: 57.0.7(expo@57.0.24)(react-native@0.86.3(@babel/core@7.29.7(supports-color@7.2.0))(@react-native/metro-config@0.86.3(@babel/core@7.29.7(supports-color@7.2.0))(supports-color@7.2.0))(@types/react@19.2.18)(react@19.2.3)(supports-color@7.2.0))
       expo-image-manipulator:
         specifier: 'catalog:'
         version: 57.0.20(expo@57.0.24)
       expo-image-picker:
         specifier: 'catalog:'
         version: 57.0.20(expo@57.0.24)
+      expo-intent-launcher:
+        specifier: 'catalog:'
+        version: 57.0.1(expo@57.0.24)
       expo-linking:
         specifier: ~57.0.10
         version: 57.0.10(expo@57.0.24)(react-native@0.86.3(@babel/core@7.29.7(supports-color@7.2.0))(@react-native/metro-config@0.86.3(@babel/core@7.29.7(supports-color@7.2.0))(supports-color@7.2.0))(@types/react@19.2.18)(react@19.2.3)(supports-color@7.2.0))(react@19.2.3)(supports-color@7.2.0)
@@ -5776,6 +5788,11 @@ packages:
 
   expo-image-picker@57.0.20:
     resolution: {integrity: sha512-plgcGuMZMWqDchjXQW6S/WepYLB5KqfbZOzwC6xe0+j5IhY4ipvVuRZcXeP/0NgKgU0Jiu/XoTK4Bi8crtZ+sQ==}
+    peerDependencies:
+      expo: '*'
+
+  expo-intent-launcher@57.0.1:
+    resolution: {integrity: sha512-BYiPEOUeW3AkW/uxEESbS2UBw9LasJ8Heb6A8kF9Ueh6pqrXQHMNJFHzfrOP8qZfv9G2e8CTzrtzpN5p0vH5fA==}
     peerDependencies:
       expo: '*'
 
@@ -14157,6 +14174,10 @@ snapshots:
     dependencies:
       expo: 57.0.24(88aa0b9e18d6d7a170ffcff68f0c1c9e)
       expo-image-loader: 57.0.1(expo@57.0.24)
+
+  expo-intent-launcher@57.0.1(expo@57.0.24):
+    dependencies:
+      expo: 57.0.24(88aa0b9e18d6d7a170ffcff68f0c1c9e)
 
   expo-json-utils@57.0.2: {}
 

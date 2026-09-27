@@ -26,6 +26,10 @@ export interface ServerCoreOptions {
      * Test-only label for isolated mobile Acceptance captures.
      */
     mobileHostDisplayName?: string;
+    /**
+     * Directory with the Android update bundle (`manifest.json` + APK) shipped with this Desktop build.
+     */
+    mobileUpdateDirectory?: string;
     projectSearch?: { executablePath: string; workerPath: string };
     /**
      * Test seam; production creates the process-backed Terminal execution owner.
