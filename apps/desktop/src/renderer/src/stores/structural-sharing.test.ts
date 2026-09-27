@@ -49,4 +49,37 @@ describe('mergeStructurally', () => {
 
         expect(mergeStructurally(previous, next).runtime).toEqual({ status: 'ready' });
     });
+
+    /**
+     * Issue #1108's step 1: prove `app.bootstrap`'s reference stability across a Session switch, deterministically
+     * rather than by reading a live snapshot over CDP. `workbench.ts` runs every incoming bootstrap through this exact
+     * function (`mergeStructurally(previous.bootstrap, next)`), so this is the real merge, not a simulation of it — a
+     * switch only ever changes `selectedSessionId`, and the Server always re-sends the full record set alongside it, so
+     * `sessions` and `projects` arrive as new but deeply-equal arrays on every refresh. The sibling keys must keep
+     * their previous reference: **stable**. The 5 Session cards' residual updates are not explained by a bootstrap
+     * reference change; see `use-session-order.ts`/`use-session-rename.ts` for the actual cause.
+     */
+    it('keeps sessions and projects stable across a bootstrap refresh that only changes the selected Session', () => {
+        const previous = {
+            selectedSessionId: 'session-a',
+            sessions: [
+                { id: 'session-a', displayTitle: 'First' },
+                { id: 'session-b', displayTitle: 'Second' },
+            ],
+            projects: [{ id: 'project-a', name: 'Caxri' }],
+            sessionStates: { 'session-a': { status: 'idle' }, 'session-b': { status: 'idle' } },
+            terminals: [{ id: 'terminal-a', title: 'Shell' }],
+        };
+        // The Server re-sends every collection as a fresh structured-clone on each refresh, deeply equal or not.
+        const next = { ...structuredClone(previous), selectedSessionId: 'session-b' };
+
+        const merged = mergeStructurally(previous, next);
+
+        expect(merged).not.toBe(previous);
+        expect(merged.selectedSessionId).toBe('session-b');
+        expect(merged.sessions).toBe(previous.sessions);
+        expect(merged.projects).toBe(previous.projects);
+        expect(merged.sessionStates).toBe(previous.sessionStates);
+        expect(merged.terminals).toBe(previous.terminals);
+    });
 });
