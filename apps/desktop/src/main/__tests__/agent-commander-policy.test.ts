@@ -23,6 +23,7 @@ describe('Agent Commander Renderer policy', () => {
 
         expect(() => policy.admit(request('commander.board'))).not.toThrow();
         expect(() => policy.admit(request('agentCommander.revealSession'))).not.toThrow();
+        expect(() => policy.admit(request('agentCommander.openSettings'))).not.toThrow();
         expect(() => policy.admit(request('agentCommander.stop'))).not.toThrow();
         expect(() => policy.admit(request('contextMenu.show', { items: [] }))).not.toThrow();
         for (const method of [
@@ -31,6 +32,8 @@ describe('Agent Commander Renderer policy', () => {
             'commander.stop',
             'file.write',
             'project.add',
+            'settings.patch',
+            'terminal.openFileLink',
         ]) {
             expect(() => policy.admit(request(method))).toThrow(
                 expect.objectContaining({ code: 'FORBIDDEN' }),

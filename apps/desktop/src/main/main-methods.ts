@@ -56,6 +56,11 @@ interface MainMethodHandlerOptions {
      */
     revealSessionInWorkbench(sessionId: string): Promise<void>;
     /**
+     * Raises the Workbench, reopening it if needed, and opens Settings there; used by the Agent Commander window, which
+     * has no Settings of its own.
+     */
+    openSettingsInWorkbench(): Promise<void>;
+    /**
      * What this instance actually exposes, resolved once at boot by `configureDesktopProfile`. It is not derivable from
      * `argv.jsonc`: an unpackaged launch ignores the stored preference, and a window whose switch was just flipped
      * still holds the port it started with.
@@ -431,6 +436,9 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 return null;
             case 'agentCommander.revealSession':
                 await options.revealSessionInWorkbench(request.params.sessionId);
+                return null;
+            case 'agentCommander.openSettings':
+                await options.openSettingsInWorkbench();
                 return null;
             case 'bugReport.send': {
                 const { report, screenshot, sessionId, terminalId } = request.params;

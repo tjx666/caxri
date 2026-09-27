@@ -26,6 +26,20 @@ describe('createTerminalLinkScanner', () => {
         }
     }
 
+    it('skips link kinds the pane cannot open', () => {
+        const terminal = createTerminal('', []);
+        terminal.setLine(0, 'src/file.ts:12 https://example.com/kept');
+        const scanner = createTerminalLinkScanner(
+            terminal.terminal,
+            { ...baseContext(), linkKinds: new Set(['url']) },
+            [],
+        );
+
+        expect(scanner.scanNextChunk().links.map((link) => link.target)).toEqual([
+            'https://example.com/kept',
+        ]);
+    });
+
     it('scans the visible viewport first, then walks retained scrollback upward (most recent first)', () => {
         const terminal = createTerminal('', []);
         fillLines(terminal, 18);
