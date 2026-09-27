@@ -5,27 +5,47 @@ import { shortcutLeadingChord } from '@caxri/protocol';
 
 import type { PendingChord } from '../../commands/keystroke-resolution';
 import { resolveKeystroke } from '../../commands/keystroke-resolution';
-import { buildShortcutMap, isModifierKey, isTerminalEventTarget } from '../../lib/keybindings';
+import {
+    buildShortcutMap,
+    isEditableEventTarget,
+    isModifierKey,
+    isTerminalEventTarget,
+} from '../../lib/keybindings';
 import { useDialogStore } from '../../stores/dialogs';
 import { useWorkbenchStore } from '../../stores/workbench';
-import { clearActiveTerminal, findInActiveTerminal } from '../terminal/terminal-commands';
+import {
+    clearActiveTerminal,
+    findInActiveTerminal,
+    restartActiveTerminal,
+} from '../terminal/terminal-commands';
 import { openTerminalLinkPicker } from '../terminal/terminal-link-actions';
 import { useAgentCommanderStore } from './commander-client';
 
 /**
- * The commands this window runs from the keyboard: the Terminal actions its context menu offers. The native Edit menu
- * already owns Copy and Paste, and every other command belongs to the Workbench window.
+ * The commands this window runs from the keyboard: the Terminal actions its context menu offers, plus the Restart its
+ * exited pane shows with this shortcut. The native Edit menu already owns Copy and Paste, and every other command
+ * belongs to the Workbench window. `allowInEditable` matches each command's Workbench definition
+ * (`commands/definitions.ts`): Restart replaces the PTY, so it does not reach through a focused Terminal or input.
  */
 const COMMANDER_TERMINAL_COMMANDS = {
-    'terminal.clear': clearActiveTerminal,
-    'terminal.find': findInActiveTerminal,
-    'terminal.openDetectedLink': openTerminalLinkPicker,
-} satisfies Partial<Record<CommandId, (terminalId: string) => void>>;
+    'terminal.clear': { allowInEditable: true, run: clearActiveTerminal },
+    'terminal.find': { allowInEditable: true, run: findInActiveTerminal },
+    'terminal.openDetectedLink': { allowInEditable: true, run: openTerminalLinkPicker },
+    'terminal.restart': { allowInEditable: false, run: restartActiveTerminal },
+} satisfies Partial<
+    Record<CommandId, { allowInEditable: boolean; run: (terminalId: string) => void }>
+>;
 
 type CommanderTerminalCommand = keyof typeof COMMANDER_TERMINAL_COMMANDS;
 
 function isCommanderTerminalCommand(command: string): command is CommanderTerminalCommand {
     return Object.hasOwn(COMMANDER_TERMINAL_COMMANDS, command);
+}
+
+function isAllowedInEditable(command: string): boolean {
+    return (
+        isCommanderTerminalCommand(command) && COMMANDER_TERMINAL_COMMANDS[command].allowInEditable
+    );
 }
 
 export interface CommanderShortcutState {
@@ -69,6 +89,7 @@ export function dispatchCommanderKeydown(
             admitted.flatMap(({ key }) => shortcutLeadingChord(key) ?? []),
         );
     }
+    const isChordContinuation = state.pending !== undefined;
     const outcome = resolveKeystroke({
         // The Commander window has no editor to hand a sequence to.
         editorFocus: false,
@@ -80,6 +101,18 @@ export function dispatchCommanderKeydown(
     });
     state.pending = undefined;
     if (outcome.kind === 'ignore' || outcome.kind === 'yieldChordContinuation') return;
+    /**
+     * The Workbench's rule: a chord typed into the running Commander Terminal or an input falls through to it unless
+     * the command opts in. A stopped Terminal gives up focus, which is when its Restart shortcut is offered. A chord
+     * continuation is exempt, since its leading chord was already consumed here.
+     */
+    if (
+        !isChordContinuation &&
+        outcome.kind === 'dispatch' &&
+        isEditableEventTarget(event.target) &&
+        !isAllowedInEditable(outcome.binding.command)
+    )
+        return;
     event.preventDefault();
     event.stopPropagation();
     if (outcome.kind === 'armChord') {
@@ -88,7 +121,7 @@ export function dispatchCommanderKeydown(
     }
     if (outcome.kind === 'cancelChord' || useDialogStore.getState().isModalOpen()) return;
     const { command } = outcome.binding;
-    if (isCommanderTerminalCommand(command)) COMMANDER_TERMINAL_COMMANDS[command](terminalId);
+    if (isCommanderTerminalCommand(command)) COMMANDER_TERMINAL_COMMANDS[command].run(terminalId);
 }
 
 /**

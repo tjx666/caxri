@@ -130,7 +130,7 @@ describe('application menu', () => {
         });
 
         it('drops a shortcut typed there instead of running it on the hidden Workbench', () => {
-            const { dispatchCommand, press } = menuItem('Terminal', 'command.terminal.restart');
+            const { dispatchCommand, press } = menuItem('Terminal', 'command.terminal.new');
 
             press();
 
@@ -256,25 +256,27 @@ describe('application menu', () => {
      * A binding without `when` would otherwise earn a native accelerator, which Main drops while the Agent Commander
      * window is focused even though that window runs these Terminal actions itself.
      */
-    it.each(['terminal.clear', 'terminal.find', 'terminal.openDetectedLink'] as const)(
-        'leaves %s shortcuts to the focused Renderer surface',
-        (command) => {
-            const template = buildAppMenuTemplate({
-                keybindings: [{ command, key: 'cmd+alt+l' }],
-                dispatchCommand: vi.fn(),
-                openAgentCommander: vi.fn(),
-                stopAgentCommander: vi.fn(),
-                openProcessExplorer: vi.fn(),
-                workbenchWindow: vi.fn(),
-                focusWorkbench: vi.fn(),
-            });
-            const item = submenu(template, 'Terminal').find(
-                (candidate) => candidate.id === `command.${command}`,
-            );
-            expect(item).toBeDefined();
-            expect(item?.accelerator).toBeUndefined();
-        },
-    );
+    it.each([
+        'terminal.clear',
+        'terminal.find',
+        'terminal.openDetectedLink',
+        'terminal.restart',
+    ] as const)('leaves %s shortcuts to the focused Renderer surface', (command) => {
+        const template = buildAppMenuTemplate({
+            keybindings: [{ command, key: 'cmd+alt+l' }],
+            dispatchCommand: vi.fn(),
+            openAgentCommander: vi.fn(),
+            stopAgentCommander: vi.fn(),
+            openProcessExplorer: vi.fn(),
+            workbenchWindow: vi.fn(),
+            focusWorkbench: vi.fn(),
+        });
+        const item = submenu(template, 'Terminal').find(
+            (candidate) => candidate.id === `command.${command}`,
+        );
+        expect(item).toBeDefined();
+        expect(item?.accelerator).toBeUndefined();
+    });
 
     it('leaves contextual Terminal copy to the focused Renderer surface', () => {
         const dispatchCommand = vi.fn();

@@ -83,12 +83,20 @@ window (`apps/desktop/src/main/menu.ts`): Close Tab (`Cmd+W`) closes the focused
 typed there is dropped except the app-level Settings shortcut, and an item picked from the menu bar
 brings the Workbench forward before it runs.
 
-Terminal chords such as Find (`Cmd+F`) and Clear (`Cmd+Shift+K`) have no native accelerator; the
-focused Renderer dispatches them. The Commander window does not mount the Workbench's dispatcher,
-whose Terminal commands resolve the active Terminal from a pane layout this window lacks. Its own
-dispatcher (`features/agent-commander/commander-shortcuts.ts`) resolves the user's keybindings
-narrowed to the actions its Terminal context menu offers: Clear, Find in Terminal, and Open
-Detected Link. Every other chord reaches the focused surface untouched.
+Terminal chords such as Find (`Cmd+F`), Clear (`Cmd+Shift+K`), and Restart (`Cmd+Shift+R`) have no
+native accelerator; the focused Renderer dispatches them. The Commander window does not mount the
+Workbench's dispatcher, whose Terminal commands resolve the active Terminal from a pane layout this
+window lacks. Its own dispatcher (`features/agent-commander/commander-shortcuts.ts`) resolves the
+user's keybindings narrowed to the actions its Terminal context menu offers, Clear, Find in
+Terminal, and Open Detected Link, plus the Restart an exited pane shows with its shortcut. As in the
+Workbench, Restart does not reach through a focused Terminal or input, so a stray `Cmd+Shift+R`
+never replaces a running Commander; a stopped Terminal gives up focus, and the shortcut then works.
+Every other chord reaches the focused surface untouched.
+
+A notification raised in this window can run only the follow-ups it has a surface for
+(`commander-toast-actions.ts`): the pane's Retry and Refresh, and the Open Settings of the notice
+that pins the Commander Terminal to software rendering, which hands off to the Workbench like the
+pane's own Open Settings. Any other follow-up keeps the fail-closed answer.
 
 While the Commander runs, the Workbench status bar shows a muted `Commander` chip with its state
 (`starting`, `working`, `needs input`, or `idle`) from `commander.status`; clicking it opens the
