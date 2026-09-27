@@ -96,9 +96,10 @@ describe('Agent Commander service', () => {
         expect(again.identity).toEqual(first.identity);
         expect(restoreTerminals).toHaveBeenCalledExactlyOnceWith(first.identity.sessionId);
         expect(first.workspacePath).toBe(join(directory, COMMANDER_WORKSPACE_DIRECTORY));
-        await expect(readFile(join(first.workspacePath, 'AGENTS.md'), 'utf8')).resolves.toContain(
-            'node "$CAXRI_CLI_PATH"',
-        );
+        const instructions = await readFile(join(first.workspacePath, 'AGENTS.md'), 'utf8');
+        expect(instructions).toContain('node "$CAXRI_CLI_PATH"');
+        // A ready report is checked against the pull request's live head, not the board's cached copy.
+        expect(instructions).toContain('headRefOid');
         expect(database.listVisibleProjects().map(({ id }) => id)).not.toContain(
             first.identity.projectId,
         );
