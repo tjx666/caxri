@@ -68,6 +68,11 @@ Detected Link entry, and a reference's hover card keeps its basic content instea
 details. Opening a file from the Commander Terminal in the Workbench would need a target Session
 and Project, so it is not offered.
 
+The Workbench accepts drops on its pane surface, which this window does not mount, so the Commander
+Terminal accepts them itself (`commander-terminal.tsx`) through the same drop-to-input rule while it
+runs. A file dropped from Finder, usually a bug screenshot for the Commander to hand on, inserts its
+path, and so does a Files entry, Editor tab, or Project dragged over from the Workbench.
+
 Closing or reloading the Commander window detaches its view of the Commander Terminal, but the PTY
 keeps running and the next window re-attaches from a snapshot. Closing the main window detaches
 every Terminal view, the Commander's included, and then closes the Commander window.

@@ -10,7 +10,7 @@ import type {
     TransientServerEvent,
 } from '@caxri/protocol';
 import { CAXRI_PROTOCOL_VERSION, fromWireError } from '@caxri/protocol';
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
 /**
  * Kept entry-local because sharing this constant across both preload entries makes Vite extract a CommonJS chunk, which
@@ -145,6 +145,7 @@ const bridge: CaxriBridge = {
     requestWithId,
     reportDiagnostic: (diagnostic) => ipcRenderer.send(rendererDiagnosticChannel, diagnostic),
     reportError: (kind) => ipcRenderer.send(rendererErrorChannel, kind),
+    pathForFile: (file) => webUtils.getPathForFile(file),
     onEvent: (listener: (event: ServerEvent) => void): (() => void) => {
         eventListeners.add(listener);
         if (eventListeners.size === 1) {

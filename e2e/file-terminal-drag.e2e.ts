@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { execFileAsync } from '@caxri/system';
 
+import { dropFinderFiles } from './support/finder-file-drop.ts';
 import type { Locator } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri } from './support/helpers.ts';
@@ -273,6 +274,45 @@ test('Git changed files dragged to Terminal insert shell-safe paths without exec
         );
         await expect(running.page.locator('.workbench-pane')).toHaveCount(1);
         await expect(running.page.locator('.terminal-drop-preview')).toHaveCount(0);
+    } finally {
+        await running.app.close();
+    }
+});
+
+test('Files dropped from Finder on a Terminal insert shell-safe cwd-relative paths', async () => {
+    const testDirectory = await realpath(await mkdtemp(`${tmpdir()}/caxri-finder-drop-e2e-`));
+    const root = join(testDirectory, 'project');
+    const desktop = join(testDirectory, 'Desktop');
+    await Promise.all([mkdir(root), mkdir(desktop)]);
+    const projectFileName = "shot 'one'.png";
+    const outsideFile = join(desktop, 'Screenshot 2026-09-28.png');
+    await Promise.all([
+        writeFile(join(root, projectFileName), 'fixture\n'),
+        writeFile(outsideFile, 'fixture\n'),
+    ]);
+    const running = await launchCaxri({
+        userDataDir: join(testDirectory, 'profile'),
+        testRootPath: root,
+    });
+    try {
+        await createProjectSession(running.page);
+        const terminalInput = running.page.locator('.xterm-helper-textarea');
+        const result = join(testDirectory, '.finder-drop-result');
+        await terminalInput.click();
+        await running.page.keyboard.type("printf '%s|' ");
+        await dropFinderFiles(running.page, running.page.locator('.terminal-surface'), [
+            join(root, projectFileName),
+            outsideFile,
+        ]);
+        await expect(terminalInput).toBeFocused();
+        await expectMissing(result);
+        await running.page.keyboard.type(` > ${quoteShellPath(result)}`);
+        await running.page.keyboard.press('Enter');
+        // One argument per file: the Project file relative to the Terminal's cwd, the other absolute.
+        await expect
+            .poll(() => readFileForPoll(() => readFile(result, 'utf8')))
+            .toBe(`${projectFileName}|${outsideFile}|`);
+        await expect(running.page.locator('.workbench-pane')).toHaveCount(1);
     } finally {
         await running.app.close();
     }
