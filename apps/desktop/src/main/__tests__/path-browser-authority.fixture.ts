@@ -6,6 +6,7 @@ import { afterEach, vi } from 'vitest';
 
 import type { PathBrowserOpenTarget } from '../path-browser-authority';
 import { createPathBrowserAuthority } from '../path-browser-authority';
+import type { PathBrowserLogger } from '../path-browser-log';
 import type { DesktopServerConnection } from '../server-connection';
 
 /**
@@ -50,10 +51,27 @@ export function bootstrap(ownerRoot: string, workbenchRoot: string) {
     };
 }
 
+/**
+ * Records every `write()` call verbatim so a test can assert on the exact event/level/fields a fallback or a search
+ * failure produced, rather than only on whether logging happened at all.
+ */
+export function fakeLogger(): PathBrowserLogger & {
+    calls: Array<Parameters<PathBrowserLogger['write']>>;
+} {
+    const calls: Array<Parameters<PathBrowserLogger['write']>> = [];
+    return {
+        calls,
+        write: (...call) => {
+            calls.push(call);
+        },
+    };
+}
+
 export function authorityOptions(
     ownerRoot: string,
     workbenchRoot: string,
     options: {
+        logger?: PathBrowserLogger;
         openFile?: (
             target: PathBrowserOpenTarget,
         ) => Promise<{ canceled: true } | { opened: true }>;
@@ -75,6 +93,7 @@ export function authorityOptions(
     return {
         authority: createPathBrowserAuthority({
             getServer: () => server(request),
+            logger: () => options.logger,
             openFile,
             ...(options.userHome && { userHome: options.userHome }),
         }),
