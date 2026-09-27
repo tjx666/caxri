@@ -13,8 +13,8 @@ import {
     requireRemoteVideoPath,
 } from './mobile-conversation-scenarios.ts';
 import {
-    conversationAgentRecords,
     conversationBaselineRecords,
+    conversationVariedAgentRecords,
 } from './mobile-conversation-transcript.ts';
 
 /**
@@ -29,7 +29,7 @@ export async function executeMobileConversationTransitionScenario(
     let recording: Awaited<ReturnType<typeof startMobileFramebufferRecording>> | undefined;
     try {
         await fixture.appendTranscript(conversationBaselineRecords());
-        await fixture.appendTranscript(conversationAgentRecords(10, 60));
+        await fixture.appendTranscript(conversationVariedAgentRecords(10, 60));
         await fixture.pair();
         const latest = (await fixture.readTimeline()).items.at(-1);
         if (!latest) throw new Error('Synthetic Conversation is empty');

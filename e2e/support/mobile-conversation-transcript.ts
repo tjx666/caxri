@@ -127,3 +127,31 @@ export function conversationAgentRecords(start: number, count: number): unknown[
         };
     });
 }
+
+/**
+ * Agent replies whose rendered heights differ by an order of magnitude, like a real Conversation, so list positioning
+ * cannot rely on uniform row estimates.
+ */
+export function conversationVariedAgentRecords(start: number, count: number): unknown[] {
+    return Array.from({ length: count }, (_, offset) => {
+        const index = start + offset;
+        const paragraphs = Array.from(
+            { length: 1 + (index % 5) },
+            (__, paragraph) =>
+                `Synthetic paragraph ${paragraph + 1} of update ${index} describes a bounded step in enough words to wrap across several lines on a phone.`,
+        );
+        const code =
+            index % 3 === 0
+                ? `\n\n\`\`\`ts\n${Array.from({ length: 6 }, (__, line) => `const value${line} = ${index + line};`).join('\n')}\n\`\`\``
+                : '';
+        return {
+            type: 'assistant',
+            uuid: `synthetic-varied-agent-${index}`,
+            timestamp: new Date(Date.UTC(2026, 0, 1, 0, 2, index)).toISOString(),
+            message: {
+                id: `synthetic-varied-message-agent-${index}`,
+                content: [{ type: 'text', text: `${paragraphs.join('\n\n')}${code}` }],
+            },
+        };
+    });
+}
