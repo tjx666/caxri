@@ -18,18 +18,17 @@ export function stableJson(value: unknown): string {
     return JSON.stringify(sorted(value));
 }
 
-export function quietLines(value: unknown): string[] {
+/**
+ * One stable ID per entry, read from `idKey`: `id` for most results, or the field a command names in `quietIdKey`.
+ */
+export function quietLines(value: unknown, idKey = 'id'): string[] {
     const entries: unknown[] = Array.isArray(value) ? (value as unknown[]) : [value];
     return entries.map((entry) => {
-        if (
-            typeof entry !== 'object' ||
-            entry === null ||
-            !('id' in entry) ||
-            typeof entry.id !== 'string' ||
-            entry.id.length === 0
-        )
+        const id: unknown =
+            typeof entry === 'object' && entry !== null ? Reflect.get(entry, idKey) : undefined;
+        if (typeof id !== 'string' || id.length === 0)
             throw new CaxriError('VALIDATION', 'Quiet output has no stable ID');
-        return entry.id;
+        return id;
     });
 }
 

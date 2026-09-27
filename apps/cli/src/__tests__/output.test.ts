@@ -13,5 +13,7 @@ describe('CLI machine output', () => {
         expect(quietLines({ id: 'session-1', displayTitle: 'Session' })).toEqual(['session-1']);
         expect(quietLines([{ id: 'one' }, { id: 'two' }])).toEqual(['one', 'two']);
         expect(() => quietLines({ state: 'ready' })).toThrow('has no stable ID');
+        expect(quietLines([{ sessionId: 'one' }], 'sessionId')).toEqual(['one']);
+        expect(() => quietLines({ id: 'one' }, 'sessionId')).toThrow('has no stable ID');
     });
 });

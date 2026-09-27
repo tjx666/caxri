@@ -230,13 +230,19 @@ function renderHelp(
     return `${lines.join('\n')}\n`;
 }
 
-function writeSuccess(io: CliIo, mode: CliOutputMode, value: unknown, human?: string): void {
+function writeSuccess(
+    io: CliIo,
+    mode: CliOutputMode,
+    value: unknown,
+    human?: string,
+    quietIdKey?: string,
+): void {
     if (mode === 'json') {
         io.writeStdout(`${stableJson(value)}\n`);
         return;
     }
     if (mode === 'quiet') {
-        io.writeStdout(`${quietLines(value).join('\n')}\n`);
+        io.writeStdout(`${quietLines(value, quietIdKey).join('\n')}\n`);
         return;
     }
     io.writeStdout(human ?? `${renderHumanValue(value)}\n`);
@@ -677,6 +683,7 @@ export async function runCli(
             mode,
             mode === 'quiet' ? quietProjection(command, result) : result,
             humanRemote(command, result),
+            command.quietIdKey,
         );
         return 0;
     } catch (error) {
