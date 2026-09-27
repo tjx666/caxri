@@ -18,6 +18,7 @@ import {
     primarySidebarCreateSessionRowId,
     primarySidebarRevealRowId,
 } from './primary-sidebar-tree';
+import { ProjectAgentSummary } from './project-agent-summary';
 import { ProjectDetailsCard } from './project-details-card';
 import { describeProjectSessionCount } from './project-heading';
 import { ProjectIcon } from './project-icon';
@@ -25,6 +26,7 @@ import type { ProjectDropTarget } from './project-order';
 import { hasProjectDragType } from './project-order';
 import { ProjectRowMenu } from './project-row-menu';
 import { hasWorktreeSession } from './project-worktree-slot';
+import { summarizeSessionStatuses } from './session-status';
 
 interface ProjectGroupProperties {
     sessionOrder: SessionOrderController;
@@ -123,6 +125,16 @@ export function ProjectGroup({
      * column that stays empty.
      */
     const reserveWorktreeSlot = hasWorktreeSession(projectSessions, worktreeProjects);
+    /**
+     * A collapsed Project hides its rows, and with them every running arc and attention ring. Summarize them on the
+     * heading so an Agent waiting on the user is never folded out of sight; an expanded Project shows the rows
+     * instead.
+     */
+    const agentSummary = expanded
+        ? undefined
+        : summarizeSessionStatuses(projectSessions, (session) =>
+              sessionAgentTerminal(session, terminals),
+          );
     return (
         <section
             data-project-id={project.id}
@@ -205,6 +217,7 @@ export function ProjectGroup({
                                 aria-label={describeProjectSessionCount(
                                     project.displayTitle,
                                     projectSessions.length,
+                                    agentSummary,
                                 )}
                                 data-row-id={project.id}
                                 tabIndex={project.id === rovingRowId ? 0 : -1}
@@ -249,6 +262,7 @@ export function ProjectGroup({
                                 <strong className="overflow-fade min-w-0 flex-1 text-[13px] font-medium">
                                     {project.displayTitle}
                                 </strong>
+                                {agentSummary && <ProjectAgentSummary summary={agentSummary} />}
                             </button>
                         }
                     />

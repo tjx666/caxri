@@ -141,7 +141,8 @@ const themeIconClassNames: Partial<Record<ThemeIconId, string>> = {
     'hourglass': 'text-muted',
     'pass': 'text-success',
     'question': 'text-muted',
-    'rocket-success': 'text-success',
+    // Violet like the Session row's rocket: a shipped deployment is where a merged pull request goes next.
+    'rocket-success': 'text-merged',
     'shield': 'text-muted',
     'shield-alert': 'text-danger',
     'shield-check': 'text-success',

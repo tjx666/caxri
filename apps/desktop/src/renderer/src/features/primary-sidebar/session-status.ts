@@ -64,3 +64,28 @@ export function sessionStatus(
 
     return { kind: 'default' };
 }
+
+export interface SessionStatusSummary {
+    /**
+     * Sessions showing unread attention. Attention outranks running in `sessionStatus`, so a Session is counted once.
+     */
+    attention: number;
+    running: number;
+}
+
+/**
+ * Folds a group of Sessions into the counts a collapsed Project heading shows, using the same projection as each row so
+ * the heading can never report a state its expanded rows would not.
+ */
+export function summarizeSessionStatuses<Session extends SessionStatusSource>(
+    sessions: readonly Session[],
+    terminalFor: (session: Session) => SessionStatusTerminal | undefined,
+): SessionStatusSummary {
+    const summary: SessionStatusSummary = { attention: 0, running: 0 };
+    for (const session of sessions) {
+        const { kind } = sessionStatus(session, terminalFor(session));
+        if (kind === 'attention') summary.attention += 1;
+        else if (kind === 'running') summary.running += 1;
+    }
+    return summary;
+}
