@@ -32,9 +32,14 @@ describe('Terminal mouse wheel encoding', () => {
         expect(encoder.encode({ col: 1, lines: -1, row: 1 })).toBe('\u{1B}[M`!!');
     });
 
-    it('refuses encodings it does not produce instead of sending the wrong format', async () => {
-        const encoder = await setup('\u{1B}[?1000h\u{1B}[?1015h');
+    it('refuses SGR pixel reports instead of sending the wrong format', async () => {
+        const encoder = await setup('\u{1B}[?1000h\u{1B}[?1016h');
         expect(encoder.encode({ col: 1, lines: -1, row: 1 })).toBeNull();
+    });
+
+    it('keeps SGR when an application toggles encodings xterm ignores', async () => {
+        const encoder = await setup('\u{1B}[?1000;1006h\u{1B}[?1015l\u{1B}[?1005h');
+        expect(encoder.encode({ col: 1, lines: -1, row: 1 })).toBe('\u{1B}[<64;1;1M');
     });
 
     it('sends cursor keys on an alternate screen without mouse tracking', async () => {

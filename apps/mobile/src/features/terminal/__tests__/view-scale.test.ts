@@ -56,6 +56,9 @@ describe('mobile Terminal scroll routing', () => {
         expect(
             shouldForwardTerminalScroll({ bufferType: 'normal', mouseTrackingMode: 'none' }),
         ).toBe(false);
+        expect(
+            shouldForwardTerminalScroll({ bufferType: 'normal', mouseTrackingMode: 'x10' }),
+        ).toBe(false);
     });
 
     it('bounds one WebView wheel frame exactly as the gateway does', () => {

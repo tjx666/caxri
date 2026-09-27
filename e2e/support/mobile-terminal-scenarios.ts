@@ -389,7 +389,7 @@ export async function executeMobileTerminalScenario(
             status: 'passed',
             takenOverSize: { cols: takenOver.cols, rows: takenOver.rows },
             takenOverZoomedSize: { cols: zoomed.cols, rows: zoomed.rows },
-            fullscreenScroll: 'wheel-forwarded-without-lease',
+            fullscreenScroll: { wheelDown: scrolled.wheelDown, wheelUp: scrolled.wheelUp },
         });
     } finally {
         try {

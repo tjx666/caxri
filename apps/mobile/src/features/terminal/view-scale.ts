@@ -62,7 +62,8 @@ export const TERMINAL_WHEEL_MAX_LINES = 50;
 
 /**
  * Alternate-screen and mouse-reporting applications own their scrolling, so the phone forwards the drag to the
- * application as wheel input instead of moving xterm's local scrollback, matching Desktop's wheel behavior.
+ * application as wheel input instead of moving xterm's local scrollback, matching Desktop's wheel behavior. X10
+ * tracking never reports the wheel, so a normal-screen X10 application keeps local scrolling.
  */
 export const shouldForwardTerminalScroll = ({
     bufferType,
@@ -70,4 +71,5 @@ export const shouldForwardTerminalScroll = ({
 }: {
     bufferType: 'normal' | 'alternate';
     mouseTrackingMode: 'none' | 'x10' | 'vt200' | 'drag' | 'any';
-}): boolean => bufferType === 'alternate' || mouseTrackingMode !== 'none';
+}): boolean =>
+    bufferType === 'alternate' || (mouseTrackingMode !== 'none' && mouseTrackingMode !== 'x10');
