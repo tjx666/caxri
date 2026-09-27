@@ -334,6 +334,16 @@ const jumpToLatest = (): void => {
     reportScroll();
 };
 /**
+ * Right after a resize xterm's scrollable element still has the previous grid's height, so `scrollToBottom` is clamped
+ * to the old bottom until xterm syncs its dimensions a few frames later. Retry each frame until the view really
+ * follows.
+ */
+const followLatest = (framesLeft: number): void => {
+    jumpToLatest();
+    if (!viewState.isAtBottom && framesLeft > 0)
+        requestAnimationFrame(() => followLatest(framesLeft - 1));
+};
+/**
  * Taking over is about to type, so the view jumps to the latest output where the cursor and prompt are instead of
  * keeping an earlier reading position.
  */
@@ -345,7 +355,7 @@ const applyControl = (isLeased: boolean, canForwardScroll: boolean): void => {
     terminal.refresh(0, terminal.rows - 1);
     restartCursorBlink();
     layout();
-    if (isLeased) jumpToLatest();
+    if (isLeased) followLatest(30);
 };
 
 const layoutObserver = new ResizeObserver(layout);
