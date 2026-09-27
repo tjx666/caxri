@@ -1,10 +1,17 @@
-import type { Keybinding } from '@caxri/protocol';
+import type { BootstrapState, Keybinding } from '@caxri/protocol';
 import { buildChordLeadingChords, defaultKeybindings } from '@caxri/protocol';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { buildShortcutMap } from '../lib/keybindings';
+import { useDialogStore } from '../stores/dialogs';
+import { useWorkbenchStore } from '../stores/workbench';
 import type { KeystrokeOutcome, PendingChord } from './use-command-shortcuts';
-import { resolveKeydownBinding, resolveKeystroke } from './use-command-shortcuts';
+import {
+    createGlobalShortcutDispatchState,
+    dispatchGlobalKeydown,
+    resolveKeydownBinding,
+    resolveKeystroke,
+} from './use-command-shortcuts';
 
 /**
  * This suite imports `./execute` (via `./use-command-shortcuts`), which imports `git-review-navigation-commands.ts`,
@@ -197,5 +204,80 @@ describe('resolveKeystroke', () => {
 
     it('ignores a keystroke no binding claims', () => {
         expect(step(keyEvent('q', { metaKey: true }))).toEqual({ kind: 'ignore' });
+    });
+});
+
+/**
+ * Issue #1093: a global shortcut typed during the gap between a picker deciding to close and its modal registration
+ * actually clearing reads `isModalOpen()` as stale-true and is silently swallowed — even the shortcut that would reopen
+ * the very picker that just closed. `registerModal`/`unregisterModal` are driven by `useModalRegistration`'s effect in
+ * real usage, which this suite's `node` environment cannot render (no `window`/`document`, see the module comment
+ * above); these tests instead hold the registry in that exact intermediate state directly, which is the "hold the focus
+ * handoff open" reproduction the issue calls for, without depending on React's effect scheduling.
+ */
+describe('dispatchGlobalKeydown', () => {
+    const projectSearchShortcut: Keybinding = {
+        key: 'cmd+shift+f',
+        command: 'secondarySidebar.searchFiles',
+    };
+
+    function projectSearchKeydownEvent(): {
+        event: KeyboardEvent;
+        preventDefault: ReturnType<typeof vi.fn>;
+    } {
+        const preventDefault = vi.fn();
+        const event = {
+            altKey: false,
+            code: '',
+            ctrlKey: false,
+            isComposing: false,
+            key: 'f',
+            metaKey: true,
+            preventDefault,
+            shiftKey: true,
+            stopPropagation: vi.fn(),
+            target: null,
+        } as unknown as KeyboardEvent;
+        return { event, preventDefault };
+    }
+
+    afterEach(() => {
+        useWorkbenchStore.setState({ bootstrap: undefined });
+        for (const id of useDialogStore.getState().openModalIds)
+            useDialogStore.getState().unregisterModal(id);
+        useDialogStore.getState().setProjectSearchOpen(false);
+    });
+
+    /**
+     * `secondarySidebar.searchFiles` has no `when` gate and opts into `allowInEditable`, so nothing about the resolved
+     * binding itself would explain a no-op — only the modal gate can.
+     */
+    it('drops the resolved Cmd+Shift+F shortcut while a picker is still registered as an open modal', () => {
+        useWorkbenchStore.setState({
+            bootstrap: { keybindings: [projectSearchShortcut] } as unknown as BootstrapState,
+        });
+        // Simulate the exact gap `useModalRegistration` can otherwise leave open: the app already decided to close
+        // Project Search (its own `open` boolean is false), but the registry has not been told yet.
+        useDialogStore.getState().registerModal('project-search-picker');
+
+        const { event, preventDefault } = projectSearchKeydownEvent();
+        dispatchGlobalKeydown(createGlobalShortcutDispatchState(), event);
+
+        // The keystroke is still consumed — it must not leak into whatever the window falls back to — it just does
+        // nothing, matching the reported symptom exactly: the overlay never reopens, and a retry works.
+        expect(preventDefault).toHaveBeenCalledOnce();
+        expect(useDialogStore.getState().projectSearchOpen).toBe(false);
+    });
+
+    it('honors the same shortcut once the handoff has settled and the registration is clear', () => {
+        useWorkbenchStore.setState({
+            bootstrap: { keybindings: [projectSearchShortcut] } as unknown as BootstrapState,
+        });
+
+        const { event, preventDefault } = projectSearchKeydownEvent();
+        dispatchGlobalKeydown(createGlobalShortcutDispatchState(), event);
+
+        expect(preventDefault).toHaveBeenCalledOnce();
+        expect(useDialogStore.getState().projectSearchOpen).toBe(true);
     });
 });
