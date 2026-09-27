@@ -227,7 +227,8 @@ for this Agent. Showing the Terminal.` A plain shell never shows this notice.
   large full-size font. Pinching while leased changes the text size, and the lease is then re-applied
   at the new grid so the content reflows to fill the phone. Desktop mirrors the leased grid until
   release. Because the phone types through a native input, the WebView never holds focus; while
-  leased it draws a blinking block cursor itself instead of xterm's unfocused outline. Tapping the Terminal reopens the keyboard; when the
+  leased it jumps to the latest output and draws a blinking block cursor itself instead of xterm's
+  unfocused outline. Tapping the Terminal reopens the keyboard; when the
   keyboard changes the visible size, the lease is re-applied with the new size and the phone resizes
   its own grid to match, because the observer stream carries output only. Leaving the screen,
   backgrounding, disconnecting, or revocation releases the lease on the Server and restores the

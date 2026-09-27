@@ -265,6 +265,13 @@ export async function executeMobileTerminalScenario(
          * The leased grid keeps the observing text size; a full-size font gave a phone only about 49 columns.
          */
         expect(takenOver.cols).toBeGreaterThan(60);
+        /**
+         * Taking over jumps to the latest output, so the blinking cursor is on screen for the recording.
+         */
+        await waitForMobile(
+            () => mobileSemantics(environment.serial),
+            (nodes) => nodes.every(({ checkId }) => checkId !== 'terminal-jump-latest'),
+        );
         await capture(environment, 'taken-over', artifacts);
 
         try {
