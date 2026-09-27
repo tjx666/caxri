@@ -246,7 +246,7 @@ export function ProjectGroup({
                                     expanded={expanded}
                                     icon={project.icon}
                                 />
-                                <strong className="overflow-fade min-w-0 flex-1 text-sm font-semibold">
+                                <strong className="overflow-fade min-w-0 flex-1 text-[13px] font-medium">
                                     {project.displayTitle}
                                 </strong>
                             </button>
@@ -285,7 +285,7 @@ export function ProjectGroup({
                 className="project-drag-preview pointer-events-none fixed -top-[1000px] left-0 flex h-7 items-center gap-2 rounded-md bg-elevated px-2 text-foreground shadow-[0_8px_24px_var(--shadow)]"
             >
                 <ProjectIcon icon={project.icon} />
-                <span className="max-w-48 truncate text-sm font-medium">
+                <span className="max-w-48 truncate text-[13px] font-medium">
                     {project.displayTitle}
                 </span>
             </div>

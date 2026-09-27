@@ -128,7 +128,7 @@ export function PinnedSessionGroup({
                     onClick={onToggle}
                 >
                     <Pin aria-hidden="true" className="flex-none text-muted" size={13} />
-                    <strong className="overflow-fade min-w-0 flex-1 text-sm font-semibold">
+                    <strong className="overflow-fade min-w-0 flex-1 text-[13px] font-medium">
                         Pinned
                     </strong>
                 </button>

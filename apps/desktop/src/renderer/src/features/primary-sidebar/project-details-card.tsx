@@ -83,7 +83,7 @@ export function ProjectDetailsCard({
                         </p>
                     </div>
                 </div>
-                <div className="mt-3 flex min-w-0 items-start gap-1.5 border-t border-border pt-2 text-[10px] leading-[1.45] text-muted">
+                <div className="mt-3 flex min-w-0 items-start gap-1.5 border-t border-border pt-2 text-[12px] leading-[1.45] text-muted">
                     <FolderClosed aria-hidden="true" className="mt-px flex-none" size={13} />
                     <span className="min-w-0 break-all">{project.rootPath}</span>
                 </div>

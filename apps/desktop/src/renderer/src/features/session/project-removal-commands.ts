@@ -26,10 +26,16 @@ export function deleteProject(projectId?: string): void {
 
 /**
  * Hiding needs no confirmation: every record survives, and adding the same folder again brings the Project back.
+ *
+ * `projectId` lets the Project row's context menu hide the clicked Project directly, since a right-click does not
+ * change which Project is selected; the menu bar and command palette omit it and keep hiding the selected Project.
  */
-export function hideSelectedProject(): void {
+export function hideSelectedProject(projectId?: string): void {
     const bootstrap = getBootstrap();
-    const project = selectSelectedProject(bootstrap);
+    const project =
+        projectId === undefined
+            ? selectSelectedProject(bootstrap)
+            : bootstrap?.projects.find((candidate) => candidate.id === projectId);
     if (!bootstrap || !project) return;
     // Fire-and-forget: `tryCommand` funnels the request's own failure into a toast internally.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
