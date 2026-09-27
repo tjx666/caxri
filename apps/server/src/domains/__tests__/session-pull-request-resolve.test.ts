@@ -55,6 +55,25 @@ describe('SessionPullRequestService.resolve', () => {
         expect(emitted).toHaveLength(1);
     });
 
+    it('re-asks a failed lookup on the next read instead of holding it for the failure TTL', async () => {
+        let isSignedIn = false;
+        const { runner, service, setTranscript } = await harness({
+            gh: () =>
+                isSignedIn
+                    ? Promise.resolve(pullRequestJson({ state: 'OPEN' }))
+                    : Promise.reject(new Error('not logged in')),
+        });
+        await setTranscript(createdPullRequestLines);
+        expect((await service.resolve('session-1'))?.unavailable).toBeDefined();
+
+        isSignedIn = true;
+        const resolution = await service.resolve('session-1');
+
+        expect(resolution?.unavailable).toBeUndefined();
+        expect(resolution?.value?.number).toBe(19_024);
+        expect(viewCalls(runner)).toHaveLength(2);
+    });
+
     it('confirms a Session with no pull request as an empty resolution', async () => {
         const { service } = await harness({});
 

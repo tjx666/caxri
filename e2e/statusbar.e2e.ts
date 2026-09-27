@@ -30,7 +30,11 @@ if [ "$1 $2 $3" = "api graphql -f" ]; then
   printf '%s' '{"data":{"rateLimit":{"limit":5000,"remaining":5000,"used":0,"resetAt":"2100-01-01T00:00:00Z"}}}'
   exit 0
 fi
-printf '%s' '{"number":11,"title":"Linked Status Bar","url":"https://github.com/tjx666/status-project/pull/11"}'
+if [ "$1 $2" = "pr list" ]; then
+  printf '%s' '[{"number":11,"state":"OPEN","isDraft":false}]'
+  exit 0
+fi
+printf '%s' '{"number":11,"state":"OPEN","title":"Linked Status Bar","url":"https://github.com/tjx666/status-project/pull/11"}'
 `,
         'utf8',
     );
@@ -179,9 +183,13 @@ exec /bin/zsh -l
                 name: 'Open changes: 2 additions, 1 deletion',
             }),
         ).toBeVisible();
-        // One pull-request read per branch, not one per poll: the Server-wide projection is what the status bar reads.
+        /**
+         * One pull-request read per Session, not one per poll: the status bar follows the Session's own projection,
+         * which finds #11 through `pr list` and then shares one record by number with the sidebar row.
+         */
         const ghArguments = (await readFile(ghCalls, 'utf8')).trim().split('\n');
-        expect(ghArguments.filter((line) => line.startsWith('pr view'))).toHaveLength(2);
+        expect(ghArguments.filter((line) => line.startsWith('pr list'))).toHaveLength(1);
+        expect(ghArguments.filter((line) => line.startsWith('pr view'))).toHaveLength(1);
         expect(ghArguments.filter((line) => line.startsWith('api graphql -f'))).toHaveLength(1);
 
         // The status bar no longer offers an "open Files" chip, so reach the file tree through

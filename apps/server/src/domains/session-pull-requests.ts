@@ -747,7 +747,12 @@ export class SessionPullRequestService {
         const session = this.database.getSession(sessionId);
         if (!session || session.archivedAt !== undefined) return undefined;
         let entry = this.currentEntry(session);
-        if (!entry || entry.expiresAt <= this.now()) {
+        /**
+         * A failed lookup is re-asked on every status bar poll, not held for its failure TTL, so a signed-in `gh`
+         * clears the indicator on the next poll. The limiter still refuses calls while GitHub's rate limit is paused.
+         */
+        if (entry?.unavailable) this.forcedSessionIds.add(sessionId);
+        if (!entry || entry.unavailable || entry.expiresAt <= this.now()) {
             const { isJoined, update } = await this.runUpdate(session);
             if (!isJoined && update.outcome === 'changed') this.announce([sessionId]);
             entry = update.outcome === 'rebound' ? undefined : this.currentEntry(session);
