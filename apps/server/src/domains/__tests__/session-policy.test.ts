@@ -57,7 +57,6 @@ function session(overrides: Partial<SessionRecord> = {}): SessionRecord {
         readAttentionEpoch: 0,
         lastAttentionKind: undefined,
         hasUnread: false,
-        layoutVersion: 2,
         displayTitle: DEFAULT_SESSION_TITLE,
         titleMode: 'automatic',
         ...overrides,

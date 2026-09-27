@@ -526,7 +526,6 @@ describe('transport-neutral dispatcher', () => {
                         attentionEpoch: 0,
                         readAttentionEpoch: 0,
                         hasUnread: false,
-                        layoutVersion: 1,
                     };
                 },
             },

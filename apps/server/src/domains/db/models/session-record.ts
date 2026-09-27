@@ -31,7 +31,6 @@ export const sessionSelection = {
     attentionEpoch: sessions.attentionEpoch,
     readAttentionEpoch: sessions.readAttentionEpoch,
     lastAttentionKind: sessions.lastAttentionKind,
-    layoutVersion: sessions.layoutVersion,
     displayTitle: sessions.displayTitle,
     titleMode: sessions.titleMode,
 };
@@ -54,7 +53,6 @@ interface SessionJoinRow {
     attentionEpoch: number;
     readAttentionEpoch: number;
     lastAttentionKind: string | null;
-    layoutVersion: number;
     displayTitle: string;
     titleMode: string;
 }
@@ -80,7 +78,6 @@ export function mapSession(row: SessionJoinRow): SessionRecord {
         readAttentionEpoch: row.readAttentionEpoch,
         lastAttentionKind: (row.lastAttentionKind as SessionAttentionKind | null) ?? undefined,
         hasUnread: row.attentionEpoch > row.readAttentionEpoch,
-        layoutVersion: row.layoutVersion,
         displayTitle: row.displayTitle,
         titleMode: row.titleMode as SessionTitleMode,
     };

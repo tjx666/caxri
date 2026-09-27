@@ -116,16 +116,6 @@ export class CaxriDatabase {
     }
 
     /**
-     * Removes one Project row plus the bindings no foreign key can clear. Neither `projects.owner_project_id` nor
-     * `sessions.workbench_project_id` could keep an ON DELETE action through a generated SQLite ALTER migration, so
-     * both cascades are explicit application code that fresh and upgraded databases run identically.
-     */
-    private removeProjectRow(projectId: string): boolean {
-        this.db.sessions.resetWorkbenchProject(projectId);
-        return this.db.projects.remove(projectId);
-    }
-
-    /**
      * Every Project id a deletion of `projectId` removes: the Project itself plus the worktree Projects registered on
      * its behalf.
      */
@@ -240,12 +230,13 @@ export class CaxriDatabase {
         this.db.transaction(() => {
             const cascadedProjectIds = this.deletedProjectIds(projectId);
             /**
-             * Owned rows go first: `owner_project_id` is a plain reference, so removing the owner while one still
-             * points at it would violate the foreign key.
+             * Foreign keys cascade the owned worktree Projects and every Session they own, and null
+             * `sessions.workbench_project_id`. The Workbench root identity columns and the per-root JSON state are
+             * beyond any foreign key, so each deleted root is cleared from them first.
              */
             for (const cascadedProjectId of cascadedProjectIds)
-                if (cascadedProjectId !== projectId) this.removeProjectRow(cascadedProjectId);
-            if (!this.removeProjectRow(projectId))
+                this.db.sessions.resetWorkbenchProject(cascadedProjectId);
+            if (!this.db.projects.remove(projectId))
                 throw new CaxriError('NOT_FOUND', 'Project not found');
             moveSelectionOffProjects(this.db, cascadedProjectIds);
         });
@@ -725,8 +716,12 @@ export class CaxriDatabase {
         this.db.transaction(() => {
             const terminal = this.db.terminals.get(id);
             if (!terminal) return;
-            this.db.terminals.remove(id);
+            /**
+             * Read before removal: `primary_agent_terminal_id` is `ON DELETE SET NULL`, so afterwards the Session no
+             * longer names the Terminal that needs a successor.
+             */
             const session = this.db.sessions.get(terminal.sessionId);
+            this.db.terminals.remove(id);
             if (session?.primaryAgentTerminalId === id) {
                 const remaining = this.db.terminals.list(terminal.sessionId);
                 const succession = choosePrimaryAgentSuccessor(remaining, session);

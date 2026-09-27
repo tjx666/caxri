@@ -72,7 +72,6 @@ export function session(overrides: Partial<SessionRecord> = {}): SessionRecord {
         attentionEpoch: 0,
         readAttentionEpoch: 0,
         hasUnread: false,
-        layoutVersion: 1,
         displayTitle: 'Session',
         titleMode: 'automatic',
         ...overrides,

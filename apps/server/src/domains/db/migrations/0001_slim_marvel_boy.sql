@@ -1,1 +1,0 @@
-ALTER TABLE `sessions` ADD `archived_at` integer;

@@ -41,7 +41,6 @@ const source: RecordQuerySource = {
             attentionEpoch: 0,
             readAttentionEpoch: 0,
             hasUnread: false,
-            layoutVersion: 1,
             titleMode: 'automatic',
         },
         {
@@ -59,7 +58,6 @@ const source: RecordQuerySource = {
             attentionEpoch: 1,
             readAttentionEpoch: 0,
             hasUnread: true,
-            layoutVersion: 1,
             titleMode: 'manual',
         },
     ],
