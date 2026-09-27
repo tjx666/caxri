@@ -150,21 +150,26 @@ test('Agent Commander board moves a task stuck at Agent startup to Needs attenti
         await expect.poll(() => running.app.windows().length).toBe(2);
         const commander = running.app.windows().find((page) => page !== running.page)!;
 
-        await expect
-            .poll(async () => {
-                try {
-                    return JSON.parse(await readFile(resultPath, 'utf8')) as { step: string };
-                } catch {
-                    return;
-                }
-            })
-            .toMatchObject({ step: 'done' });
+        const readResult = async () => {
+            try {
+                return JSON.parse(await readFile(resultPath, 'utf8')) as {
+                    step: string;
+                    sessionId?: string;
+                };
+            } catch {
+                return;
+            }
+        };
+        await expect.poll(readResult).toMatchObject({ step: 'done' });
+        const { sessionId } = (await readResult())!;
         /**
          * The startup deadline (15 seconds) moves the task to `blocked`/`startup_waiting`. The board's 10-second poll
          * also picks that up, so this proves the attention path end to end, not the latency of the receipt event; the
          * event itself is covered by the delegation service tests.
          */
-        const task = commander.locator('[data-commander-group="attention"] .commander-board-task');
+        const task = commander.locator(
+            `li[data-session-id="${sessionId}"][data-commander-group="attention"] .commander-board-task`,
+        );
         await expect(task).toHaveText('Needs you', { timeout: 45_000 });
         await testInfo.attach('commander-board-needs-you', {
             body: await commander.locator('.commander-board').screenshot(),
