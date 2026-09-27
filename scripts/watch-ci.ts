@@ -55,7 +55,13 @@ export interface WatchedJob {
 
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/watch-ci.test.ts
 export interface WatchState {
+    /**
+     * Run identity shown in notifications. Each agent session owns one worktree branch, so the branch is what tells the
+     * operator which session's delivery the run belongs to; the display title is the PR or commit title.
+     */
+    branch?: string;
     conclusion: string;
+    displayTitle?: string;
     heartbeatAt: string;
     jobs: WatchedJob[];
     notifiedFailedJobs: string[];
@@ -63,6 +69,7 @@ export interface WatchState {
     runId: string;
     status: string;
     url?: string;
+    workflowName?: string;
 }
 
 /**
@@ -108,6 +115,54 @@ export function formatRunSummary(state: Pick<WatchState, 'conclusion' | 'jobs' |
     return lines.join('\n');
 }
 
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/watch-ci.test.ts
+export interface CiNotification {
+    message: string;
+    subtitle?: string;
+    title: string;
+}
+
+/**
+ * Notification copy for a failed job or a finished run. The bare `run <id>: failure` it replaces named neither the
+ * branch nor the failing job, so the operator had to open the run to learn which session broke and where.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/watch-ci.test.ts
+export function formatCiNotification(
+    state: Pick<
+        WatchState,
+        'branch' | 'conclusion' | 'displayTitle' | 'jobs' | 'runId' | 'status' | 'workflowName'
+    >,
+    newlyFailed: string[] = [],
+): CiNotification {
+    const target = state.branch ?? `run ${state.runId}`;
+    const subtitle = state.displayTitle;
+    const workflow = state.workflowName ?? 'CI';
+    const failedJobs =
+        newlyFailed.length > 0
+            ? newlyFailed
+            : state.jobs
+                  .filter((job) => FAILURE_CONCLUSIONS.has(job.conclusion))
+                  .map((job) => job.name);
+    const withSubtitle = (notification: CiNotification): CiNotification =>
+        subtitle ? { ...notification, subtitle } : notification;
+    if (
+        newlyFailed.length === 0 &&
+        state.status === 'completed' &&
+        state.conclusion === 'success'
+    ) {
+        return withSubtitle({ title: `CI passed · ${target}`, message: `${workflow} succeeded` });
+    }
+    const outcome =
+        newlyFailed.length > 0 ? 'failed' : (state.conclusion || 'failed').replaceAll('_', ' ');
+    return withSubtitle({
+        title: `CI failed · ${target}`,
+        message:
+            failedJobs.length > 0
+                ? `${workflow} ${outcome}: ${failedJobs.join(', ')}`
+                : `${workflow} ${outcome}`,
+    });
+}
+
 function statePath(runId: string): string {
     return join(STATE_DIRECTORY, `${runId}.json`);
 }
@@ -132,29 +187,32 @@ async function writeState(state: WatchState): Promise<void> {
 }
 
 /**
- * Repository icon shown on alerter notifications; resolved from the script location so worktrees work too.
+ * Repository icon shown on alerter notifications; resolved from the script location so worktrees work too. alerter
+ * draws the image as-is, so it must be the variant with the rounded macOS plate baked in, not the full-bleed
+ * `icon.png`.
  */
-const APP_ICON_PATH = fileURLToPath(new URL('../build/icon.png', import.meta.url));
+const APP_ICON_PATH = fileURLToPath(new URL('../build/notification-icon.png', import.meta.url));
 
 /**
  * How long an alerter notification stays up (and the poller blocks) waiting for a click before auto-closing. Failure
  * notifications are rare, so pausing the 20s poll cadence for up to this long is an acceptable trade for
  * click-to-open.
  */
-const NOTIFICATION_TIMEOUT_SECONDS = 10;
+const NOTIFICATION_TIMEOUT_SECONDS = 30;
 
 /**
  * Best-effort macOS notification. Prefers `alerter` (brew) over `osascript` because AppleScript notifications are
  * permanently branded with the Script Editor icon and cannot react to clicks; alerter shows the repository icon and
  * clicking the notification opens the run page. Falls back to `osascript` only when alerter is not installed.
  */
-async function notify(title: string, message: string, url?: string): Promise<void> {
+async function notify({ message, subtitle, title }: CiNotification, url?: string): Promise<void> {
     console.log(`${title}: ${message}`);
     if (process.platform !== 'darwin') return;
     try {
         const { stdout } = await execFileAsync('alerter', [
             '--title',
             title,
+            ...(subtitle ? ['--subtitle', subtitle] : []),
             '--message',
             message,
             '--app-icon',
@@ -185,16 +243,25 @@ async function notify(title: string, message: string, url?: string): Promise<voi
 
 interface GhRunView {
     conclusion?: string;
+    displayTitle?: string;
+    headBranch?: string;
     jobs?: Array<{ conclusion?: string; name?: string; status?: string }>;
     status?: string;
     url?: string;
+    workflowName?: string;
 }
 
 async function fetchRun(runId: string): Promise<GhRunView> {
     try {
         const { stdout } = await execFileAsync(
             'gh',
-            ['run', 'view', runId, '--json', 'status,conclusion,jobs,url'],
+            [
+                'run',
+                'view',
+                runId,
+                '--json',
+                'status,conclusion,jobs,url,headBranch,displayTitle,workflowName',
+            ],
             { timeout: 60_000 },
         );
         return JSON.parse(stdout) as GhRunView;
@@ -205,7 +272,13 @@ async function fetchRun(runId: string): Promise<GhRunView> {
         // success/failure detection — the watcher's core contract — keeps working.
         const { stdout } = await execFileAsync(
             'gh',
-            ['run', 'view', runId, '--json', 'status,conclusion,url'],
+            [
+                'run',
+                'view',
+                runId,
+                '--json',
+                'status,conclusion,url,headBranch,displayTitle,workflowName',
+            ],
             { timeout: 60_000 },
         );
         return JSON.parse(stdout) as GhRunView;
@@ -281,7 +354,9 @@ async function pollOnce(runId: string, previous: WatchState | undefined): Promis
           }))
         : (previous?.jobs ?? []);
     const state: WatchState = {
+        branch: view.headBranch ?? previous?.branch,
         conclusion: view.conclusion ?? '',
+        displayTitle: view.displayTitle ?? previous?.displayTitle,
         heartbeatAt: new Date().toISOString(),
         jobs,
         notifiedFailedJobs: previous?.notifiedFailedJobs ?? [],
@@ -289,15 +364,12 @@ async function pollOnce(runId: string, previous: WatchState | undefined): Promis
         runId,
         status: view.status ?? '',
         url: view.url,
+        workflowName: view.workflowName ?? previous?.workflowName,
     };
     const failedJobs = newlyFailedJobs(state.notifiedFailedJobs, jobs);
     if (failedJobs.length > 0) {
         state.notifiedFailedJobs = [...state.notifiedFailedJobs, ...failedJobs];
-        await notify(
-            'Caxri CI failed',
-            `${failedJobs.join(', ')} — ${state.url ?? runId}`,
-            state.url,
-        );
+        await notify(formatCiNotification(state, failedJobs), state.url);
     }
     await writeState(state);
     return state;
@@ -344,9 +416,7 @@ async function main(): Promise<void> {
             if (state.status === 'completed') {
                 const isOk = state.conclusion === 'success';
                 // eslint-disable-next-line no-await-in-loop -- terminal notification; the loop exits right after
-                await (isOk
-                    ? notify('Caxri CI passed', `run ${runId}`, state.url)
-                    : notify('Caxri CI failed', `run ${runId}: ${state.conclusion}`, state.url));
+                await notify(formatCiNotification(state), state.url);
                 process.exit(isOk ? 0 : 1);
             }
         }
