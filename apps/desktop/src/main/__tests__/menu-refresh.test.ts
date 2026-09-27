@@ -15,6 +15,8 @@ function terminalCopyLabel(keybindings: Keybinding[]): string | undefined {
         openAgentCommander: vi.fn(),
         stopAgentCommander: vi.fn(),
         openProcessExplorer: vi.fn(),
+        workbenchWindow: vi.fn(),
+        focusWorkbench: vi.fn(),
     });
     const terminalMenu = template.find((item) => item.label === 'Terminal');
     const submenu = terminalMenu?.submenu;
