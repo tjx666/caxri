@@ -1,5 +1,6 @@
 import type { CaxriErrorCode, WireError } from '@caxri/protocol';
 import { CaxriError, isCaxriError } from '@caxri/protocol';
+import type { z } from 'zod';
 
 export type CliOutputMode = 'human' | 'json' | 'quiet';
 
@@ -16,6 +17,31 @@ function sorted(value: unknown): unknown {
 
 export function stableJson(value: unknown): string {
     return JSON.stringify(sorted(value));
+}
+
+/**
+ * A result or entry field may be missing, which is exactly what `hasQuietIds` looks for.
+ */
+function shapeOf(schema: z.ZodType): Partial<Record<string, z.ZodType>> {
+    return schema.def.type === 'object'
+        ? (schema as z.ZodObject<Record<string, z.ZodType>>).shape
+        : {};
+}
+
+/**
+ * Whether every variant of a method's result schema yields a string ID for `--quiet`, read from `idKey` on each entry
+ * (the result itself, or the list under `quietKey`). A union result, such as a query's per-principal views, must yield
+ * one from every variant.
+ */
+export function hasQuietIds(result: z.ZodType, quietKey?: string, idKey = 'id'): boolean {
+    if (result.def.type === 'union')
+        return (result as z.ZodUnion<z.ZodType[]>).options.every((option) =>
+            hasQuietIds(option, quietKey, idKey),
+        );
+    const entries = quietKey ? shapeOf(result)[quietKey] : result;
+    const entry =
+        entries?.def.type === 'array' ? (entries as z.ZodArray<z.ZodType>).element : entries;
+    return entry !== undefined && shapeOf(entry)[idKey]?.def.type === 'string';
 }
 
 /**
