@@ -6,7 +6,7 @@ import {
     ARGV_RESTART_NOTICE_PREFIX,
     argvRestartNotice,
     settingTitleForArgvKey,
-} from '../use-settings-dialog-controller';
+} from '../use-settings-page-controller';
 
 const BOOT_BASELINE: ArgvConfig = { hardwareAcceleration: true, remoteDebugging: true };
 
@@ -87,9 +87,9 @@ describe('argvRestartNotice', () => {
     });
 
     /**
-     * The dialog retracts its own previous wording by prefix, so every sentence this builds has to carry it.
+     * The toast retracts its own previous wording by prefix, so every sentence this builds has to carry it.
      */
-    it('always opens with the prefix the dialog retracts on', () => {
+    it('always opens with the prefix the toast retracts on', () => {
         for (const applied of [
             { hardwareAcceleration: false, remoteDebugging: true },
             { hardwareAcceleration: true, remoteDebugging: false },

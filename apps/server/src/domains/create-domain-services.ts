@@ -23,6 +23,7 @@ import { createBugReportDeliveryHandler } from './bug-report-delivery';
 import { createDeletionHandlers } from './deletion-handlers';
 import { DiagnosticsService } from './diagnostics';
 import type { DomainDependencies, DomainHandlers, DomainServices } from './domain-services';
+import { createGitReviewHandlers } from './git-review-comments';
 import { createIntrospectionServices } from './introspection';
 import { createMobileDomainHandlers } from './mobile';
 import { MobileTerminalMutationQueue } from './mobile-terminal-mutation-queue';
@@ -34,6 +35,7 @@ import { createRootServices } from './root-services';
 import { createServiceHandlers, mainOwned } from './service-handlers';
 import { SessionCompaction } from './session-compaction';
 import { createMobileSessionHandler, createSessionCreator } from './session-creation';
+import { createSessionPermissionAutoAllowHandlers } from './session-permission-auto-allow-handlers';
 import { SessionSelectionQueue } from './session-selection';
 import {
     ShellIntegrationService,
@@ -272,6 +274,7 @@ export async function createDomainServices(
         coordinator.forgetSession(sessionId);
         transcripts.forgetSession(sessionId);
         terminals.terminateSession(sessionId);
+        agentRuntime.revokeAutoAllow(sessionId, 'sessionDeleted'); // Archive keeps it (caxri#1295).
     };
     const evictSessionCaches = (sessionIds: readonly string[]): void => {
         git.evictSessions(sessionIds);
@@ -454,6 +457,7 @@ export async function createDomainServices(
         readiness: compactionReadiness,
         environment: agentEnvironment,
     });
+    const terminalInput = createTerminalInputHandler({ coordinator, database, send, terminals });
     const handlers: DomainHandlers = {
         'session.compactWarm': (_parameters, signal) => compaction.run(signal),
         'extensions.retry': () => mainOwned('extensions.retry'),
@@ -595,6 +599,7 @@ export async function createDomainServices(
         },
         'mobile.session.createForPrincipal': createMobileSessionForPrincipal,
         ...createMobileDomainHandlers({
+            autoAllow: agentRuntime,
             attentionRequests,
             imageDirectory: join(userDataPath, 'mobile-attachments'),
             configuration,
@@ -665,6 +670,7 @@ export async function createDomainServices(
                 sendFullStateChange('session.resume');
                 return database.getSession(sessionId)!;
             }),
+        ...createSessionPermissionAutoAllowHandlers(agentRuntime),
         'session.unarchive': ({ placement, sessionId }) =>
             unarchiveSessions([sessionId], placement)[0],
         'session.unarchiveMany': ({ placement, sessionIds }) =>
@@ -694,7 +700,7 @@ export async function createDomainServices(
             return terminal;
         },
         'terminal.openFileLink': () => mainOwned('terminal.openFileLink'),
-        'terminal.input': createTerminalInputHandler({ coordinator, database, send, terminals }),
+        'terminal.input': terminalInput,
         'terminal.inputBinary': createTerminalBinaryInputHandler({
             coordinator,
             database,
@@ -774,6 +780,7 @@ export async function createDomainServices(
             userDataPath,
             vercel,
         }),
+        ...createGitReviewHandlers({ database, git, longPastes, send, terminalInput, terminals }),
     };
     observeSelectedSession(selectedSessionId());
     terminalSuspension.start();

@@ -5,8 +5,10 @@ import type { AppQuitOptions } from '../app-quit';
 import {
     appQuitPrompt,
     confirmAppQuit,
+    confirmPendingReviewCommentsQuit,
     createAppQuitHandler,
     notifyAppQuitStopFailure,
+    pendingReviewCommentsPrompt,
     resolveAppQuit,
 } from '../app-quit';
 
@@ -15,12 +17,14 @@ function options(overrides: Partial<AppQuitOptions> = {}): AppQuitOptions {
         acceptQuit: vi.fn(),
         closeDesktop: vi.fn().mockResolvedValue(undefined),
         confirm: vi.fn().mockResolvedValue('keep-running'),
+        confirmPendingReviewComments: vi.fn().mockResolvedValue('discard'),
         detachAll: vi.fn().mockResolvedValue(undefined),
         exit: vi.fn(),
         quitIntent: () => 'user',
         logFailure: vi.fn(),
         notifyStopFailure: vi.fn().mockResolvedValue(undefined),
         persistWindowState: vi.fn().mockResolvedValue(undefined),
+        readPendingReviewComments: vi.fn().mockResolvedValue({ count: 0, groups: [] }),
         readStatus: vi.fn().mockResolvedValue({ activePtyCount: 0, clientCount: 1 }),
         stopServer: vi.fn().mockResolvedValue(undefined),
         ...overrides,
@@ -121,11 +125,102 @@ describe('resolveAppQuit', () => {
 
             await expect(resolveAppQuit(target)).resolves.toBe('kept-running');
 
+            expect(target.readPendingReviewComments).not.toHaveBeenCalled();
             expect(target.readStatus).not.toHaveBeenCalled();
             expect(target.confirm).not.toHaveBeenCalled();
             expect(target.detachAll).toHaveBeenCalledOnce();
         },
     );
+
+    it('cancels the quit when the user declines to lose pending review comments, without reaching the task decision', async () => {
+        const target = options({
+            readPendingReviewComments: vi.fn().mockResolvedValue({
+                count: 2,
+                groups: [
+                    {
+                        sessionId: 'session-1',
+                        repositoryId: 'repo-1',
+                        repositoryName: 'caxri',
+                        count: 2,
+                    },
+                ],
+            }),
+            confirmPendingReviewComments: vi.fn().mockResolvedValue('cancel'),
+        });
+
+        await expect(resolveAppQuit(target)).resolves.toBe('cancelled');
+
+        expect(target.confirmPendingReviewComments).toHaveBeenCalledWith({
+            count: 2,
+            groups: [
+                {
+                    sessionId: 'session-1',
+                    repositoryId: 'repo-1',
+                    repositoryName: 'caxri',
+                    count: 2,
+                },
+            ],
+        });
+        expect(target.readStatus).not.toHaveBeenCalled();
+        expect(target.acceptQuit).not.toHaveBeenCalled();
+    });
+
+    it('continues quitting after discarding pending review comments', async () => {
+        const target = options({
+            readPendingReviewComments: vi.fn().mockResolvedValue({
+                count: 1,
+                groups: [
+                    {
+                        sessionId: 'session-1',
+                        repositoryId: 'repo-1',
+                        repositoryName: 'caxri',
+                        count: 1,
+                    },
+                ],
+            }),
+            confirmPendingReviewComments: vi.fn().mockResolvedValue('discard'),
+        });
+
+        await expect(resolveAppQuit(target)).resolves.toBe('stopped');
+
+        expect(target.readStatus).toHaveBeenCalledOnce();
+    });
+
+    it('fails open and continues quitting when pending review comments cannot be read', async () => {
+        const target = options({
+            readPendingReviewComments: vi.fn().mockRejectedValue(new Error('Server unavailable')),
+        });
+
+        await expect(resolveAppQuit(target)).resolves.toBe('stopped');
+
+        expect(target.logFailure).toHaveBeenCalledWith(
+            'error',
+            'reviewComments',
+            'Server unavailable',
+        );
+        expect(target.confirmPendingReviewComments).not.toHaveBeenCalled();
+    });
+
+    it('fails open and continues quitting when the pending review comments prompt itself fails', async () => {
+        const target = options({
+            readPendingReviewComments: vi.fn().mockResolvedValue({
+                count: 1,
+                groups: [
+                    {
+                        sessionId: 'session-1',
+                        repositoryId: 'repo-1',
+                        repositoryName: 'caxri',
+                        count: 1,
+                    },
+                ],
+            }),
+            confirmPendingReviewComments: vi.fn().mockRejectedValue(new Error('dialog failed')),
+        });
+
+        await expect(resolveAppQuit(target)).resolves.toBe('stopped');
+
+        expect(target.logFailure).toHaveBeenCalledWith('error', 'reviewComments', 'dialog failed');
+    });
 
     it('exits after best-effort shutdown failures and reports their owning stages', async () => {
         const target = options({
@@ -155,7 +250,9 @@ describe('createAppQuitHandler', () => {
         const first = requestQuit();
         const second = requestQuit();
         expect(first).toBe(second);
-        expect(readStatus).toHaveBeenCalledOnce();
+        // `decidePendingReviewComments` now awaits its own Server round-trip before `readStatus` runs, adding a
+        // microtask hop ahead of it; wait for that hop to settle instead of asserting immediately after the call.
+        await vi.waitFor(() => expect(readStatus).toHaveBeenCalledOnce());
         status.resolve({ activePtyCount: 1, clientCount: 1 });
         await first;
 
@@ -186,6 +283,75 @@ describe('appQuitPrompt', () => {
             'keep-running',
         );
         expect(showMessageBox).toHaveBeenCalledWith(appQuitPrompt(impact));
+    });
+
+    it('explains the pending review comment count and repository count without defaulting to discarding them', () => {
+        expect(
+            pendingReviewCommentsPrompt({
+                count: 3,
+                groups: [
+                    {
+                        sessionId: 'session-1',
+                        repositoryId: 'repo-1',
+                        repositoryName: 'caxri',
+                        count: 2,
+                    },
+                    {
+                        sessionId: 'session-1',
+                        repositoryId: 'repo-2',
+                        repositoryName: 'other',
+                        count: 1,
+                    },
+                ],
+            }),
+        ).toEqual({
+            buttons: ['Quit Anyway', 'Cancel'],
+            cancelId: 1,
+            defaultId: 1,
+            detail: 'Review comments live in memory only and do not survive quitting Caxri. 2 repositories have unsent comments.',
+            message: '3 pending review comments will be lost.',
+            title: 'Quit with pending review comments?',
+            type: 'warning',
+        });
+    });
+
+    it('shows the pending review comments prompt without a parent when no window remains', async () => {
+        const showMessageBox = vi.fn().mockResolvedValue({ response: 1 });
+        const summary = {
+            count: 1,
+            groups: [
+                {
+                    sessionId: 'session-1',
+                    repositoryId: 'repo-1',
+                    repositoryName: 'caxri',
+                    count: 1,
+                },
+            ],
+        };
+
+        await expect(
+            confirmPendingReviewCommentsQuit({ showMessageBox } as never, undefined, summary),
+        ).resolves.toBe('cancel');
+        expect(showMessageBox).toHaveBeenCalledWith(pendingReviewCommentsPrompt(summary));
+    });
+
+    it('resolves to discard when the user picks Quit Anyway', async () => {
+        const showMessageBox = vi.fn().mockResolvedValue({ response: 0 });
+        const summary = {
+            count: 1,
+            groups: [
+                {
+                    sessionId: 'session-1',
+                    repositoryId: 'repo-1',
+                    repositoryName: 'caxri',
+                    count: 1,
+                },
+            ],
+        };
+
+        await expect(
+            confirmPendingReviewCommentsQuit({ showMessageBox } as never, undefined, summary),
+        ).resolves.toBe('discard');
     });
 
     it('warns before fail-open exit when the accepted stop action fails', async () => {

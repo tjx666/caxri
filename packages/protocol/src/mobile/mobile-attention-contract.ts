@@ -31,4 +31,11 @@ export const mobileAttentionAnswerParametersSchema = z.strictObject({
     requestId: identifierSchema,
     decision: z.enum(['allow', 'deny']).optional(),
     answers: z.record(z.string().min(1).max(500), z.string().max(500)).optional(),
+    /**
+     * "Always allow in this Session" (issue caxri#1295). Only meaningful alongside `decision: 'allow'` on a pending
+     * `permission` request; `AgentAttentionRequests.answer` already rejects a `decision` on a `question` request, so
+     * this can never grant auto-allow from a question card. The Server grants the Session-scoped auto-allow after this
+     * request is answered.
+     */
+    autoAllow: z.literal(true).optional(),
 });

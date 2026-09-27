@@ -11,6 +11,7 @@ import {
     createShellSession,
     launchCaxri,
     openPanelView,
+    openSettingsTab,
     pageRequest,
     runtimeStatus,
     selectedSessionId,
@@ -111,8 +112,8 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         await expect(infoTab).toHaveClass(/active/);
         await expect(running.page.locator('.terminal-info-card')).not.toHaveCount(0);
 
-        await running.page.keyboard.press('Meta+,');
-        await running.page.getByRole('tab', { name: 'Theme', exact: true }).click();
+        const settingsTab = await openSettingsTab(running.page);
+        await settingsTab.getByRole('tab', { name: 'Theme', exact: true }).click();
         await expect(running.page.getByText('Dracula', { exact: true })).toBeVisible();
         await running.page.getByRole('button', { name: 'Source' }).click();
         // Scoped by `data-config-source`, not by accessible name: `ConfigurationEditor` passes the
@@ -122,13 +123,18 @@ test('complete local workbench workflow, recovery, privacy, and persistence', as
         await expect(
             running.page.locator('[data-config-source="theme"] .view-lines'),
         ).toContainText('#282a36');
-        const terminalTabCount = await running.page.locator(`${VISIBLE_SESSION} .work-tab`).count();
+        const tabCountWithSettings = await running.page
+            .locator(`${VISIBLE_SESSION} .work-tab`)
+            .count();
+        // Settings is a Workbench tab now, not a modal (issue caxri#1289): `Cmd+W` closes the
+        // active tab exactly like it would for any other document, which here is the Settings tab
+        // itself, one fewer `.work-tab` than before — not the Terminal or editor tab underneath it,
+        // the way the old modal-swallowed shortcut used to prove by changing nothing at all.
         await running.page.keyboard.press('Meta+W');
-        await expect(running.page.getByRole('dialog')).toBeVisible();
+        await expect(settingsTab).toHaveCount(0);
         await expect(running.page.locator(`${VISIBLE_SESSION} .work-tab`)).toHaveCount(
-            terminalTabCount,
+            tabCountWithSettings - 1,
         );
-        await running.page.getByRole('button', { name: 'Close' }).click();
 
         await running.app.evaluate(({ dialog }, path) => {
             dialog.showSaveDialog = () => Promise.resolve({ canceled: false, filePath: path });

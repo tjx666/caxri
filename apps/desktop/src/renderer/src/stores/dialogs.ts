@@ -28,8 +28,12 @@ export type StatusBarPicker = 'branch' | 'workbenchRoot';
 
 interface DialogState {
     archivedSessionsOpen: boolean;
-    settingsOpen: boolean;
     settingsRequest: { id: number; view: SettingsView; provider?: AgentProvider };
+    /**
+     * The last {@link DialogState.settingsRequest} id the user closed from the Welcome view's Settings surface
+     * (`NoSessionSurface` in `workbench.tsx`), which stands in for the Settings tab before any Session exists.
+     */
+    sessionlessSettingsDismissedId: number;
     paletteOpen: boolean;
     projectSearchOpen: boolean;
     sessionContentSearchOpen: boolean;
@@ -79,8 +83,12 @@ interface DialogState {
      */
     openModalIds: Set<string>;
     setArchivedSessionsOpen(isOpen: boolean): void;
+    /**
+     * Bumps {@link DialogState.settingsRequest}. The Settings surface is an ordinary Workbench document tab, opened
+     * through `openEditorTab` by the request listener in `app.tsx`, not tracked here as an open/closed boolean.
+     */
     openSettings(view?: SettingsView, provider?: AgentProvider): void;
-    setSettingsOpen(isOpen: boolean): void;
+    dismissSessionlessSettings(): void;
     setPaletteOpen(isOpen: boolean): void;
     setProjectSearchOpen(isOpen: boolean): void;
     setSessionContentSearchOpen(isOpen: boolean): void;
@@ -115,8 +123,8 @@ interface DialogState {
 
 export const useDialogStore = createStore<DialogState>('dialogs', (set, get) => ({
     archivedSessionsOpen: false,
-    settingsOpen: false,
     settingsRequest: { id: 0, view: 'ui' },
+    sessionlessSettingsDismissedId: 0,
     paletteOpen: false,
     projectSearchOpen: false,
     sessionContentSearchOpen: false,
@@ -135,10 +143,10 @@ export const useDialogStore = createStore<DialogState>('dialogs', (set, get) => 
     setArchivedSessionsOpen: (archivedSessionsOpen) => set({ archivedSessionsOpen }),
     openSettings: (view = 'ui', provider) =>
         set((state) => ({
-            settingsOpen: true,
             settingsRequest: { id: state.settingsRequest.id + 1, view, provider },
         })),
-    setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
+    dismissSessionlessSettings: () =>
+        set((state) => ({ sessionlessSettingsDismissedId: state.settingsRequest.id })),
     setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
     setProjectSearchOpen: (projectSearchOpen) => set({ projectSearchOpen }),
     setSessionContentSearchOpen: (sessionContentSearchOpen) => set({ sessionContentSearchOpen }),
@@ -187,8 +195,6 @@ export const useDialogStore = createStore<DialogState>('dialogs', (set, get) => 
     },
 }));
 
-export const setSettingsOpen = (isOpen: boolean): void =>
-    useDialogStore.getState().setSettingsOpen(isOpen);
 export const openSettings = (view: SettingsView = 'ui'): void =>
     useDialogStore.getState().openSettings(view);
 export const setArchivedSessionsOpen = (isOpen: boolean): void =>

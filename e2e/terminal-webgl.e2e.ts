@@ -12,6 +12,7 @@ import {
 import {
     createShellSession,
     launchCaxri,
+    openSettingsTab,
     pageRequest,
     pressNewTerminal,
     revealSettingsSection,
@@ -100,10 +101,9 @@ async function isHardwareAccelerationPersisted(page: Page): Promise<boolean> {
 }
 
 async function applyGpuPreference(page: Page, preference: GpuPreference): Promise<void> {
-    await page.keyboard.press('Meta+,');
-    const dialog = page.getByRole('dialog');
-    await revealSettingsSection(dialog, 'Terminal');
-    await dialog.getByRole('combobox', { name: 'GPU acceleration' }).click();
+    const settingsTab = await openSettingsTab(page);
+    await revealSettingsSection(settingsTab, 'Terminal');
+    await settingsTab.getByRole('combobox', { name: 'GPU acceleration' }).click();
     await page.getByRole('option', { name: preference, exact: true }).click();
     /**
      * Settings apply immediately (there is no Apply button); the observable invariant is the Runtime actually
@@ -117,7 +117,10 @@ async function applyGpuPreference(page: Page, preference: GpuPreference): Promis
             return settings.value['terminal.gpuAcceleration'];
         })
         .toBe(preference.toLowerCase());
-    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    // Settings is a Workbench tab now, not a modal (issue caxri#1289): it occupies the same
+    // pane a Terminal session would, so `Cmd+W` closes it outright to get the Terminal back in
+    // view — there is no "Close" button to click anymore.
+    await page.keyboard.press('Meta+w');
 }
 
 /**
@@ -561,12 +564,17 @@ test('repeated context losses preserve user choice and a confirmed opt-out persi
         }>(running.page, 'settings.get');
         expect(persistedSettings.value['terminal.gpuAcceleration']).toBe('on');
 
-        await running.page.keyboard.press('Meta+,');
-        const dialog = running.page.getByRole('dialog');
-        await revealSettingsSection(dialog, 'General');
-        const acceleration = dialog.getByRole('switch', { name: 'Hardware acceleration' });
+        const settingsTab = await openSettingsTab(running.page);
+        // Hardware acceleration moved from General to Terminal, next to GPU acceleration (issue
+        // caxri#1289): the two are kept as separate settings but placed adjacently since GPU
+        // acceleration only controls Terminal's own WebGL rendering and has no effect once Hardware
+        // acceleration is off.
+        await revealSettingsSection(settingsTab, 'Terminal');
+        const acceleration = settingsTab.getByRole('switch', { name: 'Hardware acceleration' });
         await expect(acceleration).not.toBeChecked();
-        await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+        // Settings is a Workbench tab now, not a modal: `Cmd+W` closes it outright to get the
+        // Terminal back in view — there is no "Close" button to click anymore.
+        await running.page.keyboard.press('Meta+w');
         const surface = running.page.locator('.terminal-surface');
         await expect(surface).toBeVisible();
         await expect(surface).toHaveAttribute('data-terminal-renderer', 'dom');

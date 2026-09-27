@@ -1,4 +1,4 @@
-import type { TerminalKind } from '@caxri/protocol';
+import type { ProcessState, TerminalKind, TerminalRecord } from '@caxri/protocol';
 import { agentProviderIds, terminalKindSchema } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
@@ -6,12 +6,17 @@ import {
     newTerminalAgentChoices,
     newTerminalCommandKind,
     resolveNewTerminalAgent,
+    resolveNewTerminalTarget,
 } from '../new-terminal-agent';
 
 const CATALOG_ORDER: TerminalKind[] = [...agentProviderIds, 'shell'];
 
 function orderOf(defaultAgent: TerminalKind | null): TerminalKind[] {
     return newTerminalAgentChoices(defaultAgent).map((choice) => choice.kind);
+}
+
+function terminal(kind: TerminalKind, lastProcessState: ProcessState = 'running'): TerminalRecord {
+    return { kind, lastProcessState } as TerminalRecord;
 }
 
 describe('resolveNewTerminalAgent', () => {
@@ -23,6 +28,38 @@ describe('resolveNewTerminalAgent', () => {
     it('answers null when the user configured no default Agent', () => {
         expect(resolveNewTerminalAgent(null)).toBeNull();
         expect(resolveNewTerminalAgent(undefined)).toBeNull();
+    });
+});
+
+describe('resolveNewTerminalTarget', () => {
+    it('prefers the primary Terminal’s Agent over the configured default', () => {
+        expect(resolveNewTerminalTarget(terminal('claude'), 'codex')).toBe('claude');
+    });
+
+    it('prefers the primary Terminal’s Agent while it is still starting', () => {
+        expect(resolveNewTerminalTarget(terminal('claude', 'starting'), 'codex')).toBe('claude');
+    });
+
+    it('falls back to the configured default when the primary Terminal is a plain shell', () => {
+        expect(resolveNewTerminalTarget(terminal('shell'), 'codex')).toBe('codex');
+    });
+
+    it.each<ProcessState>(['stopped', 'failed', 'dead', 'interrupted', 'suspended', 'detached'])(
+        'falls back to the configured default when the primary Agent Terminal is %s',
+        (lastProcessState) => {
+            expect(resolveNewTerminalTarget(terminal('claude', lastProcessState), 'codex')).toBe(
+                'codex',
+            );
+        },
+    );
+
+    it('falls back to the configured default when there is no primary Terminal', () => {
+        expect(resolveNewTerminalTarget(undefined, 'codex')).toBe('codex');
+    });
+
+    it('answers null when neither the primary Terminal nor a default Agent resolves', () => {
+        expect(resolveNewTerminalTarget(terminal('shell'), null)).toBeNull();
+        expect(resolveNewTerminalTarget(undefined, null)).toBeNull();
     });
 });
 

@@ -4,7 +4,12 @@ import { join } from 'node:path';
 import process from 'node:process';
 
 import { expect, test } from './support/fixtures.ts';
-import { launchCaxri, pageRequest, revealSettingsSection } from './support/helpers.ts';
+import {
+    launchCaxri,
+    openSettingsTab,
+    pageRequest,
+    revealSettingsSection,
+} from './support/helpers.ts';
 
 test('Mobile Access loading spinner stops when reduced motion is enabled', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-spinner-motion-'));
@@ -17,19 +22,22 @@ test('Mobile Access loading spinner stops when reduced motion is enabled', async
     let serverPid: number | undefined;
 
     try {
-        await running.page.keyboard.press('Meta+,');
-        const dialog = running.page.getByRole('dialog');
-        await revealSettingsSection(dialog, 'Mobile');
-        await expect(dialog.getByTestId('mobile-access-form')).toBeVisible();
-        await running.page.keyboard.press('Escape');
-        await expect(dialog).toHaveCount(0);
+        const settingsTab = await openSettingsTab(running.page);
+        await revealSettingsSection(settingsTab, 'Mobile');
+        await expect(settingsTab.getByTestId('mobile-access-form')).toBeVisible();
+        const sections = settingsTab.getByRole('tablist', { name: 'Settings sections' });
+        // Leave the Settings section so the Mobile Access form unmounts. Closing the whole Settings tab (issue
+        // caxri#1289) would also drop the loaded configuration and make the reopened tab wait on the frozen Server.
+        await sections.getByRole('tab', { name: 'Keybindings' }).click();
+        await expect(settingsTab.getByTestId('mobile-access-form')).toHaveCount(0);
         serverPid = (await pageRequest<{ pid: number }>(running.page, 'host.status')).pid;
         // Freeze only the isolated Server after Settings has bootstrapped, keeping the remounted form in loading state.
         process.kill(serverPid, 'SIGSTOP');
-        await running.page.keyboard.press('Meta+,');
-        await expect(dialog).toBeVisible();
-        await revealSettingsSection(dialog, 'Mobile');
-        const loading = dialog.locator('[role="status"]', { hasText: 'Loading mobile access…' });
+        await sections.getByRole('tab', { name: 'Settings', exact: true }).click();
+        await revealSettingsSection(settingsTab, 'Mobile');
+        const loading = settingsTab.locator('[role="status"]', {
+            hasText: 'Loading mobile access…',
+        });
         const spinner = loading.locator('[data-slot="spinner"]');
         await expect(spinner).toBeVisible();
 

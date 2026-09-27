@@ -485,7 +485,10 @@ const sourceControlProviderModelSchema = z.object({
     description: z.string().max(4_096),
     descriptionAccessibilityLabel: z.string().min(1).max(4_096),
     descriptionTooltip: z.string().min(1).max(4_096),
-    countLabel: z.string().min(1).max(1_024),
+    /**
+     * Trailing counts; empty when every count is zero, since a synced, clean repository shows no count noise.
+     */
+    countLabel: z.string().max(1_024),
     /**
      * Web page describing the changes this provider is currently showing — the pull request in Pull Request mode.
      * Alt-clicking the provider row or its group caption opens it in the default browser, so the panel never has to

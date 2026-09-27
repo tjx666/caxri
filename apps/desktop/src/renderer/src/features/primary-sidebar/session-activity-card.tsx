@@ -224,7 +224,9 @@ export function SessionActivityCard({
                 sideOffset={8}
             >
                 <div className="flex min-w-0 items-start gap-2">
-                    <AgentIdentityIcon identity={agent} size={17} />
+                    {/* `tone="state"`: this Session hover card is a Session row, so Claude Code/Codex
+                        must tint like every other Agent instead of keeping a fixed brand color. */}
+                    <AgentIdentityIcon identity={agent} size={17} tone="state" />
                     <div className="min-w-0 flex-1">
                         <h3 className="m-0 text-[13px] font-semibold wrap-break-word">
                             {session.displayTitle}

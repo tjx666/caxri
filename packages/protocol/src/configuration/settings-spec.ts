@@ -196,16 +196,18 @@ export const settingsSpec = [
         /**
          * The one durable consequence of `Skip this version`, surfaced where the user can undo it. A persisted state
          * with no visible home is a trap: without this row, someone who skipped a release once would have no way to
-         * learn why Caxri stopped offering it, or to ask for it again.
+         * learn why Caxri stopped offering it, or to ask for it again. Rendered read-only (setting-row.tsx special-
+         * cases this key) rather than through the generic free-text control every other `string` setting gets, since
+         * this is app-written state to undo, not a value worth typing by hand; "Reset" replaces the old "Clear the
+         * field" instruction now that there is no field.
          */
         description:
-            'Caxri stops offering this release until a newer one appears. Clear the field to be offered it again.',
+            'Caxri stops offering this release until a newer one appears. Reset to be offered it again.',
         category: 'general',
         keywords: ['update', 'upgrade', 'skip', 'skipped', 'version', 'release', 'ignore'],
         nullable: true,
         maxLength: 64,
         default: null,
-        placeholder: 'No version skipped',
     },
     {
         kind: 'string',
@@ -272,9 +274,18 @@ export const settingsSpec = [
         kind: 'enum',
         key: 'terminal.gpuAcceleration',
         title: 'GPU acceleration',
-        description: 'WebGL falls back to DOM rendering without restarting the Terminal',
+        /**
+         * Scoped to only the Terminal's own WebGL renderer, unlike Hardware acceleration below — and it depends on that
+         * broader setting: with Hardware acceleration off, the GPU is unavailable to the whole app, so this setting has
+         * nothing to accelerate regardless of its own value (verified in `terminal-renderer-status.ts`'s
+         * `isBootDisabled` case).
+         */
+        description:
+            "Controls only the Terminal's WebGL rendering; falls back to DOM without restarting the " +
+            'Terminal. Has no effect while Hardware acceleration is off, since that already turns the ' +
+            'GPU off for every Terminal.',
         category: 'terminal',
-        keywords: ['webgl', 'renderer', 'performance'],
+        keywords: ['webgl', 'renderer', 'performance', 'hardware acceleration'],
         options: [
             { value: 'auto', label: 'Auto' },
             { value: 'on', label: 'On' },

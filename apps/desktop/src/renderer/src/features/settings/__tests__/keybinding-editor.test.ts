@@ -2,6 +2,7 @@ import type { Keybinding } from '@caxri/protocol';
 import { formatShortcut, formatShortcutChords } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
+import type { KeybindingRow } from '../keybinding-editor';
 import {
     appendKeybindingSource,
     buildKeybindingRows,
@@ -11,6 +12,7 @@ import {
     commitOnBlur,
     commitOnEnter,
     filterKeybindingRows,
+    groupKeybindingRows,
     isFocusNavigationKey,
     removeKeybindingSource,
     startRecording,
@@ -81,6 +83,36 @@ describe('keybinding rows', () => {
             key: 'cmd+enter',
             title: 'Send Sequence',
         });
+    });
+});
+
+describe('groupKeybindingRows', () => {
+    function row(id: string, category: string): KeybindingRow {
+        return { category, command: id, description: id, id, title: id };
+    }
+
+    it('gathers rows sharing a category even when they are scattered apart in the source list', () => {
+        const rows = [row('view-1', 'View'), row('terminal-1', 'Terminal'), row('view-2', 'View')];
+
+        expect(groupKeybindingRows(rows)).toEqual([
+            { category: 'View', rows: [row('view-1', 'View'), row('view-2', 'View')] },
+            { category: 'Terminal', rows: [row('terminal-1', 'Terminal')] },
+        ]);
+    });
+
+    it('orders groups by each category’s first appearance, not alphabetically', () => {
+        const rows = [row('b-1', 'B'), row('a-1', 'A')];
+
+        expect(groupKeybindingRows(rows).map((group) => group.category)).toEqual(['B', 'A']);
+    });
+
+    it('drops a category entirely once search filtering leaves it with no rows', () => {
+        const rows = [row('view-1', 'View'), row('terminal-1', 'Terminal')];
+        const filtered = filterKeybindingRows(rows, 'terminal');
+
+        expect(groupKeybindingRows(filtered)).toEqual([
+            { category: 'Terminal', rows: [row('terminal-1', 'Terminal')] },
+        ]);
     });
 });
 

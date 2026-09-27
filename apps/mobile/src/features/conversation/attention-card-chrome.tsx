@@ -50,41 +50,70 @@ export const AttentionPermissionActions = ({
     send,
     theme,
 }: {
-    send: (decision: 'allow' | 'deny') => Promise<void>;
+    /**
+     * `shouldAutoAllow` is only ever passed as `true`, matching the protocol's `autoAllow?: z.literal(true)` field.
+     */
+    send: (decision: 'allow' | 'deny', shouldAutoAllow?: true) => Promise<void>;
     theme: MobileTheme;
 }) => (
-    <View style={styles.actions}>
+    <View style={{ gap: 8 }}>
+        <View style={styles.actions}>
+            <Pressable
+                accessibilityLabel="Allow once"
+                accessibilityRole="button"
+                testID="attention-allow-once"
+                onPress={() => send('allow')}
+                style={({ pressed }) => [
+                    styles.action,
+                    {
+                        backgroundColor: theme.primary,
+                        borderColor: theme.primary,
+                        opacity: pressed ? 0.76 : 1,
+                    },
+                ]}
+            >
+                <Text style={[styles.actionLabel, { color: theme.primaryForeground }]}>
+                    Allow once
+                </Text>
+            </Pressable>
+            <Pressable
+                accessibilityLabel="Deny"
+                accessibilityRole="button"
+                testID="attention-deny"
+                onPress={() => send('deny')}
+                style={({ pressed }) => [
+                    styles.action,
+                    {
+                        backgroundColor: pressed ? theme.elevated : 'transparent',
+                        borderColor: theme.danger,
+                    },
+                ]}
+            >
+                <Text style={[styles.actionLabel, { color: theme.danger }]}>Deny</Text>
+            </Pressable>
+        </View>
         <Pressable
-            accessibilityLabel="Allow once"
+            accessibilityLabel="Always allow in this Session"
             accessibilityRole="button"
-            testID="attention-allow-once"
-            onPress={() => send('allow')}
-            style={({ pressed }) => [
-                styles.action,
-                {
-                    backgroundColor: theme.primary,
-                    borderColor: theme.primary,
-                    opacity: pressed ? 0.76 : 1,
-                },
-            ]}
-        >
-            <Text style={[styles.actionLabel, { color: theme.primaryForeground }]}>Allow once</Text>
-        </Pressable>
-        <Pressable
-            accessibilityLabel="Deny"
-            accessibilityRole="button"
-            testID="attention-deny"
-            onPress={() => send('deny')}
+            testID="attention-always-allow"
+            onPress={() => send('allow', true)}
             style={({ pressed }) => [
                 styles.action,
                 {
                     backgroundColor: pressed ? theme.elevated : 'transparent',
-                    borderColor: theme.danger,
+                    borderColor: theme.border,
                 },
             ]}
         >
-            <Text style={[styles.actionLabel, { color: theme.danger }]}>Deny</Text>
+            <Text style={[styles.actionLabel, { color: theme.text }]}>
+                Always allow in this Session
+            </Text>
         </Pressable>
+        <Text style={{ color: theme.muted, fontSize: 12 }}>
+            Always allow approves this and every later permission request in this Session
+            automatically, until it is turned off or the Agent restarts. Agent questions still ask
+            you.
+        </Text>
     </View>
 );
 

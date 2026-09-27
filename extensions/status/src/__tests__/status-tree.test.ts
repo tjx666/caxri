@@ -40,7 +40,10 @@ describe('Status extension tree', () => {
                 .filter((node) =>
                     ['Production', 'Preview', deployment.hostname].includes(node.item.label),
                 );
-            expect(rows).toHaveLength(3);
+            // The fixture's `preview` is the exact deployment `branchDeployments` already lists, so the summary loop
+            // skips a second "Preview" row for it (#1291); `production` names a different environment for the same
+            // hostname, which is not something `branchDeployments` already says, so it keeps its own row.
+            expect(rows.map((row) => row.item.label)).toEqual([deployment.hostname, 'Production']);
             for (const row of rows) {
                 // Through the shared mapping, so the row never prints the provider's own word for the state.
                 const stateLabel = deploymentStateLabel(deployment);
@@ -394,17 +397,20 @@ describe('Status extension tree', () => {
             id: 'status:repo:repo-1:deployments',
             description: '2 on feature/status',
         });
+        // Neither branch row is also this fixture's current Production/Preview (different hostnames below), so the
+        // description names only the environment, with no "Latest" marker and no trailing icon to carry the same
+        // fact silently (#1291).
         expect(children[6].children?.map(({ item }) => item.description)).toEqual([
-            undefined,
-            undefined,
+            'Production',
+            'Preview',
         ]);
-        expect(children[6].children?.map(({ item }) => item.trailingIcon?.id)).toEqual([
-            'circle-arrow-up',
-            'deployment-preview',
+        expect(children[6].children?.map(({ item }) => item.trailingIcon)).toEqual([
+            undefined,
+            undefined,
         ]);
         expect(children[6].children?.[0].item.tooltip).toEqual({
             kind: 'rich',
-            title: 'production',
+            title: 'Production',
             badge: { label: 'passed', tone: 'success' },
             rows: [
                 {

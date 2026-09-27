@@ -12,7 +12,7 @@ import { builtinThemes, findMatchingBuiltinTheme } from '@caxri/protocol';
 
 import { caxri } from '../../lib/caxri';
 import type { SettingsView } from '../../stores/dialogs';
-import { setSettingsOpen, useDialogStore } from '../../stores/dialogs';
+import { useDialogStore } from '../../stores/dialogs';
 import { describeFailure, dismissToastsMatching, pushToast } from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
 import type { ConfigKind } from './config-edit';
@@ -61,7 +61,7 @@ const scrolledSettingsViews: ReadonlySet<SettingsView> = new Set([
  * this is the same convention on the navigation side.
  */
 const ARGV_ROW_IDS: Partial<Record<SettingsView, string>> = {
-    'hardware-acceleration': 'general.hardwareAcceleration',
+    'hardware-acceleration': 'terminal.hardwareAcceleration',
     'remote-debugging': 'security.remoteDebugging',
 };
 
@@ -108,7 +108,7 @@ export const ARGV_RESTART_NOTICE_PREFIX = 'Restart Caxri to apply the new ';
 
 export interface ArgvRestartNoticeInput {
     /**
-     * What the running instance actually launched with, as of dialog load. Undefined until `argv.get` resolves.
+     * What the running instance actually launched with, as of Settings load. Undefined until `argv.get` resolves.
      */
     baseline: ArgvConfig | undefined;
     /**
@@ -150,8 +150,7 @@ const onApplied = (): void => {
 const onSettingsError = (error: unknown, label: string): void =>
     pushToast('error', describeFailure(error, label));
 
-export function useSettingsDialogController() {
-    const isOpen = useDialogStore((state) => state.settingsOpen);
+export function useSettingsPageController() {
     const request = useDialogStore((state) => state.settingsRequest);
     const [tab, setTab] = useState<ConfigKind>('settings');
     const [view, setView] = useState<'ui' | 'source'>('ui');
@@ -159,22 +158,15 @@ export function useSettingsDialogController() {
         Partial<Record<ConfigKind, ConfigSourceError>>
     >({});
     const [loaded, setLoaded] = useState(false);
+    // No explicit reset-on-close: the Settings tab unmounts like any other document tab when it stops being the active
+    // tab in its pane, which already clears every piece of local state below, this one included.
     const [themeImportResult, setThemeImportResult] = useState<ThemeImportResult | undefined>();
-    /**
-     * The dialog stays mounted for the whole app session, so a result left behind would still be sitting at the top of
-     * the theme editor the next time it is opened — reporting an import the user made minutes ago as if it just
-     * happened.
-     */
-    const onOpenChange = (isNextOpen: boolean): void => {
-        if (!isNextOpen) setThemeImportResult(undefined);
-        setSettingsOpen(isNextOpen);
-    };
     const [agentHookHealth, setAgentHookHealth] = useState<AgentHookHealthMap>();
     const [agentSkillHealth, setAgentSkillHealth] = useState<AgentSkillHealth>();
     const [argvConfig, setArgvConfig] = useState<ArgvConfig>();
     const argvWriteGeneration = useRef(0);
     // Boot-session baseline for the restart hint: what the running instance actually launched
-    // with, as of dialog load. Diverging from it needs a restart; returning to it does not.
+    // with, as of Settings load. Diverging from it needs a restart; returning to it does not.
     const argvConfigAtLoad = useRef<ArgvConfig | undefined>(undefined);
     const handledRequestId = useRef(0);
 
@@ -423,8 +415,8 @@ export function useSettingsDialogController() {
                 return;
             }
             // Reducer state is meaningless before the first `load()`, so external pushes that
-            // arrive before the dialog has ever been opened are ignored; the eventual `load()`
-            // reads the current file anyway.
+            // arrive before this mount's own `load()` has resolved are ignored; that pending
+            // `load()` reads the current file anyway.
             if (!loaded) return;
             if (
                 event.event === 'state.changed' &&
@@ -449,18 +441,19 @@ export function useSettingsDialogController() {
         });
     }, [loaded]);
 
-    // Only load once per app session: reopening the dialog after edits must keep the in-memory
-    // state instead of re-reading from disk (external changes already stay in sync via the event
-    // subscription above).
+    // Only load once per mount: further edits inside this session must keep the in-memory state
+    // instead of re-reading from disk (external changes already stay in sync via the event
+    // subscription above). Switching away from the Settings tab and back is a fresh mount — and
+    // therefore a fresh read, same as reopening any other document tab.
     useEffect(() => {
-        if (isOpen && !loaded) load();
-    }, [load, isOpen, loaded]);
+        if (!loaded) load();
+    }, [load, loaded]);
 
     // Provider skill files can change through the offline CLI while the app is running. Refresh on
-    // every open instead of persisting derived filesystem health or showing the first read forever.
+    // mount instead of persisting derived filesystem health or showing the first read forever.
     useEffect(() => {
-        if (isOpen) loadAgentSkillHealth();
-    }, [loadAgentSkillHealth, isOpen]);
+        loadAgentSkillHealth();
+    }, [loadAgentSkillHealth]);
 
     useEffect(() => {
         if (handledRequestId.current === request.id) return;
@@ -646,9 +639,9 @@ export function useSettingsDialogController() {
                 // flags are pending — including one that returns the last of them to its launch value — can never leave
                 // a stale instruction on screen.
                 dismissToastsMatching((message) => message.startsWith(ARGV_RESTART_NOTICE_PREFIX));
-                // Held until dismissed: the user is still inside the modal Settings dialog looking at the row they
-                // just flipped, so a four-second expiry would take away the only record of the restart they now owe
-                // before they can act on it.
+                // Held until dismissed: the user is still looking at the Settings row they just flipped, so a
+                // four-second expiry would take away the only record of the restart they now owe before they can act
+                // on it.
                 if (notice) pushToast('info', notice, { persist: true });
             } catch (error) {
                 onSettingsError(error, 'argv.jsonc');
@@ -703,8 +696,6 @@ export function useSettingsDialogController() {
         themeImportResult,
         dismissThemeImportResult: () => setThemeImportResult(undefined),
         keybindingsFocusRequestId: request.view === 'keybindings' ? request.id : undefined,
-        onOpenChange,
-        open: isOpen,
         removeBinding,
         showSource,
         showUi,
@@ -723,4 +714,4 @@ export function useSettingsDialogController() {
     };
 }
 
-export type SettingsDialogController = ReturnType<typeof useSettingsDialogController>;
+export type SettingsPageController = ReturnType<typeof useSettingsPageController>;

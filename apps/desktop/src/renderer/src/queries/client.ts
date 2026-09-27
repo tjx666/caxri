@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 
 import type { CaxriMethod, MethodResult, ParametersArgument } from '@caxri/protocol';
 import type { UseQueryOptions, UseQueryResult } from '@tanstack/react-query';
-import { QueryClient, useQuery } from '@tanstack/react-query';
+import { QueryClient, QueryObserver, useQuery } from '@tanstack/react-query';
 
 import { caxri } from '../lib/caxri';
 import { describeFailure, isCancelledRequest, pushToast } from '../stores/toasts';
@@ -119,6 +119,25 @@ export function useCaxriQuery<M extends CaxriMethod, TData = MethodResult<M>>(
         queryFn: () => caxri.request(method, ...([parameters] as ParametersArgument<M>)),
         ...options,
     });
+}
+
+/**
+ * Subscribes to a Caxri read from outside a component — an imperative Monaco integration cannot call a hook — through
+ * the same `QueryObserver` `useCaxriQuery` builds on, so the two never disagree about cache key shape, staleness, or
+ * targeted invalidation. Calls `listener` once synchronously with whatever is already cached (frequently already
+ * populated by a sibling `useCaxriQuery` reader) and again on every subsequent fetch or invalidation.
+ */
+export function subscribeCaxriQuery<M extends CaxriMethod>(
+    method: M,
+    parameters: MethodParameters<M>,
+    listener: (data: MethodResult<M> | undefined) => void,
+): () => void {
+    const observer = new QueryObserver(queryClient, {
+        queryKey: caxriQueryKey(method, parameters),
+        queryFn: () => caxri.request(method, ...([parameters] as ParametersArgument<M>)),
+    });
+    listener(observer.getCurrentResult().data);
+    return observer.subscribe((result) => listener(result.data));
 }
 
 /**

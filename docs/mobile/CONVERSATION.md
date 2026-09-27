@@ -16,11 +16,22 @@ and Project grant again before answering. A second answer, a retired Terminal la
 hook, or an expired request is rejected. The hook returns Claude's native decision JSON; it never
 writes a guessed key into the PTY. Other providers continue to require Terminal interaction.
 
-Permission cards offer **Allow once** and **Deny**. Question cards preserve Claude's grouped steps,
-single or multiple selections, and free-text answers. A `view` or `reply` device sees a read-only
-explanation. The phone polls request status while foregrounded; handled and expired cards lose
-their controls. Tool inputs are reduced to a bounded display summary before crossing the hook
-socket. No question, command, or answer content enters diagnostics.
+Permission cards offer **Allow once**, **Deny**, and, for a `control` device only, **Always allow in
+this Session**. The third action tells the Server to auto-answer every later permission request in
+the current Session with `allow`, without waiting for a card or the native prompt; the card states
+this in text before the device taps it. The grant covers permission requests only — question
+requests are never auto-answered, no matter the Session's grant state — and it applies even while no
+phone is online, so a Session left unattended does not stall on the native Claude prompt. The grant
+is Server in-memory only and ends when the Session is deleted (not archived) or the Agent Terminal
+launch restarts; it is never persisted and never survives a Server restart. A granted Session shows
+its status on the mobile card area and on Desktop as an `Always Allow` status bar chip for the
+selected Session plus a Session row menu entry; any of them can revoke it immediately; the next request after a revoke goes back to a mobile card, or the native Claude prompt
+when no phone is online. Question cards preserve Claude's grouped steps, single or multiple
+selections, and free-text answers. A `view` or `reply` device sees a read-only explanation and never
+the auto-allow control. The phone polls request status while foregrounded; handled and expired cards
+lose their controls. Tool inputs are reduced to a bounded display summary before crossing the hook
+socket. No question, command, or answer content enters diagnostics; every auto-allow still logs its
+Session, Terminal, and tool name, and every grant/revoke logs its own reason.
 
 ## Composer and Project files
 

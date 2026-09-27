@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import type { ThemeTokens } from '@caxri/protocol';
 
 import { expect, test } from './support/fixtures.ts';
-import { launchCaxri, pageRequest } from './support/helpers.ts';
+import { launchCaxri, openSettingsTab, pageRequest } from './support/helpers.ts';
 
 test('Theme presets apply, persist, and detach after a color edit', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-theme-presets-e2e-'));
@@ -15,10 +15,9 @@ test('Theme presets apply, persist, and detach after a color edit', async () => 
 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
-        await running.page.keyboard.press('Meta+,');
-        let dialog = running.page.getByRole('dialog');
-        await dialog.getByRole('tab', { name: 'Theme', exact: true }).click();
-        const preset = dialog.getByRole('combobox', { name: 'Theme preset' });
+        let settingsTab = await openSettingsTab(running.page);
+        await settingsTab.getByRole('tab', { name: 'Theme', exact: true }).click();
+        const preset = settingsTab.getByRole('combobox', { name: 'Theme preset' });
         await expect(preset).toContainText('Dracula');
 
         await preset.click();
@@ -57,14 +56,16 @@ test('Theme presets apply, persist, and detach after a color edit', async () => 
             )
             .toBe('#fdf6e3');
 
-        await running.page.keyboard.press('Escape');
-        await running.page.keyboard.press('Meta+,');
-        dialog = running.page.getByRole('dialog');
-        await dialog.getByRole('tab', { name: 'Theme', exact: true }).click();
-        const restoredPreset = dialog.getByRole('combobox', { name: 'Theme preset' });
+        // Settings is a Workbench tab now, not a modal (issue caxri#1289): force a real
+        // close and reopen with `Cmd+W`/`Cmd+,` so the preset read below can only pass off a fresh
+        // mount, proving the choice was actually persisted rather than just still sitting in memory.
+        await running.page.keyboard.press('Meta+w');
+        settingsTab = await openSettingsTab(running.page);
+        await settingsTab.getByRole('tab', { name: 'Theme', exact: true }).click();
+        const restoredPreset = settingsTab.getByRole('combobox', { name: 'Theme preset' });
         await expect(restoredPreset).toContainText('Solarized Light');
 
-        await dialog.getByLabel('colors accent color').fill('#268bd2');
+        await settingsTab.getByLabel('colors accent color').fill('#268bd2');
         await expect(restoredPreset).toContainText('Custom — Solarized Light');
         await expect
             .poll(async () => {

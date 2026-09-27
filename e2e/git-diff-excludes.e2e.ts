@@ -5,7 +5,12 @@ import { join } from 'node:path';
 import { execFileAsync } from '@caxri/system';
 
 import { expect, test } from './support/fixtures.ts';
-import { clickGitGroupAction, createProjectSession, launchCaxri } from './support/helpers.ts';
+import {
+    clickGitGroupAction,
+    createProjectSession,
+    launchCaxri,
+    openSettingsTab,
+} from './support/helpers.ts';
 
 test('Git diff exclusions hide changes, reveal on demand, and refresh from Settings', async () => {
     const testInfo = test.info();
@@ -96,18 +101,17 @@ test('Git diff exclusions hide changes, reveal on demand, and refresh from Setti
         await expect(repo.getByText('1 excluded file hidden.', { exact: true })).toBeVisible();
         await expect(repo.getByText('Working tree clean.', { exact: true })).toHaveCount(0);
 
-        await running.page.keyboard.press('Meta+,');
-        let settingsDialog = running.page.getByRole('dialog');
-        await settingsDialog.getByLabel('Search settings').fill('Excluded Git diff files');
-        let settingRow = settingsDialog.locator('[data-setting-row="git.diffExclude"]');
+        const firstSettingsTab = await openSettingsTab(running.page);
+        await firstSettingsTab.getByLabel('Search settings').fill('Excluded Git diff files');
+        const firstSettingRow = firstSettingsTab.locator('[data-setting-row="git.diffExclude"]');
         await expect(
-            settingRow.getByRole('group', { name: 'Excluded Git diff files', exact: true }),
+            firstSettingRow.getByRole('group', { name: 'Excluded Git diff files', exact: true }),
         ).toBeVisible();
-        const patterns = settingRow.getByRole('list', { name: 'Excluded file patterns' });
+        const patterns = firstSettingRow.getByRole('list', { name: 'Excluded file patterns' });
         await expect(patterns.locator('li')).toHaveCount(4);
         for (const pattern of ['**/*.test.*', '**/*.spec.*', '**/__tests__/**', '**/locales/**']) {
             // eslint-disable-next-line no-await-in-loop -- each removal re-renders the same persisted Settings row.
-            await settingRow
+            await firstSettingRow
                 .getByRole('button', {
                     name: `Remove excluded pattern ${pattern}`,
                     exact: true,
@@ -115,16 +119,19 @@ test('Git diff exclusions hide changes, reveal on demand, and refresh from Setti
                 .click();
         }
         await expect(patterns.locator('li')).toHaveCount(0);
-        await running.page.keyboard.press('Escape');
-        await expect(settingsDialog).toHaveCount(0);
+        // Settings is a Workbench tab now, not a modal (issue caxri#1289): `Cmd+W` closes it
+        // outright, forcing the fresh mount this test needs below — otherwise reopening would just
+        // re-show the same still-mounted, already-empty list, proving nothing about whether the
+        // removals actually persisted rather than only updating local UI state.
+        await running.page.keyboard.press('Meta+w');
+        await expect(firstSettingsTab).toHaveCount(0);
 
         await expect(excludedFile).toBeVisible();
         await expect(gitPanel.getByRole('button', { name: /^Show excluded files/ })).toHaveCount(0);
 
-        await running.page.keyboard.press('Meta+,');
-        settingsDialog = running.page.getByRole('dialog');
-        await settingsDialog.getByLabel('Search settings').fill('Excluded Git diff files');
-        settingRow = settingsDialog.locator('[data-setting-row="git.diffExclude"]');
+        const settingsTab = await openSettingsTab(running.page);
+        await settingsTab.getByLabel('Search settings').fill('Excluded Git diff files');
+        const settingRow = settingsTab.locator('[data-setting-row="git.diffExclude"]');
         await expect(
             settingRow.getByRole('list', { name: 'Excluded file patterns' }).locator('li'),
         ).toHaveCount(0);

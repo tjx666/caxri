@@ -147,7 +147,7 @@ const borderlessChromeFiles = [
     'features/status-bar/screencast-mode-chip.tsx',
     'features/status-bar/workbench-root-picker.tsx',
     'features/secondary-sidebar/secondary-sidebar.tsx',
-    'features/settings/settings-dialog.tsx',
+    'features/settings/settings-workbench-page.tsx',
     // features/primary-sidebar/primary-sidebar.tsx and features/process-explorer/process-explorer-app.tsx
     // also had their chrome seams removed, but keep legitimate in-surface borders (dashed CTA,
     // table column rules) this blanket guard cannot distinguish.

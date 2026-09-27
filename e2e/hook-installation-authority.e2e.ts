@@ -7,7 +7,12 @@ import type { AgentHookHealthMap } from '@caxri/protocol';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
-import { launchCaxri, pageRequest, revealSettingsSection } from './support/helpers.ts';
+import {
+    launchCaxri,
+    openSettingsTab,
+    pageRequest,
+    revealSettingsSection,
+} from './support/helpers.ts';
 
 for (const mode of ['missing-cli', 'newer-incomplete', 'malformed-config', 'conflict'] as const) {
     // eslint-disable-next-line no-empty-pattern -- Playwright requires a destructured fixture argument.
@@ -75,10 +80,9 @@ for (const mode of ['missing-cli', 'newer-incomplete', 'malformed-config', 'conf
             env: { CAXRI_E2E_AGENT_HOOKS: '1' },
         });
         try {
-            await running.page.keyboard.press('Meta+,');
-            const dialog = running.page.getByRole('dialog');
-            await revealSettingsSection(dialog, 'Codex');
-            const caption = dialog
+            const settingsTab = await openSettingsTab(running.page);
+            await revealSettingsSection(settingsTab, 'Codex');
+            const caption = settingsTab
                 .locator('[data-setting-row="agents.codex.hooks"]')
                 .getByRole('status');
             const expected = {

@@ -1,6 +1,6 @@
 import { parseGitDiffTab } from '@caxri/protocol';
 
-import { useGitReviewComments } from './git-review-comments';
+import { useCaxriQuery } from '../../queries/client';
 
 export function GitReviewTabBadge({
     sessionId,
@@ -9,17 +9,16 @@ export function GitReviewTabBadge({
     sessionId: string | undefined;
     tabPath: string;
 }) {
-    const comments = useGitReviewComments((state) => state.comments);
     const repoId = parseGitDiffTab(tabPath)?.repositoryId;
-    if (!sessionId || !repoId) return null;
-    const count = comments.filter(
-        (comment) =>
-            comment.sessionId === sessionId &&
-            comment.repositoryId === repoId &&
-            comment.status === 'pending' &&
-            comment.text,
+    const { data: comments } = useCaxriQuery(
+        'gitReview.list',
+        { sessionId: sessionId ?? '', repositoryId: repoId ?? '' },
+        { enabled: Boolean(sessionId && repoId) },
+    );
+    const count = (comments ?? []).filter(
+        (comment) => comment.status === 'pending' && comment.text,
     ).length;
-    if (count === 0) return null;
+    if (!sessionId || !repoId || count === 0) return null;
     return (
         <>
             <span

@@ -110,14 +110,15 @@ test('Sonner notifications expire, dedupe, run actions, and stay keyboard-dismis
         const successToast = toastWithTitle(running.page, SUCCESS_TITLE);
         await expect(successToast).toBeVisible();
         await successToast.getByRole('button', { name: 'Open Settings' }).press('Enter');
-        const settingsDialog = running.page.getByRole('dialog');
-        await expect(settingsDialog).toBeVisible();
-        await expect(settingsDialog.locator(':focus')).toHaveCount(1);
-        await running.page.clock.runFor(250);
-        await expect(settingsDialog.locator(':focus')).toHaveCount(1);
+        // Settings is a Workbench tab now, not a modal (issue caxri#1289): `[data-settings-page]` is the
+        // replacement scope for the former `role="dialog"` query. Keyboard focus must still follow the action into
+        // the opened tab (its search field) instead of being stranded on the removed toast.
+        const settingsTab = running.page.locator('[data-settings-page]');
+        await expect(settingsTab).toBeVisible();
+        await expect(settingsTab.getByLabel('Search settings')).toBeFocused();
         await expect(successToast).toHaveCount(0);
-        await running.page.keyboard.press('Escape');
-        await expect(settingsDialog).toHaveCount(0);
+        await running.page.keyboard.press('Meta+w');
+        await expect(settingsTab).toHaveCount(0);
 
         await publishServerEvent(running.app, {
             event: 'workbench.changed',
@@ -211,7 +212,8 @@ test('Notification center mutes a type, persists preferences, and restores remin
         await restoredCenter
             .getByRole('button', { name: 'Notification settings', exact: true })
             .click();
-        const settings = running.page.getByRole('dialog', { name: 'Settings', exact: true });
+        // Settings is a Workbench tab now, not a modal (issue caxri#1289).
+        const settings = running.page.locator('[data-settings-page]');
         await expect(
             settings.getByRole('heading', { name: 'General', exact: true }),
         ).not.toBeInViewport();
@@ -228,7 +230,7 @@ test('Notification center mutes a type, persists preferences, and restores remin
         await expect
             .poll(async () => pageRequest(running.page, 'settings.get'))
             .toMatchObject({ value: { 'notifications.worktreeFallback': true } });
-        await running.page.keyboard.press('Escape');
+        await running.page.keyboard.press('Meta+w');
         await expect(settings).toHaveCount(0);
         await publishServerEvent(running.app, fallback);
         await expect(toastWithTitle(running.page, FALLBACK_TITLE)).toBeVisible();

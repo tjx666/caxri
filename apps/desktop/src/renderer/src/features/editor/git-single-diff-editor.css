@@ -17,16 +17,28 @@
     color: var(--danger);
 }
 
+/** Monaco sizes the glyph cell to the line height; center the button inside it. */
+.git-review-add-glyph {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/**
+ * Draw the plus with two gradient bars instead of a `+` text glyph: font metrics put the
+ * character's optical center below the box center, so the text version never looks centered.
+ */
 .git-review-add-glyph::before {
-    content: '+';
-    display: grid;
-    place-items: center;
-    width: 15px;
-    height: 15px;
-    margin-left: 2px;
+    content: '';
+    width: 16px;
+    height: 16px;
     border-radius: 4px;
-    color: var(--accent-foreground);
-    background: var(--accent);
+    background:
+        linear-gradient(var(--accent-foreground), var(--accent-foreground)) center / 8px 2px
+            no-repeat,
+        linear-gradient(var(--accent-foreground), var(--accent-foreground)) center / 2px 8px
+            no-repeat,
+        var(--accent);
     cursor: pointer;
 }
 

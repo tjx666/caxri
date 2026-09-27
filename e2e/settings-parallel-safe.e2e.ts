@@ -3,7 +3,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { expect, test } from './support/fixtures.ts';
-import { createShellSession, launchCaxri, pageRequest } from './support/helpers.ts';
+import {
+    createShellSession,
+    launchCaxri,
+    openSettingsTab,
+    pageRequest,
+} from './support/helpers.ts';
 
 test('Settings preserves a tab selected while its initial configuration is loading', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-settings-load-e2e-'));
@@ -29,8 +34,12 @@ test('Settings preserves a tab selected while its initial configuration is loadi
                 }
             ).caxriE2E.waitForSettingsLoadGate(),
         );
-        const dialog = running.page.getByRole('dialog');
-        const theme = dialog.getByRole('tab', { name: 'Theme', exact: true });
+        // Not `openSettingsTab`: that helper's own visibility wait would resolve trivially (the
+        // outer `data-settings-page` wrapper mounts synchronously; only the data inside it awaits
+        // the gate below) but adds a retrying assertion between the press and the gate wait this
+        // test deliberately keeps tight.
+        const settingsTab = running.page.locator('[data-settings-page]');
+        const theme = settingsTab.getByRole('tab', { name: 'Theme', exact: true });
         await theme.click();
         await expect(theme).toHaveAttribute('aria-selected', 'true');
         await running.page.evaluate(() => {
@@ -40,15 +49,18 @@ test('Settings preserves a tab selected while its initial configuration is loadi
                 }
             ).caxriE2E.releaseSettingsLoadGate();
         });
-        await expect(dialog.getByRole('button', { name: 'Import Theme' })).toBeVisible();
+        await expect(settingsTab.getByRole('button', { name: 'Import Theme' })).toBeVisible();
         await expect(theme).toHaveAttribute('aria-selected', 'true');
-        await running.page.keyboard.press('Escape');
-        await expect(dialog).toHaveCount(0);
+        // Settings is a Workbench tab now, not a modal (issue caxri#1289): `Cmd+W` closes
+        // the active tab the same way it would close any other document tab, which is the
+        // tab-appropriate replacement for the old "Escape to dismiss the dialog" step this test
+        // used to force a fresh mount before reopening.
+        await running.page.keyboard.press('Meta+w');
+        await expect(settingsTab).toHaveCount(0);
         await running.page.keyboard.press('Meta+,');
-        await expect(dialog.getByRole('tab', { name: 'Settings', exact: true })).toHaveAttribute(
-            'aria-selected',
-            'true',
-        );
+        await expect(
+            settingsTab.getByRole('tab', { name: 'Settings', exact: true }),
+        ).toHaveAttribute('aria-selected', 'true');
     } finally {
         await running.app.close();
         await rm(directory, { recursive: true, force: true });
@@ -68,9 +80,7 @@ test('Settings shortcut opens while Terminal input has focus', async () => {
         await terminalInput.focus();
         await expect(terminalInput).toBeFocused();
 
-        await running.page.keyboard.press('Meta+,');
-
-        await expect(running.page.getByRole('dialog')).toBeVisible();
+        await openSettingsTab(running.page);
     } finally {
         try {
             await running.app.close();
@@ -90,16 +100,15 @@ test('Keyboard Shortcuts records, validates, resets, and dispatches a custom bin
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createShellSession(running.page);
-        await running.page.keyboard.press('Meta+,');
-        const dialog = running.page.getByRole('dialog');
-        await dialog.getByRole('tab', { name: 'Keybindings', exact: true }).click();
+        const settingsTab = await openSettingsTab(running.page);
+        await settingsTab.getByRole('tab', { name: 'Keybindings', exact: true }).click();
 
-        const search = dialog.getByLabel('Search keyboard shortcuts');
+        const search = settingsTab.getByLabel('Search keyboard shortcuts');
         await search.fill('secondarySidebar.toggle');
         // Filtered on the command id, not the title: a conflict is now reported on both colliding
         // rows, so each row's text contains the *other* command's title and a title filter would
         // match two rows once the conflict below exists. The id appears only on its own row.
-        const secondarySidebarRow = dialog
+        const secondarySidebarRow = settingsTab
             .getByRole('listitem')
             .filter({ hasText: 'secondarySidebar.toggle' });
         const secondarySidebarEdit = secondarySidebarRow.getByRole('button', {
@@ -109,7 +118,7 @@ test('Keyboard Shortcuts records, validates, resets, and dispatches a custom bin
         await expect(secondarySidebarRow.locator('[data-shortcut="cmd+]"] kbd')).toHaveCount(2);
 
         // The chord already belongs to Session MRU globally. Recording must receive it before
-        // the capture-phase dispatcher consumes the command behind the Settings modal.
+        // the capture-phase dispatcher consumes the command behind the Settings tab.
         await secondarySidebarEdit.click();
         await secondarySidebarEdit.press('Control+Alt+Tab');
         await expect(secondarySidebarEdit).toContainText('⌃⌥⇥');
@@ -148,7 +157,7 @@ test('Keyboard Shortcuts records, validates, resets, and dispatches a custom bin
          * alone resolves to two rows and trips strict mode.
          */
         const primarySidebarEditName = 'Edit shortcut for Toggle Primary Side Bar';
-        const primarySidebarRow = dialog.getByRole('listitem').filter({
+        const primarySidebarRow = settingsTab.getByRole('listitem').filter({
             has: running.page.getByRole('button', { name: primarySidebarEditName }),
         });
         const primarySidebarEdit = primarySidebarRow.getByRole('button', {
@@ -189,7 +198,9 @@ test('Keyboard Shortcuts records, validates, resets, and dispatches a custom bin
             .toBe('cmd+[');
 
         await search.fill('search files');
-        const searchFilesRow = dialog.getByRole('listitem').filter({ hasText: 'Search Files' });
+        const searchFilesRow = settingsTab
+            .getByRole('listitem')
+            .filter({ hasText: 'Search Files' });
         await searchFilesRow
             .getByRole('button', { name: 'Remove shortcut for Search Files' })
             .click();
@@ -211,7 +222,11 @@ test('Keyboard Shortcuts records, validates, resets, and dispatches a custom bin
             })
             .toBe('cmd+shift+f');
 
-        await running.page.keyboard.press('Escape');
+        // Settings is a Workbench tab now, not a modal (issue caxri#1289): `Cmd+W` closes it
+        // outright, the tab-appropriate replacement for the old "Escape to dismiss the dialog" step
+        // — needed so the rest of this check exercises the custom binding against the plain
+        // Workbench, with no Settings surface still mounted alongside it.
+        await running.page.keyboard.press('Meta+w');
         await expect(running.page.locator('.secondary-sidebar')).toBeVisible();
         await running.page.keyboard.press('Meta+Alt+I');
         await expect(running.page.locator('.secondary-sidebar')).toHaveCount(0);
@@ -224,5 +239,29 @@ test('Keyboard Shortcuts records, validates, resets, and dispatches a custom bin
             // Ignore close failures during cleanup.
         }
         await rm(testDirectory, { recursive: true, force: true });
+    }
+});
+
+test('Settings opens before the first Project exists and closes back to the Welcome view', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-settings-welcome-e2e-'));
+    const root = join(directory, 'project');
+    await mkdir(root);
+    const running = await launchCaxri({
+        userDataDir: join(directory, 'user-data'),
+        testRootPath: root,
+    });
+    try {
+        const welcome = running.page.getByRole('heading', { name: 'Project-first development.' });
+        await expect(welcome).toBeVisible();
+        await running.page.keyboard.press('Meta+,');
+        const settingsPage = running.page.locator('[data-settings-page]');
+        await expect(settingsPage).toBeVisible();
+        await expect(welcome).toHaveCount(0);
+        await running.page.getByRole('button', { name: 'Close Settings' }).click();
+        await expect(settingsPage).toHaveCount(0);
+        await expect(welcome).toBeVisible();
+    } finally {
+        await running.app.close();
+        await rm(directory, { recursive: true, force: true });
     }
 });

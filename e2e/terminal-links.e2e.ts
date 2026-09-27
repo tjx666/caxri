@@ -11,6 +11,7 @@ import {
     clickTerminalLink,
     createShellSession,
     launchCaxri,
+    openSettingsTab,
     pageRequest,
     selectedSessionId,
     sessionCard,
@@ -458,8 +459,7 @@ test('Terminal references open configured issues and an authorized Git commit', 
     const running = await launchCaxri({ userDataDir: userData, testRootPath: root });
     try {
         await createShellSession(running.page);
-        await running.page.keyboard.press('Meta+,');
-        const settings = running.page.getByRole('dialog');
+        const settings = await openSettingsTab(running.page);
         await settings.getByLabel('Search settings').fill('reference links');
         const editor = settings.getByRole('region', {
             name: 'Terminal Reference Links editor',
@@ -486,7 +486,7 @@ test('Terminal references open configured issues and an authorized Git commit', 
                 return result.value['terminal.referenceLinks'].map(({ prefix }) => prefix);
             })
             .toEqual(['TASK-']);
-        await settings.getByRole('button', { name: 'Close' }).click();
+        await running.page.keyboard.press('Meta+w'); // closes the Settings tab (issue caxri#1289)
 
         await running.app.evaluate(({ dialog, shell }) => {
             const target = globalThis as typeof globalThis & {

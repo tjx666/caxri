@@ -14,6 +14,7 @@ import {
     fileChangeSchema,
     identifierSchema,
     pathSchema,
+    permissionAutoAllowStatusSchema,
     runtimeStatusSchema,
     updateStateSchema,
 } from '../domain/domain.js';
@@ -205,6 +206,14 @@ export const serverEventPayloads = {
      */
     'sessionPullRequests.changed': z.object({ sessionIds: z.array(identifierSchema).max(1_024) }),
     /**
+     * One-shot invalidation after the Server-owned review comment store changed for one Session + repository. The
+     * payload is deliberately identity-only, never comment text: see the diagnostics privacy rule in `AGENTS.md`.
+     */
+    'gitReview.changed': z.object({
+        sessionId: identifierSchema,
+        repositoryId: identifierSchema,
+    }),
+    /**
      * One-shot prompt with a display-only path; authorization still accepts only the opaque candidate ID.
      */
     'workbench.candidate': z.object({
@@ -299,6 +308,16 @@ export const serverEventPayloads = {
          */
         launchId: identifierSchema,
         reason: lowCostSandboxFailureReasonSchema,
+    }),
+    /**
+     * Fires whenever the Session-scoped "Always allow in this Session" grant (issue caxri#1295) is enabled or revoked,
+     * so Desktop and every paired mobile device update their indicator live without polling. Content-free: no tool
+     * name, request content, or reason beyond the boolean state and grant timestamp. Transient — a client that
+     * reconnects gets the current state from `session.permissionAutoAllowStatus` / `mobile.attention.list`'s
+     * `autoAllow` field instead of a replayed event.
+     */
+    'agent.permissionAutoAllowChanged': permissionAutoAllowStatusSchema.extend({
+        sessionId: identifierSchema,
     }),
     /**
      * Main-originated, content-free request after Chromium restarts the GPU process. Every mounted Terminal handles
