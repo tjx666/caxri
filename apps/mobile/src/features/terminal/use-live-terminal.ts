@@ -159,15 +159,32 @@ export const useLiveTerminal = ({
         },
         [outbound, sendWebview],
     );
+    /**
+     * Tells the document whether it draws the phone's own grid with a live cursor, and whether drags may scroll an
+     * alternate-screen application. Sent with every snapshot, which follows a new document and a role change, and at
+     * each lease transition.
+     */
+    const sendControl = useCallback(
+        (isLeased: boolean): void => {
+            const canForwardScroll = context.current.role === 'control';
+            sendWebview({
+                type: 'control',
+                canForwardScroll,
+                isLeased: isLeased && canForwardScroll,
+            });
+        },
+        [sendWebview],
+    );
     const resetOutput = useCallback(
         (cols: number, rows: number, data: string): boolean => {
             if (outboundFrame.current !== null) cancelAnimationFrame(outboundFrame.current);
             outboundFrame.current = null;
             outbound.clear();
             sendWebview({ type: 'reset', cols, rows });
+            sendControl(lease.current !== null);
             return appendOutput(data);
         },
-        [appendOutput, outbound, sendWebview],
+        [appendOutput, outbound, sendControl, sendWebview],
     );
 
     useEffect(() => {
@@ -192,6 +209,7 @@ export const useLiveTerminal = ({
             lease.current = null;
             if (heldLease) {
                 setHasLease(false);
+                sendControl(false);
                 // eslint-disable-next-line no-void -- Unsubscribe and Server lease cleanup remain the final fallback.
                 void request('mobile.terminal.release', heldLease).catch(() => {});
             }
@@ -272,6 +290,7 @@ export const useLiveTerminal = ({
             lease.current = null;
             if (ownedLease) {
                 setHasLease(false);
+                sendControl(false);
                 // eslint-disable-next-line no-void -- Server also releases on unsubscribe and disconnect.
                 void request('mobile.terminal.release', ownedLease).catch(() => {});
             }
@@ -291,6 +310,7 @@ export const useLiveTerminal = ({
         resetOutput,
         retry,
         role,
+        sendControl,
         subscribe,
         subscriptionAvailable,
         terminalId,
@@ -307,18 +327,6 @@ export const useLiveTerminal = ({
     );
 
     const leased = hasLease && role === 'control';
-    /**
-     * Tells the document whether it draws the phone's own grid with a live cursor, and whether drags may scroll an
-     * alternate-screen application. A replaced document receives this again once it reports ready.
-     */
-    useEffect(() => {
-        if (webviewReady)
-            sendWebview({
-                type: 'control',
-                canForwardScroll: role === 'control',
-                isLeased: leased,
-            });
-    }, [leased, role, sendWebview, webviewReady]);
 
     const currentTarget = (): TerminalControlTarget | null => {
         const handle = subscription.current;
@@ -434,6 +442,7 @@ export const useLiveTerminal = ({
              * grid. Otherwise it keeps rendering the Desktop grid while the Agent redraws for the phone.
              */
             sendWebview({ type: 'resize', ...phoneSize });
+            sendControl(true);
             setHasLease(true);
             setError(null);
         } catch (error_) {
@@ -448,6 +457,7 @@ export const useLiveTerminal = ({
             if (lease.current === target) {
                 lease.current = null;
                 setHasLease(false);
+                sendControl(false);
                 setError(null);
             }
         } catch (error_) {

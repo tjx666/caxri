@@ -2,7 +2,7 @@
  * Default display scale of a Desktop grid on the phone, which also sets the text size of the phone's own grid while it
  * holds the lease so taking over does not suddenly enlarge the Terminal.
  */
-export const READABLE_TERMINAL_SCALE = 0.6;
+const READABLE_TERMINAL_SCALE = 0.6;
 
 export const terminalViewScale = ({
     heightFit,
