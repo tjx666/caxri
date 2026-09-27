@@ -77,7 +77,14 @@ snapshot scoped to the Commander, so the ordinary Terminal pane runs against it 
 
 `commander.ensure` is desktop-only and idempotent. It prepares the Commander workspace directory
 for the current profile, including a generated `AGENTS.md` that teaches the Commander its workflow
-and its CLI commands. It then creates any missing Commander row. The Terminal is launched only when
+and its CLI commands, and runs `git init` there on every call, which completes a half-written
+repository and never overwrites an existing one. Codex resolves its project root, project
+configuration, hooks, and `AGENTS.md` hierarchy from the nearest `.git` above its working directory,
+so without its own repository the Commander would inherit whichever repository contains the
+profile: a worktree development profile lives inside the Caxri checkout's `.git`, whose hooks fail
+there. When Git is missing or `git init` fails, the Commander still starts and Server Core logs
+`agent_commander.workspace_repository_failed` with a `git_missing` or `init_failed` reason. It then
+creates any missing Commander row. The Terminal is launched only when
 it was just created. An existing Terminal that an app restart or suspension interrupted is resumed
 through a dedicated restore supervisor: the Workbench resumes Terminals only for the Session it
 selects, and it never selects the Commander Session. A Terminal that exited on its own stays as it
@@ -96,6 +103,8 @@ into one of six groups, in this order: `attention`, `working`, `waiting`, `faile
   (running or blocked) wins over a newer settled one. Only receipt state leaves the database; the
   task's prompt and answer never reach the board. The window prints it next to the `Commander`
   marker as `Starting`, `Running`, `Answered`, `Blocked`, `Taken over`, `Stopped`, or `Failed`.
+  A task `blocked` with `startup_waiting` reads `Needs you` and moves its row to `attention`: its
+  Agent is running but waits at startup, usually on a first-run prompt only the user can answer.
   `Answered` means the Agent gave its final answer, not that the Commander verified it.
 
 The board never waits on GitHub.
@@ -187,9 +196,6 @@ Inside the Commander Terminal, the Commander calls the version-matched CLI throu
 - Completion is not pushed to the Commander. It learns about finished tasks by waiting on all of
   its open tasks at once (`agent delegate wait <id> <id>...`) or by reading the board at the start
   of each turn.
-- A delegated Codex that stops at a first-run prompt, such as folder trust for a directory the
-  user's Codex configuration does not trust, fails with `startup_not_ready`. The Commander is told to
-  name that Session for the user instead of retrying blindly.
-- A development profile lives inside the primary checkout's `.git` directory, so Codex treats the
-  Caxri repository as the Commander workspace's project and runs its repository hooks, which fail
-  there. A packaged profile is not inside a repository and is unaffected.
+- The first Commander launch on a machine stops at Codex's own folder-trust prompt for the
+  workspace, which the user answers once in the Commander pane. Caxri does not pre-trust it: trust
+  also enables project configuration, hooks, and sandbox defaults, so it stays the user's decision.

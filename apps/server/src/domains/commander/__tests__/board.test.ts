@@ -203,4 +203,20 @@ describe('Commander board grouping', () => {
             ),
         ).toEqual({ 'session-1': 'answer', 'session-2': 'stuck' });
     });
+
+    it('puts a Session whose Agent waits at startup under attention', () => {
+        const board = commanderBoard({
+            commanderSessionIds: new Set(['session-1']),
+            now: NOW,
+            projects: [project],
+            pullRequests: { pullRequests: {}, refreshedAt: 0 },
+            sessions: [session({ id: 'session-1' })],
+            tasks: [
+                task({ sessionId: 'session-1', status: 'blocked', failure: 'startup_waiting' }),
+            ],
+            terminals: [terminal({ sessionId: 'session-1' })],
+        });
+
+        expect(board.rows[0]?.group).toBe('attention');
+    });
 });

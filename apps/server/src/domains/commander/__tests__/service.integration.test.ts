@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -93,6 +94,20 @@ describe('Agent Commander service', () => {
             first.identity.sessionId,
         );
         expect(service.snapshot()?.identity).toEqual(first.identity);
+    });
+
+    it('makes the workspace its own Git repository even inside another repository', async () => {
+        const { directory, service } = await fixture();
+        execFileSync('git', ['init', '--quiet'], { cwd: directory });
+
+        const { workspacePath } = await service.ensure();
+        await service.ensure();
+
+        const topLevel = execFileSync('git', ['rev-parse', '--show-toplevel'], {
+            cwd: join(workspacePath, 'tasks'),
+            encoding: 'utf8',
+        }).trim();
+        expect(await realpath(topLevel)).toBe(workspacePath);
     });
 
     it('creates Commander Sessions without moving the Workbench selection', async () => {

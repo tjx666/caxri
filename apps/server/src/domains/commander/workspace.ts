@@ -1,7 +1,10 @@
 import { mkdir, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { execFileAsync } from '@caxri/system';
+
 import { atomicWrite } from '../atomic-file';
+import { resolveGitLaunch } from '../git';
 
 /**
  * Directory name of the Commander workspace inside the profile. The workspace is the Commander Codex session's working
@@ -98,8 +101,10 @@ Escalate, and wait, only for:
 - destructive or irreversible operations, credentials, spending money, or anything that grants new authority;
 - a request that stays ambiguous in scope or intent after reading the issue, the screenshot, and the repository;
 - a step that needs the user's own hands (a device, a login, a native prompt): give one clear instruction at once. A
-  delegation that fails with \`startup_not_ready\` usually means the Agent is waiting on a first-run prompt such as
-  folder trust or sign-in; name the Session for the user to open, and retry once they answer it.
+  task that comes back \`blocked\` with \`startup_waiting\` has an Agent that is running but has not started, usually
+  because a first-run prompt such as folder trust or sign-in waits in its Terminal. Name the Project and Session for
+  the user to open; once they answer, the task continues by itself, so check its status later instead of retrying.
+  \`startup_not_ready\` means the Agent never came up: retry once, then report it.
 
 Collect every question a task needs and ask them together before dispatching, not one at a time.
 
@@ -143,15 +148,58 @@ its new ID. Hold the report until something needs the user or everything is done
 `;
 
 /**
- * Creates the Commander workspace under the profile and refreshes its generated instructions.
+ * Why the workspace could not become its own Git repository. The Commander still starts; Codex then resolves its
+ * project from whatever repository contains the profile, as it did before.
  */
-export async function prepareCommanderWorkspace(userDataPath: string): Promise<string> {
+export type CommanderWorkspaceRepoFailure = 'git_missing' | 'init_failed';
+
+/**
+ * Makes the workspace its own Git repository. Codex resolves its project root, project `.codex/` config and hooks, and
+ * hierarchical `AGENTS.md` from the nearest `.git` above its cwd (openai/codex `discover_project_root`,
+ * `agents_md_paths`). Without one the Commander inherits the repository that contains the profile: a worktree dev
+ * profile lives inside the Caxri checkout's `.git`, where that repository's hooks fail on every tool call, and a home
+ * directory kept under Git would do the same in production. A real repository rather than a bare marker keeps Git
+ * semantics intact, because Codex's config discovery and `AGENTS.md` discovery disagree on what an empty `.git` means.
+ */
+async function ensureWorkspaceRepo(
+    workspacePath: string,
+): Promise<CommanderWorkspaceRepoFailure | undefined> {
+    let launch: Awaited<ReturnType<typeof resolveGitLaunch>>;
+    try {
+        launch = await resolveGitLaunch();
+    } catch {
+        return 'git_missing';
+    }
+    /**
+     * Runs on every ensure rather than only when `.git` is missing: `git init` never overwrites an existing repository,
+     * and it completes one that an interrupted earlier run (timeout, full disk) left half-written.
+     */
+    try {
+        await execFileAsync(launch.executable, ['init', '--quiet'], {
+            cwd: workspacePath,
+            env: launch.environment,
+            timeout: 10_000,
+        });
+        return undefined;
+    } catch {
+        return 'init_failed';
+    }
+}
+
+/**
+ * Creates the Commander workspace under the profile, makes it its own Git repository, and refreshes its generated
+ * instructions.
+ */
+export async function prepareCommanderWorkspace(
+    userDataPath: string,
+): Promise<{ path: string; repoFailure?: CommanderWorkspaceRepoFailure }> {
     const workspacePath = join(userDataPath, COMMANDER_WORKSPACE_DIRECTORY);
     await mkdir(join(workspacePath, 'tasks'), { recursive: true, mode: 0o700 });
     await atomicWrite(join(workspacePath, 'AGENTS.md'), COMMANDER_INSTRUCTIONS, 0o644);
+    const repoFailure = await ensureWorkspaceRepo(workspacePath);
     /**
      * Project roots are canonical paths; a profile under a symlinked directory (macOS `/var` -> `/private/var`) must
      * resolve to the same row on every call.
      */
-    return realpath(workspacePath);
+    return { path: await realpath(workspacePath), ...(repoFailure && { repoFailure }) };
 }

@@ -9,11 +9,12 @@ import { describe, expect, it, onTestFinished, vi } from 'vitest';
 import type { AgentDispatchService } from '../../agent-dispatch';
 import { CaxriDatabase } from '../../db';
 import { AgentDelegationService } from '../service';
+import type { AgentDelegationServiceOptions } from '../service-options';
 
 const digest = (text: string) => createHash('sha256').update(text).digest('hex');
 const owner = { principal: { kind: 'human-cli', id: 'owner' } } as const;
 
-async function fixture() {
+async function fixture(overrides: Partial<AgentDelegationServiceOptions> = {}) {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-delegation-service-'));
     const database = new CaxriDatabase(join(directory, 'state.db'));
     onTestFinished(async () => {
@@ -40,6 +41,7 @@ async function fixture() {
         launchSettings: () => settings,
         verifyLaunch: () => Promise.resolve(),
         readTranscript,
+        ...overrides,
     });
     onTestFinished(() => service.close());
     const id = randomUUID();
@@ -64,6 +66,61 @@ async function fixture() {
 }
 
 describe('AgentDelegationService', () => {
+    it('keeps a live Agent that misses its startup deadline recoverable and lets the user answer its prompt', async () => {
+        let liveLaunch: string | undefined = 'launch';
+        let epoch = 0;
+        const f = await fixture({
+            currentLaunchId: () => liveLaunch,
+            inputEpoch: () => epoch,
+            submissionTimeoutMs: 1,
+        });
+        await f.service.create(f.id, owner, f.input);
+        f.service.bindLaunch(f.terminal.id, 'launch');
+        await vi.waitFor(() =>
+            expect(f.service.status(f.id, owner)).toMatchObject({
+                status: 'blocked',
+                failure: 'startup_waiting',
+            }),
+        );
+
+        epoch += 1;
+        f.service.interruptTerminal(f.terminal.id, true);
+        const stored = f.database.agentDelegations.get(f.id)!;
+        expect(stored.receipt.status).toBe('blocked');
+        expect(stored.hasHumanIntervention).toBeUndefined();
+        expect(stored.inputEpoch).toBe(1);
+
+        f.service.observe({
+            terminalId: f.terminal.id,
+            launchId: 'launch',
+            provider: 'claude',
+            agentSessionId: stored.providerSessionId,
+            agentTurnId: 'turn',
+            phase: 'turnStarted',
+            agentPromptDigest: stored.promptDigest,
+        });
+        expect(f.service.status(f.id, owner)).toMatchObject({ status: 'running' });
+        expect(f.service.status(f.id, owner).failure).toBeUndefined();
+
+        const second = randomUUID();
+        liveLaunch = undefined;
+        const { terminal } = f.database.createSession(f.input.projectId, 'claude');
+        f.start.mockImplementationOnce((_id, _principal, _input, options) => {
+            options?.prepared(terminal!);
+            return Promise.resolve({ status: 'running' } as Awaited<
+                ReturnType<AgentDispatchService['start']>
+            >);
+        });
+        await f.service.create(second, owner, { ...f.input, sessionId: terminal!.sessionId });
+        f.service.bindLaunch(terminal!.id, 'launch');
+        await vi.waitFor(() =>
+            expect(f.service.status(second, owner)).toMatchObject({
+                status: 'failed',
+                failure: 'startup_not_ready',
+            }),
+        );
+    });
+
     it('confines external clients to their bound caller and Session and rejects sibling client access', async () => {
         const f = await fixture();
         const authority = {

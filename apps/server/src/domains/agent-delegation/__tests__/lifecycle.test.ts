@@ -214,4 +214,30 @@ describe('Delegation continuation correlation', () => {
             ),
         ).toBeUndefined();
     });
+
+    it('returns a Codex task past its startup deadline to awaiting its turn once the native session starts', () => {
+        const waiting: StoredAgentDelegation = {
+            ...record,
+            receipt: {
+                ...record.receipt,
+                provider: 'codex',
+                status: 'blocked',
+                failure: 'startup_waiting',
+            },
+            providerSessionId: undefined,
+            turnId: undefined,
+        };
+
+        const started = applyDelegationLifecycle(waiting, {
+            ...signal,
+            provider: 'codex',
+            phase: 'sessionIdentified',
+        });
+
+        expect(started).toMatchObject({
+            providerSessionId: 'native',
+            receipt: { status: 'awaiting_ready' },
+        });
+        expect(started?.receipt.failure).toBeUndefined();
+    });
 });

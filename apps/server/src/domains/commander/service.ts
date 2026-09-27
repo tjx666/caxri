@@ -7,7 +7,8 @@ import type {
     TerminalKind,
     TerminalRecord,
 } from '@caxri/protocol';
-import { CaxriError, isTopLevelProject } from '@caxri/protocol';
+import { CaxriError, isTopLevelProject, logEventCatalog } from '@caxri/protocol';
+import type { StructuredLogger } from '@caxri/system';
 
 import type { CaxriDatabase } from '../db';
 import { commanderBoard } from './board';
@@ -37,6 +38,10 @@ export interface AgentCommanderServiceOptions {
         cwd: string,
         beforeStart: (terminal: TerminalRecord) => void,
     ): Promise<TerminalRecord>;
+    /**
+     * Optional so a unit test can omit it; the composed Server always passes one.
+     */
+    logger?: StructuredLogger;
     now?: () => number;
     probeTerminal(terminalId: string): void;
     pullRequests(): SessionPullRequests;
@@ -68,7 +73,17 @@ export class AgentCommanderService {
 
     private async runEnsure(): Promise<CommanderSnapshot> {
         const { database } = this.options;
-        const workspacePath = await prepareCommanderWorkspace(this.options.userDataPath);
+        const { path: workspacePath, repoFailure } = await prepareCommanderWorkspace(
+            this.options.userDataPath,
+        );
+        if (repoFailure)
+            this.options.logger?.write(
+                'warn',
+                logEventCatalog.agentCommander.workspaceRepositoryFailed,
+                {
+                    fields: { reason: repoFailure },
+                },
+            );
         const stored = database.getAppState('agentCommander');
         let rows = database.agentCommanderRows();
         if (!rows || database.getProject(rows.projectId)?.rootPath !== workspacePath) {
