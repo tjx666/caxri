@@ -62,6 +62,7 @@ const mobileGatewayMethodsByRole = {
         'mobile.terminal.takeOver',
         'mobile.terminal.release',
         'mobile.terminal.input',
+        'mobile.terminal.scroll',
         'mobile.project.browse',
         'mobile.project.add',
         'mobile.files.write',

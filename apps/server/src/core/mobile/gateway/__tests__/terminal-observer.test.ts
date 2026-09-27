@@ -240,6 +240,35 @@ describe('MobileTerminalObserver', () => {
         expect(port.releaseTakeOver).toHaveBeenCalledOnce();
     });
 
+    it('scrolls without a size lease but only for the current generation', async () => {
+        const port = {
+            observe: vi.fn(async () => ({ snapshot: null, nextSequence: 0, generation: 2 })),
+            unobserve: vi.fn(async () => {}),
+            scrollForGeneration: vi.fn(async () => true),
+        } as unknown as TerminalExecutionPort;
+        const authorize = vi.fn(async () => {});
+        const observer = new MobileTerminalObserver({
+            terminalId: 'terminal-1',
+            subscriptionId: 'subscription-1',
+            holderId: 'connection-1:subscription-1',
+            port,
+            authorize,
+            reserve: () => true,
+            release: vi.fn(),
+            send: async () => {},
+            remove: vi.fn(),
+            terminate: vi.fn(),
+        });
+        await observer.start();
+        const wheel = { col: 4, lines: -3, row: 9 };
+        await observer.scroll(2, wheel);
+        expect(authorize).toHaveBeenCalledOnce();
+        expect(port.scrollForGeneration).toHaveBeenCalledExactlyOnceWith('terminal-1', 2, wheel);
+        await expect(observer.scroll(1, wheel)).rejects.toMatchObject({ code: 'CONFLICT' });
+        expect(port.scrollForGeneration).toHaveBeenCalledOnce();
+        await observer.close();
+    });
+
     it('renews an idle lease and releases only its exact holder on close', async () => {
         const port = {
             observe: vi.fn(async () => ({ snapshot: null, nextSequence: 0, generation: 2 })),

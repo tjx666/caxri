@@ -7,6 +7,7 @@ import type {
     TerminalRecord,
     TerminalResourceUsage,
     TerminalSnapshot,
+    TerminalWheelInput,
 } from '@caxri/protocol';
 import {
     CaxriError,
@@ -87,6 +88,7 @@ export interface TerminalExecutionOwner {
     textTail?(terminalId: string, maximumCharacters: number): Promise<string | null>;
     start(input: TerminalExecutionStart): number;
     waitForAttachedSize(terminalId: string, timeoutMs: number): Promise<void>;
+    scroll(terminalId: string, wheel: TerminalWheelInput): boolean;
     write(terminalId: string, data: string | Buffer): boolean;
     writeWithCompletion?(terminalId: string, data: string | Buffer): Promise<boolean>;
     quiesceInput?(terminalId: string): AgentInputHandoff;
@@ -503,6 +505,10 @@ export class TerminalHostRuntime {
             case 'terminal.observer.input': {
                 const scope = this.requireTerminalScope(envelope);
                 return { accepted: this.engine.write(scope.terminalId, request.params.data) };
+            }
+            case 'terminal.observer.scroll': {
+                const scope = this.requireTerminalScope(envelope);
+                return { accepted: this.engine.scroll(scope.terminalId, request.params) };
             }
             case 'terminal.snapshot': {
                 const scope = this.requireTerminalScope(envelope);

@@ -4,6 +4,7 @@ import {
     agentProviderSchema,
     identifierSchema,
     MAX_TERMINAL_INPUT_LENGTH,
+    mobileTerminalWheelLinesSchema,
     pathSchema,
     serverCredentialTokenSchema,
     serverProcessIdentitySchema,
@@ -267,6 +268,18 @@ const terminalRequestSchemas = [
         .object({
             method: z.literal('terminal.observer.input'),
             params: z.object({ data: z.string().max(MAX_TERMINAL_INPUT_LENGTH) }).strict(),
+        })
+        .strict(),
+    z
+        .object({
+            method: z.literal('terminal.observer.scroll'),
+            params: z
+                .object({
+                    col: z.number().int().min(1).max(1_000),
+                    lines: mobileTerminalWheelLinesSchema,
+                    row: z.number().int().min(1).max(1_000),
+                })
+                .strict(),
         })
         .strict(),
     z.object({ method: z.literal('terminal.snapshot'), params: z.object({}).strict() }).strict(),
@@ -561,6 +574,7 @@ const terminalHostResultSchemas = {
     'terminal.renewTakeOver': z.object({ expiresAt: z.number().int().positive() }).strict(),
     'terminal.releaseTakeOver': z.object({ released: z.literal(true) }).strict(),
     'terminal.observer.input': z.object({ accepted: z.boolean() }).strict(),
+    'terminal.observer.scroll': z.object({ accepted: z.boolean() }).strict(),
     'terminal.snapshot': z.object({ snapshot: terminalSnapshotSchema.nullable() }).strict(),
     'terminal.textTail': z.object({ tail: z.string().max(65_536).nullable() }).strict(),
     'terminal.waitForAttachedSize': z.object({ attached: z.literal(true) }).strict(),
@@ -600,6 +614,7 @@ const requiredCapabilities = {
     'terminal.renewTakeOver': 'terminal.lease',
     'terminal.releaseTakeOver': 'terminal.lease',
     'terminal.observer.input': 'terminal.mobile.input',
+    'terminal.observer.scroll': 'terminal.mobile.input',
     'terminal.snapshot': 'terminal.view',
     'terminal.textTail': 'terminal.inspect',
     'terminal.waitForAttachedSize': 'terminal.view',
@@ -723,6 +738,7 @@ export function authorizeTerminalHostRequest(
             'terminal.renewTakeOver',
             'terminal.releaseTakeOver',
             'terminal.observer.input',
+            'terminal.observer.scroll',
         ].includes(envelope.request.method)
     )
         return envelope.scope.attachmentId === undefined && current.running

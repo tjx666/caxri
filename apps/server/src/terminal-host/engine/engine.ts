@@ -6,6 +6,7 @@ import type {
     TerminalRecord,
     TerminalResourceUsage,
     TerminalSnapshot,
+    TerminalWheelInput,
 } from '@caxri/protocol';
 import { CaxriError, CURRENT_TERMINAL_SNAPSHOT_ENCODING_VERSION } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
@@ -498,6 +499,15 @@ export class TerminalExecutionEngine {
         if (!live) return false;
         if (typeof data === 'string') live.outputRecovery?.observeUserInput();
         return this.writeLive(live, live.record.provider, data);
+    }
+
+    /**
+     * Encodes wheel input from the parsed screen's current modes, so an observer can scroll an application without
+     * being able to send arbitrary bytes. Like a Desktop wheel report, it counts as user input for output recovery.
+     */
+    scroll(terminalId: string, wheel: TerminalWheelInput): boolean {
+        const data = this.terminals.get(terminalId)?.screen.wheelInput(wheel);
+        return data ? this.write(terminalId, data) : false;
     }
 
     async writeWithCompletion(terminalId: string, data: string | Buffer): Promise<boolean> {

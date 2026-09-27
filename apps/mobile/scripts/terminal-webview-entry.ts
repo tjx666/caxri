@@ -2,7 +2,14 @@ import { Terminal } from '@xterm/xterm';
 
 import { createTerminalFrameBatch } from '../src/features/terminal/frame-batch';
 import { resetTerminalSnapshot } from '../src/features/terminal/snapshot-reset';
-import { isTerminalViewAtBottom, terminalViewScale } from '../src/features/terminal/view-scale';
+import {
+    isTerminalViewAtBottom,
+    leasedTerminalScale,
+    shouldForwardTerminalScroll,
+    TERMINAL_WHEEL_MAX_LINES,
+    terminalPhoneGrid,
+    terminalViewScale,
+} from '../src/features/terminal/view-scale';
 
 interface TerminalBridgeWindow extends Window {
     __CAXRI_TERMINAL_ID__: string;
@@ -41,6 +48,14 @@ const viewState = {
     zoom: 1,
     scale: 1,
     pinchDistance: null as number | null,
+    /**
+     * This phone holds the size lease, so the grid is its own and is drawn at the leased text size.
+     */
+    isLeased: false,
+    /**
+     * The device may scroll alternate-screen applications through the Server's wheel encoding.
+     */
+    canForwardScroll: false,
 };
 
 const distance = (first: Touch, second: Touch): number =>
@@ -76,7 +91,9 @@ const layout = (): void => {
     /**
      * A tall Desktop grid scrolls vertically at the readable default; pinching can still fit the whole grid.
      */
-    const scale = terminalViewScale({ heightFit, widthFit, zoom: viewState.zoom });
+    const scale = viewState.isLeased
+        ? leasedTerminalScale(viewState.zoom)
+        : terminalViewScale({ heightFit, widthFit, zoom: viewState.zoom });
     viewState.scale = scale;
     stage.style.width = `${gridWidth}px`;
     stage.style.height = `${gridHeight}px`;
@@ -84,12 +101,19 @@ const layout = (): void => {
     frame.style.width = `${gridWidth * scale}px`;
     frame.style.height = `${gridHeight * scale}px`;
     if (viewState.isAtBottom) viewport.scrollTop = viewport.scrollHeight;
-    const availableColumns = Math.floor(viewport.clientWidth / cellWidth);
-    const availableRows = Math.floor(viewport.clientHeight / cellHeight);
+    /**
+     * The grid offered for a takeover keeps the text size the reader already sees, so a pinch while holding the lease
+     * resizes the shared Terminal instead of only magnifying it.
+     */
     post({
         type: 'size',
-        cols: Math.max(2, Math.min(1_000, availableColumns)),
-        rows: Math.max(1, Math.min(1_000, availableRows)),
+        ...terminalPhoneGrid({
+            cellHeight,
+            cellWidth,
+            height: viewport.clientHeight,
+            width: viewport.clientWidth,
+            zoom: viewState.zoom,
+        }),
     });
 };
 
@@ -121,6 +145,35 @@ const lineHeight = (): number => {
     return height > 0 ? height * viewState.scale : 16;
 };
 
+const wheel = { lines: 0, frame: 0, col: 1, row: 1 };
+
+/**
+ * Coalesces one frame of forwarded scrolling into a single bounded wheel message at the drag's starting cell.
+ */
+const forwardWheel = (lines: number): void => {
+    wheel.lines += lines;
+    if (wheel.frame) return;
+    wheel.frame = requestAnimationFrame(() => {
+        wheel.frame = 0;
+        const next = Math.max(
+            -TERMINAL_WHEEL_MAX_LINES,
+            Math.min(TERMINAL_WHEEL_MAX_LINES, wheel.lines),
+        );
+        wheel.lines = 0;
+        if (next !== 0) post({ type: 'wheel', lines: next, col: wheel.col, row: wheel.row });
+    });
+};
+
+const cellAt = (clientX: number, clientY: number): { col: number; row: number } => {
+    const bounds = stage.getBoundingClientRect();
+    const col = Math.floor(((clientX - bounds.left) / bounds.width) * terminal.cols) + 1;
+    const row = Math.floor(((clientY - bounds.top) / bounds.height) * terminal.rows) + 1;
+    return {
+        col: Math.max(1, Math.min(terminal.cols, col)),
+        row: Math.max(1, Math.min(terminal.rows, row)),
+    };
+};
+
 /**
  * Moves content by a vertical finger delta. A grid zoomed taller than the phone pans the page first; once the page is
  * at its edge, the rest of the delta scrolls xterm's scrollback line by line.
@@ -141,7 +194,15 @@ const scrollBy = (delta: number): void => {
     const lines = Math.trunc(gesture.pendingY / height);
     if (lines === 0) return;
     gesture.pendingY -= lines * height;
-    terminal.scrollLines(-lines);
+    if (
+        viewState.canForwardScroll &&
+        shouldForwardTerminalScroll({
+            bufferType: terminal.buffer.active.type,
+            mouseTrackingMode: terminal.modes.mouseTrackingMode,
+        })
+    )
+        forwardWheel(-lines);
+    else terminal.scrollLines(-lines);
 };
 
 const glide = (): void => {
@@ -181,6 +242,7 @@ viewport.addEventListener(
             gesture.axis = null;
             gesture.pendingY = 0;
             gesture.velocityY = 0;
+            Object.assign(wheel, cellAt(first.clientX, first.clientY));
         } else gesture.moved = true;
     },
     { capture: true, passive: true },
@@ -252,6 +314,50 @@ viewport.addEventListener(
     },
     { capture: true, passive: true },
 );
+/**
+ * The phone types through a native input, so xterm never holds DOM focus and would draw only its inactive outline
+ * cursor. While leased, the cursor is drawn as a block and blinks through a class toggle; the stylesheet's
+ * `caxri-cursor-off` rule outranks xterm's `!important` block colors, which a CSS animation cannot override.
+ */
+const cursor = { timer: 0 as ReturnType<typeof setInterval> | 0 };
+const restartCursorBlink = (): void => {
+    document.body.classList.remove('caxri-cursor-off');
+    if (cursor.timer) clearInterval(cursor.timer);
+    cursor.timer = viewState.isLeased
+        ? setInterval(() => document.body.classList.toggle('caxri-cursor-off'), 600)
+        : 0;
+};
+const jumpToLatest = (): void => {
+    stopMomentum();
+    terminal.scrollToBottom();
+    viewport.scrollTop = viewport.scrollHeight;
+    reportScroll();
+};
+/**
+ * Right after a resize xterm's scrollable element still has the previous grid's height, so `scrollToBottom` is clamped
+ * to the old bottom until xterm syncs its dimensions a few frames later. Retry each frame until the view really
+ * follows.
+ */
+const followLatest = (framesLeft: number): void => {
+    jumpToLatest();
+    if (!viewState.isAtBottom && framesLeft > 0)
+        requestAnimationFrame(() => followLatest(framesLeft - 1));
+};
+/**
+ * Taking over is about to type, so the view jumps to the latest output where the cursor and prompt are instead of
+ * keeping an earlier reading position.
+ */
+const applyControl = (isLeased: boolean, canForwardScroll: boolean): void => {
+    viewState.canForwardScroll = canForwardScroll;
+    if (viewState.isLeased === isLeased) return;
+    viewState.isLeased = isLeased;
+    terminal.options.cursorInactiveStyle = isLeased ? 'block' : 'outline';
+    terminal.refresh(0, terminal.rows - 1);
+    restartCursorBlink();
+    layout();
+    if (isLeased) followLatest(30);
+};
+
 const layoutObserver = new ResizeObserver(layout);
 layoutObserver.observe(viewport);
 const screenElement = stage.querySelector<HTMLElement>('.xterm-screen');
@@ -267,6 +373,7 @@ const batch = createTerminalFrameBatch({
             /**
              * Xterm keeps a reader's scrolled-up position while output arrives, so only a following view needs moving.
              */
+            if (viewState.isLeased) restartCursorBlink();
             if (shouldFollow) {
                 terminal.scrollToBottom();
                 viewport.scrollTop = viewport.scrollHeight;
@@ -313,12 +420,13 @@ bridgeWindow.CaxriTerminal = {
                 command.data.length <= 24 * 1_024
             )
                 batch.push(command.data);
-            else if (command.type === 'jump') {
-                stopMomentum();
-                terminal.scrollToBottom();
-                viewport.scrollTop = viewport.scrollHeight;
-                reportScroll();
-            }
+            else if (
+                command.type === 'control' &&
+                typeof command.isLeased === 'boolean' &&
+                typeof command.canForwardScroll === 'boolean'
+            )
+                applyControl(command.isLeased, command.canForwardScroll);
+            else if (command.type === 'jump') jumpToLatest();
         } catch {
             post({ type: 'error', code: 'render-failed' });
         }

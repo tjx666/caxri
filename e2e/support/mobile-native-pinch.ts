@@ -13,17 +13,26 @@ const fixtureInstrumentation = 'caxri.acceptance.ime/.FixtureGestureInstrumentat
 
 type PinchDirection = 'pinch-in' | 'pinch-out';
 
-const terminalBounds = async (serial: string) => {
+/**
+ * `observing` pinches the read-only view of the Desktop grid; `leased` pinches the phone's own grid while it holds the
+ * lease, which reflows the grid.
+ */
+type PinchTerminalState = 'leased' | 'observing';
+
+const terminalBounds = async (serial: string, state: PinchTerminalState) => {
     const nodes = await mobileSemantics(serial);
     const webview = nodes.find(({ checkId }) => checkId === 'terminal-live-webview');
     const bounds = webview && androidBounds(webview.bounds);
+    const isLeased = nodes.some(({ checkId }) => checkId === 'terminal-release');
+    const canTakeOver = nodes.some(
+        ({ checkId, enabled }) => checkId === 'terminal-take-over' && enabled,
+    );
     if (
         !bounds ||
         nodes.every(({ checkId }) => checkId !== 'session-detail') ||
-        nodes.every(({ checkId, enabled }) => !(checkId === 'terminal-take-over' && enabled)) ||
-        nodes.some(({ checkId }) => checkId === 'terminal-release')
+        (state === 'leased' ? !isLeased : isLeased || !canTakeOver)
     )
-        throw new Error('The read-only Terminal is unavailable for native pinch');
+        throw new Error(`The ${state} Terminal is unavailable for native pinch`);
     const display = await mobileDisplayState(serial);
     const frame = display.size.override ?? display.size.physical;
     if (
@@ -42,13 +51,14 @@ const terminalBounds = async (serial: string) => {
  * Uses the acceptance APK's UiAutomation instrumentation to inject one real two-pointer gesture. Both semantic reads
  * independently require Caxri to be foreground.
  */
-export async function pinchReadOnlyTerminal(
+export async function pinchTerminal(
     serial: string,
     direction: PinchDirection,
+    state: PinchTerminalState = 'observing',
 ): Promise<void> {
     if (!/^emulator-\d+$/u.test(serial))
         throw new Error('Native pinch requires an explicit disposable emulator serial');
-    const bounds = await terminalBounds(serial);
+    const bounds = await terminalBounds(serial, state);
     const output = await runMobileDeviceCommand(
         adb,
         [
@@ -73,5 +83,5 @@ export async function pinchReadOnlyTerminal(
         !/^INSTRUMENTATION_CODE: -1$/mu.test(output)
     )
         throw new Error('Native pinch instrumentation did not report success');
-    await terminalBounds(serial);
+    await terminalBounds(serial, state);
 }
