@@ -14,6 +14,8 @@ import {
     MAX_COMMANDER_BOARD_ROWS,
 } from '@caxri/protocol';
 
+import { isDelegationActive } from '../agent-delegation/lifecycle';
+
 /**
  * How long a completed Session stays under "Recently finished". Longer than the Workbench Activity view's window
  * because the Commander reviews finished work in batches, often hours after the Agent stopped.
@@ -55,16 +57,28 @@ export function commanderBoardGroup(
     return 'idle';
 }
 
-function latestTaskBySession(
+/**
+ * Picks the task each Commander Session shows. A task answered by a follow-up is superseded by it, so only chain heads
+ * compete; among those an unsettled one (running or blocked) wins over a newer settled one, so a finished side task
+ * never hides work that still needs someone.
+ */
+function currentTaskBySession(
     tasks: readonly AgentDelegationReceipt[],
 ): Map<string, CommanderBoardRow['task']> {
-    const latest = new Map<string, AgentDelegationReceipt>();
+    const superseded = new Set(tasks.flatMap(({ followUpOf }) => followUpOf ?? []));
+    const isOpen = (task: AgentDelegationReceipt) =>
+        isDelegationActive(task) || task.status === 'blocked';
+    const current = new Map<string, AgentDelegationReceipt>();
     for (const task of tasks) {
-        const current = latest.get(task.sessionId);
-        if (!current || task.createdAt > current.createdAt) latest.set(task.sessionId, task);
+        if (superseded.has(task.delegationId)) continue;
+        const shown = current.get(task.sessionId);
+        const outranks =
+            !shown ||
+            (isOpen(task) === isOpen(shown) ? task.createdAt > shown.createdAt : isOpen(task));
+        if (outranks) current.set(task.sessionId, task);
     }
     return new Map(
-        [...latest].map(([sessionId, { delegationId, status, failure, updatedAt }]) => [
+        [...current].map(([sessionId, { delegationId, status, failure, updatedAt }]) => [
             sessionId,
             { delegationId, status, ...(failure && { failure }), updatedAt },
         ]),
@@ -74,7 +88,7 @@ function latestTaskBySession(
 /**
  * Projects the visible Workbench into the Commander board: every top-level Project and its unarchived Sessions, most
  * recent activity first within each group. Pull requests come from the cached snapshot and never wait on GitHub.
- * `tasks` are the Commander's own delegation receipts; each Commander Session shows its latest one.
+ * `tasks` are the Commander's own delegation receipts; each Commander Session shows its current one.
  */
 export function commanderBoard(input: {
     commanderSessionIds: ReadonlySet<string>;
@@ -89,7 +103,7 @@ export function commanderBoard(input: {
     const projectsById = new Map(projects.map((project) => [project.id, project]));
     const terminalsBySession = Map.groupBy(input.terminals, (terminal) => terminal.sessionId);
     const pullRequests = new Map(Object.entries(input.pullRequests.pullRequests));
-    const tasks = latestTaskBySession(input.tasks);
+    const tasks = currentTaskBySession(input.tasks);
     const order = new Map(commanderBoardGroupIds.map((id, index) => [id, index]));
     const rows = input.sessions.flatMap((session): CommanderBoardRow[] => {
         const project = projectsById.get(session.projectId);

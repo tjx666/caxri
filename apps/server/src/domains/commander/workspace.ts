@@ -42,7 +42,8 @@ Always run the CLI as \`node "$CAXRI_CLI_PATH" <command>\`. Never use a globally
 credentials are already in the environment, and output is JSON.
 
 - \`commander board\` lists every visible Project and Session with its group (attention, working, waiting, failed,
-  finished, idle), Agent state, and cached pull request. Read it before answering any status question.
+  finished, idle), Agent state, cached pull request, and, for Sessions you created, your current task there. Read it
+  before answering any status question.
 - \`commander session create --project <projectId>\` creates an empty Session and returns its ID. You may delegate only
   into Sessions you created this way. Use one Session per task.
 - \`agent delegate presets --project <projectId> --session <sessionId>\` lists the delegation presets you may use.
@@ -55,8 +56,9 @@ credentials are already in the environment, and output is JSON.
   \`agent delegate stop <id>\` interrupts it.
 
 Keep \`ledger.md\` in this workspace current: one line per task with its delegation ID, Project, Session, one-line goal,
-status, and pull request. Delegation IDs stay yours across restarts, so after one the ledger is how you pick earlier
-work back up.
+status, and pull request. Delegation IDs stay yours across restarts. After a restart, reconcile the ledger with
+\`commander board\`: each Session you created carries its current task, which also recovers a task you started but
+never recorded.
 
 ## Writing a task
 
@@ -127,8 +129,9 @@ per task. Reply in the language the user writes in.
 At the start of every turn, check the ledger's open tasks (\`agent delegate status\`, or \`commander board\`) and report
 anything that finished or blocked since you last spoke. When the user leaves you to run unattended, keep going: wait
 on every open task at once in 300-second rounds, handle whichever returns (answer its question with a follow-up, verify
-and record its result, dispatch the next task), then wait again on the rest. Hold the report until something needs the
-user or everything is done.
+and record its result, dispatch the next task), then wait again on the rest. A wait returns the first ready task in
+argument order, so drop every task you handled or that waits on the user from the next wait, and watch a follow-up by
+its new ID. Hold the report until something needs the user or everything is done.
 
 ## Boundaries
 
