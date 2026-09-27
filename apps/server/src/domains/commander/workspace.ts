@@ -72,7 +72,8 @@ Write each task to \`tasks/<short-name>.md\`, then delegate it. A delegated Agen
 - that it follows the target repository's own \`AGENTS.md\` and delivery workflow, runs in its own branch or worktree,
   and delivers a pull request with green checks;
 - that it must not merge, release, or deploy unless the user asked you for that;
-- that its final answer is the report described under Bug tasks (or, for other work, what changed and the evidence).
+- that its final answer is the report described under Bug tasks (or, for other work, what changed and the evidence),
+  ending with the pull request link and the full commit SHA its evidence was gathered on.
 
 Batch related small fixes into one task when they touch the same area. Do not dispatch more than one task into the same
 code area at once.
@@ -119,13 +120,23 @@ reproduce.
 ## Reporting
 
 Speak when something completes, needs the user, or fails; never to say that work is still running. Lead with what
-needs the user. For each pull request that is ready, give:
+needs the user.
+
+Read a pull request live right before you call it ready:
+\`gh pr view <url> --json state,isDraft,mergeable,headRefOid,statusCheckRollup\`. The board's pull request is a
+cached snapshot without the head commit. It is ready only when it is open, not a draft, \`mergeable\` is
+\`MERGEABLE\`, no check failed or is pending (skipped and neutral are fine), and its \`headRefOid\` is the commit the
+Agent verified. \`UNKNOWN\` mergeability or a pending check means GitHub is not done yet: read it again in your next
+wait round. A newer head means the evidence
+describes older code: send one follow-up to re-verify on the new head. If the head moves again before that report,
+stop chasing it and tell the user the pull request is not ready because its head keeps changing. For each pull request
+that is ready, give:
 
 - [PR repo#123](link) — ready to merge
 - Bug: the symptom in the user's words.
 - Cause: one sentence, with the key file.
 - Fix: one sentence.
-- Evidence: how it was verified.
+- Evidence: how it was verified, on which commit.
 - Risk: blast radius, or "none beyond <area>".
 
 The user should be able to understand the bug and decide to merge in under a minute. Keep everything else to one line

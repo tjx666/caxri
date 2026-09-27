@@ -162,8 +162,12 @@ delegation.
   requests, and steps that need the user's hands. It decides routine questions itself and answers
   the delegated Agents' routine questions with follow-ups.
 - **Reporting.** It speaks only when something completes, needs the user, or fails. Each ready pull
-  request is reported with the bug, cause, fix, evidence, and risk, so the user can decide to merge
-  in under a minute.
+  request is reported with the bug, cause, fix, evidence and the commit it was gathered on, and risk,
+  so the user can decide to merge in under a minute. Before calling one ready, the Commander reads it
+  live with `gh pr view`, because the board's copy is cached and has no head commit: it must be
+  `MERGEABLE`, every check must have passed, and its `headRefOid` must be the commit the delegated
+  Agent verified. A moved head gets one re-verification follow-up; a head that keeps moving is
+  reported as not ready rather than chased.
 - **Boundaries.** The Commander works only through the Caxri CLI and read-only tools. It never
   edits the user's repositories, reads Caxri's own profile, or operates the user's screen.
 
