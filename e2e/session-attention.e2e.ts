@@ -136,7 +136,7 @@ setInterval(() => {
         await expect(firstStatus).toHaveAccessibleName('Working. The Agent is running.');
         expect(
             await firstStatus
-                .locator('[data-slot="spinner"]')
+                .locator('[data-session-status-arc]')
                 .evaluate((element) => element.getAnimations().length),
         ).toBeGreaterThan(0);
         const [rowBox, statusBox] = await Promise.all([
@@ -144,13 +144,13 @@ setInterval(() => {
             firstStatus.boundingBox(),
         ]);
         if (!rowBox || !statusBox) throw new Error('Session status layout is unavailable');
-        expect(rowBox.x + rowBox.width - (statusBox.x + statusBox.width)).toBeLessThanOrEqual(10);
+        // The lifecycle rides on the row's leading Agent icon; the trailing edge belongs to delivery state.
+        expect(statusBox.x - rowBox.x).toBeLessThanOrEqual(10);
+        expect(statusBox.width).toBe(14);
         /**
-         * Captured while the Agent is running so the settled assertion further down can prove an empty status track
-         * returns exactly the visible glyph's width to the title. Lifecycle and pull-request glyphs still share this
-         * fixed right-edge position whenever either one exists.
+         * Captured while the Agent is running so the settled assertion further down can prove the title does not move
+         * when the Agent settles: every lifecycle state keeps the icon's 14px box.
          */
-        const runningStatusWidth = statusBox.width;
         const runningTitleWidth = await firstRow
             .locator('.session-copy')
             .evaluate((element) => element.getBoundingClientRect().width);
@@ -171,7 +171,8 @@ setInterval(() => {
             .locator('.session-row-actions');
         await expect(rowActions).toHaveCSS('opacity', '1');
         await expect(rowActions).toHaveCSS('pointer-events', 'auto');
-        await expect(firstStatus).toHaveCSS('opacity', '0');
+        // The leading icon is not in the hover actions' way, so it keeps reporting the Agent's state.
+        await expect(firstStatus).toHaveCSS('opacity', '1');
         const activityCard = running.page.locator('.session-activity-card');
         await expect(activityCard).toBeVisible();
         await expect(activityCard.locator('h3')).toHaveText(longTitle);
@@ -214,7 +215,7 @@ setInterval(() => {
         await running.page.emulateMedia({ reducedMotion: 'reduce' });
         expect(
             await firstStatus
-                .locator('[data-slot="spinner"]')
+                .locator('[data-session-status-arc]')
                 .evaluate((element) => element.getAnimations().length),
         ).toBe(0);
         await firstRow.evaluate((element) => {
@@ -405,11 +406,11 @@ setInterval(() => {
         await expect(deselectedStatus).not.toHaveAttribute('data-attention-kind');
         await running.page.waitForTimeout(600);
         await expect(deselectedStatus).toHaveAttribute('data-session-status', 'default');
-        expect(await deselectedStatus.evaluate((element) => element.clientWidth)).toBe(0);
+        expect(await deselectedStatus.evaluate((element) => element.clientWidth)).toBe(14);
         const settledTitleWidth = await running.page
             .locator(`[data-session-id="${firstSession.id}"] .session-copy`)
             .evaluate((element) => element.getBoundingClientRect().width);
-        expect(settledTitleWidth - runningTitleWidth).toBe(runningStatusWidth);
+        expect(settledTitleWidth).toBe(runningTitleWidth);
 
         /**
          * A second turn is what earns a second unread generation: a probe can only prove a turn ended for a Session it

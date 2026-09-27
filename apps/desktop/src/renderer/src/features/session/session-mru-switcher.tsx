@@ -8,12 +8,11 @@ import { useRelativeTime } from '@/hooks/use-relative-time';
 import type { SessionMruShortcutInvocation } from '../../commands/registry';
 import { ShortcutBadge } from '../../components/shortcut-badge';
 import { Kbd } from '../../components/ui/kbd';
-import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { useCommandShortcut } from '../../lib/keybindings';
 import { cn } from '../../lib/utilities';
 import { useProjects, useSessions, useTerminals } from '../../stores/selectors';
 import { ProjectIcon } from '../primary-sidebar/project-icon';
-import { SessionStatusIndicator } from '../primary-sidebar/session-status-indicator';
+import { SessionAgentStatusIcon } from '../primary-sidebar/session-agent-status-icon';
 import { sessionAgentTerminal } from './session-agent-terminal';
 import { commitMruSession } from './session-commands';
 import { resolveSessionMruView, useSessionMruSwitcherStore } from './session-mru-switcher-state';
@@ -105,10 +104,8 @@ function SessionMruRow({
              */
             onMouseMove={() => useSessionMruSwitcherStore.getState().select(index)}
         >
-            {/* `tone="state"`: this row is the same Session row family as the primary sidebar's, so
-                Claude Code/Codex must tint like every other Agent instead of keeping a fixed brand
-                color. */}
-            <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={16} tone="state" />
+            {/* The same Session row family as the PrimarySidebar: the Agent's lifecycle rides on its icon. */}
+            <SessionAgentStatusIcon session={session} size={16} terminal={terminal} />
             <span className="min-w-0 flex-1">
                 <strong
                     className={cn(
@@ -124,7 +121,6 @@ function SessionMruRow({
                 </span>
             </span>
             <span className="flex-none text-[11px] text-muted tabular-nums">{lastOpened}</span>
-            <SessionStatusIndicator reserveSlot session={session} terminal={terminal} />
         </div>
     );
 }

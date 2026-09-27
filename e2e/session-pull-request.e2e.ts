@@ -243,7 +243,7 @@ esac
     });
 }
 
-test('Session status takes the right-edge slot before its pull request glyph', async () => {
+test('Session status rides on the Agent icon while the pull request glyph keeps the right edge', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-session-pull-request-status-e2e-'));
     const userData = join(testDirectory, 'user-data');
     const root = join(testDirectory, 'project');
@@ -362,14 +362,28 @@ setInterval(() => {
 
         await writeClaudeMetadata(config, root, startedAt, 'busy');
         await expect(status).toHaveAttribute('data-session-status', 'running');
-        await expect(pullRequest).toHaveCount(0);
+        // Agent lifecycle rides on the leading icon, so the delivery glyph stays at the right edge.
+        await expect(pullRequest).toBeVisible();
+        await expectRightEdge(pullRequest);
         await expect(status).toHaveAccessibleName('Working. The Agent is running.');
+
+        // Collapsing the Project must not fold a running Agent out of sight: the heading summarizes it.
+        const projectTitle = running.page.getByRole('treeitem', { name: /^project \(/u });
+        const agentSummary = running.page.locator('.project-agent-summary');
+        // Pointer still on the heading and focus still on the chevron: the summary shows at once.
+        await running.page.locator('.project-disclosure').first().click();
+        await expect(agentSummary).toBeVisible();
+        await expect(agentSummary).toHaveAttribute('data-project-running', '1');
+        await expect(projectTitle).toHaveAccessibleName('project (1 Session), 1 running');
+        await running.page.locator('.project-disclosure').first().click();
+        await expect(agentSummary).toHaveCount(0);
+        await expect(pullRequest).toBeVisible();
         const runningLayout = await layout();
         expect(runningLayout.indicatorRightGap).toBe(idleLayout.indicatorRightGap);
         expect(runningLayout.indicatorWidth).toBe(idleLayout.indicatorWidth);
         expect(runningLayout.titleWidth).toBe(idleLayout.titleWidth);
 
-        // PR details remain reachable from the row while the lower-priority row glyph is hidden.
+        // PR details stay reachable from the hover card and the context menu.
         await card.hover();
         const hoverCard = running.page.locator('.session-activity-card');
         await expect(hoverCard).toBeVisible();
@@ -399,7 +413,7 @@ setInterval(() => {
         await expect(status).toHaveAttribute('data-session-status', 'running');
         await writeClaudeMetadata(config, root, startedAt, 'completed');
         await expect(status).toHaveAttribute('data-session-status', 'attention');
-        await expect(pullRequest).toHaveCount(0);
+        await expect(pullRequest).toBeVisible();
         const attentionLayout = await layout();
         expect(attentionLayout.indicatorRightGap).toBe(idleLayout.indicatorRightGap);
         expect(attentionLayout.indicatorWidth).toBe(idleLayout.indicatorWidth);
