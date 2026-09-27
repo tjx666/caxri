@@ -21,6 +21,60 @@ export function isDelegationActive(receipt: AgentDelegationReceipt): boolean {
 }
 
 /**
+ * Whether `failure` may settle this task: any active task, and also a startup already interrupted by `target_changed`
+ * before its first turn, so a launch that really failed reports that cause instead of the interruption.
+ */
+export function canFailDelegation(
+    record: StoredAgentDelegation,
+    failure: AgentDelegationReceipt['failure'],
+): boolean {
+    return (
+        isDelegationActive(record.receipt) ||
+        (failure === 'launch_failed' &&
+            !record.turnId &&
+            record.receipt.failure === 'target_changed' &&
+            record.receipt.status === 'interrupted')
+    );
+}
+
+/**
+ * Whether a save changes what observers of the receipt see. Revision-only saves (transcript offsets, input epochs,
+ * fencing marks) do not, and announcing them would reset the Agent Commander board's refresh debounce on every
+ * collector poll.
+ */
+export function isReceiptTransition(
+    before: AgentDelegationReceipt | undefined,
+    after: AgentDelegationReceipt,
+): boolean {
+    return before?.status !== after.status || before.failure !== after.failure;
+}
+
+/**
+ * What a Server restart does with a task that was still active. A retired native process may have persisted completion
+ * just before the restart, so a task with a recorded answer or a native-completion turn is collected, never replayed;
+ * every other task was cut off by the host reset.
+ */
+export function recoveredDelegation(record: StoredAgentDelegation): {
+    next: StoredAgentDelegation;
+    shouldCollect: boolean;
+} {
+    const hasAnswer = record.receipt.status === 'collecting' && Boolean(record.responseDigest);
+    const isNativeTurn =
+        Boolean(record.turnId) &&
+        delegationAdapter(record.receipt.provider).completion === 'native-completion';
+    const shouldCollect = (hasAnswer || isNativeTurn) && Boolean(record.providerSessionId);
+    return {
+        next: {
+            ...record,
+            receipt: shouldCollect
+                ? { ...record.receipt, status: 'collecting' }
+                : { ...record.receipt, status: 'interrupted', failure: 'host_reset' },
+        },
+        shouldCollect,
+    };
+}
+
+/**
  * A task whose Agent has not started its turn yet: still inside the startup deadline, or past it with the process alive
  * and presumably waiting on a first-run prompt. Nothing has entered the Agent's conversation in either state.
  */
