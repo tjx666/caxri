@@ -59,18 +59,19 @@ readback. Do not end again at local validation or PR creation. A status-only que
    subsequent runner status before diagnosing infrastructure failure. Keep following queued work
    through transient disconnects; do not mark the issue Blocked or end delivery solely because
    one status sample says offline. Inspect completed failed jobs even while the final gate queues.
-   A failed unit, integration, or E2E case outside the change's own behavior gets two local
-   repetitions of that exact case, never a full-suite or repeated CI rerun: checks share one self-hosted runner, so
-   chasing an intermittent failure in place blocks this delivery and every sibling delivery behind
-   it. When both repetitions pass, record the exact head, failed CI case/run, local commands/results,
+   A failed unit, integration, or E2E case gets two local repetitions of the related cases — the
+   failed cases plus, when they touch the changed behavior, the delivery's focused tests. Repairing
+   CI never runs the local full unit or E2E suite (it occupies the user's machine; only the user's
+   explicit request authorizes one) and never reruns CI repeatedly: checks share one self-hosted
+   runner, so chasing an intermittent failure in place blocks this delivery and every sibling
+   delivery behind it. When both repetitions pass, record the exact head, failed CI case/run, local commands/results,
    and waiver in the PR and the shared flaky-case tracker, then continue authorized delivery.
    Use the owning test runner; E2E reproduction and tracker publication follow
    [CI-only parity](../e2e-testing/SKILL.md#ci-only-parity).
    Do not require runner access or infrastructure root-cause diagnosis before applying this exception.
    Keep the failed CI result red, distinguish waived failures from checks that never ran, and never
-   report the whole suite as passed. A failure that reproduces locally, lacks the two local passes,
-   or concerns behavior changed by this delivery remains a blocker unless the user explicitly
-   authorizes a narrower exception.
+   report the whole suite as passed. A failure that reproduces locally or lacks the two local passes
+   remains a blocker unless the user explicitly authorizes a narrower exception.
 7. Merge only when explicitly authorized by the user or an active workflow such as `go`. Verify the
    remote merged state and merge commit before reporting completion.
 8. After the current task's PR is merged, inspect whether the task is running in the primary

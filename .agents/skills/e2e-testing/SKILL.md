@@ -180,8 +180,10 @@ Preserve the relevant CI viewport, font/locale/shell behavior, and long temporar
 Inject slowness at the owning async boundary or wait for an observable product invariant. Never use
 machine-wide throttling, fixed sleeps, random pressure, or a timeout-only change as the fix.
 
-If the exact CI-failing case passes two deterministic local repetitions and its failure is unrelated
-to the current change, stop investigating it inside this delivery. Preserve the case, CI run and
+If every CI-failing case passes two deterministic local repetitions, CI's failure is waived for this
+delivery: stop investigating it here. This holds whether or not the case covers the changed
+behavior. When it does, the delivery's own focused specs must also pass two repetitions in the same
+round. Preserve the case, CI run and
 failure evidence, local reproduction command, and result for
 [issue #877](https://github.com/tjx666/caxri/issues/877), then continue delivery. Create or update
 that remote record only when the current request or an active delivery workflow authorizes issue
@@ -189,9 +191,11 @@ mutation; otherwise include copy-ready evidence in the local report. Search exis
 when publication is authorized, and append a new occurrence to the matching case comment instead of
 creating another comment for the same test.
 
-Two repetitions are the entire local budget, and they cover the exact case only. Do not rerun the
-full E2E suite, and do not keep re-dispatching CI, to decide whether an unrelated case is
-intermittent. The suite shares one self-hosted runner with every other session, so chasing an
+Two repetitions are the entire local budget, and they cover the related cases only: the failed CI
+cases plus, when they touch the changed behavior, the delivery's focused specs. Repairing CI never
+runs the full unit or E2E suite locally, and never keeps re-dispatching CI, to decide whether a case
+is intermittent. A local full run occupies the machine the user is working on; only the user's own
+explicit request authorizes one. The suite shares one self-hosted runner with every other session, so chasing an
 intermittent failure in place blocks both the delivery it interrupted and every sibling delivery
 queued behind that runner. Intermittent cases are repaired collectively from the #877 record, where
 one investigation covers every occurrence, instead of once per pull request that happens to hit
@@ -222,8 +226,8 @@ A loaded-runner reproduction belongs to that collective work rather than to this
 `parallel-safe` race can need the repository-owned namespaced two-worker pool to appear at all,
 because loaded-runner conditions expose stale async state and hidden warmup surfaces that one worker
 cannot reproduce. Run that pool while repairing the recorded case, not as a gate on the delivery
-that reported it. It is a full-pool run, so it needs the authorization described in
-[Local full-suite review](#local-full-suite-review):
+that reported it. It is a full-pool run, so it runs only when the user explicitly asks for it
+([Remote full suite](#remote-full-suite)):
 
 ```bash
 bun run build
@@ -234,9 +238,9 @@ Build first and leave the sources alone until the pool ends; editing a source mi
 build-freshness guard and turns unrelated specs red with `Error: Build output is stale`. Prefer
 stable observable locators and explicit busy-to-ready transitions over arbitrary delays.
 
-The exception covers only a recorded case whose failure is unrelated to the current change. A case
-that reproduces locally, a case nobody reran, and any failure inside the changed behavior all still
-block delivery. Recording a failure never replaces the validation that covers the changed code.
+The waiver covers only a recorded case that passed both local repetitions. A case that fails
+locally in either repetition, and a case nobody reran, still block delivery. Recording a failure
+never replaces the validation that covers the changed code.
 
 Collect CI comparison evidence through the repository-owned workflow dispatch instead of an ad-hoc
 command.
@@ -285,9 +289,9 @@ pushing, never as a reason to iterate through full runs.
 Never run `bun run test:e2e` locally during an ordinary run. The command enforces this itself:
 `bun run test:e2e`, a bare `playwright test`, and every `scripts/run-e2e-pools.ts --pool` refuse to
 start without authorization, before the desktop build runs. The user grants it by setting
-`CAXRI_FULL_SUITE_AUTHORIZED=1`; an agent never sets that variable on its own judgement. While the
-user is away, the only other authorization is the independent review below. GitHub Actions is authorized by its own `CI`
-variable. When focused coverage is insufficient,
+`CAXRI_FULL_SUITE_AUTHORIZED=1` only when they explicitly ask for a local full run; an agent never
+sets that variable on its own judgement or on a subagent's or another harness's verdict, including
+while repairing CI. GitHub Actions is authorized by its own `CI` variable. When focused coverage is insufficient,
 use an authorized topic branch and draft PR; GitHub Actions runs checks and the full Electron suite
 on the repository self-hosted `m2-24` runner. `docs/self-hosted-runner.md` owns its labels, offline
 behavior, and recovery contract. Inspect failures, repair the same branch, and wait for replacement
@@ -296,33 +300,6 @@ checks. Do not merge or close without delivery authorization.
 Use `bun run --silent test:smoke` for the cheap post-change Electron launch gate when broad desktop
 startup confidence is useful but focused product E2E is unnecessary. Keep implementation subagents
 scoped to explicit specs and test names; never delegate the full `bun run test:e2e` gate.
-
-## Local full-suite review
-
-A full local run always looks like diligence from inside the session that wants it, which is why
-the requesting agent never judges it alone. When the user is not available to authorize one:
-
-1. Ask a subagent or another harness (`dianjiang`) for a read-only verdict. Give it the exact
-   question the run must answer, the focused specs already run with their results, why remote CI
-   cannot answer it, and the runner cost. Ask for `run` or `skip` plus one sentence of reasoning.
-2. Record the verdict as JSON outside the repository, bound to the head the run will execute:
-
-   ```json
-   {
-     "head": "<git rev-parse HEAD>",
-     "reviewer": "subagent:general-purpose",
-     "verdict": "run",
-     "reason": "The toast only reproduces under three-worker pool concurrency"
-   }
-   ```
-
-3. Pass it with `CAXRI_FULL_SUITE_REVIEW_RECEIPT=<path>`. The guard accepts only a `run` verdict
-   whose `head` matches the current commit, so commit first and get a new verdict after later
-   commits. A `skip` verdict ends the question: follow the reviewer's narrower alternative.
-4. Name the reviewer, verdict, and result in the report to the user.
-
-One verdict authorizes one run. A rerun after a stale build, a mid-run edit, or a new commit needs
-a new verdict.
 
 ## Guarded Go fallback
 

@@ -52,6 +52,9 @@ describe('full suite authorization', () => {
         expect(isFullSuiteAuthorized({ CAXRI_FULL_SUITE_AUTHORIZED: '1' })).toBe(true);
         expect(isFullSuiteAuthorized({})).toBe(false);
         expect(isFullSuiteAuthorized({ GITHUB_ACTIONS: 'true' })).toBe(false);
+        expect(isFullSuiteAuthorized({ CAXRI_FULL_SUITE_REVIEW_RECEIPT: '/tmp/review.json' })).toBe(
+            false,
+        );
     });
 
     it('names the wrong operation and the narrower command in its refusal', () => {
@@ -69,54 +72,5 @@ describe('full suite authorization', () => {
             assertFullSuiteAuthorized('unit', ['run', 'packages/protocol'], {}),
         ).not.toThrow();
         expect(() => assertFullSuiteAuthorized('unit', ['run'], { CI: 'true' })).not.toThrow();
-    });
-});
-
-describe('independent full-suite review receipt', () => {
-    const head = 'a'.repeat(40);
-    const receipt = (overrides: Record<string, unknown> = {}) => ({
-        readHead: () => head,
-        readReceipt: () =>
-            JSON.stringify({
-                head,
-                reviewer: 'subagent:general-purpose',
-                verdict: 'run',
-                reason: 'The failure only reproduces under pool concurrency',
-                ...overrides,
-            }),
-    });
-    const environment = { CAXRI_FULL_SUITE_REVIEW_RECEIPT: '/tmp/review.json' };
-
-    it('authorizes a current-head run verdict', () => {
-        expect(isFullSuiteAuthorized(environment, receipt())).toBe(true);
-    });
-
-    it.each([
-        ['a skip verdict', { verdict: 'skip' }],
-        ['a receipt for another head', { head: 'b'.repeat(40) }],
-        ['a receipt without a reviewer', { reviewer: ' ' }],
-        ['a receipt without a reason', { reason: '' }],
-    ])('refuses %s', (_name, overrides) => {
-        expect(isFullSuiteAuthorized(environment, receipt(overrides))).toBe(false);
-    });
-
-    it('refuses an unreadable or malformed receipt', () => {
-        expect(
-            isFullSuiteAuthorized(environment, {
-                readHead: () => head,
-                readReceipt: () => {
-                    throw new Error('ENOENT');
-                },
-            }),
-        ).toBe(false);
-        expect(
-            isFullSuiteAuthorized(environment, { readHead: () => head, readReceipt: () => '{' }),
-        ).toBe(false);
-    });
-
-    it('points an unattended agent at the independent review in its refusal', () => {
-        expect(() => assertFullSuiteAuthorized('e2e', ['test'], {})).toThrow(
-            /CAXRI_FULL_SUITE_REVIEW_RECEIPT/u,
-        );
     });
 });
