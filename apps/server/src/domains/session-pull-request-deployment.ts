@@ -87,3 +87,37 @@ export async function resolveSessionDeployment(
         return undefined;
     return { state: production.state };
 }
+
+/**
+ * Adds the production deployment this Session's merged pull request produced, when production is currently serving
+ * exactly that merge commit.
+ *
+ * Run on every sweep rather than only on a lookup, because the deployment lands minutes after the merge that a settled
+ * entry then caches for a quarter of an hour. While a merged pull request has no matching deployment the entry is also
+ * held to the open cadence (`openExpiresAt`), so the badge appears when the build finishes instead of whenever the next
+ * unrelated change happens to expire the row.
+ */
+export async function withSessionDeployment<
+    Entry extends { expiresAt: number; value?: SessionPullRequest },
+>(
+    dependencies: SessionDeploymentResolverDependencies,
+    entry: Entry,
+    options: { onError: (error: unknown) => void; openExpiresAt: number; rootPath: string },
+): Promise<Entry> {
+    if (entry.value?.state !== 'merged') return entry;
+    let deployment: SessionDeployment | undefined;
+    try {
+        deployment = await resolveSessionDeployment(dependencies, entry.value, options.rootPath);
+    } catch (error) {
+        // The row stays exactly as the pull request lookup left it rather than failing the Session's projection.
+        options.onError(error);
+    }
+    // Always rewritten, so a badge never outlives the build it described: the next merge moves production onto another
+    // commit, and this row must go back to reporting a plain merge.
+    if (deployment) return { ...entry, value: { ...entry.value, deployment } };
+    return {
+        ...entry,
+        expiresAt: Math.min(entry.expiresAt, options.openExpiresAt),
+        value: { ...entry.value, deployment: undefined },
+    };
+}

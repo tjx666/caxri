@@ -61,6 +61,7 @@ const EMPTY_CONTEXT: SessionTranscriptContext = {
     branches: [],
     directories: [],
     linearReferences: [],
+    pullRequests: {},
 };
 
 function runner(pullRequestBody = '') {

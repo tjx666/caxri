@@ -1,5 +1,3 @@
-import type { TranscriptScanCursor } from './transcript-scan';
-
 export interface TranscriptPullRequestReference {
     number: number;
     owner: string;
@@ -11,8 +9,11 @@ export interface TranscriptPullRequestReference {
  * Pull request links harvested from one Agent transcript. `created` is authoritative: it came back from a `gh pr
  * create` the Agent itself ran. `mentioned` is the most recent link the Agent wrote in its own prose and only matters
  * when the Session never created one (e.g. the user asked the Agent to check on an existing PR).
+ *
+ * It carries no cursor of its own: `SessionContextService` feeds it from the same incremental pass that harvests every
+ * other transcript clue, so a transcript is read once no matter how many clue kinds the product consumes.
  */
-export interface TranscriptPullRequestScan extends TranscriptScanCursor {
+export interface TranscriptPullRequestScan {
     created?: TranscriptPullRequestReference;
     mentioned?: TranscriptPullRequestReference;
     /**
@@ -65,7 +66,7 @@ interface CodexResponseItem {
 }
 
 export function createTranscriptPullRequestScan(): TranscriptPullRequestScan {
-    return { offset: 0, pendingCreateToolUseIds: new Set() };
+    return { pendingCreateToolUseIds: new Set() };
 }
 
 export function resetTranscriptPullRequestScan(scan: TranscriptPullRequestScan): void {

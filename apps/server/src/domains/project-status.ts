@@ -21,7 +21,6 @@ import {
     GitHubPullRequestStore,
     isNoPullRequest,
     LinearIssueStore,
-    pullRequestUnavailable as describePullRequestUnavailable,
     runExternalStatusCommand,
 } from './external-status';
 import type { GitService } from './git';
@@ -38,12 +37,17 @@ import type { PreparedRepo, PreparedSummary, SummaryCacheEntry } from './project
 import { pendingSummaryEntry } from './project-status-carry-over';
 import { projectStatusCliError } from './project-status-external';
 import { loadOverviewLinearIssues, loadPullRequestLinearIssues } from './project-status-linear';
-import {
-    githubPullRequestSchema,
-    parseExternalJson,
-    parseGitHubPullRequest,
-} from './project-status-parse';
+import { parseGitHubPullRequest } from './project-status-parse';
 import { ReviewThreadStore } from './project-status-review-threads';
+import type {
+    PullRequestTarget,
+    SessionPullRequestResolver,
+} from './project-status-session-pull-request';
+import {
+    loadOverviewPullRequest,
+    repoPullRequestNumber,
+    resolvePullRequestTarget,
+} from './project-status-session-pull-request';
 import { loadVercelDeployments } from './project-status-vercel';
 import { VercelDeploymentStore } from './project-status-vercel-store';
 import type { WatchOutcome } from './project-status-watch';
@@ -132,6 +136,7 @@ export class ProjectStatusService {
     private readonly linear: LinearIssueStore;
     private readonly alerts: ProjectStatusAlertTracker;
     private polledSessionId?: string;
+    private resolveSessionPullRequest?: SessionPullRequestResolver;
     private pollTimer?: NodeJS.Timeout;
     private isPollScheduled = false;
     private readonly watch?: DeliveryWatch;
@@ -241,51 +246,22 @@ export class ProjectStatusService {
         const { remote } = await this.remotes.read(repo.rootPath, this.readGit);
         const github = parseGitHubRemote(remote);
         const githubUrl = github ? `https://github.com/${github.owner}/${github.repo}` : undefined;
-        let pullRequest: NonNullable<ProjectStatusOverview['repository']>['pullRequest'];
-        let pullRequestUnavailable: NonNullable<
-            ProjectStatusOverview['repository']
-        >['pullRequestUnavailable'];
-        /**
-         * The shared pull-request record already carries `body` (see `PULL_REQUEST_FIELDS` in
-         * `external-status/github.ts`), so reading the Linear references out of it costs no extra GitHub query on top
-         * of the one this overview already makes.
-         */
-        let pullRequestBody: string | undefined;
-        if (github) {
-            try {
-                /**
-                 * Share one PR record across the status bar's polls and the Status panel.
-                 */
-                const output = await this.github.view({
-                    allowStaleOnFailure: false,
-                    branch: repo.branch,
-                    cwd: repo.rootPath,
-                    owner: github.owner,
-                    repo: github.repo,
-                });
-                const parsed = output
-                    ? parseExternalJson(output, githubPullRequestSchema, 'GitHub pull request')
-                    : undefined;
-                pullRequestBody = parsed?.body;
-                if (parsed?.number && parsed.title && parsed.url) {
-                    pullRequest = {
-                        number: parsed.number,
-                        title: parsed.title,
-                        url: parsed.url,
-                    };
-                }
-            } catch (error) {
-                if (!isNoPullRequest(error)) {
-                    pullRequestUnavailable = describePullRequestUnavailable(error);
-                    this.logger.write(
-                        'warn',
-                        logEventCatalog.projectStatus.overviewGithubUnavailable,
-                        { fields: { reason: pullRequestUnavailable.reason } },
+        // Independent reads; both usually join the same in-flight transcript pass in `SessionContextService`.
+        const [{ pullRequest, pullRequestBody, pullRequestUnavailable }, conversation] =
+            await Promise.all([
+                (async () => {
+                    const target = await resolvePullRequestTarget(
+                        this.resolveSessionPullRequest,
+                        sessionId,
                     );
-                }
-            }
-        }
-        const conversation = await this.readConversation(sessionId);
+                    return loadOverviewPullRequest(this.github, this.logger, {
+                        github,
+                        repo,
+                        target,
+                    });
+                })(),
+                this.readConversation(sessionId),
+            ]);
         const [linearIssues, acceptances] = await Promise.all([
             loadOverviewLinearIssues(this.linear, repo.rootPath, {
                 branch: repo.branch,
@@ -368,8 +344,14 @@ export class ProjectStatusService {
     private async refreshRepository(
         prepared: PreparedRepo,
         isForced: boolean,
+        target: PullRequestTarget,
     ): Promise<ProjectStatusRepo> {
-        const github = this.loadGitHub(prepared.repository.rootPath, prepared.context, isForced);
+        const github = this.loadGitHub(
+            prepared.repository.rootPath,
+            prepared.context,
+            isForced,
+            repoPullRequestNumber(target, prepared.context),
+        );
         const [githubState, vercelState, branchState] = await Promise.all([
             github,
             (async () => {
@@ -417,6 +399,7 @@ export class ProjectStatusService {
         cwd: string,
         context: RepoContext,
         isForced: boolean,
+        number: number | undefined,
     ): Promise<
         Pick<ProjectStatusRepo, 'pullRequest' | 'linearIssues' | 'acceptances'> & {
             mergeCommit?: string;
@@ -434,7 +417,7 @@ export class ProjectStatusService {
         if (!context.owner || !context.repo || !context.branch) return empty();
         try {
             const output = await this.github.view({
-                branch: context.branch,
+                ...(number ? { number } : { branch: context.branch }),
                 cwd,
                 // An explicit user refresh must reach GitHub; an automatic revalidation may reuse the shared record.
                 maxAgeMs: isForced ? 0 : undefined,
@@ -640,8 +623,18 @@ export class ProjectStatusService {
         try {
             await this.refreshes.run(refreshKey, async () => {
                 const startedAt = performance.now();
+                /**
+                 * Resolved here rather than folded into the fingerprint: `prepareSummary` must stay local, so a Session
+                 * whose pull request changes without a branch or HEAD move converges on the next TTL-paced refresh.
+                 */
+                const target = await resolvePullRequestTarget(
+                    this.resolveSessionPullRequest,
+                    sessionId,
+                );
                 const repositories = await Promise.all(
-                    prepared.repositories.map((repo) => this.refreshRepository(repo, isForced)),
+                    prepared.repositories.map((repo) =>
+                        this.refreshRepository(repo, isForced, target),
+                    ),
                 );
                 if (
                     this.sessionGenerations.get(sessionId) !== sessionGeneration ||
@@ -748,8 +741,13 @@ export class ProjectStatusService {
     }
 
     /**
-     * Stops the resident poll. Called when the Server shuts down; the cache and alert baselines die with the process.
+     * Hands this Service the Session pull request owner. Late-bound because `SessionPullRequestService` is assembled
+     * after this Service; until it is set every reader keeps the per-branch lookup.
      */
+    useSessionPullRequests(resolver: SessionPullRequestResolver): void {
+        this.resolveSessionPullRequest = resolver;
+    }
+
     /**
      * Starts the delivery watch over every Session from {@link ProjectStatusServiceOptions.listWatchedSessions}, so a
      * Session the user switched away from still raises its CI or deployment failure.
@@ -758,6 +756,9 @@ export class ProjectStatusService {
         this.watch?.start();
     }
 
+    /**
+     * Stops the resident poll. Called when the Server shuts down; the cache and alert baselines die with the process.
+     */
     dispose(): void {
         this.watch?.dispose();
         this.commandTelemetry.flush();

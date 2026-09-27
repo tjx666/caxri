@@ -102,7 +102,11 @@ if [ "$1 $2 $3" = "api graphql -f" ]; then
   printf '%s' '{"data":{"rateLimit":{"limit":5000,"remaining":5000,"used":0,"resetAt":"2100-01-01T00:00:00Z"}}}'
   exit 0
 fi
-printf '%s' '{"number":11,"title":"Status Bar width parity","url":"https://github.com/tjx666/width-project/pull/11"}'
+if [ "$1 $2" = "pr list" ]; then
+  printf '%s' '[{"number":11,"state":"OPEN","isDraft":false}]'
+  exit 0
+fi
+printf '%s' '{"number":11,"state":"OPEN","title":"Status Bar width parity","url":"https://github.com/tjx666/width-project/pull/11"}'
 `,
         'utf8',
     );
@@ -119,7 +123,7 @@ exec /bin/zsh -l
         'utf8',
     );
     await chmod(loginShell, 0o755);
-    await execFileAsync('git', ['init', '-b', 'main'], { cwd: root });
+    await execFileAsync('git', ['init', '-b', 'feat/width'], { cwd: root });
     await execFileAsync('git', ['config', 'user.email', 'caxri@example.com'], { cwd: root });
     await execFileAsync('git', ['config', 'user.name', 'Caxri E2E'], { cwd: root });
     await execFileAsync(
@@ -161,13 +165,15 @@ exec /bin/zsh -l
         const project = running.page.getByRole('combobox', {
             name: /^Switch Workbench Root from width-project/,
         });
-        const branch = running.page.getByRole('combobox', { name: 'Switch branch from main' });
+        const branch = running.page.getByRole('combobox', {
+            name: 'Switch branch from feat/width',
+        });
         const pullRequest = running.page.getByRole('link', { name: 'Open pull request #11' });
         const changes = running.page.getByRole('button', {
             name: 'Open changes: 2 additions, 1 deletion',
         });
         await expect(project).toHaveText('width-project');
-        await expect(branch).toHaveText('main');
+        await expect(branch).toHaveText('feat/width');
         await expect(pullRequest).toBeVisible();
         await expect(changes).toHaveText('+2 -1');
 

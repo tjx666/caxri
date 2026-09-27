@@ -49,6 +49,7 @@ export {
     createTranscriptPullRequestScan,
     resetTranscriptPullRequestScan,
     scanTranscriptPullRequestLine,
+    type TranscriptPullRequestReference,
     type TranscriptPullRequestScan,
 } from './transcript-pull-requests';
 export { scanTranscriptLines, scanTranscriptToEnd } from './transcript-scan';

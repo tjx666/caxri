@@ -5,13 +5,18 @@ import type { AcceptanceReference } from './acceptance-link';
 import type {
     AgentEnvironment,
     TranscriptLinearReference,
+    TranscriptPullRequestReference,
+    TranscriptPullRequestScan,
     TranscriptSessionContextScan,
 } from './agents';
 import {
+    createTranscriptPullRequestScan,
     createTranscriptSessionContextScan,
     defaultAgentEnvironment,
     locateAgentTranscript,
+    resetTranscriptPullRequestScan,
     resetTranscriptSessionContextScan,
+    scanTranscriptPullRequestLine,
     scanTranscriptSessionContextLine,
     scanTranscriptToEnd,
 } from './agents';
@@ -30,6 +35,15 @@ export interface SessionTranscriptContext {
     branches: readonly string[];
     directories: readonly string[];
     linearReferences: readonly TranscriptLinearReference[];
+    /**
+     * The pull request this conversation delivered (`created`, from a `gh pr create` result) and the one the Agent last
+     * named in its own prose (`mentioned`). Unlike the lists above these are not re-ranked here: which one wins, and
+     * whether a mention counts at all, is `SessionPullRequestService`'s rule.
+     */
+    pullRequests: {
+        created?: TranscriptPullRequestReference;
+        mentioned?: TranscriptPullRequestReference;
+    };
 }
 
 const EMPTY_CONTEXT: SessionTranscriptContext = {
@@ -37,12 +51,21 @@ const EMPTY_CONTEXT: SessionTranscriptContext = {
     branches: [],
     directories: [],
     linearReferences: [],
+    pullRequests: {},
 };
 
 /**
- * Reads the working directories, branches, and Linear markers a Session's Agent conversation produced, so the Workbench
- * Root picker and the status bar can lead with what this Session is actually about instead of with repository-wide
- * defaults.
+ * Both clue scanners behind one cursor, so adding a clue kind never adds another read of the transcript.
+ */
+interface SessionTranscriptScan {
+    context: TranscriptSessionContextScan;
+    pullRequests: TranscriptPullRequestScan;
+}
+
+/**
+ * Reads the working directories, branches, Linear markers, and pull request links a Session's Agent conversation
+ * produced, so the Workbench Root picker, the status bar, and the sidebar's pull request badge can lead with what this
+ * Session is actually about instead of with repository-wide defaults.
  *
  * Scanning is incremental and shared: one cursor per transcript file reads only the bytes appended since the previous
  * visit, and both consumers join the same in-flight read. The first visit catches up in bounded, yielding passes rather
@@ -54,7 +77,7 @@ const EMPTY_CONTEXT: SessionTranscriptContext = {
 export class SessionContextService {
     private readonly environment: AgentEnvironment;
     private readonly reads = new SingleFlight<string, SessionTranscriptContext>();
-    private readonly scans = new Map<string, TranscriptSessionContextScan>();
+    private readonly scans = new Map<string, SessionTranscriptScan>();
 
     constructor(
         private readonly database: CaxriDatabase,
@@ -83,19 +106,32 @@ export class SessionContextService {
         return this.reads.run(location.path, async () => {
             // Refreshed on every visit, not only on insert: eviction by creation order would drop the transcript being
             // polled right now, resetting its cursor and re-reading the whole file on the next poll.
-            const current = this.scans.get(location.path) ?? createTranscriptSessionContextScan();
+            const current = this.scans.get(location.path) ?? {
+                context: createTranscriptSessionContextScan(),
+                pullRequests: createTranscriptPullRequestScan(),
+            };
             rememberBounded(this.scans, location.path, current, MAX_TRANSCRIPT_SCANS);
+            const { context, pullRequests } = current;
             await scanTranscriptToEnd(
                 location,
-                current,
-                (line) => scanTranscriptSessionContextLine(line, current),
-                { onReset: () => resetTranscriptSessionContextScan(current) },
+                context,
+                (line) => {
+                    scanTranscriptSessionContextLine(line, context);
+                    scanTranscriptPullRequestLine(line, pullRequests);
+                },
+                {
+                    onReset: () => {
+                        resetTranscriptSessionContextScan(context);
+                        resetTranscriptPullRequestScan(pullRequests);
+                    },
+                },
             );
             return {
-                acceptanceReferences: current.acceptanceReferences.toReversed(),
-                branches: current.branches.toReversed(),
-                directories: current.directories.toReversed(),
-                linearReferences: current.linearReferences.toReversed(),
+                acceptanceReferences: context.acceptanceReferences.toReversed(),
+                branches: context.branches.toReversed(),
+                directories: context.directories.toReversed(),
+                linearReferences: context.linearReferences.toReversed(),
+                pullRequests: { created: pullRequests.created, mentioned: pullRequests.mentioned },
             };
         });
     }
