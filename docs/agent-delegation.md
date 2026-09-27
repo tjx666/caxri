@@ -340,7 +340,12 @@ Codex supports explicit model, sandbox and approval-policy values, plus search, 
 an already configured approval/sandbox bypass. It does not add a bypass to a read-only launch.
 Its private task pointer does not add `--add-dir`, which would grant write access. Config/profile
 overrides and hook-trust bypass fail closed. Startup trust/login interfaces receive no synthesized
-input; an unconfirmed startup settles as `startup_not_ready` after 15 seconds.
+input. A task whose Agent has not started its turn 15 seconds after launch settles by process state
+alone, never by Terminal content: a launch that is gone fails as `startup_not_ready`, and a live one
+becomes `blocked` with `startup_waiting`, because it is usually waiting at a first-run prompt only
+the user can answer. The user's input in that state answers the prompt and is not a takeover; once
+the native session starts the task returns to `awaiting_ready` with a fresh 15-second deadline for
+its turn. A resumed task has a conversation already, so input there still counts as intervention.
 
 Grok supports explicit model, reasoning effort, sandbox, permission mode and tool restrictions.
 Session selectors, headless modes and unknown overrides fail before launch. An already configured

@@ -33,6 +33,7 @@ import type { DelegationFollowUpRejection, DelegationResumeRejection } from './r
 import { reportFollowUpRejection, reportResumeRejection } from './rejection';
 import { applyDelegationCompletion, shouldCollectDelegation } from './result';
 import type { AgentDelegationServiceOptions } from './service-options';
+import { interruptedDelegation, isStartupPromptInput, startupDeadlineOutcome } from './startup';
 import { removeDelegationFiles } from './storage';
 import { pollDelegations } from './wait';
 
@@ -380,6 +381,22 @@ export class AgentDelegationService {
         return this.owned(id, authority).receipt;
     }
 
+    /**
+     * Settles a launch that has not started its turn by the deadline; see `startupDeadlineOutcome`.
+     */
+    private armStartupDeadline(id: string, terminalId: string, launchId: string): void {
+        const timer = setTimeout(() => {
+            this.submissionTimers.delete(id);
+            const current = this.options.database.agentDelegations.get(id);
+            const isAlive = this.options.currentLaunchId?.(terminalId) === launchId;
+            const outcome = current && startupDeadlineOutcome(current, isAlive);
+            if (outcome === 'startup_not_ready') this.fail(id, outcome);
+            else if (outcome) this.save(outcome);
+        }, this.options.submissionTimeoutMs ?? 15_000);
+        timer.unref();
+        this.submissionTimers.set(id, timer);
+    }
+
     presets(
         authority: DelegationAuthority,
         input: Pick<AgentDelegationCreate, 'projectId' | 'sessionId' | 'callerProvider'>,
@@ -601,15 +618,7 @@ export class AgentDelegationService {
             inputEpoch: this.options.inputEpoch?.(terminalId),
             receipt: { ...record.receipt, status: 'awaiting_ready' },
         });
-        const id = record.receipt.delegationId;
-        const timer = setTimeout(() => {
-            this.submissionTimers.delete(id);
-            const current = this.options.database.agentDelegations.get(id);
-            if (current && !current.turnId && isDelegationActive(current.receipt))
-                this.fail(id, 'startup_not_ready');
-        }, this.options.submissionTimeoutMs ?? 15_000);
-        timer.unref();
-        this.submissionTimers.set(id, timer);
+        this.armStartupDeadline(record.receipt.delegationId, terminalId, launchId);
         return true;
     }
 
@@ -652,6 +661,13 @@ export class AgentDelegationService {
         const next = applyDelegationLifecycle(record, signal, source);
         if (next) {
             const saved = this.save(next);
+            // A session that starts past the deadline gets a fresh one, so a turn that never follows still settles.
+            if (record.receipt.status === 'blocked' && saved.receipt.status === 'awaiting_ready')
+                this.armStartupDeadline(
+                    saved.receipt.delegationId,
+                    signal.terminalId,
+                    saved.launchId!,
+                );
             if (saved.turnId || !isDelegationActive(saved.receipt)) {
                 clearTimeout(this.submissionTimers.get(saved.receipt.delegationId));
                 this.submissionTimers.delete(saved.receipt.delegationId);
@@ -740,6 +756,11 @@ export class AgentDelegationService {
     }
 
     interruptTerminal(terminalId: string, isHumanInput = false, retiredLaunchId?: string): void {
+        const starting = this.activeForTerminal(terminalId);
+        if (isHumanInput && starting && isStartupPromptInput(starting)) {
+            this.save({ ...starting, inputEpoch: this.options.inputEpoch?.(terminalId) });
+            return;
+        }
         /**
          * A completed answer stays readable, but human takeover permanently revokes its continuation authority. Persist
          * once per Terminal lifetime because the input epoch alone is lost on Server restart.
@@ -749,30 +770,10 @@ export class AgentDelegationService {
             for (const task of this.options.database.agentDelegations.forTerminal(terminalId))
                 if (!task.hasHumanIntervention) this.save({ ...task, hasHumanIntervention: true });
         }
+        // Re-read: the takeover mark above may have just rewritten the active task.
         const record = this.activeForTerminal(terminalId);
-        if (!record) return;
-        if (
-            !isHumanInput &&
-            record.input.resumeFrom &&
-            !record.launchId &&
-            record.receipt.status === 'launching'
-        )
-            return;
-        if (
-            !isHumanInput &&
-            retiredLaunchId &&
-            record.launchId &&
-            record.launchId !== retiredLaunchId
-        )
-            return;
-        this.save({
-            ...record,
-            receipt: {
-                ...record.receipt,
-                status: isHumanInput ? 'human_intervened' : 'interrupted',
-                failure: isHumanInput ? 'human_input' : 'target_changed',
-            },
-        });
+        const next = record && interruptedDelegation(record, isHumanInput, retiredLaunchId);
+        if (next) this.save(next);
     }
 
     async result(id: string, authority: DelegationAuthority) {

@@ -21,6 +21,18 @@ export function isDelegationActive(receipt: AgentDelegationReceipt): boolean {
 }
 
 /**
+ * A task whose Agent has not started its turn yet: still inside the startup deadline, or past it with the process alive
+ * and presumably waiting on a first-run prompt. Nothing has entered the Agent's conversation in either state.
+ */
+export function isAwaitingStartup(record: StoredAgentDelegation): boolean {
+    const { status, failure } = record.receipt;
+    return (
+        !record.turnId &&
+        (status === 'awaiting_ready' || (status === 'blocked' && failure === 'startup_waiting'))
+    );
+}
+
+/**
  * Only coordinator-applied, main-agent signals may close a turn. A deferred parent Stop remains in the coordinator
  * until all child work is settled. Grok Stop evidence uses the separate authenticated-hook source, so native continued
  * drafts are counted without treating them as completed lifecycle events or counting deferred replays twice.
@@ -46,9 +58,19 @@ export function applyDelegationLifecycle(
         isNativeCompletion &&
         !record.providerSessionId &&
         signal.agentSessionId &&
-        ['launching', 'awaiting_ready', 'submitting'].includes(record.receipt.status)
+        (['launching', 'submitting'].includes(record.receipt.status) || isAwaitingStartup(record))
     ) {
-        record = { ...record, providerSessionId: signal.agentSessionId };
+        /**
+         * The native session starting means any startup prompt was answered, so a task past its deadline goes back to
+         * waiting for its turn.
+         */
+        record = {
+            ...record,
+            providerSessionId: signal.agentSessionId,
+            ...(isAwaitingStartup(record) && {
+                receipt: { ...record.receipt, status: 'awaiting_ready', failure: undefined },
+            }),
+        };
         if (signal.phase !== 'turnStarted') return record;
     }
     const patch = (

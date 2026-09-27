@@ -182,6 +182,7 @@ export const logEventCatalog = {
         responsive: 'agent_commander.responsive',
         unhandledRejection: 'agent_commander.unhandled_rejection',
         unresponsive: 'agent_commander.unresponsive',
+        workspaceRepositoryFailed: 'agent_commander.workspace_repository_failed',
     },
     processExplorer: {
         consoleError: 'process_explorer.console_error',

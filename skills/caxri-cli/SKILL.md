@@ -130,6 +130,9 @@ state access.
   The Agent Commander is the one exception: its tasks stay its own across its restarts.
   Inspect the receipt status: `completed` with an answer is distinct from blocked, interrupted,
   human intervention or missing result evidence. Never treat dispatch idle as task completion.
+  `blocked` with `startup_waiting` means the Agent is running but has not started, usually at a
+  first-run prompt such as folder trust or sign-in: ask the user to answer it in that Session. The
+  task continues on its own afterwards; do not resend it.
   Grok requires explicitly enabled Caxri lifecycle hooks. If they are unavailable, ask the owner
   to configure them; never install global hooks or relax a Provider sandbox yourself.
   Provider usage is optional: omitted counters are unknown. Grok's `provider-task` scope may include
