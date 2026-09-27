@@ -8,6 +8,7 @@ import type {
     DelegationEvidence,
 } from '../../delegation-contract';
 import { replaceDelegationArguments, validateDelegationArguments } from '../../delegation-contract';
+import type { AgentLifecycleSignal } from '../../hooks/contract';
 import { extractCodexDelegationUsage } from './delegation-usage';
 
 const valueFlags = new Set(['--model', '--sandbox', '--ask-for-approval', '-c', '--config']);
@@ -83,6 +84,47 @@ export function extractCodexDelegationCompletion(
         }
     }
     return completion;
+}
+
+/**
+ * Only failure kinds {@link extractCodexDelegationCompletion} derives from an explicit provider error
+ * (`event.error`/`codex_error_info`) or an explicit `turn_aborted` are mapped: both are unambiguous evidence the turn
+ * did not succeed. `result_missing` (Stop fired but the rollout has no matching completion text and no error) and
+ * `correlation_missing` (more than one completion event for the same turn id) describe a read or correlation gap, not a
+ * proven provider error, so they intentionally have no entry — {@link codexPrimaryTurnFailure} must leave the signal as
+ * the ordinary `turnFinished` it already is rather than report a failure it cannot prove.
+ */
+const PRIMARY_TURN_FAILURE_BY_DELEGATION_FAILURE: Partial<
+    Record<
+        Extract<DelegationCompletion, { kind: 'failed' }>['failure'],
+        NonNullable<AgentLifecycleSignal['agentFailure']>
+    >
+> = {
+    rate_limited: 'rate_limit',
+    authentication_failed: 'authentication_failed',
+    quota_exhausted: 'billing_error',
+    output_limit: 'max_output_tokens',
+    provider_failed: 'provider_failed',
+};
+
+/**
+ * Generalizes {@link extractCodexDelegationCompletion}'s rollout-JSONL correlation from the delegated/subagent path to
+ * the primary Session's own `Stop` hook. `codex/hooks.ts` has no StopFailure-class binding (unlike Claude's and Grok's
+ * own `hooks.ts`), so a login expiry or rate limit during the primary turn still fires a plain `Stop` and would
+ * otherwise be recorded as `turnFinished`/`completed` (issue caxri#1345). `sessionId` and `promptDigest` are required
+ * by {@link DelegationEvidence} but unused by this extractor, which only correlates on `turnId`.
+ */
+export function codexPrimaryTurnFailure(
+    content: string,
+    turnId: string,
+): AgentLifecycleSignal['agentFailure'] | undefined {
+    const completion = extractCodexDelegationCompletion(content, {
+        turnId,
+        sessionId: '',
+        promptDigest: '',
+    });
+    if (completion?.kind !== 'failed') return undefined;
+    return PRIMARY_TURN_FAILURE_BY_DELEGATION_FAILURE[completion.failure];
 }
 
 export const codexDelegationAdapter: AgentDelegationAdapter = {

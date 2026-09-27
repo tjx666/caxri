@@ -556,6 +556,59 @@ describe('ManagedAgentLauncherServer', () => {
         }
     });
 
+    /**
+     * Regression for issue caxri#1345: Host resolves and validates the plan's executable before handing it to the
+     * launcher, but the file can still disappear (moved, updated, uninstalled) in the gap before this spawn. Node
+     * reports that as an `'error'` event with `code: 'ENOENT'` and no `pid` — the launcher must explain that on stderr
+     * before it exits and this PTY silently becomes an ordinary shell.
+     */
+    it('explains an ENOENT spawn failure on stderr before falling back to a plain shell', async () => {
+        const { directory, server, socketPath } = await createTestServer();
+        const prepared = server.prepare({
+            terminalId: 'terminal-enoent',
+            launchId: 'launch-enoent',
+            plan: {
+                executable: '/opt/removed-cli/claude',
+                args: [],
+                environment: {},
+                cwd: directory,
+            },
+        });
+        const childListeners = new Map<string, (...arguments_: unknown[]) => void>();
+        const child = {
+            pid: undefined,
+            kill: vi.fn(() => true),
+            once(event: string, listener: (...arguments_: unknown[]) => void) {
+                childListeners.set(event, listener);
+                return child;
+            },
+        } as unknown as ChildProcess;
+        const stderrWrite = vi.spyOn(process.stderr, 'write').mockReturnValue(true);
+        try {
+            const completed = runManagedAgentLauncher({
+                socketPath,
+                launchId: 'launch-enoent',
+                environment: { ...prepared.environment },
+                spawnChild: () => {
+                    const error = new Error(
+                        'spawn /opt/removed-cli/claude ENOENT',
+                    ) as NodeJS.ErrnoException;
+                    error.code = 'ENOENT';
+                    queueMicrotask(() => childListeners.get('error')?.(error));
+                    return child;
+                },
+            });
+
+            await expect(completed).rejects.toThrow('Managed Agent launcher failed closed');
+            expect(stderrWrite).toHaveBeenCalledWith(expect.stringContaining('claude') as string);
+            expect(stderrWrite).toHaveBeenCalledWith(
+                expect.stringContaining('could not be started: it was not found') as string,
+            );
+        } finally {
+            stderrWrite.mockRestore();
+        }
+    });
+
     it('leaves no child after cancel or server close', async () => {
         const { directory, server, socketPath } = await createTestServer();
         const first = server.prepare({

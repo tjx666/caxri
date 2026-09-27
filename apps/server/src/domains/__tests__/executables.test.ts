@@ -146,6 +146,35 @@ describe('ExecutableResolver', () => {
         await expect(resolver.resolve(executableName)).resolves.toBe(second);
     });
 
+    /**
+     * `warmServerExecutablePath` (issue #1345) fires `environment()` without awaiting it during Server startup so the
+     * login-shell PATH probe is already in flight before the first real external command needs it. This proves the
+     * mechanism it relies on: an unawaited call still starts and memoizes the same login-shell request a later, awaited
+     * call reuses, instead of each call spawning its own shell.
+     */
+    it('lets an unawaited warm-up call start the login-shell probe that a later call reuses', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-executable-warmup-'));
+        temporaryDirectories.push(directory);
+        const loginBin = join(directory, 'login-bin');
+        await mkdir(loginBin);
+        const run = vi.fn(() =>
+            Promise.resolve({ stdout: `__CAXRI_LOGIN_PATH__${loginBin}\n`, stderr: '' }),
+        );
+        const resolver = new ExecutableResolver(
+            () => ({ HOME: directory, PATH: '/nonexistent', SHELL: '/bin/zsh' }),
+            run,
+        );
+
+        // Fire-and-forget, exactly how `warmServerExecutablePath` calls it: the caller never awaits this promise.
+        // eslint-disable-next-line no-void -- see comment above
+        void resolver.environment();
+
+        await expect(resolver.environment()).resolves.toEqual(
+            expect.objectContaining({ PATH: loginBin }),
+        );
+        expect(run).toHaveBeenCalledOnce();
+    });
+
     it('bounds cached executable names with least-recently-used eviction', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-executable-cache-'));
         temporaryDirectories.push(directory);

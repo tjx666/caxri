@@ -3,6 +3,7 @@ import type { ChildProcess, SpawnOptions } from 'node:child_process';
 import { spawn } from 'node:child_process';
 import { closeSync, constants, openSync, readSync } from 'node:fs';
 import { createConnection } from 'node:net';
+import { basename } from 'node:path';
 import process from 'node:process';
 
 import type {
@@ -261,10 +262,19 @@ export function runManagedAgentLauncher(
                     failClosed();
                 }
             });
-            child.once('error', () => {
+            child.once('error', (error) => {
                 if (!child?.pid) {
                     isChildExited = true;
                     socket.destroy();
+                    // Host already confirmed the executable existed while building this plan; a spawn-time ENOENT
+                    // means it was removed, renamed, or unmounted in the race since (issue caxri#1345). The launcher
+                    // process is about to exit and hand this PTY straight back to an ordinary interactive shell, so
+                    // this is the only chance to explain why — without it, the Terminal silently "downgrades" to a
+                    // plain shell with no visible reason.
+                    if ((error as NodeJS.ErrnoException).code === 'ENOENT')
+                        process.stderr.write(
+                            `${basename(plan.executable)} could not be started: it was not found. It may have been moved, updated, or uninstalled after Caxri last verified it. Falling back to a plain shell.\r\n`,
+                        );
                     settle(launcherFailure());
                     return;
                 }

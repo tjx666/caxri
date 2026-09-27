@@ -185,6 +185,18 @@ export function serverProcessEnvironment(
     return serverExecutableResolver.environment(variables);
 }
 
+/**
+ * Fires the login-shell PATH probe without waiting for it (issue caxri#1345). `ExecutableResolver.loginPath()` memoizes
+ * the in-flight request on the shared resolver, so the first real external command — often Git, from the Project Status
+ * refresh moments after startup — reuses this request instead of paying its own login-shell spawn (~0.1s typically, up
+ * to `LOGIN_SHELL_TIMEOUT_MS` on a slow shell profile) synchronously on the user's first action. `readLoginPath`
+ * already catches its own failures and resolves `undefined`, so this can never produce an unhandled rejection.
+ */
+export function warmServerExecutablePath(): void {
+    // eslint-disable-next-line no-void -- deliberate fire-and-forget; readLoginPath already catches its own failures
+    void serverProcessEnvironment();
+}
+
 export interface ExternalCommandOptions {
     cwd?: string;
     /**
