@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 
+import { ListX, Send } from 'lucide-react';
+
 import { Button } from '../../components/ui/button';
 import {
     Dialog,
@@ -8,11 +10,12 @@ import {
     DialogHeader,
     DialogTitle,
 } from '../../components/ui/dialog';
+import { Tooltip } from '../../components/ui/tooltip';
 import { resolveRepositoryFilePath as resolveRepoFilePath } from '../../lib/repository-file-path';
 import { useCaxriQuery } from '../../queries/client';
 import { getBootstrap, selectSelectedWorkbenchProject } from '../../stores/selectors';
 import { formatGitReviewComments, useGitReviewComments } from './git-review-comments';
-import { didSendGitReviewComments } from './git-review-send-commands';
+import { sendGitReviewComments } from './git-review-send-commands';
 
 export function GitReviewSend({
     sessionId,
@@ -23,6 +26,7 @@ export function GitReviewSend({
 }) {
     const [open, setOpen] = useState(false);
     const [sending, setSending] = useState(false);
+    const [sendError, setSendError] = useState<string | undefined>(undefined);
     const allComments = useGitReviewComments((state) => state.comments);
     const comments = useMemo(
         () =>
@@ -53,35 +57,48 @@ export function GitReviewSend({
     );
     const send = async () => {
         setSending(true);
+        setSendError(undefined);
         try {
-            if (await didSendGitReviewComments(sessionId, comments, prompt)) setOpen(false);
+            const result = await sendGitReviewComments(sessionId, comments, prompt);
+            if (result.ok) setOpen(false);
+            else setSendError(result.message);
         } finally {
             setSending(false);
         }
     };
+    const sendLabel = `Send ${comments.length} ${comments.length === 1 ? 'comment' : 'comments'} to Agent`;
     return (
         <>
-            <div className="git-review-send absolute top-1 right-2 z-20 flex items-center gap-1">
-                {hasResolved && (
+            {hasResolved && (
+                <Tooltip content="Clear sent and outdated">
                     <Button
-                        size="sm"
+                        size="icon"
                         variant="ghost"
+                        aria-label="Clear sent and outdated"
                         onClick={() =>
                             useGitReviewComments.getState().clearResolved(sessionId, repositoryId)
                         }
                     >
-                        Clear sent and outdated
+                        <ListX aria-hidden="true" size={14} />
                     </Button>
-                )}
-                <Button
-                    size="sm"
-                    variant="secondary"
-                    disabled={comments.length === 0}
-                    onClick={() => setOpen(true)}
-                >
-                    Send {comments.length} {comments.length === 1 ? 'comment' : 'comments'} to Agent
-                </Button>
-            </div>
+                </Tooltip>
+            )}
+            {/* A zero-count control names an action nothing can do; render it only while there is something pending. */}
+            {comments.length > 0 && (
+                <Tooltip content={sendLabel}>
+                    <Button
+                        size="icon"
+                        variant="ghost"
+                        aria-label={sendLabel}
+                        onClick={() => {
+                            setSendError(undefined);
+                            setOpen(true);
+                        }}
+                    >
+                        <Send aria-hidden="true" size={14} />
+                    </Button>
+                </Tooltip>
+            )}
             <Dialog open={open} onOpenChange={setOpen}>
                 <DialogContent className="w-[min(720px,calc(100vw-32px))]">
                     <DialogHeader>
@@ -97,6 +114,11 @@ export function GitReviewSend({
                     >
                         {prompt}
                     </pre>
+                    {sendError && (
+                        <p role="alert" className="px-4 text-[11px] text-danger">
+                            {sendError}
+                        </p>
+                    )}
                     <div className="flex justify-end gap-2 px-4 pb-4">
                         <Button variant="ghost" onClick={() => setOpen(false)}>
                             Cancel

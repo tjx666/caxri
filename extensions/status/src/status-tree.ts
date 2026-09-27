@@ -153,8 +153,26 @@ function richTooltip(
  */
 function reviewThreadsNode(repo: ProjectStatusRepository, prefix: string): StatusNode | undefined {
     const pullRequest = repo.pullRequest;
-    const threads = pullRequest?.unresolvedReviewThreads ?? [];
-    if (!pullRequest || threads.length === 0) return undefined;
+    if (!pullRequest) return undefined;
+    const threads = pullRequest.unresolvedReviewThreads;
+    if (threads === undefined) {
+        /**
+         * `ReviewThreadStore.attach` only fetches threads for an open or draft pull request; a merged or closed one is
+         * never asked, so an absent field there is simply "not applicable", not a failure. For an open or draft pull
+         * request the field is absent only because the GraphQL read threw (see `attach`'s catch), and treating that the
+         * same as `[]` told the user the review was clean when Caxri never actually checked.
+         */
+        if (pullRequest.lifecycle !== 'open' && pullRequest.lifecycle !== 'draft') return undefined;
+        return item(`${prefix}:review-threads`, 'Could not check review comments', {
+            icon: stateIcons.unknown,
+            url: pullRequest.url,
+            tooltip: {
+                description:
+                    'GitHub review comments could not be read. Refresh Project Status to check again.',
+            },
+        });
+    }
+    if (threads.length === 0) return undefined;
     const summary = unresolvedCommentsLabel(threads.length);
     return item(`${prefix}:review-threads`, 'Unresolved Comments', {
         description: String(threads.length),
@@ -220,7 +238,13 @@ function buildRepoChildren(
     const nodes: StatusNode[] = [
         item(`${prefix}:branch`, repo.branch, {
             description: branchDescription.length > 0 ? branchDescription : undefined,
-            icon: lifecycle?.icon ?? 'git-branch',
+            // While the origin probe is still in flight the row already says "Checking origin…" in its description; the
+            // icon must agree, so it borrows the same spinner a pending check uses rather than sitting on the static
+            // pull-request or branch glyph as if nothing were happening.
+            icon:
+                publication?.state === 'checking'
+                    ? stateIcons.pending
+                    : (lifecycle?.icon ?? 'git-branch'),
             accessibilityLabel: [
                 repo.branch,
                 branchDescription.length > 0 ? branchDescription : undefined,

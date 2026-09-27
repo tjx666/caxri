@@ -11,9 +11,14 @@ import type { TerminalRendererStatus } from '../terminal/terminal-renderer';
  *
  * Each message also states that Terminals keep working, because a notice that only reports a failure reads as data loss
  * (DESIGN.md principle 9).
+ *
+ * `GPU_PROCESS_RECOVERY_MESSAGE` names the status bar's own recovery path instead of implying a restart is the only way
+ * back: the "Software" renderer chip already retries GPU rendering for the affected Terminal without a restart
+ * (DESIGN.md "Status bar"), and the previous wording never told the reader that chip existed. The toast's own action
+ * stays "Turn off hardware acceleration…" — the other of the two recovery routes that DESIGN.md section documents.
  */
 const GPU_PROCESS_RECOVERY_MESSAGE =
-    'A graphics failure interrupted drawing. Caxri switched the affected Terminals to software rendering; they keep working, but drawing may feel slower.';
+    'A graphics failure interrupted drawing. Affected Terminals switched to software rendering. Retry GPU rendering from the status bar.';
 const SOFTWARE_RENDERING_PINNED_MESSAGE =
     'Caxri switched to software rendering after repeated graphics failures, and stays there until it restarts. Terminals keep working, but drawing may feel slower. Settings can turn hardware acceleration off for every launch, or leave it on to try the GPU again next time.';
 const TERMINAL_GPU_FALLBACK_MESSAGE =

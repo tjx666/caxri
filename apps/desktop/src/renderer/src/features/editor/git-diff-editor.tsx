@@ -31,7 +31,6 @@ import {
     maxStackedEditorHeight,
     useNearMultiDiffViewport,
 } from './git-multi-diff-viewport';
-import { GitReviewSend } from './git-review-send';
 
 const emptyWorkClassName =
     'empty-work flex h-full flex-col items-center justify-center gap-3 text-muted';
@@ -646,7 +645,6 @@ export function GitDiffEditor({
     tab: GitDiffTab;
     tabPath: string;
 }) {
-    const sessionId = usePaneViewSessionId();
     const content =
         tab.kind === 'commit-file' ? (
             <CommitFileDiffEditor editorInstanceId={paneId} navigationKey={tabPath} tab={tab} />
@@ -669,10 +667,5 @@ export function GitDiffEditor({
         ) : (
             <WorkingChangesDiffEditor tab={tab} tabPath={tabPath} />
         );
-    return (
-        <div className="relative h-full w-full">
-            {content}
-            {sessionId && <GitReviewSend sessionId={sessionId} repositoryId={tab.repositoryId} />}
-        </div>
-    );
+    return <div className="relative h-full w-full">{content}</div>;
 }

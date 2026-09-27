@@ -1,6 +1,5 @@
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
-import { draculaTheme } from '@caxri/protocol';
 import { RotateCw } from 'lucide-react-native';
 
 import type { MobileTheme } from '../../theme/tokens';
@@ -88,10 +87,10 @@ export const ChangesView = ({
                     accessibilityHint="Fills the message draft. Nothing is sent until you tap Send."
                     accessibilityRole="button"
                     onPress={onAskAgentToCommit}
-                    style={[styles.commit, { borderColor: draculaTheme.colors.success }]}
+                    style={[styles.commit, { borderColor: theme.success }]}
                     testID="changes-ask-agent-commit"
                 >
-                    <Text style={[styles.commitText, { color: draculaTheme.colors.success }]}>
+                    <Text style={[styles.commitText, { color: theme.success }]}>
                         Ask Agent to commit
                     </Text>
                 </Pressable>

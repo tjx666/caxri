@@ -130,7 +130,13 @@ truncates last. CSS wrapping and clipping
 keep this priority independent of text length without measuring in JavaScript or changing the row
 height. A Project wider than the entire line still truncates visually; its text remains complete
 for assistive technology and the row's hover card shows the full name. The Project has priority
-because it is the only thing telling the user which repository a row belongs to.
+because it is the only thing telling the user which repository a row belongs to. A clipped title
+reveals its tail on hover or keyboard focus the same way a Project tree title does, through the same
+`useSessionTitleScroll` hook.
+
+The queue's own scroller carries the Project tree's VS Code-style inset shadow once it scrolls away
+from the top, through the same `useScrollEdge` binding, so both bodies of the side bar signal hidden
+content above identically.
 
 An unread row's mark-read button follows the Project tree's hover-action rule: the same `--elevated`
 chip, centered on the right edge with a **Mark as Read** tooltip, and on hover the row's text makes

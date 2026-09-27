@@ -106,6 +106,7 @@ export const SessionDetail = ({
                 deviceRole={deviceRole}
                 isConnected={isConnected}
                 isVisible={isVisible}
+                onSegmentChange={onSegmentChange}
                 segment={segment}
                 session={session}
                 theme={theme}

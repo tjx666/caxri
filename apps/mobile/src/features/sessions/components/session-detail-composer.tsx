@@ -5,6 +5,7 @@ import { MOBILE_AGENT_SUBMIT_MAX_BYTES } from '@caxri/protocol';
 import { ArrowUp, Paperclip, Square } from 'lucide-react-native';
 
 import { IconButton } from '../../../components/icon-button';
+import { formatByteSize } from '../../../lib/format-size';
 import type { MobileTheme } from '../../../theme/tokens';
 import { useComposerSuggestions } from '../hooks/use-composer-suggestions';
 import { useImageAttachments } from '../hooks/use-image-attachments';
@@ -221,7 +222,8 @@ export const SessionDetailComposer = ({
                     </Text>
                     {isShowByteCount ? (
                         <Text style={[styles.byteCount, { color: theme.muted }]}>
-                            {byteLength}/{MOBILE_AGENT_SUBMIT_MAX_BYTES} B
+                            {formatByteSize(byteLength)}/
+                            {formatByteSize(MOBILE_AGENT_SUBMIT_MAX_BYTES)}
                         </Text>
                     ) : null}
                 </View>

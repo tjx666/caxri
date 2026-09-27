@@ -61,9 +61,10 @@ function handleResourceDragStart(
 
 /**
  * File and folder rows omit a hover tooltip on purpose: the path is already the row's accessible name, and a
- * cursor-anchored card sits over the adjacent diff while the user is reading it. Option-click stays on
- * `aria-keyshortcuts` (files) and the Alt+Enter / Alt-click handlers (folders). Trailing Discard actions keep their own
- * tooltips.
+ * cursor-anchored card sits over the adjacent diff while the user is reading it. Both advertise their Option-click
+ * gesture through `aria-keyshortcuts` instead: a file row only when it has a working copy to open, a folder row
+ * unconditionally, since every folder supports the Alt+Enter / Alt-click recursive toggle. Trailing Discard actions
+ * keep their own tooltips.
  */
 export function SourceControlTreeItems({
     activeEditorResource,
@@ -96,6 +97,7 @@ export function SourceControlTreeItems({
                         className="git-tree-directory flex h-7 w-full cursor-pointer items-center gap-1.5 border-0 bg-surface pr-2 text-left text-foreground hover:bg-elevated"
                         style={{ paddingLeft: 8 + depth * 14 }}
                         aria-expanded={isExpanded}
+                        aria-keyshortcuts="Alt"
                         data-path={node.path}
                         onClick={(event) =>
                             setDirectoriesExpanded(

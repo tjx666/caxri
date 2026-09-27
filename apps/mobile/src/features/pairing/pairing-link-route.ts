@@ -1,3 +1,4 @@
+import { MobilePairingError } from '../connection/mobile-gateway-client';
 import { pairingErrorMessage } from './pairing-error';
 
 const pairingRouteParameterNames = [
@@ -27,13 +28,19 @@ export const pairingLinkFromRouteParameters = (parameters: PairingRouteParameter
                 ),
         )
     )
-        throw new Error('Pairing route parameters do not match the protocol');
+        throw new MobilePairingError(
+            'invalid-link',
+            'Pairing route parameters do not match the protocol',
+        );
 
     const search = new URLSearchParams();
     for (const name of pairingRouteParameterNames) {
         const value = parameters[name];
         if (typeof value !== 'string')
-            throw new Error('Pairing route parameters do not match the protocol');
+            throw new MobilePairingError(
+                'invalid-link',
+                'Pairing route parameters do not match the protocol',
+            );
         search.set(name, value);
     }
     return `caxri://pair?${search.toString()}`;

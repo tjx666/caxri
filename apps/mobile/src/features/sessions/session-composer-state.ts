@@ -1,3 +1,4 @@
+import { formatByteSize } from '../../lib/format-size';
 import type { MobileSessionItem } from './session-model';
 
 type PrimaryAgentEndpoint = NonNullable<MobileSessionItem['primaryAgentEndpoint']>;
@@ -103,7 +104,8 @@ export const reconcileStopWithSession = (
 export const composerTextError = (draft: string, maxBytes: number): string | null => {
     if (draft.trim().length === 0) return 'Write a message to send.';
     if (hasInvalidControlCharacter(draft)) return 'Remove control characters before sending.';
-    if (composerByteLength(draft) > maxBytes) return `Messages can be at most ${maxBytes} bytes.`;
+    if (composerByteLength(draft) > maxBytes)
+        return `Messages can be at most ${formatByteSize(maxBytes)}.`;
     return null;
 };
 

@@ -14,4 +14,9 @@ describe('formatBytes', () => {
         expect(formatBytes(1024 * 1024)).toBe('1.0 MB');
         expect(formatBytes(52_428_800)).toBe('50.0 MB');
     });
+
+    it('rolls over into binary GB with one decimal once MB would read past four digits', () => {
+        expect(formatBytes(1024 * 1024 * 1024)).toBe('1.0 GB');
+        expect(formatBytes(2_519_911_219)).toBe('2.3 GB');
+    });
 });

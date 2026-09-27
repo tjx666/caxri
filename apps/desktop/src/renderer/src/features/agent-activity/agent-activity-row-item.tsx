@@ -7,6 +7,7 @@ import { Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
 import { useSessionPullRequest } from '../primary-sidebar/hooks/use-session-pull-request';
 import type { SessionRenameController } from '../primary-sidebar/hooks/use-session-rename';
+import { useSessionTitleScroll } from '../primary-sidebar/hooks/use-session-title-scroll';
 import { SessionActivityCard } from '../primary-sidebar/session-activity-card';
 import { sessionRowActionButton } from '../primary-sidebar/session-row-actions';
 import { SessionRowMenu } from '../primary-sidebar/session-row-menu';
@@ -60,6 +61,10 @@ export function AgentActivityRowItem({
      * open keeps one popup on screen at a time, the same as a Project tree row.
      */
     const [menuOpen, setMenuOpen] = useState(false);
+    // Same title-reveal hook `active-session-row.tsx` uses (DESIGN.md: "Hovered or keyboard-focused clipped sidebar
+    // titles may scroll solely to reveal their text"), so a clipped title behaves the same in either body of the side
+    // bar. Called here because `AgentActivityRowTrigger` is invoked as a plain function and cannot own hooks.
+    const titleScroll = useSessionTitleScroll(session.displayTitle, isRenaming || menuOpen);
     const trigger = AgentActivityRowTrigger({
         beginRename,
         canMarkRead,
@@ -71,6 +76,7 @@ export function AgentActivityRowItem({
         row,
         selected,
         sessionRename,
+        titleScroll,
         visiblePullRequest,
         worktreeProject,
     });

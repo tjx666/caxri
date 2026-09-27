@@ -63,8 +63,21 @@ const REMOTE_HEAD_CACHE_LIMIT = 256;
  */
 interface RemoteHeadEntry {
     expiresAt: number;
+    /**
+     * When this entry's probe actually reached GitHub, so a cache hit can report the real check time instead of now.
+     */
+    fetchedAt: number;
     trackingHead?: string;
     value?: Promise<string | undefined>;
+}
+
+/**
+ * A remote branch lookup's result plus when that probe actually ran, so a cache hit can report the moment GitHub was
+ * really asked instead of the moment the hit happened.
+ */
+export interface RemoteHeadResult {
+    fetchedAt: number;
+    head: string | undefined;
 }
 
 export class RemoteHeadCache {
@@ -86,11 +99,11 @@ export class RemoteHeadCache {
         }
     }
 
-    read(
+    async read(
         context: BranchPublicationContext,
         query: () => Promise<string | undefined>,
         isForced = false,
-    ): Promise<string | undefined> {
+    ): Promise<RemoteHeadResult> {
         const key = JSON.stringify([context.owner, context.repo, context.branch]);
         const cached = this.entries.get(key);
         if (
@@ -98,10 +111,14 @@ export class RemoteHeadCache {
             cached?.value &&
             cached.expiresAt > this.now() &&
             cached.trackingHead === context.trackingHead
-        )
-            return cached.value;
+        ) {
+            const { fetchedAt } = cached;
+            return { fetchedAt, head: await cached.value };
+        }
+        const fetchedAt = this.now();
         const entry: RemoteHeadEntry = {
-            expiresAt: this.now() + REMOTE_HEAD_TTL_MS,
+            expiresAt: fetchedAt + REMOTE_HEAD_TTL_MS,
+            fetchedAt,
             trackingHead: context.trackingHead,
         };
         this.entries.delete(key);
@@ -112,7 +129,7 @@ export class RemoteHeadCache {
             this.entries.delete(oldest);
         }
         entry.value = this.lookup(key, entry, query);
-        return entry.value;
+        return { fetchedAt, head: await entry.value };
     }
 }
 
@@ -160,10 +177,12 @@ export async function loadBranchPublication(
     const initial = initialBranchPublication(context);
     if (initial.state !== 'checking') return initial;
     const query = () => queryRemoteHead(context, runner, cwd);
-    const remoteHead = await (remoteHeads
-        ? remoteHeads.cache.read(context, query, remoteHeads.isForced)
-        : query());
-    const base = { remoteBranch: initial.remoteBranch, checkedAt: now() };
+    // A cache hit reports the earlier probe's own time, not this call's `now()`, so `checkedAt` states when GitHub was
+    // actually asked rather than when the TTL happened to be reused.
+    const { fetchedAt: checkedAt, head: remoteHead } = remoteHeads
+        ? await remoteHeads.cache.read(context, query, remoteHeads.isForced)
+        : { fetchedAt: now(), head: await query() };
+    const base = { remoteBranch: initial.remoteBranch, checkedAt };
     if (!remoteHead) return { ...base, state: 'unpublished' };
     if (remoteHead === context.head) return { ...base, state: 'synced' };
     try {

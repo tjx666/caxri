@@ -7,6 +7,7 @@ import { useRelativeTimes } from '@/hooks/use-relative-time';
 
 import { useProjects, useSelectedSession, useSessions, useTerminals } from '../../stores/selectors';
 import { tryCommand } from '../../stores/toasts';
+import { useScrollEdge } from '../primary-sidebar/hooks/use-scroll-edge';
 import { useSessionPullRequestPoll } from '../primary-sidebar/hooks/use-session-pull-request';
 import { useSessionRename } from '../primary-sidebar/hooks/use-session-rename';
 import { sessionWorktreeProject, topLevelProjects } from '../primary-sidebar/project-visibility';
@@ -82,6 +83,10 @@ export function AgentActivityView() {
     const selectedSessionId = useSelectedSession()?.id;
     const [focusedRowId, setFocusedRowId] = useState<string>();
     const treeReference = useRef<HTMLDivElement>(null);
+    const scrollReference = useRef<HTMLDivElement>(null);
+    // The Project tree's own inset-shadow scroll cue (`primary-sidebar-project-tree.tsx`), bound to this queue's
+    // scroller too: `.agent-activity-shell`'s `::after` in styles.css reads the `data-scrolled` attribute this sets.
+    useScrollEdge(scrollReference);
     // Owns the cadence only; each row subscribes to its own slice of the snapshot this keeps fresh.
     useSessionPullRequestPoll();
 
@@ -240,67 +245,75 @@ export function AgentActivityView() {
     };
 
     return (
-        <div className="agent-activity min-h-0 flex-1 overflow-auto p-2">
+        <div className="agent-activity-shell relative min-h-0 flex-1">
             <div
-                ref={treeReference}
-                aria-label="Activity"
-                className="flex flex-col gap-0.5"
-                role="tree"
-                onKeyDown={(event) => {
-                    if (event.target instanceof HTMLInputElement) return;
-                    // Same guard as `handlePrimarySidebarTreeKey`: an unbound chord such as macOS's Cmd+Down ("scroll to
-                    // bottom") must keep its native meaning rather than being eaten as a row move.
-                    if (event.altKey || event.metaKey || event.ctrlKey) return;
-                    if (!VERTICAL_KEYS.has(event.key)) return;
-                    const nextRowId = nextAgentActivityRowId(
-                        rows,
-                        focusedRowId,
-                        event.key as AgentActivityVerticalKey,
-                    );
-                    if (!nextRowId) return;
-                    event.preventDefault();
-                    focusRow(nextRowId);
-                }}
+                ref={scrollReference}
+                className="agent-activity absolute inset-0 overflow-auto p-2"
+                data-scrolled="false"
             >
-                {renderRows.map((entry) =>
-                    entry.kind === 'heading' ? (
-                        /*
-                         * A heading is a `treeitem` because everything inside `role="tree"` has to be one, but an
-                         * `aria-disabled` one with no Tab stop: these groups are derived from Agent state and cannot be
-                         * collapsed, so there is no action to land focus on. Arrow keys step over it, the same way
-                         * DESIGN.md has them step over a branch placeholder.
-                         */
-                        <div
-                            key={entry.group.id}
-                            aria-disabled="true"
-                            aria-level={1}
-                            className="agent-activity-heading mt-2 flex items-center gap-1.5 px-2 pb-1 text-[11px] font-medium text-muted first:mt-0"
-                            data-activity-group={entry.group.id}
-                            data-row-id={entry.group.id}
-                            role="treeitem"
-                        >
-                            <AgentActivityGroupIcon groupId={entry.group.id} />
-                            <span>{entry.heading.label}</span>
-                            {entry.heading.count !== undefined && (
-                                <span aria-hidden="true">{entry.heading.count}</span>
-                            )}
-                            <span className="sr-only">{entry.heading.summary}</span>
-                        </div>
-                    ) : (
-                        <AgentActivityRowItem
-                            key={entry.row.session.id}
-                            relativeTime={relativeTimeBySessionId.get(entry.row.session.id)}
-                            roving={rovingRowId === entry.row.session.id}
-                            row={entry.row}
-                            selected={selectedSessionId === entry.row.session.id}
-                            sessionRename={sessionRename}
-                            terminals={terminals}
-                            worktreeProject={worktreeProjectBySessionId.get(entry.row.session.id)}
-                            onFocusChange={setFocusedRowId}
-                            onMarkRead={() => markRead(entry.row)}
-                        />
-                    ),
-                )}
+                <div
+                    ref={treeReference}
+                    aria-label="Activity"
+                    className="flex flex-col gap-0.5"
+                    role="tree"
+                    onKeyDown={(event) => {
+                        if (event.target instanceof HTMLInputElement) return;
+                        // Same guard as `handlePrimarySidebarTreeKey`: an unbound chord such as macOS's Cmd+Down ("scroll to
+                        // bottom") must keep its native meaning rather than being eaten as a row move.
+                        if (event.altKey || event.metaKey || event.ctrlKey) return;
+                        if (!VERTICAL_KEYS.has(event.key)) return;
+                        const nextRowId = nextAgentActivityRowId(
+                            rows,
+                            focusedRowId,
+                            event.key as AgentActivityVerticalKey,
+                        );
+                        if (!nextRowId) return;
+                        event.preventDefault();
+                        focusRow(nextRowId);
+                    }}
+                >
+                    {renderRows.map((entry) =>
+                        entry.kind === 'heading' ? (
+                            /*
+                             * A heading is a `treeitem` because everything inside `role="tree"` has to be one, but an
+                             * `aria-disabled` one with no Tab stop: these groups are derived from Agent state and cannot be
+                             * collapsed, so there is no action to land focus on. Arrow keys step over it, the same way
+                             * DESIGN.md has them step over a branch placeholder.
+                             */
+                            <div
+                                key={entry.group.id}
+                                aria-disabled="true"
+                                aria-level={1}
+                                className="agent-activity-heading mt-2 flex items-center gap-1.5 px-2 pb-1 text-[11px] font-medium text-muted first:mt-0"
+                                data-activity-group={entry.group.id}
+                                data-row-id={entry.group.id}
+                                role="treeitem"
+                            >
+                                <AgentActivityGroupIcon groupId={entry.group.id} />
+                                <span>{entry.heading.label}</span>
+                                {entry.heading.count !== undefined && (
+                                    <span aria-hidden="true">{entry.heading.count}</span>
+                                )}
+                                <span className="sr-only">{entry.heading.summary}</span>
+                            </div>
+                        ) : (
+                            <AgentActivityRowItem
+                                key={entry.row.session.id}
+                                relativeTime={relativeTimeBySessionId.get(entry.row.session.id)}
+                                roving={rovingRowId === entry.row.session.id}
+                                row={entry.row}
+                                selected={selectedSessionId === entry.row.session.id}
+                                sessionRename={sessionRename}
+                                terminals={terminals}
+                                worktreeProject={worktreeProjectBySessionId.get(
+                                    entry.row.session.id,
+                                )}
+                                onFocusChange={setFocusedRowId}
+                                onMarkRead={() => markRead(entry.row)}
+                            />
+                        ),
+                    )}
+                </div>
             </div>
         </div>
     );

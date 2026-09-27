@@ -312,6 +312,31 @@ describe('branch publication', () => {
         expect(graphqlCalls()).toBe(5);
     });
 
+    it('reports the earlier probe time on a cache hit instead of the current call time', async () => {
+        let now = 1_000;
+        const cache = new RemoteHeadCache(() => now);
+        const runner = runnerFor({ target: { oid: head } });
+        const load = () =>
+            loadBranchPublication(context, runner, '/project', () => now, {
+                cache,
+                isForced: false,
+            });
+
+        await expect(load()).resolves.toMatchObject({ checkedAt: 1_000 });
+        now = 2_000;
+        // Still inside the TTL and the tracking ref has not moved, so this is a cache hit: `checkedAt` must stay the
+        // first probe's time rather than jumping to this call's `now()`.
+        await expect(load()).resolves.toMatchObject({ checkedAt: 1_000 });
+        expect(vi.mocked(runner).mock.calls.filter(([source]) => source === 'gh').length).toBe(1);
+
+        now = 3_000;
+        await expect(load()).resolves.toMatchObject({ checkedAt: 1_000 });
+
+        now = 5 * 60_000 + 1_000;
+        // Past the TTL: a fresh probe runs, so `checkedAt` moves to this call's own time.
+        await expect(load()).resolves.toMatchObject({ checkedAt: now });
+    });
+
     it('asks GitHub again after a failed remote branch lookup', async () => {
         const cache = new RemoteHeadCache(() => 0);
         let isOffline = true;

@@ -83,8 +83,8 @@ const MobileProjectAccessSection = ({
     <div className="grid gap-2">
         <p className="m-0 text-[12px] font-medium text-foreground">Project access</p>
         <p className="m-0 text-[11px] leading-4 text-muted">
-            The new device can see only the selected Projects. You can revoke it at any time.
-            Selected {selectedProjectIds.size} of up to {MOBILE_MAX_PROJECT_GRANTS}.
+            The new device can see only the selected Projects. You can revoke it at any time.{' '}
+            {selectedProjectIds.size} selected · up to {MOBILE_MAX_PROJECT_GRANTS}.
         </p>
         <div className="grid max-h-32 gap-1 overflow-y-auto rounded-md border border-border bg-background p-2">
             {projects.map((project) => {

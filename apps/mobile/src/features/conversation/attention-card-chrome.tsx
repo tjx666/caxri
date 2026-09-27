@@ -1,4 +1,5 @@
-import { Pressable, Text, View } from 'react-native';
+/* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { MethodResult } from '@caxri/protocol';
 
@@ -52,22 +53,52 @@ export const AttentionPermissionActions = ({
     send: (decision: 'allow' | 'deny') => Promise<void>;
     theme: MobileTheme;
 }) => (
-    <View style={{ flexDirection: 'row', gap: 16 }}>
+    <View style={styles.actions}>
         <Pressable
             accessibilityLabel="Allow once"
             accessibilityRole="button"
             testID="attention-allow-once"
             onPress={() => send('allow')}
+            style={({ pressed }) => [
+                styles.action,
+                {
+                    backgroundColor: theme.primary,
+                    borderColor: theme.primary,
+                    opacity: pressed ? 0.76 : 1,
+                },
+            ]}
         >
-            <Text style={{ color: theme.primary }}>Allow once</Text>
+            <Text style={[styles.actionLabel, { color: theme.primaryForeground }]}>Allow once</Text>
         </Pressable>
         <Pressable
             accessibilityLabel="Deny"
             accessibilityRole="button"
             testID="attention-deny"
             onPress={() => send('deny')}
+            style={({ pressed }) => [
+                styles.action,
+                {
+                    backgroundColor: pressed ? theme.elevated : 'transparent',
+                    borderColor: theme.danger,
+                },
+            ]}
         >
-            <Text style={{ color: theme.danger }}>Deny</Text>
+            <Text style={[styles.actionLabel, { color: theme.danger }]}>Deny</Text>
         </Pressable>
     </View>
 );
+
+const styles = StyleSheet.create({
+    actions: { flexDirection: 'row', gap: 12 },
+    action: {
+        alignItems: 'center',
+        borderRadius: 10,
+        borderWidth: 1,
+        flex: 1,
+        justifyContent: 'center',
+        minHeight: 44,
+        paddingHorizontal: 12,
+    },
+    actionLabel: { fontSize: 15, fontWeight: '700' },
+});
+/* eslint-enable no-use-before-define, @typescript-eslint/no-use-before-define */
