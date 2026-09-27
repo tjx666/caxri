@@ -2,12 +2,18 @@ import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
+import { isDeepStrictEqual } from 'node:util';
 
 import type { AppSettings, CommanderSnapshot, CommanderStatus } from '@caxri/protocol';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
-import { createShellSession, launchCaxri, pageRequest } from './support/helpers.ts';
+import {
+    createShellSession,
+    launchCaxri,
+    pageRequest,
+    waitForRuntimeReady,
+} from './support/helpers.ts';
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires object destructuring for its fixture argument
 test('Agent Commander keeps running after its window closes and stops on request', async ({}, testInfo) => {
@@ -62,6 +68,108 @@ test('Agent Commander keeps running after its window closes and stops on request
         await reopenedWindow.getByRole('button', { name: 'Stop', exact: true }).click();
         await expect.poll(() => running.app.windows().length).toBe(1);
         await expect(chip).toHaveCount(0);
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+/**
+ * Server Core restart takes every PTY with it, and the Server restores only the selected Session, which is never the
+ * Commander's. An open window must bring its Commander back itself instead of showing a Terminal nothing restarts.
+ */
+// eslint-disable-next-line no-empty-pattern -- Playwright requires object destructuring for its fixture argument
+test('Agent Commander restarts under its open window after Server Core restarts', async ({}, testInfo) => {
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-commander-restart-e2e-'));
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root);
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: { codex: {} },
+    });
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    const status = () => pageRequest<CommanderStatus>(running.page, 'commander.status');
+    try {
+        await createShellSession(running.page);
+        await pageRequest(running.page, 'agentCommander.open');
+        await expect.poll(() => running.app.windows().length).toBe(2);
+        const commander = running.app.windows().find((page) => page !== running.page)!;
+        await expect.poll(status).not.toEqual({ state: 'stopped' });
+        /**
+         * Kill the Server only once the pane settled: a mounting pane attaches, then writes its Session state on focus,
+         * and a write the kill cuts off reports its own failure, which is not the failure this test is about.
+         */
+        const pane = commander.locator('.terminal-pane');
+        await expect(pane.locator('.terminal-surface')).toHaveAttribute(
+            'data-terminal-attached',
+            'true',
+        );
+        await expect(pane.locator('.xterm-helper-textarea')).toBeFocused();
+        const isCommanderStateSettled = async () => {
+            const { identity, workbench } = await pageRequest<CommanderSnapshot>(
+                running.page,
+                'commander.snapshot',
+            );
+            const shown = await commander.evaluate(
+                (sessionId) =>
+                    (
+                        globalThis as unknown as {
+                            __caxriStores: {
+                                getState: (name: string) => {
+                                    bootstrap?: { sessionStates: Array<{ sessionId: string }> };
+                                };
+                            };
+                        }
+                    ).__caxriStores
+                        .getState('workbench')
+                        .bootstrap?.sessionStates.find((state) => state.sessionId === sessionId),
+                identity.sessionId,
+            );
+            const stored = workbench.sessionStates.find(
+                (state) => state.sessionId === identity.sessionId,
+            );
+            return isDeepStrictEqual(shown, stored);
+        };
+        await expect.poll(isCommanderStateSettled).toBe(true);
+
+        const before = await pageRequest<{ pid: number }>(running.page, 'host.status');
+        process.kill(before.pid, 'SIGKILL');
+        /**
+         * Polls for a replacement PID rather than the brief `restarting` status, which a slow poll can miss. A request
+         * sent while no Server is connected fails, which reads as not replaced yet.
+         */
+        const isServerReplaced = async () => {
+            try {
+                const { pid } = await pageRequest<{ pid: number }>(running.page, 'host.status');
+                return pid !== before.pid;
+            } catch {
+                return false;
+            }
+        };
+        await expect.poll(isServerReplaced, { timeout: 30_000 }).toBe(true);
+        await waitForRuntimeReady(running.page);
+
+        const commanderTerminalState = async () => {
+            const { identity, workbench } = await pageRequest<CommanderSnapshot>(
+                running.page,
+                'commander.snapshot',
+            );
+            return workbench.terminals.find(({ id }) => id === identity.terminalId)
+                ?.lastProcessState;
+        };
+        await expect.poll(commanderTerminalState, { timeout: 30_000 }).toBe('running');
+        await expect(commander.getByText('Interrupted by app shutdown')).toHaveCount(0);
+        await expect.poll(status).not.toEqual({ state: 'stopped' });
+        await expect(running.page.locator('.commander-status-chip')).toContainText('Commander');
+        await testInfo.attach('commander-after-server-restart', {
+            body: await commander.screenshot(),
+            contentType: 'image/png',
+        });
     } finally {
         try {
             await running.app.close();

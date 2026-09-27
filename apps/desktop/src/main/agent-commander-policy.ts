@@ -98,9 +98,10 @@ export class AgentCommanderRendererPolicy {
 
     /**
      * Decides which Renderer receives one relay message. Durable journal envelopes reach both windows so each window's
-     * recovering event client sees a gap-free cursor sequence. Transient messages are one-shot and window-specific: PTY
-     * bytes follow the window that views the Terminal, and UI commands (`command.execute`, `desktop.openRequested`)
-     * stay with the Workbench so a menu accelerator never runs twice.
+     * recovering event client sees a gap-free cursor sequence. Transient messages are one-shot: reconnect and pull
+     * request notices reach both windows, PTY bytes follow the window that views the Terminal, and everything else,
+     * including UI commands (`command.execute`, `desktop.openRequested`), stays with the Workbench so a menu
+     * accelerator never runs twice.
      */
     route(message: unknown): { commander: boolean; workbench: boolean } {
         /**
@@ -109,6 +110,7 @@ export class AgentCommanderRendererPolicy {
         if (typeof message !== 'object' || message === null)
             return { commander: false, workbench: true };
         if ('cursor' in message) return { commander: true, workbench: true };
+        if (isSharedTransientEvent(message)) return { commander: true, workbench: true };
         const terminalId = transientTerminalId(message);
         const isCommander = terminalId !== undefined && this.ownsTerminal(terminalId);
         return { commander: isCommander, workbench: !isCommander };
@@ -118,6 +120,16 @@ export class AgentCommanderRendererPolicy {
         this.identity = undefined;
     }
 }
+
+/**
+ * Transient events both windows act on. A reconnect dropped PTY output to every mounted pane, the Commander's included,
+ * and the board shows the pull requests this announces. Neither is a command, so delivering it twice runs nothing
+ * twice.
+ */
+const SHARED_TRANSIENT_EVENTS = new Set<string>([
+    'host.connectionChanged',
+    'sessionPullRequests.changed',
+]);
 
 const TERMINAL_SCOPED_TRANSIENT_EVENTS = new Set<string>([
     'terminal.output',
@@ -131,6 +143,10 @@ const TERMINAL_SCOPED_TRANSIENT_EVENTS = new Set<string>([
 interface RelayMessageFields {
     readonly event?: unknown;
     readonly payload?: unknown;
+}
+
+function isSharedTransientEvent({ event }: RelayMessageFields): boolean {
+    return typeof event === 'string' && SHARED_TRANSIENT_EVENTS.has(event);
 }
 
 function transientTerminalId({ event, payload }: RelayMessageFields): string | undefined {
