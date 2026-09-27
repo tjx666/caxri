@@ -14,6 +14,7 @@ import {
     pageRequest,
     waitForRuntimeReady,
 } from './support/helpers.ts';
+import { chooseContextMenuItem, contextMenuLabels } from './support/native-context-menu.ts';
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires object destructuring for its fixture argument
 test('Agent Commander keeps running after its window closes and stops on request', async ({}, testInfo) => {
@@ -127,6 +128,54 @@ test('Close Tab in the focused Agent Commander window closes that window, not a 
             .not.toEqual({ state: 'stopped' });
         await testInfo.attach('workbench-after-commander-close-tab', {
             body: await running.page.locator('.commander-status-chip').screenshot(),
+            contentType: 'image/png',
+        });
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+/**
+ * The Commander Terminal is an ordinary Terminal pane, so its right-click menu must open over the Commander window and
+ * its entries must act on the Commander Terminal, not be refused by the window's request policy.
+ */
+// eslint-disable-next-line no-empty-pattern -- Playwright requires object destructuring for its fixture argument
+test('Agent Commander Terminal opens its context menu in the Commander window', async ({}, testInfo) => {
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-commander-context-menu-e2e-'));
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root);
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: { codex: {} },
+    });
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        await createShellSession(running.page);
+        await pageRequest(running.page, 'agentCommander.open');
+        await expect.poll(() => running.app.windows().length).toBe(2);
+        const commander = running.app.windows().find((page) => page !== running.page)!;
+        const pane = commander.locator('.terminal-pane');
+        await expect(pane.locator('.terminal-surface')).toHaveAttribute(
+            'data-terminal-attached',
+            'true',
+        );
+
+        await pane.locator('.xterm-screen').click({ button: 'right' });
+        expect(await contextMenuLabels(running.app)).toEqual(
+            expect.arrayContaining(['Copy', 'Paste', 'Clear', 'Find in Terminal']),
+        );
+        await chooseContextMenuItem(running.app, 'Find in Terminal');
+
+        const search = commander.getByRole('textbox', { name: 'Find in Terminal', exact: true });
+        await expect(search).toBeFocused();
+        await testInfo.attach('commander-terminal-find', {
+            body: await commander.locator('.terminal-search').screenshot(),
             contentType: 'image/png',
         });
     } finally {

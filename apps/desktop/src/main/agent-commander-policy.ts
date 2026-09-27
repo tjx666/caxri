@@ -4,10 +4,12 @@ import { z } from 'zod';
 
 /**
  * Requests the Agent Commander window may send without naming a Terminal. Everything here is either a read the window
- * renders, the Commander's own lifecycle (including stopping it), or the one Workbench hand-off
- * (`agentCommander.revealSession`). Anything that edits files, Projects, Settings, or another Session's Terminal is
- * deliberately absent, and so are `app.bootstrap` and `app.records`: the window reads its rows through
- * `commander.snapshot`. It shares the Workbench's Desktop principal, so this list is its only authority boundary.
+ * renders, the Commander's own lifecycle (including stopping it), the one Workbench hand-off
+ * (`agentCommander.revealSession`), or the Terminal pane's native context menu (`contextMenu.show`), which Main pops
+ * over this window and which only reports the chosen entry back: the entry's action is a Renderer request admitted here
+ * on its own. Anything that edits files, Projects, Settings, or another Session's Terminal is deliberately absent, and
+ * so are `app.bootstrap` and `app.records`: the window reads its rows through `commander.snapshot`. It shares the
+ * Workbench's Desktop principal, so this list is its only authority boundary.
  */
 const ADMITTED_METHODS = new Set<string>([
     'agentCommander.revealSession',
@@ -15,6 +17,7 @@ const ADMITTED_METHODS = new Set<string>([
     'commander.board',
     'commander.ensure',
     'commander.snapshot',
+    'contextMenu.show',
     'events.recover',
     'external.open',
     'keybindings.get',
