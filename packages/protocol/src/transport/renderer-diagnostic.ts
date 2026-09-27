@@ -186,10 +186,15 @@ export const editorWorkerStallDiagnosticSchema = z.strictObject({
     surface: z.literal('git-diff'),
     /**
      * `timeout` when the diff missed its budget, `recovered` when a previously reported stall produced its diff after
-     * all. Recording the transition — not only the failing state — is what makes a transient stall distinguishable from
-     * a Worker that never comes back.
+     * all on the _original_ Worker. Recording the transition — not only the failing state — is what makes a transient
+     * stall distinguishable from a Worker that never comes back.
+     *
+     * `worker-recreated` is the active counterpart to `recovered`: the surface gave up waiting on the stalled Worker,
+     * destroyed and recreated it, and asked Monaco to recompute. It is bounded to one automatic attempt per diff
+     * surface (`git-diff-worker-recovery.ts`); a second stall on the same surface goes back through `timeout` and is
+     * surfaced to the user instead of retried again on its own.
      */
-    outcome: z.enum(['timeout', 'recovered']),
+    outcome: z.enum(['timeout', 'recovered', 'worker-recreated']),
     waitMs: z.number().int().nonnegative().max(600_000),
     workerRoundTrip: z.enum(['construct-failed', 'no-reply', 'ok', 'skipped', 'worker-error']),
     workerRoundTripMs: z.number().int().nonnegative().max(600_000).nullable(),

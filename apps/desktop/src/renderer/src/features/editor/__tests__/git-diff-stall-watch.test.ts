@@ -12,6 +12,7 @@ function createWatch(
         pageAgeMs?: number;
         now?: () => number;
         startupStalledNow?: number;
+        recoveryGraceMs?: number;
     } = {},
 ) {
     const reported: EditorWorkerStallDiagnostic[] = [];
@@ -42,6 +43,7 @@ function createWatch(
         createDiagnosticId: () => `00000000-0000-4000-8000-00000000000${(identifier += 1)}`,
         timeoutMs: 5,
         minimumReportIntervalMs: overrides.minimumReportIntervalMs ?? 0,
+        recoveryGraceMs: overrides.recoveryGraceMs,
     });
     return { reported, watch };
 }
@@ -279,5 +281,109 @@ describe('Git diff stall watch', () => {
         await new Promise((resolve) => setTimeout(resolve, 20));
 
         expect(outcomes).toEqual([]);
+    });
+
+    describe('automatic recovery', () => {
+        it('records one stall, then one worker-recreated transition, for a Worker that never replies', async () => {
+            const { reported, watch } = createWatch({ recoveryGraceMs: 30 });
+            let recoveries = 0;
+
+            watch.observe({
+                waitForDiff: () => new Promise(() => {}),
+                readModels: models,
+                onRecoveryDue: () => (recoveries += 1),
+            });
+
+            await vi.waitFor(() => expect(reported).toHaveLength(1), { interval: 2 });
+            expect(reported[0]).toMatchObject({ outcome: 'timeout' });
+
+            await vi.waitFor(() => expect(reported).toHaveLength(2));
+            expect(reported[1]).toMatchObject({
+                outcome: 'worker-recreated',
+                workerRoundTrip: 'skipped',
+                workerBroadcast: 'skipped',
+            });
+            expect(recoveries).toBe(1);
+        });
+
+        it('never offers a recovery when no grace period is configured', async () => {
+            const { reported, watch } = createWatch();
+            let recoveries = 0;
+
+            watch.observe({
+                waitForDiff: () => new Promise(() => {}),
+                readModels: models,
+                onRecoveryDue: () => (recoveries += 1),
+            });
+
+            await vi.waitFor(() => expect(reported).toHaveLength(1));
+            await new Promise((resolve) => setTimeout(resolve, 30));
+
+            expect(reported).toHaveLength(1);
+            expect(recoveries).toBe(0);
+        });
+
+        it('still lets the original Worker recover on its own inside the grace period', async () => {
+            const { reported, watch } = createWatch({ recoveryGraceMs: 200 });
+            let recoveries = 0;
+            const diff = Promise.withResolvers<void>();
+
+            watch.observe({
+                waitForDiff: () => diff.promise,
+                readModels: models,
+                onRecoveryDue: () => (recoveries += 1),
+            });
+
+            await vi.waitFor(() => expect(reported).toHaveLength(1));
+            diff.resolve();
+            await vi.waitFor(() => expect(reported).toHaveLength(2));
+
+            expect(reported[1]).toMatchObject({ outcome: 'recovered' });
+            expect(recoveries).toBe(0);
+        });
+
+        it('still offers a rate-limited stall its recovery without writing a second log line', async () => {
+            const { reported, watch } = createWatch({
+                recoveryGraceMs: 30,
+                minimumReportIntervalMs: 60_000,
+            });
+            const recoveries: number[] = [];
+
+            watch.observe({
+                waitForDiff: () => new Promise(() => {}),
+                readModels: models,
+                onRecoveryDue: () => recoveries.push(1),
+            });
+            watch.observe({
+                waitForDiff: () => new Promise(() => {}),
+                readModels: models,
+                onRecoveryDue: () => recoveries.push(2),
+            });
+
+            await vi.waitFor(() => expect(reported).toHaveLength(1), { interval: 2 });
+            await vi.waitFor(() => expect(recoveries).toHaveLength(2));
+
+            // Only the reported stall gets a matching `worker-recreated` line; the rate-limited one still recovers.
+            expect(reported).toHaveLength(2);
+            expect(reported[1]).toMatchObject({ outcome: 'worker-recreated' });
+        });
+
+        it('drops a pending recovery when the surface is cancelled before its grace period elapses', async () => {
+            const { reported, watch } = createWatch({ recoveryGraceMs: 30 });
+            let recoveries = 0;
+
+            const cancel = watch.observe({
+                waitForDiff: () => new Promise(() => {}),
+                readModels: models,
+                onRecoveryDue: () => (recoveries += 1),
+            });
+
+            await vi.waitFor(() => expect(reported).toHaveLength(1), { interval: 2 });
+            cancel();
+            await new Promise((resolve) => setTimeout(resolve, 40));
+
+            expect(reported).toHaveLength(1);
+            expect(recoveries).toBe(0);
+        });
     });
 });
