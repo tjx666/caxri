@@ -151,7 +151,7 @@ export function ProjectGroup({
                  */}
                 <div
                     ref={headingReference}
-                    className="project-heading group/project-heading flex min-h-7 cursor-grab items-center gap-1 rounded-md text-foreground hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] active:cursor-grabbing"
+                    className="project-heading group/project-heading relative flex min-h-7 cursor-grab items-center gap-1 rounded-md text-foreground [--project-hover-actions:3.75rem] focus-within:pr-[var(--project-hover-actions)] hover:bg-[color-mix(in_srgb,var(--elevated)_60%,transparent)] hover:pr-[var(--project-hover-actions)] active:cursor-grabbing has-[[data-popup-open]]:pr-[var(--project-hover-actions)]"
                     data-project-id={project.id}
                     draggable
                     onDragOver={(event) => {
@@ -252,21 +252,32 @@ export function ProjectGroup({
                             </button>
                         }
                     />
-                    <CommandTooltip commandId="project.customizeIcon">
-                        <Button
-                            className="pointer-events-none opacity-0 transition-opacity group-focus-within/project-heading:pointer-events-auto group-focus-within/project-heading:opacity-100 group-hover/project-heading:pointer-events-auto group-hover/project-heading:opacity-100"
-                            size="icon"
-                            variant="ghost"
-                            aria-label={`Customize Project Icon for ${project.displayTitle}`}
-                            tabIndex={-1}
-                            onClick={() =>
-                                executeCommand('project.customizeIcon', { projectId: project.id })
-                            }
-                        >
-                            <Paintbrush size={13} />
-                        </Button>
-                    </CommandTooltip>
-                    <CreateSessionMenu project={project} />
+                    {/*
+                     * The hover actions float over the row's trailing edge instead of holding a slot at rest: a
+                     * reserved slot for two invisible buttons cost every Project name ~60px at the side bar's usual
+                     * width. The heading publishes the cluster's width (two `size-7` buttons plus `gap-1`) as
+                     * `--project-hover-actions` and pads by it only while the actions show, so the name fades before
+                     * them instead of painting under them — the same rule `SessionRowActions` follows.
+                     */}
+                    <div className="project-heading-actions absolute top-1/2 right-0 z-10 flex -translate-y-1/2 items-center gap-1">
+                        <CommandTooltip commandId="project.customizeIcon">
+                            <Button
+                                className="pointer-events-none opacity-0 transition-opacity group-focus-within/project-heading:pointer-events-auto group-focus-within/project-heading:opacity-100 group-hover/project-heading:pointer-events-auto group-hover/project-heading:opacity-100"
+                                size="icon"
+                                variant="ghost"
+                                aria-label={`Customize Project Icon for ${project.displayTitle}`}
+                                tabIndex={-1}
+                                onClick={() =>
+                                    executeCommand('project.customizeIcon', {
+                                        projectId: project.id,
+                                    })
+                                }
+                            >
+                                <Paintbrush size={13} />
+                            </Button>
+                        </CommandTooltip>
+                        <CreateSessionMenu project={project} />
+                    </div>
                 </div>
             </ProjectRowMenu>
             <div

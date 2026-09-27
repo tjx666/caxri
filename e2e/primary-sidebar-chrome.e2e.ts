@@ -138,6 +138,18 @@ test('Project details move to a hover card and idle Session titles reclaim the e
         const projectTitle = projectHeading.locator('.project-select');
         await expect(projectHeading.locator('.project-session-count')).toHaveCount(0);
         await expect(projectTitle).toHaveAccessibleName('project (1 Session)');
+        /**
+         * At rest the invisible hover actions reserve no width, so the name's box runs to the heading's edge; hover
+         * makes room for them instead.
+         */
+        const titleRightInset = () =>
+            projectHeading.evaluate((heading) => {
+                const select = heading.querySelector<HTMLElement>('.project-select');
+                if (!select) throw new Error('Project title is unavailable');
+                return heading.getBoundingClientRect().right - select.getBoundingClientRect().right;
+            });
+        await running.page.mouse.move(500, 300);
+        expect(await titleRightInset()).toBeLessThanOrEqual(1);
 
         await projectTitle.hover();
         const projectCard = running.page.locator('.project-details-card');
@@ -434,8 +446,8 @@ test('work tabs divide evenly, leave a draggable titlebar, and pin New Terminal 
         const strip = running.page.locator(`${VISIBLE_SESSION} .work-tabs`);
         const tab = strip.locator('.work-tab').last();
         const actions = strip.locator('.tab-actions');
-        // The single-tab bar reserves the action's width, but keeps its + quiet until the pointer or keyboard reaches
-        // the bar. A second tab makes it visible at rest.
+        // The single-tab bar floats its + over the tab's trailing end, quiet until the pointer or keyboard reaches
+        // the bar. A second tab gives it a visible slot at rest.
         await expect(actions).toHaveCount(1);
         await expect(actions.locator(':scope > div')).toHaveCSS('opacity', '0');
         await pressNewTerminal(running.page);

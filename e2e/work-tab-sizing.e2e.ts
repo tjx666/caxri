@@ -298,8 +298,9 @@ test('the tab bar reveals the Agent menu on hover with one tab and accents only 
         await waitForTabMotionToSettle(running.page);
 
         /**
-         * Nothing to switch between: the active accent stays absent, while the reserved creation slot reveals its
-         * action only when the user reaches the tab bar.
+         * Nothing to switch between: the active accent stays absent, and the creation action floats over the tab's
+         * trailing end without a slot of its own, revealed only when the user reaches the tab bar. A reserved slot
+         * showed the bar's fill beside the full-width tab as a block.
          */
         const accentHeight = (element: Element) =>
             // eslint-disable-next-line unicorn/prefer-number-coercion -- the computed height carries a "px" suffix, which `Number()` cannot parse
@@ -307,6 +308,10 @@ test('the tab bar reveals the Agent menu on hover with one tab and accents only 
         expect(await tabs.first().evaluate(accentHeight)).toBe(0);
         await expect(newTerminal).toHaveCount(1);
         await expect(newTerminalSlot).toHaveCSS('opacity', '0');
+        const reservedActionWidth = await running.page
+            .locator('.work-tabs .tab-actions')
+            .evaluate((element) => element.getBoundingClientRect().width);
+        expect(reservedActionWidth).toBe(0);
         await tabs.first().hover();
         await expect(newTerminalSlot).toHaveCSS('opacity', '1');
         await newTerminal.hover();
