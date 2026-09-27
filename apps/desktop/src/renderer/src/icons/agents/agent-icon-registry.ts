@@ -32,14 +32,21 @@ export interface AgentIconDefinition {
      * of `src`.
      */
     monoSrc?: string;
+    /**
+     * Fraction of the requested box the mark is drawn at, for a mark whose ink fills its viewBox far more than its
+     * siblings'. Codex's mark is a full 24×24 circle (its color export a full 24×24 tile), while Claude Code's glyph
+     * spans only 24×15 of the same viewBox, so at one `size` Codex read visibly larger. The outer box keeps `size` so
+     * rows stay aligned; only the drawn mark shrinks. Omitted means `1`.
+     */
+    opticalScale?: number;
 }
 
 const managedAgentIconAssets: Record<
     AgentProvider,
-    Pick<AgentIconDefinition, 'kind' | 'monoSrc' | 'src'>
+    Pick<AgentIconDefinition, 'kind' | 'monoSrc' | 'opticalScale' | 'src'>
 > = {
     claude: { kind: 'color-asset', monoSrc: claudeCodeMono, src: claudeCodeColor },
-    codex: { kind: 'color-asset', monoSrc: codexMono, src: codexColor },
+    codex: { kind: 'color-asset', monoSrc: codexMono, opticalScale: 0.8, src: codexColor },
     grok: { kind: 'mask-asset', src: grok },
 };
 

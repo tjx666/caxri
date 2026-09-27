@@ -224,7 +224,8 @@ drift this replaces; do not reintroduce it.
 **Window chrome** — `titleBarStyle: 'hiddenInset'`. The 44px PrimarySidebar, workbench, and
 SecondarySidebar top rails share one bottom edge. Workbench tabs fill the full 44px rail, VS Code
 style, so the active tab's `--background` fill reaches the rail's top edge. PrimarySidebar and
-SecondarySidebar rail tabs remain 36px, vertically centered. The logo-free PrimarySidebar header is
+SecondarySidebar rail tabs remain 36px, vertically centered. SecondarySidebar tabs divide the whole
+rail evenly; a compact capped indicator marks the selected slot. The logo-free PrimarySidebar header is
 the drag region (`-webkit-app-region: drag`, interactive children `no-drag`). The Session history
 back/forward pair is the only control that rail carries, and it opts out of the drag region so the
 buttons navigate instead of moving the window. Add Project has no chrome of its own there: its entry
@@ -392,9 +393,9 @@ where every browser puts them. They are `no-drag` islands in the header's drag r
 with an empty stack renders disabled rather than hidden, so the pair never reflows and its
 position stays learnable; the shortcut and command name reach the user through the shared command
 tooltip instead of a bespoke label. Archived Sessions use one stable PrimarySidebar footer entry
-with a global count: a compact ghost button carrying only the archive glyph and the count, named by
-its tooltip and accessible name rather than a text label, because a rarely visited entry should not
-spend a full-width row of chrome on its own name. Search, filters, Project-grouped results, restore, and delete live in a
+with a global count: the footer row holds nothing else, so the whole row is one compact ghost
+button — archive glyph and a short `Archived` label on the left, the count on the right. A
+glyph-only chip left most of the row dead to clicks. Search, filters, Project-grouped results, restore, and delete live in a
 full-width management dialog. Project disclosures contain active Sessions only, so low-frequency
 history never fragments navigation. A disclosure renders its first five Sessions in sidebar order
 plus a text-only `Show N more` row that reveals ten more per activation and disappears once the list

@@ -104,6 +104,22 @@ test('SecondarySidebar and Settings share accessible moving chrome tabs', async 
         await expectPanelAssociation(running.page, statusTab, false);
         await expectPanelAssociation(running.page, fixtureTab, false);
         await expectIndicatorAligned(secondarySidebarTabs, filesTab);
+        /**
+         * The rail divides evenly across the whole SecondarySidebar. A per-tab width cap once left-aligned the strip
+         * and left the rest of the rail empty.
+         */
+        const railFill = await secondarySidebarTabs.evaluate((list) => {
+            const listWidth = list.getBoundingClientRect().width;
+            const tabWidths = [...list.querySelectorAll('[role="tab"]')].map(
+                (tab) => tab.getBoundingClientRect().width,
+            );
+            return {
+                fill: listWidth / list.parentElement!.getBoundingClientRect().width,
+                spread: Math.max(...tabWidths) - Math.min(...tabWidths),
+            };
+        });
+        expect(railFill.fill).toBeGreaterThan(0.99);
+        expect(railFill.spread).toBeLessThan(1);
 
         await secondarySidebarTabs
             .locator('[data-slot="chrome-tab-indicator"]')
