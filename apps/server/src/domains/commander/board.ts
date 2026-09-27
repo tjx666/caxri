@@ -1,4 +1,5 @@
 import type {
+    AgentDelegationReceipt,
     CommanderBoard,
     CommanderBoardGroupId,
     CommanderBoardRow,
@@ -12,6 +13,8 @@ import {
     isTopLevelProject,
     MAX_COMMANDER_BOARD_ROWS,
 } from '@caxri/protocol';
+
+import { isDelegationActive } from '../agent-delegation/lifecycle';
 
 /**
  * How long a completed Session stays under "Recently finished". Longer than the Workbench Activity view's window
@@ -55,8 +58,37 @@ export function commanderBoardGroup(
 }
 
 /**
+ * Picks the task each Commander Session shows. A task answered by a follow-up is superseded by it, so only chain heads
+ * compete; among those an unsettled one (running or blocked) wins over a newer settled one, so a finished side task
+ * never hides work that still needs someone.
+ */
+function currentTaskBySession(
+    tasks: readonly AgentDelegationReceipt[],
+): Map<string, CommanderBoardRow['task']> {
+    const superseded = new Set(tasks.flatMap(({ followUpOf }) => followUpOf ?? []));
+    const isOpen = (task: AgentDelegationReceipt) =>
+        isDelegationActive(task) || task.status === 'blocked';
+    const current = new Map<string, AgentDelegationReceipt>();
+    for (const task of tasks) {
+        if (superseded.has(task.delegationId)) continue;
+        const shown = current.get(task.sessionId);
+        const outranks =
+            !shown ||
+            (isOpen(task) === isOpen(shown) ? task.createdAt > shown.createdAt : isOpen(task));
+        if (outranks) current.set(task.sessionId, task);
+    }
+    return new Map(
+        [...current].map(([sessionId, { delegationId, status, failure, updatedAt }]) => [
+            sessionId,
+            { delegationId, status, ...(failure && { failure }), updatedAt },
+        ]),
+    );
+}
+
+/**
  * Projects the visible Workbench into the Commander board: every top-level Project and its unarchived Sessions, most
  * recent activity first within each group. Pull requests come from the cached snapshot and never wait on GitHub.
+ * `tasks` are the Commander's own delegation receipts; each Commander Session shows its current one.
  */
 export function commanderBoard(input: {
     commanderSessionIds: ReadonlySet<string>;
@@ -64,12 +96,14 @@ export function commanderBoard(input: {
     projects: readonly ProjectRecord[];
     pullRequests: SessionPullRequests;
     sessions: readonly SessionRecord[];
+    tasks: readonly AgentDelegationReceipt[];
     terminals: readonly TerminalRecord[];
 }): CommanderBoard {
     const projects = input.projects.filter((project) => isTopLevelProject(project));
     const projectsById = new Map(projects.map((project) => [project.id, project]));
     const terminalsBySession = Map.groupBy(input.terminals, (terminal) => terminal.sessionId);
     const pullRequests = new Map(Object.entries(input.pullRequests.pullRequests));
+    const tasks = currentTaskBySession(input.tasks);
     const order = new Map(commanderBoardGroupIds.map((id, index) => [id, index]));
     const rows = input.sessions.flatMap((session): CommanderBoardRow[] => {
         const project = projectsById.get(session.projectId);
@@ -77,6 +111,7 @@ export function commanderBoard(input: {
         const terminal = boardAgent(session, terminalsBySession.get(session.id) ?? []);
         const pullRequest = pullRequests.get(session.id);
         const pullRequestUnavailable = input.pullRequests.unavailable?.[session.id];
+        const task = tasks.get(session.id);
         return [
             {
                 group: commanderBoardGroup(session, terminal, input.now),
@@ -100,6 +135,7 @@ export function commanderBoard(input: {
                 ...(pullRequest && { pullRequest }),
                 ...(pullRequestUnavailable && { pullRequestUnavailable }),
                 commanderSession: input.commanderSessionIds.has(session.id),
+                ...(task && { task }),
             },
         ];
     });

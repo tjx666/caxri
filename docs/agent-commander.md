@@ -90,7 +90,13 @@ into one of six groups, in this order: `attention`, `working`, `waiting`, `faile
 - the primary Agent's process state;
 - the cached pull request from the `session.pullRequests` snapshot, with the snapshot's
   `pullRequestsRefreshedAt`;
-- whether the Commander created the Session.
+- whether the Commander created the Session;
+- for a Commander Session, its current Commander task: its delegation ID, status, failure reason,
+  and update time. A task answered by a follow-up is superseded by it, and an unsettled task
+  (running or blocked) wins over a newer settled one. Only receipt state leaves the database; the
+  task's prompt and answer never reach the board. The window prints it next to the `Commander`
+  marker as `Starting`, `Running`, `Answered`, `Blocked`, `Taken over`, `Stopped`, or `Failed`.
+  `Answered` means the Agent gave its final answer, not that the Commander verified it.
 
 The board never waits on GitHub.
 
@@ -145,8 +151,10 @@ Settings writes are never implied.
 - A delegation whose caller is outside the target Session fills that Session's empty pane, the same
   way an external delegation caller does. It uses the target's working directory, not the
   Commander's.
-- Ownership stays exact. Status, result, wait, and stop work only for the Endpoint generation that
-  created the task, so a restarted Commander does not inherit its predecessor's tasks.
+- Ownership stays with the Commander Terminal. A Caxri restart or Codex relaunch starts a new
+  Endpoint generation of that same Terminal, and status, result, wait, stop, and follow-up keep
+  working for every task it delegated earlier. Any other Agent's tasks stay fenced to the exact
+  generation that created them.
 
 The human CLI owner also holds `commander`, so an operator can read the board or create a Commander
 Session from a shell.
@@ -176,10 +184,9 @@ Inside the Commander Terminal, the Commander calls the version-matched CLI throu
   user.
 - The Commander delegates only into empty Sessions it created. It cannot yet queue work into an
   existing Session, and it does not own a persistent to-do queue.
-- Completion is not pushed to the Commander. It learns about finished tasks by waiting on them
-  (`agent delegate wait`) or by reading the board at the start of each turn.
-- Delegation IDs belong to one Commander Endpoint generation. After a restart, the Commander finds
-  earlier work through its `ledger.md` and the board, not through `agent delegate status`.
+- Completion is not pushed to the Commander. It learns about finished tasks by waiting on all of
+  its open tasks at once (`agent delegate wait <id> <id>...`) or by reading the board at the start
+  of each turn.
 - A delegated Codex that stops at a first-run prompt, such as folder trust for a directory the
   user's Codex configuration does not trust, fails with `startup_not_ready`. The Commander is told to
   name that Session for the user instead of retrying blindly.

@@ -119,13 +119,15 @@ state access.
   It needs an explicit `agent:delegate` grant or an owner-issued external delegation identity, plus
   exact `--project`/`--session` selectors.
   Save the returned delegation ID; use `agent delegate wait <id>` and `agent delegate result <id>`
-  to retrieve the exact saved answer. A wait timeout never authorizes resubmitting the task.
+  to retrieve the exact saved answer. With several tasks running, `agent delegate wait <id> <id>...`
+  returns the first one that settled or blocked. A wait timeout never authorizes resubmitting the task.
   Reuse a stable `--request-id` when recovering a disconnected create request.
   Use `create --follow-up <id>` with a fresh prompt file for the next task in the same idle Terminal.
   Use `stop <id>` to interrupt your active task. `create --resume <id>` explicitly starts a new task
   in the exact saved native conversation with frozen settings; it never replays the old prompt.
   Human input or another launch prevents automatic continuation. A restarted caller generation
   does not inherit an older caller's ownership; ask the authenticated owner to recover that task.
+  The Agent Commander is the one exception: its tasks stay its own across its restarts.
   Inspect the receipt status: `completed` with an answer is distinct from blocked, interrupted,
   human intervention or missing result evidence. Never treat dispatch idle as task completion.
   Grok requires explicitly enabled Caxri lifecycle hooks. If they are unavailable, ask the owner

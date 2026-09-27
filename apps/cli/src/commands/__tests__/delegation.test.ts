@@ -38,4 +38,20 @@ describe('delegation CLI', () => {
             await expect(command.parseParams(tokens)).rejects.toThrow(/16 KiB/u);
         },
     );
+
+    it('waits on one or several tasks and rejects flags or an unbounded list', () => {
+        const command = DELEGATION_COMMANDS.find(
+            (item) => item.method === 'agent.delegation.wait',
+        )!;
+        expect(command.parseParams(['task-1'])).toEqual({ delegationId: 'task-1' });
+        expect(command.parseParams(['task-1', 'task-2', 'task-3'])).toEqual({
+            delegationId: 'task-1',
+            otherDelegationIds: ['task-2', 'task-3'],
+        });
+        expect(() => command.parseParams([])).toThrow(/delegation IDs/u);
+        expect(() => command.parseParams(['task-1', '--json'])).toThrow(/delegation IDs/u);
+        expect(() =>
+            command.parseParams(Array.from({ length: 33 }, (_, index) => `task-${index}`)),
+        ).toThrow(/delegation IDs/u);
+    });
 });
