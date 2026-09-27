@@ -366,6 +366,18 @@ setInterval(() => {
         await expect(pullRequest).toBeVisible();
         await expectRightEdge(pullRequest);
         await expect(status).toHaveAccessibleName('Working. The Agent is running.');
+
+        // Collapsing the Project must not fold a running Agent out of sight: the heading summarizes it.
+        const projectTitle = running.page.getByRole('treeitem', { name: /^project \(/u });
+        const agentSummary = running.page.locator('.project-agent-summary');
+        // Pointer still on the heading and focus still on the chevron: the summary shows at once.
+        await running.page.locator('.project-disclosure').first().click();
+        await expect(agentSummary).toBeVisible();
+        await expect(agentSummary).toHaveAttribute('data-project-running', '1');
+        await expect(projectTitle).toHaveAccessibleName('project (1 Session), 1 running');
+        await running.page.locator('.project-disclosure').first().click();
+        await expect(agentSummary).toHaveCount(0);
+        await expect(pullRequest).toBeVisible();
         const runningLayout = await layout();
         expect(runningLayout.indicatorRightGap).toBe(idleLayout.indicatorRightGap);
         expect(runningLayout.indicatorWidth).toBe(idleLayout.indicatorWidth);

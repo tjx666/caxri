@@ -348,8 +348,8 @@ deployment, never hidden by lifecycle. A visible glyph claims the 14px track and
 shares one vertical line; a Session with no PR collapses the empty track to zero so its title gains
 one more character while retaining the 8px separation from the right edge. The MRU switcher uses the
 same leading icon. A collapsed Project heading summarizes the rows it hides: a small running arc with
-the running count, and one warning dot when any Session is unread; it gives way to the heading's
-hover actions and disappears when the Project expands. Thus a failed process is not a persistent
+the running count, and one warning dot when any Session is unread; it stays beside the name while the
+heading's hover actions show, and disappears when the Project expands. Thus a failed process is not a persistent
 list alert, while reliable unread attention remains visible
 regardless of its exact kind. Motion and shape carry the glance signal without changing title
 weight, and the accessible label plus the Session hover/focus card preserve exact lifecycle and
