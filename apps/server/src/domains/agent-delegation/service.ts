@@ -1,11 +1,7 @@
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 
-import type {
-    AgentDelegationAnswer,
-    AgentDelegationCreate,
-    AgentDelegationReceipt,
-} from '@caxri/protocol';
+import type { AgentDelegationCreate, AgentDelegationReceipt } from '@caxri/protocol';
 import { agentDelegationSettingsSchema, CaxriError, isDelegationActive } from '@caxri/protocol';
 
 import type { AgentLifecycleSignal } from '../agents';
@@ -16,7 +12,7 @@ import type { AgentLifecycleSignal } from '../agents';
 import { delegationAdapter } from '../agents';
 import type { StoredAgentDelegation } from '../db';
 import { SingleFlight } from '../single-flight';
-import type { DelegationAuthority } from './admission';
+import type { DelegationAccess, DelegationAuthority } from './admission';
 import {
     authorizeDelegationSession,
     delegationCaller,
@@ -54,10 +50,7 @@ export class AgentDelegationService {
     private readonly nextCollections = new Map<string, number>();
     private readonly collections = new SingleFlight<
         string,
-        {
-            receipt: AgentDelegationReceipt;
-            answer?: AgentDelegationAnswer;
-        }
+        Pick<StoredAgentDelegation, 'answer' | 'receipt'>
     >();
     private isClosed = false;
     private waiterCount = 0;
@@ -112,16 +105,21 @@ export class AgentDelegationService {
     private authorize(
         authority: DelegationAuthority,
         input: Pick<AgentDelegationCreate, 'projectId' | 'sessionId'>,
+        access: DelegationAccess,
     ): void {
         if (this.deletingSessions.has(input.sessionId))
             throw new CaxriError('CONFLICT', 'Delegation Session is being deleted');
-        authorizeDelegationSession(this.options.database, authority, input);
+        authorizeDelegationSession(this.options.database, authority, input, access);
     }
 
-    private owned(id: string, authority: DelegationAuthority): StoredAgentDelegation {
+    private owned(
+        id: string,
+        authority: DelegationAuthority,
+        access: DelegationAccess = 'create',
+    ): StoredAgentDelegation {
         const record = this.options.database.agentDelegations.get(id);
         if (!record) throw new CaxriError('NOT_FOUND', 'Delegation is unavailable');
-        this.authorize(authority, record.input);
+        this.authorize(authority, record.input, access);
         /**
          * A task belongs to the exact Endpoint generation that created it, so a relaunched Agent cannot settle work its
          * predecessor started. The Agent Commander is the exception: a Caxri restart or Codex relaunch starts a new
@@ -208,7 +206,7 @@ export class AgentDelegationService {
     }
 
     private async collectResult(id: string, authority: DelegationAuthority) {
-        let record = this.owned(id, authority);
+        let record = this.owned(id, authority, 'existing');
         if (
             shouldCollectDelegation(record) &&
             record.receipt.terminalId &&
@@ -216,7 +214,7 @@ export class AgentDelegationService {
         ) {
             const { completion, batch } = await readDelegationCompletion(record, this.options);
             if (this.isClosed) return { receipt: record.receipt, answer: record.answer };
-            const current = this.owned(id, authority);
+            const current = this.owned(id, authority, 'existing');
             // Human input, restart or another collector may have invalidated this asynchronous read.
             if (current.receipt.revision !== record.receipt.revision)
                 return { receipt: current.receipt, answer: current.answer };
@@ -419,7 +417,7 @@ export class AgentDelegationService {
         authority: DelegationAuthority,
         input: Pick<AgentDelegationCreate, 'projectId' | 'sessionId' | 'callerProvider'>,
     ) {
-        this.authorize(authority, input);
+        this.authorize(authority, input, 'create');
         return delegationRoster(
             this.options.delegationSettings?.() ?? agentDelegationSettingsSchema.parse({}),
             delegationCaller(this.options.database, authority, input.callerProvider),
@@ -431,7 +429,7 @@ export class AgentDelegationService {
         authority: DelegationAuthority,
         input: AgentDelegationCreate,
     ): Promise<AgentDelegationReceipt> {
-        this.authorize(authority, input);
+        this.authorize(authority, input, 'create');
         const fingerprint = createHash('sha256')
             .update(JSON.stringify({ authority, input }))
             .digest('hex');
@@ -696,11 +694,11 @@ export class AgentDelegationService {
     }
 
     status(id: string, authority: DelegationAuthority): AgentDelegationReceipt {
-        return this.owned(id, authority).receipt;
+        return this.owned(id, authority, 'existing').receipt;
     }
 
     stop(id: string, authority: DelegationAuthority): AgentDelegationReceipt {
-        const record = this.owned(id, authority);
+        const record = this.owned(id, authority, 'existing');
         if (!isDelegationActive(record.receipt) || record.receipt.status === 'collecting')
             return record.receipt;
         const { terminalId } = record.receipt;
@@ -782,7 +780,7 @@ export class AgentDelegationService {
     }
 
     async result(id: string, authority: DelegationAuthority) {
-        const record = this.owned(id, authority);
+        const record = this.owned(id, authority, 'existing');
         if (
             !shouldCollectDelegation(record) ||
             performance.now() < (this.nextCollections.get(id) ?? 0)
