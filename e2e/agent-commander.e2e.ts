@@ -497,3 +497,55 @@ test('Agent Commander Terminal links URLs but not files it cannot open', async (
         await rm(directory, { recursive: true, force: true });
     }
 });
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires object destructuring for its fixture argument
+test('Agent Commander Terminal runs the shortcuts its context menu offers', async ({}, testInfo) => {
+    const directory = await mkdtemp(join(tmpdir(), 'caxri-commander-shortcuts-e2e-'));
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root);
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: { codex: { startupOutput: 'Commander notes at https://example.com/commander' } },
+    });
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        await createShellSession(running.page);
+        await pageRequest(running.page, 'agentCommander.open');
+        await expect.poll(() => running.app.windows().length).toBe(2);
+        const commander = running.app.windows().find((page) => page !== running.page)!;
+        const pane = commander.locator('.terminal-pane');
+        await expect(pane.locator('.xterm-rows')).toContainText('https://example.com/commander');
+        const terminalInput = pane.locator('.xterm-helper-textarea');
+
+        await terminalInput.press('Meta+Shift+O');
+        const picker = commander.getByRole('dialog', { name: 'Open Detected Link' });
+        await expect(
+            picker.getByRole('option', {
+                name: 'Open external link https://example.com/commander',
+                exact: true,
+            }),
+        ).toBeVisible();
+        await testInfo.attach('commander-shortcut-detected-links', {
+            body: await commander.screenshot(),
+            contentType: 'image/png',
+        });
+        await commander.keyboard.press('Escape');
+        await expect(picker).toBeHidden();
+
+        await terminalInput.press('Meta+f');
+        const search = commander.getByRole('textbox', { name: 'Find in Terminal', exact: true });
+        await expect(search).toBeFocused();
+        await testInfo.attach('commander-shortcut-find', {
+            body: await commander.screenshot(),
+            contentType: 'image/png',
+        });
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
+        await rm(directory, { recursive: true, force: true });
+    }
+});

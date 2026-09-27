@@ -105,10 +105,18 @@ function commandLabel(definition: CommandDefinition, keybindings: readonly Keybi
 }
 
 /**
- * Native accelerators cannot return an intercepted key to Monaco when a Terminal command declines it.
+ * Native accelerators cannot return an intercepted key to Monaco when a Terminal command declines it. The Terminal
+ * actions also run in the Agent Commander window, which dispatches their chords itself; a native accelerator would
+ * reach Main instead, which drops a shortcut typed in that window.
  */
 function isRendererOwnedShortcut(commandId: string): boolean {
-    return ['terminal.copy', 'terminal.clear', 'terminal.find', 'panel.toggle'].includes(commandId);
+    return [
+        'terminal.copy',
+        'terminal.clear',
+        'terminal.find',
+        'terminal.openDetectedLink',
+        'panel.toggle',
+    ].includes(commandId);
 }
 
 /**
