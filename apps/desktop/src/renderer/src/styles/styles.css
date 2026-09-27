@@ -122,6 +122,17 @@
 
 :root {
     /*
+     * Space reserved for the macOS traffic lights in the frameless title bar. The lights are native and ignore page
+     * zoom, so both clearances divide by `--window-zoom-factor` (set from `window.zoomLevel` in `app.tsx`) to keep
+     * their physical width. The header inset also leaves room for the brand after the lights.
+     */
+    --window-zoom-factor: 1;
+    --traffic-light-clearance: calc(78px / var(--window-zoom-factor));
+    --traffic-light-header-inset: calc(84px / var(--window-zoom-factor));
+}
+
+:root {
+    /*
      * Motion tokens — the single timing source for every layer of the motion stack
      * (DESIGN.md "Motion"): CSS transitions read them directly, tw-animate overlay classes
      * pick them up through `--tw-duration`, and JS (Motion transitions, presence-cleanup

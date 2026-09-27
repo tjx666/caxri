@@ -15,12 +15,13 @@ import * as m from 'motion/react-m';
 import { useIsOverflowing } from '@/hooks/use-is-overflowing';
 import { useShouldReduceMotion } from '@/hooks/use-should-reduce-motion';
 
+import { ContextMenuTrigger } from '../../components/context-menu-trigger';
 import { GitFileStatusLetter } from '../../components/git-file-status-letter';
-import { ContextMenu, ContextMenuTrigger } from '../../components/ui/context-menu';
 import { Tooltip } from '../../components/ui/tooltip';
 import type { AgentIconIdentity } from '../../icons/agents/agent-icon-registry';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { FileTypeIcon } from '../../icons/files/file-type-icon';
+import type { ContextMenuEntries } from '../../lib/context-menu';
 import type { GitDecoration } from '../../lib/git-decorations';
 import { gitDecorationClassName, gitDecorationDescription } from '../../lib/git-decorations';
 import { motionDurationMs } from '../../lib/motion';
@@ -114,7 +115,10 @@ interface WorkTabProperties {
      */
     paneTabId: string;
     terminalId?: string;
-    contextMenu?: ReactNode;
+    /**
+     * Builds the tab's native right-click menu when it opens.
+     */
+    contextMenu?: () => ContextMenuEntries;
     onClose: () => void;
     onDoubleClick?: () => void;
     onDragStart?: (event: DragEvent<HTMLDivElement>) => void;
@@ -518,10 +522,5 @@ export function WorkTab({
         </m.div>
     );
     if (!contextMenu) return tab;
-    return (
-        <ContextMenu>
-            <ContextMenuTrigger render={tab as ReactElement} />
-            {contextMenu}
-        </ContextMenu>
-    );
+    return <ContextMenuTrigger menu={contextMenu}>{tab}</ContextMenuTrigger>;
 }

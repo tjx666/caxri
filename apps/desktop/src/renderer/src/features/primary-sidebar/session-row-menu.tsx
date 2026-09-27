@@ -1,5 +1,4 @@
 import type { ReactElement } from 'react';
-import { useState } from 'react';
 
 import type {
     ProjectRecord,
@@ -9,15 +8,11 @@ import type {
 } from '@caxri/protocol';
 import { isPinnedSession } from '@caxri/protocol';
 
-import {
-    ContextMenu,
-    ContextMenuContent,
-    ContextMenuItem,
-    ContextMenuSeparator,
-    ContextMenuTrigger,
-} from '../../components/ui/context-menu';
-import { useCommandShortcut } from '../../lib/keybindings';
-import { useCaxriQuery } from '../../queries/client';
+import { ContextMenuTrigger } from '../../components/context-menu-trigger';
+import type { ContextMenuEntries } from '../../lib/context-menu';
+import { CONTEXT_MENU_SEPARATOR } from '../../lib/context-menu';
+import { readCommandShortcut } from '../../lib/keybindings';
+import { fetchCaxriQuery } from '../../queries/client';
 import { revokePermissionAutoAllow } from '../session/permission-auto-allow-commands';
 import {
     archiveSession,
@@ -68,10 +63,67 @@ export function SessionRowMenu({
     session: SessionRecord;
     terminals: TerminalRecord[];
 }) {
-    const deleteShortcut = useCommandShortcut('session.delete');
-    const renameShortcut = useCommandShortcut('session.rename');
-    const openInEditorShortcut = useCommandShortcut('project.openInEditor');
-    const openPullRequestShortcut = useCommandShortcut('session.openPullRequest');
+    return (
+        <ContextMenuTrigger
+            onOpenChange={onOpenChange}
+            menu={() =>
+                sessionRowMenu({
+                    onBeginRename,
+                    onMarkRead,
+                    project,
+                    pullRequest,
+                    session,
+                    terminals,
+                })
+            }
+        >
+            {children}
+        </ContextMenuTrigger>
+    );
+}
+
+/**
+ * A native menu cannot be patched once it is showing, so the grant read gates the whole menu. It is bounded: a slow or
+ * stalled Server must not turn a right-click into nothing happening.
+ */
+const AUTO_ALLOW_READ_TIMEOUT_MS = 300;
+
+/**
+ * "Always allow in this Session" (issue caxri#1295) is a Server in-memory grant, not part of the bootstrap
+ * `SessionRecord`, so it is read only when the menu opens rather than for every row in the tree. A failed or timed-out
+ * read hides the entry instead of blocking the menu.
+ */
+async function isPermissionAutoAllowGranted(sessionId: string): Promise<boolean> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<false>((resolve) => {
+        timer = setTimeout(() => resolve(false), AUTO_ALLOW_READ_TIMEOUT_MS);
+    });
+    try {
+        const isGranted = async (): Promise<boolean> =>
+            (await fetchCaxriQuery('session.permissionAutoAllowStatus', { sessionId })).granted;
+        return await Promise.race([isGranted(), timeout]);
+    } catch {
+        return false;
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+async function sessionRowMenu({
+    onBeginRename,
+    onMarkRead,
+    project,
+    pullRequest,
+    session,
+    terminals,
+}: {
+    onBeginRename?: () => void;
+    onMarkRead?: () => void;
+    project: ProjectRecord;
+    pullRequest?: SessionPullRequest;
+    session: SessionRecord;
+    terminals: TerminalRecord[];
+}): Promise<ContextMenuEntries> {
     const pinned = isPinnedSession(session);
     const detached = hasDetachedAgentTerminal(session.id, terminals);
     const canDetach = hasLiveAgentTerminal(session.id, terminals);
@@ -83,143 +135,86 @@ export function SessionRowMenu({
      * conversation — a Session whose Agent has not been bound yet has nothing to put on the clipboard.
      */
     const boundAgentSessionId = primaryTerminal?.agentSessionId;
-    const unboundReason = 'This Session has no bound Agent conversation yet';
-    /**
-     * Rename is the one entry that leaves something focused behind: the row swaps itself for an input that must hold
-     * focus, while every other entry hands off to a command and leaves the row alone. Closing a menu ends by returning
-     * focus, and that return is what made `Rename` look dead (#950) — it fired one frame after the input mounted and
-     * moved focus to an unrelated sidebar button, so the input blurred and `blurRename` ended a rename the user had
-     * only just started. Two things keep them apart: `finalFocus` turns the return off for this close, and the rename
-     * itself waits for `onOpenChangeComplete` so it begins after the popup is gone rather than racing it.
-     *
-     * `finalFocus` has to be the boolean, not a callback returning it: Base UI's focus manager gates the whole return
-     * on the raw prop being truthy, so a function that answers `false` still runs the return — and with no element to
-     * return to it walks to the first tabbable element in the document instead, which is how the focus reached a button
-     * in the Project heading.
-     */
-    const [renameRequested, setRenameRequested] = useState(false);
-    /**
-     * "Always allow in this Session" (issue caxri#1295) is a Server in-memory grant, not part of the bootstrap
-     * `SessionRecord`, so it is read lazily only while the menu is open rather than for every row in the tree. The read
-     * stays live while the menu is open through `session.permissionAutoAllowStatus`'s own invalidation on
-     * `agent.permissionAutoAllowChanged` (see `queries/invalidation.ts`), so a revoke from another window or a mobile
-     * device is reflected without reopening this menu.
-     */
-    const [isMenuOpen, setIsMenuOpen] = useState(false);
-    const autoAllow = useCaxriQuery(
-        'session.permissionAutoAllowStatus',
-        { sessionId: session.id },
-        { enabled: isMenuOpen },
-    );
-    return (
-        <ContextMenu
-            onOpenChange={(isOpen) => {
-                setIsMenuOpen(isOpen);
-                if (isOpen) setRenameRequested(false);
-                onOpenChange?.(isOpen);
-            }}
-            onOpenChangeComplete={(isOpen) => {
-                if (isOpen || !renameRequested) return;
-                setRenameRequested(false);
-                onBeginRename?.();
-            }}
-        >
-            <ContextMenuTrigger render={children} />
-            <ContextMenuContent
-                aria-label={`${session.displayTitle} actions`}
-                finalFocus={!renameRequested}
-            >
-                {/*
-                 * Rename's hint is read from the live keybinding table now that `session.rename` is a real command. It
-                 * used to print the literal `enter`, which was true only while this row held keyboard focus and stayed
-                 * wrong forever for anyone who rebound the command. Archive keeps a literal on purpose: `Delete` is a
-                 * tree key, not a keybinding — it archives the row focus is on, which is not necessarily the selected
-                 * Session, so it cannot become a command binding without changing which Session it would take.
-                 */}
-                {onMarkRead && session.hasUnread && (
-                    <ContextMenuItem hint="delete" onClick={onMarkRead}>
-                        Mark as Read
-                    </ContextMenuItem>
-                )}
-                {onBeginRename && (
-                    <ContextMenuItem hint={renameShortcut} onClick={() => setRenameRequested(true)}>
-                        Rename
-                    </ContextMenuItem>
-                )}
-                {/*
-                 * Pin has no key hint: it is neither a tree key nor a catalog command, because it acts on the clicked
-                 * row rather than the selected Session — the same reason Archive keeps a literal instead of a binding.
-                 */}
-                <ContextMenuItem onClick={() => setSessionPinned(session.id, !pinned)}>
-                    {pinned ? 'Unpin Session' : 'Pin Session'}
-                </ContextMenuItem>
-                {/* In the Activity queue Delete marks the row read instead, so the hint moves to that entry. */}
-                <ContextMenuItem
-                    hint={onMarkRead ? undefined : 'delete'}
-                    onClick={() => archiveSession(session.id)}
-                >
-                    Archive
-                </ContextMenuItem>
-                {detached ? (
-                    <ContextMenuItem onClick={() => resumeSession(session.id)}>
-                        Resume Agent
-                    </ContextMenuItem>
-                ) : (
-                    <ContextMenuItem
-                        disabled={!canDetach}
-                        disabledReason={
-                            canDetach ? undefined : 'No running Agent Terminal to detach'
-                        }
-                        onClick={() => detachSession(session.id)}
-                    >
-                        Detach Agent
-                    </ContextMenuItem>
-                )}
-                {autoAllow.data?.granted && (
-                    <ContextMenuItem onClick={() => revokePermissionAutoAllow(session.id)}>
-                        Turn Off Always Allow in this Session
-                    </ContextMenuItem>
-                )}
-                <ContextMenuSeparator />
-                <ContextMenuItem
-                    hint={openInEditorShortcut}
-                    onClick={() => openProjectInExternalEditor(project, session.id)}
-                >
-                    Open Project in Editor
-                </ContextMenuItem>
-                {pullRequest && (
-                    <ContextMenuItem
-                        hint={openPullRequestShortcut}
-                        onClick={() => openSessionPullRequest(pullRequest)}
-                    >
-                        Open Pull Request #{pullRequest.number}
-                    </ContextMenuItem>
-                )}
-                <ContextMenuSeparator />
-                <ContextMenuItem
-                    disabled={!boundAgentSessionId}
-                    disabledReason={boundAgentSessionId ? undefined : unboundReason}
-                    onClick={() => {
-                        if (boundAgentSessionId) copyAgentSessionId(boundAgentSessionId);
-                    }}
-                >
-                    Copy Agent Session ID
-                </ContextMenuItem>
-                <ContextMenuItem
-                    disabled={!boundAgentSessionId}
-                    disabledReason={boundAgentSessionId ? undefined : unboundReason}
-                    onClick={() => {
-                        if (primaryTerminal && boundAgentSessionId)
-                            copyAgentTranscriptPath(primaryTerminal.id);
-                    }}
-                >
-                    Copy Transcript Path
-                </ContextMenuItem>
-                <ContextMenuSeparator />
-                <ContextMenuItem hint={deleteShortcut} onClick={() => deleteSession(session.id)}>
-                    Delete Session…
-                </ContextMenuItem>
-            </ContextMenuContent>
-        </ContextMenu>
-    );
+    const isAutoAllowGranted = await isPermissionAutoAllowGranted(session.id);
+    return [
+        /**
+         * Rename's hint is read from the live keybinding table now that `session.rename` is a real command. Archive
+         * keeps a literal on purpose: `Delete` is a tree key, not a keybinding — it archives the row focus is on, which
+         * is not necessarily the selected Session, so it cannot become a command binding without changing which Session
+         * it would take.
+         */
+        onMarkRead &&
+            session.hasUnread && {
+                label: 'Mark as Read',
+                shortcut: 'delete',
+                onSelect: onMarkRead,
+            },
+        /**
+         * The action runs after the native menu has closed, so the inline rename input mounts into a settled row and
+         * keeps its focus.
+         */
+        onBeginRename && {
+            label: 'Rename',
+            shortcut: readCommandShortcut('session.rename'),
+            onSelect: onBeginRename,
+        },
+        /**
+         * Pin has no key hint: it is neither a tree key nor a catalog command, because it acts on the clicked row
+         * rather than the selected Session — the same reason Archive keeps a literal instead of a binding.
+         */
+        {
+            label: pinned ? 'Unpin Session' : 'Pin Session',
+            onSelect: () => setSessionPinned(session.id, !pinned),
+        },
+        /**
+         * In the Activity queue Delete marks the row read instead, so the hint moves to that entry.
+         */
+        {
+            label: 'Archive',
+            shortcut: onMarkRead ? undefined : 'delete',
+            onSelect: () => archiveSession(session.id),
+        },
+        detached
+            ? { label: 'Resume Agent', onSelect: () => resumeSession(session.id) }
+            : {
+                  label: 'Detach Agent',
+                  disabled: !canDetach,
+                  onSelect: () => detachSession(session.id),
+              },
+        isAutoAllowGranted && {
+            label: 'Turn Off Always Allow in this Session',
+            onSelect: () => revokePermissionAutoAllow(session.id),
+        },
+        CONTEXT_MENU_SEPARATOR,
+        {
+            label: 'Open Project in Editor',
+            shortcut: readCommandShortcut('project.openInEditor'),
+            onSelect: () => openProjectInExternalEditor(project, session.id),
+        },
+        pullRequest && {
+            label: `Open Pull Request #${pullRequest.number}`,
+            shortcut: readCommandShortcut('session.openPullRequest'),
+            onSelect: () => openSessionPullRequest(pullRequest),
+        },
+        CONTEXT_MENU_SEPARATOR,
+        {
+            label: 'Copy Agent Session ID',
+            disabled: !boundAgentSessionId,
+            onSelect: () => boundAgentSessionId && copyAgentSessionId(boundAgentSessionId),
+        },
+        {
+            label: 'Copy Transcript Path',
+            disabled: !boundAgentSessionId,
+            onSelect: () =>
+                primaryTerminal &&
+                boundAgentSessionId &&
+                copyAgentTranscriptPath(primaryTerminal.id),
+        },
+        CONTEXT_MENU_SEPARATOR,
+        {
+            label: 'Delete Session…',
+            shortcut: readCommandShortcut('session.delete'),
+            onSelect: () => deleteSession(session.id),
+        },
+    ];
 }

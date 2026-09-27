@@ -13,7 +13,6 @@ import {
 import { CircleAlert, Pause } from 'lucide-react';
 import { AnimatePresence, domAnimation, LazyMotion } from 'motion/react';
 
-import { ContextMenuItem } from '../../components/ui/context-menu';
 import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
 import { cn } from '../../lib/utilities';
@@ -32,7 +31,7 @@ import {
     documentTabPathMenuState,
     resolveDocumentTabPath,
 } from '../editor/document-tab-path-actions';
-import { DocumentTabPathMenu } from '../editor/document-tab-path-menu';
+import { documentTabPathMenu } from '../editor/document-tab-path-menu';
 import { documentTabPresentation } from '../editor/document-tab-presentation';
 import { EditorTabActions } from '../editor/editor-tab-actions';
 import { GitReviewTabBadge } from '../editor/git-review-tab-badge';
@@ -50,7 +49,7 @@ import {
 } from '../terminal/terminal-progress';
 import { selectPaneTab } from './pane-actions';
 import { EDITOR_PATH_DRAG_TYPE, PANE_TAB_DRAG_TYPE } from './pane-drop-zone';
-import { PaneTabMenu } from './pane-tab-menu';
+import { paneTabMenu } from './pane-tab-menu';
 import { useActiveTabReveal } from './pane-tab-reveal';
 import { usePaneViewSession, usePaneViewSessionId } from './pane-view-session';
 import { useScrollEdges } from './tab-scroll-edges';
@@ -156,27 +155,20 @@ function TerminalPaneTab({
                 onNavigate(event.key as WorkTabNavigationKey);
             }}
             onSelect={() => selectPaneTab(tab.id)}
-            contextMenu={
-                <PaneTabMenu
-                    paneId={paneId}
-                    paneLayout={paneLayout}
-                    tabId={tab.id}
-                    resourceItems={
-                        <ContextMenuItem
-                            disabledReason={
-                                isOnlySessionTerminal
-                                    ? 'This is the only tab open in this session'
-                                    : undefined
-                            }
-                            disabled={isOnlySessionTerminal}
-                            onClick={() =>
-                                moveTerminalToNewSession(terminal.id, isOnlySessionTerminal)
-                            }
-                        >
-                            Move to New Session
-                        </ContextMenuItem>
-                    }
-                />
+            contextMenu={() =>
+                paneTabMenu({
+                    paneId,
+                    paneLayout,
+                    tabId: tab.id,
+                    resourceEntries: [
+                        {
+                            label: 'Move to New Session',
+                            disabled: isOnlySessionTerminal,
+                            onSelect: () =>
+                                moveTerminalToNewSession(terminal.id, isOnlySessionTerminal),
+                        },
+                    ],
+                })
             }
         />
     );
@@ -271,22 +263,20 @@ function DocumentPaneTab({
                 onNavigate(event.key as WorkTabNavigationKey);
             }}
             onSelect={() => selectPaneTab(tab.id)}
-            contextMenu={
-                <PaneTabMenu
-                    paneId={paneId}
-                    paneLayout={paneLayout}
-                    tabId={tab.id}
-                    resourceItems={
-                        pathMenu.showMenu && (
-                            <DocumentTabPathMenu
-                                resolution={resolution}
-                                unavailableReason={pathMenu.unavailableReason}
-                                isExternal={pathMenu.isExternal}
-                                previewPath={previewSourcePath(path)}
-                            />
-                        )
-                    }
-                />
+            contextMenu={() =>
+                paneTabMenu({
+                    paneId,
+                    paneLayout,
+                    tabId: tab.id,
+                    resourceEntries: pathMenu.showMenu
+                        ? documentTabPathMenu({
+                              resolution,
+                              unavailableReason: pathMenu.unavailableReason,
+                              isExternal: pathMenu.isExternal,
+                              previewPath: previewSourcePath(path),
+                          })
+                        : undefined,
+                })
             }
             preview={tab.preview}
         />
@@ -751,7 +741,10 @@ export function PaneTabBar({
                 // the title-bar fill — a pane bar inside a split is not a title bar and keeps `surface`.
                 isRootBar &&
                     'bg-title-bar-active-background text-title-bar-active-foreground [-webkit-app-region:drag] window-inactive:bg-title-bar-inactive-background window-inactive:text-title-bar-inactive-foreground',
-                isRootBar && !isPrimarySidebarVisible && !isFullScreen && 'pl-[78px]',
+                isRootBar &&
+                    !isPrimarySidebarVisible &&
+                    !isFullScreen &&
+                    'pl-(--traffic-light-clearance)',
                 isDropTarget && 'bg-elevated',
             )}
             data-pane-tab-bar={pane.id}

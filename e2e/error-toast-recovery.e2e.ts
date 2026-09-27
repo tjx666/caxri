@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri } from './support/helpers.ts';
+import { chooseContextMenuItem } from './support/native-context-menu.ts';
 
 test('a missing file save shows a safe reason and retries after the file is restored', async () => {
     allowE2EErrors([
@@ -130,9 +131,7 @@ test('a failed Terminal launch can retry after its folder becomes available', as
         const volatileRow = running.page.getByRole('treeitem', { name: 'volatile', exact: true });
         await expect(volatileRow).toBeVisible();
         await volatileRow.click({ button: 'right' });
-        const openInTerminal = running.page.getByRole('menuitem', { name: 'Open in Terminal' });
-        await expect(openInTerminal).toBeVisible();
-        await openInTerminal.click();
+        await chooseContextMenuItem(running.app, 'Open in Terminal');
 
         const failure = running.page.locator('.toast', { hasText: 'Terminal creation failed.' });
         await expect(failure).toBeVisible();

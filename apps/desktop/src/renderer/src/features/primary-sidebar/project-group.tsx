@@ -229,8 +229,9 @@ export function ProjectGroup({
                                     ) {
                                         event.preventDefault();
                                         /**
-                                         * Base UI anchors its context menu from the contextmenu event. Opening it by
-                                         * state alone puts the keyboard menu at the viewport origin.
+                                         * MacOS Chromium never turns Shift+F10 into a `contextmenu` event, and the
+                                         * native menu opens at that event's coordinates, so the keyboard path
+                                         * synthesizes one anchored under the heading instead of at the pointer.
                                          */
                                         const heading = headingReference.current;
                                         if (heading) {

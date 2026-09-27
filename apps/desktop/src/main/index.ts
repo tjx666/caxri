@@ -62,6 +62,11 @@ import { DesktopServerConnection, resolveDesktopLaunch, wirePowerWake } from './
 import { shouldContinueStartup } from './server-startup';
 import { createTestRootPathResolver } from './test-root';
 import { shouldStartAutomaticUpdateCheck, UpdateService, updateStateLogFields } from './updates';
+import {
+    createWindowZoomController,
+    mainWindowChromeOptions,
+    zoomFactorForLevel,
+} from './window-chrome';
 import { createWindowCloseHandler } from './window-close';
 import { resolveE2EWindowMode } from './window-mode';
 import { installWorkbenchIpc } from './workbench-ipc';
@@ -156,9 +161,14 @@ if (ownsProfileInstance) {
         // here, so this is deliberately fire-and-forget rather than awaited.
         onMenuRefreshRequested: () => menuRefreshController.refresh(),
     });
+    const windowZoom = createWindowZoomController({
+        loadLevel: async () => (await supervisor.request('settings.get')).value['window.zoomLevel'],
+        window: () => mainWindow,
+    });
     function sendEvent(event: ServerEvent): void {
         eventRelay.send(event);
         notifications?.observe(event);
+        if (event.event === 'settings.changed') windowZoom.refresh();
     }
     const gpuRecovery = createGpuRecoveryCoordinator({
         app,
@@ -198,33 +208,24 @@ if (ownsProfileInstance) {
         readStatus: () => supervisor.request('host.status'),
         stopServer: () => supervisor.stopServer(),
     });
-    function createWindow(initialState: PersistedWindowState): BrowserWindow {
+    function createWindow(initialState: PersistedWindowState, zoomLevel: number): BrowserWindow {
+        const zoomFactor = zoomFactorForLevel(zoomLevel);
         const window = new BrowserWindow({
             ...initialState.bounds,
             minWidth: 960,
             minHeight: 640,
             title: 'Caxri',
-            /**
-             * Deliberately a literal, and the one color literal left in the app: it paints the window before any
-             * renderer CSS exists, which is what prevents a white flash on launch. It mirrors the default theme's
-             * `--background`; an imported theme cannot change it.
-             */
-            backgroundColor: '#282a36',
-            /**
-             * No title bar row: the primarySidebar header is the drag region and carries the brand instead. `title`
-             * stays for VoiceOver and Mission Control, which still read the window title.
-             */
-            titleBarStyle: 'hiddenInset',
-            /**
-             * Centers the 12px macOS traffic lights in the Renderer's 44px drag header.
-             */
-            trafficLightPosition: { x: 15, y: 15 },
+            ...mainWindowChromeOptions(zoomFactor),
             show: false,
             webPreferences: {
                 preload: join(currentDirectory, '../preload/index.cjs'),
                 contextIsolation: true,
                 nodeIntegration: false,
                 sandbox: true,
+                /**
+                 * Applied before the first paint so a zoomed window never flashes at 100% first.
+                 */
+                zoomFactor,
             },
         });
         eventRelay.rendererPending();
@@ -464,7 +465,7 @@ if (ownsProfileInstance) {
                 isFullScreen: false,
             };
         }
-        mainWindow = createWindow(initialState);
+        mainWindow = createWindow(initialState, await windowZoom.load());
         mainRenderer = mainWindow.webContents;
     }
 

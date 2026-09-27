@@ -36,12 +36,15 @@ agent-browser --session "$SESSION" --no-pin-tab --cdp "$PORT" wait --text "Expec
 agent-browser --session "$SESSION" --no-pin-tab --cdp "$PORT" snapshot -i
 ```
 
-For a context menu, `agent-browser click` is left-click only; it does not accept
-`--button right`. Resolve the target element's viewport center with a bounded
-`eval`, then use `mouse move <x> <y>`, `mouse down right`, and `mouse up right`
-against the same Session and CDP port. Read back the menu before choosing an
-item. An unrecognized `click` flag can leave an ordinary left click that looks
-successful while no menu opens.
+Right-click menus are native macOS menus owned by Main, so they never appear in
+a DOM snapshot and CDP cannot choose their items. `agent-browser click` is also
+left-click only; it does not accept `--button right`. To show a menu for visual
+evidence, resolve the target element's viewport center with a bounded `eval`,
+then use `mouse move <x> <y>`, `mouse down right`, and `mouse up right` against
+the same Session and CDP port, and capture it with a window screenshot rather
+than a CDP page screenshot. Dismiss it with Escape before continuing. To assert a
+menu's entries or run one, use the E2E probe in
+`e2e/support/native-context-menu.ts` instead.
 
 References become stale after navigation, renderer reload, or meaningful DOM
 replacement. Snapshot again before the next interaction.

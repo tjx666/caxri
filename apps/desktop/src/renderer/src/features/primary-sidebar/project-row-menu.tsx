@@ -3,13 +3,8 @@ import type { ReactElement } from 'react';
 import type { ProjectRecord } from '@caxri/protocol';
 
 import { executeCommand } from '../../commands/execute';
-import {
-    ContextMenu,
-    ContextMenuContent,
-    ContextMenuItem,
-    ContextMenuSeparator,
-    ContextMenuTrigger,
-} from '../../components/ui/context-menu';
+import { ContextMenuTrigger } from '../../components/context-menu-trigger';
+import { CONTEXT_MENU_SEPARATOR } from '../../lib/context-menu';
 import { copyFilePath } from '../../lib/copy-file-path';
 import { hideSelectedProject } from '../session/project-removal-commands';
 import { openProjectRoot } from './project-path-commands';
@@ -24,33 +19,32 @@ export function ProjectRowMenu({
     project: ProjectRecord;
 }) {
     return (
-        <ContextMenu onOpenChange={onOpenChange}>
-            <ContextMenuTrigger render={children} />
-            <ContextMenuContent aria-label={`${project.displayTitle} actions`}>
-                <ContextMenuItem onClick={() => copyFilePath(project.rootPath)}>
-                    Copy Path
-                </ContextMenuItem>
-                <ContextMenuItem onClick={() => openProjectRoot(project.id, 'finder')}>
-                    Reveal in Finder
-                </ContextMenuItem>
-                <ContextMenuItem onClick={() => openProjectRoot(project.id, 'editor')}>
-                    Open Project in Editor
-                </ContextMenuItem>
-                <ContextMenuSeparator />
-                {/*
-                 * A right-click does not change the selected Project, so this entry hides the clicked Project
-                 * directly instead of going through `project.hide`, which the menu bar and command palette use for
-                 * the selected Project.
-                 */}
-                <ContextMenuItem onClick={() => hideSelectedProject(project.id)}>
-                    Hide Project
-                </ContextMenuItem>
-                <ContextMenuItem
-                    onClick={() => executeCommand('project.delete', { projectId: project.id })}
-                >
-                    Delete Project…
-                </ContextMenuItem>
-            </ContextMenuContent>
-        </ContextMenu>
+        <ContextMenuTrigger
+            onOpenChange={onOpenChange}
+            menu={() => [
+                { label: 'Copy Path', onSelect: () => copyFilePath(project.rootPath) },
+                {
+                    label: 'Reveal in Finder',
+                    onSelect: () => openProjectRoot(project.id, 'finder'),
+                },
+                {
+                    label: 'Open Project in Editor',
+                    onSelect: () => openProjectRoot(project.id, 'editor'),
+                },
+                CONTEXT_MENU_SEPARATOR,
+                /**
+                 * A right-click does not change the selected Project, so this entry hides the clicked Project directly
+                 * instead of going through `project.hide`, which the menu bar and command palette use for the selected
+                 * Project.
+                 */
+                { label: 'Hide Project', onSelect: () => hideSelectedProject(project.id) },
+                {
+                    label: 'Delete Project…',
+                    onSelect: () => executeCommand('project.delete', { projectId: project.id }),
+                },
+            ]}
+        >
+            {children}
+        </ContextMenuTrigger>
     );
 }

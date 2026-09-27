@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri } from './support/helpers.ts';
+import { chooseContextMenuItem } from './support/native-context-menu.ts';
 
 test('Editor breadcrumbs browse siblings with one keyboard focus model', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-editor-breadcrumbs-e2e-'));
@@ -155,7 +156,7 @@ test('Editor breadcrumbs browse siblings with one keyboard focus model', async (
 
         const utilityTab = running.page.locator('.work-tab', { hasText: 'utility.ts' });
         await utilityTab.click({ button: 'right' });
-        await running.page.getByRole('menuitem', { name: 'Split Right' }).click();
+        await chooseContextMenuItem(running.app, 'Split Right');
         const panes = running.page.locator('.workbench-pane');
         await expect(panes).toHaveCount(2);
         const sourcePane = panes.first();

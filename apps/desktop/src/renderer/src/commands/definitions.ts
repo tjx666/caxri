@@ -285,6 +285,15 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('primarySidebar.focus', (context) => context.primarySidebar.focus(), {
         allowInEditable: true,
     }),
+    ...(
+        [
+            ['view.zoomIn', 'in'],
+            ['view.zoomOut', 'out'],
+            ['view.resetZoom', 'reset'],
+        ] as const
+    ).map(([id, step]) =>
+        fromCatalog(id, (context) => context.windows.zoom(step), { allowInEditable: true }),
+    ),
     fromCatalog('settings.open', (context) => context.dialogs.openSettings(), {
         allowInEditable: true,
     }),

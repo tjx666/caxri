@@ -108,8 +108,8 @@ rejects a missing one and rejects production imports that reach past another dom
 - All JavaScript/TypeScript files use kebab-case basenames; there is no exception for React
   components or hooks. The primary named export is the semantic-casing mapping of the filename:
   `file-tree-panel.tsx` exports the component `FileTreePanel`; `use-command-shortcuts.ts` exports
-  the hook `useCommandShortcuts`; a compound-component file like `context-menu.tsx` exports the
-  primary component `ContextMenu`.
+  the hook `useCommandShortcuts`; a compound-component file like `dialog.tsx` exports the
+  primary component `Dialog`.
 - Role suffixes (`.test`, `.config`, `.generated`, `.e2e`, `.fixture`, `.integration.test`, etc.)
   are preserved as dot segments after the kebab-case stem.
 - Composition entrypoints (`index.ts`, `main.tsx`, and similar) are not required to match a

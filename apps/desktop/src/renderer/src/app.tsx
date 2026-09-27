@@ -41,6 +41,7 @@ import { PanelDivider } from './features/workbench/panel-divider';
 import { WorkbenchColumn } from './features/workbench/workbench-column';
 import { activeWorkbenchFocusElement } from './features/workbench/workbench-focus';
 import { WorkbenchRootPrompt } from './features/workbench/workbench-root-prompt';
+import { useStartupLoaderRemoval } from './hooks/use-startup-loader-removal';
 import { registerPickerFallbackFocus } from './lib/picker-final-focus';
 import { applyCssTheme } from './lib/theme-css';
 import { cn } from './lib/utilities';
@@ -105,6 +106,7 @@ export function App() {
     const theme = useTheme();
     const workbenchFontFamily = useSettings()?.['workbench.fontFamily'];
     const editorFontFamily = useSettings()?.['editor.fontFamily'];
+    const zoomLevel = useSettings()?.['window.zoomLevel'] ?? 0;
     const primarySidebarWidth = useChromeLayoutStore((state) => state.primarySidebarWidth);
     const secondarySidebarWidth = useChromeLayoutStore((state) => state.secondarySidebarWidth);
     const isPrimarySidebarVisible = useChromeLayoutStore((state) => state.primarySidebarVisible);
@@ -114,6 +116,7 @@ export function App() {
     );
 
     useRuntimeAttachment();
+    useStartupLoaderRemoval(isAttached);
     useSettingsTabOpener();
     useFileMutationReconciliation(isAttached);
     useRuntimeQueryInvalidation();
@@ -130,6 +133,17 @@ export function App() {
     useEffect(() => {
         if (theme) applyCssTheme(theme);
     }, [theme]);
+    /**
+     * Page zoom scales every CSS pixel but not the native traffic lights, so the header clearances reserved for them
+     * divide by this factor to stay the lights' physical width. Main applies the zoom itself; this mirrors the same
+     * setting with the same 20%-per-step formula (`zoomFactorForLevel` in `main/window-chrome.ts`).
+     */
+    useEffect(() => {
+        document.documentElement.style.setProperty(
+            '--window-zoom-factor',
+            String(1.2 ** zoomLevel),
+        );
+    }, [zoomLevel]);
     useEffect(() => {
         const entry = cssFontFamilyEntry(workbenchFontFamily);
         // Keep the default stack behind the custom entry so a missing or misspelled font degrades to the system
@@ -197,7 +211,7 @@ export function App() {
                 {!isPrimarySidebarVisible && !isFullScreen && (
                     <div
                         aria-hidden="true"
-                        className="collapsed-primary-sidebar-titlebar fixed top-0 left-0 z-20 h-11 w-[78px] [-webkit-app-region:drag]"
+                        className="collapsed-primary-sidebar-titlebar fixed top-0 left-0 z-20 h-11 w-(--traffic-light-clearance) [-webkit-app-region:drag]"
                     />
                 )}
                 {isPrimarySidebarVisible && (

@@ -6,6 +6,11 @@ import { execFileAsync } from '@caxri/system';
 
 import { expect, test } from './support/fixtures.ts';
 import { createShellSession, launchCaxri } from './support/helpers.ts';
+import {
+    chooseContextMenuItem,
+    dismissContextMenu,
+    expectNoContextMenu,
+} from './support/native-context-menu.ts';
 
 test('Source Control navigates changed files with one tree Tab stop', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-source-control-tree-e2e-'));
@@ -58,33 +63,7 @@ test('Source Control navigates changed files with one tree Tab stop', async () =
             };
         });
         await running.page.keyboard.press('Shift+F10');
-        const groupMenu = running.page.locator('[data-slot="context-menu-content"]');
-        await expect(groupMenu).toBeVisible();
-        const discardAction = groupMenu.getByRole('menuitem', {
-            name: 'Discard All Changes',
-            exact: true,
-        });
-        await expect(discardAction).toBeVisible();
-        const actionIndex = (await groupMenu.getByRole('menuitem').allTextContents()).indexOf(
-            'Discard All Changes',
-        );
-        expect(actionIndex).toBeGreaterThanOrEqual(0);
-        await expect
-            .poll(() =>
-                groupMenu.evaluate(
-                    (menu) =>
-                        menu === document.activeElement || menu.contains(document.activeElement),
-                ),
-            )
-            .toBe(true);
-        await running.page.keyboard.press('Home');
-        for (let index = 0; index < actionIndex; index += 1) {
-            // eslint-disable-next-line no-await-in-loop -- each arrow key advances from the preceding focused menu item
-            await running.page.keyboard.press('ArrowDown');
-        }
-        await expect(discardAction).toBeFocused();
-        await groupMenu.screenshot({ path: test.info().outputPath('group-action-keyboard.png') });
-        await running.page.keyboard.press('Enter');
+        await chooseContextMenuItem(running.app, 'Discard All Changes');
         await expect
             .poll(() =>
                 running.app.evaluate(
@@ -92,7 +71,7 @@ test('Source Control navigates changed files with one tree Tab stop', async () =
                 ),
             )
             .toBe(1);
-        await expect(groupMenu).toHaveCount(0);
+        await expectNoContextMenu(running.app);
         await expect(group).toBeFocused();
         await expect(rows).toHaveCount(25);
         await expect(tree.locator('[role="treeitem"][tabindex="0"]')).toHaveCount(1);
@@ -122,8 +101,7 @@ test('Source Control navigates changed files with one tree Tab stop', async () =
         const readme = tree.locator('[data-row-id$="README.md"]');
         await readme.focus();
         await running.page.keyboard.press('Shift+F10');
-        await expect(running.page.locator('[data-slot="context-menu-content"]')).toBeVisible();
-        await running.page.keyboard.press('Escape');
+        await dismissContextMenu(running.app);
         await expect(readme).toBeFocused();
         await running.page.keyboard.press('Tab');
         expect(

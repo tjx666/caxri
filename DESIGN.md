@@ -633,7 +633,7 @@ the least-powerful layer that covers the scenario, and one element is only ever 
 layer:
 
 1. **shadcn overlay layer** (`tw-animate-css` + animation classes in `components/ui/*`) — every
-   overlay: dialogs, selects, context menus, tooltips, preview cards, and future shadcn
+   overlay: dialogs, selects, dropdown menus, tooltips, preview cards, and future shadcn
    components. Fade plus ~95% zoom on enter/exit, gated by Base UI popup state attributes. We
    deliberately do not import `shadcn/tailwind.css`: its custom `data-open`/`data-closed` variants
    exist to bridge Radix and Base UI, and this repo is Base UI–only, so native Tailwind attribute
@@ -1074,6 +1074,21 @@ popup itself hold focus until then.
   that row holds focus, and `F2` renames the selected Session from anywhere. The shortcuts exist
   because showing the side bar has never moved focus into it, so neither the context menu nor the
   command palette could otherwise advertise a chord that worked from anywhere.
+- Right-click menus are native OS menus. A surface attaches one with `useContextMenu` or
+  `ContextMenuTrigger` and a builder that returns plain entries when the menu opens; Main shows it
+  through `contextMenu.show` and hands back only the chosen entry, whose action runs after the menu
+  closes. Entries carry a `shortcut` hint from the live keybinding table (`readCommandShortcut`)
+  instead of a literal, and a chord sequence renders inside the label because a native accelerator
+  cannot express one. A native menu has no tooltip, so a disabled entry's label must stand on its
+  own. Menus opened by a button stay Base UI `Menu` overlays.
+- Interface zoom is `window.zoomLevel` (20% per step, the same scale as VS Code), changed from
+  View › Zoom In (`Command+=`), Zoom Out (`Command+-`), and Reset Zoom. Main applies it as page
+  zoom and re-centers the native traffic lights in the zoomed header; any title-bar clearance
+  reserved for the lights uses `--traffic-light-clearance` or `--traffic-light-header-inset`, which
+  divide by the zoom factor because the lights themselves never scale.
+- Launch shows the Caxri mark over the translucent (vibrancy) window from the first frame: the
+  loader is inline in `renderer/index.html`, so it needs no bundle, and `App` removes it when the
+  workbench attaches. Only a startup failure adds text beneath the mark.
 
 ## Known gaps
 

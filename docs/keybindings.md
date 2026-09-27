@@ -101,6 +101,11 @@ rules in `apps/desktop/src/main/menu.ts` keep the native menu out of the chord m
   keystroke itself, so registering `Cmd+K` would consume it before the Renderer could arm the
   pending chord, and the whole `Cmd+K …` family would stop working.
 
+Right-click menus reuse the same presentation. `apps/desktop/src/main/context-menu.ts` renders an
+entry's single-chord hint as a native accelerator with `registerAccelerator: false` — the command's
+own binding already dispatches it, so the menu must not fire it a second time — and appends a
+sequence to the label the same way.
+
 ## Defaults and migration
 
 Shipped defaults live in `packages/protocol/src/domain/default-keybindings.ts`. A user's

@@ -1,0 +1,116 @@
+import process from 'node:process';
+
+import type { BrowserWindow, BrowserWindowConstructorOptions, Point } from 'electron';
+
+/**
+ * Height of the Renderer's drag header (`h-11`) in CSS pixels, and the traffic-light inset that centers the 14px-tall
+ * macOS window buttons inside it at 100% zoom.
+ */
+const HEADER_HEIGHT_CSS_PX = 44;
+const TRAFFIC_LIGHT_HEIGHT_PX = 14;
+const TRAFFIC_LIGHT_X_PX = 15;
+
+/**
+ * `window.zoomLevel` uses Chromium's own scale — each step is 20% — which is also VS Code's `window.zoomLevel`, so a
+ * value copied between the two means the same size.
+ *
+ * @see https://www.electronjs.org/docs/latest/api/web-contents#contentssetzoomlevellevel
+ */
+export function zoomFactorForLevel(level: number): number {
+    return 1.2 ** level;
+}
+
+/**
+ * Page zoom scales the Renderer's header but not the native traffic lights, so their inset is recomputed to stay
+ * vertically centered in the zoomed header. The horizontal inset stays fixed; the Renderer divides its own clearance by
+ * the zoom factor to keep it that same physical width.
+ */
+export function trafficLightPositionForZoom(zoomFactor: number): Point {
+    return {
+        x: TRAFFIC_LIGHT_X_PX,
+        y: Math.round((HEADER_HEIGHT_CSS_PX * zoomFactor - TRAFFIC_LIGHT_HEIGHT_PX) / 2),
+    };
+}
+
+function applyWindowZoom(window: BrowserWindow, level: number): void {
+    if (window.isDestroyed()) return;
+    window.webContents.setZoomLevel(level);
+    if (process.platform === 'darwin')
+        window.setWindowButtonPosition(trafficLightPositionForZoom(zoomFactorForLevel(level)));
+}
+
+/**
+ * The main window's frame and backdrop at a given page zoom factor.
+ */
+export function mainWindowChromeOptions(
+    zoomFactor: number,
+    platform: NodeJS.Platform = process.platform,
+): BrowserWindowConstructorOptions {
+    return {
+        /**
+         * On macOS the window starts as a translucent `vibrancy` material behind a transparent page, so the inline
+         * startup loader in `renderer/index.html` floats the Caxri mark over the blurred desktop before any bundle has
+         * run; the mounted workbench then paints its own opaque theme background over the material. Other platforms
+         * keep the deliberate color literal — the one left in the app — which mirrors the default theme's
+         * `--background` and prevents a white flash on launch; an imported theme cannot change it.
+         */
+        ...(platform === 'darwin'
+            ? { backgroundColor: '#00000000', vibrancy: 'under-window' as const }
+            : { backgroundColor: '#282a36' }),
+        /**
+         * No title bar row: the primarySidebar header is the drag region and carries the brand instead. `title` stays
+         * for VoiceOver and Mission Control, which still read the window title.
+         */
+        titleBarStyle: 'hiddenInset',
+        /**
+         * Centers the macOS traffic lights in the Renderer's 44px drag header, scaled by the page zoom.
+         */
+        trafficLightPosition: trafficLightPositionForZoom(zoomFactor),
+    };
+}
+
+export interface WindowZoomController {
+    /**
+     * Reads the persisted level for a window about to be created and remembers it as applied.
+     */
+    load(): Promise<number>;
+    /**
+     * Re-reads the level after a settings write and applies it only when it changed.
+     */
+    refresh(): void;
+}
+
+/**
+ * `settings.changed` names no key, so the controller compares each reload against the last applied level and leaves the
+ * window alone for every unrelated settings write. A failed read keeps the current level.
+ */
+export function createWindowZoomController(options: {
+    loadLevel: () => Promise<number>;
+    window: () => BrowserWindow | undefined;
+}): WindowZoomController {
+    let applied = 0;
+    const read = async (): Promise<number> => {
+        try {
+            return await options.loadLevel();
+        } catch {
+            return applied;
+        }
+    };
+    return {
+        async load() {
+            applied = await read();
+            return applied;
+        },
+        refresh() {
+            // A synchronous event listener; `read` already falls back on failure, so this is deliberately
+            // fire-and-forget rather than awaited.
+            // eslint-disable-next-line no-void -- see comment above
+            void read().then((level) => {
+                if (level === applied) return;
+                applied = level;
+                const window = options.window();
+                if (window) applyWindowZoom(window, level);
+            });
+        },
+    };
+}

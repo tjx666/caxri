@@ -1,6 +1,9 @@
 import type { Page } from '@playwright/test';
 import { errors, expect } from '@playwright/test';
 
+import type { E2EApp } from './electron-app.ts';
+import { dismissContextMenu, isContextMenuItemEnabled } from './native-context-menu.ts';
+
 export async function terminalTextBounds(page: Page, text: string) {
     return page.locator('.xterm-rows').evaluate((rows, target) => {
         /**
@@ -172,22 +175,16 @@ export async function clickTerminalLink(page: Page, text: string): Promise<void>
 }
 
 /**
- * Disabled menu items still explain why the operation is unavailable through the shared tooltip.
+ * With nothing selected, the Terminal menu still offers Copy but disables it. A native menu cannot carry the disabled
+ * reason as a tooltip, so only the disabled state is observable.
  */
-export async function expectDisabledTerminalCopyHint(page: Page): Promise<void> {
+export async function expectDisabledTerminalCopy(app: E2EApp, page: Page): Promise<void> {
     /**
      * The screen overlays DOM rows; click the empty row's coordinates, as link probes do, without selecting the prompt.
      */
     const bounds = await page.locator('.xterm-rows > div').last().boundingBox();
     if (!bounds) throw new Error('The empty Terminal row is not visible');
     await page.mouse.click(bounds.x + 4, bounds.y + bounds.height / 2, { button: 'right' });
-    const copyItem = page.getByRole('menuitem', { name: 'Copy', exact: true });
-    await expect(copyItem).toHaveAttribute('aria-disabled', 'true');
-    await copyItem.locator('..').hover();
-    await expect(page.locator('.tooltip-popup')).toContainText(
-        'Select text in the Terminal to copy it',
-    );
-    await page.keyboard.press('Escape');
-    await page.mouse.move(0, 0);
-    await expect(page.locator('.tooltip-popup')).toHaveCount(0);
+    expect(await isContextMenuItemEnabled(app, 'Copy')).toBe(false);
+    await dismissContextMenu(app);
 }

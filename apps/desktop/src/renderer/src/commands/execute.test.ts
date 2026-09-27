@@ -188,7 +188,10 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
                 openProjectSearch: record('dialogs.openProjectSearch'),
                 openSessionContentSearch: record('dialogs.openSessionContentSearch'),
             },
-            windows: { openProcessExplorer: record('windows.openProcessExplorer') },
+            windows: {
+                openProcessExplorer: record('windows.openProcessExplorer'),
+                zoom: record('windows.zoom'),
+            },
             developer: {
                 reportBug: record('developer.reportBug'),
                 toggleScreencastMode: record('developer.toggleScreencastMode'),
