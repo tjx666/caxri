@@ -115,11 +115,28 @@ export const commanderBoardSchema = z.strictObject({
     rows: z.array(commanderBoardRowSchema).max(MAX_COMMANDER_BOARD_ROWS),
 });
 
+/**
+ * Whether the Commander runs in the background, whatever window is open. `stopped` covers every state without a live
+ * process: never started, stopped by the user, or not yet resumed after an app restart. The live states mirror the
+ * Commander Session's Agent activity.
+ */
+export const commanderRunStateSchema = z.enum([
+    'stopped',
+    'starting',
+    'working',
+    'waiting',
+    'idle',
+]);
+
+export const commanderStatusSchema = z.strictObject({ state: commanderRunStateSchema });
+
 export type CommanderIdentity = z.infer<typeof commanderIdentitySchema>;
 export type CommanderSnapshot = z.infer<typeof commanderSnapshotSchema>;
 export type CommanderBoardGroupId = z.infer<typeof commanderBoardGroupSchema>;
 export type CommanderBoardRow = z.infer<typeof commanderBoardRowSchema>;
 export type CommanderBoard = z.infer<typeof commanderBoardSchema>;
+export type CommanderRunState = z.infer<typeof commanderRunStateSchema>;
+export type CommanderStatus = z.infer<typeof commanderStatusSchema>;
 
 const noParameters = z.object({}).default({});
 
@@ -143,6 +160,24 @@ export const commanderMethods = {
         params: noParameters,
         result: commanderSnapshotSchema.nullable(),
     },
+    /**
+     * Content-free run state for the Workbench status bar; never starts anything.
+     */
+    'commander.status': {
+        ...commandPolicy('server', 'read'),
+        params: noParameters,
+        result: commanderStatusSchema,
+    },
+    /**
+     * Idempotently stops the Commander Terminal's process and parks the Terminal as `detached`: its row, screen, and
+     * Codex conversation stay, and the next `commander.ensure` resumes that conversation. Sessions the Commander
+     * delegated into keep running; only its watch over them pauses.
+     */
+    'commander.stop': {
+        ...commandPolicy('server', 'control'),
+        params: noParameters,
+        result: z.null(),
+    },
     'commander.board': {
         ...commandPolicy('server', 'read', ['commander']),
         params: noParameters,
@@ -162,6 +197,14 @@ export const commanderMethods = {
      * focus it.
      */
     'agentCommander.open': {
+        ...commandPolicy('desktop', 'control'),
+        params: noParameters,
+        result: z.null(),
+    },
+    /**
+     * Closes the Commander window, if open, then stops the Commander through `commander.stop`.
+     */
+    'agentCommander.stop': {
         ...commandPolicy('desktop', 'control'),
         params: noParameters,
         result: z.null(),

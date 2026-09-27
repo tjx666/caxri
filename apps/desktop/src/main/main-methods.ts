@@ -423,6 +423,9 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
             case 'agentCommander.open':
                 options.getAgentCommander()?.open();
                 return null;
+            case 'agentCommander.stop':
+                await options.getAgentCommander()?.stop();
+                return null;
             case 'agentCommander.revealSession':
                 await options.revealSessionInWorkbench(request.params.sessionId);
                 return null;

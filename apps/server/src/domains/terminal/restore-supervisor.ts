@@ -18,6 +18,7 @@ export class TerminalRestoreSupervisor {
     private closed = false;
     private generationCounter = 0;
     private readonly generations = new Map<string, number>();
+    private readonly inFlight = new Map<string, Set<Promise<unknown>>>();
     private readonly pendingRestores = new Map<string, number>();
     private readonly restores: AsyncSemaphore;
 
@@ -89,16 +90,23 @@ export class TerminalRestoreSupervisor {
             this.activeSessionId === sessionId &&
             this.generations.get(sessionId) === generation;
 
+        const work = Promise.all(
+            operations.map((operation) =>
+                this.restores.run(async () => {
+                    if (!isCurrent()) return false;
+                    return operation(isCurrent, abortController.signal);
+                }),
+            ),
+        );
+        const sessionWork = this.inFlight.get(sessionId) ?? new Set();
+        sessionWork.add(work);
+        this.inFlight.set(sessionId, sessionWork);
         try {
-            return await Promise.all(
-                operations.map((operation) =>
-                    this.restores.run(async () => {
-                        if (!isCurrent()) return false;
-                        return operation(isCurrent, abortController.signal);
-                    }),
-                ),
-            );
+            return await work;
         } finally {
+            sessionWork.delete(work);
+            if (sessionWork.size === 0 && this.inFlight.get(sessionId) === sessionWork)
+                this.inFlight.delete(sessionId);
             if (this.activeAbortController === abortController) {
                 this.activeAbortController = undefined;
                 this.activeSessionId = undefined;
@@ -109,6 +117,15 @@ export class TerminalRestoreSupervisor {
 
     cancel(sessionId: string): void {
         this.invalidate(sessionId);
+    }
+
+    /**
+     * Resolves once every restore already started for the Session has finished. `cancel` fences only work that has not
+     * reached PTY spawn; a caller that must act on the resulting process (stopping it) waits here for the rest.
+     */
+    async settled(sessionId: string): Promise<void> {
+        const work = this.inFlight.get(sessionId);
+        if (work) await Promise.allSettled(work);
     }
 
     /**

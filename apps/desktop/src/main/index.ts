@@ -608,6 +608,10 @@ if (ownsProfileInstance) {
                         }),
                     openProcessExplorer: () => processExplorer.open(),
                     openAgentCommander: () => agentCommander?.open(),
+                    stopAgentCommander: () => {
+                        // eslint-disable-next-line no-void -- the controller logs a failed stop, and the status bar keeps showing the Commander
+                        void agentCommander?.stop().catch(() => {});
+                    },
                 }),
             ),
         );

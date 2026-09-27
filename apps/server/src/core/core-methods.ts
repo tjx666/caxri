@@ -16,6 +16,8 @@ export const coreForwardedMethods = [
     'commander.ensure',
     'commander.session.create',
     'commander.snapshot',
+    'commander.status',
+    'commander.stop',
     'app.records',
     'bugReport.context',
     'diagnostics.snapshot',

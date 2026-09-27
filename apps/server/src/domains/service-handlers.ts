@@ -103,6 +103,8 @@ type ServiceHandlerMethods =
     | 'commander.snapshot'
     | 'commander.board'
     | 'commander.session.create'
+    | 'commander.status'
+    | 'commander.stop'
     | 'session.refreshDeliveryOnFocus'
     | 'session.searchContent'
     | 'settings.get'
@@ -203,6 +205,7 @@ const MAIN_OWNED_METHODS = [
     'processExplorer.open',
     'agentCommander.open',
     'agentCommander.revealSession',
+    'agentCommander.stop',
     'dialog.selectDirectory',
     'editor.confirmDiscard',
     'diagnostics.export',
@@ -444,6 +447,8 @@ export function createServiceHandlers(services: {
         'session.pullRequests': () => sessionPullRequests.snapshot(),
         'commander.ensure': () => commander.ensure(),
         'commander.snapshot': () => commander.snapshot(),
+        'commander.status': () => commander.status(),
+        'commander.stop': () => commander.stop(),
         'commander.board': () => commander.board(),
         'commander.session.create': ({ projectId }) => commander.createSession(projectId),
         'session.refreshDeliveryOnFocus': ({ sessionId }) => {
