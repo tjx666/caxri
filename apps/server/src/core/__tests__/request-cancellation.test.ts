@@ -52,4 +52,29 @@ describe('RequestCancellationRegistry', () => {
         });
         expect(task).not.toHaveBeenCalled();
     });
+
+    it('aborts only a disconnectable request when its caller disconnects', async () => {
+        const registry = new RequestCancellationRegistry();
+        const untilAborted = (signal: AbortSignal) =>
+            new Promise<string>((resolve) =>
+                signal.addEventListener('abort', () => resolve('aborted'), { once: true }),
+            );
+        const mutation = Promise.withResolvers<string>();
+        const mutating = registry.run('desktop:one:g1:mutation', async (signal) =>
+            Promise.race([untilAborted(signal), mutation.promise]),
+        );
+        const waiting = registry.runDisconnectable('desktop:one:g1:wait', untilAborted);
+
+        registry.disconnect('desktop:one:g1:mutation');
+        registry.disconnect('desktop:one:g1:wait');
+        mutation.resolve('finished');
+
+        await expect(waiting).resolves.toBe('aborted');
+        await expect(mutating).resolves.toBe('finished');
+        // A disconnect for a request that is not running leaves no tombstone behind.
+        registry.disconnect('desktop:one:g1:later');
+        await expect(
+            registry.run('desktop:one:g1:later', () => Promise.resolve('ran')),
+        ).resolves.toBe('ran');
+    });
 });

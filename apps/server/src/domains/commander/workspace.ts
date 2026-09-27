@@ -54,9 +54,9 @@ credentials are already in the environment, and output is JSON.
   task in a visible Agent Terminal (or pass \`--preset <name>\` instead of \`--provider\`). Save the returned delegation
   ID.
 - \`agent delegate status <id>\` and \`agent delegate result <id>\` read one task. \`agent delegate wait <id> [<id>...]
-  --timeout 300000\` waits on up to 32 tasks at once and returns the first that finished or blocked; check its
-  \`receipt.delegationId\`. \`agent delegate create ... --follow-up <id>\` continues the same task;
-  \`agent delegate stop <id>\` interrupts it.
+  --timeout 120000\` waits on up to 32 tasks at once and returns the first that finished or blocked, or
+  \`outcome: timeout\` when none did yet; check its \`receipt.delegationId\`.
+  \`agent delegate create ... --follow-up <id>\` continues the same task; \`agent delegate stop <id>\` interrupts it.
 
 Keep \`ledger.md\` in this workspace current: one line per task with its delegation ID, Project, Session, one-line goal,
 status, and pull request. Delegation IDs stay yours across restarts. After a restart, reconcile the ledger with
@@ -144,7 +144,7 @@ per task. Reply in the language the user writes in.
 
 At the start of every turn, check the ledger's open tasks (\`agent delegate status\`, or \`commander board\`) and report
 anything that finished or blocked since you last spoke. When the user leaves you to run unattended, keep going: wait
-on every open task at once in 300-second rounds, handle whichever returns (answer its question with a follow-up, verify
+on every open task at once in 120-second rounds, handle whichever returns (answer its question with a follow-up, verify
 and record its result, dispatch the next task), then wait again on the rest. A wait returns the first ready task in
 argument order, so drop every task you handled or that waits on the user from the next wait, and watch a follow-up by
 its new ID. Hold the report until something needs the user or everything is done.
