@@ -124,7 +124,14 @@ const ConversationStatus = ({
     );
 };
 
-export const ConversationView = ({
+/**
+ * FlashList 2.0.2 places `startRenderingFromBottom` from estimated row heights, then corrects the offset over several
+ * frames while rows measure; on a Conversation of mixed-height rows that reads as the list scrolling into place and
+ * blanking mid-transition. The list stays transparent until an explicit scroll to the end has landed, so the first
+ * visible frame is already the settled bottom.
+ * https://github.com/Shopify/flash-list/blob/v2.0.2/src/recyclerview/hooks/useRecyclerViewController.tsx
+ */
+const ConversationList = ({
     onRetry,
     theme,
     timeline,
@@ -135,11 +142,29 @@ export const ConversationView = ({
 }) => {
     const list = useRef<FlashListRef<Entry>>(null);
     const [isAtBottom, setIsAtBottom] = useState(true);
+    const [isPositioned, setIsPositioned] = useState(false);
+    const isPositionedReference = useRef(false);
     const entries = useMemo(() => groupConversationItems(timeline.items), [timeline.items]);
     const onScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>): void => {
+        // Initial positioning passes through offsets far from the end; they are not the reader's scroll.
+        if (!isPositionedReference.current) return;
         const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
         const distance = contentSize.height - layoutMeasurement.height - contentOffset.y;
         setIsAtBottom(shouldFollowConversation(distance, layoutMeasurement.height));
+    }, []);
+    const onLoad = useCallback((): void => {
+        const reveal = (): void => {
+            isPositionedReference.current = true;
+            setIsPositioned(true);
+        };
+        /**
+         * FlashList resolves `scrollToEnd` before its native scroll, which it defers by one task; reveal one frame
+         * after that task has run.
+         */
+        // eslint-disable-next-line no-void -- Reveal failures leave a readable list; there is nothing to report.
+        void Promise.resolve(list.current?.scrollToEnd({ animated: false })).finally(() => {
+            setTimeout(() => requestAnimationFrame(reveal), 0);
+        });
     }, []);
     const renderItem = useCallback(
         ({ item }: ListRenderItemInfo<Entry>) => (
@@ -152,17 +177,6 @@ export const ConversationView = ({
     const jumpToLatest = useCallback((): void => {
         list.current?.scrollToEnd({ animated: true });
     }, []);
-    if (timeline.items.length === 0) {
-        const status = timeline.status === 'available' ? 'empty' : timeline.status;
-        return (
-            <ConversationStatus
-                historyExpired={timeline.historyExpired}
-                onRetry={onRetry}
-                status={status}
-                theme={theme}
-            />
-        );
-    }
     return (
         <View style={styles.root} testID="conversation-view">
             <FlashList
@@ -188,9 +202,14 @@ export const ConversationView = ({
                     animateAutoScrollToBottom: false,
                     startRenderingFromBottom: true,
                 }}
+                onLoad={onLoad}
                 onScroll={onScroll}
                 onStartReached={() => {
-                    if (timeline.olderCursor && !timeline.isLoadingOlder) {
+                    if (
+                        isPositionedReference.current &&
+                        timeline.olderCursor &&
+                        !timeline.isLoadingOlder
+                    ) {
                         // eslint-disable-next-line no-void -- The timeline hook serializes older-page reads.
                         void timeline.loadOlder();
                     }
@@ -199,7 +218,7 @@ export const ConversationView = ({
                 ref={list}
                 renderItem={renderItem}
                 scrollEventThrottle={32}
-                style={styles.list}
+                style={isPositioned ? styles.list : styles.listPositioning}
             />
             {timeline.status === 'stale' ? (
                 <Pressable
@@ -228,4 +247,27 @@ export const ConversationView = ({
             ) : null}
         </View>
     );
+};
+
+export const ConversationView = ({
+    onRetry,
+    theme,
+    timeline,
+}: {
+    onRetry: () => void;
+    theme: MobileTheme;
+    timeline: ConversationTimelineState & { loadOlder: () => Promise<void> };
+}) => {
+    if (timeline.items.length === 0) {
+        const status = timeline.status === 'available' ? 'empty' : timeline.status;
+        return (
+            <ConversationStatus
+                historyExpired={timeline.historyExpired}
+                onRetry={onRetry}
+                status={status}
+                theme={theme}
+            />
+        );
+    }
+    return <ConversationList onRetry={onRetry} theme={theme} timeline={timeline} />;
 };

@@ -25,7 +25,7 @@ import {
     conversationBaselineRecords,
 } from './mobile-conversation-transcript.ts';
 
-interface ScenarioEnvironment {
+export interface ScenarioEnvironment {
     artifactManifestPath: string;
     assetsDirectory: string;
     caseId: string;
@@ -48,7 +48,7 @@ function itemIdDigests(items: Array<{ id: string }>): string[] {
     return items.map(({ id }) => opaqueDigest(id));
 }
 
-async function capture(
+export async function capture(
     environment: ScenarioEnvironment,
     label: string,
     artifacts: string[],
@@ -58,7 +58,7 @@ async function capture(
     artifacts.push(`assets/${name}`);
 }
 
-async function finish(
+export async function finish(
     environment: ScenarioEnvironment,
     artifacts: string[],
     receipt: Record<string, unknown>,
@@ -73,12 +73,12 @@ async function finish(
     ]);
 }
 
-function requireRemoteVideoPath(): string {
+export function requireRemoteVideoPath(): string {
     if (!remoteVideoPath) throw new Error('Scenario-owned Android recording path is unavailable');
     return remoteVideoPath;
 }
 
-async function conversationFixture(serial: string) {
+export async function conversationFixture(serial: string) {
     const fixture = await createMobileAcceptanceFixture({ mode: 'conversation', serial });
     if (
         !fixture.allowedSessionId ||
@@ -100,7 +100,7 @@ async function conversationFixture(serial: string) {
     };
 }
 
-async function openConversation(serial: string, sessionId: string): Promise<void> {
+export async function openConversation(serial: string, sessionId: string): Promise<void> {
     await tapMobileCheck(serial, `session-row-${sessionId}`);
     await waitForMobile(
         () => mobileSemantics(serial),

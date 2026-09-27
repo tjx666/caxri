@@ -29,6 +29,7 @@ import {
 } from './support/mobile-android.ts';
 import { executeMobileChangesScenario } from './support/mobile-changes-scenarios.ts';
 import { executeMobileConversationScenario } from './support/mobile-conversation-scenarios.ts';
+import { executeMobileConversationTransitionScenario } from './support/mobile-conversation-transition-scenario.ts';
 import {
     countByteSequence,
     executeMobileEndToEndScenario,
@@ -635,6 +636,9 @@ test('executes one report-bound Android product scenario', async ({}) => {
         case 'MOB-PROJECT-01':
         case 'MOB-PANELS-01':
             await executeMobileProjectPanelsScenario(environment, artifacts);
+            break;
+        case 'MOB-CONV-05':
+            await executeMobileConversationTransitionScenario(environment, artifacts);
             break;
         case 'MOB-TIMELINE-01':
         case 'MOB-CONV-01':
