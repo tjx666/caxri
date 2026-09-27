@@ -6,14 +6,7 @@ import { FolderGit2, GitBranch, TriangleAlert } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
 import { Empty, EmptyMedia, EmptyTitle } from '../../../components/ui/empty';
 import { Spinner } from '../../../components/ui/spinner';
-import {
-    focusAdjacentTreeItem,
-    focusFirstChildTreeItem,
-    focusParentTreeItem,
-    focusTreeItemEdge,
-    NAVIGABLE_TREE_ITEM_SELECTOR,
-    treeNavigationAction,
-} from '../resource-explorer/file-tree-navigation';
+import { useScrollEdge } from '../../../hooks/use-scroll-edge';
 import type { SourceControlController } from './hooks/use-source-control-controller';
 import { SourceControlHeader } from './source-control-header';
 import { SourceControlHistory } from './source-control-history';
@@ -24,6 +17,14 @@ import {
     shouldTreeClaimKeyInTextField,
     SourceControlTreeFocusProvider,
 } from './source-control-tree-focus';
+import {
+    focusAdjacentTreeItem,
+    focusFirstChildTreeItem,
+    focusParentTreeItem,
+    focusTreeItemEdge,
+    NAVIGABLE_TREE_ITEM_SELECTOR,
+    treeNavigationAction,
+} from './source-control-tree-navigation';
 
 export function SourceControlContent({ controller }: { controller: SourceControlController }) {
     return (
@@ -105,6 +106,8 @@ function SourceControlMessage({
 }
 
 function handleTreeKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
+    // A virtualized resource list already answered a move between two of its own rows (`source-control-tree-items.tsx`).
+    if (event.defaultPrevented) return;
     if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
@@ -151,6 +154,7 @@ function SourceControlReadyContent({
     controller: Extract<SourceControlController, { status: 'ready' }>;
 }) {
     const treeReference = useRef<HTMLDivElement>(null);
+    useScrollEdge(treeReference);
     const [activeRowId, setActiveRowId] = useState<string>();
     useLayoutEffect(() => {
         const tree = treeReference.current;
@@ -167,6 +171,8 @@ function SourceControlReadyContent({
          * repository's `Commits` fetch their own pages, and a disclosure can drop the row that currently holds the
          * Tab stop. A dependency list built from this component's props never sees either, which would leave the
          * tree with zero tabbable rows. Observing the subtree is what keeps the single Tab stop on a rendered row.
+         * Virtualized resource rows mount and unmount while scrolling, so each list keeps the Tab stop row mounted
+         * (`sourceControlRenderedIndexes`); otherwise scrolling it away would hand the Tab stop back to the first row.
          */
         const observer = new MutationObserver(reconcile);
         // `disabled` is watched too: a commit row the current revision invalidated stops being focusable without the
@@ -193,56 +199,59 @@ function SourceControlReadyContent({
     };
     return (
         <SourceControlTreeFocusProvider activeRowId={activeRowId} focusRow={setActiveRowId}>
-            <div
-                ref={treeReference}
-                className="git-repositories min-h-0 flex-1 overflow-auto border-b border-border outline-none"
-                aria-label={controller.model.accessibilityLabel}
-                /*
-                 * A background refresh announces itself and never blocks input. `inert` used to sit here, which
-                 * dropped focus to `<body>`, lost the roving position, and made arrow navigation skip the whole tree
-                 * several times a minute; VS Code's SCM view blocks nothing while `git status` re-runs. A
-                 * revision-bound action is refused at execution time instead (`use-source-control-controller.ts`).
-                 */
-                aria-busy={controller.isRefreshing || undefined}
-                role="tree"
-                tabIndex={-1}
-                onFocus={forwardFocusToActiveRow}
-                onKeyDown={handleTreeKeyDown}
-            >
-                {controller.model.fileHistory && (
-                    <SourceControlHistory
-                        descriptor={controller.model.fileHistory.history}
-                        enabled={!controller.isRefreshing}
-                        expansion={{
-                            expanded: controller.fileHistoryExpanded,
-                            setExpanded: controller.setFileHistoryExpanded,
-                        }}
-                        key={JSON.stringify([
-                            controller.model.fileHistory.history.id,
-                            controller.model.fileHistory.path ?? null,
-                        ])}
-                        level={1}
-                        rowIdPrefix="file-history"
-                        runAction={controller.runAction}
-                        scope={{ kind: 'file', ...controller.model.fileHistory }}
-                    />
-                )}
-                {controller.model.truncationMessage && (
-                    <div
-                        role="status"
-                        aria-live="polite"
-                        className="border-b border-border bg-surface px-3 py-1.5 text-[11px] text-muted"
-                    >
-                        {controller.model.truncationMessage}
-                    </div>
-                )}
-                {controller.model.providers.map((provider) => (
-                    <SourceControlProviderSection
-                        controller={controller}
-                        key={provider.id}
-                        provider={provider}
-                    />
-                ))}
+            <div className="scroll-edge-shell relative flex min-h-0 flex-1 flex-col">
+                <div
+                    ref={treeReference}
+                    className="git-repositories min-h-0 flex-1 overflow-auto border-b border-border outline-none"
+                    data-scrolled="false"
+                    aria-label={controller.model.accessibilityLabel}
+                    /*
+                     * A background refresh announces itself and never blocks input. `inert` used to sit here, which
+                     * dropped focus to `<body>`, lost the roving position, and made arrow navigation skip the whole tree
+                     * several times a minute; VS Code's SCM view blocks nothing while `git status` re-runs. A
+                     * revision-bound action is refused at execution time instead (`use-source-control-controller.ts`).
+                     */
+                    aria-busy={controller.isRefreshing || undefined}
+                    role="tree"
+                    tabIndex={-1}
+                    onFocus={forwardFocusToActiveRow}
+                    onKeyDown={handleTreeKeyDown}
+                >
+                    {controller.model.fileHistory && (
+                        <SourceControlHistory
+                            descriptor={controller.model.fileHistory.history}
+                            enabled={!controller.isRefreshing}
+                            expansion={{
+                                expanded: controller.fileHistoryExpanded,
+                                setExpanded: controller.setFileHistoryExpanded,
+                            }}
+                            key={JSON.stringify([
+                                controller.model.fileHistory.history.id,
+                                controller.model.fileHistory.path ?? null,
+                            ])}
+                            level={1}
+                            rowIdPrefix="file-history"
+                            runAction={controller.runAction}
+                            scope={{ kind: 'file', ...controller.model.fileHistory }}
+                        />
+                    )}
+                    {controller.model.truncationMessage && (
+                        <div
+                            role="status"
+                            aria-live="polite"
+                            className="border-b border-border bg-surface px-3 py-1.5 text-[11px] text-muted"
+                        >
+                            {controller.model.truncationMessage}
+                        </div>
+                    )}
+                    {controller.model.providers.map((provider) => (
+                        <SourceControlProviderSection
+                            controller={controller}
+                            key={provider.id}
+                            provider={provider}
+                        />
+                    ))}
+                </div>
             </div>
         </SourceControlTreeFocusProvider>
     );

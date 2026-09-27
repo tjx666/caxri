@@ -4,7 +4,7 @@ import { PanelHeader } from '../../../components/panel-header';
 import { Button } from '../../../components/ui/button';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { cn } from '../../../lib/utilities';
-import type { ResourceExplorerController } from './use-resource-explorer-controller';
+import type { ResourceExplorerController } from './hooks/use-resource-explorer-controller';
 
 const captionActionClassName = 'shrink-0';
 

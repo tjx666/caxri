@@ -69,7 +69,7 @@ test('the Primary Sidebar Session list paints a top-edge shadow only after it ha
         await expect(list).toHaveAttribute('data-scrolled', 'true');
         const scrolledShadow = await list.evaluate((element) => {
             const shell = element.parentElement;
-            if (!shell) throw new Error('project-list-shell is missing');
+            if (!shell) throw new Error('scroll-edge-shell is missing');
             return getComputedStyle(shell, '::after').boxShadow;
         });
         expect(scrolledShadow).not.toBe('none');
@@ -85,7 +85,7 @@ test('the Primary Sidebar Session list paints a top-edge shadow only after it ha
         expect(
             await list.evaluate((element) => {
                 const shell = element.parentElement;
-                if (!shell) throw new Error('project-list-shell is missing');
+                if (!shell) throw new Error('scroll-edge-shell is missing');
                 return getComputedStyle(shell, '::after').boxShadow;
             }),
         ).toBe('none');
