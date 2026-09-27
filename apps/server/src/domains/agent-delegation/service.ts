@@ -28,10 +28,16 @@ import {
 import { readDelegationCompletion } from './collection';
 import { prepareDelegationFollowUp, prepareDelegationLaunch } from './launch';
 import { assertDelegationLayout, delegationLayout } from './layout';
-import { applyDelegationLifecycle, isDelegationActive } from './lifecycle';
+import {
+    applyDelegationLifecycle,
+    canFailDelegation,
+    isDelegationActive,
+    isReceiptTransition,
+    recoveredDelegation,
+} from './lifecycle';
 import type { DelegationFollowUpRejection, DelegationResumeRejection } from './rejection';
 import { reportFollowUpRejection, reportResumeRejection } from './rejection';
-import { applyDelegationCompletion, shouldCollectDelegation } from './result';
+import { applyDelegationCompletion, collectionIntervalMs, shouldCollectDelegation } from './result';
 import type { AgentDelegationServiceOptions } from './service-options';
 import { interruptedDelegation, isStartupPromptInput, startupDeadlineOutcome } from './startup';
 import { removeDelegationFiles } from './storage';
@@ -64,7 +70,16 @@ export class AgentDelegationService {
         this.now = options.now ?? Date.now;
     }
 
-    private save(record: StoredAgentDelegation): StoredAgentDelegation {
+    /**
+     * `isAnnounced` is false only for Server restart recovery. Every client re-reads the whole Workbench after a
+     * restart, and one event per recovered task would overflow the bounded queue that holds startup events until the
+     * event journal opens, failing Server Core startup.
+     */
+    private save(record: StoredAgentDelegation, isAnnounced = true): StoredAgentDelegation {
+        /**
+         * The stored row, not the caller's copy, holds what observers last saw.
+         */
+        const before = this.options.database.agentDelegations.get(record.receipt.delegationId);
         const saved = this.options.database.agentDelegations.save({
             ...record,
             receipt: {
@@ -81,6 +96,8 @@ export class AgentDelegationService {
                 this.activeTerminals.delete(terminalId);
         }
         if (!isDelegationActive(saved.receipt)) this.nextCollections.delete(delegationId);
+        if (isAnnounced && isReceiptTransition(before?.receipt, saved.receipt))
+            this.options.onReceiptChanged?.(saved.receipt);
         return saved;
     }
 
@@ -124,14 +141,7 @@ export class AgentDelegationService {
 
     private fail(id: string, failure: AgentDelegationReceipt['failure']): void {
         const record = this.options.database.agentDelegations.get(id);
-        if (
-            record &&
-            (isDelegationActive(record.receipt) ||
-                (failure === 'launch_failed' &&
-                    !record.turnId &&
-                    record.receipt.failure === 'target_changed' &&
-                    record.receipt.status === 'interrupted'))
-        )
+        if (record && canFailDelegation(record, failure))
             this.save({ ...record, receipt: { ...record.receipt, status: 'failed', failure } });
     }
 
@@ -169,24 +179,19 @@ export class AgentDelegationService {
     private scheduleCollection(record: StoredAgentDelegation): void {
         const id = record.receipt.delegationId;
         if (this.isClosed || this.collectors.has(id)) return;
-        const timer = setTimeout(
-            async () => {
-                this.collectors.delete(id);
-                try {
-                    const result = await this.result(id, {
-                        principal: record.principal,
-                        callerTerminalId: record.receipt.callerTerminalId,
-                    });
-                    if (isDelegationActive(result.receipt)) this.scheduleCollection(record);
-                } catch {
-                    // Session deletion or shutdown ends ownership; never copy provider content into diagnostics.
-                    if (!this.isClosed) this.fail(id, 'result_missing');
-                }
-            },
-            delegationAdapter(record.receipt.provider).completion === 'native-completion'
-                ? 2_000
-                : 200,
-        );
+        const timer = setTimeout(async () => {
+            this.collectors.delete(id);
+            try {
+                const result = await this.result(id, {
+                    principal: record.principal,
+                    callerTerminalId: record.receipt.callerTerminalId,
+                });
+                if (isDelegationActive(result.receipt)) this.scheduleCollection(record);
+            } catch {
+                // Session deletion or shutdown ends ownership; never copy provider content into diagnostics.
+                if (!this.isClosed) this.fail(id, 'result_missing');
+            }
+        }, collectionIntervalMs(record.receipt.provider));
         timer.unref();
         this.collectors.set(id, timer);
     }
@@ -483,6 +488,7 @@ export class AgentDelegationService {
                     previous?.rootDelegationId ?? previous?.receipt.delegationId ?? id,
                 promptDigest: '',
             });
+            this.options.onReceiptChanged?.(record.receipt);
             try {
                 if (previous)
                     return await (input.resumeFrom
@@ -703,23 +709,9 @@ export class AgentDelegationService {
 
     initialize(): void {
         for (const record of this.options.database.agentDelegations.active()) {
-            if (
-                ((record.receipt.status === 'collecting' && record.responseDigest) ||
-                    (record.turnId &&
-                        delegationAdapter(record.receipt.provider).completion ===
-                            'native-completion')) &&
-                record.providerSessionId
-            ) {
-                // A retired native process may have persisted completion just before Server restart; never replay it.
-                this.scheduleCollection(
-                    this.save({ ...record, receipt: { ...record.receipt, status: 'collecting' } }),
-                );
-                continue;
-            }
-            this.save({
-                ...record,
-                receipt: { ...record.receipt, status: 'interrupted', failure: 'host_reset' },
-            });
+            const { next, shouldCollect } = recoveredDelegation(record);
+            const saved = this.save(next, false);
+            if (shouldCollect) this.scheduleCollection(saved);
         }
     }
 
@@ -787,10 +779,7 @@ export class AgentDelegationService {
             // Many waiters share one bounded transcript read per poll interval.
             this.nextCollections.set(
                 id,
-                performance.now() +
-                    (delegationAdapter(record.receipt.provider).completion === 'native-completion'
-                        ? 2_000
-                        : 200),
+                performance.now() + collectionIntervalMs(record.receipt.provider),
             );
             return this.collectResult(id, authority);
         });

@@ -1,4 +1,9 @@
-import type { AgentDelegationSettings, AgentLaunchSettings, AgentProvider } from '@caxri/protocol';
+import type {
+    AgentDelegationReceipt,
+    AgentDelegationSettings,
+    AgentLaunchSettings,
+    AgentProvider,
+} from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 
 import type { AgentDispatchService } from '../agent-dispatch';
@@ -35,6 +40,14 @@ export interface AgentDelegationServiceOptions extends DelegationTranscriptReade
         data: string,
         onDelivered?: (wasAccepted: boolean) => void,
     ): boolean;
+    /**
+     * Called after a task is created or its `status` or `failure` changes. Many of those transitions come from this
+     * service alone (a startup deadline, an asynchronous result collection, a rejected follow-up) with no Session or
+     * Terminal record change beside them, yet the Agent Commander board shows both fields. Saves that only advance
+     * internal bookkeeping (transcript offsets, input epochs, fencing marks) stay silent, so a busy collector does not
+     * flood the event journal.
+     */
+    onReceiptChanged?(receipt: AgentDelegationReceipt): void;
     submissionTimeoutMs?: number;
     now?: () => number;
 }
