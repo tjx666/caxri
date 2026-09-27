@@ -327,21 +327,32 @@ const loadSvg = async (file: string): Promise<string> => {
     svgSources.set(file, svg);
     return svg;
 };
-const isEmbeddable = async (file: string): Promise<boolean> =>
-    Buffer.byteLength(await loadSvg(file)) <= MAX_ICON_BYTES;
+
+/**
+ * Names dropped for exceeding `MAX_ICON_BYTES`, reported at the end of the run so a maintainer can see, without
+ * re-deriving it, which common types are worth hand-authoring a slim replacement for (see the summary printed below).
+ */
+const oversizeIcons: Array<{ bytes: number; icon: string; name: string }> = [];
 
 /**
  * Keep only names that resolve to a specific, embeddable icon; a name that resolves to the default adds nothing over
- * the fallback.
+ * the fallback. An icon over budget is recorded in `oversizeIcons` instead of silently dropped, so its cost stays
+ * visible in the build log.
  */
 const keep = async (
     entries: Array<[string, string | undefined]>,
     fallback: string,
 ): Promise<Record<string, string>> => {
     const checked = await Promise.all(
-        entries.map(async ([name, icon]) =>
-            icon && icon !== fallback && (await isEmbeddable(icon)) ? [name, icon] : null,
-        ),
+        entries.map(async ([name, icon]) => {
+            if (!icon || icon === fallback) return null;
+            const bytes = Buffer.byteLength(await loadSvg(icon));
+            if (bytes > MAX_ICON_BYTES) {
+                oversizeIcons.push({ bytes, icon, name });
+                return null;
+            }
+            return [name, icon] as [string, string];
+        }),
     );
     const kept = checked.filter((entry): entry is [string, string] => entry !== null);
     return sorted(kept);
@@ -396,3 +407,20 @@ export const FILE_ICON_SVGS: Readonly<Record<string, string>> = ${JSON.stringify
 const options = (await resolveConfig(destination)) ?? {};
 await writeFile(destination, await format(source, { ...options, filepath: destination }));
 console.log(`${iconFiles.size} icons, ${Buffer.byteLength(source)} bytes`);
+
+if (oversizeIcons.length > 0) {
+    const byIcon = new Map<string, { bytes: number; names: string[] }>();
+    for (const { bytes, icon, name } of oversizeIcons) {
+        const existing = byIcon.get(icon);
+        if (existing) existing.names.push(name);
+        else byIcon.set(icon, { bytes, names: [name] });
+    }
+    const budget = `${MAX_ICON_BYTES / 1_024} KB`;
+    console.log(
+        `${byIcon.size} icon(s) over the ${budget} budget fell back to the default icon (largest first):`,
+    );
+    const byIconDescending = [...byIcon].toSorted((left, right) => right[1].bytes - left[1].bytes);
+    for (const [icon, { bytes, names }] of byIconDescending) {
+        console.log(`  ${icon} — ${Math.round(bytes / 1_024)} KB — ${names.join(', ')}`);
+    }
+}
