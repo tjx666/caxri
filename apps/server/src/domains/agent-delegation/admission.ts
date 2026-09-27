@@ -32,7 +32,10 @@ export interface DelegationAuthority {
  * The Agent Commander is recognized by its exact Terminal and system Project, both recorded by domain services when
  * they created it; a capability or Project claim alone never qualifies a caller.
  */
-function isAgentCommanderCaller(database: CaxriDatabase, authority: DelegationAuthority): boolean {
+export function isAgentCommanderCaller(
+    database: CaxriDatabase,
+    authority: DelegationAuthority,
+): boolean {
     const commander = database.agentCommanderRows();
     return Boolean(
         commander?.terminalId &&

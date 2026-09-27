@@ -134,7 +134,19 @@ const rosterParameters = z.strictObject({
     sessionId: identifierSchema,
     callerProvider: delegationProviderSchema.optional(),
 });
+/**
+ * Upper bound on the tasks one wait watches, including `delegationId`.
+ */
+export const MAX_DELEGATION_WAIT_TASKS = 32;
 const waitParameters = identitySchema.extend({
+    /**
+     * Further tasks of the same caller to watch. The wait returns the first watched task, in argument order, that has
+     * settled or blocked, so an orchestrator running several tasks reacts to whichever needs it first.
+     */
+    otherDelegationIds: z
+        .array(identifierSchema)
+        .max(MAX_DELEGATION_WAIT_TASKS - 1)
+        .optional(),
     timeoutMs: z.number().int().min(0).max(300_000).default(30_000),
 });
 const resultSchema = z.strictObject({

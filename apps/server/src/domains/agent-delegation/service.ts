@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
-import { setTimeout as delay } from 'node:timers/promises';
 
 import type {
     AgentDelegationAnswer,
@@ -23,6 +22,7 @@ import {
     delegationCaller,
     delegationPaneCaller,
     delegationRoster,
+    isAgentCommanderCaller,
     resolveDelegationAdmission,
 } from './admission';
 import { readDelegationCompletion } from './collection';
@@ -34,6 +34,7 @@ import { reportFollowUpRejection, reportResumeRejection } from './rejection';
 import { applyDelegationCompletion, shouldCollectDelegation } from './result';
 import type { AgentDelegationServiceOptions } from './service-options';
 import { removeDelegationFiles } from './storage';
+import { pollDelegations } from './wait';
 
 /**
  * Owns durable task identity and private answers, separate from Terminal lifecycle receipts.
@@ -104,11 +105,17 @@ export class AgentDelegationService {
         const record = this.options.database.agentDelegations.get(id);
         if (!record) throw new CaxriError('NOT_FOUND', 'Delegation is unavailable');
         this.authorize(authority, record.input);
+        /**
+         * A task belongs to the exact Endpoint generation that created it, so a relaunched Agent cannot settle work its
+         * predecessor started. The Agent Commander is the exception: a Caxri restart or Codex relaunch starts a new
+         * generation of the same system Terminal, and its ledger of earlier tasks must keep resolving.
+         */
         if (
             (authority.principal.kind === 'agent' ||
                 authority.principal.kind === 'delegation-client') &&
-            (JSON.stringify(authority.principal) !== JSON.stringify(record.principal) ||
-                authority.callerTerminalId !== record.receipt.callerTerminalId)
+            (authority.callerTerminalId !== record.receipt.callerTerminalId ||
+                (JSON.stringify(authority.principal) !== JSON.stringify(record.principal) &&
+                    !isAgentCommanderCaller(this.options.database, authority)))
         )
             throw new CaxriError('FORBIDDEN', 'Delegation belongs to another Agent');
         return record;
@@ -712,28 +719,21 @@ export class AgentDelegationService {
     }
 
     async wait(
-        id: string,
+        ids: readonly [string, ...string[]],
         authority: DelegationAuthority,
         timeoutMs: number,
         signal?: AbortSignal,
     ) {
         if (this.waiterCount >= 64) throw new CaxriError('CAPACITY', 'Too many delegation waiters');
         this.waiterCount++;
-        const deadline = performance.now() + timeoutMs;
         try {
-            while (!this.isClosed) {
-                // eslint-disable-next-line no-await-in-loop -- each read observes the previous wait's newer durable state
-                const result = await this.result(id, authority);
-                if (!isDelegationActive(result.receipt))
-                    return { ...result, outcome: 'settled' as const };
-                if (result.receipt.status === 'blocked')
-                    return { ...result, outcome: 'blocked' as const };
-                const remaining = deadline - performance.now();
-                if (remaining <= 0) return { ...result, outcome: 'timeout' as const };
-                // eslint-disable-next-line no-await-in-loop -- bounded long polling must never issue concurrent reads
-                await delay(Math.min(200, remaining), undefined, { signal });
-            }
-            throw new CaxriError('UNAVAILABLE', 'Delegation service is closed');
+            return await pollDelegations(
+                ids,
+                (id) => this.result(id, authority),
+                () => this.isClosed,
+                timeoutMs,
+                signal,
+            );
         } finally {
             this.waiterCount--;
         }

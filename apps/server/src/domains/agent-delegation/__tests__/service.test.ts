@@ -90,6 +90,9 @@ describe('AgentDelegationService', () => {
                 principal: { ...authority.principal, id: 'external-two', clientId: 'client-two' },
             }),
         ).toThrow('another Agent');
+        expect(() =>
+            f.service.status(f.id, { principal: { ...authority.principal, generation: 2 } }),
+        ).toThrow('another Agent');
         const record = f.database.agentDelegations.get(f.id)!;
         for (let index = 0; index < 3; index += 1)
             f.database.agentDelegations.insert({
@@ -235,19 +238,43 @@ describe('AgentDelegationService', () => {
             launched!,
         );
         expect(f.service.status(f.id, authority).delegationId).toBe(f.id);
+        const relaunched = { ...authority, principal: { ...authority.principal, generation: 2 } };
+        expect(f.service.status(f.id, relaunched).delegationId).toBe(f.id);
+        expect(() =>
+            f.service.status(f.id, { ...relaunched, callerTerminalId: f.terminal.id }),
+        ).toThrow();
     });
 
     it('returns a timeout without resending or interrupting the task', async () => {
         const f = await fixture();
         await f.service.create(f.id, owner, f.input);
         const before = f.service.status(f.id, owner);
-        expect(await f.service.wait(f.id, owner, 0)).toEqual({
+        expect(await f.service.wait([f.id], owner, 0)).toEqual({
             receipt: before,
             answer: undefined,
             outcome: 'timeout',
         });
         expect(f.start).toHaveBeenCalledTimes(1);
         expect(f.service.status(f.id, owner)).toEqual(before);
+    });
+
+    it('returns the first watched task that settled, in argument order', async () => {
+        const f = await fixture();
+        await f.service.create(f.id, owner, f.input);
+        const record = f.database.agentDelegations.get(f.id)!;
+        const settled = [randomUUID(), randomUUID()];
+        for (const delegationId of settled)
+            f.database.agentDelegations.insert({
+                ...record,
+                receipt: { ...record.receipt, delegationId, status: 'completed' },
+            });
+
+        const first = await f.service.wait([f.id, ...settled], owner, 60_000);
+        const reversed = await f.service.wait([f.id, ...settled.toReversed()], owner, 60_000);
+
+        expect(first).toMatchObject({ outcome: 'settled', receipt: { delegationId: settled[0] } });
+        expect(reversed.receipt.delegationId).toBe(settled[1]);
+        expect(f.service.status(f.id, owner).status).toBe(record.receipt.status);
     });
 
     it('never treats a provider error response as an answer', async () => {
