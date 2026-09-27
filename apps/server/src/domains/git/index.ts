@@ -402,6 +402,10 @@ export class GitService {
         return chunks.filter(Boolean).join('\n');
     }
 
+    repositoryIdentity(sessionId: string, repoId: string): Promise<GitRepoSummary> {
+        return this.resolveRepository(sessionId, repoId);
+    }
+
     summary(
         sessionId: string,
         refresh = 0,

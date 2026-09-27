@@ -4,6 +4,7 @@ import type { IntegerSettingSpec } from '@caxri/protocol';
 
 import { Input } from '../../components/ui/input';
 import { formatIntegerSettingValue, parseIntegerSettingInput } from './integer-control-values';
+import { SHORT_CONTROL_WIDTH_CLASS_NAME } from './setting-row-layout';
 
 interface IntegerControlProperties {
     id: string;
@@ -45,7 +46,7 @@ export function IntegerControl({ id, label, spec, value, onChange }: IntegerCont
     const isInvalid = result.status === 'invalid';
     const errorId = `${id}-error`;
     return (
-        <span className="flex w-40 flex-none flex-col">
+        <span className={`flex ${SHORT_CONTROL_WIDTH_CLASS_NAME} flex-none flex-col`}>
             <span className="relative block">
                 <Input
                     id={id}

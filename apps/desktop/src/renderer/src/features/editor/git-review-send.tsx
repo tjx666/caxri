@@ -14,7 +14,8 @@ import { Tooltip } from '../../components/ui/tooltip';
 import { resolveRepositoryFilePath as resolveRepoFilePath } from '../../lib/repository-file-path';
 import { useCaxriQuery } from '../../queries/client';
 import { getBootstrap, selectSelectedWorkbenchProject } from '../../stores/selectors';
-import { formatGitReviewComments, useGitReviewComments } from './git-review-comments';
+import { clearResolvedGitReviewComments } from './git-review-comment-commands';
+import { formatGitReviewComments } from './git-review-comments';
 import { sendGitReviewComments } from './git-review-send-commands';
 
 export function GitReviewSend({
@@ -27,24 +28,12 @@ export function GitReviewSend({
     const [open, setOpen] = useState(false);
     const [sending, setSending] = useState(false);
     const [sendError, setSendError] = useState<string | undefined>(undefined);
-    const allComments = useGitReviewComments((state) => state.comments);
+    const { data: allComments } = useCaxriQuery('gitReview.list', { sessionId, repositoryId });
     const comments = useMemo(
-        () =>
-            allComments.filter(
-                (comment) =>
-                    comment.sessionId === sessionId &&
-                    comment.repositoryId === repositoryId &&
-                    comment.status === 'pending' &&
-                    comment.text,
-            ),
-        [allComments, sessionId, repositoryId],
+        () => (allComments ?? []).filter((comment) => comment.status === 'pending' && comment.text),
+        [allComments],
     );
-    const hasResolved = allComments.some(
-        (comment) =>
-            comment.sessionId === sessionId &&
-            comment.repositoryId === repositoryId &&
-            comment.status !== 'pending',
-    );
+    const hasResolved = (allComments ?? []).some((comment) => comment.status !== 'pending');
     const { data: summary } = useCaxriQuery('git.summary', { sessionId });
     const repoRoot = summary?.isRepository
         ? summary.repositories.find((repo) => repo.id === repositoryId)?.rootPath
@@ -59,7 +48,7 @@ export function GitReviewSend({
         setSending(true);
         setSendError(undefined);
         try {
-            const result = await sendGitReviewComments(sessionId, comments, prompt);
+            const result = await sendGitReviewComments(sessionId, repositoryId);
             if (result.ok) setOpen(false);
             else setSendError(result.message);
         } finally {
@@ -75,9 +64,10 @@ export function GitReviewSend({
                         size="icon"
                         variant="ghost"
                         aria-label="Clear sent and outdated"
-                        onClick={() =>
-                            useGitReviewComments.getState().clearResolved(sessionId, repositoryId)
-                        }
+                        onClick={() => {
+                            // eslint-disable-next-line no-void -- floating-promise discard: list refetches via `gitReview.changed`
+                            void clearResolvedGitReviewComments(sessionId, repositoryId);
+                        }}
                     >
                         <ListX aria-hidden="true" size={14} />
                     </Button>

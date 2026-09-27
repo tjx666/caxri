@@ -19,12 +19,14 @@ export type TransientServerEvent = Extract<
             | 'agent.message.held'
             | 'agent.notification'
             | 'agent.automaticNamingUnavailable'
+            | 'agent.permissionAutoAllowChanged'
             | 'agent.message.receipt'
             | 'agent.messaging.changed'
             | 'command.execute'
             | 'desktop.openRequested'
             | 'host.connectionChanged'
             | 'gpu.recoveryRequested'
+            | 'gitReview.changed'
             | 'projectStatus.alert'
             | 'projectStatus.changed'
             | 'sessionPullRequests.changed'
@@ -43,6 +45,7 @@ export type DurableServerEvent = Exclude<ServerEvent, TransientServerEvent>;
 const TRANSIENT_SERVER_EVENT_NAMES = new Set<ServerEvent['event']>([
     'agent.notification',
     'agent.automaticNamingUnavailable',
+    'agent.permissionAutoAllowChanged',
     'terminal.output',
     'terminal.outputRecovery',
     'terminal.sizeOwnership',
@@ -57,6 +60,12 @@ const TRANSIENT_SERVER_EVENT_NAMES = new Set<ServerEvent['event']>([
      */
     'host.connectionChanged',
     'gpu.recoveryRequested',
+    /**
+     * The Server-owned review comment store is memory-only (see `docs/git-diff-review.md`): replaying this trigger
+     * after a reconnect would invalidate a query cache against data that a restart may already have lost, and the
+     * Renderer's own `gitReview.list`/`gitReview.pending` re-fetch on reconnect covers the same ground directly.
+     */
+    'gitReview.changed',
     /**
      * Replaying a delivery alert after a reconnect would re-notify a failure the user already dismissed.
      */

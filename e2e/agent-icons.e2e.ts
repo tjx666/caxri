@@ -10,6 +10,7 @@ import {
     launchCaxri,
     openAddProjectDialog,
     openPanelView,
+    openSettingsTab,
     pageRequest,
     waitForCreatedSession,
     waitForRuntimeReady,
@@ -118,13 +119,12 @@ test('Agent identities stay consistent across every shared surface', async () =>
          * its settings shortcut a deterministic non-editable focus target.
          */
         await infoTab.focus();
-        await running.page.keyboard.press('Meta+,');
-        const settingsDialog = running.page.getByRole('dialog');
-        await expect(settingsDialog.locator('[data-agent-icon="unknown"]')).toBeVisible();
-        await settingsDialog.getByLabel('Default Agent').click();
+        const settingsTab = await openSettingsTab(running.page);
+        await expect(settingsTab.locator('[data-agent-icon="unknown"]')).toBeVisible();
+        await settingsTab.getByLabel('Default Agent').click();
         await running.page.getByRole('option', { name: 'Codex', exact: true }).click();
         await expect(
-            settingsDialog.locator('[data-slot="select-trigger"] [data-agent-icon="codex"]'),
+            settingsTab.locator('[data-slot="select-trigger"] [data-agent-icon="codex"]'),
         ).toBeVisible();
     } finally {
         try {

@@ -6,7 +6,7 @@ import { execFileAsync } from '@caxri/system';
 
 import { markCaseLifecycleReady } from '../.agents/skills/acceptance/scripts/case-lifecycle.ts';
 import { expect, test } from './support/fixtures.ts';
-import { revealSettingsSection } from './support/helpers.ts';
+import { openSettingsTab, revealSettingsSection } from './support/helpers.ts';
 import { createMobileAcceptanceFixture } from './support/mobile-acceptance-fixture.ts';
 
 /**
@@ -103,10 +103,9 @@ test('pairs from Desktop Settings without capturing the pairing credential', asy
             launchId: environment.launchId,
         });
         await fixture.running.page.setViewportSize({ height: 900, width: 1_200 });
-        await fixture.running.page.keyboard.press('Meta+,');
-        const dialog = fixture.running.page.getByRole('dialog');
-        await revealSettingsSection(dialog, 'Mobile');
-        const mobileForm = dialog.getByTestId('mobile-access-form');
+        const settingsTab = await openSettingsTab(fixture.running.page);
+        await revealSettingsSection(settingsTab, 'Mobile');
+        const mobileForm = settingsTab.getByTestId('mobile-access-form');
         await expect(mobileForm).toContainText('Off by default');
 
         let frameIndex = 1;

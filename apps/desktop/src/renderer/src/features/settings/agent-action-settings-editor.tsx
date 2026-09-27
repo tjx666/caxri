@@ -90,12 +90,6 @@ export function AgentActionSettingsEditor({
                         key={action.invocation}
                         className="flex min-h-9 items-center gap-2 rounded px-1"
                     >
-                        <Switch
-                            aria-label={`Show ${action.invocation}`}
-                            checked={override?.enabled ?? true}
-                            disabled={!override && isAtCapacity}
-                            onCheckedChange={(checked) => changeEnabled(action.invocation, checked)}
-                        />
                         <code className="w-24 shrink-0 font-mono text-[12px] text-foreground">
                             {action.invocation}
                         </code>
@@ -103,6 +97,12 @@ export function AgentActionSettingsEditor({
                             {override?.description ?? action.description}
                         </span>
                         <small className="text-[10px] text-muted">Built-in</small>
+                        <Switch
+                            aria-label={`Show ${action.invocation}`}
+                            checked={override?.enabled ?? true}
+                            disabled={!override && isAtCapacity}
+                            onCheckedChange={(checked) => changeEnabled(action.invocation, checked)}
+                        />
                     </li>
                 ))}
                 {customInvocations.map((invocation) => (
@@ -110,11 +110,6 @@ export function AgentActionSettingsEditor({
                         key={invocation}
                         className="group/action flex min-h-9 items-center gap-2 rounded px-1"
                     >
-                        <Switch
-                            aria-label={`Show ${invocation}`}
-                            checked={value.items[invocation].enabled}
-                            onCheckedChange={(checked) => changeEnabled(invocation, checked)}
-                        />
                         <code className="w-24 shrink-0 truncate font-mono text-[12px] text-foreground">
                             {invocation}
                         </code>
@@ -153,6 +148,11 @@ export function AgentActionSettingsEditor({
                                 <Trash2 size={13} />
                             </Button>
                         </Tooltip>
+                        <Switch
+                            aria-label={`Show ${invocation}`}
+                            checked={value.items[invocation].enabled}
+                            onCheckedChange={(checked) => changeEnabled(invocation, checked)}
+                        />
                     </li>
                 ))}
             </ul>

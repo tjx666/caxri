@@ -9,6 +9,17 @@ import { ContainerTabTooltip } from './container-tab-tooltip';
 import { useViewBadges } from './hooks/use-view-badges';
 
 /**
+ * Compact per-tab width budget for the SecondarySidebar's icon-only rail: the 48px `indicatorMaxWidth` passed below,
+ * plus `chrome-tabs.tsx`'s own 8px `INDICATOR_INSET` on each side — the exact slot the indicator was already sized for.
+ * Below this the SecondarySidebar's resizable width (240–600px, see `stores/chrome-layout.ts`) stretched three
+ * icon-only tabs across the whole rail via `auto-cols-fr`, so the moving underline sat capped at 48px inside a much
+ * wider, mostly empty slot — the "loose" spacing issue #1290 reported. Used only as a `maxWidth`, not a fixed width:
+ * `auto-cols-fr` still divides whatever space is actually available, so a sidebar dragged near its minimum width, or an
+ * extension contributing extra containers, still shrinks to fit instead of overflowing.
+ */
+const SECONDARY_SIDEBAR_TAB_WIDTH = 64;
+
+/**
  * The tab strip a `ViewContainerSurface` renders above its containers, kept in its own file so the badge query stays on
  * this side of that boundary.
  *
@@ -72,6 +83,11 @@ export function ViewContainerTabStrip({
                 idPrefix={idPrefix}
                 indicatorMaxWidth={location === 'secondarySidebar' ? 48 : undefined}
                 items={tabs}
+                style={
+                    location === 'secondarySidebar'
+                        ? { maxWidth: containers.length * SECONDARY_SIDEBAR_TAB_WIDTH }
+                        : undefined
+                }
                 tabClassName={location === 'panel' ? 'h-9 gap-1.5 px-3 text-[11px]' : 'h-9 w-full'}
                 value={resolvedId ?? ''}
                 onValueChange={onSelectContainer}

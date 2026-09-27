@@ -169,7 +169,14 @@ export function AgentActivityRowTrigger({
                      */}
                     <span className="agent-activity-location flex h-4 max-w-full min-w-0 items-center gap-1">
                         <span className="flex size-3 flex-none items-center justify-center">
-                            <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={12} />
+                            {/* `tone="state"`: this metadata line is `text-muted`, and Grok/OpenCode already
+                                inherit that as a mask; Claude Code/Codex must match instead of standing out
+                                in full brand color on an otherwise muted Activity row. */}
+                            <AgentIdentityIcon
+                                identity={terminal?.kind ?? 'shell'}
+                                size={12}
+                                tone="state"
+                            />
                         </span>
                         <span className="agent-activity-project overflow-fade max-w-[calc(100%-1rem)] min-w-0 shrink-0">
                             {project.displayTitle}

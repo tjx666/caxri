@@ -94,6 +94,34 @@ export function filterKeybindingRows(
     );
 }
 
+export interface KeybindingRowGroup {
+    category: string;
+    rows: KeybindingRow[];
+}
+
+/**
+ * Groups rows under their catalog category, in the order each category first appears in `rows` — the same "declaration
+ * order becomes display order" convention `settings-registry.ts` uses for Settings' own categories.
+ * `commandDefinitions` does not keep every category's entries contiguous (`View` alone reappears in three separate
+ * blocks), so the flat list this replaces put same-category shortcuts on opposite ends of the page (issue caxri#1289:
+ * "unbgrouped Keybindings list"). Grouping happens after search filtering, so a category with no matching row simply
+ * has no heading, exactly like Settings.
+ */
+export function groupKeybindingRows(rows: readonly KeybindingRow[]): KeybindingRowGroup[] {
+    const groups: KeybindingRowGroup[] = [];
+    const groupByCategory = new Map<string, KeybindingRowGroup>();
+    for (const row of rows) {
+        let group = groupByCategory.get(row.category);
+        if (!group) {
+            group = { category: row.category, rows: [] };
+            groupByCategory.set(row.category, group);
+            groups.push(group);
+        }
+        group.rows.push(row);
+    }
+    return groups;
+}
+
 export function updateKeybindingSource(source: string, index: number, key: string): string {
     return applyFormEdit(source, [index, 'key'], key);
 }

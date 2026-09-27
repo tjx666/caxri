@@ -1,12 +1,15 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { listPaneTerminalIds } from '@caxri/protocol';
-import { Code2, Plus } from 'lucide-react';
+import { Code2, Plus, X } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
+import { Tooltip } from '../../components/ui/tooltip';
+import { useDialogStore } from '../../stores/dialogs';
 import { useSelectedSession } from '../../stores/selectors';
 import { useWorkbenchStore } from '../../stores/workbench';
 import { chooseProjectFolder } from '../session/session-commands';
+import { SettingsWorkbenchPage } from '../settings/settings-workbench-page';
 import { retainTerminalProgress } from '../terminal/terminal-progress';
 import { PaneView } from './pane-view';
 import { useSessionFocusHandoff } from './session-focus-handoff';
@@ -36,6 +39,37 @@ function Welcome() {
             >
                 <Plus size={15} /> Add Project
             </Button>
+        </div>
+    );
+}
+
+/**
+ * What the Workbench shows with no selected Session. Settings is normally a Session pane tab
+ * (`settings-tab-opener.ts`), but before the first Project exists there is no pane to open it into, and dropping the
+ * request would leave a first-run user with no way to reach Settings at all. So a Settings request made in this state
+ * replaces the Welcome view with the same Settings page until the user closes it (the button or `Cmd+W`, through
+ * `workbench.closeActiveTab`); requests made before this view mounted (a Session was selected then) were already
+ * answered by a tab and do not reopen it here.
+ */
+function NoSessionSurface() {
+    const requestId = useDialogStore((state) => state.settingsRequest.id);
+    const dismissedId = useDialogStore((state) => state.sessionlessSettingsDismissedId);
+    const [mountedRequestId] = useState(requestId);
+    if (requestId <= Math.max(mountedRequestId, dismissedId)) return <Welcome />;
+    return (
+        <div className="relative h-full min-h-0">
+            <Tooltip content="Close Settings">
+                <Button
+                    aria-label="Close Settings"
+                    className="absolute top-3 right-3 z-10"
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => useDialogStore.getState().dismissSessionlessSettings()}
+                >
+                    <X size={14} />
+                </Button>
+            </Tooltip>
+            <SettingsWorkbenchPage />
         </div>
     );
 }
@@ -118,7 +152,7 @@ export function Workbench() {
                     </div>
                 ))
             ) : (
-                <Welcome />
+                <NoSessionSurface />
             )}
         </section>
     );

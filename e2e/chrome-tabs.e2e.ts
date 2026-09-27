@@ -8,6 +8,7 @@ import {
     createAdditionalShellSession,
     createShellSession,
     launchCaxri,
+    openSettingsTab,
     pageRequest,
     revealSettingsSection,
     selectedSessionId,
@@ -207,9 +208,11 @@ test('SecondarySidebar and Settings share accessible moving chrome tabs', async 
         await infoTab.press('Meta+j');
         await expect(bottomTabs).toHaveCount(0);
 
-        await running.page.keyboard.press('Meta+,');
-        const dialog = running.page.getByRole('dialog');
-        const settingsTabs = dialog.getByRole('tablist', { name: 'Settings sections' });
+        // Named `settingsPanel`, not `settingsTab`: the latter name is already the "Settings" entry
+        // inside `settingsTabs` below (the Settings/Keybindings/Theme sub-tabs), a different thing
+        // from the outer Workbench tab this opens.
+        const settingsPanel = await openSettingsTab(running.page);
+        const settingsTabs = settingsPanel.getByRole('tablist', { name: 'Settings sections' });
         const settingsTab = settingsTabs.getByRole('tab', { name: 'Settings', exact: true });
         const keybindingsTab = settingsTabs.getByRole('tab', {
             name: 'Keybindings',
@@ -231,8 +234,8 @@ test('SecondarySidebar and Settings share accessible moving chrome tabs', async 
          * a field must persist without an explicit Apply affordance, and the moving indicator must keep tracking the
          * (visually unchanged) tab through that write rather than drifting or losing alignment.
          */
-        await revealSettingsSection(dialog, 'Terminal');
-        await dialog.getByRole('spinbutton', { name: 'Terminal Font size' }).fill('14');
+        await revealSettingsSection(settingsPanel, 'Terminal');
+        await settingsPanel.getByRole('spinbutton', { name: 'Terminal Font size' }).fill('14');
         await expect
             .poll(async () => {
                 const settings = await pageRequest<{ value: { 'terminal.fontSize': number } }>(

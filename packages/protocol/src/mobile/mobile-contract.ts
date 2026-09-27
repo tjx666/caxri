@@ -8,6 +8,7 @@ import {
     fileEntrySchema,
     identifierSchema,
     pathSchema,
+    permissionAutoAllowStatusSchema,
     scopedProjectSchema,
     sessionRecordSchema,
     terminalKindSchema,
@@ -536,12 +537,28 @@ export const mobileMethods = {
     'mobile.attention.list': {
         ...commandPolicy('server', 'read', ['sessions.read']),
         params: z.strictObject({ sessionId: identifierSchema }),
-        result: z.strictObject({ requests: z.array(mobileAttentionRequestSchema).max(20) }),
+        result: z.strictObject({
+            requests: z.array(mobileAttentionRequestSchema).max(20),
+            /**
+             * "Always allow in this Session" status (issue caxri#1295), polled alongside pending requests so the
+             * permission card's banner and revoke action stay current without a second round trip.
+             */
+            autoAllow: permissionAutoAllowStatusSchema,
+        }),
     },
     'mobile.attention.answer': {
         ...commandPolicy('server', 'control', ['terminals.steer']),
         params: mobileAttentionAnswerParametersSchema,
         result: z.strictObject({ status: mobileAttentionRequestSchema.shape.status }),
+    },
+    /**
+     * Revokes the Session-scoped auto-allow grant from a mobile `control` device. Desktop revokes through
+     * `session.revokePermissionAutoAllow` instead, since it is not a paired device.
+     */
+    'mobile.attention.autoAllowRevoke': {
+        ...commandPolicy('server', 'control', ['terminals.steer']),
+        params: z.strictObject({ sessionId: identifierSchema }),
+        result: permissionAutoAllowStatusSchema,
     },
     'mobile.agent.submit': {
         ...commandPolicy('server', 'control', ['terminals.steer']),
@@ -648,6 +665,13 @@ export const mobileInternalMethods = {
         ...commandPolicy('server', 'control'),
         params: mobileAttentionAnswerParametersSchema.extend({ principal: principalSchema }),
         result: mobileMethods['mobile.attention.answer'].result,
+    },
+    'mobile.attention.autoAllowRevokeInternal': {
+        ...commandPolicy('server', 'control'),
+        params: mobileMethods['mobile.attention.autoAllowRevoke'].params.extend({
+            principal: principalSchema,
+        }),
+        result: mobileMethods['mobile.attention.autoAllowRevoke'].result,
     },
     'mobile.changes.listInternal': {
         ...commandPolicy('server', 'read'),

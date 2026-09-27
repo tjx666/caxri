@@ -6,7 +6,12 @@ import type { ThemeTokens } from '@caxri/protocol';
 import { draculaTheme } from '@caxri/protocol';
 
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
-import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
+import {
+    createProjectSession,
+    launchCaxri,
+    openSettingsTab,
+    pageRequest,
+} from './support/helpers.ts';
 
 test('VS Code theme import updates editor syntax and reports missing syntax rules', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-theme-import-e2e-'));
@@ -61,9 +66,13 @@ test('VS Code theme import updates editor syntax and reports missing syntax rule
         );
         await createProjectSession(running.page);
         await running.page.getByRole('treeitem', { name: 'sample.ts', exact: true }).click();
+        // The preview tab activates once its file loads; open Settings only after that, or the late preview
+        // activation would put `sample.ts` back in front of the new Settings tab.
+        await expect(
+            running.page.locator('.view-line').filter({ hasText: '// note' }),
+        ).toBeVisible();
 
-        await running.page.keyboard.press('Meta+,');
-        let settings = running.page.getByRole('dialog');
+        let settings = await openSettingsTab(running.page);
         await settings.getByRole('tab', { name: 'Theme', exact: true }).click();
         await settings.getByRole('button', { name: 'Import Theme' }).click();
         await expect(settings.getByText('Semantic token colors were not imported.')).toBeVisible();
@@ -81,7 +90,10 @@ test('VS Code theme import updates editor syntax and reports missing syntax rule
                 },
                 terminal: { selectionBackground: '#55667788' },
             });
-        await running.page.keyboard.press('Escape');
+        // Settings is a Workbench tab now, not a modal (issue caxri#1289), and it occupies the
+        // same pane the `sample.ts` editor tab does: close it outright so that editor tab is the
+        // active one again for the syntax-color assertions below.
+        await running.page.keyboard.press('Meta+w');
         await expect(settings).toHaveCount(0);
 
         const comment = running.page.locator('.view-line').filter({ hasText: '// note' });
@@ -101,8 +113,7 @@ test('VS Code theme import updates editor syntax and reports missing syntax rule
             'rgb(34, 51, 68)',
         );
 
-        await running.page.keyboard.press('Meta+,');
-        settings = running.page.getByRole('dialog');
+        settings = await openSettingsTab(running.page);
         await settings.getByRole('tab', { name: 'Theme', exact: true }).click();
         await settings.getByRole('button', { name: 'Import Theme' }).click();
         await expect(settings.getByText('Syntax colors were not imported.')).toBeVisible();
@@ -142,8 +153,7 @@ test('theme import warnings can be dismissed and do not return after restart', a
             dialog.showOpenDialog = () => Promise.resolve({ canceled: false, filePaths: [path] });
         }, themePath);
         await createProjectSession(running.page);
-        await running.page.keyboard.press('Meta+,');
-        const settings = running.page.getByRole('dialog');
+        const settings = await openSettingsTab(running.page);
         await settings.getByRole('tab', { name: 'Theme', exact: true }).click();
         await settings.getByRole('button', { name: 'Import Theme' }).click();
         const warning = settings
@@ -166,8 +176,7 @@ test('theme import warnings can be dismissed and do not return after restart', a
         await running.app.close();
         isFirstClosed = true;
         restarted = await launchCaxri({ userDataDir: userData, testRootPath: root });
-        await restarted.page.keyboard.press('Meta+,');
-        const reopened = restarted.page.getByRole('dialog');
+        const reopened = await openSettingsTab(restarted.page);
         await reopened.getByRole('tab', { name: 'Theme', exact: true }).click();
         await expect(reopened.getByText('Semantic token colors were not imported.')).toHaveCount(0);
         expect(
@@ -182,8 +191,8 @@ test('theme import warnings can be dismissed and do not return after restart', a
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires object destructuring for its fixture argument
 test('theme import contrast failure names the color roles and measured ratio', async ({}, testInfo) => {
-    // No `ERROR_TOAST`: the failure is now reported inside the Settings dialog, so the only error that still crosses a
-    // process boundary is Server Core rejecting the theme.
+    // No `ERROR_TOAST`: the failure is reported inline in the Settings Workbench tab (issue caxri#1289), so the
+    // only error that still crosses a process boundary is Server Core rejecting the theme.
     allowE2EErrors([
         { source: 'server-core', event: 'ipc.request_failed', code: 'VALIDATION', count: 1 },
     ]);
@@ -205,13 +214,12 @@ test('theme import contrast failure names the color roles and measured ratio', a
         }, themePath);
         await createProjectSession(running.page);
         const before = await pageRequest<{ value: ThemeTokens }>(running.page, 'theme.get');
-        await running.page.keyboard.press('Meta+,');
-        const settings = running.page.getByRole('dialog');
+        const settings = await openSettingsTab(running.page);
         await settings.getByRole('tab', { name: 'Theme', exact: true }).click();
         await settings.getByRole('button', { name: 'Import Theme' }).click();
 
-        // Reported inside the dialog rather than as a toast: the dialog's focus trap keeps a toast out of Tab order,
-        // so the one surface that can act on the failure could not reach the message describing it.
+        // Reported inline in the tab rather than as a toast: the failure is specific to the edit the
+        // user is mid-way through here, so it belongs next to the control that caused it.
         const failure = settings.getByRole('alert').filter({ hasText: 'Theme import failed.' });
         await expect(failure).toContainText(
             '--muted has 1.00:1 contrast against --background; at least 4.5:1 is required.',

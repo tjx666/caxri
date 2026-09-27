@@ -10,6 +10,7 @@ import {
     createAdditionalShellSession,
     createProjectSession,
     launchCaxri,
+    openSettingsTab,
     pressNewTerminal,
     selectedSessionId,
     sessionCard,
@@ -307,20 +308,25 @@ test('Overlay popups animate with --motion-overlay-enter/--motion-overlay-exit t
         const enterMs = await motionTokenMs(running.page, '--motion-overlay-enter');
         const exitMs = await motionTokenMs(running.page, '--motion-overlay-exit');
 
-        await running.page.keyboard.press('Meta+,');
+        // Settings itself stopped being an animated overlay Dialog (issue caxri#1289): it is
+        // a persistent Workbench tab now, with no `data-open`/`data-closed` popup lifecycle to
+        // probe. The Archived Sessions manager, opened from a row inside Settings, is still a real
+        // Dialog built on the same shared overlay primitive and motion tokens, so it stands in here
+        // for the generic `--motion-overlay-enter`/`-exit` contract — nothing below depends on what
+        // the dialog's own content is.
+        const settingsTab = await openSettingsTab(running.page);
+        await settingsTab.locator('.archived-sessions-entry').click();
+        // The manager floats over Settings rather than closing it first: Settings is a Workbench
+        // tab now, not a dialog, so there is no modal layer underneath it to clear.
+        await expect(settingsTab).toBeVisible();
         const dialogPopup = running.page.getByRole('dialog');
-        await expect(dialogPopup).toContainText('Settings');
+        await expect(dialogPopup).toContainText('Archived Sessions');
         await expect(dialogPopup).toHaveAttribute('data-open', '');
         expect(await animationNameOf(dialogPopup)).toBe('enter');
         expect(await animationDurationMs(dialogPopup)).toBe(enterMs);
 
-        // Close through the dialog's own Close button rather than Escape: the just-created
-        // Session leaves its Terminal focused (`e2e/settings-parallel-safe.e2e.ts`'s
-        // "Settings shortcut opens while Terminal input has focus" documents that opening Settings
-        // via the keyboard shortcut does not steal focus into the dialog), so Escape would be
-        // delivered to the Terminal instead of the dialog and never close it.
         await startOverlayExitProbe(dialogPopup);
-        await dialogPopup.getByRole('button', { name: 'Close' }).click();
+        await dialogPopup.getByRole('button', { name: 'Close', exact: true }).click();
         /**
          * Base UI exposes `data-closed` only during the exit animation. The browser-side probe records that state and
          * both computed animation fields atomically before the popup unmounts.
@@ -328,7 +334,7 @@ test('Overlay popups animate with --motion-overlay-enter/--motion-overlay-exit t
         const exitAnimation = await pollUntil(
             () => overlayExitAnimationOf(running.page),
             (state) => state.closed && state.name === 'exit' && state.durationMs === exitMs,
-            { message: 'Settings dialog exit animation', timeout: exitMs + 2_000 },
+            { message: 'Archived Sessions dialog exit animation', timeout: exitMs + 2_000 },
         );
         expect(exitAnimation).toEqual({ closed: true, durationMs: exitMs, name: 'exit' });
         await expect(dialogPopup).toHaveCount(0, { timeout: exitMs + 2_000 });
@@ -414,11 +420,16 @@ test('prefers-reduced-motion disables the overlay keyframe animation', async () 
         await running.page.emulateMedia({ reducedMotion: 'reduce' });
         await settleMediaPreference(running.page);
 
-        await running.page.keyboard.press('Meta+,');
+        // Settings itself stopped being an animated overlay Dialog (issue caxri#1289); see the
+        // comment on the equivalent step above for why the Archived Sessions manager, opened from a
+        // row inside Settings, stands in here for the generic overlay keyframe contract instead.
+        const settingsTab = await openSettingsTab(running.page);
+        await settingsTab.locator('.archived-sessions-entry').click();
+        await expect(settingsTab).toBeVisible();
         const dialogPopup = running.page.getByRole('dialog');
         await expect(dialogPopup).toBeVisible();
         expect(await animationNameOf(dialogPopup)).toBe('none');
-        await dialogPopup.getByRole('button', { name: 'Close' }).click();
+        await dialogPopup.getByRole('button', { name: 'Close', exact: true }).click();
         await expect(dialogPopup).toHaveCount(0);
     } finally {
         try {

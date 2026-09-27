@@ -4,7 +4,7 @@ import type {
     ProjectRecord,
     ProjectStatusOverview,
 } from '@caxri/protocol';
-import { isExternalEditorTabPath, parseGitDiffTab } from '@caxri/protocol';
+import { isExternalEditorTabPath, isSettingsTabPath, parseGitDiffTab } from '@caxri/protocol';
 import { Monitor } from 'lucide-react';
 
 import { useContainerWidth } from '@/hooks/use-container-width';
@@ -23,6 +23,7 @@ import { ActiveTerminalStatus } from './active-terminal-status';
 import { BranchPicker } from './branch-picker';
 import type { ChipVisibility } from './chip-priority';
 import { resolveChipVisibility } from './chip-priority';
+import { PermissionAutoAllowChip } from './permission-auto-allow-chip';
 import { RemoteDebuggingChip } from './remote-debugging-chip';
 import { RepoStatusChips } from './repo-status-chips';
 import { ScreencastModeChip } from './screencast-mode-chip';
@@ -123,6 +124,7 @@ function ActivePaneStatus({
         session &&
         activeResource?.kind === 'file' &&
         !isExternalEditorTabPath(activeResource.path) &&
+        !isSettingsTabPath(activeResource.path) &&
         !parseGitDiffTab(activeResource.path)
     )
         return (
@@ -245,6 +247,7 @@ export function StatusBar() {
                 <UpdateStatusChip />
                 <RemoteDebuggingChip />
                 <ScreencastModeChip />
+                <PermissionAutoAllowChip />
                 <ActivePaneStatus
                     showChildProcessCount={chipVisibility.childProcessCount}
                     showMemory={chipVisibility.memory}

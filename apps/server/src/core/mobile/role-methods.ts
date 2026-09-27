@@ -67,6 +67,11 @@ const mobileGatewayMethodsByRole = {
         'mobile.project.add',
         'mobile.files.write',
         'mobile.attention.answer',
+        /**
+         * "Always allow in this Session" (issue caxri#1295) is control-only, matching `mobile.attention.answer`'s grant
+         * path; `view` and `reply` devices keep their read-only rules.
+         */
+        'mobile.attention.autoAllowRevoke',
         ...mobileReadOnlyPanelMethods,
     ],
 } as const satisfies Record<MobileDeviceRole, readonly string[]>;

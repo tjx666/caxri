@@ -9,6 +9,7 @@ import { expect, test } from './support/fixtures.ts';
 import {
     createProjectSession,
     launchCaxri,
+    openSettingsTab,
     pageRequest,
     revealSettingsSection,
 } from './support/helpers.ts';
@@ -92,11 +93,12 @@ test('matched parsed Agent output sends delayed Esc and continue when recovery i
     });
     const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
     try {
-        await running.page.keyboard.press('Meta+,');
-        const dialog = running.page.getByRole('dialog');
-        await revealSettingsSection(dialog, 'Claude Code');
-        await dialog.getByRole('switch', { name: 'Claude Code network error recovery' }).check();
-        const patterns = dialog.getByLabel('Claude Code additional ending output patterns');
+        const settingsTab = await openSettingsTab(running.page);
+        await revealSettingsSection(settingsTab, 'Claude Code');
+        await settingsTab
+            .getByRole('switch', { name: 'Claude Code network error recovery' })
+            .check();
+        const patterns = settingsTab.getByLabel('Claude Code additional ending output patterns');
         await patterns.fill(
             'API Error: The response stopped arriving. The response above may be incomplete.',
         );
@@ -109,7 +111,7 @@ test('matched parsed Agent output sends delayed Esc and continue when recovery i
                 ],
             });
 
-        const settleDelay = dialog.getByLabel('Claude Code Wait before Esc');
+        const settleDelay = settingsTab.getByLabel('Claude Code Wait before Esc');
         await settleDelay.fill('250');
         await settleDelay.blur();
         await expect
@@ -118,7 +120,7 @@ test('matched parsed Agent output sends delayed Esc and continue when recovery i
                 settleDelayMs: 250,
             });
 
-        const continueDelay = dialog.getByLabel('Claude Code Wait before Continue');
+        const continueDelay = settingsTab.getByLabel('Claude Code Wait before Continue');
         await continueDelay.fill('250');
         await continueDelay.blur();
 
@@ -132,7 +134,9 @@ test('matched parsed Agent output sends delayed Esc and continue when recovery i
                 settleDelayMs: 250,
                 continueDelayMs: 250,
             });
-        await dialog.getByRole('button', { name: 'Close' }).click();
+        // Settings is a Workbench tab now, not a modal (issue caxri#1289): `Cmd+W` closes it
+        // outright — there is no "Close" button to click anymore.
+        await running.page.keyboard.press('Meta+w');
 
         await createProjectSession(running.page, 'claude');
         await expect(running.page.locator('.xterm-rows')).toContainText(
@@ -147,7 +151,7 @@ test('matched parsed Agent output sends delayed Esc and continue when recovery i
             ),
         ).toBeVisible();
         await running.page.getByRole('button', { name: 'Open Settings' }).click();
-        await expect(running.page.getByRole('dialog')).toBeVisible();
+        await expect(running.page.locator('[data-settings-page]')).toBeVisible();
     } finally {
         try {
             await running.app.close();
@@ -184,21 +188,22 @@ test('Claude Code capacity stop uses the built-in recovery rule with no custom p
     });
     const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
     try {
-        await running.page.keyboard.press('Meta+,');
-        const dialog = running.page.getByRole('dialog');
-        await revealSettingsSection(dialog, 'Claude Code');
-        await dialog.getByRole('switch', { name: 'Claude Code network error recovery' }).check();
+        const settingsTab = await openSettingsTab(running.page);
+        await revealSettingsSection(settingsTab, 'Claude Code');
+        await settingsTab
+            .getByRole('switch', { name: 'Claude Code network error recovery' })
+            .check();
         await expect(
-            dialog.getByLabel('Claude Code additional ending output patterns'),
+            settingsTab.getByLabel('Claude Code additional ending output patterns'),
         ).toHaveValue('');
         await expect(
-            dialog.getByText('No additional patterns configured.', { exact: true }),
+            settingsTab.getByText('No additional patterns configured.', { exact: true }),
         ).toBeVisible();
 
-        const settleDelay = dialog.getByLabel('Claude Code Wait before Esc');
+        const settleDelay = settingsTab.getByLabel('Claude Code Wait before Esc');
         await settleDelay.fill('250');
         await settleDelay.blur();
-        const continueDelay = dialog.getByLabel('Claude Code Wait before Continue');
+        const continueDelay = settingsTab.getByLabel('Claude Code Wait before Continue');
         await continueDelay.fill('250');
         await continueDelay.blur();
         await expect
@@ -209,7 +214,9 @@ test('Claude Code capacity stop uses the built-in recovery rule with no custom p
                 settleDelayMs: 250,
                 continueDelayMs: 250,
             });
-        await dialog.getByRole('button', { name: 'Close' }).click();
+        // Settings is a Workbench tab now, not a modal (issue caxri#1289): `Cmd+W` closes it
+        // outright — there is no "Close" button to click anymore.
+        await running.page.keyboard.press('Meta+w');
 
         await createProjectSession(running.page, 'claude');
         await expect(running.page.locator('.xterm-rows')).toContainText(capacityMessage);

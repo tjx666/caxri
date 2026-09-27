@@ -13,6 +13,7 @@ import { expect, test } from './support/fixtures.ts';
 import {
     createShellSession,
     launchCaxri,
+    openSettingsTab,
     pageRequest,
     revealSettingsSection,
 } from './support/helpers.ts';
@@ -384,11 +385,10 @@ test('shares settings across an app-managed Server and Desktop', async () => {
             testRootPath: root,
         });
         await createShellSession(running.page);
-        await running.page.keyboard.press('Meta+,');
         // Settings rows are virtualized, so reveal the Terminal section before querying its switch.
-        const settingsDialog = running.page.getByRole('dialog');
-        await revealSettingsSection(settingsDialog, 'Terminal');
-        const clipboardSetting = settingsDialog.getByRole('switch', {
+        const settingsTab = await openSettingsTab(running.page);
+        await revealSettingsSection(settingsTab, 'Terminal');
+        const clipboardSetting = settingsTab.getByRole('switch', {
             name: 'Allow OSC 52 clipboard writes',
         });
         await expect(clipboardSetting).not.toBeChecked();

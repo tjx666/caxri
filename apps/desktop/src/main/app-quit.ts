@@ -1,11 +1,21 @@
+import type { GitReviewPendingSummary } from '@caxri/protocol';
 import { errorMessage, toWireError } from '@caxri/protocol';
 import type { BrowserWindow, Dialog } from 'electron';
+
+import type { DesktopServerConnection } from './server-connection';
 
 export type AppQuitDecision = 'cancel' | 'keep-running' | 'stop';
 export type AppQuitOutcome = 'cancelled' | 'kept-running' | 'stop-failed' | 'stopped';
 export type AppQuitIntent = 'relaunch' | 'system-shutdown' | 'user';
 type AppQuitFailureStage =
-    'decision' | 'detach' | 'disconnect' | 'notification' | 'persist' | 'status' | 'stop';
+    | 'decision'
+    | 'detach'
+    | 'disconnect'
+    | 'notification'
+    | 'persist'
+    | 'reviewComments'
+    | 'status'
+    | 'stop';
 
 export interface AppQuitImpact {
     activePtyCount: number;
@@ -16,12 +26,24 @@ export interface AppQuitOptions {
     acceptQuit: () => void;
     closeDesktop: () => Promise<void>;
     confirm: (impact: AppQuitImpact) => Promise<AppQuitDecision>;
+    /**
+     * Only asked when {@link AppQuitOptions.readPendingReviewComments} reports at least one pending comment: see
+     * `docs/git-diff-review.md` for why quitting loses them.
+     */
+    confirmPendingReviewComments: (
+        summary: GitReviewPendingSummary,
+    ) => Promise<'cancel' | 'discard'>;
     detachAll: () => Promise<unknown>;
     exit: () => void;
     logFailure: (level: 'error' | 'warn', stage: AppQuitFailureStage, message: string) => void;
     notifyStopFailure: () => Promise<void>;
     persistWindowState: () => Promise<void>;
     quitIntent: () => AppQuitIntent;
+    /**
+     * Read fail-open: an unreachable Server during quit must not block quitting on a reminder about data that Server
+     * loss may have already lost anyway.
+     */
+    readPendingReviewComments: () => Promise<GitReviewPendingSummary>;
     readStatus: () => Promise<{ activePtyCount: number; clientCount: number }>;
     /**
      * Stops Server Core and owns disposal of the Desktop attachment so a closing transport cannot start recovery.
@@ -84,6 +106,76 @@ export async function confirmAppQuit(
     return result.response === 2 ? 'cancel' : result.response === 1 ? 'keep-running' : 'stop';
 }
 
+export interface PendingReviewCommentsPrompt {
+    buttons: [string, string];
+    cancelId: number;
+    defaultId: number;
+    detail: string;
+    message: string;
+    title: string;
+    type: 'warning';
+}
+
+/**
+ * A separate, smaller warning from {@link appQuitPrompt}: it asks whether to lose local-only Git review comment drafts
+ * (issue caxri#1294), not whether to stop running Terminal/Agent processes, so it gets its own two-button prompt
+ * instead of overloading the three-button task prompt with an unrelated decision.
+ */
+export function pendingReviewCommentsPrompt(
+    summary: GitReviewPendingSummary,
+): PendingReviewCommentsPrompt {
+    const repoCount = summary.groups.length;
+    return {
+        type: 'warning',
+        title: 'Quit with pending review comments?',
+        message: `${summary.count} pending review ${plural(summary.count, 'comment')} will be lost.`,
+        detail: `Review comments live in memory only and do not survive quitting Caxri. ${repoCount} ${plural(
+            repoCount,
+            'repository',
+            'repositories',
+        )} ${repoCount === 1 ? 'has' : 'have'} unsent comments.`,
+        buttons: ['Quit Anyway', 'Cancel'],
+        /**
+         * Cancel stays the default, matching `appQuitPrompt`'s own reasoning: a mistaken Enter should recoverably keep
+         * the comments around rather than discard them.
+         */
+        defaultId: 1,
+        cancelId: 1,
+    };
+}
+
+export async function confirmPendingReviewCommentsQuit(
+    dialog: Dialog,
+    window: BrowserWindow | undefined,
+    summary: GitReviewPendingSummary,
+): Promise<'cancel' | 'discard'> {
+    const prompt = pendingReviewCommentsPrompt(summary);
+    const result =
+        window && !window.isDestroyed()
+            ? await dialog.showMessageBox(window, prompt)
+            : await dialog.showMessageBox(prompt);
+    return result.response === prompt.cancelId ? 'cancel' : 'discard';
+}
+
+/**
+ * One composition entry point for the two pending-review-comments `AppQuitOptions` fields, so the caller's own
+ * `createAppQuitHandler({...})` literal only needs to spread this instead of writing both out itself. Takes a
+ * `DesktopServerConnection` getter (rather than a `readPendingReviewComments` callback) so the call fits on one line; a
+ * getter, not the connection itself, because the caller's `supervisor` binding is assigned after this composition
+ * runs.
+ */
+export function createReviewCommentsQuitOptions(
+    dialog: Dialog,
+    window: BrowserWindow | undefined,
+    getServer: () => DesktopServerConnection,
+): Pick<AppQuitOptions, 'confirmPendingReviewComments' | 'readPendingReviewComments'> {
+    return {
+        confirmPendingReviewComments: (summary) =>
+            confirmPendingReviewCommentsQuit(dialog, window, summary),
+        readPendingReviewComments: () => getServer().request('gitReview.pending', {}),
+    };
+}
+
 export async function notifyAppQuitStopFailure(
     dialog: Dialog,
     window: BrowserWindow | undefined,
@@ -113,7 +205,7 @@ function reportFailure(
      */
     const level =
         (code === 'CANCELLED' || code === 'UNAVAILABLE') &&
-        ['detach', 'disconnect', 'persist', 'status'].includes(stage)
+        ['detach', 'disconnect', 'persist', 'reviewComments', 'status'].includes(stage)
             ? 'warn'
             : 'error';
     options.logFailure(level, stage, message);
@@ -133,8 +225,36 @@ async function attempt(
     }
 }
 
+/**
+ * Fail-open on every path except an explicit Cancel: an unreachable Server, or a summary with nothing pending, must
+ * never block the rest of {@link decideAppQuit} from running its own (independent) decision.
+ */
+async function decidePendingReviewComments(
+    options: AppQuitOptions,
+): Promise<'cancel' | 'continue'> {
+    let summary: GitReviewPendingSummary;
+    try {
+        summary = await options.readPendingReviewComments();
+    } catch (error) {
+        reportFailure(options, 'reviewComments', error);
+        return 'continue';
+    }
+    if (summary.count === 0) return 'continue';
+
+    try {
+        return (await options.confirmPendingReviewComments(summary)) === 'cancel'
+            ? 'cancel'
+            : 'continue';
+    } catch (error) {
+        reportFailure(options, 'reviewComments', error);
+        return 'continue';
+    }
+}
+
 async function decideAppQuit(options: AppQuitOptions): Promise<AppQuitDecision> {
     if (options.quitIntent() !== 'user') return 'keep-running';
+
+    if ((await decidePendingReviewComments(options)) === 'cancel') return 'cancel';
 
     let status: { activePtyCount: number; clientCount: number };
     try {

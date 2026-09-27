@@ -6,7 +6,6 @@ describe('modal registration', () => {
     beforeEach(() => {
         useDialogStore.setState({
             archivedSessionsOpen: false,
-            settingsOpen: false,
             paletteOpen: false,
             pathBrowserOpen: false,
             pendingRoot: undefined,

@@ -457,24 +457,21 @@ esac
             name: 'feat: add the status rollup, preview · passed · project-8ykp416o7-tjx666.vercel.app',
             exact: true,
         });
-        // Only the commit subject and its short SHA: no message body, and no alias the reader cannot parse.
+        // Only the commit subject and its short SHA: no message body, and no alias the reader cannot parse. The
+        // description also names the environment as text now (#1291) — a Preview and a Production row for the
+        // same commit used to be told apart only by an unlabelled trailing glyph.
         await expect(successfulDeployment).toContainText('feat: add the status rollup');
         await expect(successfulDeployment).toContainText('a1b2c3d');
+        await expect(successfulDeployment).toContainText('Preview');
         await expect(successfulDeployment).not.toContainText('Body the row never shows');
         await expect(successfulDeployment).not.toContainText('vercel.app');
-        await expect(successfulDeployment).not.toContainText('preview');
-        await expect(
-            successfulDeployment.locator('[data-theme-icon="deployment-preview"]'),
-        ).toBeVisible();
         await expect(successfulDeployment.locator('[data-theme-icon="eye-off"]')).toHaveCount(0);
         await expect(
-            tree
-                .getByRole('treeitem', {
-                    name: 'chore: bump the deploy target, production · queued · project-queued-tjx666.vercel.app',
-                    exact: true,
-                })
-                .locator('[data-theme-icon="circle-arrow-up"]'),
-        ).toBeVisible();
+            tree.getByRole('treeitem', {
+                name: 'chore: bump the deploy target, production · queued · project-queued-tjx666.vercel.app',
+                exact: true,
+            }),
+        ).toContainText('Production');
         await expect(successfulDeployment).not.toContainText('passed');
         const originalViewport = running.page.viewportSize();
         await running.page.setViewportSize({ width: 800, height: 720 });
@@ -488,7 +485,7 @@ esac
         await running.page.mouse.move(deploymentPointer.x, deploymentPointer.y);
         const richTooltip = running.page.locator('.tree-item-rich-tooltip:visible');
         await expect(richTooltip).toBeVisible();
-        await expect(richTooltip).toContainText('preview');
+        await expect(richTooltip).toContainText('Preview');
         await expect(richTooltip).toContainText('passed');
         await expect(richTooltip).toContainText('commit:');
         await expect(richTooltip).toContainText('author:');

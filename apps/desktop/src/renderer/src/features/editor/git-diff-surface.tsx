@@ -18,7 +18,7 @@ import { observeGitEditorContentHeight } from './git-diff-model-lifecycle';
 import { GitMonacoDiffEditor } from './git-monaco-diff-editor';
 import { initialStackedEditorHeight, maxStackedEditorHeight } from './git-multi-diff-viewport';
 import { bindGitReviewCommentEditor } from './git-review-comment-binding';
-import { useGitReviewComments } from './git-review-comments';
+import { refreshGitReviewComments } from './git-review-comment-commands';
 import { GitSingleDiffEditor } from './git-single-diff-editor';
 
 /**
@@ -62,8 +62,8 @@ export function GitDiffSurface({
     const editorOptions = useEditorOptions();
     useEffect(() => {
         if (document.format !== 'contents') return;
-        const review = useGitReviewComments.getState();
-        review.refresh(
+        // eslint-disable-next-line no-void -- floating-promise discard: outdated status refetches via `gitReview.changed`
+        void refreshGitReviewComments(
             sessionId,
             repositoryId,
             sourceKey,
@@ -71,7 +71,8 @@ export function GitDiffSurface({
             'modified',
             document.modified,
         );
-        review.refresh(
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+        void refreshGitReviewComments(
             sessionId,
             repositoryId,
             sourceKey,

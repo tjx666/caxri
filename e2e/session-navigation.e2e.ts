@@ -92,15 +92,19 @@ test('Session history navigates back and forward from the PrimarySidebar header 
 
         /**
          * A global gesture must stand down behind a modal: switching the Session underneath an open dialog would leave
-         * that dialog editing a Session the user can no longer see.
+         * that dialog editing a Session the user can no longer see. Settings itself stopped being a modal (issue
+         * caxri#1289: it is a Workbench document tab now, scoped to its own Session's pane, so it is meant to move out
+         * of view with a Session switch exactly like any other tab). The Archived Sessions manager is still a real
+         * `Dialog` reachable straight from the PrimarySidebar, so it stands in here as the modal this gesture must
+         * still stand down behind.
          */
         // Re-selecting the Session already on screen is a no-op that leaves the shortcut a non-editable focus target.
         await sessionCard(running.page, sessionA).click();
-        await running.page.keyboard.press('Meta+,');
-        const settingsDialog = running.page.getByRole('dialog');
-        await expect(settingsDialog).toBeVisible();
+        await running.page.locator('aside .archived-sessions-entry').click();
+        const archivedDialog = running.page.getByRole('dialog');
+        await expect(archivedDialog).toBeVisible();
         await pressSideButton('back');
-        await expect(settingsDialog).toBeVisible();
+        await expect(archivedDialog).toBeVisible();
 
         /**
          * `session.select` is serialized by the Runtime while `app.bootstrap` is not, so reading the selection straight
@@ -118,8 +122,10 @@ test('Session history navigates back and forward from the PrimarySidebar header 
             ),
         ).toBeVisible();
 
+        // Base UI's own Dialog handles Escape internally, outside the app's `runCommand`/`isModalOpen` gate, so this
+        // still closes the dialog even though it is the very thing that gate is guarding against.
         await running.page.keyboard.press('Escape');
-        await expect(settingsDialog).toBeHidden();
+        await expect(archivedDialog).toBeHidden();
         await pressSideButton('back');
         await expect.poll(() => selectedSessionId(running.page)).toBe(sessionA);
     } finally {

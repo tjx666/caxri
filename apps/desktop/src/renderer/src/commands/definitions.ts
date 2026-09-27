@@ -350,6 +350,17 @@ export const commandDefinitions: CommandDefinition[] = [
     fromCatalog('git.switchBranch', (context) => context.git.switchBranch(), {
         when: (context) => context.git.canSwitchBranch(),
     }),
+    fromCatalog('git.goToNextReviewComment', (context) => context.git.goToNextReviewComment(), {
+        when: (context) => context.git.canGoToReviewComment(),
+    }),
+    fromCatalog(
+        'git.goToPreviousReviewComment',
+        (context) => context.git.goToPreviousReviewComment(),
+        { when: (context) => context.git.canGoToReviewComment() },
+    ),
+    fromCatalog('git.showPendingReviewComments', (context) =>
+        context.git.showPendingReviewComments(),
+    ),
 ];
 
 for (const definition of commandDefinitions) registerCommand(definition);
