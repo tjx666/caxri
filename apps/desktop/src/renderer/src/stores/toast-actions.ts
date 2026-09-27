@@ -103,21 +103,23 @@ export interface ToastActionHandler<Id extends ToastActionId> {
 export type ToastActionHandlers = { [Id in ToastActionId]: ToastActionHandler<Id> };
 
 /**
- * The answer when the handlers were never installed. Reachable only if a notification is raised before the module graph
- * that owns the handlers has evaluated; it fails closed rather than rendering a button that does nothing. It does not
- * claim the follow-up is gone — nothing was checked — only that this window could not perform it.
+ * The answer when this window has no handler for a follow-up: a notification raised before the module graph that owns
+ * the handlers has evaluated, or a follow-up that belongs to another window. It fails closed rather than rendering a
+ * button that does nothing. It does not claim the follow-up is gone — nothing was checked — only that this window could
+ * not perform it.
  */
 export const UNKNOWN_TOAST_ACTION_REASON = 'Caxri could not run this action.';
 
-const installed: { handlers?: ToastActionHandlers } = {};
+const installed: { handlers?: Partial<ToastActionHandlers> } = {};
 
 /**
- * Installs what each follow-up actually does.
+ * Installs what each follow-up actually does. The Workbench installs every handler; a narrower window installs only the
+ * follow-ups its own surfaces raise.
  *
  * The behavior lives outside this store because the store may not import feature modules — the Renderer forbids the
  * import cycle that would create — while the features that raise notifications all import the store.
  */
-export function configureToastActions(handlers: ToastActionHandlers): void {
+export function configureToastActions(handlers: Partial<ToastActionHandlers>): void {
     installed.handlers = handlers;
 }
 

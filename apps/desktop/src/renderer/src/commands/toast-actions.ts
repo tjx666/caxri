@@ -7,11 +7,8 @@ import {
     openHardwareAccelerationSettings,
 } from '../features/gpu/gpu-commands';
 import { unarchiveSession } from '../features/session/session-commands';
-import {
-    createTerminalForSession,
-    refreshTerminalState,
-    restartTerminalWithRecovery,
-} from '../features/terminal/terminal-commands';
+import { createTerminalForSession } from '../features/terminal/terminal-commands';
+import { terminalToastActionHandlers } from '../features/terminal/terminal-toast-actions';
 import { showUpdateDialog } from '../features/updates/update-commands';
 import { openSettings } from '../stores/dialogs';
 import { getBootstrap } from '../stores/selectors';
@@ -72,22 +69,7 @@ export const toastActionHandlers: ToastActionHandlers = {
             void createTerminalForSession(sessionId, kind, { cwd, paneId, split });
         },
     },
-    'terminal.refresh': { run: refreshTerminalState },
-    'terminal.restart': {
-        /**
-         * Restart replaces a live PTY, so this asks two questions, not one. The Terminal must still be open, and it
-         * must still be running the process the failure was about: a different one means somebody already restarted it,
-         * and retrying then would kill work that is running right now.
-         */
-        unavailable: ({ processId, terminalId }) => {
-            const terminal = getBootstrap()?.terminals.find((entry) => entry.id === terminalId);
-            if (!terminal) return 'That Terminal is no longer open.';
-            return terminal.processId === processId
-                ? undefined
-                : 'That Terminal has already been restarted.';
-        },
-        run: ({ terminalId }) => restartTerminalWithRecovery(terminalId),
-    },
+    ...terminalToastActionHandlers,
     'updates.show': { run: showUpdateDialog },
     'workbench.undoFollowedRoot': {
         /**
