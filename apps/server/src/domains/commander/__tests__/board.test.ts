@@ -154,4 +154,53 @@ describe('Commander board grouping', () => {
         expect(board.rows[2]).toMatchObject({ agent: null, commanderSession: false });
         expect(board.rows[2]).not.toHaveProperty('task');
     });
+
+    it('shows the head of each task chain, preferring an unsettled task over a newer settled one', () => {
+        const board = commanderBoard({
+            commanderSessionIds: new Set(['session-1', 'session-2']),
+            now: NOW,
+            projects: [project],
+            pullRequests: { pullRequests: {}, refreshedAt: 0 },
+            sessions: [session({ id: 'session-1' }), session({ id: 'session-2' })],
+            tasks: [
+                task({
+                    delegationId: 'asked',
+                    sessionId: 'session-1',
+                    status: 'blocked',
+                    createdAt: 1,
+                }),
+                task({
+                    delegationId: 'answer',
+                    sessionId: 'session-1',
+                    followUpOf: 'asked',
+                    createdAt: 2,
+                }),
+                task({
+                    delegationId: 'side',
+                    sessionId: 'session-1',
+                    status: 'completed',
+                    createdAt: 3,
+                }),
+                task({
+                    delegationId: 'stuck',
+                    sessionId: 'session-2',
+                    status: 'blocked',
+                    createdAt: 1,
+                }),
+                task({
+                    delegationId: 'failed',
+                    sessionId: 'session-2',
+                    status: 'failed',
+                    createdAt: 2,
+                }),
+            ],
+            terminals: [],
+        });
+
+        expect(
+            Object.fromEntries(
+                board.rows.map(({ sessionId, task }) => [sessionId, task?.delegationId]),
+            ),
+        ).toEqual({ 'session-1': 'answer', 'session-2': 'stuck' });
+    });
 });

@@ -178,7 +178,8 @@ export function commanderPullRequestBadge(
 
 /**
  * The task label collapses the delegation lifecycle into what the user acts on. Only a task that needs someone is
- * tinted: a blocked task waits for the Commander (or the user) to answer, and a failed one must be retried.
+ * tinted: a blocked task waits for an answer (usually the Commander's), and a failed one must be retried. `completed`
+ * reads `Answered`, not `Done`: it means the Agent gave its final answer, which the Commander still has to verify.
  */
 const TASK_PRESENTATION: Record<
     AgentDelegationReceipt['status'],
@@ -186,9 +187,9 @@ const TASK_PRESENTATION: Record<
 > = {
     answer_unavailable: { label: 'Failed', tone: 'danger' },
     awaiting_ready: { label: 'Starting', tone: 'neutral' },
-    blocked: { label: 'Needs input', tone: 'warning' },
+    blocked: { label: 'Blocked', tone: 'warning' },
     collecting: { label: 'Running', tone: 'neutral' },
-    completed: { label: 'Done', tone: 'neutral' },
+    completed: { label: 'Answered', tone: 'neutral' },
     failed: { label: 'Failed', tone: 'danger' },
     human_intervened: { label: 'Taken over', tone: 'neutral' },
     interrupted: { label: 'Stopped', tone: 'neutral' },
@@ -208,7 +209,7 @@ interface CommanderTaskBadge {
 }
 
 /**
- * The latest Commander task in a row's Session, or nothing when the Commander never delegated there.
+ * The current Commander task in a row's Session, or nothing when the Commander never delegated there.
  */
 export function commanderTaskBadge(
     task: CommanderBoardRow['task'],
@@ -218,7 +219,7 @@ export function commanderTaskBadge(
     const reason = task.failure ? ` (${task.failure.replaceAll('_', ' ')})` : '';
     return {
         label,
-        title: `Latest Commander task ${task.delegationId}: ${label}${reason}`,
+        title: `Commander task ${task.delegationId}: ${label}${reason}`,
         toneClassName: TONE_TEXT_CLASSNAME[tone],
     };
 }

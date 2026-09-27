@@ -211,8 +211,8 @@ describe('commanderTaskBadge', () => {
     it.each([
         ['awaiting_ready', 'Starting', 'text-muted'],
         ['collecting', 'Running', 'text-muted'],
-        ['completed', 'Done', 'text-muted'],
-        ['blocked', 'Needs input', 'text-warning'],
+        ['completed', 'Answered', 'text-muted'],
+        ['blocked', 'Blocked', 'text-warning'],
         ['answer_unavailable', 'Failed', 'text-danger'],
     ] as const)('labels a %s task as %s', (status, label, toneClassName) => {
         expect(commanderTaskBadge({ delegationId: 'task-1', status, updatedAt: 1 })).toMatchObject({
@@ -229,6 +229,6 @@ describe('commanderTaskBadge', () => {
                 failure: 'startup_not_ready',
                 updatedAt: 1,
             })?.title,
-        ).toBe('Latest Commander task task-1: Failed (startup not ready)');
+        ).toBe('Commander task task-1: Failed (startup not ready)');
     });
 });

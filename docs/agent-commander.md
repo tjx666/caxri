@@ -91,10 +91,12 @@ into one of six groups, in this order: `attention`, `working`, `waiting`, `faile
 - the cached pull request from the `session.pullRequests` snapshot, with the snapshot's
   `pullRequestsRefreshedAt`;
 - whether the Commander created the Session;
-- for a Commander Session, the latest task the Commander delegated there: its delegation ID, status,
-  failure reason, and update time. Only receipt state leaves the database; the task's prompt and
-  answer never reach the board. The window prints it next to the `Commander` marker as `Starting`,
-  `Running`, `Done`, `Needs input`, `Taken over`, `Stopped`, or `Failed`.
+- for a Commander Session, its current Commander task: its delegation ID, status, failure reason,
+  and update time. A task answered by a follow-up is superseded by it, and an unsettled task
+  (running or blocked) wins over a newer settled one. Only receipt state leaves the database; the
+  task's prompt and answer never reach the board. The window prints it next to the `Commander`
+  marker as `Starting`, `Running`, `Answered`, `Blocked`, `Taken over`, `Stopped`, or `Failed`.
+  `Answered` means the Agent gave its final answer, not that the Commander verified it.
 
 The board never waits on GitHub.
 
