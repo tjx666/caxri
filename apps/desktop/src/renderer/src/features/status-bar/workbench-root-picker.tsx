@@ -1,6 +1,7 @@
 import type { WorkbenchRootOption } from '@caxri/protocol';
 import { Check, FolderGit2 } from 'lucide-react';
 
+import { StructuredTooltip } from '../../components/structured-tooltip';
 import {
     Command,
     CommandGroup,
@@ -43,11 +44,10 @@ function WorktreeOption({
     return (
         <Tooltip
             content={
-                <span className="break-all whitespace-pre-wrap">
-                    {label}
-                    {'\n'}
-                    {root.rootPath}
-                </span>
+                <StructuredTooltip
+                    title={label}
+                    rows={[{ label: 'Path', value: root.rootPath, isCode: true }]}
+                />
             }
         >
             <CommandItem
@@ -108,9 +108,8 @@ function WorktreeOptions({
 /**
  * The status bar chip that opens the menu.
  *
- * `isWorktree` decides the glyph: the same one the PrimarySidebar puts on a Session working in a linked worktree, under
- * the same condition, so one Session cannot read as a worktree in the sidebar and as a plain Workbench Root here.
- * `FolderGit2` stays for the ordinary case, where it still means "Workbench Root".
+ * `isWorktree` decides the glyph: VS Code's `worktree` codicon for a Session working in a linked worktree. `FolderGit2`
+ * stays for the ordinary case, where it still means "Workbench Root".
  */
 function WorkbenchRootTrigger({
     branch,
@@ -132,7 +131,19 @@ function WorkbenchRootTrigger({
     return (
         <Tooltip
             content={
-                isSwitching ? `Switching to ${switchingLabel}…` : `${rootPath}\nBranch: ${branch}`
+                isSwitching ? (
+                    `Switching to ${switchingLabel}…`
+                ) : (
+                    <StructuredTooltip
+                        eyebrow={isWorktree ? 'Linked worktree' : 'Workbench Root'}
+                        title={title}
+                        rows={[
+                            { label: 'Branch', value: branch },
+                            { label: 'Path', value: rootPath, isCode: true },
+                        ]}
+                        hint="Click to switch Workbench Root"
+                    />
+                )
             }
             // The pointer is still on the trigger once its menu opens, so a hover delay that fires after the click
             // would raise the tooltip over the menu's first options and swallow the click meant for them.

@@ -11,7 +11,6 @@ import {
     primarySidebarPinnedRowId,
     primarySidebarRevealRowId,
 } from './primary-sidebar-tree';
-import { hasWorktreeSession } from './project-worktree-slot';
 
 const PINNED_DISCLOSURE_ID = 'pinned-sessions-group';
 
@@ -93,9 +92,6 @@ export function PinnedSessionGroup({
     worktreeProjects,
 }: PinnedSessionGroupProperties) {
     if (sessions.length === 0) return null;
-    // Measured over every pinned Session, window included: reserving from the visible slice alone would shift every
-    // title sideways the moment a reveal brought a worktree Session on screen.
-    const reserveWorktreeSlot = hasWorktreeSession(sessions, worktreeProjects);
     const revealRowId = primarySidebarRevealRowId(PINNED_GROUP_ROW_ID);
     return (
         <section className="pinned-session-group relative mb-2" data-pinned-group="">
@@ -165,7 +161,6 @@ export function PinnedSessionGroup({
                                     renameError={renameError}
                                     renameValue={renameValue}
                                     renaming={rowId === renamingRowId}
-                                    reserveWorktreeSlot={reserveWorktreeSlot}
                                     roving={rowId === rovingRowId}
                                     rowId={rowId}
                                     selected={session.id === selectedSessionId}

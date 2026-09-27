@@ -207,10 +207,6 @@ export function deploymentRowLabel(deployment: ProjectStatusDeployment): string 
     return deployment.commit ? stripLeadingGitmoji(message) : message;
 }
 
-export function deploymentRowDescription(deployment: ProjectStatusDeployment): string | undefined {
-    return deployment.commit ? shortCommitSha(deployment.commit.sha) : undefined;
-}
-
 /**
  * `Production` / `Preview`, the same word the summary rows already use as their own label. Kept as one function so a
  * reader never sees the panel spell an environment two different ways.
@@ -222,20 +218,15 @@ export function deploymentEnvironmentLabel(
 }
 
 /**
- * The `Deployments` child row's own description: which environment this is, whether it is the branch's current
- * Production or Preview, and the short SHA — all as text a reader can select and a screen reader can announce, instead
- * of a bare trailing glyph with no name of its own (#1291). Always returns text: unlike
- * {@link deploymentRowDescription}, there is always at least an environment to report.
+ * The `Deployments` child row's own description: which environment this is and whether it is the branch's current
+ * Production or Preview, as text a reader can select and a screen reader can announce instead of a bare trailing glyph
+ * (#1291). The short SHA stays on the hover card: next to the commit subject it is a hash a person does not read.
  */
 export function branchDeploymentRowDescription(
     deployment: ProjectStatusDeployment,
     isLatest: boolean,
 ): string {
-    return [
-        deploymentEnvironmentLabel(deployment.environment),
-        isLatest ? 'Latest' : undefined,
-        deployment.commit ? shortCommitSha(deployment.commit.sha) : undefined,
-    ]
+    return [deploymentEnvironmentLabel(deployment.environment), isLatest ? 'Latest' : undefined]
         .filter((part): part is string => part !== undefined)
         .join(' · ');
 }

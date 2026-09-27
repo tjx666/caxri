@@ -61,9 +61,14 @@ function FileTreeStickyRow({
     const decoration = useGitDecoration(row.entry.path);
     const childRepo = useGitChildRepo(row.entry.path);
     return (
+        /**
+         * The hover color is layered over the opaque surface as a background image rather than replacing it: the list
+         * hover color is translucent, and a pinned row painted with it alone let the rows scrolling underneath show
+         * through the pinned name.
+         */
         <div
             aria-hidden
-            className="file-tree-sticky-row absolute inset-x-0 flex h-7 cursor-pointer items-center gap-2 bg-surface pr-2 text-foreground hover:bg-list-hover-background hover:text-list-hover-foreground"
+            className="file-tree-sticky-row absolute inset-x-0 flex h-7 cursor-pointer items-center gap-2 bg-surface pr-2 text-foreground hover:bg-[linear-gradient(var(--list-hover-background),var(--list-hover-background))] hover:text-list-hover-foreground"
             data-path={row.entry.path}
             style={{ ...fileTreeRowStyle({ depth: row.depth, isDirectory: true }), top, zIndex }}
             role="presentation"

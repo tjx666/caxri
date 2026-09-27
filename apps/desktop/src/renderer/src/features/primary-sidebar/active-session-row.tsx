@@ -2,7 +2,6 @@ import { useState } from 'react';
 
 import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
 
-import { WorktreeIcon } from '../../icons/codicons/worktree-icon';
 import { cn } from '../../lib/utilities';
 import type { SessionOrderController } from './hooks/use-session-order';
 import { useSessionPullRequest } from './hooks/use-session-pull-request';
@@ -52,12 +51,6 @@ interface ActiveSessionRowProperties {
      * the ordinary case, which renders no marker.
      */
     worktreeProject?: ProjectRecord;
-    /**
-     * True when a sibling Session in this group carries a worktree marker, so this row holds the empty column that
-     * keeps every marker on one vertical line. Reserved per group rather than globally: a Project with no worktree
-     * Session would otherwise pay the indent for a column that is always blank.
-     */
-    reserveWorktreeSlot?: boolean;
 }
 
 /**
@@ -80,7 +73,6 @@ export function ActiveSessionRow({
     renameError,
     renameValue,
     renaming,
-    reserveWorktreeSlot,
     roving,
     rowId,
     selected,
@@ -115,31 +107,6 @@ export function ActiveSessionRow({
             onBeginRename={onBeginRename}
             onFocusChange={setFocused}
         >
-            {reserveWorktreeSlot && (
-                /*
-                 * A leading fixed-width column, so every worktree marker in this group lands on one vertical line
-                 * instead of trailing whichever title happened to be shortest. It sits outside the
-                 * `.session-indicators` track at the row's other end, which grows only when one status glyph exists.
-                 *
-                 * VS Code's `worktree` codicon — a branch splitting off a trunk — rather than a second folder glyph.
-                 * `FolderGit2` and `FolderSymlink` both read as one more folder mark next to the violet pull request
-                 * glyph 14px away. What the marker says is that this Session works in a linked worktree, and the
-                 * codicon is the mark the user already reads that way elsewhere. The status bar's Workbench Root
-                 * picker swaps to the same codicon under the same condition (`workbench-root-picker.tsx`), so one
-                 * Session cannot read as a worktree here and as a plain root there; `FolderGit2` still means
-                 * "Workbench Root" for every other root.
-                 *
-                 * Decorative on purpose: the row already opens the Session hover card, which names the worktree, and
-                 * its accessible description carries the same sentence. A second hover popup on one row would compete
-                 * with that card.
-                 */
-                <span
-                    className="session-worktree flex size-3.5 flex-none items-center justify-center text-muted"
-                    data-session-worktree={worktreeProject?.displayTitle}
-                >
-                    {worktreeProject && <WorktreeIcon aria-hidden="true" size={12} />}
-                </span>
-            )}
             {/* The Agent's lifecycle rides on its own icon; the trailing track keeps only delivery state. */}
             <SessionAgentStatusIcon session={session} terminal={terminal} />
             {renaming ? (

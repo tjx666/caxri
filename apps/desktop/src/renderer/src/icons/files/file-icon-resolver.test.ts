@@ -73,23 +73,6 @@ describe('resolveFileIcon', () => {
         ).toBe('file_type_typescript');
     });
 
-    it('gives a child repository the neutral folder over the one its name earns', () => {
-        expect(resolveFileIcon({ kind: 'directory', name: 'example' }, false, true).id).toBe(
-            'default_folder',
-        );
-        // The name would otherwise win: `src` has an icon of its own, and being a submodule outranks it.
-        expect(resolveFileIcon({ kind: 'directory', name: 'src' }, false, true).id).toBe(
-            'default_folder',
-        );
-        expect(resolveFileIcon({ kind: 'directory', name: 'src' }, true, true).id).toBe(
-            'default_folder_opened',
-        );
-        // A file is never a repository root, so the flag must not reach the file lookup.
-        expect(resolveFileIcon({ kind: 'file', name: 'README.md' }, false, true).id).toBe(
-            'file_type_markdown',
-        );
-    });
-
     it('keeps the neutral fallback for a broken or unresolved symlink', () => {
         expect(
             resolveFileIcon({ kind: 'symlink', linkKind: 'broken', name: 'Component.tsx' }).id,

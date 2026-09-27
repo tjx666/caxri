@@ -13,10 +13,8 @@ export function AgentIdentityIcon({
     identity?: string | null;
     size?: number;
     /**
-     * See {@link AgentIconTone}. Defaults to `'brand'`, today's behavior: a `color-asset` identity (Claude Code, Codex)
-     * keeps its full-color mark. Pass `'state'` in a context that tints the icon by the Session/Terminal's own
-     * running/waiting/idle/failed state or its tab/row selection state (Session rows, Activity rows, Terminal tab
-     * icons), so every identity tints alike.
+     * See {@link AgentIconTone}. Defaults to `'brand'`: a `color-asset` identity (Claude Code, Codex) keeps its
+     * full-color mark. Only PrimarySidebar Session rows pass `'state'`.
      */
     tone?: AgentIconTone;
 }) {
@@ -27,6 +25,7 @@ export function AgentIdentityIcon({
         return <Bot aria-hidden="true" data-agent-icon="unknown" size={size} />;
     const resolved = resolveAgentIconRenderSource(icon, tone);
     if (!resolved) return null;
+    const scale = icon.opticalScale ?? 1;
     if (resolved.kind === 'image')
         return (
             <img
@@ -37,13 +36,14 @@ export function AgentIdentityIcon({
                 draggable={false}
                 height={size}
                 src={resolved.src}
+                style={scale === 1 ? undefined : { padding: (size * (1 - scale)) / 2 }}
                 width={size}
             />
         );
     const style = {
         '--agent-icon-mask': `url("${resolved.src}")`,
         'height': size,
-        'mask': 'var(--agent-icon-mask) center / contain no-repeat',
+        'mask': `var(--agent-icon-mask) center / ${scale === 1 ? 'contain' : `${scale * 100}%`} no-repeat`,
         'width': size,
     } as CSSProperties;
     return (

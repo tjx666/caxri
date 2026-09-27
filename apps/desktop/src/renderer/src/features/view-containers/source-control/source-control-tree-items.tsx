@@ -130,6 +130,10 @@ function useScrollerOffset(list: RefObject<HTMLElement | null>): number {
 interface SourceControlTreeItemsProperties {
     activeEditorResource?: string;
     expandedDirectories: Readonly<Record<string, boolean | undefined>>;
+    /**
+     * ARIA level of the top-level rows: 3 under a group caption, 2 when the provider header stands in for the caption.
+     */
+    level: number;
     nodes: readonly SourceControlTreeNode[];
     providerKey: string;
     repositoryRootPath?: string;
@@ -155,6 +159,7 @@ interface SourceControlTreeItemsProperties {
 export function SourceControlTreeItems({
     activeEditorResource,
     expandedDirectories,
+    level,
     nodes,
     providerKey,
     repositoryRootPath,
@@ -244,6 +249,7 @@ export function SourceControlTreeItems({
                 <SourceControlVirtualRow
                     activeEditorResource={activeEditorResource}
                     key={virtualRow.key}
+                    level={level}
                     offset={virtualRow.start - scrollMargin}
                     providerKey={providerKey}
                     repositoryRootPath={repositoryRootPath}
@@ -258,6 +264,7 @@ export function SourceControlTreeItems({
 
 function SourceControlVirtualRow({
     activeEditorResource,
+    level,
     offset,
     providerKey,
     repositoryRootPath,
@@ -278,7 +285,7 @@ function SourceControlVirtualRow({
             <div className={virtualRowClassName} style={position}>
                 <SourceControlTreeRow
                     rowId={row.rowId}
-                    level={3 + depth}
+                    level={level + depth}
                     className="git-tree-directory flex h-7 w-full cursor-pointer items-center gap-1.5 border-0 bg-surface pr-2 text-left text-foreground hover:bg-elevated"
                     style={{ paddingLeft: 8 + depth * 14 }}
                     aria-expanded={isExpanded}
@@ -335,7 +342,7 @@ function SourceControlVirtualRow({
         <div className={cn('git-row-container group', virtualRowClassName)} style={position}>
             <SourceControlTreeRow
                 rowId={row.rowId}
-                level={3 + depth}
+                level={level + depth}
                 menuItems={sourceControlActionMenuItems(trailingActions, runAction)}
                 className={cn(
                     resourceRowClassName,

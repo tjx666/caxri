@@ -14,6 +14,16 @@ describe('remoteDebuggingChipCopy', () => {
         expect(copy?.description).toContain('act as you');
     });
 
+    it('splits the tooltip into a heading, the address, the consequence, and the click hint', () => {
+        const tooltip = remoteDebuggingChipCopy({ port: '9224', transport: 'port' })?.tooltip;
+        expect(tooltip?.title).toBe('Accepting debugging connections');
+        expect(tooltip?.rows).toEqual([
+            { label: 'Address', value: '127.0.0.1:9224', isCode: true },
+        ]);
+        expect(tooltip?.notes?.[0]).toContain('act as you');
+        expect(tooltip?.hint).toBe('Click to open the setting');
+    });
+
     /**
      * `--remote-debugging-port` with no number leaves Chromium to pick one it never reports back. The chip still has to
      * disclose that something is listening rather than go silent or print an empty address.

@@ -54,16 +54,22 @@ export function acceptanceRowLabel(acceptance: ProjectStatusAcceptance): string 
 }
 
 /**
- * The row's trailing description: the check tally, then the round. Unlike the Linear row's state, neither is carried by
- * the glyph, so this is the only place the panel can state how much of the verification actually passed.
+ * The row's trailing description: the check tally, then the round as `r3`. Unlike the Linear row's state, neither is
+ * carried by the glyph, so this is the only place the panel can state how much of the verification actually passed. The
+ * round is abbreviated because it sits beside the tally in a narrow rail, where `round 3` or `latest of 3` spent width
+ * on words; the hover card spells it out.
  *
- * An unpinned link on a multi-round report says `latest of 3` rather than naming a number, because it is the report
- * that was addressed and the round that answered may change under the same link.
+ * An unpinned link on a multi-round report shows its newest round, and a single-round one shows none. `spoken` keeps
+ * the words for the accessible name, where `r3` would be read out as a letter and a number, and says `latest of 3` for
+ * an unpinned link because the round that answered may change under the same link.
  *
  * A report whose lookup failed takes the tally's place with `unknown`. It has no numbers to show, and a row that showed
  * nothing at all read as a report with nothing to say rather than as one nobody could read.
  */
-export function acceptanceDescription(acceptance: ProjectStatusAcceptance): string | undefined {
+export function acceptanceDescription(
+    acceptance: ProjectStatusAcceptance,
+    form: 'compact' | 'spoken' = 'compact',
+): string | undefined {
     const tally =
         acceptance.state === 'unknown'
             ? projectStatusStateLabel('unknown')
@@ -73,9 +79,13 @@ export function acceptanceDescription(acceptance: ProjectStatusAcceptance): stri
     const round =
         acceptance.round === undefined
             ? acceptance.roundCount !== undefined && acceptance.roundCount > 1
-                ? `latest of ${acceptance.roundCount}`
+                ? form === 'compact'
+                    ? `r${acceptance.roundCount}`
+                    : `latest of ${acceptance.roundCount}`
                 : undefined
-            : `round ${acceptance.round}`;
+            : form === 'compact'
+              ? `r${acceptance.round}`
+              : `round ${acceptance.round}`;
     return [tally, round].filter(Boolean).join(' · ') || undefined;
 }
 

@@ -6,6 +6,8 @@ import type {
     ProjectStatusOverviewAcceptance,
 } from '@caxri/protocol';
 
+import type { StructuredTooltipData } from '../../components/structured-tooltip';
+
 /**
  * How the chip names each source, in the wording a reader needs to decide how much to trust it: a pull request states
  * the link on purpose, a conversation is something an Agent happened to mention.
@@ -88,13 +90,13 @@ export function acceptanceAriaLabel(
 }
 
 /**
- * The hover card's lines, in reading order. Kept as data rather than JSX so the wording stays unit-testable; the
- * component only decides how to stack them.
+ * The hover tooltip's content. Kept as data rather than JSX so the wording stays unit-testable; `StructuredTooltip`
+ * decides the hierarchy.
  */
-export function acceptanceTooltipLines(
+export function acceptanceTooltip(
     acceptance: ProjectStatusOverviewAcceptance,
     extra: readonly ProjectStatusOverviewAcceptance[] = [],
-): string[] {
+): StructuredTooltipData {
     const round =
         acceptance.round === undefined
             ? // No pinned round means the link addressed the report as a whole, so the latest one answered it — worth
@@ -103,15 +105,23 @@ export function acceptanceTooltipLines(
                 ? undefined
                 : `Latest of ${acceptance.roundCount} rounds`
             : `Round ${acceptance.round}`;
-    return [
-        acceptance.title ?? 'Acceptance report',
+    const details = [
         [acceptance.status && STATUS_LABELS[acceptance.status], round]
             .filter(Boolean)
             .join(' · ') || undefined,
         acceptance.verdict && VERDICT_LABELS[acceptance.verdict],
+    ].filter((line): line is string => Boolean(line));
+    const notes = [
         SOURCE_LABELS[acceptance.source],
         extra.length > 0
             ? `Also referenced: ${extra.length} more ${extra.length === 1 ? 'report' : 'reports'}`
             : undefined,
     ].filter((line): line is string => Boolean(line));
+    return {
+        eyebrow: acceptance.title ? 'Acceptance report' : undefined,
+        title: acceptance.title ?? 'Acceptance report',
+        details,
+        notes,
+        hint: acceptance.url ? 'Click to open the report' : undefined,
+    };
 }

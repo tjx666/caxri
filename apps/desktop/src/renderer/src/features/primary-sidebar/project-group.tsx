@@ -25,7 +25,6 @@ import { ProjectIcon } from './project-icon';
 import type { ProjectDropTarget } from './project-order';
 import { hasProjectDragType } from './project-order';
 import { ProjectRowMenu } from './project-row-menu';
-import { hasWorktreeSession } from './project-worktree-slot';
 import { summarizeSessionStatuses } from './session-status';
 
 interface ProjectGroupProperties {
@@ -119,12 +118,6 @@ export function ProjectGroup({
     const createSessionRowId = primarySidebarCreateSessionRowId(project.id);
     const [menuOpen, setMenuOpen] = useState(false);
     const headingReference = useRef<HTMLDivElement>(null);
-    /**
-     * The worktree marker's column is reserved for the whole group at once, so markers align and titles do not shift
-     * sideways as Sessions come and go. Scoped to the group because a Project without one should not be indented for a
-     * column that stays empty.
-     */
-    const reserveWorktreeSlot = hasWorktreeSession(projectSessions, worktreeProjects);
     /**
      * A collapsed Project hides its rows, and with them every running arc and attention ring. Summarize them on the
      * heading so an Agent waiting on the user is never folded out of sight; an expanded Project shows the rows
@@ -335,7 +328,6 @@ export function ProjectGroup({
                                 renameError={renameError}
                                 renameValue={renameValue}
                                 renaming={session.id === renamingRowId}
-                                reserveWorktreeSlot={reserveWorktreeSlot}
                                 roving={session.id === rovingRowId}
                                 selected={session.id === selectedSessionId}
                                 session={session}

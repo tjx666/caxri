@@ -1,5 +1,6 @@
 import { Bug } from 'lucide-react';
 
+import { StructuredTooltip } from '../../components/structured-tooltip';
 import { useCaxriQuery } from '../../queries/client';
 import { openSettings } from '../../stores/dialogs';
 import { remoteDebuggingChipCopy } from './remote-debugging-label';
@@ -22,7 +23,7 @@ export function RemoteDebuggingChip() {
         <StatusItem
             icon={<Bug />}
             ariaLabel={copy.description}
-            title={copy.description}
+            title={<StructuredTooltip {...copy.tooltip} />}
             className="text-muted"
             onClick={() => openSettings('remote-debugging')}
         >

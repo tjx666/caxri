@@ -31,16 +31,34 @@ export function hasTerminalDraggedPath(event: DragEvent): boolean {
     return event.dataTransfer.types.includes(FILE_REFERENCE_DRAG_TYPE) || hasDraggedPath(event);
 }
 
+function isWithinDirectory(path: string, directory: string): boolean {
+    const base = stripTrailingSeparators(directory);
+    return path === base || path.startsWith(base.endsWith('/') ? base : `${base}/`);
+}
+
 /**
  * Agent worktree observation supersedes launch cwd only for resolving inserted references.
+ *
+ * `workbenchRoot` is the Session's Workbench Root. An Agent that moved into a linked worktree with `cd` rather than a
+ * reported `EnterWorktree` leaves `agentCwd` unset while Files, Git, and the Workbench Root all follow the worktree, so
+ * every path dragged from them fell outside the launch cwd and pasted absolute. While that Agent runs, a path inside
+ * the Workbench Root but outside the launch cwd is written relative to the Workbench Root. A plain shell keeps its own
+ * cwd: its relative paths resolve against where it actually stands, not against the Session's worktree.
  */
 export function terminalReferencePath(
     path: string,
     terminal: Pick<TerminalRecord, 'agentCwd' | 'cwd' | 'lastAgentProcessState'>,
+    workbenchRoot?: string,
 ): string {
-    const baseDirectory = isAgentProcessRunning(terminal.lastAgentProcessState)
-        ? (terminal.agentCwd ?? terminal.cwd)
-        : terminal.cwd;
+    if (!isAgentProcessRunning(terminal.lastAgentProcessState))
+        return terminalInputPath(path, terminal.cwd);
+    if (terminal.agentCwd) return terminalInputPath(path, terminal.agentCwd);
+    const baseDirectory =
+        workbenchRoot &&
+        !isWithinDirectory(path, terminal.cwd) &&
+        isWithinDirectory(path, workbenchRoot)
+            ? workbenchRoot
+            : terminal.cwd;
     return terminalInputPath(path, baseDirectory);
 }
 

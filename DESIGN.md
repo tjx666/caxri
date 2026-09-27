@@ -224,7 +224,8 @@ drift this replaces; do not reintroduce it.
 **Window chrome** — `titleBarStyle: 'hiddenInset'`. The 44px PrimarySidebar, workbench, and
 SecondarySidebar top rails share one bottom edge. Workbench tabs fill the full 44px rail, VS Code
 style, so the active tab's `--background` fill reaches the rail's top edge. PrimarySidebar and
-SecondarySidebar rail tabs remain 36px, vertically centered. The logo-free PrimarySidebar header is
+SecondarySidebar rail tabs remain 36px, vertically centered. SecondarySidebar tabs divide the whole
+rail evenly; a compact capped indicator marks the selected slot. The logo-free PrimarySidebar header is
 the drag region (`-webkit-app-region: drag`, interactive children `no-drag`). The Session history
 back/forward pair is the only control that rail carries, and it opts out of the drag region so the
 buttons navigate instead of moving the window. Add Project has no chrome of its own there: its entry
@@ -304,7 +305,11 @@ reports what the process is actually doing rather than what `argv.jsonc` now say
 switch off leaves the channel open until the next launch (principle 9). Clicking it opens its setting.
 
 Persistent metrics use concise icon-plus-value labels; explanatory prose belongs in their
-accessible names and hover tooltips. The notification bell is pinned to the far bottom-right corner,
+accessible names and hover tooltips. A multi-fact status-bar tooltip uses the shared `StructuredTooltip`
+layout rather than a newline-joined string: an optional muted kind line, a semibold title, muted
+label/value rows (paths and addresses in monospace), foreground state lines, muted notes, and a final
+muted `Click to …` hint naming what the chip does. Source Control's repository and group rows use the
+same layout, with their modifier gestures as the hint lines. A single-phrase tooltip stays plain text. The notification bell is pinned to the far bottom-right corner,
 outside the right-hand chip rail, VS Code style: every chip beside it follows the active tab and
 comes and goes as the user moves around, so an anchor placed among them would slide sideways, and
 the rail's last child is the first thing an overflow hides.
@@ -340,7 +345,10 @@ answers "does this Agent need me, or is it working?": running work (including co
 icon in a thin foreground arc spinning over a faint track; unacknowledged attention wraps it in a
 pinging warning ring and tints the icon warning; a detached Agent dims the icon under a small
 unplugged badge. A decorated icon shrinks by 3px so its ring stays inside a 3px halo of the 14px
-box, and the title never moves between states. Attention wins over running; there is deliberately
+box, and the title never moves between states. These rows render every Agent icon as a mono mask
+tinted by the row; every other surface — workbench tabs, the Session hover card, the MRU switcher,
+Activity rows, Archived Sessions, Settings, and menus — keeps Claude Code and Codex in brand color.
+Attention wins over running; there is deliberately
 no second, static amber state, so reading a Session is the only thing that clears it and nothing can
 bring it back unread. Settled, idle, unknown, failed, and exited Sessions show the plain icon. The
 trailing track answers only "how far has this delivery got?": the pull request and its production
@@ -392,9 +400,9 @@ where every browser puts them. They are `no-drag` islands in the header's drag r
 with an empty stack renders disabled rather than hidden, so the pair never reflows and its
 position stays learnable; the shortcut and command name reach the user through the shared command
 tooltip instead of a bespoke label. Archived Sessions use one stable PrimarySidebar footer entry
-with a global count: a compact ghost button carrying only the archive glyph and the count, named by
-its tooltip and accessible name rather than a text label, because a rarely visited entry should not
-spend a full-width row of chrome on its own name. Search, filters, Project-grouped results, restore, and delete live in a
+with a global count: the footer row holds nothing else, so the whole row is one compact ghost
+button — archive glyph and a short `Archived` label on the left, the count on the right. A
+glyph-only chip left most of the row dead to clicks. Search, filters, Project-grouped results, restore, and delete live in a
 full-width management dialog. Project disclosures contain active Sessions only, so low-frequency
 history never fragments navigation. A disclosure renders its first five Sessions in sidebar order
 plus a text-only `Show N more` row that reveals ten more per activation and disappears once the list
@@ -429,20 +437,14 @@ the tree's single Tab stop. Archiving clears the pin, because an archived Sessio
 keep sitting at the top of the sidebar; unarchiving does not restore it, since the pin was a separate
 decision.
 
-A Session working in a Git worktree rather than its Project root is marked by the VS Code `worktree`
-codicon in a leading fixed-width 14px column, reserved for the whole Project group at once so every
-marker in a group lands on one vertical line and titles never shift sideways as Sessions come and
-go. A Project with no such Session reserves nothing. It is a second fixed track rather than a share
-of the trailing one, which is sized for exactly one glyph and already arbitrates between lifecycle
-status and the pull request. The glyph is deliberately neither `FolderGit2`, which already means
-"Workbench Root" in the root picker and "repository" in Source Control, nor `FolderSymlink`: at 12px
-beside the trailing pull request glyph either one read as a third folder or Git mark on the same
-row. The full worktree name stays in the Session hover card.
+A Session working in a Git worktree rather than its Project root carries no mark on its row: in
+daily use a leading worktree glyph added a column without changing what the user did next. The
+worktree name stays in the Session hover card and the row's accessible description.
 
 Adopting a worktree as a Workbench Root auto-registers a Project for it, and that Project never
 occupies a top-level slot in the PrimarySidebar. The list shows the Projects the user added; a
-worktree is a property of the Session working in it, which the marker above already says on the
-Session's own row. A second top-level row per worktree would double the list without naming
+worktree is a property of the Session working in it, which the Session's hover card already
+names. A second top-level row per worktree would double the list without naming
 anything new, and no PrimarySidebar affordance — reorder, delete, disclosure — applies to a row the
 user never created. The consequence is that such a Project is reachable only through its owner:
 deleting the owner deletes it, and the confirmation names the ones about to go.
@@ -595,16 +597,16 @@ tab. Ignored entries stay muted and italic and take no decoration. The decoratio
 row or tab is still named by its bare filename, and the status reaches assistive technology as an
 accessible description (`Git: modified.`) rather than being folded into that name.
 
-**Child repositories** — a directory that is a repository of its own takes the neutral folder icon
-instead of the one its name would earn, with the Git logo as a badge in its lower-right corner, so a
-submodule is never mistaken for an ordinary folder. The badge rather than `folder_type_git` is the
-point: that asset is just another tinted folder among `docs` and `e2e`, while a plain folder
-wearing the Git mark is the only row shaped that way. This covers both a `.gitmodules`-declared submodule and a directory someone cloned
-in independently; the row's tooltip and its accessible description name which of the two it is,
-since only the submodule shows up as a change in the parent when its recorded commit moves. A
-linked worktree takes no mark: it is a peer checkout, not something nested in this tree. The mark
-is independent of the change decoration above — a submodule or nested-repository root can carry the
-icon and a change color at the same time, and still no letter.
+**Child repositories** — a directory that is a repository of its own takes the glyph Source Control
+and Project Status give that repository in place of a folder icon: the `archive` codicon for a
+submodule, `repo` for a directory someone cloned in independently. A neutral folder wearing a small
+Git badge still read as one more folder among `docs` and `e2e` and did not say which kind of
+repository it was; the shared glyph names the kind and ties the row to the same repository's rows in
+the other two panels. The row's tooltip and its accessible description also name the kind, since only
+the submodule shows up as a change in the parent when its recorded commit moves. A linked worktree
+takes no mark: it is a peer checkout, not something nested in this tree. The mark is independent of
+the change decoration above — a submodule or nested-repository root can carry the glyph and a change
+color at the same time, and still no letter.
 
 **Editor breadcrumbs** — an ordinary Project file gets one 24px metadata row below the tab strip.
 Its Project-relative path sits on the left and the current file's last-change annotation sits on
@@ -719,6 +721,11 @@ VS Code's PrimarySidebar-vs-Panel split. The Panel is closed at rest, its tabs s
 natural width, and a trailing close button dismisses it. `Command+J` toggles it. A new surface
 picks its region by content shape, not by which region has room left.
 
+**Project Status rows** spend their trailing text only on what asks for attention. A branch that
+matches origin says nothing (`Synced` stays on the hover badge); a deployment row names its
+environment and whether it is the latest, not its short SHA; an acceptance row reads `2/2 · r3`, with
+the round spelled out on the hover and in the accessible name.
+
 **Project Status hover** — every row in the tree wears the same card, so one panel never mixes a
 structured card with a multi-line grey string. The card follows the VS Code reference hierarchy:
 the row's subject plus its semantic status in the heading, then prose that explains that heading,
@@ -790,9 +797,12 @@ and keeps its optional path input and commit-details disclosure.
 
 File and folder rows do not open a hover tooltip: the path is already the row's accessible name, and
 a cursor-anchored card over the adjacent diff is worse than a truncated label. Repository rows and
-their `PR #<n> Changes` caption still carry the hover text their own width cannot — branch, and in
-Pull Request mode the pull request Command-click opens in the default browser. Option-click is the
-panel's modifier gesture for recursive disclosure there: on a repository row, a group caption, or a
+group captions still carry the hover text their own width cannot — branch, and in Pull Request mode
+the pull request Command-click opens in the default browser. A repository whose only content is one
+group (Pull Request and Last Commit modes) folds that group into its own row: the caption repeated
+what the row and the mode switch already said, and its actions join the repository row. Working-tree
+mode keeps the `Changes` caption, which separates the changes from the history below. Option-click is
+the panel's modifier gesture for recursive disclosure there: on a repository row, a group caption, or a
 folder row it expands or collapses everything below instead of just that row. A file row keeps
 Option-click's other meaning instead — it skips the row's default and goes to the thing itself,
 opening the working file rather than its diff. A file or folder row that offers a modifier gesture

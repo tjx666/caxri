@@ -1,5 +1,7 @@
 import type { LinearIssueSource, ProjectStatusOverviewLinearIssue } from '@caxri/protocol';
 
+import type { StructuredTooltipData } from '../../components/structured-tooltip';
+
 /**
  * How the chip names each source. The wording is the sentence a reader needs in order to decide how much to trust the
  * chip — a pull request states the link on purpose, a branch name is a convention, and a conversation is an inference.
@@ -34,19 +36,23 @@ export function linearIssueAriaLabel(
 }
 
 /**
- * The hover card's lines, in reading order. Kept as data rather than JSX so the wording stays unit-testable; the
- * component only decides how to stack them.
+ * The hover tooltip's content. Kept as data rather than JSX so the wording stays unit-testable; `StructuredTooltip`
+ * decides the hierarchy.
  */
-export function linearIssueTooltipLines(
+export function linearIssueTooltip(
     issue: ProjectStatusOverviewLinearIssue,
     extra: readonly ProjectStatusOverviewLinearIssue[] = [],
-): string[] {
-    return [
-        [issue.identifier, issue.title].filter(Boolean).join(' '),
-        issue.state,
-        linearIssueSourceLabel(issue.source),
-        extra.length > 0
-            ? `Also referenced: ${extra.map((other) => other.identifier).join(', ')}`
-            : undefined,
-    ].filter((line): line is string => Boolean(line));
+): StructuredTooltipData {
+    return {
+        eyebrow: issue.title ? issue.identifier : undefined,
+        title: issue.title ?? issue.identifier,
+        details: issue.state ? [issue.state] : [],
+        notes: [
+            linearIssueSourceLabel(issue.source),
+            extra.length > 0
+                ? `Also referenced: ${extra.map((other) => other.identifier).join(', ')}`
+                : undefined,
+        ].filter((line): line is string => Boolean(line)),
+        hint: issue.url ? 'Click to open in Linear' : undefined,
+    };
 }
