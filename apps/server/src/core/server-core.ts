@@ -86,6 +86,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
         directory: lease.paths.directory,
         ...(options.mobileHostDisplayName && { hostDisplayName: options.mobileHostDisplayName }),
         registryPath: lease.paths.mobileDevices,
+        ...(options.mobileUpdateDirectory && { updateDirectory: options.mobileUpdateDirectory }),
         onOpenError: async () => {
             eventLoopMonitor.stop();
             await lease.release();

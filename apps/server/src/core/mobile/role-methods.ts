@@ -1,12 +1,17 @@
 import type { MobileDeviceRole } from '@caxri/protocol';
 
-const mobileReadOnlyPanelMethods = [
+const mobileEveryRoleMethods = [
     'mobile.panels.list',
     'mobile.tree.children',
     'mobile.files.list',
     'mobile.files.read',
     'mobile.files.search',
     'mobile.attention.list',
+    /**
+     * Every paired role may update its own app; the bundle is Desktop's public build artifact, not Project data.
+     */
+    'mobile.update.check',
+    'mobile.update.prepare',
 ] as const;
 
 /**
@@ -24,7 +29,7 @@ const mobileGatewayMethodsByRole = {
         'mobile.agent.actions',
         'mobile.session.archived',
         'terminal.preview',
-        ...mobileReadOnlyPanelMethods,
+        ...mobileEveryRoleMethods,
     ],
     reply: [
         'mobile.dashboard',
@@ -39,7 +44,7 @@ const mobileGatewayMethodsByRole = {
         'session.markRead',
         'mobile.agent.submit',
         'mobile.image.upload',
-        ...mobileReadOnlyPanelMethods,
+        ...mobileEveryRoleMethods,
     ],
     control: [
         'mobile.dashboard',
@@ -72,7 +77,7 @@ const mobileGatewayMethodsByRole = {
          * path; `view` and `reply` devices keep their read-only rules.
          */
         'mobile.attention.autoAllowRevoke',
-        ...mobileReadOnlyPanelMethods,
+        ...mobileEveryRoleMethods,
     ],
 } as const satisfies Record<MobileDeviceRole, readonly string[]>;
 

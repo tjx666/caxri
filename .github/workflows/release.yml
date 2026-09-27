@@ -96,10 +96,31 @@ jobs:
       - name: Clean previous packaging output
         run: rm -rf release.noindex
 
+      # Desktop serves this APK to paired Android phones (docs/mobile/UPDATE.md). The script
+      # refuses to stage anything but the release-signed APK of this version, and the runner must
+      # already hold the Android toolchain: a missing piece fails the release instead of shipping a
+      # Desktop without its phone build.
+      - name: Build Android update bundle
+        env:
+          CAXRI_ANDROID_KEYSTORE_BASE64: ${{ secrets.CAXRI_ANDROID_KEYSTORE_BASE64 }}
+          CAXRI_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.CAXRI_ANDROID_KEYSTORE_PASSWORD }}
+          CAXRI_ANDROID_KEY_ALIAS: ${{ secrets.CAXRI_ANDROID_KEY_ALIAS }}
+          CAXRI_ANDROID_KEY_PASSWORD: ${{ secrets.CAXRI_ANDROID_KEY_PASSWORD }}
+        run: |
+          keystore="${RUNNER_TEMP}/caxri-android-release.jks"
+          trap 'rm -f "$keystore"' EXIT
+          test -n "$CAXRI_ANDROID_KEYSTORE_BASE64"
+          printf '%s' "$CAXRI_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore"
+          CAXRI_ANDROID_KEYSTORE_PATH="$keystore" bun run --cwd apps/mobile build:update-bundle
+
       - name: Package unsigned Apple Silicon DMG
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
-        run: bun run package:dmg -- --arm64
+        run: |
+          bun run package:dmg -- --arm64
+          resources="release.noindex/mac-arm64/Caxri.app/Contents/Resources/mobile"
+          cmp out/mobile-update/caxri-mobile.apk "${resources}/caxri-mobile.apk"
+          cmp out/mobile-update/manifest.json "${resources}/manifest.json"
 
       - name: Verify packaged application
         id: verify-packaged

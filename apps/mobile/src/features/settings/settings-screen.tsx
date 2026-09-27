@@ -12,6 +12,8 @@ import type { MobileTheme } from '../../theme/tokens';
 import { useMobileTheme } from '../../theme/use-mobile-theme';
 import { useMobileClient } from '../connection/mobile-client-provider';
 import { useHostSessions } from '../sessions/components/host-sessions-provider';
+import { MobileUpdateSettingsRow } from '../update/mobile-update-settings-row';
+import { useMobileUpdate } from '../update/use-mobile-update';
 import { connectionStatusLabel, DEVICE_ROLE_DETAILS } from './settings-model';
 
 const Section = ({
@@ -74,6 +76,8 @@ export const SettingsScreen = () => {
     const theme = useMobileTheme();
     const { forgetDevice, status } = useMobileClient();
     const { sessions } = useHostSessions();
+    const mobileUpdate = useMobileUpdate();
+    const { update } = mobileUpdate;
     const role = sessions.deviceRole ? DEVICE_ROLE_DETAILS[sessions.deviceRole] : null;
     const confirmForget = (): void => {
         Alert.alert(
@@ -140,12 +144,18 @@ export const SettingsScreen = () => {
                 </Section>
                 <Section theme={theme} title="ABOUT">
                     <Row
-                        isLast
+                        isLast={!update}
                         label="Version"
                         testID="settings-app-version"
                         theme={theme}
                         value={Constants.expoConfig?.version ?? 'Unknown'}
                     />
+                    {update ? (
+                        <MobileUpdateSettingsRow
+                            mobileUpdate={{ ...mobileUpdate, update }}
+                            theme={theme}
+                        />
+                    ) : null}
                 </Section>
                 <Pressable
                     accessibilityHint="Asks for confirmation before removing this pairing."

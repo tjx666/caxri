@@ -26,12 +26,14 @@ import {
 } from './mobile-attention-contract.js';
 import { MOBILE_FILES_MAX_ENTRIES, MOBILE_FILES_READ_MAX_BYTES } from './mobile-file-limits.js';
 import { mobileTerminalMethods } from './mobile-terminal-contract.js';
+import { mobileUpdateMethods } from './mobile-update-contract.js';
 
 export type { MobileDeviceRole } from './device-role.js';
 export { mobileDeviceRoleSchema } from './device-role.js';
 export * from './mobile-attention-contract.js';
 export { MOBILE_FILES_MAX_ENTRIES, MOBILE_FILES_READ_MAX_BYTES } from './mobile-file-limits.js';
 export * from './mobile-terminal-contract.js';
+export * from './mobile-update-contract.js';
 
 const noParameters = z.strictObject({}).default({});
 export const mobileDeviceIdSchema = z.string().regex(/^device_[0-9a-f]{32}$/u);
@@ -647,6 +649,7 @@ export const mobileMethods = {
         params: mobileFilesWriteParametersSchema,
         result: mobileFilesReadResultSchema,
     },
+    ...mobileUpdateMethods,
 } as const satisfies Record<string, MethodSpec>;
 
 /**

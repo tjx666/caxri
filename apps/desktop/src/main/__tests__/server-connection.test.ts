@@ -75,6 +75,18 @@ describe('Desktop Server attachment and build identity', () => {
         );
     });
 
+    it('forwards a local mobile update directory to Server Core', async () => {
+        vi.stubEnv('CAXRI_MOBILE_UPDATE_DIRECTORY', '/tmp/mobile-update');
+        mockServerRound({ serverBuildId: 'build-a', serverVersion: '0.0.9' });
+        const { connection } = createConnection({ buildId: 'build-a', version: '0.0.9' });
+
+        await connection.start();
+
+        expect(vi.mocked(ensureServer).mock.calls[0]?.[1]?.environment).toMatchObject({
+            CAXRI_MOBILE_UPDATE_DIRECTORY: '/tmp/mobile-update',
+        });
+    });
+
     it('returns a classified rejected Promise before Server attachment instead of throwing', async () => {
         const { connection } = createConnection();
         let request: Promise<unknown> | undefined;
