@@ -177,8 +177,7 @@ describe('switch-worktree creation and diagnostics', () => {
 
     it('materializes existing branches under portable worktree directory names', async () => {
         const fixture = await createFixture();
-        // Each iteration mutates the shared fixture repository, so the branches must be
-        // created and switched to sequentially rather than concurrently.
+        // Each iteration mutates the shared fixture repository, so the branches must be created and switched to sequentially rather than concurrently.
         /* eslint-disable no-await-in-loop -- sequential mutation of one shared git repository */
         for (const branch of ['feat/foo%2Fbar', 'feat/windows<bad>|"name"']) {
             await git(fixture.root, 'branch', branch, 'origin/main');
@@ -251,6 +250,7 @@ describe('switch-worktree creation and diagnostics', () => {
             'ahead',
             'behind',
             'branch',
+            'cdpPort',
             'dependencies',
             'desktopLease',
             'detached',
@@ -696,9 +696,9 @@ describe('switch-worktree safe removal', () => {
         await git(created.path, 'push', '-u', 'origin', 'chore/remove-guards');
 
         const context = await repoContext(fixture.root);
-        const identity = await getProcessIdentity(process.pid);
         await writeJsonAtomic(join(context.stateDir, 'processes', `${created.worktreeId}.json`), {
-            identity,
+            cdpPort: 9300,
+            identity: await getProcessIdentity(process.pid),
             pid: process.pid,
             startedAt: new Date().toISOString(),
             token: 'test-process',
@@ -727,6 +727,7 @@ describe('switch-worktree safe removal', () => {
         const profile = created.profile!;
         const context = await repoContext(fixture.root);
         await writeJsonAtomic(join(context.stateDir, 'processes', `${created.worktreeId}.json`), {
+            cdpPort: 9300,
             identity: 'stale-reused-pid',
             pid: process.pid,
             startedAt: new Date().toISOString(),
@@ -740,7 +741,6 @@ describe('switch-worktree safe removal', () => {
             cwd: fixture.root,
             target: created.path,
         });
-
         expect(result).toEqual({ path: created.path, profileKept: false });
         expect(await isPathPresent(profile)).toBe(false);
         expect(

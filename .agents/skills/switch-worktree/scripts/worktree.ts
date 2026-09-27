@@ -27,9 +27,12 @@ import {
     worktreeIdentity,
     writeJsonAtomic,
 } from './repo';
+import { explicitCdpPort, resolveWorktreeCdpPort } from './worktree-cdp-port';
+import type { DevelopmentProcessRecord } from './worktree-development-process';
+import { developmentProcessPath, readDevelopmentProcess } from './worktree-development-process';
 import type { OrphanProcess } from './worktree-orphans';
 import { describeOrphans, orphansByWorktree, toOrphanProcess } from './worktree-orphans';
-import type { ProcessEntry, StopOperations } from './worktree-processes';
+import type { ProcessEntry, SignalFailureReason, StopOperations } from './worktree-processes';
 import {
     defaultStopOperations,
     inspectWorktreeProcesses,
@@ -38,18 +41,14 @@ import {
 
 const SEMANTIC_BRANCH = /^(?:feat|fix|refactor|perf|docs|test|chore)\/[a-z0-9][a-z0-9._/-]*$/;
 
-interface DevelopmentProcessRecord {
-    identity: string;
-    pid: number;
-    startedAt: string;
-    token: string;
-    worktreeId: string;
-    worktreePath: string;
-}
-
 export interface WorktreeStatus extends WorktreeRecord {
     ahead: number | null;
     behind: number | null;
+    /**
+     * The CDP port from this worktree's dev process record, active or stale; undefined when no dev launch has ever
+     * recorded one. See `resolveWorktreeCdpPort` in `worktree-cdp-port.ts`.
+     */
+    cdpPort?: number;
     dependencies: 'missing' | 'ready' | 'symlink';
     desktopLease: 'active' | 'active-other' | 'free' | 'stale' | 'stale-other';
     devProcess: 'active' | 'none' | 'stale';
@@ -86,12 +85,23 @@ export interface RemoveOptions {
 export interface StopResult {
     path: string;
     stopped: Array<{ command: string; pid: number }>;
-    survivors: Array<{ command: string; pid: number }>;
+    survivors: Array<{ closedReason?: SignalFailureReason; command: string; pid: number }>;
+}
+
+interface DevelopmentLaunchInfo {
+    cdpPort: number;
+    profile: string;
+    worktreeId: string;
 }
 
 export interface DevelopmentLaunchOptions {
     args?: string[];
     command?: string;
+    /**
+     * Invoked once the CDP port and profile are resolved and durably recorded, before the (long running) child process
+     * exits — the CLI's only chance to report the port used this run. See issue caxri#1016.
+     */
+    onLaunch?: (info: DevelopmentLaunchInfo) => void;
     stdoutToStderr?: boolean;
 }
 
@@ -326,40 +336,6 @@ async function upstreamCounts(
     }
 }
 
-function developmentProcessPath(context: RepoContext, identity: string): string {
-    return join(context.stateDir, 'processes', `${identity}.json`);
-}
-
-async function readDevelopmentProcess(
-    context: RepoContext,
-    identity: string | undefined,
-): Promise<DevelopmentProcessRecord | undefined> {
-    if (!identity) return undefined;
-    try {
-        const candidate = JSON.parse(
-            await readFile(developmentProcessPath(context, identity), 'utf8'),
-        ) as Partial<DevelopmentProcessRecord>;
-        if (
-            typeof candidate.identity !== 'string' ||
-            typeof candidate.pid !== 'number' ||
-            !Number.isSafeInteger(candidate.pid) ||
-            candidate.pid <= 0 ||
-            typeof candidate.startedAt !== 'string' ||
-            typeof candidate.token !== 'string' ||
-            candidate.worktreeId !== identity ||
-            typeof candidate.worktreePath !== 'string'
-        ) {
-            throw new Error('invalid process record');
-        }
-        return candidate as DevelopmentProcessRecord;
-    } catch (error) {
-        if (errorCode(error) === 'ENOENT') return undefined;
-        throw new CommandError(
-            `Invalid dev process record for worktree ${identity}; inspect it before continuing`,
-        );
-    }
-}
-
 /**
  * Stops everything this worktree started — the recorded development launcher with its whole subtree, the detached
  * Server Core and Extension Host, and any Electron left behind by an interrupted E2E run — and nothing else.
@@ -396,7 +372,11 @@ export async function stopWorktree(
     return {
         path: context.root,
         stopped: stopped.map(({ command, pid }) => ({ command, pid })),
-        survivors: survivors.map(({ command, pid }) => ({ command, pid })),
+        survivors: survivors.map(({ closedReason, command, pid }) => ({
+            ...(closedReason && { closedReason }),
+            command,
+            pid,
+        })),
     };
 }
 
@@ -417,6 +397,7 @@ async function inspectOne(
     return {
         ...worktree,
         ...counts,
+        cdpPort: processRecord?.cdpPort,
         dependencies: await dependencyState(worktree.path),
         desktopLease:
             desktop.state === 'free'
@@ -755,9 +736,23 @@ export async function developmentWorktree(
         if (existing && (await isProcessIdentityAlive(existing.pid, existing.identity))) {
             throw new CommandError(`Development instance already running with PID ${existing.pid}`);
         }
+        // `context.stateDir` (and so this lock) is shared by every worktree of the repository — see
+        // `repoContext` — so resolving the port here, rather than before the lock, keeps two
+        // simultaneous `dev` launches for different worktrees from racing the same OS-level probe.
+        // An explicit `CAXRI_DEV_CDP_PORT` the caller already set (e.g. `audit-ux`'s render-layer
+        // tooling pinning a fixed port) wins over the derived one instead of being silently replaced.
+        const cdpPort = explicitCdpPort(process.env) ?? (await resolveWorktreeCdpPort(worktreeId));
         child = spawn(options.command ?? 'bun', options.args ?? ['run', 'dev'], {
             cwd: context.root,
-            env: { ...process.env, CAXRI_USER_DATA_DIR: profile },
+            env: {
+                ...process.env,
+                CAXRI_DEV_CDP_PORT: String(cdpPort),
+                CAXRI_USER_DATA_DIR: profile,
+                // Read by Preload (see `apps/desktop/src/preload/index.ts`) and exposed to Renderer as
+                // `globalThis.__caxriWorktree`, so a CDP connection can verify it reached this worktree's
+                // window instead of a sibling's. See issue caxri#1016.
+                CAXRI_WORKTREE_PATH: context.root,
+            },
             stdio: options.stdoutToStderr ? ['inherit', 'pipe', 'inherit'] : 'inherit',
         });
         if (options.stdoutToStderr) child.stdout?.pipe(process.stderr);
@@ -768,6 +763,7 @@ export async function developmentWorktree(
             throw new CommandError('Could not establish the development launcher identity');
         }
         record = {
+            cdpPort,
             identity,
             pid: child.pid,
             startedAt: new Date().toISOString(),
@@ -776,6 +772,7 @@ export async function developmentWorktree(
             worktreePath: context.root,
         };
         await writeJsonAtomic(recordPath, record);
+        options.onLaunch?.({ cdpPort, profile, worktreeId });
     });
     const relay = (signal: NodeJS.Signals): void => {
         if (child.exitCode === null) child.kill(signal);

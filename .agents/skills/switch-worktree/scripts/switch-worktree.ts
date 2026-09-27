@@ -233,6 +233,22 @@ export async function runCli(argv: string[]): Promise<void> {
                 throw new CommandError('dev does not accept a target', 2);
             if (arguments_.json) print({ event: 'starting-dev', worktree: process.cwd() }, true);
             const exitCode = await developmentWorktree(process.cwd(), {
+                onLaunch: (info) => {
+                    // The only chance to report this run's CDP port: `developmentWorktree` does not
+                    // resolve until the long-running child process exits. See issue caxri#1016.
+                    print(
+                        arguments_.json
+                            ? {
+                                  cdpPort: info.cdpPort,
+                                  event: 'dev-launched',
+                                  profile: info.profile,
+                                  worktree: process.cwd(),
+                                  worktreeId: info.worktreeId,
+                              }
+                            : `CDP port ${info.cdpPort} for this worktree (profile ${info.profile})`,
+                        arguments_.json,
+                    );
+                },
                 stdoutToStderr: arguments_.json,
             });
             if (exitCode !== 0)
@@ -245,8 +261,20 @@ export async function runCli(argv: string[]): Promise<void> {
             const result = await stopWorktree(process.cwd());
             if (result.survivors.length > 0) {
                 if (arguments_.json) print(result, true);
+                /**
+                 * A survivor with a closed reason never received or acted on the signal (an identity race or a refused
+                 * `process.kill`); one without a reason was signaled successfully and simply had not exited within the
+                 * bounded wait. Both need a manual per-PID check, but the reason narrows where to look first instead of
+                 * leaving every survivor equally unexplained.
+                 *
+                 * @see https://github.com/tjx666/caxri/issues/1179
+                 */
                 throw new CommandError(
-                    `Still running after SIGKILL: PIDs ${result.survivors.map(({ pid }) => pid).join(', ')}`,
+                    `Still running after SIGKILL: ${result.survivors
+                        .map(({ closedReason, pid }) =>
+                            closedReason ? `${pid} (${closedReason})` : `${pid} (exit delay)`,
+                        )
+                        .join(', ')}`,
                 );
             }
             print(

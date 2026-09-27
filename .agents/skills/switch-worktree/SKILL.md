@@ -113,8 +113,8 @@ checked out elsewhere, reuse the reported path.
 
 After a completed PR has merged, a genuinely new delivery may reuse the same clean linked
 worktree on a fresh branch. Fetch `origin/main`, then target that worktree explicitly with
-`rtk git -C <absolute-worktree-path> switch -c <branch> origin/main`. The primary-checkout
-guard resolves the target from the command; a bare `rtk git switch` can be misclassified as a
+`git -C <absolute-worktree-path> switch -c <branch> origin/main`. The primary-checkout
+guard resolves the target from the command; a bare `git switch` can be misclassified as a
 primary-checkout mutation even when the command runner's working directory is the linked worktree.
 Never switch branches in the primary checkout.
 
@@ -158,6 +158,15 @@ bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts dev
 Do not link `node_modules` across worktrees. Each checkout runs `ni`; native Electron dependencies
 and build outputs remain local. Vite owns Renderer port selection.
 
+`dev` also derives a stable, per-worktree CDP port from this worktree's identity (the same identity
+`userData` is keyed on) and passes it as `CAXRI_DEV_CDP_PORT`, advancing to the next free port on a
+conflict. It prints the resolved port before the launcher blocks, and `list --json` reports the
+active or most recently recorded `cdpPort` for every worktree — read the port from one of these
+sources instead of assuming the fixed 9223 dev default, which only ever applies to a bare
+`bun run dev` outside this wrapper. The running window also exposes `globalThis.__caxriWorktree` set
+to this worktree's absolute path, so a CDP connection can verify it reached this checkout rather
+than a sibling worktree's window; see the `debug` skill's live CDP inspection instructions.
+
 ## Stop what this checkout started
 
 ```bash
@@ -168,10 +177,25 @@ Stops the recorded `dev` launcher with its whole subtree, plus anything still ex
 worktree after an interrupted run. An orphaned `Caxri Dev` main process is selected only when a
 worktree-owned child and its exact cwd confirm ownership. SIGTERM comes first, SIGKILL only for
 survivors; a final process scan fails if a child was restarted or ownership could not be confirmed.
+Ownership is re-checked across bounded rounds, so a process that was not yet visible in the first
+scan — a descendant still mid-fork, or a detached process reparented to launchd only once its
+supervisor exited — still gets its own stop attempt instead of only being reported afterward.
 
 Never substitute a name or bundle match. `pkill -f "Caxri.app"` matches `/Applications/Caxri.app`
 and has already terminated the installed app mid-session; `pkill -f Electron` matches every Electron
 app on the machine. Ownership is a path and a process record, never a name.
+
+A non-empty `survivors` result never means "run `stop` again and hope" or "assume the process is
+gone" — always verify each surviving PID by hand: `ps -o pid=,ppid=,command= -p <pid>`, confirm the
+command path is still this worktree's absolute path, then `kill -9 <pid>` only that PID once
+confirmed. Each survivor carries a closed reason when its most recent signal never actually landed:
+`identity-unavailable` and `identity-changed` mean the PID's start-time identity did not match the
+captured snapshot (a reused or restarted PID — re-run `stop` to re-resolve it); `permission-denied`
+means `process.kill` itself was refused (EPERM) and needs a manual, elevated per-PID kill after
+verification; `signal-error` is any other unclassified errno. A survivor with **no** reason was
+actually signaled (both SIGTERM and SIGKILL) but had not exited by the time the bounded wait gave
+up — an exit delay, not a signal failure — and is the case most worth a second `stop` run before
+falling back to a manual kill; see <https://github.com/tjx666/caxri/issues/1179>.
 
 ## Serialize desktop work
 
