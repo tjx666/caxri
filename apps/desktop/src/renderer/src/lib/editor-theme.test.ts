@@ -1,5 +1,5 @@
 import type { ThemeTokens } from '@caxri/protocol';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * The suite runs under Vitest's `node` environment (no jsdom, see `vitest.config.ts`), and even under a DOM environment
@@ -22,7 +22,17 @@ vi.mock('./monaco', () => ({
     },
 }));
 
-import { applyEditorTheme } from './editor-theme';
+import { applyEditorTheme, resetAppliedEditorTheme } from './editor-theme';
+
+/**
+ * `applyEditorTheme` remembers the last definition it applied, so each case starts from a Monaco that has not seen any
+ * Caxri theme yet.
+ */
+beforeEach(() => {
+    resetAppliedEditorTheme();
+    mocks.defineTheme.mockClear();
+    mocks.setTheme.mockClear();
+});
 
 /**
  * Content-free fixture covering every field `applyEditorTheme` reads. Uses distinct hex colors per field so a
@@ -237,5 +247,23 @@ describe('applyEditorTheme', () => {
         // (`/^#?([0-9A-Fa-f]{6})([0-9A-Fa-f]{2})?$/`) accepts that string and stores only group 1.
         expect(byToken.get('markup.inserted')).toBe('00ff00cc');
         expect(byToken.get('markup.deleted')).toBe('ff0000cc');
+    });
+
+    it('skips redefining the theme when nothing it maps has changed', () => {
+        applyEditorTheme(themeFixture());
+        applyEditorTheme(themeFixture());
+
+        expect(mocks.defineTheme).toHaveBeenCalledTimes(1);
+        expect(mocks.setTheme).toHaveBeenCalledTimes(1);
+    });
+
+    it('redefines the theme when a mapped color changes', () => {
+        applyEditorTheme(themeFixture());
+        const changed = themeFixture();
+        changed.editor.keyword = '#abcdef';
+        applyEditorTheme(changed);
+
+        expect(mocks.defineTheme).toHaveBeenCalledTimes(2);
+        expect(mocks.setTheme).toHaveBeenCalledTimes(2);
     });
 });
