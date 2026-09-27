@@ -1,4 +1,4 @@
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 
 import { RotateCw, X } from 'lucide-react-native';
@@ -14,7 +14,7 @@ type Suggestions = ReturnType<typeof useComposerSuggestions>;
 const THUMBNAIL_SIZE = 64;
 
 const styles = StyleSheet.create({
-    strip: { gap: 10, paddingRight: 8, paddingTop: 6 },
+    strip: { flexDirection: 'row', gap: 10, paddingTop: 6 },
     attachment: { height: THUMBNAIL_SIZE, width: THUMBNAIL_SIZE },
     thumbnail: {
         borderRadius: 12,
@@ -57,13 +57,8 @@ export const SessionComposerAttachments = ({
     theme: MobileTheme;
 }) =>
     images.attachments.length > 0 ? (
-        <ScrollView
-            contentContainerStyle={styles.strip}
-            horizontal
-            keyboardShouldPersistTaps="handled"
-            showsHorizontalScrollIndicator={false}
-            testID="session-image-attachments"
-        >
+        // A message carries at most three images, which always fit one row without scrolling.
+        <View style={styles.strip} testID="session-image-attachments">
             {images.attachments.map((attachment, index) => (
                 <Animated.View
                     entering={FadeIn.duration(160)}
@@ -121,7 +116,7 @@ export const SessionComposerAttachments = ({
                     </Pressable>
                 </Animated.View>
             ))}
-        </ScrollView>
+        </View>
     ) : null;
 
 export const SessionComposerSuggestions = ({

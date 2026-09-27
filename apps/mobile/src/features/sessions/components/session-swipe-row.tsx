@@ -30,6 +30,7 @@ const styles = StyleSheet.create({
 export const SessionSwipeRow = ({
     busy,
     children,
+    enabled,
     onArchive,
     onClose,
     onOpen,
@@ -38,6 +39,10 @@ export const SessionSwipeRow = ({
 }: {
     busy: boolean;
     children: ReactNode;
+    /**
+     * Only a control device may archive, so other roles get a plain row that ignores horizontal drags.
+     */
+    enabled: boolean;
     onArchive: (sessionId: string) => Promise<boolean>;
     onClose: (methods: SwipeableMethods) => void;
     onOpen: (methods: SwipeableMethods) => void;
@@ -87,6 +92,7 @@ export const SessionSwipeRow = ({
     return (
         <ReanimatedSwipeable
             childrenContainerStyle={{ backgroundColor: theme.background }}
+            enabled={enabled}
             friction={1.5}
             onSwipeableClose={handleClose}
             onSwipeableWillOpen={handleOpen}
