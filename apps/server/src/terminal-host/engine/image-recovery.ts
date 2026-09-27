@@ -13,12 +13,29 @@ const IIP_PREFIXES = ['File=', 'MultipartFile=', 'FilePart=', 'FileEnd='].flatMa
 ]);
 const KITTY_PREFIXES = [`${ESC}_G`, '\u{9F}G'];
 const MAX_IMAGE_HEADER_CHARACTERS = 64;
+/**
+ * Kitty control data (`key=value,...`) is short; a longer header is treated as a placement to stay conservative.
+ */
+const MAX_KITTY_CONTROL_CHARACTERS = 256;
+/**
+ * Kitty graphics actions that put pixels on screen. Everything else — the default transmit-only `t`, queries (`q`),
+ * deletions (`d`), and animation controls (`f`, `a`, `c`) — leaves no visible cell content to recover. This matters
+ * because capability probes such as Claude Code's startup `a=q` query must not leave a placeholder, and continuation
+ * chunks (`m=1`/`m=0` without `a=`) must not repeat the placeholder of the image they belong to.
+ *
+ * @see https://sw.kovidgoyal.net/kitty/graphics-protocol/#control-data-reference
+ */
+const KITTY_PLACEMENT_ACTIONS = new Set(['T', 'p']);
 
 type TerminatorKind = 'bel-or-st' | 'st';
 
 interface ImageStart {
     end: number;
     index: number;
+    /**
+     * Kitty controls defer the placeholder decision until their control data is known.
+     */
+    kitty?: boolean;
     terminator: TerminatorKind;
 }
 
@@ -64,7 +81,9 @@ function findImageStart(source: string): ImageSearch {
             };
         const kittyPrefix = KITTY_PREFIXES.find((prefix) => remainder.startsWith(prefix));
         if (kittyPrefix)
-            return { start: { end: index + kittyPrefix.length, index, terminator: 'st' } };
+            return {
+                start: { end: index + kittyPrefix.length, index, kitty: true, terminator: 'st' },
+            };
         if (
             IIP_PREFIXES.some((prefix) => prefix.startsWith(remainder)) ||
             KITTY_PREFIXES.some((prefix) => prefix.startsWith(remainder))
@@ -110,6 +129,23 @@ function findTerminator(
 }
 
 /**
+ * Returns whether a Kitty graphics control places an image, or `undefined` while its control data is still incomplete.
+ * `body` starts right after the `ESC _ G` introducer.
+ */
+function resolveKittyPlacement(body: string): boolean | undefined {
+    const ends = [';', ESC, C1_ST]
+        .map((delimiter) => body.indexOf(delimiter))
+        .filter((index) => index >= 0);
+    if (ends.length === 0) return body.length > MAX_KITTY_CONTROL_CHARACTERS ? true : undefined;
+    const action = body
+        .slice(0, Math.min(...ends))
+        .split(',')
+        .find((entry) => entry.startsWith('a='))
+        ?.slice(2);
+    return KITTY_PLACEMENT_ACTIONS.has(action ?? 't');
+}
+
+/**
  * Removes image payloads from Server-owned recovery state while the raw bytes continue to the attached Renderer. Chunk
  * boundaries and oversized/incomplete sequences stay bounded and resolve to one content-free placeholder, so SQLite and
  * diagnostics never retain image contents.
@@ -118,10 +154,24 @@ export class TerminalImageRecoveryFilter {
     private buffer = '';
     private capturing: TerminatorKind | undefined;
     private discarding: TerminatorKind | undefined;
+    /**
+     * Whether the captured control leaves visible content; `undefined` until a Kitty header is complete.
+     */
+    private placement: boolean | undefined;
 
     constructor(private readonly maximumSequenceCharacters = MAX_TERMINAL_IMAGE_SEQUENCE_BYTES) {
         if (!Number.isSafeInteger(maximumSequenceCharacters) || maximumSequenceCharacters < 1)
             throw new RangeError('Terminal image recovery limit must be a positive integer');
+    }
+
+    /**
+     * An unresolved Kitty header at this point was cut short, so it keeps the conservative placeholder.
+     */
+    private endCapture(): string {
+        const placement = this.placement ?? true;
+        this.capturing = undefined;
+        this.placement = undefined;
+        return placement ? TERMINAL_IMAGE_RECOVERY_PLACEHOLDER : '';
     }
 
     push(data: string): string {
@@ -140,18 +190,17 @@ export class TerminalImageRecoveryFilter {
                 continue;
             }
             if (this.capturing) {
+                this.placement ??= resolveKittyPlacement(this.buffer);
                 const terminator = findTerminator(this.buffer, this.capturing);
                 if (terminator) {
                     this.buffer = this.buffer.slice(terminator.index + terminator.length);
-                    this.capturing = undefined;
-                    output += TERMINAL_IMAGE_RECOVERY_PLACEHOLDER;
+                    output += this.endCapture();
                     continue;
                 }
                 if (this.buffer.length > this.maximumSequenceCharacters) {
                     this.discarding = this.capturing;
-                    this.capturing = undefined;
                     this.buffer = this.buffer.endsWith(ESC) ? ESC : '';
-                    output += TERMINAL_IMAGE_RECOVERY_PLACEHOLDER;
+                    output += this.endCapture();
                 }
                 return output;
             }
@@ -160,6 +209,7 @@ export class TerminalImageRecoveryFilter {
                 output += this.buffer.slice(0, search.start.index);
                 this.buffer = this.buffer.slice(search.start.end);
                 this.capturing = search.start.terminator;
+                this.placement = search.start.kitty ? undefined : true;
                 continue;
             }
             if (search.incompleteIndex !== undefined) {
@@ -174,11 +224,7 @@ export class TerminalImageRecoveryFilter {
     }
 
     finish(): string {
-        const output = this.capturing
-            ? TERMINAL_IMAGE_RECOVERY_PLACEHOLDER
-            : this.discarding
-              ? ''
-              : this.buffer;
+        const output = this.capturing ? this.endCapture() : this.discarding ? '' : this.buffer;
         this.buffer = '';
         this.capturing = undefined;
         this.discarding = undefined;
