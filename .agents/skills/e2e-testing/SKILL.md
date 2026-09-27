@@ -184,7 +184,8 @@ If every CI-failing case passes two deterministic local repetitions, CI's failur
 delivery: stop investigating it here. This holds whether or not the case covers the changed
 behavior. When it does, the delivery's own focused specs must also pass two repetitions in the same
 round. Preserve the case, CI run and
-failure evidence, local reproduction command, and result for
+failure evidence, local reproduction command, result, and whether the case touches the changed
+behavior for
 [issue #877](https://github.com/tjx666/caxri/issues/877), then continue delivery. Create or update
 that remote record only when the current request or an active delivery workflow authorizes issue
 mutation; otherwise include copy-ready evidence in the local report. Search existing comments first

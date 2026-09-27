@@ -64,7 +64,8 @@ readback. Do not end again at local validation or PR creation. A status-only que
    CI never runs the local full unit or E2E suite (it occupies the user's machine; only the user's
    explicit request authorizes one) and never reruns CI repeatedly: checks share one self-hosted
    runner, so chasing an intermittent failure in place blocks this delivery and every sibling
-   delivery behind it. When both repetitions pass, record the exact head, failed CI case/run, local commands/results,
+   delivery behind it. When both repetitions pass, record the exact head, failed CI case/run, local commands/results, whether the case touches
+   the changed behavior (a waived in-scope failure must say so explicitly),
    and waiver in the PR and the shared flaky-case tracker, then continue authorized delivery.
    Use the owning test runner; E2E reproduction and tracker publication follow
    [CI-only parity](../e2e-testing/SKILL.md#ci-only-parity).
