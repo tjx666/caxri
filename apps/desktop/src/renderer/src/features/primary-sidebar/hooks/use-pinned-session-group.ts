@@ -11,6 +11,16 @@ import { nextRevealedSessionCount, sessionListWindow } from '../session-list-win
 import type { SessionOrderController } from './use-session-order';
 import { useSessionOrder } from './use-session-order';
 
+/**
+ * `useSessionOrder`'s `groupOf` option. A named function rather than an inline arrow at the call site below, so its
+ * identity stays stable across renders — `useSessionOrder` now memoizes its returned controller, and an inline arrow
+ * passed in fresh on every render would silently re-invalidate that memoization for every Pinned-group re-render (issue
+ * #1108).
+ */
+function pinnedGroupOf(): string {
+    return PINNED_GROUP_ROW_ID;
+}
+
 interface PinnedSessionGroupInput {
     /**
      * The full Project catalog, hidden worktree entries included: a pinned Session's owner may be one of them.
@@ -62,7 +72,7 @@ export function usePinnedSessionGroup({
     const pinned = useMemo(() => pinnedSessions(sessions), [sessions]);
     const sessionOrder = useSessionOrder(pinned, {
         dropTargetAt: pinnedSessionDropTarget,
-        groupOf: () => PINNED_GROUP_ROW_ID,
+        groupOf: pinnedGroupOf,
         reorder: didReorderPinnedSession,
     });
     const groupSessions = sessionOrder.sessions;

@@ -1,11 +1,22 @@
 import type { DragEvent, KeyboardEvent } from 'react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { SessionRecord } from '@caxri/protocol';
 
 import { didReorderSession } from '../../session/session-commands';
 import type { SessionDropTarget } from '../session-order';
 import { frozenSessionOrder, SESSION_DRAG_TYPE, sessionDropTarget } from '../session-order';
+
+/**
+ * `groupOf`'s default. Hoisted out of the destructuring default below rather than written inline, for two reasons: an
+ * inline arrow there would be recreated on every call, which would defeat every `useCallback` below that closes over it
+ * once memoized; and React Compiler cannot yet lower an arrow function written as a destructuring default at all
+ * (`BuildHIR::node.lowerReorderableExpression`), which silently disqualifies the whole hook from its own
+ * auto-memoization (issue #1108).
+ */
+function sessionProjectId(session: SessionRecord): string {
+    return session.projectId;
+}
 
 interface SessionOrderOptions {
     /**
@@ -42,7 +53,7 @@ interface SessionOrderOptions {
 export function useSessionOrder(sessions: SessionRecord[], options: SessionOrderOptions = {}) {
     const {
         dropTargetAt = sessionDropTarget,
-        groupOf = (session: SessionRecord) => session.projectId,
+        groupOf = sessionProjectId,
         reorder = didReorderSession,
     } = options;
     const [draggedId, setDraggedId] = useState<string>();
@@ -73,40 +84,42 @@ export function useSessionOrder(sessions: SessionRecord[], options: SessionOrder
         addEventListener('dragend', end);
         return () => removeEventListener('dragend', end);
     }, [clear]);
-    const persist = async (sessionId: string, target: SessionDropTarget): Promise<void> => {
-        pending.current = true;
-        try {
-            if (await reorder(sessionId, target.anchorSessionId, target.placement))
-                setAnnouncement(
-                    `Moved ${sessions.find((session) => session.id === sessionId)?.displayTitle ?? 'Session'} ${target.placement} ${sessions.find((session) => session.id === target.anchorSessionId)?.displayTitle ?? 'Session'}`,
-                );
-        } finally {
-            pending.current = false;
-            clear();
-        }
-    };
-    const targetAt = (
-        event: DragEvent<HTMLElement>,
-        anchorSessionId: string,
-    ): SessionDropTarget | undefined => {
-        if (!draggedId || pending.current || !event.dataTransfer.types.includes(SESSION_DRAG_TYPE))
-            return;
-        const bounds = event.currentTarget.getBoundingClientRect();
-        return dropTargetAt(
-            sessions,
-            draggedId,
-            anchorSessionId,
-            event.clientY < bounds.top + bounds.height / 2 ? 'before' : 'after',
-        );
-    };
+    const persist = useCallback(
+        async (sessionId: string, target: SessionDropTarget): Promise<void> => {
+            pending.current = true;
+            try {
+                if (await reorder(sessionId, target.anchorSessionId, target.placement))
+                    setAnnouncement(
+                        `Moved ${sessions.find((session) => session.id === sessionId)?.displayTitle ?? 'Session'} ${target.placement} ${sessions.find((session) => session.id === target.anchorSessionId)?.displayTitle ?? 'Session'}`,
+                    );
+            } finally {
+                pending.current = false;
+                clear();
+            }
+        },
+        [clear, reorder, sessions],
+    );
+    const targetAt = useCallback(
+        (event: DragEvent<HTMLElement>, anchorSessionId: string): SessionDropTarget | undefined => {
+            if (
+                !draggedId ||
+                pending.current ||
+                !event.dataTransfer.types.includes(SESSION_DRAG_TYPE)
+            )
+                return;
+            const bounds = event.currentTarget.getBoundingClientRect();
+            return dropTargetAt(
+                sessions,
+                draggedId,
+                anchorSessionId,
+                event.clientY < bounds.top + bounds.height / 2 ? 'before' : 'after',
+            );
+        },
+        [draggedId, dropTargetAt, sessions],
+    );
 
-    return {
-        announcement,
-        draggedId,
-        dropTarget,
-        sourceReference,
-        sessions: frozenSessionOrder(sessions, frozenIds),
-        startDrag(event: DragEvent<HTMLElement>, sessionId: string) {
+    const startDrag = useCallback(
+        (event: DragEvent<HTMLElement>, sessionId: string) => {
             if (pending.current) {
                 event.preventDefault();
                 return;
@@ -118,10 +131,13 @@ export function useSessionOrder(sessions: SessionRecord[], options: SessionOrder
             setDraggedId(sessionId);
             setAnnouncement('');
         },
-        endDrag() {
-            if (!pending.current) clear();
-        },
-        dragOver(event: DragEvent<HTMLElement>, sessionId: string) {
+        [sessions],
+    );
+    const endDrag = useCallback(() => {
+        if (!pending.current) clear();
+    }, [clear]);
+    const dragOver = useCallback(
+        (event: DragEvent<HTMLElement>, sessionId: string) => {
             const target = targetAt(event, sessionId);
             if (!target) {
                 setDropTarget(undefined);
@@ -137,14 +153,17 @@ export function useSessionOrder(sessions: SessionRecord[], options: SessionOrder
                     : target,
             );
         },
-        leaveList() {
-            setDropTarget(undefined);
-        },
-        keyDown(
+        [targetAt],
+    );
+    const leaveList = useCallback(() => {
+        setDropTarget(undefined);
+    }, []);
+    const keyDown = useCallback(
+        (
             event: KeyboardEvent<HTMLElement>,
             session: SessionRecord,
             visibleSessions: readonly SessionRecord[],
-        ) {
+        ) => {
             if (!event.altKey || !['ArrowUp', 'ArrowDown'].includes(event.key)) return;
             event.preventDefault();
             event.stopPropagation();
@@ -163,7 +182,10 @@ export function useSessionOrder(sessions: SessionRecord[], options: SessionOrder
                 placement: delta === -1 ? 'before' : 'after',
             });
         },
-        drop(event: DragEvent<HTMLElement>, sessionId: string) {
+        [draggedId, groupOf, persist],
+    );
+    const drop = useCallback(
+        (event: DragEvent<HTMLElement>, sessionId: string) => {
             const target = targetAt(event, sessionId);
             if (!draggedId || !target) return;
             event.preventDefault();
@@ -173,7 +195,47 @@ export function useSessionOrder(sessions: SessionRecord[], options: SessionOrder
             // eslint-disable-next-line no-void -- intentional floating-promise discard
             void persist(draggedId, target);
         },
-    };
+        [targetAt, draggedId, persist],
+    );
+
+    /**
+     * Memoized so a re-render that leaves every reactive input above untouched — the common case is a Session switch,
+     * which only moves `selectedSessionId` and never this list's own drag/rename state — returns the exact same
+     * controller object. Every consumer down to each Session card receives these methods as props; without this, a
+     * fresh object (and fresh inline methods) on every render defeated each card's own render-skip regardless of
+     * whether its own content actually changed (issue #1108). React Compiler cannot cover this hook on its own: the
+     * `try`/`finally` in `persist` above has no `catch` clause, which is also not yet lowered
+     * (`BuildHIR::lowerStatement`), so this hook falls back to manual memoization throughout.
+     */
+    return useMemo(
+        () => ({
+            announcement,
+            draggedId,
+            dropTarget,
+            sourceReference,
+            sessions: frozenSessionOrder(sessions, frozenIds),
+            startDrag,
+            endDrag,
+            dragOver,
+            leaveList,
+            keyDown,
+            drop,
+        }),
+        [
+            announcement,
+            draggedId,
+            dropTarget,
+            sourceReference,
+            sessions,
+            frozenIds,
+            startDrag,
+            endDrag,
+            dragOver,
+            leaveList,
+            keyDown,
+            drop,
+        ],
+    );
 }
 
 export type SessionOrderController = ReturnType<typeof useSessionOrder>;

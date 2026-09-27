@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { SessionRecord } from '@caxri/protocol';
 
@@ -60,25 +60,29 @@ export function useSessionRename(
         restoreFocusRowIdReference.current = undefined;
     }, [renamingRowId, sessions]);
 
-    const beginRename = (sessionId: string, displayTitle: string, rowId: string): void => {
-        /**
-         * Record how the row was focused before the input replaces it. `focus()` always applies `:focus-visible`, so
-         * restoring focus after a rename started by double-click drew a white ring around a row the user had only ever
-         * clicked — a focus indicator standing for keyboard navigation that never happened.
-         */
-        restoreFocusVisibleReference.current = treeRow(rowId)?.matches(':focus-visible') === true;
-        renamingSessionIdReference.current = sessionId;
-        renamingRowIdReference.current = rowId;
-        setRenamingRowId(rowId);
-        setRenameValue(displayTitle);
-        setRenameError(undefined);
-    };
+    const beginRename = useCallback(
+        (sessionId: string, displayTitle: string, rowId: string): void => {
+            /**
+             * Record how the row was focused before the input replaces it. `focus()` always applies `:focus-visible`,
+             * so restoring focus after a rename started by double-click drew a white ring around a row the user had
+             * only ever clicked — a focus indicator standing for keyboard navigation that never happened.
+             */
+            restoreFocusVisibleReference.current =
+                treeRow(rowId)?.matches(':focus-visible') === true;
+            renamingSessionIdReference.current = sessionId;
+            renamingRowIdReference.current = rowId;
+            setRenamingRowId(rowId);
+            setRenameValue(displayTitle);
+            setRenameError(undefined);
+        },
+        [],
+    );
 
     /**
      * Clearing the active id synchronously makes key-repeat submissions no-ops. Blur deliberately skips focus
      * restoration so the control the user clicked keeps focus.
      */
-    const finishRename = (sessionId: string, shouldRestoreFocus: boolean): void => {
+    const finishRename = useCallback((sessionId: string, shouldRestoreFocus: boolean): void => {
         if (renamingSessionIdReference.current !== sessionId) return;
         const rowId = renamingRowIdReference.current;
         renamingSessionIdReference.current = undefined;
@@ -86,14 +90,14 @@ export function useSessionRename(
         if (shouldRestoreFocus && rowId) restoreFocusRowIdReference.current = rowId;
         setRenamingRowId((current) => (current === rowId ? undefined : current));
         setRenameError(undefined);
-    };
+    }, []);
 
-    const cancelRename = (): void => {
+    const cancelRename = useCallback((): void => {
         const sessionId = renamingSessionIdReference.current;
         if (sessionId) finishRename(sessionId, true);
-    };
+    }, [finishRename]);
 
-    const commitRename = (): void => {
+    const commitRename = useCallback((): void => {
         const sessionId = renamingSessionIdReference.current;
         if (!sessionId) return;
         const displayTitle = renameValue.trim();
@@ -106,9 +110,9 @@ export function useSessionRename(
         // Fire-and-forget: `didRenameSession` funnels its own failures into a toast.
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
         if (displayTitle !== currentTitle) void didRenameSession(sessionId, displayTitle);
-    };
+    }, [renameValue, sessions, finishRename]);
 
-    const blurRename = (): void => {
+    const blurRename = useCallback((): void => {
         const sessionId = renamingSessionIdReference.current;
         if (!sessionId) return;
         const displayTitle = renameValue.trim();
@@ -118,12 +122,12 @@ export function useSessionRename(
         if (displayTitle && displayTitle !== currentTitle)
             // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void didRenameSession(sessionId, displayTitle);
-    };
+    }, [renameValue, sessions, finishRename]);
 
-    const onRenameValueChange = (value: string): void => {
+    const onRenameValueChange = useCallback((value: string): void => {
         setRenameValue(value);
         setRenameError(undefined);
-    };
+    }, []);
 
     /**
      * The `session.rename` command's way in. Renaming is React state owned by this hook, so a command — which runs
@@ -157,15 +161,35 @@ export function useSessionRename(
         // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
     }, [renameRequest?.id]);
 
-    return {
-        beginRename,
-        blurRename,
-        cancelRename,
-        commitRename,
-        focusRenameInput,
-        onRenameValueChange,
-        renameError,
-        renameValue,
-        renamingRowId,
-    };
+    /**
+     * Memoized for the same reason as `useSessionOrder`'s return (issue #1108): every consumer down to each Session
+     * card receives these methods as props, and a fresh controller object on every render of the Project tree —
+     * including a plain Session switch, which never touches renaming — defeated each card's own render-skip regardless
+     * of whether its own content changed. React Compiler does not help here either: it refuses to optimize any function
+     * containing an ESLint rule suppression, and the effect above carries one.
+     */
+    return useMemo(
+        () => ({
+            beginRename,
+            blurRename,
+            cancelRename,
+            commitRename,
+            focusRenameInput,
+            onRenameValueChange,
+            renameError,
+            renameValue,
+            renamingRowId,
+        }),
+        [
+            beginRename,
+            blurRename,
+            cancelRename,
+            commitRename,
+            focusRenameInput,
+            onRenameValueChange,
+            renameError,
+            renameValue,
+            renamingRowId,
+        ],
+    );
 }
