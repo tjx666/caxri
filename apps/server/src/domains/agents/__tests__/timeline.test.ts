@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CaxriDatabase } from '../../db';
 import { appendClaudeTimelineRecord } from '../providers/claude/timeline';
 import { appendCodexTimelineRecord } from '../providers/codex/timeline';
+import { readAgentReplySummary } from '../reply-summary';
 import { AgentTimelineService } from '../timeline';
 import { TimelineBuilder } from '../timeline-model';
 
@@ -359,6 +360,35 @@ describe('AgentTimelineService', () => {
         const second = await service.read('session-fixture', 'terminal-fixture', undefined, 2);
         expect(second.items.at(-1)).toMatchObject({ text: 'Message 4' });
         expect(second.items[0]?.id).toBe(first.items.at(-1)?.id);
+    });
+
+    it('summarizes the closing reply of a real Claude transcript for the system notification', async () => {
+        await writeFile(
+            transcript,
+            [
+                claude('user', 'fixture-user', [{ type: 'text', text: 'Fix the test' }]),
+                claude('assistant', 'fixture-reply', [
+                    { type: 'text', text: '**Fixed** the flaky test.\n\nPushed the branch.' },
+                ]),
+            ]
+                .map((record) => `${JSON.stringify(record)}\n`)
+                .join(''),
+        );
+        const database = {
+            getSession: () => ({ primaryAgentTerminalId: 'terminal-fixture' }),
+            getTerminal: () => terminal,
+        } as unknown as CaxriDatabase;
+        const timeline = new AgentTimelineService(database, { homeDirectory: home, variables: {} });
+        await expect(readAgentReplySummary(database, timeline, 'session-fixture')).resolves.toEqual(
+            {
+                summary: 'Fixed the flaky test. Pushed the branch.',
+            },
+        );
+        terminal.provider = 'grok';
+        timeline.forgetTerminal('terminal-fixture');
+        await expect(readAgentReplySummary(database, timeline, 'session-fixture')).resolves.toEqual(
+            {},
+        );
     });
 
     it('reports unsupported for a provider without a timeline projector', async () => {

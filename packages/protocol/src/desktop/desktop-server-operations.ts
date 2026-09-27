@@ -9,6 +9,7 @@ import type {
  * confirmation step. Desktop disconnection never stops Server Core.
  */
 export const desktopServerOperationIds = [
+    'agent.replySummary',
     'app.windowState.get',
     'app.windowState.update',
     'bugReport.deliver',

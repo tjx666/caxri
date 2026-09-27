@@ -193,6 +193,45 @@ describe('Agent notification coordinator', () => {
         expect(test.shown).toEqual([]);
     });
 
+    it('closes the previous turn banner when the next one is superseded', async () => {
+        const completed = (attentionEpoch: number, at: number) =>
+            session({
+                id: 'session-1',
+                attentionEpoch,
+                hasUnread: true,
+                lastAttentionKind: 'completed',
+                lastSessionActivityAt: at,
+                lastSessionActivityReason: 'agent_completed',
+            });
+        const running = (at: number) =>
+            session({
+                id: 'session-1',
+                lastActivityState: 'running',
+                lastSessionActivityAt: at,
+                lastSessionActivityReason: 'agent_started',
+            });
+        const test = harness(running(10_000));
+        test.select('session-1');
+        await test.coordinator.initialize();
+        test.setSession(completed(1, 200_000));
+        test.coordinator.observe(recordsChanged);
+        await test.coordinator.flush();
+        expect(test.shown).toHaveLength(1);
+
+        test.setSession({ ...running(300_000), attentionEpoch: 1, hasUnread: true });
+        test.coordinator.observe(recordsChanged);
+        await test.coordinator.flush();
+        test.setReplySummary(() => {
+            test.setVisible(true);
+            return Promise.resolve('done');
+        });
+        test.setSession(completed(2, 500_000));
+        test.coordinator.observe(recordsChanged);
+        await test.coordinator.flush();
+        expect(test.shown).toHaveLength(1);
+        expect(test.closed).toEqual([true]);
+    });
+
     it('does not let a secondary Terminal submission reset the primary Agent turn duration', async () => {
         const test = harness(
             session({
