@@ -252,8 +252,14 @@ test('inline images render real pixels, enforce budgets, and restore as content-
             RECOVERY_PLACEHOLDER,
         );
 
-        // A lone tab renders no close button, and `Cmd+W` on a Session's last tab archives the Session instead, so close
-        // the Terminal through the Terminal > Close Terminal menu command.
+        /**
+         * Terminal > Close Terminal now archives a Session on its true last tab, same as `Cmd+W`, instead of destroying
+         * the Terminal — so give this Session a sibling Terminal and re-select `terminalId`'s own tab first, keeping
+         * this an ordinary close that actually removes the Terminal the assertion below tracks.
+         */
+        await pressNewTerminal(running.page);
+        await waitForNewTerminalId(running.page, [terminalId, secondTerminalId]);
+        await running.page.locator(`.work-tab[data-terminal-id="${terminalId}"]`).click();
         await running.app.evaluate(({ Menu }) => {
             Menu.getApplicationMenu()
                 ?.getMenuItemById('command.terminal.close')
