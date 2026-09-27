@@ -205,7 +205,7 @@ describe('GPU recovery notification coordinator', () => {
         scheduler.advance(1_000);
 
         expect(toasts).toHaveLength(1);
-        expect(toasts[0]?.message).toContain('the affected Terminals');
+        expect(toasts[0]?.message).toContain('Affected Terminals');
     });
 
     it('suppresses a local fallback within 500ms after a global incident but allows a later one', () => {
@@ -225,7 +225,7 @@ describe('GPU recovery notification coordinator', () => {
         scheduler.advance(500);
 
         expect(toasts).toHaveLength(2);
-        expect(toasts[0]?.message).toContain('the affected Terminals');
+        expect(toasts[0]?.message).toContain('Affected Terminals');
         expect(toasts[1]?.message).toContain('one Terminal');
     });
 
@@ -300,7 +300,7 @@ describe('GPU recovery notification coordinator', () => {
         scheduler.advance(500);
 
         expect(toasts).toHaveLength(2);
-        expect(toasts[0]?.message).toContain('the affected Terminals');
+        expect(toasts[0]?.message).toContain('Affected Terminals');
         expect(toasts[1]?.message).toContain('one Terminal');
     });
 
@@ -451,8 +451,8 @@ describe('GPU recovery notification coordinator', () => {
         }
 
         expect(toasts.map((entry) => entry.options?.persist)).toEqual([true, true, true]);
-        expect(toasts[0]?.message).toContain('the affected Terminals');
-        expect(toasts[1]?.message).toContain('the affected Terminals');
+        expect(toasts[0]?.message).toContain('Affected Terminals');
+        expect(toasts[1]?.message).toContain('Affected Terminals');
         expect(toasts[2]?.message).toContain('switched to software rendering');
     });
 });

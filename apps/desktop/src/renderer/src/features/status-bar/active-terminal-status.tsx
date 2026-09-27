@@ -26,6 +26,7 @@ import {
 } from '../terminal/terminal-renderer-status';
 import { StatusInfo } from './status-info';
 import { StatusItem } from './status-item';
+import { terminalMemoryLabel } from './terminal-memory-label';
 
 const openProcessExplorer = (): void => executeCommand('processExplorer.open');
 
@@ -127,16 +128,17 @@ function TerminalUsageStatus({
     ).data;
     if (!usage) return null;
     const childLabel = `${usage.childProcessCount} ${usage.childProcessCount === 1 ? 'child process' : 'child processes'}`;
+    const memoryLabel = terminalMemoryLabel(usage.memoryMb);
     return (
         <>
             {showMemory && (
                 <StatusItem
-                    ariaLabel={`Open Process Explorer — Terminal memory: ${usage.memoryMb} MB`}
+                    ariaLabel={`Open Process Explorer — Terminal memory: ${memoryLabel}`}
                     icon={<MemoryStick />}
-                    title={`Open Process Explorer — Terminal memory: ${usage.memoryMb} MB`}
+                    title={`Open Process Explorer — Terminal memory: ${memoryLabel}`}
                     onClick={openProcessExplorer}
                 >
-                    {usage.memoryMb} MB
+                    {memoryLabel}
                 </StatusItem>
             )}
             {showChildProcessCount && (
