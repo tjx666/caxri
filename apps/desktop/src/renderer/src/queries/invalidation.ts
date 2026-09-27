@@ -163,11 +163,14 @@ function isControlledOperationMatch(
  * so its durable event is the single invalidation source instead of an Extension Host echo. `files.browse` is not
  * listed: the Path Browser is owned by Desktop Main (`path-browser-authority.ts`), which calls Server directly, so no
  * `files.browse` query is ever cached in the Renderer for a predicate to match. `projectStatus.summary` and
- * `projectStatus.overview` are excluded: a Project Status read may shell out to a delivery CLI (e.g. `gh`), so it stays
- * on its own polling interval instead of re-running on every file write. Git status/diff/blame queries (`git.summary`,
- * `git.overview`, `git.diffDocument`, `git.blame`) are no longer invalidated from here: a plain file write does not
- * always mean the working tree changed (e.g. an ignored file), so Git invalidation instead rides the Server-emitted
- * `git.changed` event, which is scoped to the repository identities that actually changed — see
+ * `projectStatus.overview` are excluded: a Project Status read may shell out to a delivery CLI (e.g. `gh`), so a plain
+ * file write never invalidates it. Those two queries instead follow the Server's own delivery push
+ * (`projectStatus.changed`, `sessionPullRequests.changed` — see `invalidateProjectStatusQuery` and
+ * `invalidateSessionPullRequestDependentQueries` below) plus a low-frequency fallback poll on the status bar's own
+ * side, for the same reason `git.changed` replaces polling for Git reads below. Git status/diff/blame queries
+ * (`git.summary`, `git.overview`, `git.diffDocument`, `git.blame`) are no longer invalidated from here: a plain file
+ * write does not always mean the working tree changed (e.g. an ignored file), so Git invalidation instead rides the
+ * Server-emitted `git.changed` event, which is scoped to the repository identities that actually changed — see
  * `invalidateGitChangedQueries` below.
  */
 function invalidateFileDependentQueries(
@@ -250,6 +253,14 @@ function invalidateGitChangedQueries(
     });
 }
 
+/**
+ * Invalidates both Project Status reads for one Session after `projectStatus.changed` — the Status panel's
+ * `projectStatus.summary` and the status bar's `projectStatus.overview`. The two reads are computed independently, but
+ * a summary refresh warms the same shared `GitHubPullRequestStore`/`LinearIssueStore`/`AcceptanceStore` records the
+ * overview reads from (see `ProjectStatusService` in `apps/server/src/domains/project-status.ts`), so this refetch
+ * normally costs no extra delivery-CLI call. This is what lets the status bar converge with the Status panel in the
+ * same Server refresh instead of waiting out its own poll (issue caxri#1310).
+ */
 function invalidateProjectStatusQuery(queryClient: QueryClient, sessionId: string): void {
     // Fire-and-forget: the refreshed query surfaces any error through React Query state.
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
@@ -260,8 +271,38 @@ function invalidateProjectStatusQuery(queryClient: QueryClient, sessionId: strin
                 { sessionId?: string } | undefined,
             ];
             return (
-                isQueryMethod(query.queryKey, 'projectStatus.summary') &&
+                isQueryMethod(query.queryKey, 'projectStatus.summary', 'projectStatus.overview') &&
                 parameters?.sessionId === sessionId
+            );
+        },
+    });
+}
+
+/**
+ * Invalidates the shared `session.pullRequests` sidebar query and the affected Sessions' `projectStatus.overview` read
+ * after `sessionPullRequests.changed`. `SessionPullRequestService` and `ProjectStatusService` share one
+ * `GitHubPullRequestStore` (see `service-handlers.ts`), so the overview's own pull-request resolution normally answers
+ * from the record this sweep just wrote rather than paying for another `gh pr view` (issue caxri#1310).
+ */
+function invalidateSessionPullRequestDependentQueries(
+    queryClient: QueryClient,
+    sessionIds: readonly string[],
+): void {
+    // Fire-and-forget: the refreshed query surfaces any error through React Query state.
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+    void queryClient.invalidateQueries({ queryKey: PULL_REQUESTS_QUERY_KEY });
+    const sessionIdSet = new Set(sessionIds);
+    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+    void queryClient.invalidateQueries({
+        predicate: (query) => {
+            const [, parameters] = query.queryKey as [
+                CaxriMethod,
+                { sessionId?: string } | undefined,
+            ];
+            return (
+                isQueryMethod(query.queryKey, 'projectStatus.overview') &&
+                parameters?.sessionId !== undefined &&
+                sessionIdSet.has(parameters.sessionId)
             );
         },
     });
@@ -565,9 +606,7 @@ export function subscribeRuntimeQueryInvalidation(queryClient: QueryClient): () 
             return;
         }
         if (event.event === 'sessionPullRequests.changed') {
-            // Fire-and-forget: the refreshed query surfaces any error through React Query state.
-            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
-            void queryClient.invalidateQueries({ queryKey: PULL_REQUESTS_QUERY_KEY });
+            invalidateSessionPullRequestDependentQueries(queryClient, event.payload.sessionIds);
             return;
         }
         if (event.event === 'agentTranscript.changed') {
