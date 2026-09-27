@@ -608,9 +608,6 @@ takes no mark: it is a peer checkout, not something nested in this tree. The mar
 the change decoration above — a submodule or nested-repository root can carry the glyph and a change
 color at the same time, and still no letter.
 
-Dragging a Files or Source Control row shows a solid chip naming the entry rather than Chromium's
-translucent snapshot of the whole row.
-
 **Editor breadcrumbs** — an ordinary Project file gets one 24px metadata row below the tab strip.
 Its Project-relative path sits on the left and the current file's last-change annotation sits on
 the right; both use dense, muted chrome on `--surface`, separated from the editor by one hairline.

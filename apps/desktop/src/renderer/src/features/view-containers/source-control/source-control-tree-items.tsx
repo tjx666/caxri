@@ -8,7 +8,6 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
 import { Tooltip } from '../../../components/ui/tooltip';
 import { FileTypeIcon } from '../../../icons/files/file-type-icon';
-import { setLabelDragImage } from '../../../lib/drag-image';
 import { startFilePathDrag } from '../../../lib/file-drag';
 import { resolveRepositoryFilePath as resolveRepoFilePath } from '../../../lib/repository-file-path';
 import { cn } from '../../../lib/utilities';
@@ -71,7 +70,6 @@ function handleResourceDragStart(
 ): void {
     if (!resourcePath) return;
     startFilePathDrag(event.dataTransfer, resourcePath, false);
-    setLabelDragImage(event.dataTransfer, resourcePath.slice(resourcePath.lastIndexOf('/') + 1));
 }
 
 /**
