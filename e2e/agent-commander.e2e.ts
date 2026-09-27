@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -7,6 +7,7 @@ import { isDeepStrictEqual } from 'node:util';
 import type { AppSettings, CommanderSnapshot, CommanderStatus } from '@caxri/protocol';
 
 import { createFakeAgentMode } from './support/agent-fixture.ts';
+import { dropFinderFiles } from './support/finder-file-drop.ts';
 import { allowE2EErrors, expect, test } from './support/fixtures.ts';
 import {
     createShellSession,
@@ -15,6 +16,7 @@ import {
     waitForRuntimeReady,
 } from './support/helpers.ts';
 import { chooseContextMenuItem, contextMenuLabels } from './support/native-context-menu.ts';
+import { readFileForPoll } from './support/result-file-polling.ts';
 
 // eslint-disable-next-line no-empty-pattern -- Playwright requires object destructuring for its fixture argument
 test('Agent Commander keeps running after its window closes and stops on request', async ({}, testInfo) => {
@@ -537,6 +539,49 @@ test('Agent Commander Terminal runs the shortcuts its context menu offers', asyn
         const search = commander.getByRole('textbox', { name: 'Find in Terminal', exact: true });
         await expect(search).toBeFocused();
         await testInfo.attach('commander-shortcut-find', {
+            body: await commander.screenshot(),
+            contentType: 'image/png',
+        });
+    } finally {
+        try {
+            await running.app.close();
+        } catch {
+            // Ignore close errors during test cleanup.
+        }
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+
+// eslint-disable-next-line no-empty-pattern -- Playwright requires object destructuring for its fixture argument
+test('Agent Commander Terminal inserts the path of a screenshot dropped from Finder', async ({}, testInfo) => {
+    const directory = await realpath(await mkdtemp(`${tmpdir()}/caxri-commander-drop-e2e-`));
+    const userData = join(directory, 'user-data');
+    const root = join(directory, 'project');
+    await mkdir(root);
+    const screenshot = join(directory, 'Screenshot 2026-09-28 at 07.40.png');
+    await writeFile(screenshot, 'fixture\n');
+    const capture = join(directory, 'commander-input.txt');
+    const agentMode = await createFakeAgentMode({
+        userDataDir: userData,
+        providers: { codex: { inputCapture: { path: capture, encoding: 'utf8' } } },
+    });
+    const running = await launchCaxri({ agentMode, userDataDir: userData, testRootPath: root });
+    try {
+        await createShellSession(running.page);
+        await pageRequest(running.page, 'agentCommander.open');
+        await expect.poll(() => running.app.windows().length).toBe(2);
+        const commander = running.app.windows().find((page) => page !== running.page)!;
+        const pane = commander.locator('.terminal-pane');
+        await expect(pane.locator('.xterm-rows')).toContainText('Fake codex ready');
+
+        await dropFinderFiles(commander, pane, [screenshot]);
+
+        // The Commander works outside every Project, so the path stays absolute, quoted for its spaces.
+        await expect
+            .poll(() => readFileForPoll(() => readFile(capture, 'utf8')))
+            .toBe(`'${screenshot}'\n`);
+        await expect(pane.locator('.xterm-helper-textarea')).toBeFocused();
+        await testInfo.attach('commander-finder-drop', {
             body: await commander.screenshot(),
             contentType: 'image/png',
         });

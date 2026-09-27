@@ -177,6 +177,14 @@ export interface CaxriBridge {
      * Reports a strict, content-free Renderer lifecycle snapshot for local diagnostics.
      */
     reportDiagnostic(diagnostic: RendererDiagnostic): void;
+    /**
+     * The disk path of a `File` the user dropped on the page, or `''` when it has none, such as a file promise not yet
+     * written to disk. Electron removed `File.path`, and only a preload can call `webUtils.getPathForFile`. It reads no
+     * file and resolves only `File` objects the user handed to the page.
+     *
+     * @see https://www.electronjs.org/docs/latest/api/web-utils#webutilsgetpathforfilefile
+     */
+    pathForFile(file: File): string;
 }
 
 /**

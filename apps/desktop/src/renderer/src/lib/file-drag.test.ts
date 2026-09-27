@@ -1,6 +1,6 @@
 import type { DragEvent } from 'react';
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
     dragPath,
@@ -11,7 +11,7 @@ import {
     projectTerminalInput,
     shellRelativePath,
     startFilePathDrag,
-    terminalDragPath,
+    terminalDragPaths,
     terminalInputPath,
     terminalReferencePath,
 } from './file-drag';
@@ -126,6 +126,10 @@ describe('terminalInputPath', () => {
 });
 
 describe('Terminal file references', () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
     it('inserts a linked entry without making it a Files move source', () => {
         const data: Record<string, string> = {};
         const transfer = {
@@ -138,7 +142,7 @@ describe('Terminal file references', () => {
         const event = fakeDragEvent(data);
         expect(transfer.effectAllowed).toBe('copy');
         expect(hasTerminalDraggedPath(event)).toBe(true);
-        expect(terminalDragPath(event)).toBe('/repo/linked folder');
+        expect(terminalDragPaths(event)).toEqual(['/repo/linked folder']);
         expect(hasDraggedPath(event)).toBe(false);
         expect(dragPath(event)).toBeUndefined();
     });
@@ -155,8 +159,28 @@ describe('Terminal file references', () => {
         const event = fakeDragEvent(data);
         expect(transfer.effectAllowed).toBe('copyMove');
         expect(hasTerminalDraggedPath(event)).toBe(true);
-        expect(terminalDragPath(event)).toBe('/repo/file.txt');
+        expect(terminalDragPaths(event)).toEqual(['/repo/file.txt']);
         expect(hasDraggedPath(event)).toBe(true);
+    });
+
+    it('resolves files from another application through the preload, leaving out those with no path', () => {
+        vi.stubGlobal('caxri', {
+            pathForFile: (file: { name: string }) =>
+                file.name === 'promise.png' ? '' : `/Volumes/Shots/${file.name}`,
+        });
+        const event = {
+            dataTransfer: {
+                files: [{ name: 'one.png' }, { name: 'promise.png' }, { name: 'two three.png' }],
+                getData: () => '',
+                types: ['Files'],
+            },
+        } as unknown as DragEvent;
+
+        expect(hasTerminalDraggedPath(event)).toBe(true);
+        expect(terminalDragPaths(event)).toEqual([
+            '/Volumes/Shots/one.png',
+            '/Volumes/Shots/two three.png',
+        ]);
     });
 
     it('resolves references against the verified Agent worktree before launch cwd', () => {
