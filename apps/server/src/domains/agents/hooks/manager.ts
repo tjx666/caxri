@@ -140,6 +140,11 @@ export class AgentHookManager {
     private requestedSettings?: Record<AgentProvider, AgentProviderSettings>;
     private readonly telemetry: AgentHookTelemetry;
     private readonly launches: HookLaunchRegistry;
+    /**
+     * Providers whose last repair left the config short of `current`, so the non-convergence warning fires once per
+     * transition instead of on every watcher-triggered reconcile.
+     */
+    private readonly nonConvergentProviders = new Set<AgentProvider>();
     private readonly profileId: string;
     private readonly schemaVersions: Record<AgentProvider, number>;
 
@@ -273,6 +278,7 @@ export class AgentHookManager {
                 if (!['absent', 'newer', 'newerIncomplete', 'unparseable'].includes(status.kind)) {
                     await this.writeEdits(
                         adapter.remove(documents, this.desired(provider)),
+                        documents,
                         targetById,
                         provider,
                         'remove',
@@ -303,16 +309,20 @@ export class AgentHookManager {
             }
             if (['absent', 'stale', 'drifted'].includes(status.kind)) {
                 this.loseAuthority(provider);
-                await this.writeEdits(
+                const fromStatus = status.kind;
+                const action = fromStatus === 'absent' ? 'install' : 'repair';
+                const written = await this.writeEdits(
                     adapter.render(documents, this.desired(provider)),
+                    documents,
                     targetById,
                     provider,
-                    status.kind === 'absent' ? 'install' : 'repair',
-                    status.kind,
+                    action,
+                    fromStatus,
                 );
                 documents = await readTargets(targets);
                 status = adapter.inspect(documents, this.desired(provider)).status;
-            }
+                this.recordConvergence(provider, action, fromStatus, status.kind, written);
+            } else if (status.kind === 'current') this.nonConvergentProviders.delete(provider);
             if (status.kind !== 'current' && status.kind !== 'newer') this.loseAuthority(provider);
             this.setHealth(
                 provider,
@@ -412,11 +422,14 @@ export class AgentHookManager {
      */
     private async writeEdits(
         edits: ReturnType<AgentHookAdapter['render']>,
+        documents: AgentHookDocuments,
         targetById: ReadonlyMap<string, AgentHookConfigTarget>,
         provider: AgentProvider,
         action: 'install' | 'remove' | 'repair',
         fromStatus: AgentHookEntryStatus['kind'],
-    ): Promise<void> {
+    ): Promise<number> {
+        const contents = new Map(documents);
+        let written = 0;
         /**
          * Adapter edits are an ordered transaction plan; parallel replacement could expose a mixed provider
          * configuration or overwrite a later edit to the same target.
@@ -427,9 +440,16 @@ export class AgentHookManager {
                 throw new Error(
                     `Hook adapter attempted to write read-only target ${edit.targetId}`,
                 );
+            /**
+             * A byte-identical rewrite still fires the config watcher, which schedules another reconcile. Skipping it
+             * keeps an edit plan that cannot reach `current` from turning into a self-sustaining write loop.
+             */
+            if (contents.get(edit.targetId) === edit.source) continue;
             // oxlint-disable-next-line react-doctor/async-await-in-loop
             // eslint-disable-next-line no-await-in-loop -- see doc comment above: edits must apply in order
             await atomicWrite(target.path, edit.source);
+            contents.set(edit.targetId, edit.source);
+            written += 1;
             this.options.logger.write('info', logEventCatalog.agentHooks.configWritten, {
                 fields: {
                     stage: 'serverCore',
@@ -440,6 +460,30 @@ export class AgentHookManager {
                 },
             });
         }
+        return written;
+    }
+
+    /**
+     * An install or repair that leaves the provider config short of `current` means the adapter's edit plan and its
+     * inspection disagree, or another writer undid the edit. Recorded once per transition with the edit count, so a
+     * plan that cannot converge is visible without the watcher loop it used to cause.
+     */
+    private recordConvergence(
+        provider: AgentProvider,
+        action: 'install' | 'repair',
+        fromStatus: AgentHookEntryStatus['kind'],
+        toStatus: AgentHookEntryStatus['kind'],
+        written: number,
+    ): void {
+        if (toStatus === 'current') {
+            this.nonConvergentProviders.delete(provider);
+            return;
+        }
+        if (this.nonConvergentProviders.has(provider)) return;
+        this.nonConvergentProviders.add(provider);
+        this.options.logger.write('warn', logEventCatalog.agentHooks.repairNotConverged, {
+            fields: { stage: 'serverCore', provider, action, fromStatus, toStatus, written },
+        });
     }
 
     private setHealth(provider: AgentProvider, health: AgentHookHealth): void {

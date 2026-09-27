@@ -51,6 +51,7 @@ export const logEventCatalog = {
         launchSummary: 'agent_hooks.launch_summary',
         lockFailed: 'agent_hooks.lock_failed',
         reconcileFailed: 'agent_hooks.reconcile_failed',
+        repairNotConverged: 'agent_hooks.repair_not_converged',
         signalAccepted: 'agent_hooks.signal_accepted',
         signalFailed: 'agent_hooks.signal_failed',
         signalIgnored: 'agent_hooks.signal_ignored',
@@ -162,6 +163,7 @@ export const logEventCatalog = {
     },
     log: {
         recordsDropped: 'log.records_dropped',
+        rotated: 'log.rotated',
     },
     process: {
         eventLoopStall: 'process.event_loop_stall',

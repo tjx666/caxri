@@ -216,6 +216,42 @@ describe('StructuredLogger', () => {
         }
     });
 
+    it('opens each new generation with the volume breakdown of the rotated one', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-logger-'));
+        try {
+            const logger = new StructuredLogger(directory);
+            const bigField = 'y'.repeat(RECORD_PAYLOAD_BYTES);
+            for (let index = 0; index < 5; index++) {
+                logger.write('info', logEventCatalog.file.search, {
+                    fields: { index, payload: bigField },
+                });
+                logger.write('info', logEventCatalog.file.list, { fields: { index } });
+                // eslint-disable-next-line no-await-in-loop -- intentionally sequential: each record must land before the next write sizes rotation.
+                await logger.flush();
+            }
+
+            const [first] = (await readFile(logger.path, 'utf8'))
+                .trim()
+                .split('\n')
+                .map(
+                    (line) =>
+                        JSON.parse(line) as { event: string; fields: Record<string, unknown> },
+                );
+            expect(first).toMatchObject({
+                event: logEventCatalog.log.rotated,
+                fields: {
+                    countedFrom: 'processStart',
+                    records: 9,
+                    topEvents: `${logEventCatalog.file.search}:5,${logEventCatalog.file.list}:4`,
+                    topEventShare: 56,
+                },
+            });
+            expect(first.fields.rotatedBytes).toBeGreaterThan(0);
+        } finally {
+            await rm(directory, { recursive: true, force: true });
+        }
+    });
+
     it('keeps three rotated generations and evicts the oldest beyond that window', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-logger-'));
         try {
@@ -241,9 +277,9 @@ describe('StructuredLogger', () => {
                     .trim()
                     .split('\n')
                     .filter(Boolean)
-                    .map(
-                        (line) => (JSON.parse(line) as { fields: { index: number } }).fields.index,
-                    );
+                    .map((line) => JSON.parse(line) as { event: string; fields: { index: number } })
+                    .filter((record) => record.event !== logEventCatalog.log.rotated)
+                    .map((record) => record.fields.index);
             };
 
             expect(await indicesIn(logger.path)).toEqual([16, 17, 18, 19]);
