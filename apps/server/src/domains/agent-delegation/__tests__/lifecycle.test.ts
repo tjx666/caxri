@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { StoredAgentDelegation } from '../../db';
-import { applyDelegationLifecycle } from '../lifecycle';
+import { applyDelegationLifecycle, isReceiptTransition } from '../lifecycle';
 
 const record: StoredAgentDelegation = {
     receipt: {
@@ -239,5 +239,22 @@ describe('Delegation continuation correlation', () => {
             receipt: { status: 'awaiting_ready' },
         });
         expect(started?.receipt.failure).toBeUndefined();
+    });
+});
+
+describe('Delegation receipt transitions', () => {
+    it('announces a new task and status or failure changes, but not a revision-only save', () => {
+        const { receipt } = record;
+        expect(isReceiptTransition(undefined, receipt)).toBe(true);
+        expect(isReceiptTransition(receipt, { ...receipt, status: 'completed' })).toBe(true);
+        const interrupted = {
+            ...receipt,
+            status: 'interrupted' as const,
+            failure: 'caller_stopped' as const,
+        };
+        expect(
+            isReceiptTransition(interrupted, { ...interrupted, failure: 'target_changed' }),
+        ).toBe(true);
+        expect(isReceiptTransition(receipt, { ...receipt, revision: 2, updatedAt: 2 })).toBe(false);
     });
 });

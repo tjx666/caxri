@@ -1,5 +1,7 @@
 import { Buffer } from 'node:buffer';
 
+import type { AgentProvider } from '@caxri/protocol';
+
 import type { DelegationCompletion } from '../agents';
 /**
  * Provider launch, identity, and finality stay behind the agents domain's public API.
@@ -8,6 +10,14 @@ import type { DelegationCompletion } from '../agents';
 import { delegationAdapter } from '../agents';
 import type { StoredAgentDelegation } from '../db';
 import { isDelegationActive } from './lifecycle';
+
+/**
+ * How long one task waits between transcript reads. A native-completion provider writes its answer once at the end of
+ * the turn, so polling it faster only repeats reads that cannot succeed yet.
+ */
+export function collectionIntervalMs(provider: AgentProvider): number {
+    return delegationAdapter(provider).completion === 'native-completion' ? 2_000 : 200;
+}
 
 export function shouldCollectDelegation(record: StoredAgentDelegation): boolean {
     return (

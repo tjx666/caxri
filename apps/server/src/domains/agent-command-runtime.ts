@@ -68,6 +68,15 @@ export function createAgentCommandRuntime(
             ),
         readTranscript: (terminalId) =>
             readAgentTranscript(options.database, terminalId, true, options.agentEnvironment),
+        /**
+         * A Session-scoped records change instead of a dedicated event: the Agent Commander board already refetches on
+         * any `state.changed`, and the Workbench answers a Session-only change with one `app.records` read.
+         */
+        onReceiptChanged: ({ sessionId }) =>
+            options.emit({
+                event: 'state.changed',
+                payload: { kind: 'records', sessionIds: [sessionId], terminalIds: [] },
+            }),
     });
     dispatchService.initialize();
     delegationService.initialize();
