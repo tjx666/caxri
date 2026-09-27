@@ -613,6 +613,12 @@ if (ownsProfileInstance) {
                         // eslint-disable-next-line no-void -- the controller logs a failed stop, and the status bar keeps showing the Commander
                         void agentCommander?.stop().catch(() => {});
                     },
+                    workbenchWindow: () =>
+                        mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined,
+                    focusWorkbench: () => {
+                        // eslint-disable-next-line no-void -- best effort: the command reaches the Workbench whether or not it came forward
+                        void focusMainWindow().catch(() => {});
+                    },
                 }),
             ),
         );
