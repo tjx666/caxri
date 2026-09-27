@@ -67,6 +67,7 @@ export interface MobileAppOptions {
     reportRequest?: (method: string) => void;
     reportHeartbeat?: () => void;
     reportTerminalResync?: (reason: MobileTerminalResyncReason) => void;
+    reportHumanSteer?: (terminalId: string) => void;
     send: (payload: MobileServerPayload) => Promise<void>;
     terminate: () => void;
     terminalExecution?: TerminalExecutionPort;
@@ -97,6 +98,7 @@ export class MobileGatewayFrameRouter {
             randomId: options.randomSubscriptionId,
             send: options.send,
             reportTerminalResync: options.reportTerminalResync,
+            reportHumanSteer: options.reportHumanSteer,
             terminate: options.terminate,
             terminalExecution: options.terminalExecution,
             connectionId,

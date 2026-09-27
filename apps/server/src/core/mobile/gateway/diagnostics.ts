@@ -1,3 +1,4 @@
+import type { MobilePairingOutcomeReason } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
@@ -11,6 +12,7 @@ const emptyCounts = () => ({
     authenticationFailed: 0,
     invalidHandshake: 0,
     invalidFrame: 0,
+    replayRejected: 0,
     binaryFrame: 0,
     inboundCapacity: 0,
     transportError: 0,
@@ -39,15 +41,34 @@ const emptyResyncCounts = () => ({
     resize: 0,
 });
 
+const pairingCountKey: Record<
+    MobilePairingOutcomeReason,
+    keyof ReturnType<typeof emptyPairingCounts>
+> = {
+    'started': 'started',
+    'succeeded': 'succeeded',
+    'expired': 'expired',
+    'not-found': 'notFound',
+};
+
+const emptyPairingCounts = () => ({
+    started: 0,
+    succeeded: 0,
+    expired: 0,
+    notFound: 0,
+});
+
 /**
  * Closed causes and lifetime totals explain transport failures without logging peer or payload data.
  */
 export class MobileGatewayDiagnostics {
     readonly #counts = emptyCounts();
     readonly #resyncCounts = emptyResyncCounts();
+    readonly #pairingCounts = emptyPairingCounts();
     #lastSummaryAt: number;
     #total = 0;
     #resyncTotal = 0;
+    #pairingTotal = 0;
     #dashboardReads = 0;
     #sessionReads = 0;
 
@@ -72,6 +93,42 @@ export class MobileGatewayDiagnostics {
         this.#resyncCounts[resyncCountKey[reason]] += 1;
         this.#resyncTotal += 1;
         if (this.now() - this.#lastSummaryAt >= 60_000) this.flush();
+    }
+
+    /**
+     * Pairing attempts are human-paced (a QR scan), not attacker-repeatable like a transport failure, so every outcome
+     * logs immediately instead of warning only on the first occurrence of its reason.
+     */
+    pairingOutcome(reason: MobilePairingOutcomeReason): void {
+        this.#pairingCounts[pairingCountKey[reason]] += 1;
+        this.#pairingTotal += 1;
+        this.logger?.write('info', logEventCatalog.mobileGateway.pairingOutcome, {
+            fields: { reason },
+        });
+        if (this.now() - this.#lastSummaryAt >= 60_000) this.flush();
+    }
+
+    gatewayEnabled(): void {
+        this.logger?.write('info', logEventCatalog.mobileGateway.enabled, { fields: {} });
+    }
+
+    gatewayDisabled(): void {
+        this.logger?.write('info', logEventCatalog.mobileGateway.disabled, { fields: {} });
+    }
+
+    connectionEstablished(deviceId: string): void {
+        this.logger?.write('info', logEventCatalog.mobileGateway.connectionEstablished, {
+            fields: { deviceId },
+        });
+    }
+
+    /**
+     * A `durationMs` on the close record is what makes a session's lifetime knowable without logging its content.
+     */
+    connectionEnded(deviceId: string, durationMs: number): void {
+        this.logger?.write('info', logEventCatalog.mobileGateway.connectionEnded, {
+            fields: { deviceId, durationMs },
+        });
     }
 
     /**
@@ -105,6 +162,10 @@ export class MobileGatewayDiagnostics {
         if (this.#resyncTotal > 0)
             this.logger?.write('info', logEventCatalog.mobileGateway.terminalResyncSummary, {
                 fields: { ...this.#resyncCounts, total: this.#resyncTotal },
+            });
+        if (this.#pairingTotal > 0)
+            this.logger?.write('info', logEventCatalog.mobileGateway.pairingSummary, {
+                fields: { ...this.#pairingCounts, total: this.#pairingTotal },
             });
         this.#lastSummaryAt = this.now();
     }
