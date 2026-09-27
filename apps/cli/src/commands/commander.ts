@@ -27,6 +27,7 @@ export const COMMANDER_COMMANDS: RemoteCommandDefinition[] = [
             return {};
         },
         quietKey: 'rows',
+        quietIdKey: 'sessionId',
     },
     {
         kind: 'remote',
@@ -36,6 +37,6 @@ export const COMMANDER_COMMANDS: RemoteCommandDefinition[] = [
         usage: '--project <id>',
         ownerConfirmation: 'Create an empty Session for the Agent Commander?',
         parseParams: sessionCreateParameters,
-        quietKey: 'sessionId',
+        quietIdKey: 'sessionId',
     },
 ];
