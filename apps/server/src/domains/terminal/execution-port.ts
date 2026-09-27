@@ -132,12 +132,15 @@ export interface TerminalExecutionPort {
     ): Promise<boolean>;
     /**
      * Scrolls the running application by wheel steps the Terminal Host encodes from its own parsed mouse modes.
-     * Resolves `false` when the application does not accept wheel input.
+     * Resolves `false` when the application does not accept wheel input. Accepts the same cancellation semantics as
+     * `inputForGeneration` so a disconnected or cancelled mobile request does not keep occupying the Host's request
+     * channel.
      */
     scrollForGeneration(
         terminalId: string,
         expectedGeneration: number,
         wheel: TerminalWheelInput,
+        signal?: AbortSignal,
     ): Promise<boolean>;
     onEvent(listener: (event: TerminalExecutionEvent) => void): () => void;
     onExit(listener: (event: TerminalExecutionExit) => void): () => void;
