@@ -309,6 +309,47 @@ describe('Agent provider hook configuration adapters', () => {
         expect(claude.hooks.SubagentStop).toHaveLength(1);
     });
 
+    it.each([
+        ['a stale install', 9],
+        ['a current-schema install missing the question hook', 10],
+    ])('converges %s when one event carries several Claude bindings', (_label, installedSchema) => {
+        interface Document {
+            hooks: Record<string, Array<{ matcher?: string; hooks: Array<{ command: string }> }>>;
+        }
+        const current = desired('claude', claudeHookAdapter.schemaVersion);
+        const complete = JSON.parse(
+            install(claudeHookAdapter, 'settings', '{}\n', 'claude'),
+        ) as Document;
+        /**
+         * Builds that predate the `^AskUserQuestion$` binding left exactly one owned `PreToolUse` group, beside the
+         * user's own `PreToolUse` hooks. Repairing it in place once overwrote that group with each same-event binding
+         * in turn, never appended the missing one, and rewrote the file forever.
+         */
+        const foreign = { matcher: 'Bash', hooks: [{ command: '/synthetic/user-hook' }] };
+        for (const groups of Object.values(complete.hooks))
+            for (const group of groups)
+                group.hooks[0].command = group.hooks[0].command.replace(
+                    `--schema ${claudeHookAdapter.schemaVersion}`,
+                    () => `--schema ${installedSchema}`,
+                );
+        complete.hooks.PreToolUse = [
+            foreign,
+            complete.hooks.PreToolUse.find((group) => group.matcher === '^Bash$')!,
+        ];
+        const source = `${JSON.stringify(complete, null, 2)}\n`;
+
+        const repaired = claudeHookAdapter.render(new Map([['settings', source]]), current)[0]
+            .source;
+
+        expect(
+            claudeHookAdapter.inspect(new Map([['settings', repaired]]), current).status,
+        ).toEqual({ kind: 'current' });
+        expect((JSON.parse(repaired) as Document).hooks.PreToolUse[0]).toEqual(foreign);
+        expect(claudeHookAdapter.render(new Map([['settings', repaired]]), current)[0].source).toBe(
+            repaired,
+        );
+    });
+
     it('refuses to merge Codex hooks.json with inline config.toml hooks', () => {
         expect(
             codexHookAdapter.inspect(
