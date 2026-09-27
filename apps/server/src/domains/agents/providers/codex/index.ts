@@ -23,7 +23,7 @@ import {
     throwAgentRenameError,
 } from '../../rename';
 import { AGENT_TITLE_SYSTEM_INSTRUCTIONS } from '../../title-generation';
-import { codexDelegationAdapter } from './delegation';
+import { codexDelegationAdapter, codexPrimaryTurnFailure } from './delegation';
 import { codexHookAdapter } from './hooks';
 import { generateCodexLowCostText } from './low-cost-generation';
 import { resolveCodexHome, resolveCodexStateDirectories } from './paths';
@@ -45,6 +45,23 @@ interface CodexAppServerResponse {
     error?: unknown;
     id?: unknown;
     result?: unknown;
+}
+
+const CODEX_APP_SERVER_ERROR_DETAIL_MAX_LENGTH = 300;
+
+/**
+ * Extracts the app-server's own JSON-RPC 2.0 `error.message` (issue caxri#1345), so a rejected rename shows the CLI's
+ * actual reason — not logged in, rate limited, thread not found — instead of only "Codex app-server rejected the
+ * Session rename". Bounded so a pathological response cannot inflate the rename toast or its log record.
+ */
+function codexAppServerErrorDetail(error: unknown): string | undefined {
+    const message = (error as { message?: unknown } | undefined)?.message;
+    if (typeof message !== 'string') return undefined;
+    const detail = message.trim();
+    if (!detail) return undefined;
+    return detail.length > CODEX_APP_SERVER_ERROR_DETAIL_MAX_LENGTH
+        ? `${detail.slice(0, CODEX_APP_SERVER_ERROR_DETAIL_MAX_LENGTH)}…`
+        : detail;
 }
 
 function hasChildExited(child: ChildProcessWithoutNullStreams): boolean {
@@ -162,8 +179,12 @@ async function callCodexAppServer(
             }
             if (response.id === 1) {
                 if (response.error !== undefined || response.result === undefined) {
+                    const detail = codexAppServerErrorDetail(response.error);
                     settle(
-                        new CaxriError('UNAVAILABLE', 'Codex app-server initialization failed'),
+                        new CaxriError(
+                            'UNAVAILABLE',
+                            `Codex app-server initialization failed${detail ? `: ${detail}` : ''}`,
+                        ),
                         undefined,
                     );
                     return;
@@ -174,8 +195,12 @@ async function callCodexAppServer(
             }
             if (response.id !== 2) return;
             if (response.error !== undefined || response.result === undefined) {
+                const detail = codexAppServerErrorDetail(response.error);
                 settle(
-                    new CaxriError('UNAVAILABLE', 'Codex app-server rejected the Session rename'),
+                    new CaxriError(
+                        'UNAVAILABLE',
+                        `Codex app-server rejected the Session rename${detail ? `: ${detail}` : ''}`,
+                    ),
                     undefined,
                 );
                 return;
@@ -679,6 +704,7 @@ export const codexProvider: AgentProviderDescriptor = {
     delegation: codexDelegationAdapter,
     readTurnStatus: (context, environment) =>
         readCodexTurnStatus(context, resolveCodexStateDirectories(environment)),
+    resolvePrimaryTurnFailure: codexPrimaryTurnFailure,
     generateTitle: (context) =>
         generateCodexLowCostText(
             context,

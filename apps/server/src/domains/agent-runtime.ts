@@ -18,6 +18,7 @@ import {
     createPermissionAutoAllowController,
     defaultAgentEnvironment,
     discoverExecutable,
+    reconcilePrimaryTurnFailure,
     shouldAutoAllowAttention,
 } from './agents';
 import type { ConfigService } from './config';
@@ -134,7 +135,10 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
         },
         onLaunchStarted: (terminalId, launchId) =>
             coordinator.beginTerminalLaunch(terminalId, launchId),
-        onSignal: async (signal) => {
+        onSignal: async (rawSignal) => {
+            // Only Codex reaches the transcript read here (issue caxri#1345): every other provider's own StopFailure
+            // hook already classifies its failure, so `resolvePrimaryTurnFailure` is unset and this returns immediately.
+            const signal = await reconcilePrimaryTurnFailure(database, agentEnvironment, rawSignal);
             const decision = await provenance.handleAgentLifecycleSignal(
                 coordinator,
                 workbenchRoots,

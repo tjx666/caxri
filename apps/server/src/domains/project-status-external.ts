@@ -112,6 +112,7 @@ const CLI_PROVIDERS = {
         accessHint:
             'Run gh auth refresh, authorize SSO for the organization if it requires it, then recheck.',
         loginCommand: 'gh auth login',
+        credentialEnvironmentVariable: 'GH_TOKEN',
         providerName: 'GitHub',
         resource: 'pull requests',
         source: 'github',
@@ -122,6 +123,7 @@ const CLI_PROVIDERS = {
             'Acceptance reports need the LobeHub CLI. Install it with npm i -g @lobehub/cli, then recheck.',
         accessHint: 'Check that your LobeHub account can read this report, then recheck.',
         loginCommand: 'lh login',
+        credentialEnvironmentVariable: 'LOBEHUB_CLI_API_KEY',
         providerName: 'LobeHub',
         resource: 'acceptance reports',
         source: 'acceptance',
@@ -132,6 +134,7 @@ const CLI_PROVIDERS = {
         linkHint: 'Run linear config in this repository, then recheck.',
         accessHint: 'Check that your Linear account can see this team, then recheck.',
         loginCommand: 'linear auth login',
+        credentialEnvironmentVariable: 'LINEAR_API_KEY',
         providerName: 'Linear',
         resource: 'linked issues',
         source: 'linear',
@@ -144,6 +147,7 @@ const CLI_PROVIDERS = {
         linkMessage: 'Repository not linked to Vercel',
         accessHint: 'Check that your Vercel account can access this project, then recheck.',
         loginCommand: 'vc login',
+        credentialEnvironmentVariable: 'VERCEL_TOKEN',
         providerName: 'Vercel',
         resource: 'deployments',
         source: 'vercel',
@@ -155,6 +159,14 @@ const CLI_PROVIDERS = {
          * Recovery for a signed-in account the service still refuses (SSO, scopes, team membership).
          */
         accessHint: string;
+        /**
+         * The environment variable this CLI accepts as an alternative to its own persisted login (issue caxri#1345).
+         * Caxri's external commands run on an allowlisted environment that deliberately excludes every application
+         * credential (`packages/system/src/process/environment.ts`), so a user authenticated only this way sees
+         * `not-logged-in` even though their own shell is signed in. Naming the variable in the hint explains that gap
+         * instead of implying the user was never signed in at all.
+         */
+        credentialEnvironmentVariable: string;
         displayName: string;
         installHint: string;
         linkHint?: string;
@@ -194,7 +206,7 @@ export function projectStatusCliError(
             source,
             kind: 'prerequisite',
             message: `${displayName} not signed in`,
-            hint: `Run ${provider.loginCommand} in a Terminal, then recheck.`,
+            hint: `Run ${provider.loginCommand} in a Terminal, then recheck. A ${provider.credentialEnvironmentVariable} environment variable alone is not enough — Caxri does not forward personal shell credentials to CLI checks.`,
         };
     }
     if (kind === 'not-linked') {

@@ -26,6 +26,7 @@ export {
 } from './hooks/contract';
 export { LongPasteService } from './long-paste';
 export { lowCostSandboxFailureReason } from './low-cost-sandbox';
+export { reconcilePrimaryTurnFailure } from './primary-turn-failure';
 export { agentProviders } from './providers';
 export { extractClaudeDelegationAnswer } from './providers/claude/delegation';
 export { readAgentReplySummary, summarizeLatestAgentReply } from './reply-summary';
@@ -54,7 +55,7 @@ export {
     type TranscriptPullRequestScan,
 } from './transcript-pull-requests';
 export { scanTranscriptLines, scanTranscriptToEnd } from './transcript-scan';
-export type { AgentTranscriptLocation } from './transcript-security';
+export type { AgentTranscriptLocation, TranscriptScanFailureReason } from './transcript-security';
 export {
     createTranscriptSessionContextScan,
     isNonIssuePrefix,
