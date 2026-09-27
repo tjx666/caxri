@@ -60,6 +60,7 @@ import * as useResourceLoad from '@/hooks/use-resource-load';
 import * as useScrollEdge from '@/hooks/use-scroll-edge';
 import * as useShouldReduceMotion from '@/hooks/use-should-reduce-motion';
 import * as useStartupLoaderRemoval from '@/hooks/use-startup-loader-removal';
+import * as useWorkbenchAppearance from '@/hooks/use-workbench-appearance';
 import * as motionLib from '@/lib/motion';
 import * as utilities from '@/lib/utilities';
 
@@ -118,4 +119,5 @@ export default {
     '@/hooks/use-scroll-edge': useScrollEdge,
     '@/hooks/use-should-reduce-motion': useShouldReduceMotion,
     '@/hooks/use-startup-loader-removal': useStartupLoaderRemoval,
+    '@/hooks/use-workbench-appearance': useWorkbenchAppearance,
 };
