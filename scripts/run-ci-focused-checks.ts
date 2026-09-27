@@ -9,13 +9,33 @@ import { runChildProcess } from './exec';
 
 const projectRoot = resolve(import.meta.dirname, '..');
 
+type FocusedChecksScope = Extract<
+    CIChecksScope,
+    | 'affected'
+    | 'focused-docs'
+    | 'focused-e2e'
+    | 'focused-harness'
+    | 'focused-skills'
+    | 'focused-source'
+>;
+
+const RELATED_SOURCE_EXTENSIONS = /\.(?:cjs|cts|js|jsx|mjs|mts|ts|tsx)$/u;
+
+/**
+ * `vitest related` follows the whole import graph, so a change deep in a shared package still reaches every suite that
+ * transitively imports it — the direct-import heuristic `check --test` uses would miss those.
+ */
+// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/run-ci-focused-checks.test.ts
+export function affectedTestArguments(paths: readonly string[]): string[] | undefined {
+    const sources = paths.filter((path) => RELATED_SOURCE_EXTENSIONS.test(path));
+    if (sources.length === 0) return undefined;
+    return ['vitest', 'related', '--run', '--passWithNoTests', '--silent=passed-only', ...sources];
+}
+
 // eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/run-ci-focused-checks.test.ts
 export function focusedCheckArguments(
     paths: readonly string[],
-    scope: Extract<
-        CIChecksScope,
-        'focused-docs' | 'focused-e2e' | 'focused-harness' | 'focused-skills' | 'focused-source'
-    >,
+    scope: FocusedChecksScope,
 ): string[] {
     return [
         'run',
@@ -23,7 +43,7 @@ export function focusedCheckArguments(
         'check',
         ...paths,
         '--lint',
-        ...(scope === 'focused-e2e' ? [] : ['--test']),
+        ...(scope === 'focused-e2e' || scope === 'affected' ? [] : ['--test']),
         ...(scope === 'focused-docs' || scope === 'focused-harness' ? [] : ['--type']),
     ];
 }
@@ -101,6 +121,7 @@ async function run(command: string, arguments_: string[]): Promise<number> {
 async function main(): Promise<void> {
     const scope = process.env.CI_CHECKS_SCOPE;
     if (
+        scope !== 'affected' &&
         scope !== 'focused-docs' &&
         scope !== 'focused-e2e' &&
         scope !== 'focused-harness' &&
@@ -148,7 +169,20 @@ async function main(): Promise<void> {
         return;
     }
     const diffResult = await run('git', focusedDiffArguments(currentFiles));
-    if (diffResult !== 0 || regressionPaths.length === 0) {
+    if (diffResult !== 0) {
+        process.exitCode = diffResult;
+        return;
+    }
+    const affectedArguments =
+        scope === 'affected' ? affectedTestArguments(currentFiles) : undefined;
+    if (affectedArguments) {
+        const affectedResult = await run('bunx', affectedArguments);
+        if (affectedResult !== 0) {
+            process.exitCode = affectedResult;
+            return;
+        }
+    }
+    if (regressionPaths.length === 0) {
         process.exitCode = diffResult;
         return;
     }

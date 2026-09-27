@@ -11,7 +11,7 @@ import {
     SIZE_BUDGETS,
     TIME_BUDGETS,
 } from '../ci-bundle-budget';
-import { isProtectedRetryPath } from '../ci-retry-policy';
+import { isProtectedRetryPath } from '../ci-path-policy';
 
 describe('ci-bundle-budget', () => {
     it('flags only measurements that exceed their budget', () => {

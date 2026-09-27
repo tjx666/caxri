@@ -1,6 +1,7 @@
 import { isReusableGreenDeltaPath, isReusableGreenSkillPath } from './ci-green-reuse';
 
 export type CIChecksScope =
+    | 'affected'
     | 'focused-docs'
     | 'focused-e2e'
     | 'focused-harness'
@@ -11,9 +12,27 @@ export type CIChecksScope =
 type CIE2EProfile = 'control' | 'focused' | 'optimized';
 
 export interface CIExecutionPlanInput {
+    /**
+     * E2E specs selected for an affected pull request: declared in the PR body, changed by it, or importing its
+     * sources. Empty falls back to the launch smoke spec.
+     */
+    affectedE2ETests?: string[];
+    /**
+     * Why affected E2E selection failed, for example a malformed `CI-E2E-Tests` line; the PR then keeps the full suite.
+     */
+    affectedSelectionError?: string;
     changedFiles: string[];
     dispatchE2EProfile?: 'control' | 'optimized' | 'skip';
     eventName: string;
+    /**
+     * True when the delta touches dependency, toolchain, workflow, or shared E2E infrastructure whose impact an import
+     * graph cannot bound, so the pull request keeps the full suite.
+     */
+    hasFullValidationPath?: boolean;
+    /**
+     * True when the scheduled run's head equals the head of the previous completed scheduled run.
+     */
+    isNightlyHeadUnchanged?: boolean;
     isVerifiedReleaseCommit?: boolean;
     pullRequestDraft?: boolean;
     retryKind?: 'metadata-only' | 'spec-only';
@@ -30,9 +49,15 @@ export interface CIReusableGreenRun {
 export interface CIExecutionPlan {
     checksScope: CIChecksScope;
     e2eProfile: CIE2EProfile;
+    /**
+     * Specs the `focused` profile runs for an affected pull request.
+     */
+    e2eTests?: string[];
     reason: string;
     runE2E: boolean;
 }
+
+export const SMOKE_E2E_SPEC = 'e2e/smoke.e2e.ts';
 
 function isDocumentationPath(path: string): boolean {
     return path.endsWith('.md') || path.startsWith('docs/');
@@ -152,10 +177,52 @@ export function evaluateCIExecutionPlan(input: CIExecutionPlanInput): CIExecutio
                 runE2E: false,
             };
         }
+        if (input.affectedSelectionError) {
+            return {
+                checksScope: 'full',
+                e2eProfile: 'optimized',
+                reason: `affected E2E selection failed closed: ${input.affectedSelectionError}`,
+                runE2E: true,
+            };
+        }
+        if (input.hasFullValidationPath) {
+            return {
+                checksScope: 'full',
+                e2eProfile: 'optimized',
+                reason: 'ready pull request changes global configuration',
+                runE2E: true,
+            };
+        }
+        /**
+         * Ready source PRs validate only what the diff can reach; the scheduled nightly run owns the full suite.
+         */
+        const e2eTests = input.affectedE2ETests?.length
+            ? [...new Set(input.affectedE2ETests)].toSorted((left, right) =>
+                  left.localeCompare(right),
+              )
+            : [SMOKE_E2E_SPEC];
+        return {
+            checksScope: 'affected',
+            e2eProfile: 'focused',
+            e2eTests,
+            reason: 'ready source pull request; affected tests only',
+            runE2E: true,
+        };
+    }
+
+    if (input.eventName === 'schedule') {
+        if (input.isNightlyHeadUnchanged) {
+            return {
+                checksScope: 'skipped',
+                e2eProfile: 'control',
+                reason: 'nightly head unchanged since the previous scheduled run',
+                runE2E: false,
+            };
+        }
         return {
             checksScope: 'full',
             e2eProfile: 'optimized',
-            reason: 'ready source pull request',
+            reason: 'nightly full suite',
             runE2E: true,
         };
     }

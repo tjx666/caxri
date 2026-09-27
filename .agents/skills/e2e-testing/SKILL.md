@@ -293,8 +293,11 @@ start without authorization, before the desktop build runs. The user grants it b
 `CAXRI_FULL_SUITE_AUTHORIZED=1` only when they explicitly ask for a local full run; an agent never
 sets that variable on its own judgement or on a subagent's or another harness's verdict, including
 while repairing CI. GitHub Actions is authorized by its own `CI` variable. When focused coverage is insufficient,
-use an authorized topic branch and draft PR; GitHub Actions runs checks and the full Electron suite
-on the repository self-hosted `m2-24` runner. `docs/self-hosted-runner.md` owns its labels, offline
+use an authorized topic branch and PR. A ready PR runs only affected tests: declare specs the import
+graph cannot infer with one `CI-E2E-Tests: ["e2e/example.e2e.ts"]` line in the PR body. The full
+Electron suite runs nightly on `main`, or on a PR whose delta touches toolchain, workflow, or shared
+E2E infrastructure ([docs/ci-performance.md](../../../docs/ci-performance.md)). Both run on the
+repository self-hosted `m2-24` runner. `docs/self-hosted-runner.md` owns its labels, offline
 behavior, and recovery contract. Inspect failures, repair the same branch, and wait for replacement
 checks. Do not merge or close without delivery authorization.
 

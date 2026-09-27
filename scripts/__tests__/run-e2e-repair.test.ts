@@ -4,6 +4,7 @@ import { resolveE2EClipboardPolicy } from '../../e2e/support/worker-isolation';
 import {
     createParallelSafeRepairEnvironment,
     parseE2EPool,
+    parseE2ERepeat,
     parseSpecPaths,
     resolveOwnedRunnerTemporaryDirectory,
 } from '../run-e2e-repair';
@@ -78,5 +79,12 @@ describe('focused E2E repair argv', () => {
                 TMPDIR: '/private/tmp/foreign',
             }),
         ).toThrow('runner-owned TMPDIR');
+    });
+
+    it('repeats repair specs three times and affected specs once', () => {
+        expect(parseE2ERepeat(undefined)).toBe(3);
+        expect(parseE2ERepeat('')).toBe(3);
+        expect(parseE2ERepeat('1')).toBe(1);
+        expect(() => parseE2ERepeat('2')).toThrow('CI_E2E_REPEAT');
     });
 });

@@ -10,6 +10,7 @@ interface TrustPolicy {
         workflowDispatchEvent: string;
         pushEvent: string;
         pushRef: string;
+        scheduleEvent: string;
     };
     release: {
         conclusion: string;
@@ -116,6 +117,11 @@ function ciTrustExpression(candidatePolicy: TrustPolicy = policy): string {
           github.actor == ${actor} &&
           github.triggering_actor == ${actor} &&
           startsWith(github.event.head_commit.message, '${candidatePolicy.release.titlePrefix}')
+        ) || (
+          github.event_name == '${candidatePolicy.ci.scheduleEvent}' &&
+          github.ref == '${candidatePolicy.ci.pushRef}' &&
+          github.actor == ${actor} &&
+          github.triggering_actor == ${actor}
         )
     `;
 }
@@ -211,7 +217,7 @@ describe('CI trust policy', () => {
             (step) => step.uses === './.github/actions/verify-trust-boundary',
         ).length;
 
-        expect(ciVerifierCount).toBe(3);
+        expect(ciVerifierCount).toBe(4);
         expect(releaseVerifierCount).toBe(1);
         const inputMismatches = verifierInputMismatches();
         expect(
@@ -239,6 +245,7 @@ describe('CI trust policy', () => {
             'test "$EVENT_REF" = "$push_ref"',
             'test "$EVENT_REF" = "refs/heads/$release_branch"',
             'test "$EVENT_NAME" = "$workflow_dispatch_event"',
+            'elif [[ "$EVENT_NAME" == "$schedule_event" ]]; then',
             'test "$RUNNER_ENVIRONMENT" = self-hosted',
             'test "$RUNNER_OS" = macOS',
             'test "$RUNNER_ARCH" = ARM64',
