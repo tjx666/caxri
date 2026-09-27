@@ -140,6 +140,34 @@ describe('commanderRowPresentation', () => {
         expect(presentation).toMatchObject({ agentLabel: 'Claude Code', statePhrase: 'Exited' });
     });
 
+    it.each(['dead', 'stopped', 'interrupted'] as const)(
+        'never shows a %s Agent as working, whatever its last activity said',
+        (processState) => {
+            for (const [activityState, operation] of [
+                ['running', undefined],
+                ['waiting', undefined],
+                ['idle', 'compacting'],
+            ] as const) {
+                const presentation = commanderRowPresentation(
+                    row({
+                        activityState,
+                        agent: {
+                            kind: 'codex',
+                            operation,
+                            processState,
+                            terminalId: 'terminal-1',
+                            title: 'Codex',
+                        },
+                    }),
+                );
+
+                expect(presentation.glyph).toBe('hollow');
+                expect(presentation.toneClassName).toBe('text-muted');
+                expect(presentation.glyphLabel).not.toMatch(/working|compacting/i);
+            }
+        },
+    );
+
     it('marks a detached Terminal with its own glyph', () => {
         const presentation = commanderRowPresentation(
             row({
@@ -177,11 +205,22 @@ describe('commanderRowPresentation', () => {
 
 describe('commanderPullRequestBadge', () => {
     it('has nothing to show without a pull request', () => {
-        expect(commanderPullRequestBadge(undefined)).toBeUndefined();
+        expect(commanderPullRequestBadge({})).toBeUndefined();
+    });
+
+    it('hides a cached pull request whose last lookup failed', () => {
+        expect(
+            commanderPullRequestBadge({
+                pullRequest: pullRequest({ checks: 'success' }),
+                pullRequestUnavailable: { reason: 'network', hint: 'Network unavailable' },
+            }),
+        ).toBeUndefined();
     });
 
     it('shows number, lifecycle, and checks with independent tones', () => {
-        expect(commanderPullRequestBadge(pullRequest({ checks: 'failure' }))).toEqual({
+        expect(
+            commanderPullRequestBadge({ pullRequest: pullRequest({ checks: 'failure' }) }),
+        ).toEqual({
             ariaLabel: 'Pull request #42 open, checks failing. Open in browser.',
             checksLabel: 'Checks failing',
             checksToneClassName: 'text-danger',
@@ -194,9 +233,9 @@ describe('commanderPullRequestBadge', () => {
     });
 
     it('omits checks a merged pull request no longer reports', () => {
-        const badge = commanderPullRequestBadge(
-            pullRequest({ checks: 'failure', state: 'merged' }),
-        );
+        const badge = commanderPullRequestBadge({
+            pullRequest: pullRequest({ checks: 'failure', state: 'merged' }),
+        });
 
         expect(badge).toMatchObject({ stateLabel: 'Merged', toneClassName: 'text-merged' });
         expect(badge?.checksLabel).toBeUndefined();

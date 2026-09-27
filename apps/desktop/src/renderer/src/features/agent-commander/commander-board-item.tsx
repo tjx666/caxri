@@ -43,7 +43,7 @@ const GLYPH_COMPONENTS: Record<AgentActivityGlyphId, ComponentType<{ size?: numb
  */
 export function CommanderBoardItem({ now, row }: { now: number; row: CommanderBoardRow }) {
     const presentation = commanderRowPresentation(row);
-    const badge = commanderPullRequestBadge(row.pullRequest);
+    const badge = commanderPullRequestBadge(row);
     const task = commanderTaskBadge(row.task);
     const GlyphIcon = GLYPH_COMPONENTS[presentation.glyph];
     return (

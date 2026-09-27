@@ -3,6 +3,7 @@ import type {
     CommanderBoard,
     CommanderBoardGroupId,
     CommanderBoardRow,
+    ProcessState,
     ProjectRecord,
     SessionPullRequests,
     SessionRecord,
@@ -35,8 +36,20 @@ function boardAgent(
 }
 
 /**
+ * The state of the process a row describes. An Agent CLI runs inside a Shell PTY and can exit while the Shell lives on,
+ * so once the Shell is up an Agent Terminal reports the Agent's own process, as `commander.status` does for the
+ * Commander itself; a plain Shell reports the Shell.
+ */
+function rowProcessState(terminal: TerminalRecord): ProcessState {
+    const shell = terminal.lastProcessState;
+    if (terminal.kind === 'shell' || !LIVE_PROCESS_STATES.has(shell)) return shell;
+    if (shell === 'starting') return 'starting';
+    return terminal.lastAgentProcessState ?? 'stopped';
+}
+
+/**
  * Mirrors the Workbench Activity grouping without its Renderer-only selection anchor: unread first, then failure, live
- * work, and requests for input. A turn recorded as running whose Terminal is no longer alive is idle, not working.
+ * work, and requests for input. A turn recorded as running whose Agent is no longer alive is idle, not working.
  */
 export function commanderBoardGroup(
     session: SessionRecord,
@@ -45,7 +58,7 @@ export function commanderBoardGroup(
 ): CommanderBoardGroupId {
     if (session.hasUnread) return 'attention';
     if (session.lastActivityState === 'failed') return 'failed';
-    const isAlive = terminal !== undefined && LIVE_PROCESS_STATES.has(terminal.lastProcessState);
+    const isAlive = terminal !== undefined && LIVE_PROCESS_STATES.has(rowProcessState(terminal));
     if (session.lastActivityState === 'running') return isAlive ? 'working' : 'idle';
     if (session.lastActivityState === 'waiting') return isAlive ? 'waiting' : 'idle';
     if (
@@ -57,23 +70,22 @@ export function commanderBoardGroup(
 }
 
 /**
- * Picks the task each Commander Session shows. A task answered by a follow-up is superseded by it, so only chain heads
- * compete; among those an unsettled one (running or blocked) wins over a newer settled one, so a finished side task
- * never hides work that still needs someone.
+ * Picks the task each Commander Session shows: an unsettled one (running or blocked) wins over a settled one, and the
+ * newest wins otherwise, so a finished side task never hides work that still needs someone. A follow-up is admitted
+ * only once its parent settled, so a continued chain shows its newest link without special handling, while a follow-up
+ * rejected because its parent still runs or waits never hides that parent.
  */
 function currentTaskBySession(
     tasks: readonly AgentDelegationReceipt[],
 ): Map<string, CommanderBoardRow['task']> {
-    const superseded = new Set(tasks.flatMap(({ followUpOf }) => followUpOf ?? []));
-    const isOpen = (task: AgentDelegationReceipt) =>
-        isDelegationActive(task) || task.status === 'blocked';
     const current = new Map<string, AgentDelegationReceipt>();
     for (const task of tasks) {
-        if (superseded.has(task.delegationId)) continue;
         const shown = current.get(task.sessionId);
         const outranks =
             !shown ||
-            (isOpen(task) === isOpen(shown) ? task.createdAt > shown.createdAt : isOpen(task));
+            (isDelegationActive(task) === isDelegationActive(shown)
+                ? task.createdAt > shown.createdAt
+                : isDelegationActive(task));
         if (outranks) current.set(task.sessionId, task);
     }
     return new Map(
@@ -82,6 +94,17 @@ function currentTaskBySession(
             { delegationId, status, ...(failure && { failure }), updatedAt },
         ]),
     );
+}
+
+/**
+ * Where a Commander task moves its row regardless of Session activity. An Agent waiting at startup has no lifecycle
+ * hooks yet, so its Session looks idle, but only the user can answer the prompt it is stuck on. A task that failed to
+ * start or to return its answer often left no Session activity at all, and would otherwise sit under `idle`.
+ */
+function taskGroup(task: CommanderBoardRow['task']): CommanderBoardGroupId | undefined {
+    if (task?.status === 'blocked' && task.failure === 'startup_waiting') return 'attention';
+    if (task?.status === 'failed' || task?.status === 'answer_unavailable') return 'failed';
+    return undefined;
 }
 
 /**
@@ -111,16 +134,11 @@ export function commanderBoard(input: {
         const pullRequest = pullRequests.get(session.id);
         const pullRequestUnavailable = input.pullRequests.unavailable?.[session.id];
         const task = tasks.get(session.id);
+        const sessionGroup = commanderBoardGroup(session, terminal, input.now);
         return [
             {
-                /**
-                 * An Agent waiting at startup has no lifecycle hooks yet, so its Session looks idle, but only the user
-                 * can answer the prompt it is stuck on.
-                 */
                 group:
-                    task?.status === 'blocked' && task.failure === 'startup_waiting'
-                        ? 'attention'
-                        : commanderBoardGroup(session, terminal, input.now),
+                    sessionGroup === 'attention' ? sessionGroup : (taskGroup(task) ?? sessionGroup),
                 projectId: project.id,
                 projectTitle: project.displayTitle,
                 projectRoot: project.rootPath,
@@ -134,7 +152,7 @@ export function commanderBoard(input: {
                           terminalId: terminal.id,
                           kind: terminal.kind,
                           title: terminal.title,
-                          processState: terminal.lastProcessState,
+                          processState: rowProcessState(terminal),
                           operation: terminal.agentOperation,
                       }
                     : null,
