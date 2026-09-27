@@ -52,6 +52,17 @@ reproduce it with the narrowest fixture, and repair the confirmed cause and dire
 Do not end at a workaround when the next diagnostic or repair step is known and authorized; stop
 only for an explicit scope limit or a concrete blocker requiring the user's decision or authority.
 
+## CI watcher and runner recovery
+
+For CI-only native watcher failures, a successful subscription is not a health check. Compare a
+real file write and its raw callback with the artifact-runtime delivery probe before blaming
+application invalidation. Inspect old CI-owned Server trees and system event-service resources
+without logging process environments. Follow `docs/self-hosted-runner.md` for ownership-verified
+recovery: freeze the reviewed historical roots, recheck PID start identity, and verify exit.
+Never broaden an in-flight cleanup because another numeric run ID looks older; queued runs can
+execute out of order. System-wide service restarts require operator authority and a maintenance
+window, not an automatic retry inside a test.
+
 ## Controlled real-Agent debugging
 
 When a fake Agent cannot reproduce a provider-owned PTY or input-protocol behavior, debugging may

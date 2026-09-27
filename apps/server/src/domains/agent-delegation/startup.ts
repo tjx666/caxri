@@ -1,5 +1,7 @@
+import { isDelegationActive } from '@caxri/protocol';
+
 import type { StoredAgentDelegation } from '../db';
-import { isAwaitingStartup, isDelegationActive } from './lifecycle';
+import { isAwaitingStartup } from './lifecycle';
 
 /**
  * Settles a task whose Agent has not started its turn by the startup deadline. A dead launch never came up

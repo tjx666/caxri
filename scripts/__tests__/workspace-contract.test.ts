@@ -213,7 +213,13 @@ describe('pnpm workspace contract', () => {
          * so that is what is checked. The versions themselves move on purpose — `dompurify` tracks the newest
          * release rather than holding a security floor.
          */
-        expect(Object.keys(workspace.overrides ?? {})).toEqual(['dompurify', 'vitest>tinybench']);
+        expect(Object.keys(workspace.overrides ?? {})).toEqual([
+            'dompurify',
+            'vitest>tinybench',
+            'lodash-es',
+            '@esbuild-kit/core-utils>esbuild',
+            'xcode>uuid',
+        ]);
         const overrideEntries = Object.entries(workspace.overrides ?? {});
         for (const [selector, version] of overrideEntries)
             expect(`${selector}: ${version}`).toMatch(/: \d+\.\d+\.\d+$/);

@@ -1,9 +1,7 @@
 import { setTimeout as delay } from 'node:timers/promises';
 
 import type { AgentDelegationAnswer, AgentDelegationReceipt } from '@caxri/protocol';
-import { CaxriError } from '@caxri/protocol';
-
-import { isDelegationActive } from './lifecycle';
+import { CaxriError, isDelegationActive } from '@caxri/protocol';
 
 interface DelegationRead {
     receipt: AgentDelegationReceipt;

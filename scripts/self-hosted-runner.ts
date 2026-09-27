@@ -22,6 +22,7 @@ import {
     reclaimStaleCiDesktopLeases,
 } from '../.agents/skills/switch-worktree/scripts/desktop-lease';
 import { execFileAsync } from './exec';
+import { recoverRunnerProcesses } from './runner-process-recovery';
 
 const ownerPattern = /^caxri-\d+-\d+-[a-z0-9-]+$/u;
 const generatedWorkspacePaths = [
@@ -51,53 +52,6 @@ const RUNNER_AGENT_ENVIRONMENT_POLICIES = {
  * therefore still fails typecheck until its isolation policy exists.
  */
 const runnerAgentProviderIds = Object.keys(RUNNER_AGENT_ENVIRONMENT_POLICIES) as AgentProvider[];
-
-interface ProcessRecord {
-    command: string;
-    pid: number;
-    ppid: number;
-}
-
-// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/self-hosted-runner.test.ts
-export function parseProcessTable(output: string): ProcessRecord[] {
-    return output.split('\n').flatMap((line) => {
-        // The command group requires a leading non-space character so it cannot absorb the same
-        // whitespace as the preceding separator, which would otherwise let the engine explore
-        // polynomially many equivalent splits on pathologically long whitespace runs.
-        const match = /^\s*(\d+)\s+(\d+)\s+(\S.*)$/u.exec(line);
-        if (!match) return [];
-        return [{ command: match[3], pid: Number(match[1]), ppid: Number(match[2]) }];
-    });
-}
-
-// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/self-hosted-runner.test.ts
-export function protectedProcessIds(records: readonly ProcessRecord[], pid: number): Set<number> {
-    const byPid = new Map(records.map((record) => [record.pid, record]));
-    const protectedIds = new Set<number>();
-    let current: number | undefined = pid;
-    while (current && !protectedIds.has(current)) {
-        protectedIds.add(current);
-        current = byPid.get(current)?.ppid;
-    }
-    return protectedIds;
-}
-
-// eslint-disable-next-line unicorn/no-exports-in-scripts -- imported by scripts/__tests__/self-hosted-runner.test.ts
-export function ownedProcessIds(
-    records: readonly ProcessRecord[],
-    owner: string,
-    protectedIds: ReadonlySet<number>,
-): number[] {
-    const marker = `CAXRI_RUNNER_OWNER=${owner}`;
-    return records
-        .filter(
-            ({ command, pid }) =>
-                (command.endsWith(marker) || command.includes(`${marker} `)) &&
-                !protectedIds.has(pid),
-        )
-        .map(({ pid }) => pid)
-        .toSorted((left, right) => right - left);
-}
 
 function requiredEnvironment(environment: NodeJS.ProcessEnv, key: string): string {
     const value = environment[key];
@@ -134,47 +88,6 @@ async function capture(command: string, arguments_: string[], cwd: string): Prom
 async function appendSummary(lines: string[], environment: NodeJS.ProcessEnv): Promise<void> {
     const summary = environment.GITHUB_STEP_SUMMARY;
     if (summary) await appendFile(summary, `${lines.join('\n')}\n`, 'utf8');
-}
-
-async function processTable(cwd: string): Promise<ProcessRecord[]> {
-    return parseProcessTable(await capture('ps', ['eww', '-axo', 'pid=,ppid=,command='], cwd));
-}
-
-function isAlive(pid: number): boolean {
-    try {
-        process.kill(pid, 0);
-        return true;
-    } catch {
-        return false;
-    }
-}
-
-async function terminateOwnedProcesses(owner: string, cwd: string): Promise<number> {
-    const records = await processTable(cwd);
-    const owned = ownedProcessIds(records, owner, protectedProcessIds(records, process.pid));
-    for (const pid of owned) {
-        try {
-            process.kill(pid, 'SIGTERM');
-        } catch (error) {
-            if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
-        }
-    }
-    for (let attempt = 0; attempt < 20 && owned.some(isAlive); attempt += 1) {
-        // Polling delay: each iteration must wait for the previous one before re-checking
-        // liveness, so this cannot be parallelized.
-        // eslint-disable-next-line no-await-in-loop -- sequential liveness-polling delay
-        await new Promise<void>((resolve) => setTimeout(resolve, 100));
-    }
-    const survivingPids = owned.filter(isAlive);
-    for (const pid of survivingPids) {
-        try {
-            process.kill(pid, 'SIGKILL');
-        } catch (error) {
-            if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
-        }
-    }
-    if (owned.some(isAlive)) throw new Error('Owned runner processes survived SIGKILL');
-    return owned.length;
 }
 
 /**
@@ -275,6 +188,11 @@ async function prepare(environment: NodeJS.ProcessEnv): Promise<void> {
         throw new Error('Self-hosted checkout does not match the exact expected head');
     }
     await assertCleanWorkspace(workspace);
+    const staleProcesses = await recoverRunnerProcesses(
+        { owner, runnerTemporary, workspace },
+        true,
+    );
+    await appendSummary([`Previous CI processes recovered: ${staleProcesses}`], environment);
     await reclaimStaleCiDesktopLeases(workspace);
     await assertDesktopLeasesReleased(workspace);
 
@@ -448,8 +366,18 @@ export async function cleanup(
     };
     const processes = await attempt(
         'processes',
-        () => (operations.terminateOwnedProcesses ?? terminateOwnedProcesses)(owner, workspace),
-        0,
+        () =>
+            operations.terminateOwnedProcesses
+                ? operations.terminateOwnedProcesses(owner, workspace)
+                : recoverRunnerProcesses(
+                      {
+                          owner,
+                          runnerTemporary: requiredEnvironment(environment, 'RUNNER_TEMP'),
+                          workspace,
+                      },
+                      false,
+                  ),
+        undefined,
     );
     const leases = await attempt('leases', () => reclaimDesktopLeasesByOwner(workspace, owner), 0);
     const isDesktopLeaseReleased = await attempt(
@@ -462,17 +390,27 @@ export async function cleanup(
     );
     const isRemovedTemporaryLink = await attempt(
         'temporary link',
-        () => didRemoveShortTemporaryLink(owner, requiredEnvironment(environment, 'RUNNER_TEMP')),
+        () =>
+            processes === undefined
+                ? Promise.resolve(false)
+                : didRemoveShortTemporaryLink(
+                      owner,
+                      requiredEnvironment(environment, 'RUNNER_TEMP'),
+                  ),
         false,
     );
     const isRemovedRunRoot = await attempt(
         'run root',
-        () => didRemoveOwnedRunRoot(environment, owner),
+        () =>
+            processes === undefined
+                ? Promise.resolve(false)
+                : didRemoveOwnedRunRoot(environment, owner),
         false,
     );
     const isGeneratedOutputsRemoved = await attempt(
         'workspace outputs',
         async () => {
+            if (processes === undefined) return false;
             await Promise.all(
                 generatedWorkspacePaths.map((path) =>
                     rm(join(workspace, path), { recursive: true, force: true }),
@@ -498,7 +436,7 @@ export async function cleanup(
                 '',
                 '| Check | Result |',
                 '| --- | --- |',
-                `| Owned processes terminated | \`${processes}\` |`,
+                `| Owned processes terminated | \`${processes ?? 'not verified'}\` |`,
                 `| Stale owned leases reclaimed | \`${leases}\` |`,
                 `| Desktop lease | \`${isDesktopLeaseReleased ? 'free' : 'not verified'}\` |`,
                 `| Temporary profile | \`${isRemovedRunRoot ? 'removed' : 'not created'}\` |`,

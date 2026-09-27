@@ -93,7 +93,7 @@ TypeScript 7 is the registry latest but does not ship a JavaScript API. Caxri fo
 `@parcel/watcher`, `better-sqlite3`, and `node-pty` are Server application dependencies. The artifact
 builder copies only their selected runtime inputs and compatible prebuilds, preserves executable helper
 modes, and records every byte in the artifact manifest. The native spike loads all three with the
-artifact runtime, performs a real watcher subscription, opens SQLite, and spawns a PTY.
+artifact runtime, requires delivery of a real file-write watcher event, opens SQLite, and spawns a PTY.
 
 `@vscode/ripgrep-universal` is also owned only by the Server workspace, but it is a build-time binary
 source rather than a runtime package import. The artifact builder selects the current platform and

@@ -6,7 +6,7 @@ import type {
     AgentDelegationCreate,
     AgentDelegationReceipt,
 } from '@caxri/protocol';
-import { agentDelegationSettingsSchema, CaxriError } from '@caxri/protocol';
+import { agentDelegationSettingsSchema, CaxriError, isDelegationActive } from '@caxri/protocol';
 
 import type { AgentLifecycleSignal } from '../agents';
 /**
@@ -31,7 +31,6 @@ import { assertDelegationLayout, delegationLayout } from './layout';
 import {
     applyDelegationLifecycle,
     canFailDelegation,
-    isDelegationActive,
     isReceiptTransition,
     recoveredDelegation,
 } from './lifecycle';

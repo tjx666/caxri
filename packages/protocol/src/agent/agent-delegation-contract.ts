@@ -235,5 +235,20 @@ export const agentDelegationInternalMethods = {
 } as const satisfies Record<string, MethodSpec>;
 
 export type AgentDelegationReceipt = z.infer<typeof agentDelegationReceiptSchema>;
+
+/**
+ * Shared receipt classification without importing a Server domain's service graph.
+ */
+export function isDelegationActive(receipt: AgentDelegationReceipt): boolean {
+    return [
+        'requested',
+        'launching',
+        'awaiting_ready',
+        'submitting',
+        'running',
+        'collecting',
+        'blocked',
+    ].includes(receipt.status);
+}
 export type AgentDelegationAnswer = z.infer<typeof agentDelegationAnswerSchema>;
 export type AgentDelegationCreate = z.infer<typeof agentDelegationCreateSchema>;

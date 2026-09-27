@@ -113,7 +113,6 @@ export const parallelSafeSpecs = [
     'e2e/project-icons.e2e.ts',
     'e2e/project-order.e2e.ts',
     'e2e/project-search.e2e.ts',
-    'e2e/project-worktree-slot.e2e.ts',
     'e2e/session-archive.e2e.ts',
     'e2e/session-auto-naming.e2e.ts',
     'e2e/session-create-menu.e2e.ts',

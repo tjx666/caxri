@@ -7,7 +7,41 @@ import { resolveServerArtifact } from '@caxri/client/supervise';
 
 import { execFileAsync } from './exec';
 
+/**
+ * Runs inside the artifact's Node process, rather than Bun, so the compatibility gate exercises the shipped binding. A
+ * successful subscription does not prove that the OS is delivering events to that binding.
+ */
+
+export const nativeWatchProbeSource = `
+async function subscribeAndVerifyWatcher(watcher, root, timeoutMs = 5000) {
+    const { realpath, writeFile } = require('node:fs/promises');
+    const { join } = require('node:path');
+    const canonicalRoot = await realpath(root);
+    const target = join(canonicalRoot, 'watcher-delivery-probe.txt');
+    let observed = false;
+    let failed = false;
+    const subscription = await watcher.subscribe(canonicalRoot, (error, events) => {
+        if (error) failed = true;
+        if (events.some((event) => event.path === target)) observed = true;
+    }, { backend: process.platform === 'darwin' ? 'fs-events' : process.platform === 'win32' ? 'windows' : 'inotify' });
+    try {
+        await writeFile(target, 'fixture');
+        const deadline = Date.now() + timeoutMs;
+        while (!observed && !failed && Date.now() < deadline) {
+            await new Promise((resolve) => setTimeout(resolve, 20));
+        }
+        if (failed) throw new Error('Native watcher reported an error during the delivery probe');
+        if (!observed) throw new Error('Native watcher subscribed but delivered no probe event');
+        return subscription;
+    } catch (error) {
+        await subscription.unsubscribe();
+        throw error;
+    }
+}
+`;
+
 const nativeProbe = String.raw`
+${nativeWatchProbeSource}
 const { createRequire } = require('node:module');
 const artifactNativeRoot = process.argv[1];
 const watcherRoot = process.argv[2];
@@ -17,7 +51,7 @@ const requireFromArtifact = createRequire(artifactNativeRoot + '/probe.cjs');
     const Database = requireFromArtifact('better-sqlite3');
     const watcher = requireFromArtifact('@parcel/watcher');
     const pty = requireFromArtifact('node-pty');
-    const subscription = await watcher.subscribe(watcherRoot, () => {});
+    const subscription = await subscribeAndVerifyWatcher(watcher, watcherRoot);
     try {
         const database = new Database(':memory:');
         const sqliteVersion = database.prepare('select sqlite_version() as version').get().version;
@@ -48,7 +82,7 @@ const requireFromArtifact = createRequire(artifactNativeRoot + '/probe.cjs');
             architecture: process.arch,
             modulesAbi: process.versions.modules,
             nodePty: 'spawned',
-            parcelWatcher: 'subscribed',
+            parcelWatcher: 'event-delivered',
             runtime: process.versions.node,
             sqlite: sqliteVersion,
         }) + '\n');
@@ -61,16 +95,20 @@ const requireFromArtifact = createRequire(artifactNativeRoot + '/probe.cjs');
 });
 `;
 
-const artifact = await resolveServerArtifact(resolve('apps/server/dist/server'));
-const watcherRoot = await mkdtemp(join(tmpdir(), 'caxri-native-spike-'));
-try {
-    const { stderr, stdout } = await execFileAsync(
-        artifact.executablePath,
-        ['-e', nativeProbe, resolve(artifact.rootPath, 'native'), watcherRoot],
-        { timeout: 15_000 },
-    );
-    if (stderr) process.stderr.write(stderr);
-    process.stdout.write(stdout);
-} finally {
-    await rm(watcherRoot, { recursive: true, force: true });
+async function main(): Promise<void> {
+    const artifact = await resolveServerArtifact(resolve('apps/server/dist/server'));
+    const watcherRoot = await mkdtemp(join(tmpdir(), 'caxri-native-spike-'));
+    try {
+        const { stderr, stdout } = await execFileAsync(
+            artifact.executablePath,
+            ['-e', nativeProbe, resolve(artifact.rootPath, 'native'), watcherRoot],
+            { timeout: 15_000 },
+        );
+        if (stderr) process.stderr.write(stderr);
+        process.stdout.write(stdout);
+    } finally {
+        await rm(watcherRoot, { recursive: true, force: true });
+    }
 }
+
+if (import.meta.main) await main();
