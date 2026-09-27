@@ -47,6 +47,8 @@ export function hasQuietIds(result: z.ZodType, quietKey?: string, idKey = 'id'):
 
 /**
  * An Agent Endpoint's stable ID: the `<host-id>:<endpoint-id>:<generation>` reference every `agent` command accepts.
+ * The protocol's identifier schema would allow a colon, but the Server mints the host ID as a 32-digit hex process
+ * identity and the endpoint ID as a UUID, so the joined form always parses back.
  */
 export function formatEndpointReference(reference: AgentEndpointRef): string {
     return `${reference.hostId}:${reference.endpointId}:${reference.generation}`;
