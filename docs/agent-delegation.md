@@ -288,7 +288,11 @@ Admission stops at 1,024 saved task records rather than evicting unclaimed answe
 the exact launch and a directly applied parent Stop with no later lifecycle activity or human input,
 including an unsubmitted draft. Submission uses one bracketed paste and Enter. A bounded missing
 submission confirmation fails without replaying the task. Each settled task admits only one child;
-use the same request ID to recover a disconnected request.
+use the same request ID to recover a disconnected request. A child the Terminal Host refused before
+taking any input never reached the Agent: it returns that claim, so a new follow-up or resume may
+continue the parent, and it can never be continued itself. A child the Host reported undelivered
+only later, or whose submission was never confirmed, keeps the claim, because a lost
+acknowledgement looks the same and its prompt may still have arrived.
 
 `stop` interrupts only the owned active task and preserves its visible Terminal. Late completion
 cannot replace the interrupted receipt. `--resume` explicitly starts a fresh task on the exact saved

@@ -190,7 +190,8 @@ Settings writes are never implied.
 - `commander.board` requires `commander`.
 - `commander.session.create` requires `commander`. It creates an empty Session in a visible
   top-level Project without changing the Workbench selection, and records the Session as a
-  Commander Session.
+  Commander Session. Once the Commander owns 1,000 existing Sessions it refuses with `CAPACITY`
+  rather than disowning the oldest, which may still run a task; deleting Sessions frees room.
 - `agent.delegation.create` and `agent.delegation.presets` skip Server Core's Project-scope check
   only for a `commander` Agent principal. The delegation domain then admits the request only when
   all of these hold:

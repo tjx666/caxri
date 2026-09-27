@@ -161,6 +161,18 @@ export class AgentDelegationService {
     }
 
     /**
+     * Returns a parent's chain claim after the Host refused its follow-up before taking any input, so the task can
+     * still be continued. The refused child never joined the conversation and is fenced like a lost target. A refusal
+     * the Host reports later keeps the claim: that report also covers a lost acknowledgement, so a retry could submit
+     * twice.
+     */
+    private releaseRefusedFollowUp(id: string, parentId: string): void {
+        const { agentDelegations } = this.options.database;
+        this.save({ ...agentDelegations.get(id)!, hasLostTarget: true });
+        this.save({ ...agentDelegations.get(parentId)!, nextDelegationId: undefined });
+    }
+
+    /**
      * Corrects a Stop that reported `caller_stopped` before the Terminal Host refused its Esc. The task is interrupted
      * either way; what changes is whether the Agent was actually told to stop.
      */
@@ -371,8 +383,10 @@ export class AgentDelegationService {
                 `\u{1B}[200~${prepared.pointer}\u{1B}[201~\r`,
                 (wasDelivered) => this.settleSubmission(id, wasDelivered),
             )
-        )
+        ) {
+            this.releaseRefusedFollowUp(id, parent.receipt.delegationId);
             return reject('write_refused');
+        }
         if (this.options.database.agentDelegations.get(id)?.receipt.status === 'submitting') {
             const timer = setTimeout(() => {
                 this.submissionTimers.delete(id);

@@ -373,6 +373,74 @@ describe('Visible same-Terminal follow-up', () => {
         ]);
     });
 
+    /**
+     * A follow-up claims its parent before writing, so a second child cannot fork the same conversation. A prompt the
+     * Terminal Host refused before taking any input never reached the Agent, so the claim must not outlive it: a retry
+     * was rejected as `target_busy` forever, and the task could no longer be continued at all.
+     */
+    it('lets a retry continue a task whose follow-up the Host refused before taking input', async () => {
+        const f = await fixture();
+        f.write.mockReturnValueOnce(false);
+        const refused = randomUUID();
+        expect(
+            await f.service.create(refused, owner, { ...f.input, followUpOf: f.id }),
+        ).toMatchObject({ status: 'failed', failure: 'target_changed' });
+
+        const retry = randomUUID();
+        expect(
+            await f.service.create(retry, owner, { ...f.input, followUpOf: f.id }),
+        ).toMatchObject({ status: 'submitting' });
+        expect(f.write).toHaveBeenCalledTimes(2);
+        expect((await f.finish(retry, 'Synthetic retried answer')).receipt.status).toBe(
+            'completed',
+        );
+    });
+
+    it.each(['followUpOf', 'resumeFrom'] as const)(
+        'never continues a refused follow-up through %s, which would fork its parent',
+        async (link) => {
+            const f = await fixture();
+            f.write.mockReturnValueOnce(false);
+            const refused = randomUUID();
+            await f.service.create(refused, owner, { ...f.input, followUpOf: f.id });
+
+            expect(
+                await f.service.create(randomUUID(), owner, { ...f.input, [link]: refused }),
+            ).toMatchObject({ status: 'failed', failure: 'target_changed' });
+            expect(f.write).toHaveBeenCalledTimes(1);
+            expect(f.resume).not.toHaveBeenCalled();
+        },
+    );
+
+    /**
+     * The Host's later "not delivered" also covers a lost acknowledgement, and a timeout proves nothing either way; in
+     * both cases the prompt may be in the conversation, so a retry must not submit a second one.
+     */
+    it.each([
+        [
+            'reported refused after admission',
+            1000,
+            (f: Awaited<ReturnType<typeof fixture>>) => f.deliver(false),
+        ],
+        ['never confirmed', 20, undefined],
+    ] as const)(
+        'keeps a task claimed when its follow-up was %s',
+        async (_, submissionTimeoutMs, settle) => {
+            const f = await fixture(submissionTimeoutMs);
+            const uncertain = randomUUID();
+            await f.service.create(uncertain, owner, { ...f.input, followUpOf: f.id });
+            settle?.(f);
+            await vi.waitFor(() =>
+                expect(f.service.status(uncertain, owner)).toMatchObject({ status: 'failed' }),
+            );
+
+            expect(
+                await f.service.create(randomUUID(), owner, { ...f.input, followUpOf: f.id }),
+            ).toMatchObject({ status: 'failed', failure: 'target_busy' });
+            expect(f.write).toHaveBeenCalledTimes(1);
+        },
+    );
+
     it('admits one child of a settled task when two different follow-ups race', async () => {
         const f = await fixture();
         const receipts = await Promise.all(

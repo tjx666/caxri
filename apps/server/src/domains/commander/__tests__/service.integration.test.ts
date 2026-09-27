@@ -265,6 +265,30 @@ describe('Agent Commander service', () => {
         );
     });
 
+    /**
+     * Commander ownership is what admits delegation into a Session and marks it on the board. Dropping the oldest
+     * record to make room silently took both away from a Session that may still run a task.
+     */
+    it('refuses a new Commander Session at capacity instead of disowning the oldest', async () => {
+        const { database, service, userProject } = await fixture();
+        await service.ensure();
+        const rows = database.agentCommanderRows()!;
+        const owned = Array.from(
+            { length: 1_000 },
+            () =>
+                database.createSession(userProject.id, null, undefined, { selection: 'preserve' })
+                    .session.id,
+        );
+        database.setAppState('agentCommander', { ...rows, sessionIds: owned });
+        const sessionCount = database.listSessions(userProject.id).length;
+
+        expect(() => service.createSession(userProject.id)).toThrow(
+            expect.objectContaining({ code: 'CAPACITY' }),
+        );
+        expect(database.agentCommanderRows()?.sessionIds).toEqual(owned);
+        expect(database.listSessions(userProject.id)).toHaveLength(sessionCount);
+    });
+
     it("shows each Commander Session's latest Commander task, ignoring other callers", async () => {
         const { database, service, userProject } = await fixture();
         await service.ensure();

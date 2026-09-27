@@ -255,7 +255,8 @@ export class AgentCommanderService {
 
     /**
      * Creates an empty Session without moving the Workbench selection. The Commander Terminal must exist: the Session
-     * is recorded as the Commander's, which is what later admits delegation into it.
+     * is recorded as the Commander's, which is what later admits delegation into it. At capacity it refuses rather than
+     * dropping the oldest record, which would silently disown a Session that may still run a task.
      */
     createSession(projectId: string): { projectId: string; sessionId: string } {
         const { database } = this.options;
@@ -266,6 +267,11 @@ export class AgentCommanderService {
             throw new CaxriError('NOT_FOUND', 'Project is unavailable to the Agent Commander');
         const rows = database.agentCommanderRows();
         if (!rows) throw new CaxriError('UNAVAILABLE', 'Agent Commander is not running');
+        if (rows.sessionIds.length >= MAX_COMMANDER_SESSIONS)
+            throw new CaxriError(
+                'CAPACITY',
+                `Agent Commander already owns ${MAX_COMMANDER_SESSIONS} Sessions; delete finished ones to create more`,
+            );
         const { session } = database.createSession(projectId, null, undefined, {
             selection: 'preserve',
         });
@@ -273,7 +279,7 @@ export class AgentCommanderService {
             projectId: rows.projectId,
             sessionId: rows.sessionId,
             ...(rows.terminalId && { terminalId: rows.terminalId }),
-            sessionIds: [...rows.sessionIds, session.id].slice(-MAX_COMMANDER_SESSIONS),
+            sessionIds: [...rows.sessionIds, session.id],
         });
         this.options.sendFullStateChange();
         return { projectId, sessionId: session.id };
