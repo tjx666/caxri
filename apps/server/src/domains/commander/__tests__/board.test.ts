@@ -1,4 +1,9 @@
-import type { ProjectRecord, SessionRecord, TerminalRecord } from '@caxri/protocol';
+import type {
+    AgentDelegationReceipt,
+    ProjectRecord,
+    SessionRecord,
+    TerminalRecord,
+} from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { COMMANDER_FINISHED_RETENTION_MS, commanderBoard, commanderBoardGroup } from '../board';
@@ -38,6 +43,21 @@ function terminal(overrides: Partial<TerminalRecord> = {}): TerminalRecord {
         lastProcessState: 'running',
         createdAt: 1,
         updatedAt: 1,
+        ...overrides,
+    };
+}
+
+function task(overrides: Partial<AgentDelegationReceipt>): AgentDelegationReceipt {
+    return {
+        delegationId: 'delegation-1',
+        projectId: 'project-1',
+        sessionId: 'session-2',
+        callerTerminalId: 'commander-terminal',
+        provider: 'codex',
+        status: 'running',
+        revision: 1,
+        createdAt: 1,
+        updatedAt: 2,
         ...overrides,
     };
 }
@@ -101,6 +121,15 @@ describe('Commander board grouping', () => {
                 session({ id: 'session-4', archivedAt: 1 }),
                 session({ id: 'session-5', projectId: 'worktree' }),
             ],
+            tasks: [
+                task({ delegationId: 'older', status: 'completed', createdAt: 1, updatedAt: 5 }),
+                task({
+                    delegationId: 'latest',
+                    status: 'failed',
+                    failure: 'startup_not_ready',
+                    createdAt: 2,
+                }),
+            ],
             terminals: [terminal({ sessionId: 'session-2', id: 'terminal-2' })],
         });
 
@@ -115,7 +144,14 @@ describe('Commander board grouping', () => {
             agent: { terminalId: 'terminal-2', kind: 'codex', processState: 'running' },
             commanderSession: true,
             pullRequest: { number: 7 },
+            task: {
+                delegationId: 'latest',
+                status: 'failed',
+                failure: 'startup_not_ready',
+                updatedAt: 2,
+            },
         });
         expect(board.rows[2]).toMatchObject({ agent: null, commanderSession: false });
+        expect(board.rows[2]).not.toHaveProperty('task');
     });
 });

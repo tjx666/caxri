@@ -90,7 +90,11 @@ into one of six groups, in this order: `attention`, `working`, `waiting`, `faile
 - the primary Agent's process state;
 - the cached pull request from the `session.pullRequests` snapshot, with the snapshot's
   `pullRequestsRefreshedAt`;
-- whether the Commander created the Session.
+- whether the Commander created the Session;
+- for a Commander Session, the latest task the Commander delegated there: its delegation ID, status,
+  failure reason, and update time. Only receipt state leaves the database; the task's prompt and
+  answer never reach the board. The window prints it next to the `Commander` marker as `Starting`,
+  `Running`, `Done`, `Needs input`, `Taken over`, `Stopped`, or `Failed`.
 
 The board never waits on GitHub.
 

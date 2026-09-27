@@ -121,6 +121,42 @@ describe('Agent Commander service', () => {
         );
     });
 
+    it("shows each Commander Session's latest Commander task, ignoring other callers", async () => {
+        const { database, service, userProject } = await fixture();
+        await service.ensure();
+        const { sessionId } = service.createSession(userProject.id);
+        const commanderTerminalId = database.agentCommanderRows()!.terminalId!;
+        const task = (delegationId: string, callerTerminalId: string, createdAt: number) =>
+            database.agentDelegations.insert({
+                receipt: {
+                    delegationId,
+                    projectId: userProject.id,
+                    sessionId,
+                    callerTerminalId,
+                    provider: 'codex',
+                    status: 'blocked',
+                    revision: 1,
+                    createdAt,
+                    updatedAt: createdAt,
+                },
+                principal: { kind: 'human-cli', id: 'synthetic-owner' },
+                input: { projectId: userProject.id, sessionId, provider: 'codex', prompt: 'Task' },
+                fingerprint: `fingerprint-${delegationId}`,
+                promptDigest: 'a'.repeat(64),
+                frozenLaunch: { executable: 'codex', args: [] },
+            });
+        task('commander-task', commanderTerminalId, 10);
+        task('foreign-task', 'another-terminal', 20);
+
+        const row = service.board().rows.find((candidate) => candidate.sessionId === sessionId);
+
+        expect(row?.task).toEqual({
+            delegationId: 'commander-task',
+            status: 'blocked',
+            updatedAt: 10,
+        });
+    });
+
     it('admits Commander delegation only into its own Sessions from its exact Terminal', async () => {
         const { database, service, userProject, userSession } = await fixture();
         const commander = await service.ensure();

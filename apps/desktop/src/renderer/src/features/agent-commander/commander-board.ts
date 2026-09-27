@@ -1,5 +1,6 @@
 import type {
     AgentActivityState,
+    AgentDelegationReceipt,
     CommanderBoardGroupId,
     CommanderBoardRow,
     ProcessState,
@@ -172,5 +173,52 @@ export function commanderPullRequestBadge(
         title: pullRequest.title,
         toneClassName: sessionPullRequestToneClassName(presentation.tone),
         url: pullRequest.url,
+    };
+}
+
+/**
+ * The task label collapses the delegation lifecycle into what the user acts on. Only a task that needs someone is
+ * tinted: a blocked task waits for the Commander (or the user) to answer, and a failed one must be retried.
+ */
+const TASK_PRESENTATION: Record<
+    AgentDelegationReceipt['status'],
+    { label: string; tone: SessionActivityPresentation['tone'] }
+> = {
+    answer_unavailable: { label: 'Failed', tone: 'danger' },
+    awaiting_ready: { label: 'Starting', tone: 'neutral' },
+    blocked: { label: 'Needs input', tone: 'warning' },
+    collecting: { label: 'Running', tone: 'neutral' },
+    completed: { label: 'Done', tone: 'neutral' },
+    failed: { label: 'Failed', tone: 'danger' },
+    human_intervened: { label: 'Taken over', tone: 'neutral' },
+    interrupted: { label: 'Stopped', tone: 'neutral' },
+    launching: { label: 'Starting', tone: 'neutral' },
+    requested: { label: 'Starting', tone: 'neutral' },
+    running: { label: 'Running', tone: 'neutral' },
+    submitting: { label: 'Starting', tone: 'neutral' },
+};
+
+interface CommanderTaskBadge {
+    label: string;
+    /**
+     * Names the delegation so the user can find it in the Commander conversation, plus the failure reason.
+     */
+    title: string;
+    toneClassName: string;
+}
+
+/**
+ * The latest Commander task in a row's Session, or nothing when the Commander never delegated there.
+ */
+export function commanderTaskBadge(
+    task: CommanderBoardRow['task'],
+): CommanderTaskBadge | undefined {
+    if (!task) return undefined;
+    const { label, tone } = TASK_PRESENTATION[task.status];
+    const reason = task.failure ? ` (${task.failure.replaceAll('_', ' ')})` : '';
+    return {
+        label,
+        title: `Latest Commander task ${task.delegationId}: ${label}${reason}`,
+        toneClassName: TONE_TEXT_CLASSNAME[tone],
     };
 }
