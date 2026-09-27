@@ -3,7 +3,6 @@ import type {
     GitSummary,
     PullRequestUnavailable,
     ServerEvent,
-    SessionDeployment,
     SessionPullRequest,
     SessionPullRequests,
     SessionRecord,
@@ -13,20 +12,8 @@ import { logEventCatalog, mapWithConcurrency } from '@caxri/system';
 import { parseGitHubRemote, rememberBounded } from '@caxri/utils';
 import { z } from 'zod';
 
-import type {
-    AgentEnvironment,
-    AgentTranscriptLocation,
-    TranscriptPullRequestScan,
-} from './agents';
-import {
-    agentProviderStateRoot,
-    createTranscriptPullRequestScan,
-    defaultAgentEnvironment,
-    locateAgentTranscript,
-    resetTranscriptPullRequestScan,
-    scanTranscriptLines,
-    scanTranscriptPullRequestLine,
-} from './agents';
+import type { AgentEnvironment } from './agents';
+import { agentProviderStateRoot, defaultAgentEnvironment } from './agents';
 import type { CaxriDatabase } from './db';
 import type { ExternalStatusRunner } from './external-status';
 import {
@@ -38,8 +25,16 @@ import {
 } from './external-status';
 import type { GitService } from './git';
 import { VercelDeploymentStore } from './project-status-vercel-store';
-import { resolveSessionDeployment } from './session-pull-request-deployment';
-import { parseSessionPullRequest, selectBranchPullRequest } from './session-pull-request-parse';
+import type { SessionTranscriptContext } from './session-context';
+import { SessionContextService } from './session-context';
+import { withSessionDeployment } from './session-pull-request-deployment';
+import type { SessionPullRequestResolution } from './session-pull-request-parse';
+import {
+    isRowChanged,
+    parseSessionPullRequest,
+    selectBranchPullRequest,
+} from './session-pull-request-parse';
+import { SingleFlight } from './single-flight';
 
 /**
  * Merge state moves on human timescales, so an open PR refreshes once a minute while a merged or closed one only
@@ -61,7 +56,6 @@ const MAX_CONCURRENT_LOOKUPS = 4;
  * pr view` for it while still rejecting anything fetched before the window regained focus.
  */
 const FORCED_RECORD_MAX_AGE_MS = 5_000;
-const MAX_TRANSCRIPT_SCANS = 128;
 const MAX_PULL_REQUEST_ENTRIES = 256;
 /**
  * Integration branches never carry the Session's own delivery, and querying them would cost a `gh` call per sweep.
@@ -120,6 +114,14 @@ interface ScopedSessionEntry extends SessionEntry {
     context: string;
 }
 
+/**
+ * What resolving one Session did. `rebound`: its root or Agent changed mid-lookup, so the result was discarded.
+ */
+interface SessionUpdate {
+    lookedUp: boolean;
+    outcome: 'changed' | 'gone' | 'rebound' | 'unchanged';
+}
+
 export interface SessionPullRequestServiceOptions {
     agentEnvironment?: AgentEnvironment;
     emit?: (event: ServerEvent) => void;
@@ -136,6 +138,11 @@ export interface SessionPullRequestServiceOptions {
     openTtlMs?: number;
     settledTtlMs?: number;
     missingTtlMs?: number;
+    /**
+     * Reads the Session's transcript clues, shared with every other clue consumer so a transcript is scanned once.
+     * Without it the Service scans through a private reader.
+     */
+    sessionContext?: (session: SessionRecord) => Promise<SessionTranscriptContext>;
     /**
      * Server-wide Vercel projection shared with the Status panel, so one production query serves every Session pointing
      * at the same repository.
@@ -165,7 +172,6 @@ function isSettled(value: SessionPullRequest | undefined): value is SessionPullR
  */
 export class SessionPullRequestService {
     private readonly branchLookups = new Map<string, BranchLookupEntry>();
-    private readonly environment: AgentEnvironment;
     private readonly now: () => number;
     private readonly pullRequests = new Map<string, PullRequestEntry>();
     private refreshedAt = 0;
@@ -177,7 +183,14 @@ export class SessionPullRequestService {
      * resolves the Session, so one request forces exactly one lookup.
      */
     private readonly forcedSessionIds = new Set<string>();
-    private readonly transcriptScans = new Map<string, TranscriptPullRequestScan>();
+    private readonly readSessionContext: (
+        session: SessionRecord,
+    ) => Promise<SessionTranscriptContext>;
+    /**
+     * Keyed by Session id, so a sweep and a {@link resolve} for the same Session share one lookup instead of racing two
+     * `gh` calls whose later answer could overwrite the fresher one.
+     */
+    private readonly updates = new SingleFlight<string, SessionUpdate>();
     private readonly github: GitHubPullRequestStore;
     private readonly vercel: VercelDeploymentStore;
     /**
@@ -194,14 +207,20 @@ export class SessionPullRequestService {
         private readonly runner: ExternalStatusRunner = runExternalStatusCommand,
         private readonly options: SessionPullRequestServiceOptions = {},
     ) {
-        this.environment = options.agentEnvironment ?? defaultAgentEnvironment();
         this.now = options.now ?? Date.now;
+        this.readSessionContext = options.sessionContext ?? this.privateSessionContext();
         const { cli } = logEventCatalog.sessionPullRequests;
         this.commandTelemetry = new ExternalStatusCommandTelemetry(logger, cli, () => this.now());
         this.github =
             options.github ?? new GitHubPullRequestStore(this.runner, { now: () => this.now() });
         this.vercel =
             options.vercel ?? new VercelDeploymentStore(this.runner, { now: () => this.now() });
+    }
+
+    private privateSessionContext(): (session: SessionRecord) => Promise<SessionTranscriptContext> {
+        const environment = this.options.agentEnvironment ?? defaultAgentEnvironment();
+        const reader = new SessionContextService(this.database as CaxriDatabase, environment);
+        return (session) => reader.read(session);
     }
 
     /**
@@ -265,29 +284,11 @@ export class SessionPullRequestService {
             for (const sessionId of this.forcedSessionIds)
                 if (!liveIds.has(sessionId)) this.forcedSessionIds.delete(sessionId);
             await mapWithConcurrency(sessions, MAX_CONCURRENT_LOOKUPS, async (session) => {
-                const context = this.discoveryContext(session);
-                const cached = this.sessions.get(session.id);
-                const previous = cached?.context === context ? cached : undefined;
-                const isForced = this.forcedSessionIds.delete(session.id);
-                const resolved = await this.resolveSessionSafely(session, previous, isForced);
-                const result = { ...resolved, entry: await this.withDeployment(session, resolved) };
-                if (result.lookedUp) lookups += 1;
-                const current = this.database.getSession(session.id);
-                if (!current || current.archivedAt !== undefined) return;
-                if (this.discoveryContext(current) !== context) {
-                    // An old asynchronous lookup must never overwrite a newly selected root's projection.
-                    isContextChanged = true;
-                    return;
-                }
-                this.sessions.set(session.id, { ...result.entry, context });
-                if (
-                    result.entry.value?.state !== previous?.value?.state ||
-                    result.entry.value?.checks !== previous?.value?.checks ||
-                    result.entry.value?.url !== previous?.value?.url ||
-                    result.entry.value?.deployment?.state !== previous?.value?.deployment?.state ||
-                    result.entry.unavailable?.reason !== previous?.unavailable?.reason
-                )
-                    changed.push(session.id);
+                const { isJoined, update } = await this.runUpdate(session);
+                if (!isJoined && update.lookedUp) lookups += 1;
+                if (update.outcome === 'rebound') isContextChanged = true;
+                // A joined update belongs to the caller that started it, which also announces its change.
+                else if (!isJoined && update.outcome === 'changed') changed.push(session.id);
             });
             this.refreshedAt = this.now();
             this.logger.write('debug', logEventCatalog.sessionPullRequests.refresh, {
@@ -300,57 +301,67 @@ export class SessionPullRequestService {
                 fields: { message: error instanceof Error ? error.message : String(error) },
             });
         }
-        if (changed.length > 0)
-            this.options.emit?.({
-                event: 'sessionPullRequests.changed',
-                payload: { sessionIds: changed },
-            });
+        if (changed.length > 0) this.announce(changed);
         return isContextChanged;
     }
 
+    private announce(sessionIds: string[]): void {
+        this.options.emit?.({ event: 'sessionPullRequests.changed', payload: { sessionIds } });
+    }
+
     /**
-     * Adds the production deployment this Session's merged pull request produced, when production is currently serving
-     * exactly that merge commit.
-     *
-     * Run on every sweep rather than only on a lookup, because the deployment lands minutes after the merge that a
-     * settled entry then caches for a quarter of an hour. While a merged pull request has no matching deployment the
-     * entry is also held to the open cadence, so the badge appears when the build finishes instead of whenever the next
-     * unrelated change happens to expire the row.
+     * A forced request is consumed when the update starts, so a forced sweep and a {@link resolve} join one lookup; one
+     * added after that start stays queued for the re-sweep it requested.
      */
-    private async withDeployment(
+    private async runUpdate(
         session: SessionRecord,
-        resolved: { entry: SessionEntry },
-    ): Promise<SessionEntry> {
-        const entry = resolved.entry;
-        if (entry.value?.state !== 'merged') return entry;
-        let deployment: SessionDeployment | undefined;
-        try {
-            deployment = await resolveSessionDeployment(
-                { github: this.github, vercel: this.vercel },
-                entry.value,
-                session.rootPath,
-            );
-        } catch (error) {
-            // The badge is additive, so an unreachable provider leaves the row exactly as the pull request lookup left
-            // it rather than failing the Session's whole projection.
-            this.logger.write('debug', logEventCatalog.sessionPullRequests.refreshFailed, {
-                fields: {
-                    message: error instanceof Error ? error.message : String(error),
-                    sessionId: session.id,
-                },
-            });
-        }
-        // Always rewritten, so a badge never outlives the build it described: the next merge moves production onto
-        // another commit, and this row must go back to reporting a plain merge.
-        if (deployment) return { ...entry, value: { ...entry.value, deployment } };
-        return {
-            ...entry,
-            expiresAt: Math.min(
-                entry.expiresAt,
-                this.now() + (this.options.openTtlMs ?? OPEN_TTL_MS),
-            ),
-            value: { ...entry.value, deployment: undefined },
-        };
+    ): Promise<{ isJoined: boolean; update: SessionUpdate }> {
+        const isJoined = this.updates.has(session.id);
+        const update = await this.updates.run(session.id, () =>
+            this.updateSession(session, this.forcedSessionIds.delete(session.id)),
+        );
+        return { isJoined, update };
+    }
+
+    /**
+     * Resolves one Session and stores its projection, unless the Session was archived, deleted, or rebound while the
+     * lookup ran: an old asynchronous lookup must never overwrite a newly selected root's projection.
+     */
+    private async updateSession(session: SessionRecord, isForced: boolean): Promise<SessionUpdate> {
+        const context = this.discoveryContext(session);
+        const cached = this.sessions.get(session.id);
+        const previous = cached?.context === context ? cached : undefined;
+        const resolved = await this.resolveSessionSafely(session, previous, isForced);
+        const entry = await withSessionDeployment(
+            { github: this.github, vercel: this.vercel },
+            resolved.entry,
+            {
+                openExpiresAt: this.now() + (this.options.openTtlMs ?? OPEN_TTL_MS),
+                rootPath: session.rootPath,
+                // The badge is additive, so an unreachable provider leaves the row as the lookup left it.
+                onError: (error) =>
+                    this.logger.write('debug', logEventCatalog.sessionPullRequests.refreshFailed, {
+                        fields: {
+                            message: error instanceof Error ? error.message : String(error),
+                            sessionId: session.id,
+                        },
+                    }),
+            },
+        );
+        const { lookedUp } = resolved;
+        const current = this.database.getSession(session.id);
+        if (!current || current.archivedAt !== undefined) return { lookedUp, outcome: 'gone' };
+        if (this.discoveryContext(current) !== context) return { lookedUp, outcome: 'rebound' };
+        this.sessions.set(session.id, { ...entry, context });
+        return { lookedUp, outcome: isRowChanged(entry, previous) ? 'changed' : 'unchanged' };
+    }
+
+    /**
+     * The stored projection, provided it was computed for the Session's current root and Agent.
+     */
+    private currentEntry(session: SessionRecord): ScopedSessionEntry | undefined {
+        const cached = this.sessions.get(session.id);
+        return cached?.context === this.discoveryContext(session) ? cached : undefined;
     }
 
     /**
@@ -500,40 +511,14 @@ export class SessionPullRequestService {
             : (this.options.openTtlMs ?? OPEN_TTL_MS);
     }
 
-    private transcriptLocation(
-        session: SessionRecord,
-    ): Promise<AgentTranscriptLocation | undefined> {
-        if (!session.primaryAgentTerminalId) return Promise.resolve(undefined);
-        return locateAgentTranscript(
-            this.database as CaxriDatabase,
-            session.primaryAgentTerminalId,
-            this.environment,
-        );
-    }
-
     /**
-     * Scans only the transcript bytes appended since the previous sweep. The scan keeps PR links and nothing else;
-     * prompts and Agent output never leave this method.
+     * The pull request the Session's own transcript points at. The shared reader scans only the bytes appended since
+     * any consumer's previous visit and keeps PR links and nothing else of the conversation.
      */
     private async transcriptReference(
         session: SessionRecord,
     ): Promise<PullRequestReference | undefined> {
-        const location = await this.transcriptLocation(session);
-        if (!location) return undefined;
-        let scan = this.transcriptScans.get(location.path);
-        if (!scan) {
-            scan = createTranscriptPullRequestScan();
-            rememberBounded(this.transcriptScans, location.path, scan, MAX_TRANSCRIPT_SCANS);
-        }
-        const current = scan;
-        await scanTranscriptLines(
-            location,
-            current,
-            (line) => scanTranscriptPullRequestLine(line, current),
-            {
-                onReset: () => resetTranscriptPullRequestScan(current),
-            },
-        );
+        const { pullRequests: current } = await this.readSessionContext(session);
         /**
          * A `gh pr create` result is authoritative even when it targets a submodule or linked repository. A link the
          * Agent merely mentioned may be anything it quoted (a changelog, a related PR), so it only counts for the
@@ -733,8 +718,7 @@ export class SessionPullRequestService {
         const unavailable: NonNullable<SessionPullRequests['unavailable']> = {};
         let isStale = false;
         for (const session of this.activeSessions()) {
-            const cached = this.sessions.get(session.id);
-            const entry = cached?.context === this.discoveryContext(session) ? cached : undefined;
+            const entry = this.currentEntry(session);
             if (!entry || entry.expiresAt <= now) isStale = true;
             if (entry?.value) pullRequests[session.id] = entry.value;
             if (entry?.unavailable) unavailable[session.id] = entry.unavailable;
@@ -748,6 +732,30 @@ export class SessionPullRequestService {
             pullRequests,
             ...(Object.keys(unavailable).length > 0 && { unavailable }),
             refreshedAt: this.refreshedAt,
+        };
+    }
+
+    /**
+     * The pull request this Session delivers, by the rule its sidebar row uses, so the status bar and the Status panel
+     * cannot name a different one. A fresh projection answers immediately; otherwise only this Session is resolved
+     * (sharing any sweep already on it), so the status bar never waits behind other Sessions' lookups.
+     *
+     * `undefined` means this service does not track the Session (archived, unknown, or rebound mid-lookup).
+     */
+    async resolve(sessionId: string): Promise<SessionPullRequestResolution | undefined> {
+        this.expireOnIgnoredChecksChange();
+        const session = this.database.getSession(sessionId);
+        if (!session || session.archivedAt !== undefined) return undefined;
+        let entry = this.currentEntry(session);
+        if (!entry || entry.expiresAt <= this.now()) {
+            const { isJoined, update } = await this.runUpdate(session);
+            if (!isJoined && update.outcome === 'changed') this.announce([sessionId]);
+            entry = update.outcome === 'rebound' ? undefined : this.currentEntry(session);
+        }
+        if (!entry) return undefined;
+        return {
+            ...(entry.value && { value: entry.value }),
+            ...(entry.unavailable && { unavailable: entry.unavailable }),
         };
     }
 

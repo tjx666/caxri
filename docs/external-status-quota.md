@@ -106,6 +106,30 @@ identity (`number,state,isDraft`) and only five candidates. The selected pull re
 come from the shared record. The previous `--limit 10` with `statusCheckRollup` multiplied one
 query's cost by every candidate returned.
 
+### Which pull request a Session delivers
+
+`SessionPullRequestService` is the one owner of that answer. It prefers the pull request the
+Session's own transcript created (or, for the primary repository only, last linked), hands a merged or
+closed one over to a different pull request on the current branch, and otherwise discovers by
+branch. `resolve(sessionId)` exposes the same answer to `ProjectStatusService`
+(`project-status-session-pull-request.ts`):
+
+- The Status Bar chip reads the Session's pull request by number, even when the Agent opened it from
+  another worktree or a child repository. Its body then supplies the Linear and acceptance references,
+  so those chips agree with the sidebar too. A Session with no pull request, or a failed lookup,
+  asks GitHub nothing further.
+- In the Status panel, only the row of the repository the pull request belongs to reads it by number;
+  every other row keeps its own branch lookup. The Session answer is read during the external refresh,
+  not folded into the local fingerprint, so a pull request that changes without a branch or HEAD move
+  converges on the next TTL-paced refresh.
+- A `resolve` inside the TTL answers from the stored projection. An expired one resolves only that
+  Session, sharing any sweep already resolving it, so the Status Bar never waits behind every other
+  Session's lookups.
+
+Before this, the Status Bar and Status panel asked `gh pr view <branch>` on the primary repository
+while the sidebar followed the transcript, so the Session name and the Status Bar could name
+different pull requests.
+
 ### One projection per reference
 
 `GitHubReferenceStore` (`github-reference.ts`) answers a different question from the store above:

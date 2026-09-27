@@ -145,7 +145,56 @@ describe('SessionContextService', () => {
             branches: [],
             directories: [],
             linearReferences: [],
+            pullRequests: {},
         });
         expect(getTerminal).not.toHaveBeenCalled();
+    });
+
+    it('harvests the delivered pull request in the same pass as every other clue', async () => {
+        const url = 'https://github.com/example/example/pull/42';
+        await appendFile(transcript, claudeRecord('gh pr create --fill', cwd));
+        await appendFile(
+            transcript,
+            `${JSON.stringify({
+                type: 'user',
+                message: { content: [{ type: 'tool_result', tool_use_id: 't1', content: url }] },
+            })}\n`,
+        );
+        await appendFile(transcript, claudeRecord('cd /worktrees/alpha', cwd));
+
+        const context = await service().read(session);
+
+        expect(context.pullRequests.created).toEqual({
+            number: 42,
+            owner: 'example',
+            repo: 'example',
+            url,
+        });
+        expect(context.directories).toContain('/worktrees/alpha');
+    });
+
+    it('forgets a pull request whose record the rewritten transcript no longer holds', async () => {
+        const instance = service();
+        await appendFile(transcript, claudeRecord('gh pr create --fill', cwd));
+        await appendFile(
+            transcript,
+            `${JSON.stringify({
+                type: 'user',
+                message: {
+                    content: [
+                        {
+                            type: 'tool_result',
+                            tool_use_id: 't1',
+                            content: 'https://github.com/example/example/pull/42',
+                        },
+                    ],
+                },
+            })}\n`,
+        );
+        expect((await instance.read(session)).pullRequests.created?.number).toBe(42);
+
+        await writeFile(transcript, claudeRecord('cd /gamma', cwd));
+
+        expect((await instance.read(session)).pullRequests).toEqual({});
     });
 });

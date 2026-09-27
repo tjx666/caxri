@@ -28,6 +28,7 @@ import type { createIntrospectionServices } from './introspection';
 import { resolveOwnerProjectRoot, resolveProjectRoot } from './project-root-identity';
 import type { ProjectStatusService } from './project-status';
 import type { VercelDeploymentStore } from './project-status-vercel-store';
+import type { SessionContextService } from './session-context';
 import { SessionPullRequestService } from './session-pull-requests';
 import { resolveTerminalFileLink } from './terminal';
 
@@ -135,6 +136,7 @@ export function createServiceHandlers(services: {
     longPastes: LongPasteService;
     logger: StructuredLogger;
     projectStatus: ProjectStatusService;
+    sessionContext: SessionContextService;
     transcripts: AgentTranscriptWatcher;
     userDataPath: string;
     vercel: VercelDeploymentStore;
@@ -155,6 +157,7 @@ export function createServiceHandlers(services: {
         longPastes,
         logger,
         projectStatus,
+        sessionContext,
         transcripts,
         userDataPath,
         vercel,
@@ -169,10 +172,12 @@ export function createServiceHandlers(services: {
             agentEnvironment,
             emit,
             github: externalStatus.github,
+            sessionContext: (session) => sessionContext.read(session),
             settings: () => configuration.getSettings().value,
             vercel,
         },
     );
+    projectStatus.useSessionPullRequests((sessionId) => sessionPullRequests.resolve(sessionId));
     const deliveryFocusRefresh = new DeliveryFocusRefresh({
         logger,
         projectStatus,
