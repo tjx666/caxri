@@ -34,7 +34,13 @@ description: Measure and protect Caxri startup, Server Core responsiveness, and 
    `server_connection.attached`, `window.ready_to_show`, `server_core.ready`, `pty.spawned`,
    `file.list`, `git.command`, `agent.probe`, `watcher.ready`, `pty.first_input`, and
    `pty.throughput_summary` to locate the owner. Add timing logs at operation boundaries for new
-   non-trivial work so regressions remain attributable.
+   non-trivial work so regressions remain attributable. Start a live investigation with the
+   volume signals before reading individual records: every rotated generation opens with a
+   `log.rotated` record whose `generationMs` and `topEvents` name what filled the file, so a
+   generation that lasted hours instead of days points at a runaway event. To see where a live
+   process spends CPU without relaunching it, sample it over the always-on inspector:
+   `bun run .agents/skills/performance/scripts/cpu-profile.ts --port 9229 --seconds 10`
+   (9230 Extension Host, 9231 Terminal Host, `--renderer --port 9224` for the packaged Renderer).
 4. Preserve privacy: timings, counts, IDs, relative paths, and byte totals are allowed; terminal
    output, source contents, prompts, credentials, environment values, and agent transcripts are
    not.

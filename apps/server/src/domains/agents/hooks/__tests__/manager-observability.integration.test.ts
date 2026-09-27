@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
@@ -7,6 +7,7 @@ import { defaultAgentProviderSettings } from '@caxri/protocol';
 import { execFileAsync, StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { claudeHookAdapter } from '../../providers/claude/hooks';
 import { codexHookAdapter } from '../../providers/codex/hooks';
 import type { AgentLifecycleSignal, AgentSignalDecision } from '../contract';
 import { AgentHookManager } from '../manager';
@@ -224,6 +225,69 @@ describe('AgentHookManager observability', () => {
                 },
             });
             expect(summary?.fields).not.toHaveProperty('firstSignalMs');
+        } finally {
+            await manager.close();
+        }
+    });
+
+    it('records a repair that cannot converge once and never rewrites an unchanged config', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-agent-hooks-convergence-'));
+        temporaryDirectories.push(directory);
+        const settings = structuredClone(defaultAgentProviderSettings);
+        settings.claude.hooks.enabled = true;
+        settings.codex.hooks.enabled = false;
+        settings.grok.hooks.enabled = false;
+        await mkdir(join(directory, '.claude'), { recursive: true });
+        await writeFile(join(directory, '.claude', 'settings.json'), '{ "hooks": {} }\n');
+        /**
+         * An edit plan that returns the document unchanged models an adapter whose render and inspect disagree: the
+         * status stays `absent` however often it runs.
+         */
+        vi.spyOn(claudeHookAdapter, 'render').mockImplementation((documents) => [
+            { targetId: 'settings', source: documents.get('settings')! },
+        ]);
+        const logger = new StructuredLogger(join(directory, 'logs'), 'server-core', 'info');
+        const manager = new AgentHookManager({
+            environment: { homeDirectory: directory, variables: {} },
+            logger,
+            onAuthorityLost: vi.fn(),
+            onLaunchEnded: vi.fn(),
+            onLaunchStarted: vi.fn(),
+            onSignal: vi.fn(() => 'accepted' as const),
+            discoverExecutable: () => Promise.resolve(process.execPath),
+            hookExecutable: process.execPath,
+            send: vi.fn(),
+            sharedPath: join(directory, 'shared'),
+            userDataPath: join(directory, 'profile'),
+        });
+
+        try {
+            await manager.initialize(settings);
+            await manager.reconcile(settings);
+            await manager.reconcile(settings);
+            await logger.flush();
+
+            const records = (await readFile(join(directory, 'logs', 'server-core.jsonl'), 'utf8'))
+                .trim()
+                .split('\n')
+                .map((line) => JSON.parse(line) as { event: string; fields?: unknown });
+            expect(
+                records.filter((record) => record.event === 'agent_hooks.config_written'),
+            ).toEqual([]);
+            expect(
+                records.filter((record) => record.event === 'agent_hooks.repair_not_converged'),
+            ).toEqual([
+                expect.objectContaining({
+                    fields: {
+                        stage: 'serverCore',
+                        provider: 'claude',
+                        action: 'install',
+                        fromStatus: 'absent',
+                        toStatus: 'absent',
+                        written: 0,
+                    },
+                }),
+            ]);
         } finally {
             await manager.close();
         }
