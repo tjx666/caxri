@@ -1,5 +1,5 @@
 import type { AutomaticNamingNotice } from '@caxri/protocol';
-import { agentProviderCatalog } from '@caxri/protocol';
+import { agentProviderCatalog, isCaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { AsyncSemaphore, logEventCatalog } from '@caxri/system';
 
@@ -192,6 +192,7 @@ export class SessionAutoNamingService {
         };
         const execute = async (): Promise<void> => {
             const startedAt = performance.now();
+            let failure: string | undefined;
             let reason:
                 | 'completed'
                 | 'ineligible'
@@ -278,6 +279,7 @@ export class SessionAutoNamingService {
             } catch (error) {
                 const sandboxReason = lowCostSandboxFailureReason(error);
                 reason = controller.signal.aborted ? 'ineligible' : (sandboxReason ?? 'failed');
+                if (reason === 'failed') failure = automaticNamingFailure(error);
                 if (sandboxReason && !controller.signal.aborted) {
                     this.blockLaunch(session.id, {
                         launchId: event.launchId,
@@ -304,6 +306,7 @@ export class SessionAutoNamingService {
                         fields: {
                             provider: target.provider,
                             reason,
+                            ...(failure && { failure }),
                             sessionId: session.id,
                             ...(retryDeferredCount > 0 && { retryDeferredCount }),
                         },
@@ -351,4 +354,16 @@ export class SessionAutoNamingService {
         this.deferred.clear();
         this.blockedLaunches.clear();
     }
+}
+
+/**
+ * Closed cause of a `failed` naming attempt. Provider stderr stays out of diagnostics, but "failed" alone cannot tell a
+ * missing CLI from a timeout or a signed-out account whose CLI exited non-zero.
+ */
+function automaticNamingFailure(error: unknown): string {
+    if (isCaxriError(error)) return error.code.toLowerCase();
+    const failure = error as { code?: unknown; exitCode?: unknown };
+    if (failure.code === 'ENOENT' || failure.code === 'EACCES') return 'spawn';
+    if (typeof failure.exitCode === 'number') return 'exit';
+    return 'unknown';
 }

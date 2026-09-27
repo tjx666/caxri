@@ -25,12 +25,7 @@ import {
     MAX_CONFIGURABLE_FILE_BYTES,
 } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
-import {
-    AsyncSemaphore,
-    execFileAsync,
-    logEventCatalog,
-    safeProcessEnvironment,
-} from '@caxri/system';
+import { AsyncSemaphore, execFileAsync, logEventCatalog } from '@caxri/system';
 
 import { readBoundedRegularFile } from '../bounded-file-reader';
 import { ExternalStatusHub } from '../external-status';
@@ -41,7 +36,7 @@ import { GitBlameService } from './blame';
 import { GitChangeTracker } from './change-tracker';
 import { parseCommitFiles, readCommitDetails } from './commit-details';
 import { COMMIT_FORMAT, parseCommitLog } from './commit-log';
-import { toGitError } from './errors';
+import { classifyGitFailure, gitFailureLogLevel, resolveGitLaunch, toGitError } from './errors';
 import { readGitHubPullRequestView } from './github';
 import type { GitMetadataWatcherOptions } from './metadata-watcher';
 import { GitMetadataWatcher } from './metadata-watcher';
@@ -219,7 +214,8 @@ export class GitService {
                 repository: hashRepoPath(cwd),
             });
             try {
-                const execution = execFileAsync('git', arguments_, {
+                const { executable, environment } = await resolveGitLaunch();
+                const execution = execFileAsync(executable, arguments_, {
                     cwd,
                     timeout: options.timeoutMs ?? 10_000,
                     maxBuffer: options.maxBufferBytes ?? MAX_GIT_METADATA_BYTES,
@@ -227,7 +223,7 @@ export class GitService {
                     // GIT_TERMINAL_PROMPT=0 makes a credential-less fetch/pull/push fail fast
                     // instead of hanging on a hidden terminal prompt until the timeout.
                     env: {
-                        ...safeProcessEnvironment(),
+                        ...environment,
                         GIT_OPTIONAL_LOCKS: '0',
                         GIT_TERMINAL_PROMPT: '0',
                         LC_ALL: 'C',
@@ -249,15 +245,19 @@ export class GitService {
                 });
                 return stdout;
             } catch (error) {
-                if (options.allowFailure) return '';
-                this.logger.write('warn', logEventCatalog.git.commandFailed, {
+                const reason = classifyGitFailure(error);
+                const level = gitFailureLogLevel(reason, options.allowFailure);
+                this.logger.write(level, logEventCatalog.git.commandFailed, {
                     durationMs: performance.now() - queuedAt,
                     fields: {
                         operation: classifyGitOperation(arguments_),
                         ...timing(),
+                        allowFailure: options.allowFailure === true,
+                        reason,
                         error: errorMessage(error, 'unknown'),
                     },
                 });
+                if (options.allowFailure) return '';
                 throw toGitError(error);
             }
         });

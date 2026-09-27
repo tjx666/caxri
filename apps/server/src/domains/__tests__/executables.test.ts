@@ -52,6 +52,42 @@ describe('ExecutableResolver', () => {
         expect(run).toHaveBeenCalledOnce();
     });
 
+    it('re-reads a stale login PATH when an executable is installed into a new directory', async () => {
+        const directory = await mkdtemp(join(tmpdir(), 'caxri-executable-refresh-'));
+        temporaryDirectories.push(directory);
+        const newBin = join(directory, 'new-bin');
+        await mkdir(newBin);
+        let loginPath = join(directory, 'old-bin');
+        const run = vi.fn(() =>
+            Promise.resolve({ stdout: `__CAXRI_LOGIN_PATH__${loginPath}\n`, stderr: '' }),
+        );
+        let now = 1_000_000;
+        const resolver = new ExecutableResolver(
+            () => ({ HOME: directory, PATH: '/nonexistent', SHELL: '/bin/zsh' }),
+            run,
+            () => now,
+        );
+
+        await expect(resolver.resolve('gh')).resolves.toBeUndefined();
+        expect(run).toHaveBeenCalledOnce();
+
+        const executable = join(newBin, 'gh');
+        await writeFile(executable, '#!/bin/sh\nexit 0\n');
+        await chmod(executable, 0o700);
+        loginPath = newBin;
+
+        now += 1_000;
+        await expect(resolver.resolve('gh')).resolves.toBeUndefined();
+        expect(run).toHaveBeenCalledOnce();
+
+        now += 60_000;
+        await expect(resolver.resolve('gh')).resolves.toBe(executable);
+        expect(run).toHaveBeenCalledTimes(2);
+        await expect(resolver.environment()).resolves.toEqual(
+            expect.objectContaining({ PATH: newBin }),
+        );
+    });
+
     it('gives a caller-supplied environment the same login PATH the Server itself uses', async () => {
         const directory = await mkdtemp(join(tmpdir(), 'caxri-executable-caller-env-'));
         temporaryDirectories.push(directory);

@@ -7,6 +7,7 @@ const NON_LOG_FAILURE_KINDS: Array<Exclude<CliFailureKind, 'other'>> = [
     'not-found',
     'not-logged-in',
     'not-linked',
+    'permission-denied',
     'rate-limited',
     'timeout',
     'network',
@@ -22,6 +23,14 @@ describe('projectStatusCliError', () => {
         expect(projectStatusCliError('linear', 'other')).toHaveProperty('logs', {
             filter: 'project_status.cli',
             levels: ['warn', 'error'],
+        });
+    });
+
+    it('tells a signed-in GitHub user how to regain access instead of pointing at Logs', () => {
+        expect(projectStatusCliError('gh', 'permission-denied')).toMatchObject({
+            kind: 'prerequisite',
+            message: 'GitHub CLI access denied',
+            hint: 'Run gh auth refresh, authorize SSO for the organization if it requires it, then recheck.',
         });
     });
 
