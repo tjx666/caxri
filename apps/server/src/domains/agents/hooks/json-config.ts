@@ -313,6 +313,39 @@ function withBindings(
 }
 
 /**
+ * Pairs each binding with at most one owned group of its event: a group already carrying the binding's matcher first,
+ * then any owned group left over. One event may carry several bindings (Claude `PreToolUse` has `^AskUserQuestion$` and
+ * `^Bash$`), so every owned group is claimed once; a binding left without a group is appended instead of overwriting a
+ * group a sibling binding already claimed, which would never converge.
+ */
+function assignOwnedGroups(
+    groups: unknown,
+    bindings: readonly AgentHookBinding[],
+    provider: AgentProvider,
+): Map<AgentHookBinding, number> {
+    const owned = Array.isArray(groups)
+        ? groups.flatMap((group, index) =>
+              ownedHandlers(group, provider).length > 0 ? [index] : [],
+          )
+        : [];
+    const assigned = new Map<AgentHookBinding, number>();
+    const claim = (binding: AgentHookBinding, index: number | undefined): void => {
+        if (index === undefined) return;
+        assigned.set(binding, index);
+        owned.splice(owned.indexOf(index), 1);
+    };
+    for (const binding of bindings)
+        claim(
+            binding,
+            owned.find(
+                (index) => record((groups as unknown[])[index])?.matcher === binding.matcher,
+            ),
+        );
+    for (const binding of bindings) if (!assigned.has(binding)) claim(binding, owned[0]);
+    return assigned;
+}
+
+/**
  * Codex keys trust by event/group/handler position. Routine upgrades must replace existing standalone groups in place
  * so repairing Caxri cannot invalidate neighboring user hooks. Malformed legacy duplicates still use normalization.
  * https://github.com/openai/codex/tree/main/codex-rs/hooks
@@ -329,8 +362,8 @@ function replaceBindingsInPlace(
     if (
         installed.some(
             (entry) =>
-                bindings.every((binding) => binding.event !== entry.event) ||
-                installed.filter((candidate) => candidate.event === entry.event).length !== 1 ||
+                installed.filter((candidate) => candidate.event === entry.event).length >
+                    bindings.filter((binding) => binding.event === entry.event).length ||
                 !Array.isArray(entry.group.hooks) ||
                 entry.group.hooks.length !== 1,
         )
@@ -338,13 +371,15 @@ function replaceBindingsInPlace(
         return;
     let next = source;
     const missing: AgentHookBinding[] = [];
-    for (const binding of bindings) {
-        const groups = hooks[binding.event];
-        const index = Array.isArray(groups)
-            ? groups.findIndex((group) => ownedHandlers(group, desired.provider).length > 0)
-            : -1;
-        if (index === -1) missing.push(binding);
-        else next = apply(next, ['hooks', binding.event, index], expectedGroup(desired, binding));
+    const events = new Set(bindings.map((binding) => binding.event));
+    for (const event of events) {
+        const eventBindings = bindings.filter((binding) => binding.event === event);
+        const assigned = assignOwnedGroups(hooks[event], eventBindings, desired.provider);
+        for (const binding of eventBindings) {
+            const index = assigned.get(binding);
+            if (index === undefined) missing.push(binding);
+            else next = apply(next, ['hooks', event, index], expectedGroup(desired, binding));
+        }
     }
     return withBindings(next, desired, missing);
 }

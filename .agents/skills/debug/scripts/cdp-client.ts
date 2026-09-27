@@ -158,3 +158,19 @@ export async function connectToRenderer(
     if (!target.webSocketDebuggerUrl) throw new Error('Renderer target has no WebSocket URL');
     return CdpClient.connect(target.webSocketDebuggerUrl);
 }
+
+/**
+ * Attaches to a Node Host inspector (Server Core 9229, Extension Host 9230, Terminal Host 9231 by default). Each Host
+ * process exposes exactly one `node` target.
+ */
+export async function connectToNodeInspector(port: number): Promise<CdpConnection> {
+    const response = await fetch(`http://127.0.0.1:${port}/json/list`, {
+        signal: AbortSignal.timeout(CDP_TIMEOUT_MS),
+    });
+    if (!response.ok) throw new Error(`Inspector discovery failed with HTTP ${response.status}`);
+    const target = ((await response.json()) as CdpTarget[]).find(
+        (candidate) => candidate.type === 'node' && candidate.webSocketDebuggerUrl,
+    );
+    if (!target?.webSocketDebuggerUrl) throw new Error(`No Node inspector target on port ${port}`);
+    return CdpClient.connect(target.webSocketDebuggerUrl);
+}

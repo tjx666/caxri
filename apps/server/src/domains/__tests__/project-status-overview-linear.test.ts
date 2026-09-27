@@ -7,7 +7,9 @@ import { StructuredLogger } from '@caxri/system';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ExternalStatusRunner } from '../external-status';
+import { LinearIssueStore } from '../external-status';
 import { ProjectStatusService } from '../project-status';
+import { loadOverviewLinearIssues } from '../project-status-linear';
 import type { SessionTranscriptContext } from '../session-context';
 
 const temporaryDirectories: string[] = [];
@@ -194,5 +196,40 @@ describe('status bar Linear issues', () => {
         expect(overview.repository?.linearIssues).toEqual([
             { identifier: 'ABC-42', source: 'branch' },
         ]);
+    });
+
+    it('draws the bare identifier when Linear misses the deadline, then the resolved issue once it lands', async () => {
+        const issueAnswer = Promise.withResolvers<string>();
+        const answerIssue = issueAnswer.resolve;
+        const run = vi.fn((arguments_: readonly string[]) =>
+            (arguments_[1] ?? '').includes('TeamKeys')
+                ? Promise.resolve(JSON.stringify({ data: { teams: { nodes: [{ key: 'ABC' }] } } }))
+                : issueAnswer.promise,
+        );
+        const store = new LinearIssueStore(run);
+        const sources = { branch: 'feat/abc-42-router', conversation: [] };
+
+        expect(await loadOverviewLinearIssues(store, '/project', sources, 20)).toEqual([
+            { identifier: 'ABC-42', source: 'branch' },
+        ]);
+
+        answerIssue(
+            JSON.stringify({
+                data: {
+                    issue: {
+                        identifier: 'ABC-42',
+                        title: 'Router monitoring',
+                        url: 'https://linear.app/acme/issue/ABC-42',
+                        state: { name: 'In Progress', type: 'started', color: '#5E6AD2' },
+                    },
+                },
+            }),
+        );
+        await vi.waitFor(async () =>
+            expect(
+                (await loadOverviewLinearIssues(store, '/project', sources, 20))[0],
+            ).toMatchObject({ title: 'Router monitoring', source: 'branch' }),
+        );
+        expect(run).toHaveBeenCalledTimes(2);
     });
 });

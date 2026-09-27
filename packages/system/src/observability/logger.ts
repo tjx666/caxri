@@ -89,6 +89,10 @@ export const MAX_LOG_GENERATIONS = 3;
  * while the disk is unresponsive.
  */
 const MAX_PENDING_BYTES = 4 * 1024 * 1024;
+/**
+ * Events named in each `log.rotated` volume breakdown.
+ */
+const ROTATION_TOP_EVENTS = 5;
 const LOG_LEVELS: Record<LogRecord['level'], number> = {
     debug: 10,
     info: 20,
@@ -138,6 +142,14 @@ export class StructuredLogger {
     private pendingLines: string[] = [];
     private pendingBytes = 0;
     private droppedRecords = 0;
+    /**
+     * Records written per event since the live file was last rotated (or since process start when the file predates
+     * it). Bounded by the event catalog, so it needs no eviction. Counted at `write()`, so the batch whose size
+     * triggered a rotation is attributed to the generation it closed; the breakdown is a volume signal, not a ledger.
+     */
+    private eventCounts = new Map<LogEventName, number>();
+    private eventCountsSince = Date.now();
+    private eventCountsFromRotation = false;
     private drainPromise?: Promise<void>;
     /**
      * Bumped by `flushSync` so a concurrent drain knows its batch was already written and cleared.
@@ -302,6 +314,7 @@ export class StructuredLogger {
      */
     private rotateIfNeededSync(incomingBytes: number): void {
         if (this.bytesWritten + incomingBytes <= MAX_LOG_BYTES) return;
+        const rotatedBytes = this.bytesWritten;
         this.bytesWritten = 0;
         /**
          * Shift oldest-to-newest (`.2` -> `.3`, `.1` -> `.2`, live -> `.1`) so a mid-shift crash never loses a
@@ -325,6 +338,51 @@ export class StructuredLogger {
             renameSync(this.path, `${this.path}.1`);
         } catch (error) {
             if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        }
+        // oxlint-disable-next-line node/no-sync -- deliberate: part of the synchronous rotation step above.
+        this.writeRotationSummarySync(rotatedBytes);
+    }
+
+    /**
+     * Opens every new generation with the volume breakdown of the one it replaced. A single runaway event (a watcher
+     * feedback loop, a per-byte trace) otherwise stays invisible until someone hand-counts a rotated file, while it
+     * silently shortens how far back every other record survives. `generationMs` is how long the file lasted;
+     * `topEvents` names the events that filled it, as `event:records` pairs, loudest first.
+     */
+    private writeRotationSummarySync(rotatedBytes: number): void {
+        const counts = [...this.eventCounts].toSorted((left, right) => right[1] - left[1]);
+        const records = counts.reduce((total, [, count]) => total + count, 0);
+        const record: LogRecord = {
+            timestamp: new Date().toISOString(),
+            process: this.processName,
+            level: 'info',
+            event: logEventCatalog.log.rotated,
+            fields: {
+                rotatedBytes,
+                records,
+                generationMs: Date.now() - this.eventCountsSince,
+                countedFrom: this.eventCountsFromRotation ? 'rotation' : 'processStart',
+                topEvents: counts
+                    .slice(0, ROTATION_TOP_EVENTS)
+                    .map(([event, count]) => `${event}:${count}`)
+                    .join(','),
+                topEventShare: records > 0 ? Math.round((counts[0][1] / records) * 100) : 0,
+            },
+            appVersion: this.appVersion,
+            commit: this.commit,
+        };
+        this.eventCounts = new Map();
+        this.eventCountsSince = Date.now();
+        this.eventCountsFromRotation = true;
+        const line = `${JSON.stringify(record)}\n`;
+        try {
+            // oxlint-disable-next-line node/no-sync -- deliberate: runs inside the synchronous rotation step.
+            appendFileSync(this.path, line, { encoding: 'utf8', mode: 0o600 });
+            this.bytesWritten += Buffer.byteLength(line, 'utf8');
+        } catch {
+            /**
+             * The summary is diagnostic garnish; the batch append that follows owns directory recreation and failure.
+             */
         }
     }
 
@@ -368,6 +426,7 @@ export class StructuredLogger {
             commit: this.commit,
         };
         this.enqueue(`${JSON.stringify(record)}\n`);
+        this.eventCounts.set(event, (this.eventCounts.get(event) ?? 0) + 1);
         /**
          * Errors are post-mortem evidence: the process may die on the next tick (crash handlers log then exit), so the
          * rare synchronous stall is worth the guaranteed durability. Everything else drains asynchronously.

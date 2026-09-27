@@ -17,6 +17,40 @@ import { extractLinearReferences, projectStatusCliError } from './project-status
  */
 const MAX_CANDIDATES = 4;
 /**
+ * How long the status bar overview waits for Linear before drawing the leading issue as a bare identifier. The overview
+ * also carries the branch and pull request chips, and a Linear CLI that hangs until its 8s timeout (TLS or network
+ * trouble) used to hold all of them back. A lookup that misses the deadline keeps running and lands in the
+ * `LinearIssueStore` cache, so the next poll draws the resolved issue without waiting again.
+ */
+const OVERVIEW_LINEAR_DEADLINE_MS = 1500;
+
+/**
+ * Resolves with the promise's outcome when it settles within `deadlineMs`, or `{ settled: false }` otherwise. The
+ * underlying work is not canceled; a late rejection is absorbed so it never surfaces as unhandled.
+ */
+async function settleWithin<T>(
+    promise: Promise<T>,
+    deadlineMs: number,
+): Promise<{ settled: true; value: T } | { settled: true; error: unknown } | { settled: false }> {
+    let timer: NodeJS.Timeout | undefined;
+    const deadline = new Promise<{ settled: false }>((resolve) => {
+        timer = setTimeout(() => resolve({ settled: false }), deadlineMs);
+        timer.unref();
+    });
+    const outcome = (async () => {
+        try {
+            return { settled: true as const, value: await promise };
+        } catch (error) {
+            return { settled: true as const, error };
+        }
+    })();
+    try {
+        return await Promise.race([outcome, deadline]);
+    } finally {
+        clearTimeout(timer);
+    }
+}
+/**
  * Case-insensitive because a branch spells the team key in lower case while Linear's own identifier is upper case.
  *
  * The trailing lookahead rejects only a digit, not a hyphen: Linear's own branch names put the issue slug immediately
@@ -175,27 +209,35 @@ export async function loadOverviewLinearIssues(
         conversation: readonly TranscriptLinearReference[];
         pullRequestBody?: string;
     },
+    deadlineMs = OVERVIEW_LINEAR_DEADLINE_MS,
 ): Promise<ProjectStatusOverviewLinearIssue[]> {
-    const teamKeys = requiresTeamKeys(sources.branch, sources.conversation)
-        ? await store.allowedTeamKeys(cwd)
-        : new Set<string>();
+    const startedAt = performance.now();
+    const remaining = (): number => Math.max(0, deadlineMs - (performance.now() - startedAt));
+    let teamKeys: ReadonlySet<string> = new Set<string>();
+    if (requiresTeamKeys(sources.branch, sources.conversation)) {
+        // An allow-list still loading is "unknown", which admits no low-precision marker — the same narrowing an
+        // unavailable CLI already gets.
+        const outcome = await settleWithin(store.allowedTeamKeys(cwd), remaining());
+        if (outcome.settled && 'value' in outcome) teamKeys = outcome.value;
+    }
     const candidates = collectLinearCandidates({ ...sources, teamKeys });
     if (candidates.length === 0) return [];
     const [lead, ...rest] = candidates;
     let resolved: ProjectStatusLinearIssue = { identifier: lead.identifier };
-    try {
-        resolved = await store.issue({
+    // A failure or a missed deadline degrades to the identifier; the store remembers the failure (or the late result),
+    // so the next poll neither respawns the CLI nor waits again.
+    const outcome = await settleWithin(
+        store.issue({
             cwd,
             identifier: lead.identifier,
             // Only the pull request stated its identifier on purpose; a branch name or a transcript marker must stay
             // out of the structured log.
             isStated: lead.source === 'pull-request',
             workspace: lead.workspace,
-        });
-    } catch {
-        // Degrade to the identifier; the store has already remembered the failure, so the next poll does not respawn
-        // the CLI.
-    }
+        }),
+        remaining(),
+    );
+    if (outcome.settled && 'value' in outcome) resolved = outcome.value;
     return [
         { ...resolved, source: lead.source },
         ...rest.map((candidate) => ({
