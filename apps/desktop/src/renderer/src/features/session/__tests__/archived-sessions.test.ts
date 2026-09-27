@@ -41,7 +41,6 @@ function session(
         attentionEpoch: 0,
         readAttentionEpoch: 0,
         hasUnread: false,
-        layoutVersion: 1,
         displayTitle: id.replaceAll('-', ' '),
         titleMode: 'manual',
     };

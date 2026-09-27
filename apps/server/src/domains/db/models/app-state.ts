@@ -6,7 +6,6 @@ import type { CaxriDrizzleDatabase } from '../connection';
 import { appState } from '../schema';
 
 const appStateValueSchemas = {
-    schemaVersion: z.number().int(),
     lastSelectedProjectId: identifierSchema.nullable(),
     lastSelectedSessionId: identifierSchema.nullable(),
     windowBounds: persistedWindowStateSchema.shape.bounds,

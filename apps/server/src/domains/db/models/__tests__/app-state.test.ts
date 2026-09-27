@@ -4,13 +4,13 @@ import { parseAppStateValue } from '../app-state';
 
 describe('parseAppStateValue', () => {
     it('rejects malformed JSON instead of asserting a domain type', () => {
-        expect(() => parseAppStateValue('schemaVersion', '{')).toThrow(
+        expect(() => parseAppStateValue('activeThemeId', '{')).toThrow(
             expect.objectContaining({ code: 'VALIDATION' }) as Error,
         );
     });
 
     it('rejects a well-formed value that does not match the key schema', () => {
-        expect(() => parseAppStateValue('schemaVersion', '"not-a-number"')).toThrow(
+        expect(() => parseAppStateValue('activeThemeId', '""')).toThrow(
             expect.objectContaining({ code: 'VALIDATION' }) as Error,
         );
         expect(() => parseAppStateValue('lastSelectedProjectId', '12')).toThrow(
@@ -22,7 +22,7 @@ describe('parseAppStateValue', () => {
     });
 
     it('returns the parsed value when the cell matches the key schema', () => {
-        expect(parseAppStateValue('schemaVersion', '7')).toBe(7);
+        expect(parseAppStateValue('activeThemeId', '"caxri.dark"')).toBe('caxri.dark');
         expect(parseAppStateValue('lastSelectedSessionId', 'null')).toBeNull();
         expect(
             parseAppStateValue('windowState', '{"isMaximized":false,"isFullScreen":true}'),

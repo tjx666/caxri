@@ -8,26 +8,19 @@ import { expect, test } from './support/fixtures.ts';
 import { launchCaxri, waitForRuntimeReady } from './support/helpers.ts';
 
 const projectRoot = resolve(import.meta.dirname, '..');
-const migrationNames = [
-    '0000_silly_groot.sql',
-    '0001_slim_marvel_boy.sql',
-    '0002_complex_ironclad.sql',
-    '0003_pretty_ezekiel.sql',
-    '0004_wonderful_gladiator.sql',
-];
+/**
+ * Mirrors `BASELINE_SCHEMA_VERSION`; the manifest itself imports SQL through `?raw`, which Playwright cannot load. A
+ * later migration upgrades this seeded database like any other post-baseline install.
+ */
+const BASELINE_SCHEMA_VERSION = 39;
 
 async function seedProjects(databasePath: string, roots: string[]): Promise<void> {
     const database = new Database(databasePath);
-    for (const migrationName of migrationNames) {
-        // Migrations must apply in their numbered order onto the same database connection, so this
-        // loop is intentionally sequential rather than parallelized.
-        // eslint-disable-next-line no-await-in-loop
-        const source = await readFile(
-            join(projectRoot, 'apps/server/src/domains/db/migrations', migrationName),
-            'utf8',
-        );
-        database.exec(source.replaceAll('--> statement-breakpoint', ''));
-    }
+    const baseline = await readFile(
+        join(projectRoot, 'apps/server/src/domains/db/migrations/0000_baseline.sql'),
+        'utf8',
+    );
+    database.exec(baseline.replaceAll('--> statement-breakpoint', ''));
     /**
      * Keep the drag fixture recent so the default idle-collapse policy cannot hide its Session after 500ms.
      */
@@ -51,11 +44,18 @@ async function seedProjects(databasePath: string, roots: string[]): Promise<void
     database
         .prepare(
             `INSERT INTO sessions
-             (id, project_id, created_at, last_opened_at, display_title)
-             VALUES (?, ?, ?, ?, ?)`,
+             (id, project_id, created_at, last_opened_at, last_session_activity_at, display_title)
+             VALUES (?, ?, ?, ?, ?, ?)`,
         )
-        .run('session-0', 'project-0', fixtureCreatedAt, fixtureCreatedAt, 'Alpha Session');
-    database.pragma('user_version = 10');
+        .run(
+            'session-0',
+            'project-0',
+            fixtureCreatedAt,
+            fixtureCreatedAt,
+            fixtureCreatedAt,
+            'Alpha Session',
+        );
+    database.pragma(`user_version = ${BASELINE_SCHEMA_VERSION}`);
     database.close();
 }
 
