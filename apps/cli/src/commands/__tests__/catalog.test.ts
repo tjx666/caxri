@@ -192,8 +192,7 @@ describe('CLI business command catalog', () => {
     });
     /**
      * `--quiet` reads its IDs only after the request ran. A declared projection that does not match the result made a
-     * mutation that already happened exit with `VALIDATION`, which invites a retry that repeats it. `agent list` is the
-     * one known gap: an Endpoint's ID is its formatted reference, which a field cannot name (#1380).
+     * mutation that already happened exit with `VALIDATION`, which invites a retry that repeats it.
      */
     it('projects a string ID from every declared quiet result', () => {
         const commands: readonly CliCommandDefinition[] = CLI_COMMANDS;
@@ -206,6 +205,7 @@ describe('CLI business command catalog', () => {
             expect.arrayContaining([
                 'agent delegate create',
                 'agent dispatch start',
+                'agent list',
                 'agent message send',
                 'commander board',
                 'commander session create',
@@ -222,6 +222,6 @@ describe('CLI business command catalog', () => {
                     ),
             )
             .map(({ path }) => path.join(' '));
-        expect(broken).toEqual(['agent list']);
+        expect(broken).toEqual([]);
     });
 });

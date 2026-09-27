@@ -375,6 +375,7 @@ export const CLI_COMMANDS = [
         summary: 'List online Agent Endpoints visible to this principal.',
         parseParams: rejectOptions,
         quietKey: 'agents',
+        quietIdKey: 'ref',
     },
     {
         kind: 'remote',
