@@ -279,7 +279,7 @@ describe('Git source-control view model', () => {
 
         expect(model.providers[0]).toMatchObject({
             description: 'feature/product-extensions',
-            // Alt-clicking the provider row or its group caption opens this, so the panel spends no row width on a link glyph.
+            // Command-clicking the provider row or its group caption opens this, so the panel spends no row width on a link glyph.
             externalLink: {
                 url: 'https://github.com/example/caxri/pull/42',
                 label: 'Open pull request #42 on the web',
