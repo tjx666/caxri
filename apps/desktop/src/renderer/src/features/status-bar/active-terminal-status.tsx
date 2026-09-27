@@ -11,6 +11,7 @@ import {
 import { usePolledQuery } from '@/hooks/use-polled-query';
 
 import { executeCommand } from '../../commands/execute';
+import { StructuredTooltip } from '../../components/structured-tooltip';
 import { cn } from '../../lib/utilities';
 import { openHardwareAccelerationSettings } from '../gpu/gpu-commands';
 import { useIsHardwareAccelerationOff } from '../gpu/use-is-hardware-acceleration-off';
@@ -26,7 +27,6 @@ import {
 } from '../terminal/terminal-renderer-status';
 import { StatusInfo } from './status-info';
 import { StatusItem } from './status-item';
-import { StatusTooltip } from './status-tooltip';
 import { terminalMemoryLabel } from './terminal-memory-label';
 
 const openProcessExplorer = (): void => executeCommand('processExplorer.open');
@@ -137,7 +137,7 @@ function TerminalUsageStatus({
                     ariaLabel={`Open Process Explorer — Terminal memory: ${memoryLabel}`}
                     icon={<MemoryStick />}
                     title={
-                        <StatusTooltip
+                        <StructuredTooltip
                             title={`Terminal memory: ${memoryLabel}`}
                             notes={["Resident memory of this Terminal's whole process tree"]}
                             hint="Click to open Process Explorer"
@@ -153,7 +153,7 @@ function TerminalUsageStatus({
                     ariaLabel={`Open Process Explorer — Terminal: ${childLabel}`}
                     icon={<Workflow />}
                     title={
-                        <StatusTooltip
+                        <StructuredTooltip
                             title={childLabel}
                             notes={['Running under this Terminal']}
                             hint="Click to open Process Explorer"

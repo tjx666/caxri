@@ -1,6 +1,7 @@
 import type { WorkbenchRootOption } from '@caxri/protocol';
 import { Check, FolderGit2 } from 'lucide-react';
 
+import { StructuredTooltip } from '../../components/structured-tooltip';
 import {
     Command,
     CommandGroup,
@@ -18,7 +19,6 @@ import { useSelectedSession, useSelectedWorkbenchProject } from '../../stores/se
 import { PickerQueryStatus } from './picker-query-status';
 import { pickerSearchScore } from './picker-search';
 import { statusItemClassName } from './status-item';
-import { StatusTooltip } from './status-tooltip';
 import { useWorkbenchRootPicker } from './use-workbench-root-picker';
 import {
     conversationWorkbenchRoots,
@@ -44,7 +44,7 @@ function WorktreeOption({
     return (
         <Tooltip
             content={
-                <StatusTooltip
+                <StructuredTooltip
                     title={label}
                     rows={[{ label: 'Path', value: root.rootPath, isCode: true }]}
                 />
@@ -134,7 +134,7 @@ function WorkbenchRootTrigger({
                 isSwitching ? (
                     `Switching to ${switchingLabel}…`
                 ) : (
-                    <StatusTooltip
+                    <StructuredTooltip
                         eyebrow={isWorktree ? 'Linked worktree' : 'Workbench Root'}
                         title={title}
                         rows={[

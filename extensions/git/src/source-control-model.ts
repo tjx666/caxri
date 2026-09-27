@@ -492,7 +492,13 @@ export function buildSourceControlViewModel({
              * where the width is not scarce.
              */
             const description = repo.branch;
-            const aheadBehindLabel = `${repo.ahead} ahead, ${repo.behind} behind`;
+            /**
+             * Omitted when both are zero: `0 ahead, 0 behind` is the steady state and told the hover's reader nothing.
+             */
+            const aheadBehindLabel =
+                repo.ahead > 0 || repo.behind > 0
+                    ? `${repo.ahead} ahead, ${repo.behind} behind`
+                    : undefined;
             const revisionSummary = pullRequest
                 ? `Pull request #${pullRequest.number} into ${pullRequest.baseRefName}: ${pullRequest.title}`
                 : details

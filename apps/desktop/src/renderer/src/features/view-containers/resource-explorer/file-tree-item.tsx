@@ -8,6 +8,7 @@ import { GitFileStatusLetter } from '../../../components/git-file-status-letter'
 import { ContextMenu, ContextMenuTrigger } from '../../../components/ui/context-menu';
 import { Input } from '../../../components/ui/input';
 import { FileTypeIcon } from '../../../icons/files/file-type-icon';
+import { setLabelDragImage } from '../../../lib/drag-image';
 import { hasDraggedPath, startFilePathDrag } from '../../../lib/file-drag';
 import type { GitChildRepoKind, GitDecoration } from '../../../lib/git-decorations';
 import { gitDecorationClassName } from '../../../lib/git-decorations';
@@ -265,7 +266,7 @@ export function FileTreeRowContent({
     return (
         <>
             {isDirectory && (expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />)}
-            <FileTypeIcon childRepo={Boolean(childRepo)} entry={entry} expanded={expanded} />
+            <FileTypeIcon childRepo={childRepo} entry={entry} expanded={expanded} />
             {/*
              * VS Code's Git decoration: the name takes the change's color, and only a file adds the status letter at
              * the row's trailing edge. A folder is colored by the strongest change anywhere beneath it but stays
@@ -446,6 +447,7 @@ export function FileTreeItem({
             }}
             onDragStart={(event) => {
                 startFilePathDrag(event.dataTransfer, entry.path, editable);
+                setLabelDragImage(event.dataTransfer, entry.name);
             }}
             onDrop={dropIntoDirectory}
             onPaste={(event) => {

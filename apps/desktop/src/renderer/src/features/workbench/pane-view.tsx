@@ -37,7 +37,7 @@ import {
 import { PaneMountPortal } from './pane-mount-portal';
 import { reconcilePaneMounts } from './pane-mounts';
 import { PaneTabBar } from './pane-tab-bar';
-import { PaneViewSessionProvider } from './pane-view-session';
+import { PaneViewSessionProvider, usePaneViewSession } from './pane-view-session';
 import { useTabFocusRecovery } from './use-tab-focus-recovery';
 
 const fullBleedClassName = 'h-full w-full min-h-0 min-w-0';
@@ -169,6 +169,7 @@ function PaneBox({
     const terminalId =
         activeTab?.resource.kind === 'terminal' ? activeTab.resource.terminalId : undefined;
     const terminal = useTerminal(terminalId ?? '');
+    const session = usePaneViewSession();
     /**
      * A file dragged from the Files panel onto a Terminal pastes its path; onto a document pane it means nothing, so
      * only a live Terminal accepts it.
@@ -217,7 +218,7 @@ function PaneBox({
             if (
                 didPasteIntoTerminal(
                     terminal.id,
-                    projectInput ?? terminalReferencePath(path!, terminal),
+                    projectInput ?? terminalReferencePath(path!, terminal, session?.rootPath),
                 )
             )
                 focusPane(pane.id);

@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
 
-import { cn } from '../../lib/utilities';
+import { cn } from '../lib/utilities';
 
-interface StatusTooltipRow {
+interface StructuredTooltipRow {
     label: string;
     value: ReactNode;
     /**
@@ -12,16 +12,17 @@ interface StatusTooltipRow {
 }
 
 /**
- * The structured body of a status-bar hover tooltip. Kept as data so each chip's wording stays unit-testable in its
- * `*-label.ts` module while this component alone decides the hierarchy.
+ * The structured body of a multi-fact hover tooltip. Kept as data so each caller's wording stays unit-testable in its
+ * own label module while this component alone decides the hierarchy.
  */
-export interface StatusTooltipData {
+export interface StructuredTooltipData {
     /**
-     * Small muted kind line above the title (`Pull request #12`), for a chip whose title alone does not say what it is.
+     * Small muted kind line above the title (`Pull request #12`), for a subject whose title alone does not say what it
+     * is.
      */
     eyebrow?: string;
     title: ReactNode;
-    rows?: readonly StatusTooltipRow[];
+    rows?: readonly StructuredTooltipRow[];
     /**
      * Foreground supporting lines: state and verdict, one fact per line.
      */
@@ -31,16 +32,26 @@ export interface StatusTooltipData {
      */
     notes?: readonly string[];
     /**
-     * What clicking the chip does, set apart at the bottom so it never reads as part of the state.
+     * What clicking does, set apart at the bottom so it never reads as part of the state. A row with modifier gestures
+     * lists one per line.
      */
-    hint?: string;
+    hint?: string | readonly string[];
 }
 
 /**
- * Status-bar chips used to hand the shared Tooltip one `\n`-joined string, which rendered as an unweighted block that
- * wrapped mid-phrase at the popup's width. This lays the same content out as a title with supporting rows instead.
+ * Status-bar chips and Source Control rows used to hand the shared Tooltip one `\n`-joined string, which rendered as an
+ * unweighted block that wrapped mid-phrase at the popup's width. This lays the same content out as a title with
+ * supporting rows instead.
  */
-export function StatusTooltip({ details, eyebrow, hint, notes, rows, title }: StatusTooltipData) {
+export function StructuredTooltip({
+    details,
+    eyebrow,
+    hint,
+    notes,
+    rows,
+    title,
+}: StructuredTooltipData) {
+    const hints = hint === undefined ? [] : typeof hint === 'string' ? [hint] : hint;
     return (
         <span className="flex min-w-0 flex-col gap-1 py-0.5 wrap-break-word whitespace-normal">
             {eyebrow && <span className="text-[11px] text-muted">{eyebrow}</span>}
@@ -67,7 +78,13 @@ export function StatusTooltip({ details, eyebrow, hint, notes, rows, title }: St
                     {note}
                 </span>
             ))}
-            {hint && <span className="mt-0.5 text-[11px] text-muted">{hint}</span>}
+            {hints.length > 0 && (
+                <span className="mt-0.5 flex flex-col text-[11px] text-muted">
+                    {hints.map((line) => (
+                        <span key={line}>{line}</span>
+                    ))}
+                </span>
+            )}
         </span>
     );
 }

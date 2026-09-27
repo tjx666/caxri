@@ -1,6 +1,6 @@
 import type { RemoteDebuggingState } from '@caxri/protocol';
 
-import type { StatusTooltipData } from './status-tooltip';
+import type { StructuredTooltipData } from '../../components/structured-tooltip';
 
 export interface RemoteDebuggingChipCopy {
     /**
@@ -15,7 +15,7 @@ export interface RemoteDebuggingChipCopy {
     /**
      * The hover tooltip: the same facts as `description`, split into a heading, the channel, and the consequence.
      */
-    tooltip: StatusTooltipData;
+    tooltip: StructuredTooltipData;
 }
 
 /**

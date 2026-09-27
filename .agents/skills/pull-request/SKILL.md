@@ -29,6 +29,10 @@ readback. Do not end again at local validation or PR creation. A status-only que
    Before pushing Renderer React changes, run `bun run doctor:changed` against the intended diff
    and resolve every finding. The changed-file checker suggests this gate but does not run it;
    a green lint/type/knip result cannot substitute for the CI React Doctor gate.
+   Before pushing any TypeScript change, run `bun run knip` against the intended diff and resolve
+   every finding. CI's `checks` job fails on an unused export, and the changed-file checker runs
+   knip only when `--knip` is passed; a push that skipped it spent a full CI run on the one gate
+   that costs seconds locally.
 3. Once required checks have started for a published PR head, routine `origin/main` advancement
    alone does not invalidate that evidence or require another rebase. When GitHub reports no
    conflict and branch protection does not require an up-to-date branch, let those checks finish

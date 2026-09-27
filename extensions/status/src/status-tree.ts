@@ -38,7 +38,6 @@ import {
     deploymentAccessibilityLabel,
     deploymentEnvironmentLabel,
     deploymentIcon,
-    deploymentRowDescription,
     deploymentRowLabel,
     deploymentTooltip,
     linearBadgeTones,
@@ -235,7 +234,13 @@ function buildRepoChildren(
         ? pullRequestPresentation[repo.pullRequest.lifecycle]
         : undefined;
     const branchPublication = publication ? publicationLabel(publication) : undefined;
-    const branchDescription = [isDefaultBranch ? 'default' : undefined, branchPublication]
+    /**
+     * `Synced` is the expected steady state and asks nothing of the reader, so the row stays quiet about it; only a
+     * state worth acting on (`↑2`, `Not on origin`, `Check failed`) earns the row's trailing text. The hover card still
+     * badges every state, `Synced` included.
+     */
+    const branchRowPublication = publication?.state === 'synced' ? undefined : branchPublication;
+    const branchDescription = [isDefaultBranch ? 'default' : undefined, branchRowPublication]
         .filter(Boolean)
         .join(' · ');
     const nodes: StatusNode[] = [
@@ -332,7 +337,7 @@ function buildRepoChildren(
                     acceptanceRowLabel(acceptance),
                     acceptance.status && acceptanceStatusLabel(acceptance.status),
                     acceptance.verdict && acceptanceVerdictLabel(acceptance.verdict),
-                    acceptanceDescription(acceptance),
+                    acceptanceDescription(acceptance, 'spoken'),
                 ]
                     .filter(Boolean)
                     .join(', '),
@@ -361,7 +366,9 @@ function buildRepoChildren(
                                   value: `${acceptance.passedChecks} of ${acceptance.totalChecks} passed`,
                               },
                         acceptance.round === undefined
-                            ? undefined
+                            ? acceptance.roundCount !== undefined && acceptance.roundCount > 1
+                                ? { label: 'round', value: `latest of ${acceptance.roundCount}` }
+                                : undefined
                             : { label: 'round', value: `${acceptance.round}` },
                     ].filter((row): row is TreeItemTooltipRow => row !== undefined),
                 },
@@ -460,12 +467,11 @@ function buildRepoChildren(
             nodes.push(
                 item(`${prefix}:${deployment.environment}`, label, {
                     /**
-                     * The description carries the short commit SHA, never the alias: a Vercel alias is mostly a
-                     * generated hash (`project-next-i06ixdxlq-team.vercel.app`), so the row spent half its width on a
-                     * string that was unreadable before it was even truncated. The alias stays on the hover card's
-                     * `alias` row, which opens the deployment, and in the accessible name.
+                     * No trailing text: neither the alias (`project-next-i06ixdxlq-team.vercel.app`) nor the short
+                     * commit SHA tells a reader anything the commit subject does not, and both spent the row's width on
+                     * a hash. The alias and SHA stay on the hover card, which opens the deployment, and the alias stays
+                     * in the accessible name.
                      */
-                    description: deploymentRowDescription(deployment),
                     accessibilityLabel: deploymentAccessibilityLabel(label, stateLabel, deployment),
                     icon: deploymentIcon(deployment),
                     tooltip: deploymentTooltip(label, deployment),

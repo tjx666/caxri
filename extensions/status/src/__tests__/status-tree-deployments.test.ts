@@ -63,8 +63,8 @@ describe('Status extension Deployments row', () => {
         // Each overlapping row says which environment it is and that it is the current one, in text — not only via
         // an unlabelled trailing glyph.
         expect(deployments?.children?.map((node) => node.item.description)).toEqual([
-            'Production · Latest · c8c65ab',
-            'Preview · Latest · f722d1c',
+            'Production · Latest',
+            'Preview · Latest',
             'Production',
         ]);
         // No separate top-level "Production"/"Preview" row repeats either commit a second time.

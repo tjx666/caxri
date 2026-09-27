@@ -155,7 +155,7 @@ esac
             });
         const branchRow = tree.getByRole('treeitem', {
             // The branch row also names the pull request whose lifecycle glyph it now wears.
-            name: 'feature/status, default · Synced, pull request #42 Merged',
+            name: 'feature/status, default, pull request #42 Merged',
             exact: true,
         });
         await expect(branchRow).toBeVisible();
@@ -410,8 +410,8 @@ esac
             exact: true,
         });
         await expect(productionDeployment).toBeVisible();
-        // The visible row trades the unreadable alias for the short SHA of the commit that produced it.
-        await expect(productionDeployment).toContainText('c3d4e5f');
+        // The visible row carries neither the unreadable alias nor the short SHA; both stay on the hover card.
+        await expect(productionDeployment).not.toContainText('c3d4e5f');
         await expect(productionDeployment).not.toContainText('vercel.app');
         await expect(
             tree.getByRole('treeitem', {
@@ -458,11 +458,11 @@ esac
             name: 'feat: add the status rollup, preview · passed · project-8ykp416o7-tjx666.vercel.app',
             exact: true,
         });
-        // Only the commit subject and its short SHA: no message body, and no alias the reader cannot parse. The
+        // Only the commit subject: no message body, no short SHA, and no alias the reader cannot parse. The
         // description also names the environment as text now (#1291) — a Preview and a Production row for the
         // same commit used to be told apart only by an unlabelled trailing glyph.
         await expect(successfulDeployment).toContainText('feat: add the status rollup');
-        await expect(successfulDeployment).toContainText('a1b2c3d');
+        await expect(successfulDeployment).not.toContainText('a1b2c3d');
         await expect(successfulDeployment).toContainText('Preview');
         await expect(successfulDeployment).not.toContainText('Body the row never shows');
         await expect(successfulDeployment).not.toContainText('vercel.app');
@@ -633,12 +633,11 @@ esac
             .toBe('https://vercel.com/tjx666/project/Canceled123');
         await production.click();
         /**
-         * The environment rows print the environment and the short SHA of the commit they shipped, never the generated
-         * Vercel alias: that survives in the accessible name this locator matches on, and in the hover card's `alias`
-         * button asserted above.
+         * The environment rows print only the environment, never the short SHA or the generated Vercel alias: the alias
+         * survives in the accessible name this locator matches on, and both in the hover card asserted above.
          */
-        await expect(production).toHaveText('Productionc3d4e5f');
-        await expect(preview).toHaveText('Previewd4e5f60');
+        await expect(production).toHaveText('Production');
+        await expect(preview).toHaveText('Preview');
         await expect
             .poll(async () => (await treeCommandOpenedUrls(running))?.at(-1))
             .toBe('https://vercel.com/tjx666/project/Production123');
