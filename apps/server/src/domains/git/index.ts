@@ -77,7 +77,7 @@ export interface GitWorktreeTopology {
     repositoryKey: string;
     worktrees: Array<{ branch: string; rootPath: string; isMain?: boolean }>;
 }
-export { describeGitFailure } from './errors';
+export { describeGitFailure, resolveGitLaunch } from './errors';
 export { withGitRequestSignal } from './request-signal';
 export type { GitSummaryRequester } from './summary-trace';
 

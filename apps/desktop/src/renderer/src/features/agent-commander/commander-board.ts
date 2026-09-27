@@ -215,6 +215,12 @@ export function commanderTaskBadge(
     task: CommanderBoardRow['task'],
 ): CommanderTaskBadge | undefined {
     if (!task) return undefined;
+    if (task.status === 'blocked' && task.failure === 'startup_waiting')
+        return {
+            label: 'Needs you',
+            title: `Commander task ${task.delegationId}: the Agent is waiting at startup, usually on a first-run prompt such as folder trust or sign-in. Open the Session to answer it; the task continues on its own.`,
+            toneClassName: TONE_TEXT_CLASSNAME.warning,
+        };
     const { label, tone } = TASK_PRESENTATION[task.status];
     const reason = task.failure ? ` (${task.failure.replaceAll('_', ' ')})` : '';
     return {

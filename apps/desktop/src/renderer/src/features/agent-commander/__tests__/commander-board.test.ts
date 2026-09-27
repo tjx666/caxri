@@ -231,4 +231,15 @@ describe('commanderTaskBadge', () => {
             })?.title,
         ).toBe('Commander task task-1: Failed (startup not ready)');
     });
+
+    it('asks the user to open a Session whose Agent waits at startup', () => {
+        expect(
+            commanderTaskBadge({
+                delegationId: 'task-1',
+                status: 'blocked',
+                failure: 'startup_waiting',
+                updatedAt: 1,
+            }),
+        ).toMatchObject({ label: 'Needs you', toneClassName: 'text-warning' });
+    });
 });
