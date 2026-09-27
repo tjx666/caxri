@@ -188,15 +188,13 @@ process.stdout.write('Workbench Agent ready\r\n');
         await expectWorkbenchRoot(running.page, sessionId, worktree, 'feature/workbench');
         /**
          * Authorization registered the worktree as a full Project, but presentation is separate: the PrimarySidebar
-         * keeps exactly the checkouts the user added, and the Session row carries the worktree marker instead (GitHub
-         * issue #576).
+         * keeps exactly the checkouts the user added, and the Session row names the worktree instead (GitHub issue
+         * #576).
          */
         await expect(running.page.locator('.project-group')).toHaveCount(1);
         await expect(
-            running.page.locator(
-                `.session-card[data-session-id="${sessionId}"] [data-session-worktree="worktree"]`,
-            ),
-        ).toBeVisible();
+            running.page.locator(`.session-card[data-session-id="${sessionId}"]`),
+        ).toHaveAccessibleDescription(/Working in worktree worktree\./);
         await expect(
             running.page.getByRole('treeitem', { name: 'worktree-only.txt' }),
         ).toBeVisible();
@@ -234,12 +232,10 @@ process.stdout.write('Workbench Agent ready\r\n');
             .getByRole('option', { name: 'main, Main worktree', exact: true })
             .click();
         await expectWorkbenchRoot(running.page, sessionId, root, 'main');
-        // Back on its own root, the Session row carries no worktree marker.
+        // Back on its own root, the Session row names no worktree.
         await expect(
-            running.page.locator(
-                `.session-card[data-session-id="${sessionId}"] [data-session-worktree]`,
-            ),
-        ).toHaveCount(0);
+            running.page.locator(`.session-card[data-session-id="${sessionId}"]`),
+        ).not.toHaveAccessibleDescription(/Working in worktree/);
         await running.page.getByRole('tab', { name: 'owner.ts', exact: true }).click();
         await expect(running.page.locator('.view-lines')).toContainText('owner dirty buffer');
         await expect(
@@ -461,14 +457,12 @@ test('Workbench Root selector authorizes a linked worktree when hooks are disabl
         await expect(authorizedSelector).toBeVisible();
         /**
          * Authorizing through the picker must not add a second top-level entry for the same repository; the Session row
-         * marker carries that fact instead, and the picker keeps listing both roots (GitHub issue #576).
+         * names the worktree instead, and the picker keeps listing both roots (GitHub issue #576).
          */
         await expect(running.page.locator('.project-group')).toHaveCount(1);
         await expect(
-            running.page.locator(
-                `.session-card[data-session-id="${sessionId}"] [data-session-worktree="manual-worktree"]`,
-            ),
-        ).toBeVisible();
+            running.page.locator(`.session-card[data-session-id="${sessionId}"]`),
+        ).toHaveAccessibleDescription(/Working in worktree manual-worktree\./);
         await authorizedSelector.click();
         await running.page.getByRole('option', { name: /Show all worktrees/ }).click();
         await expect(
