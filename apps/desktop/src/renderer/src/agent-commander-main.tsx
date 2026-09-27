@@ -10,12 +10,14 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { ErrorBoundary } from './components/error-boundary';
 import { AgentCommanderApp } from './features/agent-commander/agent-commander-app';
 import { readAgentCommanderWorkbench } from './features/agent-commander/commander-client';
+import { installStoreInspector } from './lib/store';
 import { observeWindowActive } from './lib/window-active';
 import { queryClient } from './queries/client';
 import { installRendererErrorReporter } from './renderer-error-reporter';
 import { configureWorkbenchSnapshotSource } from './stores/workbench';
 
 installRendererErrorReporter((kind) => globalThis.caxri.reportError(kind));
+installStoreInspector();
 observeWindowActive();
 // Before the first render: Main denies this window `app.bootstrap`, so every shared refresh path must already read the
 // Commander-scoped snapshot by the time a Terminal pane can trigger one.

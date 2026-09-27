@@ -10,6 +10,12 @@ interface CommanderEventEffect {
      */
     board: boolean;
     /**
+     * Run `commander.ensure` again: the Server that owned the Commander's PTY is gone. The Server restores only the
+     * Workbench's selected Session, never the Commander's, so without this the window waits on a Terminal nothing
+     * restarts.
+     */
+    ensure: boolean;
+    /**
      * Mounted Terminal panes must re-issue `terminal.attach`: a Server restart or a Desktop↔Server reconnect dropped
      * the attachment and any PTY output sent meanwhile.
      */
@@ -20,7 +26,12 @@ interface CommanderEventEffect {
     snapshot: boolean;
 }
 
-const NO_EFFECT: CommanderEventEffect = { board: false, reattach: false, snapshot: false };
+const NO_EFFECT: CommanderEventEffect = {
+    board: false,
+    ensure: false,
+    reattach: false,
+    snapshot: false,
+};
 
 /**
  * Maps one Server event onto the window's refreshes. Unlike the Workbench's `subscribeWorkbenchEvents`, this handler is
@@ -43,26 +54,29 @@ export function commanderEventEffect(
                 identity === undefined ||
                 payload.sessionIds.includes(identity.sessionId) ||
                 payload.terminalIds.includes(identity.terminalId);
-            return { board: true, reattach: false, snapshot: isOwnRecord };
+            return { ...NO_EFFECT, board: true, snapshot: isOwnRecord };
         }
         case 'runtime.status':
             return event.payload.status === 'ready'
-                ? { board: true, reattach: true, snapshot: true }
+                ? { board: true, ensure: true, reattach: true, snapshot: true }
                 : NO_EFFECT;
         case 'host.connectionChanged':
             // `replaced` means another window took over this profile; the Workbench window reports it.
             return event.payload.status === 'replaced'
                 ? NO_EFFECT
-                : { board: true, reattach: true, snapshot: true };
+                : {
+                      board: true,
+                      ensure: event.payload.isHostReplaced,
+                      reattach: true,
+                      snapshot: true,
+                  };
         case 'settings.changed':
         case 'keybindings.changed':
         case 'theme.changed':
             // A configuration error is reported by the Workbench window, which owns Settings.
-            return event.payload.error
-                ? NO_EFFECT
-                : { board: false, reattach: false, snapshot: true };
+            return event.payload.error ? NO_EFFECT : { ...NO_EFFECT, snapshot: true };
         case 'sessionPullRequests.changed':
-            return { board: true, reattach: false, snapshot: false };
+            return { ...NO_EFFECT, board: true };
         default:
             return NO_EFFECT;
     }
