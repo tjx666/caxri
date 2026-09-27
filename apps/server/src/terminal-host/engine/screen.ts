@@ -1,11 +1,13 @@
 import { Buffer } from 'node:buffer';
 
+import type { TerminalWheelInput } from '@caxri/protocol';
 import { normalizeTerminalTitle } from '@caxri/protocol';
 import { SerializeAddon } from '@xterm/addon-serialize';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 import type { Terminal as HeadlessTerminal } from '@xterm/headless';
 import { Terminal } from '@xterm/headless';
 
+import { TerminalMouseWheelEncoder } from './mouse-wheel';
 import { TerminalOscLinkSnapshots } from './osc-link-snapshots';
 import { boundSnapshot, MAX_SNAPSHOT_BYTES, MAX_SNAPSHOT_LINES } from './snapshot';
 
@@ -89,6 +91,7 @@ export class TerminalScreenState {
     private readonly operations: ScreenOperation[] = [];
     private queuedWriteBytes = 0;
     private readonly serialize = new SerializeAddon();
+    private readonly wheel: TerminalMouseWheelEncoder;
     private readonly terminal: HeadlessTerminal;
 
     constructor(
@@ -118,6 +121,7 @@ export class TerminalScreenState {
         this.terminal.unicode.activeVersion = '11';
         this.terminal.loadAddon(this.serialize);
         this.oscLinks = new TerminalOscLinkSnapshots(this.terminal);
+        this.wheel = new TerminalMouseWheelEncoder(this.terminal);
         /**
          * Attached before the snapshot replay below so a recovered Terminal re-derives its title from whatever OSC the
          * replay happens to carry. The serializer does not currently emit the window title, so in practice recovery
@@ -336,5 +340,12 @@ export class TerminalScreenState {
      */
     pendingByteCount(): number {
         return this.queuedWriteBytes;
+    }
+
+    /**
+     * Reads the modes parsed so far; output still queued behind the parser cannot change how this wheel is encoded.
+     */
+    wheelInput(wheel: TerminalWheelInput): string | null {
+        return this.disposed ? null : this.wheel.encode(wheel);
     }
 }

@@ -43,11 +43,13 @@ revocation notice to authenticated connections, and closes them. An old generati
 submit another request.
 
 The dashboard returns the current paired device role so the mobile UI can gate Terminal controls.
-Desktop queries return a null role. Server authorization remains authoritative: the three
-`mobile.terminal.*` methods require `control`, the exact active connection and Terminal subscription,
+Desktop queries return a null role. Server authorization remains authoritative: the four
+`mobile.terminal.*` control methods (`takeOver`, `release`, `input`, `scroll`) require `control`, the exact active connection and Terminal subscription,
 the subscription's Terminal generation, and a fresh principal-scoped Terminal query. A `reply` device
 may submit an Agent instruction through `mobile.agent.submit` but cannot take over size or send raw
-Terminal keys. Git reads use only `mobile.changes.list` and `mobile.changes.diff`; see
+Terminal keys. `mobile.terminal.scroll` carries only a bounded line count and grid cell; the Terminal
+Host encodes the wheel report or cursor keys from its own parsed modes, so it cannot become an
+arbitrary-byte input path. Git reads use only `mobile.changes.list` and `mobile.changes.diff`; see
 [Mobile Changes](CHANGES.md). No Git mutation method is granted.
 Size leases use the exact connection and subscription as holder; closing that holder cannot release
 a newer connection's lease. Terminal observation requires only `view` and never changes Desktop

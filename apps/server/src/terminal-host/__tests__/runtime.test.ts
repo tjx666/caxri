@@ -93,6 +93,7 @@ function fakeEngine() {
             resources: vi.fn(() => Promise.resolve(null)),
             restartBarrier: vi.fn(),
             runningCount: vi.fn(() => 1),
+            scroll: vi.fn(() => true),
             shutdown: vi.fn<TerminalExecutionOwner['shutdown']>(() => []),
             signalExact: vi.fn(() => true),
             snapshot,

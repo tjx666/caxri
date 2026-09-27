@@ -203,6 +203,42 @@ export async function executeMobileTerminalScenario(
         );
         await capture(environment, 'tall-grid-latest', artifacts);
 
+        /**
+         * A full-screen Agent keeps no xterm scrollback; the phone's drag must reach it as wheel input without a lease.
+         */
+        await pageRequest(fixture.running.page, 'terminal.input', {
+            terminalId: fixture.terminalId,
+            data: 'f',
+        });
+        await waitForMobile(
+            () => fixture.menuState(),
+            ({ fullscreen }) => fullscreen,
+        );
+        await adbShell(environment.serial, [
+            'input',
+            'swipe',
+            String(x),
+            String(Math.round(bounds.top + height * 0.35)),
+            String(x),
+            String(Math.round(bounds.top + height * 0.8)),
+            '500',
+        ]);
+        const scrolled = await waitForMobile(
+            () => fixture.menuState(),
+            ({ wheelUp }) => wheelUp > 0,
+        );
+        expect(scrolled.wheelDown).toBe(0);
+        expect({ cols: scrolled.cols, rows: scrolled.rows }).toEqual(desktopSize);
+        await capture(environment, 'fullscreen-scrolled-without-lease', artifacts);
+        await pageRequest(fixture.running.page, 'terminal.input', {
+            terminalId: fixture.terminalId,
+            data: 'f',
+        });
+        await waitForMobile(
+            () => fixture.menuState(),
+            ({ fullscreen }) => !fullscreen,
+        );
+
         await tapMobileCheck(environment.serial, 'terminal-take-over');
         await waitForMobile(
             () => mobileSemantics(environment.serial),
@@ -212,6 +248,10 @@ export async function executeMobileTerminalScenario(
             () => fixture.menuState(),
             ({ cols }) => cols !== null && cols < desktopSize.cols,
         );
+        /**
+         * The leased grid keeps the observing text size; a full-size font gave a phone only about 49 columns.
+         */
+        expect(takenOver.cols).toBeGreaterThan(60);
         await capture(environment, 'taken-over', artifacts);
 
         try {
@@ -267,6 +307,13 @@ export async function executeMobileTerminalScenario(
                 `${takenOver.cols}x${takenOver.rows}`,
             );
         }
+
+        await pinchReadOnlyTerminal(environment.serial, 'pinch-out');
+        const zoomed = await waitForMobile(
+            () => fixture.menuState(),
+            ({ cols }) => cols !== null && takenOver.cols !== null && cols < takenOver.cols,
+        );
+        await capture(environment, 'taken-over-zoomed-reflowed', artifacts);
 
         await tapTerminalKey(environment.serial, 'down');
         await waitForMobile(
@@ -341,6 +388,8 @@ export async function executeMobileTerminalScenario(
             releasedSize: { cols: released.cols, rows: released.rows },
             status: 'passed',
             takenOverSize: { cols: takenOver.cols, rows: takenOver.rows },
+            takenOverZoomedSize: { cols: zoomed.cols, rows: zoomed.rows },
+            fullscreenScroll: 'wheel-forwarded-without-lease',
         });
     } finally {
         try {

@@ -3,6 +3,7 @@ import type {
     TerminalRecord,
     TerminalResourceUsage,
     TerminalSnapshot,
+    TerminalWheelInput,
 } from '@caxri/protocol';
 
 export type TerminalExecutionEvent =
@@ -128,6 +129,15 @@ export interface TerminalExecutionPort {
         expectedGeneration: number,
         data: string,
         signal?: AbortSignal,
+    ): Promise<boolean>;
+    /**
+     * Scrolls the running application by wheel steps the Terminal Host encodes from its own parsed mouse modes.
+     * Resolves `false` when the application does not accept wheel input.
+     */
+    scrollForGeneration(
+        terminalId: string,
+        expectedGeneration: number,
+        wheel: TerminalWheelInput,
     ): Promise<boolean>;
     onEvent(listener: (event: TerminalExecutionEvent) => void): () => void;
     onExit(listener: (event: TerminalExecutionExit) => void): () => void;

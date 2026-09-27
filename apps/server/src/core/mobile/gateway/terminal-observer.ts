@@ -2,6 +2,7 @@ import { Buffer } from 'node:buffer';
 
 import type { MobileEventPayload, MobileStreamPayload } from '@caxri/mobile-transport';
 import { MOBILE_STREAM_CHUNK_MAX_BYTES } from '@caxri/mobile-transport';
+import type { TerminalWheelInput } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 
 import type { TerminalExecutionPort, TerminalObserverEvent } from '../../../domains/terminal';
@@ -207,6 +208,21 @@ export class MobileTerminalObserver {
         } finally {
             this.#inputControllers.delete(cancellation);
         }
+    }
+
+    /**
+     * Scrolling needs control authority but not the size lease: it moves the application's own view without taking the
+     * keyboard, so a phone can read an alternate-screen Agent while Desktop keeps typing.
+     */
+    async scroll(expectedGeneration: number, wheel: TerminalWheelInput): Promise<void> {
+        this.#assertGeneration(expectedGeneration);
+        await this.#options.authorize();
+        this.#assertGeneration(expectedGeneration);
+        await this.#options.port.scrollForGeneration(
+            this.#options.terminalId,
+            expectedGeneration,
+            wheel,
+        );
     }
 
     async renewLease(): Promise<void> {

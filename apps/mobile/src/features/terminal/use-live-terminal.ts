@@ -21,6 +21,7 @@ import { terminalResyncPlan } from './resync-policy';
 import { createTerminalStreamAssembly } from './stream-assembly';
 import type { TerminalWebviewCommand } from './webview-bridge';
 import { parseTerminalWebviewMessage, terminalWebviewCommandScript } from './webview-bridge';
+import { createTerminalWheelQueue } from './wheel-queue';
 
 type TerminalWebviewPayload = TerminalWebviewCommand extends infer Command
     ? Command extends TerminalWebviewCommand
@@ -305,6 +306,20 @@ export const useLiveTerminal = ({
         [],
     );
 
+    const leased = hasLease && role === 'control';
+    /**
+     * Tells the document whether it draws the phone's own grid with a live cursor, and whether drags may scroll an
+     * alternate-screen application. A replaced document receives this again once it reports ready.
+     */
+    useEffect(() => {
+        if (webviewReady)
+            sendWebview({
+                type: 'control',
+                canForwardScroll: role === 'control',
+                isLeased: leased,
+            });
+    }, [leased, role, sendWebview, webviewReady]);
+
     const currentTarget = (): TerminalControlTarget | null => {
         const handle = subscription.current;
         const currentGeneration = generation.current;
@@ -327,6 +342,15 @@ export const useLiveTerminal = ({
             expectedGeneration: currentGeneration,
         };
     };
+
+    const targetReference = useRef(currentTarget);
+    useLayoutEffect(() => {
+        targetReference.current = currentTarget;
+    });
+    /**
+     * Created on the first forwarded drag so the queue's sender reads the latest target only from event handlers.
+     */
+    const wheel = useRef<ReturnType<typeof createTerminalWheelQueue> | null>(null);
 
     const sendInput = async (data: string): Promise<'sent' | 'blocked'> => {
         const target = currentTarget();
@@ -477,6 +501,18 @@ export const useLiveTerminal = ({
                 onTap?.();
                 break;
             }
+            case 'wheel': {
+                if (role !== 'control') break;
+                wheel.current ??= createTerminalWheelQueue(
+                    async (next) => {
+                        const target = targetReference.current();
+                        if (target) await request('mobile.terminal.scroll', { ...target, ...next });
+                    },
+                    (error_) => setError(controlError(error_)),
+                );
+                wheel.current.add({ col: message.col, lines: message.lines, row: message.row });
+                break;
+            }
             case 'error': {
                 invalidateWebview();
                 setState('error');
@@ -497,7 +533,7 @@ export const useLiveTerminal = ({
         }),
         ctrl,
         error,
-        hasLease: hasLease && role === 'control',
+        hasLease: leased,
         hasSize,
         jump: () => sendWebview({ type: 'jump' }),
         onWebviewMessage,
