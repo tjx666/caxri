@@ -48,16 +48,23 @@ test('editor folding chords, app chords, and Find controls remain available', as
          * while the same sequence typed anywhere else runs. Both halves are asserted here because only the pair proves
          * the split — either one alone passes with the app simply never binding the sequence.
          */
-        const settingsDialog = running.page.getByRole('dialog');
+        // Settings is a Workbench tab now, not a modal (issue caxri#1289): `[data-settings-page]` is the
+        // replacement scope for the former `role="dialog"` query (see `openSettingsTab` in `support/helpers.ts`). This
+        // is checked directly rather than through that helper because the chord below is expected to open the tab on
+        // its own, without `Cmd+,`.
+        const settingsTab = running.page.locator('[data-settings-page]');
         await running.page.keyboard.press('Meta+k');
         await running.page.keyboard.press('Meta+s');
-        await expect(settingsDialog).toHaveCount(0);
+        await expect(settingsTab).toHaveCount(0);
         await running.page.getByRole('treeitem', { name: 'searchable.ts', exact: true }).click();
         await running.page.keyboard.press('Meta+k');
         await running.page.keyboard.press('Meta+s');
-        await expect(settingsDialog.getByLabel('Search keyboard shortcuts')).toBeVisible();
-        await running.page.keyboard.press('Escape');
-        await expect(settingsDialog).toHaveCount(0);
+        await expect(settingsTab.getByLabel('Search keyboard shortcuts')).toBeVisible();
+        // `Cmd+W` closes the tab outright, the tab-appropriate replacement for the old "Escape to
+        // dismiss the dialog" step: it also occupies the same pane the editor does, so this is
+        // required for `editor.click(...)` below to find it mounted again.
+        await running.page.keyboard.press('Meta+w');
+        await expect(settingsTab).toHaveCount(0);
         await editor.click({ position: { x: 120, y: 24 } });
 
         /**

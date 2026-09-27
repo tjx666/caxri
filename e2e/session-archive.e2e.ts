@@ -11,6 +11,7 @@ import {
     createAdditionalShellSession,
     createProjectSession,
     launchCaxri,
+    openSettingsTab,
     pageRequest,
     selectedSessionId,
     sessionCard,
@@ -128,13 +129,12 @@ test('Archived Sessions manager deletes only after native confirmation', async (
         await expect(sessionCard(running.page, archivedSessionId)).toHaveCount(0);
 
         // The manager's global entry point lives in Settings now, not in the primarySidebar.
-        await running.page.keyboard.press('Meta+,');
-        const settingsDialog = running.page
-            .getByRole('dialog')
-            .filter({ has: running.page.getByRole('heading', { name: 'Settings' }) });
-        await settingsDialog.locator('.archived-sessions-entry').click();
-        // Opening the manager closes Settings first, so only one dialog remains.
-        await expect(settingsDialog).toHaveCount(0);
+        const settingsTab = await openSettingsTab(running.page);
+        await settingsTab.locator('.archived-sessions-entry').click();
+        // The manager is its own dialog, floating over the Settings tab like any other modal
+        // opened over a document (issue caxri#1289): Settings is a Workbench tab now, not a
+        // dialog, so there is no modal layer for it to close first — it stays open underneath.
+        await expect(settingsTab).toBeVisible();
         const dialog = running.page.getByRole('dialog');
         const archivedRow = dialog.locator('.archived-manager-row');
         await expect(archivedRow).toHaveCount(1);

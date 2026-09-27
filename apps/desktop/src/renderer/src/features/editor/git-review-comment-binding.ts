@@ -4,13 +4,16 @@ import { createRoot } from 'react-dom/client';
 import type { editor as MonacoEditor } from 'monaco-editor';
 
 import { monaco } from '../../lib/monaco';
+import { subscribeCaxriQuery } from '../../queries/client';
 import { GitReviewCard } from './git-review-card';
 import {
     clearActiveGitReviewComment,
+    createGitReviewComment,
+    refreshGitReviewComments,
     setActiveGitReviewComment,
 } from './git-review-comment-commands';
 import type { GitReviewComment } from './git-review-comments';
-import { reviewSnippet, useGitReviewComments } from './git-review-comments';
+import { reviewSnippet } from './git-review-comments';
 
 interface ReviewEditorScope {
     sessionId: string;
@@ -18,6 +21,24 @@ interface ReviewEditorScope {
     sourceKey: string;
     path: string;
     side: GitReviewComment['side'];
+}
+
+/**
+ * One mounted review editor, registered here for the next/previous review comment commands
+ * (`git-review-navigation-commands.ts`) to reach across every currently mounted diff editor pane. Deliberately scoped
+ * to mounted editors only: jumping into a virtualized-out file in a multi-file "Open Changes" diff would need
+ * infrastructure this feature does not have yet (see `docs/git-diff-review.md`).
+ */
+export interface BoundGitReviewCommentEditor {
+    scope: ReviewEditorScope;
+    getComments(): GitReviewComment[];
+    reveal(id: string): boolean;
+}
+
+const boundReviewEditors = new Set<BoundGitReviewCommentEditor>();
+
+export function listBoundGitReviewCommentEditors(): ReadonlySet<BoundGitReviewCommentEditor> {
+    return boundReviewEditors;
 }
 
 /**
@@ -38,9 +59,8 @@ export function bindGitReviewCommentEditor(
         }
     >();
     let hoverDecorations: MonacoEditor.IEditorDecorationsCollection | undefined;
+    let scopedComments: GitReviewComment[] = [];
     const isInScope = (comment: GitReviewComment) =>
-        comment.sessionId === scope.sessionId &&
-        comment.repositoryId === scope.repositoryId &&
         comment.sourceKey === scope.sourceKey &&
         comment.path === scope.path &&
         comment.side === scope.side;
@@ -75,7 +95,7 @@ export function bindGitReviewCommentEditor(
             `${editor.getLayoutInfo().contentWidth}px`,
         );
     const renderZones = () => {
-        const comments = useGitReviewComments.getState().comments.filter(isInScope);
+        const comments = scopedComments;
         const currentIds = new Set(comments.map((comment) => comment.id));
         editor.changeViewZones((accessor) => {
             for (const [id, entry] of zones) {
@@ -121,14 +141,13 @@ export function bindGitReviewCommentEditor(
         const endLine = line ?? Math.max(startLine, selection?.endLineNumber ?? startLine);
         const model = editor.getModel();
         if (!model) return;
-        useGitReviewComments.getState().add({
+        // eslint-disable-next-line no-void -- floating-promise discard: new comment appears via `gitReview.changed`
+        void createGitReviewComment({
             id: crypto.randomUUID(),
             ...scope,
             startLine,
             endLine,
             snippet: reviewSnippet(model.getValue(), startLine, endLine),
-            text: '',
-            status: 'pending',
         });
     };
     /**
@@ -181,25 +200,43 @@ export function bindGitReviewCommentEditor(
         if (event.target.type === monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN)
             add(event.target.position.lineNumber);
     });
-    const content = editor.onDidChangeModelContent(() =>
-        useGitReviewComments
-            .getState()
-            .refresh(
-                scope.sessionId,
-                scope.repositoryId,
-                scope.sourceKey,
-                scope.path,
-                scope.side,
-                editor.getValue(),
-            ),
-    );
+    const content = editor.onDidChangeModelContent(() => {
+        // eslint-disable-next-line no-void -- floating-promise discard: outdated status refetches via `gitReview.changed`
+        void refreshGitReviewComments(
+            scope.sessionId,
+            scope.repositoryId,
+            scope.sourceKey,
+            scope.path,
+            scope.side,
+            editor.getValue(),
+        );
+    });
     const layout = editor.onDidLayoutChange(() => {
         for (const entry of zones.values()) syncZoneWidth(entry.zone.domNode);
     });
-    const unsubscribe = useGitReviewComments.subscribe(renderZones);
-    renderZones();
+    const boundEditor: BoundGitReviewCommentEditor = {
+        scope,
+        getComments: () => scopedComments,
+        reveal: (id) => {
+            const entry = zones.get(id);
+            if (!entry) return false;
+            editor.revealLineInCenter(entry.comment.endLine);
+            editor.focus();
+            return true;
+        },
+    };
+    boundReviewEditors.add(boundEditor);
+    const unsubscribe = subscribeCaxriQuery(
+        'gitReview.list',
+        { sessionId: scope.sessionId, repositoryId: scope.repositoryId },
+        (comments) => {
+            scopedComments = (comments ?? []).filter(isInScope);
+            renderZones();
+        },
+    );
     return () => {
         unsubscribe();
+        boundReviewEditors.delete(boundEditor);
         focus.dispose();
         clearActiveGitReviewComment(editor);
         hover.dispose();

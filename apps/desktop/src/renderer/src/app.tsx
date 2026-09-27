@@ -30,7 +30,7 @@ import { didSelectSession } from './features/session/session-commands';
 import { SessionMruSwitcher } from './features/session/session-mru-switcher';
 import { useSessionMruSwitcherLifecycle } from './features/session/use-session-mru-switcher-lifecycle';
 import { useSessionNavigationHistory } from './features/session/use-session-navigation-history';
-import { SettingsDialog } from './features/settings/settings-dialog';
+import { useSettingsTabOpener } from './features/settings/settings-tab-opener';
 import { StatusBar } from './features/status-bar/status-bar';
 import { ToastOutlet } from './features/toasts/toast-outlet';
 import { UpdateDialog } from './features/updates/update-dialog';
@@ -114,6 +114,7 @@ export function App() {
     );
 
     useRuntimeAttachment();
+    useSettingsTabOpener();
     useFileMutationReconciliation(isAttached);
     useRuntimeQueryInvalidation();
     useEffect(() => startViewEventBridge(), []);
@@ -246,7 +247,6 @@ export function App() {
                 <CreateSessionDialog />
                 <ArchivedSessionsDialog />
                 <ContentSearchDialog />
-                <SettingsDialog />
                 <UpdateDialog />
                 <CommandPalette />
                 <ProjectSearchDialog />

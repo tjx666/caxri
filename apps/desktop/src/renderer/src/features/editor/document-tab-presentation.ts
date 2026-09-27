@@ -2,10 +2,12 @@ import {
     agentTranscriptTabLabel,
     filePreviewTabLabel,
     gitDiffTabLabel,
+    isSettingsTabPath,
     parseAgentTranscriptTab,
     parseExternalEditorTab,
     parseFilePreviewTab,
     parseGitDiffTab,
+    SETTINGS_TAB_LABEL,
 } from '@caxri/protocol';
 import { pathBasename } from '@caxri/utils';
 
@@ -20,13 +22,16 @@ export function documentTabPresentation(
     const transcript = parseAgentTranscriptTab(path);
     const external = parseExternalEditorTab(path);
     const preview = parseFilePreviewTab(path);
+    const isSettings = isSettingsTabPath(path);
     const label = diff
         ? gitDiffTabLabel(diff)
         : transcript
           ? agentTranscriptTabLabel(options.transcriptTitle)
           : preview
             ? filePreviewTabLabel(preview.path)
-            : (external?.name ?? pathBasename(path));
+            : isSettings
+              ? SETTINGS_TAB_LABEL
+              : (external?.name ?? pathBasename(path));
     return {
         fileIconName:
             diff?.kind === 'file'
@@ -37,12 +42,16 @@ export function documentTabPresentation(
                     ? 'transcript.jsonl'
                     : preview
                       ? pathBasename(preview.path)
-                      : (external?.name ?? pathBasename(path)),
+                      : isSettings
+                        ? // Resolved through the real on-disk file name so the tab icon matches the same lookup
+                          // `settings.jsonc` gets anywhere else a file icon is drawn from a path.
+                          'settings.jsonc'
+                        : (external?.name ?? pathBasename(path)),
         label,
         // A preview tab shows its source path: the label already says "Preview", so the tooltip's job is locating it.
         labelTooltip: preview
             ? preview.path
-            : diff || transcript
+            : diff || transcript || isSettings
               ? label
               : (options.displayPath ?? external?.name ?? path),
     };

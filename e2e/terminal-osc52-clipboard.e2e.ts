@@ -8,6 +8,7 @@ import {
     createAdditionalShellSession,
     createShellSession,
     launchCaxri,
+    openSettingsTab,
     pageRequest,
     pressNewTerminal,
     revealSettingsSection,
@@ -89,10 +90,9 @@ test('OSC 52 clipboard writes honor opt-out and remain bounded, write-only, and 
             });
         });
 
-        await running.page.keyboard.press('Meta+,');
-        const initialDialog = running.page.getByRole('dialog');
-        await revealSettingsSection(initialDialog, 'Terminal');
-        const initialSetting = initialDialog.getByRole('switch', {
+        const initialSettingsTab = await openSettingsTab(running.page);
+        await revealSettingsSection(initialSettingsTab, 'Terminal');
+        const initialSetting = initialSettingsTab.getByRole('switch', {
             name: 'Allow OSC 52 clipboard writes',
         });
         await expect(initialSetting).toBeChecked();
@@ -105,7 +105,10 @@ test('OSC 52 clipboard writes honor opt-out and remain bounded, write-only, and 
                 return settings.value['terminal.osc52ClipboardWrite'];
             })
             .toBe(false);
-        await initialDialog.getByRole('button', { name: 'Close', exact: true }).click();
+        // Settings is a Workbench tab now, not a modal (issue caxri#1289): it occupies the
+        // same pane a Terminal session would, so `Cmd+W` closes it outright to get the Terminal
+        // back in view before typing into it below — there is no "Close" button to click anymore.
+        await running.page.keyboard.press('Meta+w');
 
         await typeTerminal(running.page, osc52(encoded('DISABLED_BLOCKED')));
         await typeTerminal(running.page, osc52('?'));
@@ -124,11 +127,10 @@ test('OSC 52 clipboard writes honor opt-out and remain bounded, write-only, and 
             ),
         ).toBe(0);
 
-        await running.page.keyboard.press('Meta+,');
-        const dialog = running.page.getByRole('dialog');
+        const settingsTab = await openSettingsTab(running.page);
         // Settings rows are virtualized, so reveal the Terminal section before querying its switch.
-        await revealSettingsSection(dialog, 'Terminal');
-        const setting = dialog.getByRole('switch', { name: 'Allow OSC 52 clipboard writes' });
+        await revealSettingsSection(settingsTab, 'Terminal');
+        const setting = settingsTab.getByRole('switch', { name: 'Allow OSC 52 clipboard writes' });
         await expect(setting).not.toBeChecked();
         await setting.check();
         /**
@@ -143,7 +145,9 @@ test('OSC 52 clipboard writes honor opt-out and remain bounded, write-only, and 
                 return settings.value['terminal.osc52ClipboardWrite'];
             })
             .toBe(true);
-        await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+        // See the comment above the earlier `Meta+w`: same tab-close replacement for the removed
+        // "Close" button, needed again here to get the Terminal back before the next write.
+        await running.page.keyboard.press('Meta+w');
 
         await typeTerminal(
             running.page,

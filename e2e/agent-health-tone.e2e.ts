@@ -10,6 +10,7 @@ import { expect, test } from './support/fixtures.ts';
 import {
     createProjectSession,
     launchCaxri,
+    openSettingsTab,
     pageRequest,
     revealSettingsSection,
 } from './support/helpers.ts';
@@ -55,10 +56,9 @@ process.stdin.resume();
                 return health.claude.kind;
             })
             .toBe('active');
-        await running.page.keyboard.press('Meta+,');
-        const dialog = running.page.getByRole('dialog');
-        await revealSettingsSection(dialog, 'Claude Code');
-        const caption = dialog
+        const settingsTab = await openSettingsTab(running.page);
+        await revealSettingsSection(settingsTab, 'Claude Code');
+        const caption = settingsTab
             .locator('[data-setting-row="agents.claude.hooks"]')
             .getByRole('status');
         await expect(caption).toHaveText('Active');

@@ -1,5 +1,7 @@
-import type { AppSettings, TerminalKind } from '@caxri/protocol';
+import type { AppSettings, TerminalKind, TerminalRecord } from '@caxri/protocol';
 import { terminalKindSchema } from '@caxri/protocol';
+
+import { getTerminalExitPresentation } from './terminal-exit-presentation';
 
 /**
  * The value `session.defaultAgent` holds: an Agent, `shell`, or `null` when the user never named one.
@@ -40,6 +42,42 @@ export interface NewTerminalAgentChoice {
  */
 export function resolveNewTerminalAgent(defaultAgent: ConfiguredDefaultAgent): TerminalKind | null {
     return defaultAgent ?? null;
+}
+
+/**
+ * Whether `terminal` currently answers "what Agent is this Session running": not a plain shell, and not sitting in any
+ * state {@link getTerminalExitPresentation} recognizes as exited, failed, or otherwise paused. A shell, or an Agent that
+ * has since stopped, tells {@link resolveNewTerminalTarget} nothing worth cloning into a new Terminal.
+ */
+function isLiveAgentTerminal(terminal: TerminalRecord): boolean {
+    return (
+        terminal.kind !== 'shell' &&
+        getTerminalExitPresentation(terminal.lastProcessState) === undefined
+    );
+}
+
+/**
+ * What a direct click on the tab-strip New Terminal `+` creates: the Agent the Session's primary Terminal is currently
+ * running, so the new Terminal joins the same conversation instead of always asking or always following a possibly
+ * stale configured default (Fix #1292).
+ *
+ * Falls through to the configured default Agent when the primary Terminal is a shell or has exited, and to `null` when
+ * neither resolves — the button opens the Agent list rather than guessing.
+ *
+ * Deliberately not shared with {@link newTerminalCommandKind}: `⌘T`/`terminal.new` is a global shortcut with no
+ * Session-scoped button to read a Primary Agent Terminal from at the call site, and dozens of E2E specs already rely on
+ * it answering the configured default (or a shell) regardless of what a Session's other Terminals are doing — see
+ * `pressNewTerminal` in `e2e/support/helpers.ts`. The `CommandTooltip` on this button still names `⌘T` as its shortcut
+ * because both create _a_ Terminal in the current Session from the same tab-strip slot; the two can name a different
+ * Agent only when a live primary Agent Terminal differs from the configured default, which is the uncommon case this
+ * button exists to shortcut past.
+ */
+export function resolveNewTerminalTarget(
+    primaryTerminal: TerminalRecord | undefined,
+    defaultAgent: ConfiguredDefaultAgent,
+): TerminalKind | null {
+    if (primaryTerminal && isLiveAgentTerminal(primaryTerminal)) return primaryTerminal.kind;
+    return resolveNewTerminalAgent(defaultAgent);
 }
 
 /**

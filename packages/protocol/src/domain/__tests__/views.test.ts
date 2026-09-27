@@ -657,6 +657,13 @@ describe('extension view contracts', () => {
                 providers: [{ ...provider, rootPath: '' }],
             }).success,
         ).toBe(false);
+        // A synced, clean repository hides every zero count, leaving an empty count label.
+        expect(
+            sourceControlViewModelSchema.safeParse({
+                ...model,
+                providers: [{ ...provider, countLabel: '' }],
+            }).success,
+        ).toBe(true);
 
         const externalLink = {
             url: 'https://example.com/owner/repository/pull/7',

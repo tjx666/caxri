@@ -105,7 +105,10 @@ function SessionMruRow({
              */
             onMouseMove={() => useSessionMruSwitcherStore.getState().select(index)}
         >
-            <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={16} />
+            {/* `tone="state"`: this row is the same Session row family as the primary sidebar's, so
+                Claude Code/Codex must tint like every other Agent instead of keeping a fixed brand
+                color. */}
+            <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={16} tone="state" />
             <span className="min-w-0 flex-1">
                 <strong
                     className={cn(

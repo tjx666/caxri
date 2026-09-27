@@ -17,6 +17,8 @@ import {
     ContextMenuTrigger,
 } from '../../components/ui/context-menu';
 import { useCommandShortcut } from '../../lib/keybindings';
+import { useCaxriQuery } from '../../queries/client';
+import { revokePermissionAutoAllow } from '../session/permission-auto-allow-commands';
 import {
     archiveSession,
     copyAgentSessionId,
@@ -96,9 +98,23 @@ export function SessionRowMenu({
      * in the Project heading.
      */
     const [renameRequested, setRenameRequested] = useState(false);
+    /**
+     * "Always allow in this Session" (issue caxri#1295) is a Server in-memory grant, not part of the bootstrap
+     * `SessionRecord`, so it is read lazily only while the menu is open rather than for every row in the tree. The read
+     * stays live while the menu is open through `session.permissionAutoAllowStatus`'s own invalidation on
+     * `agent.permissionAutoAllowChanged` (see `queries/invalidation.ts`), so a revoke from another window or a mobile
+     * device is reflected without reopening this menu.
+     */
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const autoAllow = useCaxriQuery(
+        'session.permissionAutoAllowStatus',
+        { sessionId: session.id },
+        { enabled: isMenuOpen },
+    );
     return (
         <ContextMenu
             onOpenChange={(isOpen) => {
+                setIsMenuOpen(isOpen);
                 if (isOpen) setRenameRequested(false);
                 onOpenChange?.(isOpen);
             }}
@@ -157,6 +173,11 @@ export function SessionRowMenu({
                         onClick={() => detachSession(session.id)}
                     >
                         Detach Agent
+                    </ContextMenuItem>
+                )}
+                {autoAllow.data?.granted && (
+                    <ContextMenuItem onClick={() => revokePermissionAutoAllow(session.id)}>
+                        Turn Off Always Allow in this Session
                     </ContextMenuItem>
                 )}
                 <ContextMenuSeparator />

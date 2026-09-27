@@ -3,6 +3,7 @@ import {
     externalEditorTabPath,
     gitChangesDiffTabPath,
     gitFileDiffTabPath,
+    settingsTabPath,
 } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
@@ -44,5 +45,12 @@ describe('documentTabPresentation', () => {
         expect(
             documentTabPresentation(gitFileDiffTabPath('repo', 'src/file.ts'), {}).fileIconName,
         ).toBe('file.ts');
+    });
+    it('labels the Settings tab without exposing its opaque scheme', () => {
+        expect(documentTabPresentation(settingsTabPath(), {})).toEqual({
+            fileIconName: 'settings.jsonc',
+            label: 'Settings',
+            labelTooltip: 'Settings',
+        });
     });
 });

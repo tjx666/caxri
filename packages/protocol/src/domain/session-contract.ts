@@ -6,6 +6,7 @@ import { bootstrapStateSchema } from './bootstrap.js';
 import {
     canceledResultSchema,
     identifierSchema,
+    permissionAutoAllowStatusSchema,
     sessionRecordSchema,
     sessionReorderParametersSchema,
     terminalKindSchema,
@@ -138,6 +139,24 @@ export const sessionMethods = {
     },
     'session.detach': sessionIdWrite,
     'session.resume': sessionIdWrite,
+    /**
+     * Desktop-visible read of the in-memory "Always allow in this Session" grant (issue caxri#1295). Never durable, so
+     * this is its own command rather than a `sessionRecordSchema` field; see `permissionAutoAllowStatusSchema`.
+     */
+    'session.permissionAutoAllowStatus': {
+        ...commandPolicy('server', 'read', ['sessions.read']),
+        params: z.object({ sessionId: identifierSchema }),
+        result: permissionAutoAllowStatusSchema,
+    },
+    /**
+     * Desktop's revoke entry point for the same grant. Only mobile's `mobile.attention.answer` can enable it (a
+     * `control`-role paired device); Desktop only ever observes and revokes.
+     */
+    'session.revokePermissionAutoAllow': {
+        ...commandPolicy('server', 'write', ['sessions.write']),
+        params: z.object({ sessionId: identifierSchema }),
+        result: permissionAutoAllowStatusSchema,
+    },
     'session.updateState': {
         ...serverWrite,
         params: sessionStateSchema,

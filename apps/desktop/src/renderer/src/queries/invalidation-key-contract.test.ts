@@ -141,6 +141,45 @@ describe('invalidation predicates match factory-built query keys', () => {
         expect(isInvalidated(queryClient, summary)).toBe(true);
     });
 
+    it('invalidates the "Always allow in this Session" read its own change event names (issue caxri#1295)', () => {
+        const queryClient = new QueryClient();
+        const status = caxriQueryKey('session.permissionAutoAllowStatus', {
+            sessionId: SESSION_ID,
+        });
+        queryClient.setQueryData(status, { granted: false });
+
+        emit(queryClient, {
+            event: 'agent.permissionAutoAllowChanged',
+            payload: { sessionId: SESSION_ID, granted: true, grantedAt: 1_700 },
+        });
+
+        expect(isInvalidated(queryClient, status)).toBe(true);
+    });
+
+    it('invalidates the review comment list and pending summary a gitReview.changed event covers (issue caxri#1294)', () => {
+        const queryClient = new QueryClient();
+        const list = caxriQueryKey('gitReview.list', {
+            sessionId: SESSION_ID,
+            repositoryId: 'repo-1',
+        });
+        const otherRepoList = caxriQueryKey('gitReview.list', {
+            sessionId: SESSION_ID,
+            repositoryId: 'repo-2',
+        });
+        const pending = caxriQueryKey('gitReview.pending', {});
+        for (const key of [list, otherRepoList, pending]) queryClient.setQueryData(key, {});
+
+        emit(queryClient, {
+            event: 'gitReview.changed',
+            payload: { sessionId: SESSION_ID, repositoryId: 'repo-1' },
+        });
+
+        expect(isInvalidated(queryClient, list)).toBe(true);
+        expect(isInvalidated(queryClient, pending)).toBe(true);
+        // A different repository's list is untouched: `gitReview.changed` is scoped to the repository that changed.
+        expect(isInvalidated(queryClient, otherRepoList)).toBe(false);
+    });
+
     it('invalidates the delivery reads and every Files tree after a valid settings write', () => {
         const queryClient = new QueryClient();
         const summary = caxriQueryKey('projectStatus.summary', { sessionId: SESSION_ID });

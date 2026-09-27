@@ -9,6 +9,7 @@ import {
     createAdditionalShellSession,
     createShellSession,
     launchCaxri,
+    openSettingsTab,
     pageRequest,
     selectedSessionId,
     sessionCard,
@@ -302,12 +303,14 @@ test('Session MRU custom binding ignores ordinary and composing input and commit
             ),
         });
 
-        await running.page.keyboard.press('Meta+,');
-        const dialog = running.page.getByRole('dialog');
-        await dialog.getByRole('tab', { name: 'Keybindings', exact: true }).click();
-        await dialog.getByLabel('Search keyboard shortcuts').fill('session.switchMru');
-        await expect(dialog.locator('[data-shortcut="ctrl+alt+m"]')).toBeVisible();
-        await running.page.keyboard.press('Escape');
+        const settingsTab = await openSettingsTab(running.page);
+        await settingsTab.getByRole('tab', { name: 'Keybindings', exact: true }).click();
+        await settingsTab.getByLabel('Search keyboard shortcuts').fill('session.switchMru');
+        await expect(settingsTab.locator('[data-shortcut="ctrl+alt+m"]')).toBeVisible();
+        // Settings is a Workbench tab now, not a modal (issue caxri#1289), and it occupies
+        // the same pane a Terminal would: `Cmd+W` closes it outright so the Terminal below is
+        // actually mounted again for `terminalInput.focus()` to find.
+        await running.page.keyboard.press('Meta+w');
 
         const terminalInput = running.page.locator(VISIBLE_TERMINAL_INPUT).last();
         await terminalInput.focus();

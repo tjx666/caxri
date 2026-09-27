@@ -10,6 +10,12 @@ import {
     canAddGitReviewComment,
 } from '../features/editor/git-review-comment-commands';
 import {
+    canGoToReviewComment,
+    goToNextReviewComment,
+    goToPreviousReviewComment,
+    showPendingReviewComments,
+} from '../features/editor/git-review-navigation-commands';
+import {
     canOpenImportLinkAtCursor,
     openImportLinkAtCursor,
 } from '../features/editor/import-link-commands';
@@ -258,6 +264,8 @@ const commandContext: CommandContext = {
             }
             // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             else if (tab) void closeDocumentTabs([tab.id]);
+            // With no Session there is no tab, only the Welcome view's Settings surface to close.
+            else if (!getSelectedSession()) useDialogStore.getState().dismissSessionlessSettings();
         },
         cycleTab: cycleActiveTab,
         /**
@@ -328,7 +336,15 @@ const commandContext: CommandContext = {
         toggleActivityMode: () =>
             useChromeLayoutStore.getState().togglePrimarySidebarActivityMode(),
     },
-    git: { canSwitchBranch, switchBranch: switchBranchFromCommand },
+    git: {
+        canSwitchBranch,
+        switchBranch: switchBranchFromCommand,
+        canGoToReviewComment,
+        goToNextReviewComment,
+        goToPreviousReviewComment,
+        // eslint-disable-next-line no-void -- floating-promise discard: the command reports failure via its own toast
+        showPendingReviewComments: () => void showPendingReviewComments(),
+    },
     dialogs: {
         openSettings: (view = 'ui') => useDialogStore.getState().openSettings(view),
         openPalette: () => useDialogStore.getState().setPaletteOpen(true),

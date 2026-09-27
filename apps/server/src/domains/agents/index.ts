@@ -1,4 +1,12 @@
 export { listAgentActions, recordRecentAgentAction } from './actions';
+export {
+    AgentAttentionAutoAllow,
+    createPermissionAutoAllowController,
+    type PermissionAutoAllowAccess,
+    type PermissionAutoAllowController,
+    type PermissionAutoAllowRevokeReason,
+    shouldAutoAllowAttention,
+} from './attention-auto-allow';
 export { AgentAttentionRequests } from './attention-requests';
 export { CompactionReadiness } from './compaction-readiness';
 export { SessionContentSearch } from './content-search';

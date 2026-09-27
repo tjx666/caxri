@@ -11,6 +11,7 @@ import {
     createAdditionalShellSession,
     createProjectSession,
     launchCaxri,
+    openSettingsTab,
     pageRequest,
     pressNewTerminal,
     selectedSessionId,
@@ -546,8 +547,10 @@ test('work tabs divide evenly, leave a draggable titlebar, and pin New Terminal 
         await expect(terminalTab).not.toHaveAttribute('data-base-ui-tooltip-trigger');
         await running.page.mouse.move(0, 300);
 
-        // The tab-strip + always asks which Agent to start. E2E has no `session.defaultAgent`, so advertising ⌘T
-        // here would misstate the shortcut, which falls back to a plain shell rather than asking.
+        // A click or Enter on the tab-strip + clones the Session's live primary Agent Terminal (Fix #1292), but this
+        // Session only ever grew shell Terminals (`pressNewTerminal` above, no Agent-mode fixture) and E2E configures
+        // no `session.defaultAgent`, so there is nothing to clone or fall back to and the button still asks. Advertising
+        // ⌘T here would also misstate the shortcut, which falls back to a plain shell rather than asking.
         const newTerminal = running.page.getByRole('button', { name: 'New Terminal' });
         await newTerminal.hover();
         await expect(newTerminal).not.toHaveAttribute('data-base-ui-tooltip-trigger');
@@ -604,11 +607,12 @@ test('primarySidebar omits Settings and Search while shortcuts and app menu keep
             })),
         ).toEqual({ clientWidth: 800, scrollWidth: 800 });
 
-        await running.page.keyboard.press('Meta+,');
-        const settings = running.page.getByRole('dialog');
-        await expect(settings).toContainText('Settings');
-        await settings.getByRole('button', { name: 'Close' }).click();
-        await expect(settings).toHaveCount(0);
+        const settingsTab = await openSettingsTab(running.page);
+        await expect(settingsTab).toContainText('Settings');
+        // Settings is a Workbench tab now, not a modal (issue caxri#1289): `Cmd+W` closes it
+        // outright — there is no "Close" button to click anymore.
+        await running.page.keyboard.press('Meta+w');
+        await expect(settingsTab).toHaveCount(0);
         await running.page.keyboard.press('Meta+Shift+P');
         const palette = running.page.getByRole('dialog');
         const paletteSearch = running.page.getByPlaceholder(

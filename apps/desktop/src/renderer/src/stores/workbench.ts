@@ -759,17 +759,24 @@ export function subscribeWorkbenchEvents(handlers: WorkbenchEventHandlers): () =
             case 'agent.message.held':
             case 'agent.message.receipt':
             case 'agent.messaging.changed':
+            case 'agent.permissionAutoAllowChanged':
             case 'agentTranscript.changed':
             case 'agentHooks.changed':
             case 'files.changed':
             case 'files.operationChanged':
             case 'git.changed':
+            case 'gitReview.changed':
             case 'projectStatus.changed':
             case 'sessionPullRequests.changed':
             case 'terminal.exit':
             case 'terminal.output':
             case 'terminal.sizeOwnership':
             case 'updates.state':
+                // `agent.permissionAutoAllowChanged` (issue caxri#1295) is handled by
+                // `subscribeRuntimeQueryInvalidation` in `queries/invalidation.ts`, which refreshes the Session row
+                // menu's `session.permissionAutoAllowStatus` read; this store has no bootstrap state to update for it.
+                // `gitReview.changed` (issue caxri#1294) is handled the same way, refreshing `gitReview.list` and
+                // `gitReview.pending` reads instead.
                 return;
             default:
                 return assertNever(event, 'Unhandled workbench Runtime event');

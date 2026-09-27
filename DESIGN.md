@@ -292,6 +292,10 @@ colouring it would spend the vocabulary reserved for a Caxri that is not working
 permanent slot because the two states it carries — a download in flight, an install waiting — outlive
 any dialog the user closed, and automatic discovery raises a notification that expires rather than a
 modal that holds the screen. Clicking it opens the same dialog `Check for Updates` does.
+The `Always Allow` chip is the same kind of standing mode: it appears only while the selected
+Session holds a mobile-granted "Always allow in this Session" permission grant, stays `--muted`, and
+revokes the grant on click, so a Session that silently allows every Agent permission request is
+never invisible on the Desktop.
 An open debugging channel earns the same kind of permanent muted slot, for the opposite reason: Caxri
 ships accepting Chrome DevTools Protocol connections on loopback, and a capability that lets any local
 program read every window and act as the user must be disclosed where the user can see it without
@@ -520,10 +524,16 @@ While the whole workbench holds exactly one tab across every
 pane, that tab drops the accent top border: an "active" marker distinguishes nothing when there is
 nothing to distinguish it from, and the pane ring still carries focus. The New Terminal + reserves
 no slot then: it floats over that tab's trailing end, revealed on bar hover or keyboard focus, so the
-tab's fill reaches the bar's edge instead of leaving a block of bar color beside it. Hovering + opens
-the Agent list; pressing it opens the same list for pointer and keyboard users. The chosen Agent
-starts as another Terminal in the same Session. With two or more tabs, + stays visible and keeps
-the same menu behavior. An empty pane uses its own labelled New Terminal action.
+tab's fill reaches the bar's edge instead of leaving a block of bar color beside it. Hovering + still
+opens the Agent list. Pressing it — pointer click or keyboard activation — instead creates a Terminal
+running whichever Agent the Session's own primary Terminal is currently running, so the press clones
+the conversation already in front of the user instead of asking again; a `CommandTooltip` on that icon
+state names the Agent it will create and shows ⌘T, `terminal.new`'s own shortcut, since both create
+another Terminal in this same Session from this same slot. It falls back to `session.defaultAgent`
+when that primary Terminal is a plain shell or has exited, and to opening the Agent list — with no
+tooltip, since there is nothing yet to name — when neither resolves. Either way the chosen Agent
+starts as another Terminal in the same Session. With two or more tabs, + stays visible and keeps the
+same behavior. An empty pane uses its own labelled New Terminal action.
 A clean preview Editor owns one transient, Session-scoped motion identity: replacing its path
 updates the same DOM tab instantly, pinning preserves that identity, and only the next real tab
 receives the existing enter animation.
@@ -881,18 +891,27 @@ selects the standard themed fill, workbench canvas, inline surface, or an embedd
 `InputGroup`; all variants share one border, focus ring, invalid, and disabled contract. Adorned
 search/path fields use `InputGroup`, never feature-local field chrome.
 
-**Settings** — dialog description: "Changes apply immediately and are stored as editable files."
+**Settings** — a Workbench tab, not a modal: `Cmd+,`, the menu, and the palette all open or focus
+this one tab instead of raising a dialog, so it composes with every other document (the Archived
+Sessions manager still floats its own confirmation dialog over it, exactly as it would over any
+other tab). Its description reads: "Changes apply immediately and are stored as editable files."
 Field labels in plain language; byte values rendered as human units (`2 MB`) with unit-aware
-input. There is no Apply button and no per-tab dirty marker: a structured control writes as soon
-as it changes, and the raw source editor commits when it loses focus, reporting a parse failure in
-place instead of persisting it. A keybinding that collides with an existing chord is still written
-and flagged inline on both rows — the editor reports conflicts, it never blocks the user out of
-one. Compact scalar controls keep labels left and show their unit inside the field; path controls
-occupy a full row. Settings and form rows compose the shared Field primitive (label left,
-description under the label, control right); instant boolean preferences render Switch, and
-clicking either the label or the control toggles it. Provider launch groups use quiet `--elevated`
-sections headed by the shared Agent identity icon, and every multiline value uses the same themed
-field/focus redline as single-line input.
+input. There is no Apply button and no per-section dirty marker: a structured control writes as
+soon as it changes, and the raw source editor commits when it loses focus, reporting a parse
+failure in place instead of persisting it. A keybinding that collides with an existing chord is
+still written and flagged inline on both rows — the editor reports conflicts, it never blocks the
+user out of one. Compact scalar controls (select, number) share one width and keep labels left with
+their unit inside the field; a plain-text or explanatory row spans the full row width under its
+label instead. Settings and form rows compose the shared Field primitive (label left, description
+under the label, control right); instant boolean preferences render Switch at the row's trailing
+end — including each entry's toggle inside the Claude Code command list — and clicking either the
+label or the control toggles it. Keybindings group under their catalog category instead of one flat
+list, keep each row's command id out of sight behind a hover tooltip, and drop the shared `Kbd`
+chip's own border where the row's own control already supplies the chrome. Theme colors tile in a
+grid instead of one tall column per section, and Import Theme lives on the preset row rather than
+its own toolbar above it. Provider launch groups use quiet `--elevated` sections headed by the
+shared Agent identity icon, and every multiline value uses the same themed field/focus redline as
+single-line input.
 
 A consequential choice may not live only inside a free-text field. Every bundled Agent launches
 without per-action approval by default, and until that was only a CLI token inside
@@ -924,12 +943,15 @@ Use the close or action button to dismiss; clicking the message body does not di
 internal transition/removal timing is a third-party exception to the motion token layers above;
 its built-in reduced-motion media rule disables animation. Theme overrides live in `styles/styles.css`.
 Notifications are the one floating surface that deliberately outranks a modal: the toaster stacks
-above the dialog popup instead of under its backdrop, because every failure raised inside the
-Settings dialog is reported through this channel and nowhere else, so sinking it there would turn
-each of those failures into silence. The dialog still owns Escape, the backdrop, and the pointer.
-What the exception does not buy is operability — the dialog's focus trap keeps the toast's own
-buttons out of Tab order — so a failure the dialog can report in place belongs in the dialog, not in
-a toast.
+above a dialog popup instead of under its backdrop, because a failure raised inside a modal — the
+Archived Sessions manager, a confirmation, an import prompt — is reported through this channel and
+nowhere else, so sinking it there would turn each of those failures into silence. The dialog still
+owns Escape, the backdrop, and the pointer. What the exception does not buy is operability — the
+dialog's focus trap keeps the toast's own buttons out of Tab order — so a failure the dialog can
+report in place belongs in the dialog, not in a toast. Settings is not one of these: as a Workbench
+tab it owns no backdrop and traps no focus, so a failure raised there — a rejected settings write, an
+argv restart notice — already reaches the user through this same toast channel with nothing to
+compete with.
 
 **Notifications** — the status bar bell opens a 384px-wide, viewport-constrained popover with
 recent messages, Project context, occurrence counts, removal, clear-all, and a Settings shortcut.
@@ -980,10 +1002,11 @@ preference. Turning hardware acceleration off is the one click in the product th
 every future launch draws, so it passes the shared confirmation modal first, and that modal has to
 say all three consequences — it restarts now, it lasts past this session, Settings takes it back.
 
-A boot-flag write that only the next launch picks up is held for the same reason: the user is still
-inside the modal Settings dialog, and the notice carries the only statement of what the restart is
-owed for. That one is a status rather than an event, so it names every flag still differing from the
-running instance's launch values, and it is retracted once none remain.
+A boot-flag write that only the next launch picks up is held for the same reason: closing or
+switching away from the Settings tab must not make the notice disappear before the user acts on it,
+and it carries the only statement of what the restart is owed for. That one is a status rather than
+an event, so it names every flag still differing from the running instance's launch values, and it
+is retracted once none remain.
 
 **Confirmations** — destructive commands (Delete Session, Delete Project) require a native confirm
 dialog naming the target ("Delete session 'api-fix'? Files on disk are not touched."). Every other

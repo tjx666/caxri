@@ -1,6 +1,7 @@
 import { isAgentTranscriptTabPath } from './agent-transcript.js';
 import { isFilePreviewTabPath } from './file-preview.js';
 import { isGitDiffTabPath } from './git-diff.js';
+import { isSettingsTabPath } from './settings-tab.js';
 
 const EXTERNAL_EDITOR_TAB_PREFIX = 'caxri-external-file://';
 
@@ -46,6 +47,7 @@ export function isVirtualEditorTabPath(path: string): boolean {
         isGitDiffTabPath(path) ||
         isAgentTranscriptTabPath(path) ||
         isExternalEditorTabPath(path) ||
-        isFilePreviewTabPath(path)
+        isFilePreviewTabPath(path) ||
+        isSettingsTabPath(path)
     );
 }

@@ -1,10 +1,21 @@
 import type { Keybinding } from '@caxri/protocol';
 import { buildChordLeadingChords, defaultKeybindings } from '@caxri/protocol';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { buildShortcutMap } from '../lib/keybindings';
 import type { KeystrokeOutcome, PendingChord } from './use-command-shortcuts';
 import { resolveKeydownBinding, resolveKeystroke } from './use-command-shortcuts';
+
+/**
+ * This suite imports `./execute` (via `./use-command-shortcuts`), which imports `git-review-navigation-commands.ts`,
+ * which reaches `git-review-comment-binding.ts` for its mounted-editor registry; that module imports Monaco, which
+ * needs a real `window` unavailable under this suite's `node` environment (see `vitest.config.ts`). The binding
+ * registry itself is stubbed out rather than loaded, matching the same fix in `execute.test.ts` and
+ * `execute-diagnostics.test.ts`.
+ */
+vi.mock('../features/editor/git-review-comment-binding', () => ({
+    listBoundGitReviewCommentEditors: () => new Set(),
+}));
 
 function shiftedBackquoteEvent(): KeyboardEvent {
     return {

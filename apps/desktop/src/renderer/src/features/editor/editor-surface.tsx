@@ -10,6 +10,7 @@ import {
 
 import {
     isExternalEditorTabPath,
+    isSettingsTabPath,
     parseAgentTranscriptTab,
     parseFilePreviewTab,
     parseGitDiffTab,
@@ -46,6 +47,15 @@ const AgentTranscriptEditor = lazy(async () => {
 const PreviewSurface = lazy(async () => {
     const module = await import('../preview/preview-surface');
     return { default: module.PreviewSurface };
+});
+
+/**
+ * Lazy for the same reason as the others above: Settings pulls in the whole config-editing form tree, the theme editor,
+ * and the keybindings table, which a Session that never opens the tab must not pay for.
+ */
+const SettingsWorkbenchPage = lazy(async () => {
+    const module = await import('../settings/settings-workbench-page');
+    return { default: module.SettingsWorkbenchPage };
 });
 
 const emptyWorkClassName =
@@ -189,6 +199,12 @@ export function EditorSurface({ paneId, path }: { paneId: string; path: string }
         return (
             <Suspense fallback={<div className={emptyWorkClassName}>Loading preview…</div>}>
                 <PreviewSurface key={previewTab.path} tab={previewTab} />
+            </Suspense>
+        );
+    if (isSettingsTabPath(path))
+        return (
+            <Suspense fallback={<div className={emptyWorkClassName}>Loading Settings…</div>}>
+                <SettingsWorkbenchPage />
             </Suspense>
         );
     return <FileEditorSurface paneId={paneId} path={path} />;

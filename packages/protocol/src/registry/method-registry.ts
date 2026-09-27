@@ -70,6 +70,7 @@ import {
 } from '../domain/domain.js';
 import { fileSearchModeSchema, fileSearchResultSchema } from '../domain/file-search.js';
 import { gitInternalMethods, gitMethods } from '../domain/git-contract.js';
+import { gitReviewMethods } from '../domain/git-review-contract.js';
 import { projectIconSchema } from '../domain/project-customization.js';
 import {
     projectStatusOverviewSchema,
@@ -674,6 +675,7 @@ export const methods = {
         result: fileSearchResultSchema,
     },
     ...gitMethods,
+    ...gitReviewMethods,
     'projectStatus.summary': {
         ...serverRead,
         params: z.object({

@@ -5,14 +5,20 @@ import { errorMessage } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 
-import type { AgentAttentionRequests, AgentLifecycleSignal } from './agents';
+import type {
+    AgentAttentionRequests,
+    AgentLifecycleSignal,
+    PermissionAutoAllowRevokeReason,
+} from './agents';
 import {
     AgentCoordinator,
     AgentHookManager,
     AgentService,
     createLocalAgentAdapters,
+    createPermissionAutoAllowController,
     defaultAgentEnvironment,
     discoverExecutable,
+    shouldAutoAllowAttention,
 } from './agents';
 import type { ConfigService } from './config';
 import type { CaxriDatabase } from './db';
@@ -105,6 +111,12 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
         (notice) => send({ event: 'agent.automaticNamingUnavailable', payload: notice }),
     );
     namingState.service = automaticNaming;
+    /**
+     * Sole writer of the "Always allow in this Session" grant (issue caxri#1295); every caller — mobile's
+     * `answerInternal`, Desktop's `session.revokePermissionAutoAllow`, and the lifecycle hooks below — goes through
+     * this controller so the transition log and the live `agent.permissionAutoAllowChanged` event are always attached.
+     */
+    const attentionAutoAllow = createPermissionAutoAllowController({ logger, send });
     const agentHooks = new AgentHookManager({
         discoverExecutable,
         environment: agentEnvironment,
@@ -113,6 +125,12 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
         onLaunchEnded: (terminalId) => {
             coordinator.endTerminalLaunch(terminalId);
             options.attentionRequests.supersedeTerminal(terminalId);
+            /**
+             * "The Agent restarts" (issue caxri#1295's grant boundary) is this Agent-hook-bound launch ending, not a
+             * generic Shell PTY closing: `HookLaunchRegistry` only calls `onLaunchEnded` for launches it activated.
+             */
+            const sessionId = database.getTerminal(terminalId)?.sessionId;
+            if (sessionId) attentionAutoAllow.revoke(sessionId, 'agentRestart');
         },
         onLaunchStarted: (terminalId, launchId) =>
             coordinator.beginTerminalLaunch(terminalId, launchId),
@@ -152,6 +170,27 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
             );
             if (decision !== 'accepted') return null;
             options.onLifecycleSignal?.(attentionSignal);
+            /**
+             * "Always allow in this Session" (issue caxri#1295) answers directly from Server memory, before the
+             * mobile-recipient check, so a granted Session keeps auto-allowing even while no phone is online.
+             */
+            if (
+                shouldAutoAllowAttention(
+                    request.attentionKind,
+                    attentionAutoAllow.isGranted(terminal.sessionId),
+                )
+            ) {
+                const autoAllowCount = attentionAutoAllow.recordAutoAllow(terminal.sessionId);
+                logger.write('info', logEventCatalog.agent.permissionAutoAllowed, {
+                    fields: {
+                        sessionId: terminal.sessionId,
+                        terminalId: request.terminalId,
+                        toolName: request.toolName,
+                        autoAllowCount,
+                    },
+                });
+                return { decision: 'allow' };
+            }
             if (!dependencies.hasMobileAttentionRecipient?.(session.projectId)) return null;
             const disconnected = new AbortController();
             const monitor = setInterval(() => {
@@ -210,6 +249,8 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
         agentLaunchSettings,
         agentOutputRecoverySettings,
         agents,
+        // "Always allow in this Session" (issue caxri#1295): read-only status, plus grant/revoke.
+        attentionAutoAllowStatus: (sessionId: string) => attentionAutoAllow.status(sessionId),
         awaitSettingsReconcile: () => settingsReconcile,
         close: async () => {
             unsubscribeSettings();
@@ -218,6 +259,9 @@ export async function createAgentRuntime(options: CreateAgentRuntimeOptions) {
             await agentHooks.close();
         },
         coordinator,
+        grantAutoAllow: (sessionId: string) => attentionAutoAllow.grant(sessionId),
+        revokeAutoAllow: (sessionId: string, reason: PermissionAutoAllowRevokeReason) =>
+            attentionAutoAllow.revoke(sessionId, reason),
         sessionRenames,
     };
 }

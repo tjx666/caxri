@@ -14,7 +14,7 @@ import {
     MIN_DELEGATION_DEPTH,
     settingsSpecByKey,
 } from '@caxri/protocol';
-import { Archive, RotateCcw } from 'lucide-react';
+import { Archive, Info, RotateCcw } from 'lucide-react';
 
 import { Button } from '../../components/ui/button';
 import {
@@ -28,7 +28,7 @@ import { Input } from '../../components/ui/input';
 import { Switch } from '../../components/ui/switch';
 import { Tooltip } from '../../components/ui/tooltip';
 import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
-import { setArchivedSessionsOpen, setSettingsOpen } from '../../stores/dialogs';
+import { setArchivedSessionsOpen } from '../../stores/dialogs';
 import { AgentActionSettingsEditor } from './agent-action-settings-editor';
 import { EnumControl } from './enum-control';
 import { FilesExcludeEditor } from './files-exclude-editor';
@@ -40,6 +40,7 @@ import { hasProviderAutonomy, withProviderAutonomy } from './provider-autonomy';
 import { hookHealthLabel, hookHealthTone, isHookAdapterAvailable } from './provider-health';
 import { ProviderRecoveryEditor } from './provider-recovery-editor';
 import { ProviderSkillHealth } from './provider-skill-health';
+import { isFullWidthRow } from './setting-row-layout';
 import type { SettingRowDescriptor } from './settings-registry';
 import type { SettingsValueContext } from './settings-values';
 import { isRowModified, isRowResettable, withProviderField } from './settings-values';
@@ -65,25 +66,6 @@ export interface SettingRowProperties {
     agentSkillHealth?: AgentSkillHealth;
     trustedDomainsFocusRequestId?: number;
     handlers: SettingRowHandlers;
-}
-
-/**
- * Bindings whose editor spans the full row width instead of sitting right of the label.
- */
-function isFullWidthRow(row: SettingRowDescriptor): boolean {
-    if (row.binding.type === 'setting') return settingsSpecByKey[row.binding.key].kind === 'string';
-    return [
-        'files-exclude',
-        'ignored-checks',
-        'mobile-access',
-        'provider-actions',
-        'provider-launch',
-        'provider-recovery',
-        'provider-skill-health',
-        'terminal-reference-links',
-        'trusted-domains',
-        'trusted-folders',
-    ].includes(row.binding.type);
 }
 
 interface RowChromeProperties {
@@ -138,6 +120,18 @@ function RowChrome({
                             onClick={onReset}
                         >
                             <RotateCcw size={12} />
+                        </Button>
+                    </Tooltip>
+                )}
+                {row.detail && (
+                    <Tooltip content={row.detail}>
+                        <Button
+                            aria-label={`More about ${row.accessibleTitle}`}
+                            className="size-5 min-h-0 p-0 text-muted hover:text-foreground"
+                            size="icon"
+                            variant="ghost"
+                        >
+                            <Info size={12} />
                         </Button>
                     </Tooltip>
                 )}
@@ -258,7 +252,27 @@ function rowControl(properties: SettingRowProperties): {
                         />
                     ),
                 };
-            if (spec.kind === 'string')
+            if (spec.kind === 'string') {
+                /**
+                 * `updates.skippedVersion` is state the app wrote for you (from "Skip this version" in the update
+                 * notice), not a value worth typing by hand — a free-text field invited exactly that, mixing a fact
+                 * about app state into a list of controls you deliberately configure (issue caxri#1289). Read-only text
+                 * says what is currently skipped; the row's existing hover-Reset action, armed by `isRowModified`
+                 * treating any non-null value as modified, is the one way back — the same undo every other row already
+                 * offers, so this needs no dedicated binding or "Clear" button of its own.
+                 */
+                if (binding.key === 'updates.skippedVersion') {
+                    const skipped = settings[binding.key];
+                    return {
+                        control: (
+                            <FieldDescription role="status">
+                                {skipped
+                                    ? `Currently skipping ${skipped}.`
+                                    : 'No version currently skipped.'}
+                            </FieldDescription>
+                        ),
+                    };
+                }
                 return {
                     labelFor: controlId,
                     control: (
@@ -273,6 +287,7 @@ function rowControl(properties: SettingRowProperties): {
                         />
                     ),
                 };
+            }
             // Complex specs always carry a dedicated binding; a 'setting' binding never reaches here.
             return { control: undefined };
         }
@@ -512,11 +527,8 @@ function rowControl(properties: SettingRowProperties): {
                         className="archived-sessions-entry w-44 flex-none"
                         variant="secondary"
                         onClick={() => {
-                            /**
-                             * The manager is its own dialog; closing Settings first keeps a single modal layer instead
-                             * of stacking two dismiss targets.
-                             */
-                            setSettingsOpen(false);
+                            // The manager is its own dialog, floating over the Settings tab like any other modal
+                            // opened over a document — there is no modal layer to close first any more.
                             setArchivedSessionsOpen(true);
                         }}
                     >

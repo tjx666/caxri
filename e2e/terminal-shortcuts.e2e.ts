@@ -16,6 +16,7 @@ import {
     createProjectSession,
     createShellSession,
     launchCaxri,
+    openSettingsTab,
     pageReply,
     pageRequest,
     pressNewTerminal,
@@ -394,13 +395,15 @@ test('Codex Terminal maps input shortcuts and restores the clipboard on quit', a
                 2,
             ),
         });
-        await running.page.keyboard.press('Meta+,');
-        const keybindingsDialog = running.page.getByRole('dialog');
-        await keybindingsDialog.getByRole('tab', { name: 'Keybindings', exact: true }).click();
-        await keybindingsDialog.getByLabel('Search keyboard shortcuts').fill('send sequence');
-        await expect(keybindingsDialog.locator('[data-shortcut="cmd+enter"]')).toBeVisible();
-        await expect(keybindingsDialog.locator('[data-shortcut="cmd+shift+enter"]')).toBeVisible();
-        await running.page.keyboard.press('Escape');
+        const keybindingsTab = await openSettingsTab(running.page);
+        await keybindingsTab.getByRole('tab', { name: 'Keybindings', exact: true }).click();
+        await keybindingsTab.getByLabel('Search keyboard shortcuts').fill('send sequence');
+        await expect(keybindingsTab.locator('[data-shortcut="cmd+enter"]')).toBeVisible();
+        await expect(keybindingsTab.locator('[data-shortcut="cmd+shift+enter"]')).toBeVisible();
+        // Settings is a Workbench tab now, not a modal (issue caxri#1289), and it occupies
+        // the same pane the Terminal does: close it outright so the Terminal below is mounted
+        // again for `input.focus()` to find.
+        await running.page.keyboard.press('Meta+w');
         await input.focus();
 
         await input.press('Meta+Shift+Enter');

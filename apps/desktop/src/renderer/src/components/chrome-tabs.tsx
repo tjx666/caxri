@@ -1,4 +1,4 @@
-import type { HTMLAttributes, KeyboardEvent, ReactElement, ReactNode } from 'react';
+import type { CSSProperties, HTMLAttributes, KeyboardEvent, ReactElement, ReactNode } from 'react';
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { useShouldReduceMotion } from '@/hooks/use-should-reduce-motion';
@@ -24,6 +24,12 @@ interface ChromeTabsProperties<Value extends string> {
     items: ReadonlyArray<ChromeTabItem<Value>>;
     onValueChange: (value: Value) => void;
     renderTab?: (item: ChromeTabItem<Value>, tab: ReactElement) => ReactNode;
+    /**
+     * Passed straight through to the root `[role="tablist"]`. Exists for a caller that needs a numeric bound
+     * `className` cannot express — e.g. capping an evenly divided rail's own width to a compact per-tab budget instead
+     * of stretching it across whatever space a flex parent offers.
+     */
+    style?: CSSProperties;
     tabClassName?: string;
     value: Value;
 }
@@ -50,6 +56,7 @@ export function ChromeTabs<Value extends string>({
     items,
     onValueChange,
     renderTab,
+    style,
     tabClassName,
     value,
 }: ChromeTabsProperties<Value>) {
@@ -140,6 +147,7 @@ export function ChromeTabs<Value extends string>({
             aria-orientation="horizontal"
             className={cn('relative', className)}
             data-slot="chrome-tabs"
+            style={style}
         >
             {items.map((item, index) => {
                 const isSelected = item.value === value;

@@ -9,6 +9,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '../../components/ui/select';
+import { SHORT_CONTROL_WIDTH_CLASS_NAME } from './setting-row-layout';
 
 /**
  * Sentinel `SelectItem` value standing in for `null` on nullable enum settings — Base UI Select items need a non-null
@@ -49,7 +50,11 @@ export function EnumControl({
             value={selected}
             onValueChange={(next) => onChange(next === NULL_OPTION || next === null ? null : next)}
         >
-            <SelectTrigger id={id} aria-label={label} className="w-52 flex-none bg-background">
+            <SelectTrigger
+                id={id}
+                aria-label={label}
+                className={`${SHORT_CONTROL_WIDTH_CLASS_NAME} flex-none bg-background`}
+            >
                 <SelectValue>
                     <span className="flex items-center gap-2">
                         {renderOptionIcon?.(value)}
