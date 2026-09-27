@@ -1,32 +1,9 @@
 import { methods } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
-import type { z } from 'zod';
 
+import { hasQuietIds } from '../../output';
 import { CLI_COMMANDS, findCliCommand } from '../catalog';
 import type { CliCommandDefinition, RemoteCommandDefinition } from '../types';
-
-/**
- * A result field or entry field may be missing, which is exactly what the contract below looks for.
- */
-function shapeOf(schema: z.ZodType): Partial<Record<string, z.ZodType>> {
-    return (schema as z.ZodObject<Record<string, z.ZodType>>).shape;
-}
-
-/**
- * The schemas of the entries `--quiet` prints, one per result variant: a union result (such as a query's per-principal
- * views) must project an ID from every variant.
- */
-function quietEntrySchemas(
-    result: z.ZodType,
-    quietKey: string | undefined,
-): Array<z.ZodType | undefined> {
-    if (result.def.type === 'union')
-        return (result as z.ZodUnion<z.ZodType[]>).options.flatMap((option) =>
-            quietEntrySchemas(option, quietKey),
-        );
-    const entries = quietKey ? shapeOf(result)[quietKey] : result;
-    return [entries?.def.type === 'array' ? (entries as z.ZodArray<z.ZodType>).element : entries];
-}
 
 describe('CLI business command catalog', () => {
     it('registers every bounded business and diagnostics command', () => {
@@ -215,7 +192,8 @@ describe('CLI business command catalog', () => {
     });
     /**
      * `--quiet` reads its IDs only after the request ran. A declared projection that does not match the result made a
-     * mutation that already happened exit with `VALIDATION`, which invites a retry that repeats it.
+     * mutation that already happened exit with `VALIDATION`, which invites a retry that repeats it. `agent list` is the
+     * one known gap: an Endpoint's ID is its formatted reference, which a field cannot name (#1380).
      */
     it('projects a string ID from every declared quiet result', () => {
         const commands: readonly CliCommandDefinition[] = CLI_COMMANDS;
@@ -225,17 +203,25 @@ describe('CLI business command catalog', () => {
                 (command.quietKey !== undefined || command.quietIdKey !== undefined),
         );
         expect(declared.map(({ path }) => path.join(' '))).toEqual(
-            expect.arrayContaining(['commander board', 'commander session create']),
+            expect.arrayContaining([
+                'agent delegate create',
+                'agent dispatch start',
+                'agent message send',
+                'commander board',
+                'commander session create',
+                'terminal send',
+            ]),
         );
-        for (const command of declared) {
-            const label = command.path.join(' ');
-            const entries = quietEntrySchemas(methods[command.method].result, command.quietKey);
-            expect(entries.length, label).toBeGreaterThan(0);
-            for (const entry of entries) {
-                expect(entry?.def.type, label).toBe('object');
-                const id = entry && shapeOf(entry)[command.quietIdKey ?? 'id'];
-                expect(id?.def.type, label).toBe('string');
-            }
-        }
+        const broken = declared
+            .filter(
+                (command) =>
+                    !hasQuietIds(
+                        methods[command.method].result,
+                        command.quietKey,
+                        command.quietIdKey,
+                    ),
+            )
+            .map(({ path }) => path.join(' '));
+        expect(broken).toEqual(['agent list']);
     });
 });

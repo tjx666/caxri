@@ -41,7 +41,7 @@ function server(result: unknown, method: string): CliServerClient {
  * `--quiet` prints after the request already ran, so a projection that cannot find the ID turns a Session that was
  * created into a `VALIDATION` exit, and a retry creates a second one.
  */
-describe('Agent Commander quiet output', () => {
+describe('quiet output', () => {
     it('prints the created Session ID and exits 0', async () => {
         const output = io();
         const client = server(
@@ -67,6 +67,60 @@ describe('Agent Commander quiet output', () => {
         ).resolves.toBe(0);
         expect(output.stderr()).toBe('');
         expect(output.stdout()).toBe('session-1\n');
+    });
+
+    it('prints the Terminal ID a send reached', async () => {
+        const output = io();
+        const client = server(
+            { terminalId: 'terminal-1', accepted: true, byteLength: 2, enter: false },
+            'terminal.send',
+        );
+
+        await expect(
+            runCli(
+                [
+                    'terminal',
+                    'send',
+                    '--terminal',
+                    'terminal-1',
+                    '--text',
+                    'ls',
+                    '--profile',
+                    '/profiles/selected',
+                    '--yes',
+                    '--quiet',
+                ],
+                { connect: () => Promise.resolve(client), io: output.io },
+            ),
+        ).resolves.toBe(0);
+        expect(output.stdout()).toBe('terminal-1\n');
+    });
+
+    it('refuses --quiet before running a mutation that has no stable ID', async () => {
+        const output = io();
+        const connect = vi.fn();
+
+        await expect(
+            runCli(['host', 'stop', '--profile', '/profiles/selected', '--yes', '--quiet'], {
+                connect,
+                io: output.io,
+            }),
+        ).resolves.toBe(2);
+        expect(connect).not.toHaveBeenCalled();
+        expect(output.stderr()).toContain('--json');
+    });
+
+    it('still prints an empty Agent list', async () => {
+        const output = io();
+        const client = server({ agents: [] }, 'agent.list');
+
+        await expect(
+            runCli(['agent', 'list', '--quiet'], {
+                connect: () => Promise.resolve(client),
+                io: output.io,
+            }),
+        ).resolves.toBe(0);
+        expect(output.stdout()).toBe('\n');
     });
 
     it('prints one Session ID per board row', async () => {

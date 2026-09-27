@@ -24,8 +24,10 @@ connects to an existing Server without acquiring native dependencies of its own.
 ## Output modes and safety
 
 Human TTY output is concise text. `--json` reserves stdout for one stable JSON value, while
-`--quiet` emits one opaque ID per line. Supported Agent and CI environments default to JSON and do
-not prompt. Select another isolated profile with `--profile <absolute-path>`; every mutation
+`--quiet` emits one opaque ID per line: the resource the command read or changed, such as the
+created Session, delegation, dispatch, or message. A mutation whose result has no stable ID refuses
+`--quiet` before it runs rather than failing after its effect already happened. Supported Agent and
+CI environments default to JSON and do not prompt. Select another isolated profile with `--profile <absolute-path>`; every mutation
 requires that explicit Server selector and non-interactive confirmation with `--yes`.
 
 ## Command surface
