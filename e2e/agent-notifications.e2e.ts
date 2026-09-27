@@ -199,10 +199,11 @@ setInterval(() => {
             )
             .toEqual([
                 {
-                    body: 'Claude Code completed a turn.',
+                    // The fake Claude writes no transcript, so the reply summary falls back to the duration line.
+                    body: expect.stringMatching(/^Finished in \d+[hms]/u),
                     groupId: 'caxri-agent-sessions',
                     id: `caxri-agent-session-${sourceSessionId}`,
-                    title: SESSION_TITLE,
+                    title: `Claude Code · ${SESSION_TITLE}`,
                 },
             ]);
         expect(
@@ -483,7 +484,7 @@ process.stdout.write('Fake Claude subagent lifecycle ready\r\n');
                     );
                 }),
             )
-            .toEqual(['Claude Code completed a turn.']);
+            .toEqual([expect.stringMatching(/^Finished in \d+[hms]/u)]);
     } finally {
         try {
             await running.app.close();

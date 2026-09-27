@@ -28,6 +28,7 @@ export { LongPasteService } from './long-paste';
 export { lowCostSandboxFailureReason } from './low-cost-sandbox';
 export { agentProviders } from './providers';
 export { extractClaudeDelegationAnswer } from './providers/claude/delegation';
+export { readAgentReplySummary, summarizeLatestAgentReply } from './reply-summary';
 export { type AgentAdapter, AgentService, createLocalAgentAdapters } from './service';
 export { AgentTimelineService } from './timeline';
 export type { AgentTitleContext } from './title-generation';

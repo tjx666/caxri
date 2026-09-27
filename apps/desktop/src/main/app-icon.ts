@@ -26,9 +26,11 @@ interface NotificationAppIconPathOptions {
 }
 
 /**
- * Icon shown by the alerter notification fallback. A packaged bundle ships `build/icon.icns` as
- * `Contents/Resources/icon.icns` (electron-builder copies the macOS icon there automatically); development launches
- * reuse the Dock icon so notifications match the Dock. Without an explicit icon alerter shows its own Terminal glyph.
+ * Icon shown by the alerter notification fallback. macOS masks a full-bleed app icon into its rounded plate only for
+ * the Dock and Finder; an image handed to `alerter --app-icon` is drawn as-is, so the square `icon.icns` rendered as a
+ * hard-edged square in the banner. Packaged builds therefore ship `build/notification-icon.png` — the production icon
+ * with the rounded plate and grid margin baked in — as an extra resource; development launches reuse the Dock icon,
+ * which already carries its plate. Without an explicit icon alerter shows its own Terminal glyph.
  */
 export function resolveNotificationAppIconPath({
     currentDirectory,
@@ -36,6 +38,6 @@ export function resolveNotificationAppIconPath({
     resourcesPath,
 }: NotificationAppIconPathOptions): string {
     return isPackaged
-        ? join(resourcesPath, 'icon.icns')
+        ? join(resourcesPath, 'notification-icon.png')
         : resolve(currentDirectory, '../..', 'build/icon-dev.png');
 }

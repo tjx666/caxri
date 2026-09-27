@@ -290,6 +290,10 @@
                 "to": "bin/caxri"
             },
             {
+                "from": "build/notification-icon.png",
+                "to": "notification-icon.png"
+            },
+            {
                 "from": "apps/server/dist/server",
                 "to": "server"
             }
