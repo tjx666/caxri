@@ -124,6 +124,7 @@ test('Review comments become outdated after a changed line and survive a missing
         const { page } = running;
         await createProjectSession(page);
         await page.getByRole('tab', { name: 'Git', exact: true }).click();
+        await waitForSourceControlReady(page);
         const repo = page.locator('.git-repository-section');
         await repo.getByRole('treeitem', { name: 'tracked.txt', exact: true }).click();
         const modified = page.locator('.git-file-diff .editor.modified');
@@ -181,6 +182,7 @@ test('Review comments survive closing then reopening their diff tab and a Render
         const { page } = running;
         await createProjectSession(page);
         await page.getByRole('tab', { name: 'Git', exact: true }).click();
+        await waitForSourceControlReady(page);
         const repo = page.locator('.git-repository-section');
         await repo.getByRole('treeitem', { name: 'tracked.txt', exact: true }).click();
         const modified = page.locator('.git-file-diff .editor.modified');
@@ -230,6 +232,7 @@ test('Go to Next/Previous Review Comment jump between anchors in the open diff',
         const { page } = running;
         await createProjectSession(page);
         await page.getByRole('tab', { name: 'Git', exact: true }).click();
+        await waitForSourceControlReady(page);
         const repo = page.locator('.git-repository-section');
         await repo.getByRole('treeitem', { name: 'tracked.txt', exact: true }).click();
         const modified = page.locator('.git-file-diff .editor.modified');
@@ -298,6 +301,7 @@ test('Show Pending Review Comments reopens the repository with a pending comment
         const { page } = running;
         await createProjectSession(page);
         await page.getByRole('tab', { name: 'Git', exact: true }).click();
+        await waitForSourceControlReady(page);
         const repo = page.locator('.git-repository-section');
         await repo.getByRole('treeitem', { name: 'tracked.txt', exact: true }).click();
         const modified = page.locator('.git-file-diff .editor.modified');

@@ -1,14 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
-
-// `git-review-navigation-commands.ts` imports `listBoundGitReviewCommentEditors` from
-// `git-review-comment-binding.ts`, which pulls in Monaco (needs a real `window`, unavailable under
-// this suite's `node` test environment; see `vitest.config.ts`) purely for its impure navigation
-// helpers. This test only exercises the pure comparator/index functions below, so the binding
-// registry is stubbed out rather than pulling that whole chain in, matching the `editor-loader.test.ts`
-// precedent of mocking Monaco-adjacent modules instead of loading them under `node`.
-vi.mock('../git-review-comment-binding', () => ({
-    listBoundGitReviewCommentEditors: () => new Set(),
-}));
+import { describe, expect, it } from 'vitest';
 
 import type { ReviewCommentAnchor } from '../git-review-navigation-commands';
 import {

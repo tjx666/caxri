@@ -675,6 +675,7 @@ describe('direct import test selection', () => {
             'extensions/status/src/__tests__/status-review-threads.test.ts',
             'extensions/status/src/__tests__/status-tree-acceptance.test.ts',
             'extensions/status/src/__tests__/status-tree-branch.test.ts',
+            'extensions/status/src/__tests__/status-tree-deployments.test.ts',
             'extensions/status/src/__tests__/status-tree.test.ts',
         ]);
     });
@@ -698,6 +699,7 @@ describe('direct import test selection', () => {
             'apps/server/src/domains/files/__tests__/search.integration.test.ts',
             'apps/server/src/domains/files/__tests__/watcher.scope.integration.test.ts',
             'apps/server/src/domains/files/__tests__/workbench-mutations.integration.test.ts',
+            'apps/server/src/domains/mobile/__tests__/attention.test.ts',
             'apps/server/src/domains/mobile/__tests__/files.test.ts',
             'apps/server/src/domains/mobile/__tests__/timeline.test.ts',
             'apps/server/src/domains/terminal/__tests__/file-links.test.ts',
