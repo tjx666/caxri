@@ -1,5 +1,11 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import process from 'node:process';
+
 import { describe, expect, it, vi } from 'vitest';
 
+import { execFileAsync } from '../exec';
 import type { RunnerProcess, RunnerRecoveryAdapter } from '../runner-process-recovery';
 import {
     parseRunnerProcesses,
@@ -27,6 +33,29 @@ function server(pid: number, owner = 'caxri-41-1-e2e'): RunnerProcess {
 }
 
 describe('runner process recovery', () => {
+    it('finishes an empty real cleanup without treating its ps observer as a surviving workload', async () => {
+        const runnerTemporary = await mkdtemp(join(tmpdir(), 'runner-recovery-test-'));
+        const owner = `caxri-${Date.now()}-${process.pid}-probe`;
+        const modulePath = new URL('../runner-process-recovery.ts', import.meta.url).pathname;
+        try {
+            const { stdout } = await execFileAsync(
+                'bun',
+                [
+                    '-e',
+                    `
+                import { recoverRunnerProcesses } from ${JSON.stringify(modulePath)};
+                const count = await recoverRunnerProcesses(${JSON.stringify({ owner, runnerTemporary, workspace: runnerTemporary })}, false);
+                console.log(JSON.stringify({ count }));
+            `,
+                ],
+                { env: { ...process.env, CAXRI_RUNNER_OWNER: owner }, timeout: 12_000 },
+            );
+            expect(JSON.parse(stdout)).toEqual({ count: 0 });
+        } finally {
+            await rm(runnerTemporary, { recursive: true, force: true });
+        }
+    }, 15_000);
+
     it('recovers an ownerless historical Server and descendants without selecting live or foreign profiles', async () => {
         const old = server(8001);
         const processes = [

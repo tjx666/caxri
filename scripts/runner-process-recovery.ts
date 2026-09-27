@@ -142,15 +142,14 @@ function withDescendants(
 
 async function listProcesses(): Promise<RunnerProcess[]> {
     try {
-        const { stdout } = await execFileAsync(
-            'ps',
-            ['eww', '-axo', 'pid=,ppid=,state=,lstart=,command='],
-            {
-                encoding: 'utf8',
-                maxBuffer: 32 * 1024 * 1024,
-            },
-        );
-        return parseRunnerProcesses(stdout);
+        const query = execFileAsync('ps', ['eww', '-axo', 'pid=,ppid=,state=,lstart=,command='], {
+            encoding: 'utf8',
+            maxBuffer: 32 * 1024 * 1024,
+        });
+        const { stdout } = await query;
+        // The observer inherits the owner marker and appears in its own snapshot, but has already exited.
+        // Exclude only this exact child; excluding commands by name would hide unrelated owned workloads.
+        return parseRunnerProcesses(stdout).filter((record) => record.pid !== query.child.pid);
     } catch {
         // execFile errors retain captured stdout, which here contains other processes' environments.
         throw new Error('Could not inspect runner process identities');
