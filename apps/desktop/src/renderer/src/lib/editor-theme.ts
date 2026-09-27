@@ -4,15 +4,42 @@ import { monacoBaseThemeFor } from './editor-theme-base';
 import { monaco } from './monaco';
 
 /**
+ * Serialized definition most recently handed to Monaco, shared by every editor in the window.
+ */
+const appliedTheme: { key: string | undefined } = { key: undefined };
+
+/**
  * Keeps every Monaco surface aligned with the active Caxri theme.
  *
  * Token `foreground` values omit `#` and may still carry an 8-digit alpha suffix. Monaco's ColorMap
  * (`/^#?([0-9A-Fa-f]{6})([0-9A-Fa-f]{2})?$/`) accepts that form and keeps only the RGB group, so markup tokens do not
  * need the `.slice(0, 7)` strip that `diffEditor.*Background` uses when it concatenates a new CSS alpha onto a
  * `#RRGGBB` color.
+ *
+ * Every editor mount calls this. Redefining the active theme makes Monaco push a new color map to
+ * `TokenizationRegistry`, which discards the syntax tokens of every open model and leaves them waiting to be
+ * re-tokenized. Skip the call when the resulting definition has not changed.
  */
 export function applyEditorTheme(theme: ThemeTokens): void {
-    monaco.editor.defineTheme('caxri-active', {
+    const definition = editorThemeDefinition(theme);
+    const key = JSON.stringify(definition);
+    if (key === appliedTheme.key) return;
+    appliedTheme.key = key;
+    monaco.editor.defineTheme('caxri-active', definition);
+    monaco.editor.setTheme('caxri-active');
+}
+
+/**
+ * Test seam: the applied definition is module state shared by every editor in the window.
+ */
+export function resetAppliedEditorTheme(): void {
+    appliedTheme.key = undefined;
+}
+
+function editorThemeDefinition(
+    theme: ThemeTokens,
+): Parameters<typeof monaco.editor.defineTheme>[1] {
+    return {
         base: monacoBaseThemeFor(theme.editor.background),
         inherit: true,
         rules: [
@@ -45,6 +72,5 @@ export function applyEditorTheme(theme: ThemeTokens): void {
             'editorGutter.addedBackground': theme.colors.success,
             'editorGutter.deletedBackground': theme.colors.danger,
         },
-    });
-    monaco.editor.setTheme('caxri-active');
+    };
 }
