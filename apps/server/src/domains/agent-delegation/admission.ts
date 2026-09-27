@@ -60,16 +60,30 @@ export function delegationPaneCaller(
     return caller && caller.sessionId === target.sessionId ? caller : undefined;
 }
 
+/**
+ * `create` admits new work: a task, its follow-up or resume, and every re-check up to its launch. `existing` admits
+ * reading, waiting on, or stopping a task the caller already started.
+ */
+export type DelegationAccess = 'create' | 'existing';
+
+/**
+ * Admits a caller to a delegation Session. For the Agent Commander, `existing` access skips the create-only limits
+ * below, which decide where new work may go: the task's owner was proven when it was created and `owned` re-checks the
+ * caller Terminal, so archiving the Session or hiding its Project must not cut the Commander off from a result it is
+ * still waiting for.
+ */
 export function authorizeDelegationSession(
     database: CaxriDatabase,
     authority: DelegationAuthority,
     input: Pick<AgentDelegationCreate, 'projectId' | 'sessionId'>,
+    access: DelegationAccess = 'create',
 ): void {
     const session = database.getSession(input.sessionId);
     if (!session || session.projectId !== input.projectId)
         throw new CaxriError('NOT_FOUND', 'Delegation Session is unavailable');
     if (authority.principal.kind === 'human-cli' || authority.principal.kind === 'desktop') return;
     if (isAgentCommanderCaller(database, authority)) {
+        if (access === 'existing') return;
         /**
          * Only Sessions the Commander created itself, in a Project the user can still see: delegating into a busy user
          * Session would split its active pane, and the Commander never widens into control or dispatch.

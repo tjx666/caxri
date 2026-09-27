@@ -348,6 +348,78 @@ describe('AgentDelegationService', () => {
         ).toThrow();
     });
 
+    /**
+     * Archiving a Session ends new work there, not the Commander's record of work it already started: the steward must
+     * still read a finished task's answer after the user archives the Session it ran in.
+     */
+    it('lets the Agent Commander read its task after the user archives that Session, but not continue it', async () => {
+        const f = await fixture();
+        const commanderRoot = await mkdtemp(join(tmpdir(), 'caxri-delegation-commander-'));
+        onTestFinished(() => rm(commanderRoot, { recursive: true, force: true }));
+        const commanderProject = f.database.createProject(commanderRoot);
+        const commander = f.database.createSession(commanderProject.id, 'codex');
+        const target = f.database.createSession(f.input.projectId, null).session;
+        f.database.setAppState('agentCommander', {
+            projectId: commanderProject.id,
+            sessionId: commander.session.id,
+            terminalId: commander.terminal!.id,
+            sessionIds: [target.id],
+        });
+        f.start.mockImplementation((_id, _principal, _input, options) => {
+            options?.prepared(f.database.createTerminal(target.id, 'claude'));
+            return Promise.resolve({ status: 'running' } as Awaited<
+                ReturnType<AgentDispatchService['start']>
+            >);
+        });
+        const authority = {
+            principal: {
+                kind: 'agent' as const,
+                id: 'commander',
+                endpointId: 'commander',
+                generation: 1,
+                projectIds: [commanderProject.id],
+            },
+            callerTerminalId: commander.terminal!.id,
+        };
+        const input = { ...f.input, sessionId: target.id };
+        await f.service.create(f.id, authority, input);
+
+        f.database.archiveSession(target.id);
+
+        expect(f.service.status(f.id, authority).delegationId).toBe(f.id);
+        await expect(f.service.result(f.id, authority)).resolves.toMatchObject({
+            receipt: { delegationId: f.id },
+        });
+        await expect(
+            f.service.create(randomUUID(), authority, { ...input, followUpOf: f.id }),
+        ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+
+        /**
+         * Archiving while a launch is on its way — after admission, before the Terminal exists — must still stop it:
+         * the launch re-checks run with create access, not the read access that lets the task above stay readable.
+         */
+        const racing = randomUUID();
+        const other = f.database.createSession(f.input.projectId, null).session;
+        f.database.setAppState('agentCommander', {
+            ...f.database.agentCommanderRows()!,
+            sessionIds: [target.id, other.id],
+        });
+        f.start.mockImplementation((_id, _principal, _input, options) => {
+            f.database.archiveSession(other.id);
+            options?.beforeCreate?.();
+            return Promise.resolve({ status: 'running' } as Awaited<
+                ReturnType<AgentDispatchService['start']>
+            >);
+        });
+        await expect(
+            f.service.create(racing, authority, { ...input, sessionId: other.id }),
+        ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+        expect(f.database.agentDelegations.get(racing)?.receipt).toMatchObject({
+            status: 'failed',
+            failure: 'launch_failed',
+        });
+    });
+
     it('returns a timeout without resending or interrupting the task', async () => {
         const f = await fixture();
         await f.service.create(f.id, owner, f.input);
