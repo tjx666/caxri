@@ -2,7 +2,12 @@ import { Buffer } from 'node:buffer';
 import { constants } from 'node:fs';
 import { open } from 'node:fs/promises';
 
-import { agentDelegationCreateSchema, CaxriError, delegationProviderSchema } from '@caxri/protocol';
+import {
+    agentDelegationCreateSchema,
+    CaxriError,
+    delegationProviderSchema,
+    MAX_DELEGATION_WAIT_TASKS,
+} from '@caxri/protocol';
 
 import type { RemoteCommandDefinition } from './types';
 
@@ -76,6 +81,20 @@ function identity(tokens: readonly string[]) {
     return { delegationId: tokens[0] };
 }
 
+function waitIdentities(tokens: readonly string[]) {
+    const [delegationId, ...otherDelegationIds] = tokens;
+    if (
+        !delegationId ||
+        tokens.length > MAX_DELEGATION_WAIT_TASKS ||
+        tokens.some((token) => token.startsWith('-'))
+    )
+        throw new CaxriError(
+            'VALIDATION',
+            `Expected one to ${MAX_DELEGATION_WAIT_TASKS} delegation IDs`,
+        );
+    return otherDelegationIds.length > 0 ? { delegationId, otherDelegationIds } : { delegationId };
+}
+
 export const DELEGATION_COMMANDS: RemoteCommandDefinition[] = [
     {
         kind: 'remote',
@@ -116,9 +135,10 @@ export const DELEGATION_COMMANDS: RemoteCommandDefinition[] = [
         kind: 'remote',
         path: ['agent', 'delegate', 'wait'],
         method: 'agent.delegation.wait',
-        summary: 'Wait for the exact task result without resending or stopping it.',
-        usage: '<delegation-id> [--timeout <milliseconds>]',
-        parseParams: identity,
+        summary:
+            'Wait for the first of your tasks to settle or block, without resending or stopping any of them.',
+        usage: '<delegation-id> [<delegation-id>...] [--timeout <milliseconds>]',
+        parseParams: waitIdentities,
     },
     {
         kind: 'remote',

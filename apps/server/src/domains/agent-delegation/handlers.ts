@@ -34,8 +34,10 @@ export function createDelegationHandlers(
         'agent.delegation.status': () => mainOwned('agent.delegation.status'),
         'agent.delegation.result': () => mainOwned('agent.delegation.result'),
         'agent.delegation.wait': () => mainOwned('agent.delegation.wait'),
-        'agent.delegation.waitInternal': ({ delegationId, timeoutMs, ...authority }, signal) =>
-            service.wait(delegationId, authority, timeoutMs, signal),
+        'agent.delegation.waitInternal': (
+            { delegationId, otherDelegationIds = [], timeoutMs, ...authority },
+            signal,
+        ) => service.wait([delegationId, ...otherDelegationIds], authority, timeoutMs, signal),
         'agent.delegation.createInternal': ({ delegationId, input, ...authority }) =>
             service.create(delegationId, authority, input),
         'agent.delegation.statusInternal': ({ delegationId, ...authority }) =>

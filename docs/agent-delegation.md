@@ -20,7 +20,7 @@ The CLI accepts task text from a file, so the task body never appears in its pro
 caxri agent delegate create --project <project-id> --session <session-id> \
   --provider claude --prompt-file ./task.md --request-id <stable-request-id> --json
 caxri agent delegate status <delegation-id> --json
-caxri agent delegate wait <delegation-id> --timeout 30000 --json
+caxri agent delegate wait <delegation-id> [<delegation-id>...] --timeout 30000 --json
 caxri agent delegate result <delegation-id> --json
 caxri agent delegate stop <delegation-id> --json
 caxri agent delegate create --project <project-id> --session <session-id> \
@@ -39,7 +39,9 @@ delegations. The authenticated human owner can inspect tasks in the selected pro
 The request ID is scoped to the authenticated principal and generation. Reusing it with the same
 input returns the existing task; different input conflicts. Wait timeout reports the current receipt
 without interrupting, restarting, or resubmitting the task. A disconnected caller can later fetch
-the saved answer using the same authorized identity.
+the saved answer using the same authorized identity. `wait` accepts up to 32 of the caller's own task
+IDs and returns the first one, in argument order, that has settled or blocked. On timeout it reports
+the first ID's receipt.
 
 ## Presets and caller policy
 
