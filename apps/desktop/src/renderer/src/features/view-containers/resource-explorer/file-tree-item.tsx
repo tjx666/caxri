@@ -5,8 +5,8 @@ import type { FileEntry } from '@caxri/protocol';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 
 import { GitFileStatusLetter } from '../../../components/git-file-status-letter';
-import { ContextMenu, ContextMenuTrigger } from '../../../components/ui/context-menu';
 import { Input } from '../../../components/ui/input';
+import { useContextMenu } from '../../../hooks/use-context-menu';
 import { FileTypeIcon } from '../../../icons/files/file-type-icon';
 import { hasDraggedPath, startFilePathDrag } from '../../../lib/file-drag';
 import type { GitChildRepoKind, GitDecoration } from '../../../lib/git-decorations';
@@ -16,7 +16,7 @@ import { useGitChildRepo, useGitDecoration } from '../../../stores/git-decoratio
 import { describeFailure } from '../../../stores/toasts';
 import { useResourceExplorerClient } from '../controlled-view-context';
 import { createItem, rememberFile, renameFile } from './file-actions';
-import { FileTreeItemMenu } from './file-tree-item-menu';
+import { fileTreeItemMenu } from './file-tree-item-menu';
 import type { EditRequest, FocusTarget } from './file-tree-item-types';
 import { fileTreeLeafIndent, fileTreeRowStyle } from './file-tree-row-style';
 import { useFileTreeItemInteractions } from './hooks/use-file-tree-item-interactions';
@@ -317,16 +317,13 @@ export function FileTreeItem({
         handleKeyDown,
         isDropTarget,
         isDirectory,
-        isContextMenuRendered,
         isRenaming,
         isRovingTabStop,
         openEntry,
         parentDirectory,
         pasteBlocked,
         pasteDisabled,
-        pasteDisabledReason,
         pasteIntoEntry,
-        requestContextMenu,
         rowRef,
         setIsDropTarget,
         startCreate,
@@ -344,6 +341,23 @@ export function FileTreeItem({
         projectId,
         setEditing,
     });
+
+    const openContextMenu = useContextMenu(() =>
+        fileTreeItemMenu({
+            confirmTrash,
+            duplicateBlocked,
+            duplicateEntry,
+            entry,
+            openEntry,
+            parentDirectory,
+            pasteDisabled,
+            pasteIntoEntry,
+            projectId,
+            projectRoot,
+            startCreate,
+            startRename,
+        }),
+    );
 
     if (isRenaming)
         return (
@@ -416,7 +430,11 @@ export function FileTreeItem({
             onContextMenu={(event) => {
                 const scope = activeResourceExplorerScope();
                 if (scope) setScopeSelectedPath(scope.scopeId, entry.path);
-                requestContextMenu(event);
+                /**
+                 * A symlink row has no menu of its own; leaving its gesture unclaimed lets it reach the tree's
+                 * background menu, as it always has.
+                 */
+                if (editable) openContextMenu(event);
             }}
             onCopy={(event) => {
                 event.preventDefault();
@@ -466,26 +484,5 @@ export function FileTreeItem({
         </button>
     );
 
-    return isContextMenuRendered ? (
-        <ContextMenu>
-            <ContextMenuTrigger render={row} />
-            <FileTreeItemMenu
-                confirmTrash={confirmTrash}
-                duplicateBlocked={duplicateBlocked}
-                duplicateEntry={duplicateEntry}
-                entry={entry}
-                openEntry={openEntry}
-                parentDirectory={parentDirectory}
-                pasteDisabled={pasteDisabled}
-                pasteDisabledReason={pasteDisabledReason}
-                pasteIntoEntry={pasteIntoEntry}
-                projectId={projectId}
-                projectRoot={projectRoot}
-                startCreate={startCreate}
-                startRename={startRename}
-            />
-        </ContextMenu>
-    ) : (
-        row
-    );
+    return row;
 }

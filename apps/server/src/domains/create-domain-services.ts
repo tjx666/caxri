@@ -542,6 +542,7 @@ export async function createDomainServices(
         'argv.update': () => mainOwned('argv.update'),
         'gpu.restartInSafeMode': () => mainOwned('gpu.restartInSafeMode'),
         'gpu.testInjectContextLoss': () => mainOwned('gpu.testInjectContextLoss'),
+        'contextMenu.show': () => mainOwned('contextMenu.show'),
         'processExplorer.open': () => mainOwned('processExplorer.open'),
         'dialog.selectDirectory': () => mainOwned('dialog.selectDirectory'),
         ...createWorkbenchRootHandlers(workbenchRoots, mainOwned),

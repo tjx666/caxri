@@ -6,6 +6,7 @@ import type { MessageBoxOptions } from 'electron';
 
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
+import { chooseContextMenuItem } from './support/native-context-menu.ts';
 
 test('the Project row menu deletes its own Project even when another Session is selected', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'caxri-project-row-delete-'));
@@ -77,17 +78,7 @@ test('the Project row menu deletes its own Project even when another Session is 
         await projectRow.focus();
         await expect(projectRow).toBeFocused();
         await running.page.keyboard.press('Shift+F10');
-        const menu = running.page.locator('[data-slot="context-menu-content"]');
-        await expect(menu).toBeVisible();
-        await expect(menu).toHaveAttribute('aria-label', `${secondProject.displayTitle} actions`);
-        const headingBounds = await secondGroup.locator('.project-heading').boundingBox();
-        const menuBounds = await menu.boundingBox();
-        if (!headingBounds || !menuBounds)
-            throw new Error('Project menu positioning was unavailable');
-        expect(menuBounds.y).toBeGreaterThanOrEqual(headingBounds.y);
-        expect(menuBounds.y - headingBounds.y).toBeLessThan(headingBounds.height + 30);
-        await expect(menu.getByRole('menuitem', { name: 'Delete Project…' })).toBeVisible();
-        await menu.getByRole('menuitem', { name: 'Delete Project…' }).click();
+        await chooseContextMenuItem(running.app, 'Delete Project…');
         await expect
             .poll(() =>
                 running.app.evaluate(
@@ -111,7 +102,7 @@ test('the Project row menu deletes its own Project even when another Session is 
             ).caxriProjectDeleteProbe!.response = 0;
         });
         await secondGroup.locator('.project-heading').click({ button: 'right' });
-        await running.page.getByRole('menuitem', { name: 'Delete Project…' }).click();
+        await chooseContextMenuItem(running.app, 'Delete Project…');
 
         await expect(secondGroup).toHaveCount(0);
         await expect(firstGroup).toBeVisible();

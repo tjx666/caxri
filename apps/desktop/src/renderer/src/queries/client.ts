@@ -122,6 +122,21 @@ export function useCaxriQuery<M extends CaxriMethod, TData = MethodResult<M>>(
 }
 
 /**
+ * One-shot read through the shared cache, for a builder that runs at the moment it needs the data (a native context
+ * menu opening) instead of subscribing on every render. Shares `useCaxriQuery`'s key, so a fresh cached answer is
+ * reused and targeted invalidation reaches it.
+ */
+export function fetchCaxriQuery<M extends CaxriMethod>(
+    method: M,
+    parameters: MethodParameters<M>,
+): Promise<MethodResult<M>> {
+    return queryClient.query({
+        queryKey: caxriQueryKey(method, parameters),
+        queryFn: () => caxri.request(method, ...([parameters] as ParametersArgument<M>)),
+    });
+}
+
+/**
  * Subscribes to a Caxri read from outside a component — an imperative Monaco integration cannot call a hook — through
  * the same `QueryObserver` `useCaxriQuery` builds on, so the two never disagree about cache key shape, staleness, or
  * targeted invalidation. Calls `listener` once synchronously with whatever is already cached (frequently already

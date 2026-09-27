@@ -23,7 +23,6 @@ import * as Alert from '@/components/ui/alert';
 import * as Button from '@/components/ui/button';
 import * as Checkbox from '@/components/ui/checkbox';
 import * as Command from '@/components/ui/command';
-import * as ContextMenu from '@/components/ui/context-menu';
 import * as Dialog from '@/components/ui/dialog';
 import * as Empty from '@/components/ui/empty';
 import * as Field from '@/components/ui/field';
@@ -80,7 +79,6 @@ export default {
     '@/components/ui/button': Button,
     '@/components/ui/checkbox': Checkbox,
     '@/components/ui/command': Command,
-    '@/components/ui/context-menu': ContextMenu,
     '@/components/ui/dialog': Dialog,
     '@/components/ui/empty': Empty,
     '@/components/ui/field': Field,

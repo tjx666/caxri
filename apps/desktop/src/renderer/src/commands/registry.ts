@@ -133,7 +133,7 @@ export interface CommandContext {
         openProjectSearch(): void;
         openSessionContentSearch(): void;
     };
-    windows: { openProcessExplorer(): void };
+    windows: { openProcessExplorer(): void; zoom(step: 'in' | 'out' | 'reset'): void };
     developer: { reportBug(): void; toggleScreencastMode(): void };
     diagnostics: { export(): void };
     updates: { check(): void };

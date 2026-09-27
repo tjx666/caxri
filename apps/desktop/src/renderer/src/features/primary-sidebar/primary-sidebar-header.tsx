@@ -89,7 +89,7 @@ export function PrimarySidebarHeader({
 }) {
     return (
         <div
-            className={`primary-sidebar-title flex h-11 items-center py-0 pr-2 font-semibold ${isFullScreen ? 'pl-3' : 'pl-[84px]'}`}
+            className={`primary-sidebar-title flex h-11 items-center py-0 pr-2 font-semibold ${isFullScreen ? 'pl-3' : 'pl-(--traffic-light-header-inset)'}`}
             style={{ WebkitAppRegion: 'drag' } as CSSProperties}
         >
             {isFullScreen && (

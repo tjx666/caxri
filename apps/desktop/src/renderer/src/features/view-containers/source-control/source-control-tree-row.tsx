@@ -1,13 +1,9 @@
-import type { ButtonHTMLAttributes, ReactElement, ReactNode } from 'react';
-import { useState } from 'react';
+import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
-import {
-    ContextMenu,
-    ContextMenuContent,
-    ContextMenuItem,
-    ContextMenuTrigger,
-} from '../../../components/ui/context-menu';
 import { Tooltip } from '../../../components/ui/tooltip';
+import { useContextMenu } from '../../../hooks/use-context-menu';
+import type { ContextMenuEntries } from '../../../lib/context-menu';
+import { showContextMenu } from '../../../lib/context-menu';
 import { cn } from '../../../lib/utilities';
 import type { SourceControlRowMenuItem } from './source-control-row-menu';
 import { treeRowTabIndex, useSourceControlTreeFocus } from './source-control-tree-focus';
@@ -42,7 +38,14 @@ export function SourceControlTreeRow({
     tooltip?: ReactNode;
 }) {
     const focus = useSourceControlTreeFocus();
-    const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const hasMenu = Boolean(menuItems?.length);
+    const menu = (): ContextMenuEntries =>
+        (menuItems ?? []).map((item) => ({
+            label: item.label,
+            disabled: item.disabled,
+            onSelect: item.run,
+        }));
+    const openContextMenu = useContextMenu(menu);
     const row = (
         <button
             {...properties}
@@ -60,12 +63,23 @@ export function SourceControlTreeRow({
                 focus.focusRow(rowId);
                 onFocus?.(event);
             }}
+            onContextMenu={(event) => {
+                properties.onContextMenu?.(event);
+                if (hasMenu) openContextMenu(event);
+            }}
             onKeyDown={(event) => {
                 onKeyDown?.(event);
-                if (!menuItems?.length || event.defaultPrevented) return;
+                if (!hasMenu || event.defaultPrevented) return;
                 if (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)) {
                     event.preventDefault();
-                    setIsMenuOpen(true);
+                    /**
+                     * MacOS Chromium does not turn these keys into a `contextmenu` event, so the row opens its menu
+                     * itself, anchored under the row instead of at a pointer the keyboard user never moved.
+                     */
+                    const bounds = event.currentTarget.getBoundingClientRect();
+                    // `showContextMenu` reports its own failures through a toast; nothing to await in a key handler.
+                    // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+                    void showContextMenu(menu(), { x: bounds.left, y: bounds.bottom });
                 }
             }}
         >
@@ -73,34 +87,14 @@ export function SourceControlTreeRow({
         </button>
     );
     /**
-     * Base UI composes triggers through `render`, so the tooltip wraps the context-menu trigger rather than the button:
-     * each layer merges its own props into the single rendered element.
-     *
      * `hoverOnly` because this row is one the app itself focuses — the tree moves focus between rows programmatically
-     * through its roving `tabIndex`. Without it a focus-opened tooltip and the row menu become two Base UI popups
-     * sharing one trigger element, and the menu's return-focus then loses the row: closing the menu with `Escape` left
-     * focus on the document body about half the time (issue #1029). The tooltip's text is the resource path, which is
-     * already this row's accessible name, so a screen reader still hears it.
+     * through its roving `tabIndex`, and a focus-opened tooltip would pop up on every arrow-key step. The tooltip's
+     * text is the resource path, which is already this row's accessible name, so a screen reader still hears it.
      */
-    const withTooltip = (trigger: ReactElement): ReactElement =>
-        tooltip === undefined ? (
-            trigger
-        ) : (
-            <Tooltip anchorMode="cursor" content={tooltip} hoverOnly>
-                {trigger}
-            </Tooltip>
-        );
-    if (!menuItems?.length) return withTooltip(row);
+    if (tooltip === undefined) return row;
     return (
-        <ContextMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
-            {withTooltip(<ContextMenuTrigger render={row} />)}
-            <ContextMenuContent>
-                {menuItems.map((item) => (
-                    <ContextMenuItem key={item.id} disabled={item.disabled} onClick={item.run}>
-                        {item.label}
-                    </ContextMenuItem>
-                ))}
-            </ContextMenuContent>
-        </ContextMenu>
+        <Tooltip anchorMode="cursor" content={tooltip} hoverOnly>
+            {row}
+        </Tooltip>
     );
 }

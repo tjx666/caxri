@@ -26,7 +26,6 @@ import {
     useFileOperationStore,
 } from '../file-operation-state';
 import type { EditRequest, FocusTarget } from '../file-tree-item-types';
-import { BUSY_DISABLED_REASON } from '../file-tree-item-types';
 import {
     activeResourceExplorerScope,
     clearScopeRevealPath,
@@ -405,12 +404,4 @@ export function useResourceExplorerController(): ResourceExplorerController | un
         session,
         setEditing,
     };
-}
-
-export function rootPasteDisabledReason(
-    controller: Pick<ResourceExplorerController, 'isRootPasteBlocked' | 'isRootPasteEmpty'>,
-): string | undefined {
-    if (controller.isRootPasteEmpty) return 'Nothing to paste';
-    if (controller.isRootPasteBlocked) return BUSY_DISABLED_REASON;
-    return undefined;
 }

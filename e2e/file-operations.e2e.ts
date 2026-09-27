@@ -12,7 +12,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
-import type { Locator, Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
     createProjectSession,
@@ -20,18 +19,8 @@ import {
     pageRequest,
     VISIBLE_TERMINAL_INPUT,
 } from './support/helpers.ts';
+import { chooseContextMenuItem } from './support/native-context-menu.ts';
 import { readFileForPoll } from './support/result-file-polling.ts';
-
-/**
- * Context menu items now carry a visible live-keybinding hint (`ContextMenuItem`'s `hint` prop, see
- * `context-menu.tsx`), so an item's full accessible name is no longer just its label — "Copy" reads as "Copy⌘C" once
- * the shortcut badge renders. Matching by the label's own exact text (rather than the whole menuitem's accessible name)
- * keeps this test independent of that badge's exact rendering while still disambiguating "Copy" from "Copy Path" /
- * "Copy Relative Path" in the same menu.
- */
-function exactMenuItem(page: Page, label: string): Locator {
-    return page.getByRole('menuitem').filter({ has: page.getByText(label, { exact: true }) });
-}
 
 async function injectTransientFileAbsence(path: string): Promise<{ restored: Promise<void> }> {
     const heldPath = `${path}.ci-parity-pending`;
@@ -158,18 +147,16 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
             exact: true,
         });
         await draftRow.click({ button: 'right' });
-        await running.page.getByRole('menuitem', { name: 'Copy Path', exact: true }).click();
+        await chooseContextMenuItem(running.app, 'Copy Path');
         await expect.poll(() => running.clipboard.textEquals(join(root, 'draft.txt'))).toBe(true);
         await running.clipboard.claimText(join(root, 'draft.txt'));
         await draftRow.click({ button: 'right' });
-        await running.page
-            .getByRole('menuitem', { name: 'Copy Relative Path', exact: true })
-            .click();
+        await chooseContextMenuItem(running.app, 'Copy Relative Path');
         await expect.poll(() => running.clipboard.textEquals('draft.txt')).toBe(true);
         await running.clipboard.claimText('draft.txt');
 
         await draftRow.click({ button: 'right' });
-        await running.page.getByRole('menuitem', { name: 'Reveal in Finder' }).click();
+        await chooseContextMenuItem(running.app, 'Reveal in Finder');
         await expect
             .poll(() =>
                 running.app.evaluate(() => {
@@ -185,7 +172,7 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
         );
         const terminalCount = initialBootstrapState.terminals.length;
         await draftRow.click({ button: 'right' });
-        await running.page.getByRole('menuitem', { name: 'Open in Terminal' }).click();
+        await chooseContextMenuItem(running.app, 'Open in Terminal');
         await expect
             .poll(async () => {
                 const state = await pageRequest<{ terminals: Array<{ cwd: string }> }>(
@@ -226,7 +213,7 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
         if (restoreDraft) expect(isObservedTransientAbsence).toBe(true);
 
         await draftRow.click({ button: 'right' });
-        await running.page.getByRole('menuitem', { name: 'Duplicate' }).click();
+        await chooseContextMenuItem(running.app, 'Duplicate');
         await expect
             .poll(async () => {
                 try {
@@ -242,9 +229,9 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
             exact: true,
         });
         await sourceFolderRow.click({ button: 'right' });
-        await exactMenuItem(running.page, 'Copy').click();
+        await chooseContextMenuItem(running.app, 'Copy');
         await destinationRow.click({ button: 'right' });
-        await exactMenuItem(running.page, 'Paste').click();
+        await chooseContextMenuItem(running.app, 'Paste');
         await expect
             .poll(async () => {
                 try {
@@ -392,7 +379,7 @@ test('Files supports safe create, clipboard, reveal, Terminal, move, and Trash w
             .toContain(' dirty');
 
         await movedRow.click({ button: 'right' });
-        await running.page.getByRole('menuitem', { name: 'Move to Trash' }).click();
+        await chooseContextMenuItem(running.app, 'Move to Trash');
         await expect
             .poll(async () => {
                 try {

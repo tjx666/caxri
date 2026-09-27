@@ -135,6 +135,11 @@ export const effectfulCommandRecovery = {
     'gpu.testInjectContextLoss': 'none',
     'external.open': 'durable',
     'editor.confirmDiscard': 'durable',
+    /**
+     * A menu choice answers one right-click gesture; replaying it after a reconnect would run an action the user can no
+     * longer see the menu for.
+     */
+    'contextMenu.show': 'none',
     'processExplorer.open': 'durable',
     'dialog.selectDirectory': 'memory',
     'pathBrowser.start': 'memory',
