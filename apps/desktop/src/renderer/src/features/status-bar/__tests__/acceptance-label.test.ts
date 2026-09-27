@@ -1,11 +1,7 @@
 import type { ProjectStatusOverviewAcceptance } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import {
-    acceptanceAriaLabel,
-    acceptanceChipLabel,
-    acceptanceTooltipLines,
-} from '../acceptance-label';
+import { acceptanceAriaLabel, acceptanceChipLabel, acceptanceTooltip } from '../acceptance-label';
 
 const ID = 'a1b2c3d4-5e6f-4a7b-8c9d-0e1f2a3b4c5d';
 
@@ -37,7 +33,9 @@ describe('acceptance chip label', () => {
         for (const value of [
             acceptanceChipLabel(acceptance({ status: 'accepted' })),
             acceptanceAriaLabel(acceptance({ status: 'accepted', title: 'Fix the diff' })),
-            ...acceptanceTooltipLines(acceptance({ status: 'accepted', title: 'Fix the diff' })),
+            JSON.stringify(
+                acceptanceTooltip(acceptance({ status: 'accepted', title: 'Fix the diff' })),
+            ),
         ])
             expect(value).not.toContain(ID);
     });
@@ -72,34 +70,36 @@ describe('acceptance chip accessible name', () => {
 describe('acceptance hover card', () => {
     it('says which round answered when the link pinned one', () => {
         expect(
-            acceptanceTooltipLines(
+            acceptanceTooltip(
                 acceptance({ title: 'Recover a stalled diff', round: 2, status: 'repairing' }),
             ),
-        ).toEqual([
-            'Recover a stalled diff',
-            'Repairing · Round 2',
-            'From the pull request description',
-        ]);
+        ).toEqual({
+            eyebrow: 'Acceptance report',
+            title: 'Recover a stalled diff',
+            details: ['Repairing · Round 2'],
+            notes: ['From the pull request description'],
+            hint: undefined,
+        });
     });
 
     it('says the latest round answered an unpinned link on a multi-round report', () => {
-        expect(acceptanceTooltipLines(acceptance({ roundCount: 3, status: 'accepted' }))).toEqual([
-            'Acceptance report',
-            'Accepted · Latest of 3 rounds',
-            'From the pull request description',
-        ]);
+        expect(
+            acceptanceTooltip(
+                acceptance({ roundCount: 3, status: 'accepted', url: 'https://example.com/a' }),
+            ),
+        ).toEqual({
+            eyebrow: undefined,
+            title: 'Acceptance report',
+            details: ['Accepted · Latest of 3 rounds'],
+            notes: ['From the pull request description'],
+            hint: 'Click to open the report',
+        });
     });
 
     it('names the source and counts the reports it is leading', () => {
         expect(
-            acceptanceTooltipLines(acceptance({ source: 'conversation' }), [
-                acceptance(),
-                acceptance(),
-            ]),
-        ).toEqual([
-            'Acceptance report',
-            'From this conversation',
-            'Also referenced: 2 more reports',
-        ]);
+            acceptanceTooltip(acceptance({ source: 'conversation' }), [acceptance(), acceptance()])
+                .notes,
+        ).toEqual(['From this conversation', 'Also referenced: 2 more reports']);
     });
 });

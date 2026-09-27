@@ -88,8 +88,9 @@ exec /bin/zsh -l
         // shared `Tooltip` primitive, so assert the popup actually renders rather than that an
         // attribute exists — a `title` can be present and still never be shown.
         await childProcesses.hover();
-        await expect(running.page.locator('.tooltip-popup')).toHaveText(
-            /^Open Process Explorer — Terminal: \d+ child processes?$/,
+        await expect(running.page.locator('.tooltip-popup')).toContainText(/\d+ child processes?/);
+        await expect(running.page.locator('.tooltip-popup')).toContainText(
+            'Click to open Process Explorer',
         );
         // The status bar sits at the window's bottom edge, so the popup flips above its trigger and
         // covers the neighbouring status items. Park the pointer away and wait for the close

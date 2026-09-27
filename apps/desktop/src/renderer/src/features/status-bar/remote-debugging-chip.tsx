@@ -4,6 +4,7 @@ import { useCaxriQuery } from '../../queries/client';
 import { openSettings } from '../../stores/dialogs';
 import { remoteDebuggingChipCopy } from './remote-debugging-label';
 import { StatusItem } from './status-item';
+import { StatusTooltip } from './status-tooltip';
 
 /**
  * Standing disclosure that this instance is reachable by a debugger. Muted tokens per DESIGN.md's status bar redline —
@@ -22,7 +23,7 @@ export function RemoteDebuggingChip() {
         <StatusItem
             icon={<Bug />}
             ariaLabel={copy.description}
-            title={copy.description}
+            title={<StatusTooltip {...copy.tooltip} />}
             className="text-muted"
             onClick={() => openSettings('remote-debugging')}
         >

@@ -1,7 +1,7 @@
 import type { ProjectStatusOverviewLinearIssue } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { linearIssueAriaLabel, linearIssueTooltipLines } from '../linear-issue-label';
+import { linearIssueAriaLabel, linearIssueTooltip } from '../linear-issue-label';
 
 const resolved: ProjectStatusOverviewLinearIssue = {
     identifier: 'ABC-42',
@@ -32,20 +32,22 @@ describe('status bar Linear issue labels', () => {
     });
 
     it('stacks the hover card as title, state, source, then the issues it left out', () => {
-        expect(
-            linearIssueTooltipLines(resolved, [{ identifier: 'XYZ-7', source: 'branch' }]),
-        ).toEqual([
-            'ABC-42 Router monitoring',
-            'In Progress',
-            'From the pull request description',
-            'Also referenced: XYZ-7',
-        ]);
+        expect(linearIssueTooltip(resolved, [{ identifier: 'XYZ-7', source: 'branch' }])).toEqual({
+            eyebrow: 'ABC-42',
+            title: 'Router monitoring',
+            details: ['In Progress'],
+            notes: ['From the pull request description', 'Also referenced: XYZ-7'],
+            hint: 'Click to open in Linear',
+        });
     });
 
     it('drops the lines an unresolved issue has nothing to put in', () => {
-        expect(linearIssueTooltipLines({ identifier: 'ABC-42', source: 'branch' })).toEqual([
-            'ABC-42',
-            'From the branch name',
-        ]);
+        expect(linearIssueTooltip({ identifier: 'ABC-42', source: 'branch' })).toEqual({
+            eyebrow: undefined,
+            title: 'ABC-42',
+            details: [],
+            notes: ['From the branch name'],
+            hint: undefined,
+        });
     });
 });
