@@ -22,7 +22,12 @@ export function hookHealthLabel(
             case 'unsupported':
                 return 'Not available on this platform';
             case 'notInstalled':
-                return 'Not in effect — install the agent CLI first';
+                // `AgentHookManager.reconcileNow()` appends `health.message` — "Install the {CLI} CLI, then restart
+                // Caxri." — whenever an install hint exists (the common case), so this base label states only the
+                // status and leaves the specific instruction to that message (DESIGN.md principle 6, "say each
+                // meaning once"; same fix already applied to the `drifted` case in `hookHealthFor`). Without a
+                // message — e.g. another profile owns install authority — this label alone still reads correctly.
+                return 'Not in effect';
             case 'installedPending':
                 return 'Not in effect until your next Agent session';
             case 'incompatible':

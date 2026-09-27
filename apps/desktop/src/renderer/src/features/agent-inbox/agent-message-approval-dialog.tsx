@@ -66,6 +66,10 @@ export function AgentMessageApprovalDialog() {
             ? detail
             : undefined;
     const isBodyReady = readyDetail !== undefined;
+    /**
+     * Only an unsettled read holds Approve: a failed read is a display problem, and approving grants nothing.
+     */
+    const isBodyLoading = !isBodyReady && !detailFailed;
 
     useEffect(() => {
         let isActive = true;
@@ -125,7 +129,7 @@ export function AgentMessageApprovalDialog() {
 
     /**
      * Base UI resolves `initialFocus` while the body is still loading, when `Approve message` is disabled and cannot
-     * accept focus, so it resolves to the popup itself. Hand the confirming button its focus once the body arrives, and
+     * accept focus, so it resolves to the popup itself. Hand the confirming button its focus once the read settles, and
      * only from that parked state, so a user who already moved to another action keeps where they are.
      *
      * Why a listener and not a single attempt: Base UI resolves `initialFocus` in a microtask and only calls `.focus()`
@@ -146,7 +150,7 @@ export function AgentMessageApprovalDialog() {
      * message after the first one opens with no focused control.
      */
     useEffect(() => {
-        if (!isBodyReady) return;
+        if (isBodyLoading) return;
         const popup = contentReference.current;
         if (!popup) return;
         let isHandedOver = false;
@@ -168,7 +172,7 @@ export function AgentMessageApprovalDialog() {
         handOverFocus();
         popup.addEventListener('focus', handOverFocus);
         return () => popup.removeEventListener('focus', handOverFocus);
-    }, [isBodyReady]);
+    }, [isBodyLoading]);
 
     const endpointReference = useMemo(() => {
         if (!current) return '';
@@ -187,7 +191,7 @@ export function AgentMessageApprovalDialog() {
 
     async function settle(action: 'approve' | 'deny'): Promise<void> {
         if (!current || pending) return;
-        if (action === 'approve' && !isBodyReady) return;
+        if (action === 'approve' && isBodyLoading) return;
         setPending(true);
         try {
             await settleHeldAgentMessage(action, current.messageId);
@@ -228,7 +232,7 @@ export function AgentMessageApprovalDialog() {
                             // element (`FloatingFocusManager`: `elToFocus || getDefaultFocusElement()`). Naming the
                             // confirming button while the body still loads makes it `disabled`, `.focus()` a no-op, and
                             // focus stay outside the dialog entirely — keystrokes would reach the Agent behind it. The
-                            // popup itself always accepts focus, and the effect above hands it over once the body lands.
+                            // popup itself always accepts focus, and the effect above hands it over once the read settles.
                             return confirm?.disabled === false ? confirm : contentReference.current;
                         }}
                     >
@@ -274,8 +278,9 @@ export function AgentMessageApprovalDialog() {
                                             The complete message could not be read.
                                         </p>
                                         <p className="m-0 mt-1 text-muted">
-                                            Approving is held back until it can be read, so nobody
-                                            approves text they never saw.
+                                            Approve and Deny stay available without it — approving
+                                            only delivers this message and grants nothing. Retry
+                                            loads the full text if you want to read it first.
                                         </p>
                                         <Button
                                             variant="secondary"
@@ -313,7 +318,7 @@ export function AgentMessageApprovalDialog() {
                                 </Button>
                                 <Button
                                     data-approval-confirm
-                                    disabled={pending || !isBodyReady}
+                                    disabled={pending || isBodyLoading}
                                     onClick={() => {
                                         // eslint-disable-next-line no-void -- intentional floating-promise discard, settle() reports its own errors via toast
                                         void settle('approve');

@@ -536,15 +536,19 @@ export class GitRepoService {
                     files,
                 };
             });
-            if (this.sessionGenerations.get(sessionId) === options.sessionGeneration)
+            if (this.sessionGenerations.get(sessionId) === options.sessionGeneration) {
+                const rootPaths = roots.map((repo) => repo.rootPath);
                 registerGitProjection(
                     this.options.tracker,
                     this.metadataWatcher,
                     sessionId,
                     projectRoot,
                     [topology, ...childTopologies],
-                    roots.map((repo) => repo.rootPath),
+                    rootPaths,
                 );
+                // A forced summary must invalidate open diffs too, or #1299's outdated check misses a refresh (#1321).
+                if (options.force) this.options.tracker.scheduleStatusChanged(rootPaths);
+            }
             return { isRepository: true, repositories };
         } catch (error) {
             /**
@@ -641,12 +645,9 @@ export class GitRepoService {
     }
 
     /**
-     * `refresh` is a monotonic user nonce: a value above the Session's last seen nonce forces the newest generation
-     * (fresh topology and status) instead of joining cached snapshots. Coalescing is keyed by Session lifetime only,
-     * never by the nonce: keying on the nonce made a forced refresh and a plain read for the same Session run as two
-     * parallel full producers (#584, the defect class of #556). A plain read joins whatever is in flight; a force
-     * arriving mid-flight queues one trailing forced run that starts after the current producer settles, so its
-     * snapshot postdates the user's action with one Git batch per Session.
+     * `refresh` is a monotonic user nonce forcing the newest generation instead of a cached snapshot; coalescing keys
+     * on Session lifetime only, not the nonce (keying on it used to run a forced refresh and a plain read as two
+     * parallel producers — #584/#556). A mid-flight force queues one trailing run so its snapshot postdates it.
      */
     summary(
         sessionId: string,

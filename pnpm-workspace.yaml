@@ -73,6 +73,26 @@ overrides:
   # matching the moment Vitest went to 5.0.1, silently letting the broken declarations back in.
   # https://github.com/tinylibs/tinybench/releases/tag/v6.1.6
   'vitest>tinybench': 6.2.0
+  # Security floor for mermaid's chevrotain packages, which still resolve lodash-es 4.17.23 (high: `_.template` code
+  # injection and `_.unset` prototype pollution). 4.18.1 is the same major and drop-in for chevrotain's imports.
+  # https://github.com/advisories/GHSA-r5fr-rjxr-66jc
+  lodash-es: 4.18.1
+  # drizzle-kit's deprecated @esbuild-kit loader pins esbuild ~0.18, below the dev-server CORS fix (GHSA-67mh-4wv8-2f99).
+  # The loader only calls esbuild's stable transform API, which 0.25 keeps; drizzle-kit is a dev-only generator.
+  # https://github.com/advisories/GHSA-67mh-4wv8-2f99
+  '@esbuild-kit/core-utils>esbuild': 0.25.12
+  # Expo's xcode project editor still asks for uuid ^7 and only calls the CommonJS `uuid.v4()` export. 11.1.1 is the
+  # last CommonJS-compatible line with the buffer bounds fix (GHSA-w5hq-g745-h8pq); 12+ is ESM-only.
+  # https://github.com/advisories/GHSA-w5hq-g745-h8pq
+  'xcode>uuid': 11.1.1
+
+auditConfig:
+  ignoreGhsas:
+    # decode-uri-component DoS via malformed percent-encoding. Only reached through Expo's dev-time router tooling
+    # (`@expo/cli` → `expo-router` → query-string 7). The fix ships in 0.5.0, which is ESM-only and breaks
+    # query-string 7's CommonJS `require('decode-uri-component')` call, so it cannot be overridden safely.
+    # Revisit when Expo moves expo-router to query-string 8+ or an Expo SDK major upgrade lands.
+    - GHSA-vcc3-ghjq-m6fr
 
 patchedDependencies:
   app-builder-lib: patches/app-builder-lib.patch

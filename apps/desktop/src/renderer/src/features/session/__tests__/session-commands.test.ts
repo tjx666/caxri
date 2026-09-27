@@ -101,13 +101,9 @@ vi.mock('../../../stores/workbench', () => ({
     useWorkbenchStore: { getState: () => ({ bootstrap: undefined }) },
 }));
 
-import type { CreateSessionAnchor } from '../../../stores/dialogs';
 import {
     archiveSelectedSession,
     archiveSession,
-    beginSessionCreation,
-    chooseSessionTerminalKind,
-    confirmPendingSession,
     copyAgentSessionId,
     copyAgentTranscriptPath,
     deleteSelectedSession,
@@ -157,95 +153,6 @@ describe('Session actions', () => {
 
     afterEach(() => {
         vi.unstubAllGlobals();
-    });
-
-    it('skips the Terminal choice entirely when a default Agent is configured', async () => {
-        mocks.getBootstrap.mockReturnValue({ settings: { 'session.defaultAgent': 'codex' } });
-
-        beginSessionCreation('project-1');
-        await mocks.tryCommand.mock.results[0]?.value;
-
-        expect(mocks.caxriRequest).toHaveBeenCalledWith('session.create', {
-            projectId: 'project-1',
-            defaultAgent: 'codex',
-        });
-        expect(mocks.openCreateSessionMenu).not.toHaveBeenCalled();
-    });
-
-    /**
-     * The claim names the trigger as well as the Project: a Project with no Sessions renders a second New Session
-     * button below its heading, and marking only the Project would let both rows open a popup over one choice.
-     */
-    it.each<{ anchor?: CreateSessionAnchor; basis: string; expected: CreateSessionAnchor }>([
-        { basis: 'the Project heading by default', expected: 'heading' },
-        { basis: 'the caller-named trigger', anchor: 'emptyProject', expected: 'emptyProject' },
-    ])('anchors the menu to $basis when no default Agent is configured', ({ anchor, expected }) => {
-        mocks.getBootstrap.mockReturnValue({ settings: { 'session.defaultAgent': null } });
-
-        if (anchor) beginSessionCreation('project-1', anchor);
-        else beginSessionCreation('project-1');
-
-        expect(mocks.openCreateSessionMenu).toHaveBeenCalledWith('project-1', expected);
-        expect(mocks.caxriRequest).not.toHaveBeenCalled();
-        expect(mocks.setPrimarySidebarVisible).not.toHaveBeenCalled();
-    });
-
-    /**
-     * The menu is anchored inside the Primary Side Bar, so `session.create` reaching this action from the native menu,
-     * a shortcut, or the command palette would otherwise mark a Project whose row is not mounted and do nothing at
-     * all.
-     */
-    it('reveals a collapsed Primary Side Bar before marking the Project', () => {
-        mocks.getBootstrap.mockReturnValue({ settings: { 'session.defaultAgent': null } });
-        mocks.primarySidebarVisible = false;
-
-        beginSessionCreation('project-1');
-
-        expect(mocks.setPrimarySidebarVisible).toHaveBeenCalledWith(true);
-        expect(mocks.openCreateSessionMenu).toHaveBeenCalledWith('project-1', 'heading');
-    });
-
-    it('leaves the Primary Side Bar alone when the default Agent short-circuits the choice', async () => {
-        mocks.getBootstrap.mockReturnValue({ settings: { 'session.defaultAgent': 'claude' } });
-        mocks.primarySidebarVisible = false;
-
-        beginSessionCreation('project-1');
-        await mocks.tryCommand.mock.results[0]?.value;
-
-        expect(mocks.setPrimarySidebarVisible).not.toHaveBeenCalled();
-    });
-
-    it('closes the menu and creates the Session with the chosen kind', async () => {
-        chooseSessionTerminalKind('project-1', 'grok');
-        await mocks.tryCommand.mock.results[0]?.value;
-
-        expect(mocks.closeCreateSessionMenu).toHaveBeenCalled();
-        expect(mocks.caxriRequest).toHaveBeenCalledWith('session.create', {
-            projectId: 'project-1',
-            defaultAgent: 'grok',
-        });
-    });
-
-    it('creates a Session with no Terminal when the user starts without one', async () => {
-        chooseSessionTerminalKind('project-1', null);
-        await mocks.tryCommand.mock.results[0]?.value;
-
-        expect(mocks.caxriRequest).toHaveBeenCalledWith('session.create', {
-            projectId: 'project-1',
-            defaultAgent: null,
-        });
-    });
-
-    it('creates the Session from the centered fallback dialog with the chosen kind', async () => {
-        mocks.pendingProjectId = 'project-2';
-
-        confirmPendingSession('codex');
-        await mocks.tryCommand.mock.results[0]?.value;
-
-        expect(mocks.caxriRequest).toHaveBeenCalledWith('session.create', {
-            projectId: 'project-2',
-            defaultAgent: 'codex',
-        });
     });
 
     it('copies the Agent conversation id rather than the Caxri Session row id', async () => {

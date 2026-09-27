@@ -345,11 +345,15 @@ process.stdin.on('end', () => {
         },
     );
 
-    it('maps an app-server error response to an unavailable rename', async () => {
+    it('maps an app-server error response to an unavailable rename and keeps its own error.message', async () => {
         const fixture = await createCodexAppServerFixture('error');
 
+        // Issue #1345: the app-server's own JSON-RPC error.message ("rename failed", from the fixture's `error`
+        // response) must reach the thrown error instead of being discarded behind the generic "rejected the Session
+        // rename" wording — otherwise a signed-out or rate-limited Codex looks identical to every other failure.
         await expect(renameCodexSession(fixture.context)).rejects.toMatchObject({
             code: 'UNAVAILABLE',
+            message: expect.stringContaining('rename failed') as string,
         });
     });
 

@@ -2,8 +2,9 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { ServerEvent } from '@caxri/protocol';
 import { execFileAsync, StructuredLogger } from '@caxri/system';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CaxriDatabase } from '../../db/repository';
 import { ProjectRootResolver } from '../../project-roots';
@@ -41,7 +42,10 @@ afterEach(async () => {
     );
 });
 
-async function createStatusFixture(prefix: string) {
+async function createStatusFixture(
+    prefix: string,
+    options: { emit?: (event: ServerEvent) => void } = {},
+) {
     const directory = await mkdtemp(join(tmpdir(), prefix));
     temporaryDirectories.push(directory);
     await execFileAsync('git', ['init', '-b', 'main'], { cwd: directory });
@@ -54,7 +58,9 @@ async function createStatusFixture(prefix: string) {
     const database = new CaxriDatabase(join(directory, '.caxri-test.db'));
     const session = database.createSession(database.createProject(directory).id, 'shell').session;
     const logger = createLogger(join(directory, '.logs'));
-    const git = trackGitService(new GitService(new ProjectRootResolver(database), logger));
+    const git = trackGitService(
+        new GitService(new ProjectRootResolver(database), logger, { emit: options.emit }),
+    );
     return { database, directory, git, logger, session };
 }
 
@@ -213,5 +219,29 @@ describe('GitService summary coalescing', () => {
                 (record) => record.event === 'git.refresh_summary',
             ),
         ).toHaveLength(1);
+    });
+
+    /**
+     * Regression for #1321: a manual "Refresh Git" (or Sync/Discard) forces `summary()` to re-read status, but that
+     * alone used to notify no one — an already open diff document, and the review-comment outdated check that
+     * piggybacks on it, stayed silently dependent on the passive file watcher's own delivery timing. A forced summary
+     * must schedule the same `git.changed` invalidation a watcher-observed write does, so a user-initiated refresh
+     * reliably re-evaluates every open diff regardless of watcher latency.
+     */
+    it('emits git.changed for a forced summary refresh even without an observed working-tree change', async () => {
+        const events: ServerEvent[] = [];
+        const { git, session } = await createStatusFixture('caxri-git-forced-changed-', {
+            emit: (event) => events.push(event),
+        });
+        // Registers the Session's repository projection with the change tracker.
+        await git.summary(session.id);
+        expect(events).toHaveLength(0);
+        // A forced refresh with no `observeFilesChanged`/watcher activity in between.
+        await git.summary(session.id, 1, 'extension');
+        await vi.waitFor(() =>
+            expect(events.some((event) => event.event === 'git.changed')).toBe(true),
+        );
+        const changed = events.find((event) => event.event === 'git.changed');
+        expect(changed?.payload).toMatchObject({ scope: 'status', sessionIds: [session.id] });
     });
 });

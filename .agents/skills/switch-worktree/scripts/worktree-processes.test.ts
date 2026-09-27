@@ -1,12 +1,19 @@
+import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import process from 'node:process';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { runCapture } from './process';
+import { getProcessIdentity, runCapture } from './process';
 import type { ProcessEntry, StopOperations } from './worktree-processes';
 import {
+    defaultStopOperations,
     findOrphanedProcesses,
+    inspectWorktreeProcesses,
     isWorktreeOwnedCommand,
     parseProcessTable,
     stopProcesses,
@@ -121,7 +128,9 @@ describe('worktree process ownership', () => {
             cwd: (pid) => Promise.resolve(pid === 801 ? WORKTREE : undefined),
             identity: (pid) => Promise.resolve(pid === 801 ? 'orphan-start' : undefined),
             list: () => Promise.resolve(orphaned),
-            signalProcess: (pid) => stop.signals.push(pid),
+            signalProcess: (pid) => {
+                stop.signals.push(pid);
+            },
             signals: [],
             wait: () => Promise.resolve(),
         };
@@ -236,30 +245,37 @@ describe('finding orphaned worktree processes', () => {
     });
 });
 
-describe('stopping owned processes', () => {
-    function operations(alive: (round: number) => ProcessEntry[]): StopOperations & {
-        signals: Array<[number, NodeJS.Signals]>;
-    } {
-        const signals: Array<[number, NodeJS.Signals]> = [];
-        let round = 0;
-        return {
-            cwd: () => Promise.resolve(undefined),
-            identity: (pid) => Promise.resolve(`start-${pid}`),
-            list: () => {
-                round += 1;
-                return Promise.resolve(
-                    alive(round).map((entry) => ({
-                        ...entry,
-                        identity: entry.identity ?? `start-${entry.pid}`,
-                    })),
-                );
-            },
-            signalProcess: (pid, signal) => signals.push([pid, signal]),
-            signals,
-            wait: () => Promise.resolve(),
-        };
-    }
+/**
+ * A mocked `StopOperations` whose `list` reports `alive(round)` on each call (round 1 is the first snapshot, round 2
+ * the first survivor check, and so on) and whose `signalProcess` just records calls by default. Shared by the stop and
+ * closed-reason describes below so both exercise the identity plumbing identically.
+ */
+function operations(alive: (round: number) => ProcessEntry[]): StopOperations & {
+    signals: Array<[number, NodeJS.Signals]>;
+} {
+    const signals: Array<[number, NodeJS.Signals]> = [];
+    let round = 0;
+    return {
+        cwd: () => Promise.resolve(undefined),
+        identity: (pid) => Promise.resolve(`start-${pid}`),
+        list: () => {
+            round += 1;
+            return Promise.resolve(
+                alive(round).map((entry) => ({
+                    ...entry,
+                    identity: entry.identity ?? `start-${entry.pid}`,
+                })),
+            );
+        },
+        signalProcess: (pid, signal) => {
+            signals.push([pid, signal]);
+        },
+        signals,
+        wait: () => Promise.resolve(),
+    };
+}
 
+describe('stopping owned processes', () => {
     it('escalates to SIGKILL only for the processes that survived SIGTERM', async () => {
         const targets = entries()
             .filter((entry) => [600, 603].includes(entry.pid))
@@ -326,7 +342,7 @@ describe('stopping owned processes', () => {
         expect(result).toEqual({ stopped: [original], survivors: [] });
     });
 
-    it('reports a replacement PID spawned after the original target exited', async () => {
+    it('also attempts a newly discovered owned process instead of only reporting it as a survivor', async () => {
         const original = {
             pid: 900,
             parentPid: 1,
@@ -339,8 +355,337 @@ describe('stopping owned processes', () => {
 
         const result = await stopWorktreeProcesses({ selfPid: 701, worktreePath: WORKTREE }, stop);
 
-        expect(stop.signals).toEqual([[900, 'SIGTERM']]);
+        // 900 exits cleanly after SIGTERM. 901 only becomes visible afterward — standing in for a descendant that
+        // had not finished forking, or one reparented to independent path-ownership once its supervisor exited —
+        // and must still receive its own SIGTERM/SIGKILL round, not merely be reported unexplained.
+        expect(stop.signals).toEqual([
+            [900, 'SIGTERM'],
+            [901, 'SIGTERM'],
+            [901, 'SIGKILL'],
+        ]);
         expect(result.stopped.map(({ pid }) => pid)).toEqual([900]);
         expect(result.survivors.map(({ pid }) => pid)).toEqual([901]);
     });
+
+    /**
+     * The bug behind #1179: a process invisible to the very first ownership snapshot — a descendant still mid-fork, or
+     * one that only becomes independently path-owned once its parent exits — used to be detected by the trailing
+     * re-scan and reported as a survivor without `stop` ever having sent it a signal. It must instead get its own stop
+     * round once discovered.
+     */
+    it('stops a process that only becomes visible after an earlier one exits, instead of leaving it unexplained', async () => {
+        const early: ProcessEntry = {
+            command: `${WORKTREE}/apps/server/dist/server-core.js`,
+            identity: 'start-910',
+            parentPid: 1,
+            pid: 910,
+        };
+        const late: ProcessEntry = {
+            command: `${WORKTREE}/apps/server/dist/extension-host.js`,
+            identity: 'start-911',
+            parentPid: 910,
+            pid: 911,
+        };
+        let isEarlyAlive = true;
+        let isLateExists = false;
+        let isLateAlive = true;
+        const signals: Array<[number, NodeJS.Signals]> = [];
+        const stop: StopOperations & { signals: typeof signals } = {
+            cwd: () => Promise.resolve(undefined),
+            identity: (pid) =>
+                Promise.resolve(pid === 910 ? 'start-910' : pid === 911 ? 'start-911' : undefined),
+            list: () => {
+                const alive: ProcessEntry[] = [];
+                if (isEarlyAlive) alive.push(early);
+                else isLateExists = true; // the descendant only becomes visible once its parent is confirmed gone
+                if (isLateExists && isLateAlive) alive.push(late);
+                return Promise.resolve(alive);
+            },
+            signalProcess: (pid, signal) => {
+                signals.push([pid, signal]);
+                if (pid === 910) isEarlyAlive = false;
+                else if (pid === 911) isLateAlive = false;
+                return { ok: true };
+            },
+            signals,
+            wait: () => Promise.resolve(),
+        };
+
+        const result = await stopWorktreeProcesses({ selfPid: 701, worktreePath: WORKTREE }, stop);
+
+        expect(signals.map(([pid]) => pid)).toEqual([910, 911]);
+        expect(result.survivors).toEqual([]);
+        expect(result.stopped.map(({ pid }) => pid).toSorted((a, b) => a - b)).toEqual([910, 911]);
+    });
+});
+
+describe('closed reasons for signal failures', () => {
+    /**
+     * @see https://github.com/tjx666/caxri/issues/1179
+     */
+    it('records why a signal never landed instead of leaving every survivor equally unexplained', async () => {
+        const targets = entries()
+            .filter((entry) => [600, 603].includes(entry.pid))
+            .map((entry) => ({ ...entry, identity: `start-${entry.pid}` }));
+        const stop = operations(() => targets);
+        stop.signalProcess = (pid, signal) => {
+            stop.signals.push([pid, signal]);
+            // 600 is refused on every attempt; 603 is signaled fine but just never exits (a slow graceful shutdown).
+            return pid === 600 ? { ok: false, reason: 'permission-denied' } : { ok: true };
+        };
+
+        const result = await stopProcesses(targets, stop);
+
+        const reasons = new Map(
+            result.survivors.map(({ closedReason, pid }) => [pid, closedReason]),
+        );
+        expect(reasons.get(600)).toBe('permission-denied');
+        expect(reasons.get(603)).toBeUndefined();
+    });
+
+    it('never calls process.kill for a target whose snapshot never captured a start-time identity', async () => {
+        const target: ProcessEntry = { command: 'Caxri Dev', parentPid: 1, pid: 950 };
+        const stop = operations(() => [target]);
+
+        await stopProcesses([target], stop);
+
+        expect(stop.signals).toEqual([]);
+    });
+
+    it('reports identity-changed, not a plain unexplained survivor, when the live identity shifts right before escalation', async () => {
+        const target: ProcessEntry = {
+            command: 'Caxri Dev',
+            identity: 'start-970',
+            parentPid: 1,
+            pid: 970,
+        };
+        const stop = operations(() => [target]);
+        let identityReads = 0;
+        stop.identity = () => {
+            identityReads += 1;
+            // The SIGTERM round's pre-signal recheck matches; the SIGKILL round's does not (a PID reused mid-stop).
+            return Promise.resolve(identityReads === 1 ? 'start-970' : 'reused-970');
+        };
+
+        const result = await stopProcesses([target], stop);
+
+        expect(stop.signals).toEqual([[970, 'SIGTERM']]);
+        expect(result.survivors.find(({ pid }) => pid === 970)?.closedReason).toBe(
+            'identity-changed',
+        );
+    });
+
+    it("classifies process.kill's real errno instead of swallowing it", () => {
+        // A signal to PID 1 (launchd) as a non-root user is refused; the classification must not be lost.
+        expect(defaultStopOperations.signalProcess(1, 'SIGTERM')).toEqual({
+            ok: false,
+            reason: 'permission-denied',
+        });
+        // A PID nothing on the system is using is the benign case: the target is simply already gone.
+        expect(defaultStopOperations.signalProcess(999_999, 'SIGTERM')).toEqual({
+            ok: false,
+            reason: 'already-exited',
+        });
+    });
+
+    it('reports success for a real owned process it actually signals', async () => {
+        const child = spawn('sh', ['-c', 'while true; do sleep 1; done'], { stdio: 'ignore' });
+        try {
+            await sleep(200);
+            expect(defaultStopOperations.signalProcess(child.pid!, 'SIGTERM')).toEqual({
+                ok: true,
+            });
+        } finally {
+            try {
+                process.kill(child.pid!, 'SIGKILL');
+            } catch {
+                /*
+                already gone
+                */
+            }
+        }
+    });
+});
+
+describe('stopping a real macOS process tree', () => {
+    function writeExecutableScript(path: string, body: string): void {
+        writeFileSync(path, `#!/bin/sh\n${body}`);
+        chmodSync(path, 0o755);
+    }
+
+    /**
+     * A three-level tree shaped like a detached Server Core (Server Core -> Extension Host -> a PTY shell), rooted
+     * entirely under `root` so `isWorktreeOwnedCommand` claims it exactly as it would a real worktree, and matched only
+     * through that path — nothing else on the machine can ever collide with it.
+     */
+    function spawnServerTree(root: string, shouldIgnoreTerm: boolean): number {
+        const distribution = join(root, 'apps', 'server', 'dist');
+        mkdirSync(distribution, { recursive: true });
+        const shell = join(distribution, 'terminal-shell.sh');
+        const extensionHost = join(distribution, 'extension-host.sh');
+        const serverCore = join(distribution, 'server-core.sh');
+        const trap = shouldIgnoreTerm ? "trap '' TERM\n" : '';
+        writeExecutableScript(shell, `${trap}while true; do sleep 1; done\n`);
+        writeExecutableScript(extensionHost, `${trap}"${shell}" &\nwhile true; do sleep 1; done\n`);
+        writeExecutableScript(
+            serverCore,
+            `${trap}"${extensionHost}" &\nwhile true; do sleep 1; done\n`,
+        );
+        const child = spawn(serverCore, [], { cwd: root, detached: true, stdio: 'ignore' });
+        child.unref();
+        return child.pid!;
+    }
+
+    function makeRoot(): string {
+        return mkdtempSync(join(tmpdir(), 'caxri-worktree-processes-test-'));
+    }
+
+    async function isPgrepStillMatching(root: string): Promise<boolean> {
+        try {
+            await runCapture('pgrep', ['-f', root], process.cwd());
+            return true;
+        } catch {
+            // A non-zero pgrep exit (no match) surfaces as a thrown CommandError.
+            return false;
+        }
+    }
+
+    /**
+     * Best-effort cleanup that signals only PIDs whose own command line carries this test's unique temporary root,
+     * resolved one by one instead of handing a pattern to `pkill`.
+     */
+    async function killRootTree(root: string): Promise<void> {
+        const entries = parseProcessTable(
+            await runCapture('ps', ['-axo', 'pid=,ppid=,command='], process.cwd()),
+        );
+        for (const entry of entries) {
+            if (!entry.command.includes(root)) continue;
+            try {
+                process.kill(entry.pid, 'SIGKILL');
+            } catch {
+                /*
+                already gone
+                */
+            }
+        }
+    }
+
+    it(
+        'terminates a real responsive nested tree and reports it stopped, not merely signaled',
+        { timeout: 15_000 },
+        async () => {
+            const root = makeRoot();
+            try {
+                const serverCorePid = spawnServerTree(root, false);
+                await sleep(500);
+
+                const result = await stopWorktreeProcesses(
+                    { selfPid: process.pid, worktreePath: root },
+                    defaultStopOperations,
+                );
+
+                expect(result.survivors).toEqual([]);
+                expect(result.stopped.some((entry) => entry.pid === serverCorePid)).toBe(true);
+                expect(result.stopped.length).toBeGreaterThanOrEqual(3);
+                expect(await isPgrepStillMatching(root)).toBe(false);
+
+                // Idempotent: nothing left to report, nothing left to signal.
+                const second = await stopWorktreeProcesses(
+                    { selfPid: process.pid, worktreePath: root },
+                    defaultStopOperations,
+                );
+                expect(second.stopped).toEqual([]);
+                expect(second.survivors).toEqual([]);
+            } finally {
+                await killRootTree(root);
+                rmSync(root, { force: true, recursive: true });
+            }
+        },
+    );
+
+    it(
+        'escalates through SIGKILL to clear a tree that ignores SIGTERM at every level',
+        { timeout: 20_000 },
+        async () => {
+            const root = makeRoot();
+            try {
+                spawnServerTree(root, true);
+                await sleep(500);
+
+                const result = await stopWorktreeProcesses(
+                    { selfPid: process.pid, worktreePath: root },
+                    defaultStopOperations,
+                );
+
+                expect(result.survivors).toEqual([]);
+                expect(await isPgrepStillMatching(root)).toBe(false);
+            } finally {
+                await killRootTree(root);
+                rmSync(root, { force: true, recursive: true });
+            }
+        },
+    );
+
+    it('leaves a sibling worktree tree untouched', { timeout: 15_000 }, async () => {
+        const root = makeRoot();
+        const sibling = makeRoot();
+        try {
+            spawnServerTree(root, false);
+            const siblingPid = spawnServerTree(sibling, false);
+            await sleep(500);
+
+            await stopWorktreeProcesses(
+                { selfPid: process.pid, worktreePath: root },
+                defaultStopOperations,
+            );
+
+            expect(await isPgrepStillMatching(sibling)).toBe(true);
+            expect(() => process.kill(siblingPid, 0)).not.toThrow();
+        } finally {
+            await killRootTree(root);
+            await killRootTree(sibling);
+            rmSync(root, { force: true, recursive: true });
+            rmSync(sibling, { force: true, recursive: true });
+        }
+    });
+
+    it(
+        'refuses to signal a live PID once its real identity no longer matches the captured snapshot',
+        { timeout: 15_000 },
+        async () => {
+            const root = makeRoot();
+            try {
+                const serverCorePid = spawnServerTree(root, false);
+                await sleep(500);
+
+                const before = await inspectWorktreeProcesses(
+                    { selfPid: process.pid, worktreePath: root },
+                    defaultStopOperations,
+                );
+                const captured = before.owned.find((entry) => entry.pid === serverCorePid)!;
+                expect(captured.identity).toBeDefined();
+                // Confirm the real identity actually matches the snapshot before poisoning it.
+                expect(await getProcessIdentity(serverCorePid)).toBe(captured.identity);
+
+                const signals: Array<[number, NodeJS.Signals]> = [];
+                const spyOperations: StopOperations = {
+                    ...defaultStopOperations,
+                    signalProcess: (pid, signal) => {
+                        signals.push([pid, signal]);
+                        return defaultStopOperations.signalProcess(pid, signal);
+                    },
+                };
+                const poisoned = { ...captured, identity: 'stale-identity-from-a-different-boot' };
+
+                const result = await stopProcesses([poisoned], spyOperations);
+
+                expect(signals).toEqual([]);
+                expect(() => process.kill(serverCorePid, 0)).not.toThrow();
+                expect(result.stopped.map(({ pid }) => pid)).toEqual([serverCorePid]);
+            } finally {
+                await killRootTree(root);
+                rmSync(root, { force: true, recursive: true });
+            }
+        },
+    );
 });

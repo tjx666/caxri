@@ -5,7 +5,6 @@ import type {
     TerminalRecord,
     TerminalResourceUsage,
     TerminalSnapshot,
-    TerminalWheelInput,
 } from '@caxri/protocol';
 import {
     CaxriError,
@@ -58,6 +57,13 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
     private readonly resizeQueues = new Map<string, RemoteResizeQueue>();
     private readonly views = new Map<string, RemoteView>();
     private readonly mobileControl: RemoteMobileTerminalControl;
+    /**
+     * Both forward straight to `mobileControl` with its own signature, so binding in the constructor keeps the
+     * pass-through to one declaration per capability instead of re-typing every parameter the interface already pins
+     * down. Assigned after `mobileControl` exists, not as a field initializer, which would run before it.
+     */
+    readonly inputForGeneration: TerminalExecutionPort['inputForGeneration'];
+    readonly scrollForGeneration: TerminalExecutionPort['scrollForGeneration'];
 
     constructor(
         private readonly supervisor: TerminalHostControl,
@@ -65,6 +71,8 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
     ) {
         super();
         this.mobileControl = new RemoteMobileTerminalControl(this.identities, supervisor);
+        this.inputForGeneration = this.mobileControl.inputForGeneration.bind(this.mobileControl);
+        this.scrollForGeneration = this.mobileControl.scrollForGeneration.bind(this.mobileControl);
         supervisor.onEvent((event) => this.projectHostEvent(event));
         supervisor.onExit(() => this.handleHostExit());
     }
@@ -369,9 +377,7 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
                 abortSignal,
             );
         } catch (error) {
-            /**
-             * Normalize the IPC rejection only when the caller aborted its stale restore.
-             */
+            // Normalize the IPC rejection only when the caller aborted its stale restore.
             if (!abortSignal?.aborted) throw error;
             if (!(error instanceof CaxriError) || error.code !== 'CANCELLED') throw error;
         }
@@ -600,19 +606,6 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         expectedGeneration: number,
     ): Promise<void> {
         return this.mobileControl.releaseTakeOver(terminalId, holderId, expectedGeneration);
-    }
-
-    inputForGeneration(
-        terminalId: string,
-        expectedGeneration: number,
-        data: string,
-        signal?: AbortSignal,
-    ): Promise<boolean> {
-        return this.mobileControl.inputForGeneration(terminalId, expectedGeneration, data, signal);
-    }
-
-    scrollForGeneration(terminalId: string, generation: number, wheel: TerminalWheelInput) {
-        return this.mobileControl.scrollForGeneration(terminalId, generation, wheel);
     }
 
     async textTail(terminalId: string, maximumCharacters: number): Promise<string | null> {

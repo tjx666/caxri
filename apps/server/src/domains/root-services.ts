@@ -129,7 +129,7 @@ export async function createRootServices({
      * One incremental reader for every Agent transcript clue the product consumes. Shared so the Workbench Root picker
      * and the status bar's Linear lookup pay for a transcript's bytes once between them.
      */
-    const sessionContext = new SessionContextService(database, agentEnvironment);
+    const sessionContext = new SessionContextService(database, logger, agentEnvironment);
     const workbenchRoots = new WorkbenchRootService({
         behavior: () => config.getSettings().value['workbench.newWorktreeBehavior'],
         database,

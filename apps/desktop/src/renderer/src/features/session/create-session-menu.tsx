@@ -1,5 +1,5 @@
-import type { ReactElement } from 'react';
-import { useEffect } from 'react';
+import type { MouseEventHandler, ReactElement } from 'react';
+import { cloneElement, useEffect } from 'react';
 
 import type { CommandId, ProjectRecord } from '@caxri/protocol';
 import { terminalKindSchema } from '@caxri/protocol';
@@ -13,6 +13,7 @@ import { AgentIdentityIcon } from '../../icons/agents/agent-identity-icon';
 import { cn } from '../../lib/utilities';
 import type { CreateSessionAnchor } from '../../stores/dialogs';
 import { closeCreateSessionMenu, useDialogStore } from '../../stores/dialogs';
+import { useSettings } from '../../stores/selectors';
 import { beginSessionCreation, chooseSessionTerminalKind } from './session-commands';
 
 /**
@@ -31,7 +32,11 @@ function SessionCreationMenu({
 }: {
     anchor: CreateSessionAnchor;
     project: ProjectRecord;
-    trigger: ReactElement;
+    /**
+     * Typed to accept an `onClick` override rather than the looser default `ReactElement` props: the default-Agent
+     * branch below clones this element with a direct `onClick` instead of handing the click to Base UI's `Menu`.
+     */
+    trigger: ReactElement<{ onClick?: MouseEventHandler<HTMLButtonElement> }>;
     /**
      * Renders the trigger inside a `CommandTooltip`. It has to be resolved here rather than by the caller wrapping this
      * component, because Base UI's tooltip trigger reaches its child through `render` and a plain function component
@@ -44,6 +49,41 @@ function SessionCreationMenu({
             state.createSessionMenu?.projectId === project.id &&
             state.createSessionMenu.anchor === anchor,
     );
+    const defaultAgent = useSettings()?.['session.defaultAgent'];
+    /**
+     * A Project can leave the bootstrap while its menu is open — removed from another window, or dropped by a Server
+     * state change. React then unmounts the only component that renders this claim, so Base UI never reports a close
+     * and the store would keep a claim that silently re-opens the menu, stealing focus, the next time that row mounts.
+     */
+    useEffect(
+        () => () => {
+            const claim = useDialogStore.getState().createSessionMenu;
+            if (claim?.projectId === project.id && claim.anchor === anchor)
+                closeCreateSessionMenu();
+        },
+        [anchor, project.id],
+    );
+    /**
+     * With a configured `session.defaultAgent` the trigger never has a menu to open, so it must not route the click
+     * through Base UI's `Menu` at all: `beginSessionCreation` returns before ever touching the store's menu claim,
+     * which leaves `open` permanently `false`. A controlled Base UI `Menu` whose `open` prop never turns `true` loses
+     * sync between its internal interaction state and the prop after the first attempt and stops reporting further
+     * `onOpenChange(true)` calls, which is why the second click on this trigger used to do nothing
+     * (github.com/tjx666/caxri/issues/905). Skipping the `Menu`/`MenuTrigger` wrapper entirely when a default Agent is
+     * set avoids that desync outright rather than working around it.
+     */
+    if (defaultAgent) {
+        const directTrigger = cloneElement(trigger, {
+            onClick: () => {
+                beginSessionCreation(project.id, anchor);
+            },
+        });
+        return tooltipCommandId ? (
+            <CommandTooltip commandId={tooltipCommandId}>{directTrigger}</CommandTooltip>
+        ) : (
+            directTrigger
+        );
+    }
     const menuTrigger = (
         <MenuTrigger
             /**
@@ -64,26 +104,12 @@ function SessionCreationMenu({
             render={trigger}
         />
     );
-    /**
-     * A Project can leave the bootstrap while its menu is open — removed from another window, or dropped by a Server
-     * state change. React then unmounts the only component that renders this claim, so Base UI never reports a close
-     * and the store would keep a claim that silently re-opens the menu, stealing focus, the next time that row mounts.
-     */
-    useEffect(
-        () => () => {
-            const claim = useDialogStore.getState().createSessionMenu;
-            if (claim?.projectId === project.id && claim.anchor === anchor)
-                closeCreateSessionMenu();
-        },
-        [anchor, project.id],
-    );
     return (
         <Menu
             open={open}
             /**
-             * The trigger only _requests_ an open; `beginSessionCreation` decides. With a configured
-             * `session.defaultAgent` it creates the Session outright and never sets the store's menu claim, so the
-             * fully controlled `open` stays false and the button keeps its one-click behavior.
+             * The trigger only _requests_ an open here; `beginSessionCreation` is reached only without a configured
+             * default Agent, since that branch above already short-circuits the direct-create case.
              */
             onOpenChange={(nextOpen) =>
                 nextOpen ? beginSessionCreation(project.id, anchor) : closeCreateSessionMenu()

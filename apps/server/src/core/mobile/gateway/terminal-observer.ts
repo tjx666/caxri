@@ -27,6 +27,7 @@ interface MobileTerminalObserverOptions {
     release: (bytes: number) => void;
     remove: () => void;
     reportResync?: (reason: ResyncReason) => void;
+    reportHumanSteer?: (terminalId: string) => void;
     reserve: (bytes: number) => boolean;
     send: (payload: MobileEventPayload | MobileStreamPayload) => Promise<void>;
     subscriptionId: string;
@@ -41,7 +42,10 @@ interface MobileTerminalObserverOptions {
 export class MobileTerminalObserver {
     readonly #options: MobileTerminalObserverOptions;
     readonly #pending: Array<{ bytes: number; event: TerminalObserverEvent }> = [];
-    readonly #inputControllers = new Set<AbortController>();
+    /**
+     * Outstanding Host requests (input, scroll) that a generation change or close() must cancel in flight.
+     */
+    readonly #requestControllers = new Set<AbortController>();
     #active = true;
     #activated = false;
     #closePromise?: Promise<void>;
@@ -114,7 +118,7 @@ export class MobileTerminalObserver {
     }
 
     abortPendingInputs(): void {
-        for (const controller of this.#inputControllers) controller.abort();
+        for (const controller of this.#requestControllers) controller.abort();
     }
 
     activate(): void {
@@ -190,7 +194,7 @@ export class MobileTerminalObserver {
     async input(expectedGeneration: number, data: string): Promise<void> {
         this.#assertGeneration(expectedGeneration);
         const cancellation = new AbortController();
-        this.#inputControllers.add(cancellation);
+        this.#requestControllers.add(cancellation);
         try {
             await this.#options.authorize();
             this.#assertGeneration(expectedGeneration);
@@ -205,24 +209,36 @@ export class MobileTerminalObserver {
                 ))
             )
                 throw new CaxriError('CONFLICT', 'Terminal generation changed');
+            this.#options.reportHumanSteer?.(this.#options.terminalId);
         } finally {
-            this.#inputControllers.delete(cancellation);
+            this.#requestControllers.delete(cancellation);
         }
     }
 
     /**
      * Scrolling needs control authority but not the size lease: it moves the application's own view without taking the
-     * keyboard, so a phone can read an alternate-screen Agent while Desktop keeps typing.
+     * keyboard, so a phone can read an alternate-screen Agent while Desktop keeps typing. Cancellation reuses the input
+     * path's semantics: a subscription that closes or changes generation while the request is in flight aborts it
+     * instead of letting a stale scroll keep occupying the Host's request channel.
      */
     async scroll(expectedGeneration: number, wheel: TerminalWheelInput): Promise<void> {
         this.#assertGeneration(expectedGeneration);
-        await this.#options.authorize();
-        this.#assertGeneration(expectedGeneration);
-        await this.#options.port.scrollForGeneration(
-            this.#options.terminalId,
-            expectedGeneration,
-            wheel,
-        );
+        const cancellation = new AbortController();
+        this.#requestControllers.add(cancellation);
+        try {
+            await this.#options.authorize();
+            this.#assertGeneration(expectedGeneration);
+            if (cancellation.signal.aborted)
+                throw new CaxriError('CANCELLED', 'Terminal subscription closed');
+            await this.#options.port.scrollForGeneration(
+                this.#options.terminalId,
+                expectedGeneration,
+                wheel,
+                cancellation.signal,
+            );
+        } finally {
+            this.#requestControllers.delete(cancellation);
+        }
     }
 
     async renewLease(): Promise<void> {

@@ -33,9 +33,12 @@ import { UpdateStatusChip } from './update-status-chip';
 import { WorkbenchRootPicker } from './workbench-root-picker';
 
 /**
- * No live push exists for delivery metadata, so a stale read is refreshed on a fixed interval.
+ * Low-frequency fallback only. `projectStatus.changed` and `sessionPullRequests.changed` push a targeted refetch of
+ * this query the moment the Server's delivery projection for the Session changes (see `invalidateProjectStatusQuery`
+ * and `invalidateSessionPullRequestDependentQueries` in `queries/invalidation.ts`), so this interval exists purely to
+ * recover from a missed or dropped event rather than to notice a change itself (issue caxri#1310).
  */
-const PROJECT_OVERVIEW_REFETCH_INTERVAL_MS = 60_000;
+const PROJECT_OVERVIEW_FALLBACK_REFETCH_INTERVAL_MS = 5 * 60_000;
 
 type ServerStatus = BootstrapState['runtime']['status'];
 
@@ -66,13 +69,15 @@ const DEGRADED_STATES: Partial<
 };
 
 /**
- * `projectStatus.overview` may shell out to a delivery CLI (e.g. `gh`) for the pull request, so it stays on the 60s
- * poll and is never invalidated by `files.changed` (see `invalidateFileDependentQueries` in `queries/invalidation.ts`).
- * Branch and changed-file count instead come from the `git.overview` query — a Files-free projection of the same
- * repository snapshot `SourceControlView` and `GitDiffEditor` read through `git.summary`, invalidated by the
- * Server-driven `git.changed` event — so the status bar reflects a Git-affecting change immediately without pulling the
- * full working-tree `files[]` payload across IPC or calling the delivery CLI any more often than the interval already
- * does.
+ * `projectStatus.overview` may shell out to a delivery CLI (e.g. `gh`), so it is never invalidated by `files.changed`
+ * (see `invalidateFileDependentQueries` in `queries/invalidation.ts`). It instead follows the Server's own delivery
+ * push — `projectStatus.changed` and `sessionPullRequests.changed` both invalidate this query for the affected Session
+ * — which is what lets the status bar converge with the Status panel and the sidebar row within the same Server refresh
+ * instead of waiting out a fixed poll (issue caxri#1310); `PROJECT_OVERVIEW_FALLBACK_REFETCH_INTERVAL_MS` only recovers
+ * from a missed or dropped push. Branch and changed-file count instead come from the `git.overview` query — a
+ * Files-free projection of the same repository snapshot `SourceControlView` and `GitDiffEditor` read through
+ * `git.summary`, invalidated by the Server-driven `git.changed` event — so the status bar reflects a Git-affecting
+ * change immediately without pulling the full working-tree `files[]` payload across IPC.
  */
 function useProjectOverview(sessionId: string | undefined) {
     const overviewQuery = usePolledQuery(
@@ -80,7 +85,7 @@ function useProjectOverview(sessionId: string | undefined) {
         { sessionId: sessionId ?? '' },
         {
             label: 'projectStatus.overview',
-            intervalMs: PROJECT_OVERVIEW_REFETCH_INTERVAL_MS,
+            intervalMs: PROJECT_OVERVIEW_FALLBACK_REFETCH_INTERVAL_MS,
             enabled: Boolean(sessionId),
         },
     );

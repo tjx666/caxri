@@ -90,7 +90,7 @@ for (const mode of ['missing-cli', 'newer-incomplete', 'malformed-config', 'conf
                 // something Caxri got wrong. Reserving the dot for states that need repair keeps it meaningful.
                 'missing-cli': {
                     kind: 'notInstalled',
-                    label: 'Not in effect — install the agent CLI first',
+                    label: 'Not in effect — Install the Codex CLI, then restart Caxri.',
                     tone: 'muted',
                 },
                 'newer-incomplete': {

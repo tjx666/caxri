@@ -181,7 +181,10 @@ export const serverEventPayloads = {
         scope: z.enum(['status', 'topology']),
     }),
     /**
-     * One-shot invalidation after a background Project Status refresh replaces its Runtime cache.
+     * One-shot invalidation after a background Project Status refresh replaces its Runtime cache. The Renderer
+     * invalidates both `projectStatus.summary` (the Status panel) and `projectStatus.overview` (the status bar) for
+     * this Session, so the two converge in the same Server refresh instead of the status bar waiting out its own poll
+     * (issue caxri#1310).
      */
     'projectStatus.changed': z.object({ sessionId: identifierSchema }),
     /**
@@ -202,7 +205,10 @@ export const serverEventPayloads = {
         url: z.url().optional(),
     }),
     /**
-     * One-shot invalidation after a background sweep changed the discovered pull request of at least one Session.
+     * One-shot invalidation after a background sweep changed the discovered pull request of at least one Session. The
+     * Renderer also invalidates `projectStatus.overview` for every listed Session: `SessionPullRequestService` and
+     * `ProjectStatusService` share one `GitHubPullRequestStore`, so the overview's pull-request field normally answers
+     * from the record this sweep just wrote (issue caxri#1310).
      */
     'sessionPullRequests.changed': z.object({ sessionIds: z.array(identifierSchema).max(1_024) }),
     /**

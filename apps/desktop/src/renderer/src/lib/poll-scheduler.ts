@@ -89,12 +89,13 @@ export function parseE2EMaxPollIntervalMs(source: string | undefined): number | 
 /**
  * Caps a configured cadence for focused Electron coverage that has to observe a poll actually firing.
  *
- * Several product cadences are minutes-scale on purpose (`projectStatus.overview` and `session.pullRequests` both poll
- * once a minute). A workflow proving that an availability indicator recovers once the underlying CLI works again has to
- * wait out one whole tick, which cost `pr-unknown.e2e.ts` a full minute on the single-worker CI pool. The cap is opt-in
- * per launch through `CAXRI_E2E_MAX_POLL_INTERVAL_MS` and only ever lowers a cadence, so a spec asserting a fast
- * cadence — the Logs panel's one-second tick — is unaffected whether or not its launch opts in. Production never
- * exposes the bridge and therefore never has a cap.
+ * Several product cadences are minutes-scale on purpose (`projectStatus.overview` is a low-frequency fallback behind
+ * Server-pushed invalidation — see `invalidateProjectStatusQuery` and `invalidateSessionPullRequestDependentQueries` in
+ * `queries/invalidation.ts` — and `session.pullRequests` polls once a minute). A workflow proving that an availability
+ * indicator recovers once the underlying CLI works again has to wait out one whole tick, which cost `pr-unknown.e2e.ts`
+ * a full minute on the single-worker CI pool. The cap is opt-in per launch through `CAXRI_E2E_MAX_POLL_INTERVAL_MS` and
+ * only ever lowers a cadence, so a spec asserting a fast cadence — the Logs panel's one-second tick — is unaffected
+ * whether or not its launch opts in. Production never exposes the bridge and therefore never has a cap.
  */
 export function resolvePollIntervalMs(intervalMs: number): number {
     const cap = parseE2EMaxPollIntervalMs(

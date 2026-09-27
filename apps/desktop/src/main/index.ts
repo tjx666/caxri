@@ -141,6 +141,7 @@ if (ownsProfileInstance) {
         getServer: () => supervisor,
         getWindow: () => mainWindow,
         grants: grantedRoots,
+        logger: () => mainLogger,
         nextTestRoot: resolveNextTestRootPath,
     });
     const e2eWindowMode = resolveE2EWindowMode({
