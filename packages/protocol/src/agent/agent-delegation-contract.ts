@@ -34,6 +34,12 @@ export const agentDelegationFailureSchema = z.enum([
     'authentication_failed',
     'output_limit',
     'startup_not_ready',
+    /**
+     * With status `blocked`: the Agent process is alive but has not started its turn after the startup deadline,
+     * usually because a first-run prompt (folder trust, sign-in, an update notice) waits for the user in its Terminal.
+     * The task resumes on its own once the Agent starts; the prompt's content is never read.
+     */
+    'startup_waiting',
     'submission_unconfirmed',
     'provider_failed',
     'permission_required',

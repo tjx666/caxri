@@ -299,6 +299,7 @@ export function createServiceHandlers(services: {
     const commander = new AgentCommanderService({
         ...services.commander,
         database,
+        logger,
         pullRequests: () => sessionPullRequests.snapshot(),
         userDataPath,
     });

@@ -114,7 +114,14 @@ export function commanderBoard(input: {
         const task = tasks.get(session.id);
         return [
             {
-                group: commanderBoardGroup(session, terminal, input.now),
+                /**
+                 * An Agent waiting at startup has no lifecycle hooks yet, so its Session looks idle, but only the user
+                 * can answer the prompt it is stuck on.
+                 */
+                group:
+                    task?.status === 'blocked' && task.failure === 'startup_waiting'
+                        ? 'attention'
+                        : commanderBoardGroup(session, terminal, input.now),
                 projectId: project.id,
                 projectTitle: project.displayTitle,
                 projectRoot: project.rootPath,
