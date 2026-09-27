@@ -53,6 +53,25 @@ cd "$RUNNER_INSTALL_DIR"
 ./svc.sh status
 ```
 
+Job preparation recovers detached Servers left by earlier CI runs before admitting new work.
+Recovery requires this checkout's exact Server executable and a canonical profile beneath its
+`RUNNER_TEMP/<owner>/tmp` boundary; a process name or an old PID alone is never authority. It
+excludes the current run, protects the cleanup process ancestry, freezes the historical root set,
+tracks descendants across reparenting, and checks process start identity before every signal.
+Teardown first requests termination, then escalates within a bounded window and verifies exit.
+If termination cannot be verified, cleanup fails and retains the profile and ownership evidence.
+
+For manual maintenance, establish an idle runner window and review the exact historical process
+inventory first. Run identifiers are not execution order: a queued older run can start next, so
+never expand a cleanup to newly observed roots based only on a numeric run cutoff. Do not stop
+the runner's current job, an installed app, or a development worktree by executable-name matching.
+
+The native compatibility spike writes a disposable file and requires that file's event from the
+artifact's actual watcher binding. `event-delivered` is the success receipt; merely subscribing
+does not prove event delivery. A failure should be compared with an isolated native probe and
+process/resource measurements before changing timeouts or the watcher backend. Recovery of a
+system-wide file-event daemon is an explicit operator action, never an automatic CI cleanup step.
+
 Use the foreground listener only for troubleshooting after stopping the service:
 
 ```bash
