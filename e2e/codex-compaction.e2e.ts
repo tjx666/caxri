@@ -162,7 +162,7 @@ process.stdout.write('Compaction Agent ready\r\n');
         expect(await tabOperation.evaluate((element) => element.getAnimations().length)).toBe(0);
         expect(
             await sessionStatus
-                .locator('[data-slot="spinner"]')
+                .locator('[data-session-status-arc]')
                 .evaluate((element) => element.getAnimations().length),
         ).toBe(0);
 

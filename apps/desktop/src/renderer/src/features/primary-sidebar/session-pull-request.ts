@@ -92,7 +92,9 @@ function deployedPresentation(
                 ariaLabel: `${base} and deployed to production.`,
                 icon: 'deployed',
                 label: 'Deployed',
-                tone: 'success',
+                // The merged violet, not the open green: a shipped rocket is where a merged pull request goes next,
+                // and at 13px a green rocket beside a green open PR read as the same state.
+                tone: 'merged',
                 checksLabel: 'Deployed to production',
                 checksTone: 'success',
             };

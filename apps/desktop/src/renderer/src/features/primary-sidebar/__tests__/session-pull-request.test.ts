@@ -56,7 +56,7 @@ describe('Session pull request presentation', () => {
             ariaLabel: 'Pull request #42 merged and deployed to production.',
             icon: 'deployed',
             label: 'Deployed',
-            tone: 'success',
+            tone: 'merged',
             checksLabel: 'Deployed to production',
             checksTone: 'success',
         });
