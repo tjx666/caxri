@@ -219,7 +219,8 @@ export class SessionPullRequestService {
 
     private privateSessionContext(): (session: SessionRecord) => Promise<SessionTranscriptContext> {
         const environment = this.options.agentEnvironment ?? defaultAgentEnvironment();
-        const reader = new SessionContextService(this.database as CaxriDatabase, environment);
+        const database = this.database as CaxriDatabase;
+        const reader = new SessionContextService(database, this.logger, environment);
         return (session) => reader.read(session);
     }
 
