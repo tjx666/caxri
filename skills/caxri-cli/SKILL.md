@@ -63,7 +63,9 @@ caxri diagnostics snapshot --json
 ```
 
 `projects.read`, `sessions.read`, `settings.read`, and `diagnostics.read` are independent. A
-`debug:read` grant adds bounded diagnostic and Settings reads; it does not permit writes.
+`debug:read` grant adds bounded diagnostic and Settings reads; it does not permit writes. The Agent
+Commander has no current Project or Session to read: its own are hidden, so both selectors return
+`NOT_FOUND` for it.
 
 Validate a proposed Settings change without writing only when `settings.write` is present. A
 `business:write` grant supplies that capability:
@@ -150,7 +152,8 @@ lifecycle completion from Terminal silence or read output to guess Agent state.
 ## Coordinate work as the Agent Commander
 
 Only the Agent Commander Terminal holds the `commander` capability. It reads every visible Project
-and Session through one board and delegates each task into an empty Session it created itself:
+and Session through one board, instead of `project current` or `session current`, and delegates each
+task into an empty Session it created itself:
 
 ```bash
 caxri commander board --json
