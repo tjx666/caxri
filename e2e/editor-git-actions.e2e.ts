@@ -7,6 +7,7 @@ import { execFileAsync } from '@caxri/system';
 
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri } from './support/helpers.ts';
+import { chooseContextMenuItem } from './support/native-context-menu.ts';
 
 test('Editor title actions open the file last-commit and pull-request diffs', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-editor-git-actions-e2e-'));
@@ -105,14 +106,12 @@ test('Editor title actions open the file last-commit and pull-request diffs', as
         const copyTabPaths = async (tabName: string): Promise<void> => {
             const tab = running.page.getByRole('tab', { name: tabName, exact: true }).first();
             await tab.click({ button: 'right' });
-            await running.page.getByRole('menuitem', { name: 'Copy Path', exact: true }).click();
+            await chooseContextMenuItem(running.app, 'Copy Path');
             const absolutePath = await realpath(join(root, 'tracked.txt'));
             await expect.poll(() => running.clipboard.textEquals(absolutePath)).toBe(true);
             await running.clipboard.claimText(absolutePath);
             await tab.click({ button: 'right' });
-            await running.page
-                .getByRole('menuitem', { name: 'Copy Relative Path', exact: true })
-                .click();
+            await chooseContextMenuItem(running.app, 'Copy Relative Path');
             await expect.poll(() => running.clipboard.textEquals('tracked.txt')).toBe(true);
             await running.clipboard.claimText('tracked.txt');
         };

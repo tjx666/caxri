@@ -7,6 +7,7 @@ import type { Locator, Page } from '@playwright/test';
 
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
+import { chooseContextMenuItem } from './support/native-context-menu.ts';
 
 /**
  * Mirrors the `PaneLayout` shape from `packages/protocol/src/domain/pane-layout.ts` closely enough for structural
@@ -134,7 +135,7 @@ test('Split-right via the tab context menu moves the tab and converges on close,
         await expect(panes).toHaveCount(1);
 
         await aTab.click({ button: 'right' });
-        await running.page.getByRole('menuitem', { name: 'Split Right' }).click();
+        await chooseContextMenuItem(running.app, 'Split Right');
 
         await expect(panes).toHaveCount(2);
         await expect(running.page.locator('.pane-split.pane-split-horizontal')).toHaveCount(1);

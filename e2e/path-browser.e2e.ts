@@ -10,6 +10,7 @@ import {
     pageRequest,
     waitForRuntimeReady,
 } from './support/helpers.ts';
+import { chooseContextMenuItem } from './support/native-context-menu.ts';
 
 test('Cmd+P lazily browses Project paths from Terminal, Editor, and Files focus', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-path-browser-e2e-'));
@@ -266,10 +267,7 @@ test('Cmd+P removes the Project anchor and opens an external file without a pick
         await expect(externalTab).toBeVisible();
         await expect(externalTab).toHaveAttribute('aria-selected', 'true');
         await externalTab.click({ button: 'right' });
-        await expect(
-            running.page.getByRole('menuitem', { name: 'Copy Path', exact: true }),
-        ).toBeVisible();
-        await running.page.getByRole('menuitem', { name: 'Copy Path', exact: true }).click();
+        await chooseContextMenuItem(running.app, 'Copy Path');
         const externalPath = await realpath(join(externalRoot, 'external-only.ts'));
         await expect.poll(() => running.clipboard.textEquals(externalPath)).toBe(true);
         await running.clipboard.claimText(externalPath);

@@ -7,6 +7,7 @@ import type { AppSettings, BootstrapState, ProjectRecord } from '@caxri/protocol
 
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
+import { chooseContextMenuItem } from './support/native-context-menu.ts';
 import { readFileForPoll } from './support/result-file-polling.ts';
 
 function quotePath(path: string): string {
@@ -54,21 +55,18 @@ test('Project path actions work without Sessions and drag absolute shell-safe ro
         );
         await expect(emptyHeading).toBeVisible();
         await emptyHeading.click({ button: 'right' });
-        const menu = running.page.getByRole('menu', { name: `${empty.displayTitle} actions` });
-        await expect(menu.getByRole('menuitem', { name: 'Copy Path', exact: true })).toBeVisible();
-        await menu.screenshot({ path: test.info().outputPath('project-path-menu.png') });
-        await menu.getByRole('menuitem', { name: 'Copy Path', exact: true }).click();
+        await chooseContextMenuItem(running.app, 'Copy Path');
         await expect.poll(() => running.clipboard.textEquals(emptyRoot)).toBe(true);
         await running.clipboard.claimText(emptyRoot);
         await emptyHeading.click({ button: 'right' });
-        await menu.getByRole('menuitem', { name: 'Reveal in Finder', exact: true }).click();
+        await chooseContextMenuItem(running.app, 'Reveal in Finder');
         await expect
             .poll(() =>
                 running.app.evaluate(() => String(Reflect.get(globalThis, '__projectRevealPath'))),
             )
             .toBe(emptyRoot);
         await emptyHeading.click({ button: 'right' });
-        await menu.getByRole('menuitem', { name: 'Open Project in Editor', exact: true }).click();
+        await chooseContextMenuItem(running.app, 'Open Project in Editor');
         await expect
             .poll(() => readFileForPoll(() => readFile(editorReceipt, 'utf8')))
             .toBe(JSON.stringify([emptyRoot]));

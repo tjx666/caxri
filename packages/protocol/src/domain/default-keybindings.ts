@@ -138,6 +138,13 @@ export const defaultKeybindings: Keybinding[] = [
      * `Cmd+J` matches VS Code's Toggle Panel chord, which this region is modeled on.
      */
     { key: 'cmd+j', command: 'panel.toggle' },
+    /**
+     * `Cmd+=` / `Cmd+-` match VS Code and every browser. Reset Zoom stays unbound: VS Code's `Cmd+0` is Focus into
+     * Primary Side Bar here too, and its `Cmd+Numpad0` cannot be expressed because bindings match `KeyboardEvent.key`,
+     * which reports both zeros as `0`.
+     */
+    { key: 'cmd+=', command: 'view.zoomIn' },
+    { key: 'cmd+-', command: 'view.zoomOut' },
     { key: 'cmd+,', command: 'settings.open' },
     { key: 'cmd+k cmd+s', command: 'settings.openKeybindings' },
     /**
@@ -264,5 +271,13 @@ export const defaultKeybindingChanges = [
     {
         type: 'add',
         binding: { key: 'cmd+k v', command: 'editor.openPreviewToSide' },
+    },
+    {
+        type: 'add',
+        binding: { key: 'cmd+=', command: 'view.zoomIn' },
+    },
+    {
+        type: 'add',
+        binding: { key: 'cmd+-', command: 'view.zoomOut' },
     },
 ] satisfies readonly DefaultKeybindingChange[];

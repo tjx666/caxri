@@ -18,6 +18,7 @@ import {
     sessionCard,
     VISIBLE_SESSION,
 } from './support/helpers.ts';
+import { dismissContextMenu, waitForContextMenu } from './support/native-context-menu.ts';
 
 test('primarySidebar titlebar is logo-free, holds only history and the Activity toggle, and stays draggable', async () => {
     const testDirectory = await mkdtemp(join(tmpdir(), 'caxri-titlebar-e2e-'));
@@ -160,9 +161,9 @@ test('Project details move to a hover card and idle Session titles reclaim the e
         await expect(projectCard.getByText(canonicalRoot, { exact: true })).toBeVisible();
 
         await projectTitle.click({ button: 'right' });
-        await expect(running.page.getByRole('menu', { name: 'project actions' })).toBeVisible();
+        await waitForContextMenu(running.app);
         await expect(projectCard).not.toBeVisible();
-        await running.page.keyboard.press('Escape');
+        await dismissContextMenu(running.app);
 
         await running.page.mouse.move(500, 300);
         await expect(projectCard).not.toBeVisible();

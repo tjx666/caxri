@@ -77,6 +77,7 @@ import {
     executeViewCatalogShortcut,
     getCachedViewCatalogCommandAllowedInEditable,
 } from '../features/view-containers/view-container-commands';
+import { stepWindowZoom } from '../features/window-zoom/window-zoom-commands';
 import {
     canFocusPaneInDirection,
     focusPaneInDirection,
@@ -363,6 +364,8 @@ const commandContext: CommandContext = {
                 caxri.request('processExplorer.open'),
             );
         },
+        // eslint-disable-next-line no-void -- floating-promise discard: the step reports failure via its own toast
+        zoom: (step) => void stepWindowZoom(step),
     },
     developer: {
         reportBug: () => useDialogStore.getState().openBugReport(),

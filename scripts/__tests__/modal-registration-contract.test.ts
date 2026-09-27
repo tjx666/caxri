@@ -14,9 +14,11 @@ const uiRoot = join(process.cwd(), 'apps/desktop/src/renderer/src/components/ui'
  * covered without anyone having to remember to opt in.
  *
  * `popover.tsx`, `hover-card.tsx`, `select.tsx`, and `tooltip.tsx` are deliberately absent: they do not take over the
- * surface, so suppressing shortcuts behind them would be a behavior change rather than a defect repair.
+ * surface, so suppressing shortcuts behind them would be a behavior change rather than a defect repair. Right-click
+ * menus are native OS menus (`lib/context-menu.ts`); AppKit's menu tracking loop already withholds key events from the
+ * page while one is open, so they need no registration.
  */
-const MODAL_WRAPPERS = ['context-menu.tsx', 'dialog.tsx', 'menu.tsx'];
+const MODAL_WRAPPERS = ['dialog.tsx', 'menu.tsx'];
 
 describe('shared overlay modal registration', () => {
     it.each(MODAL_WRAPPERS)('registers %s with the shared modal registry', async (fileName) => {
@@ -24,14 +26,5 @@ describe('shared overlay modal registration', () => {
 
         expect(source).toContain("from '@/hooks/use-modal-registration'");
         expect(source).toMatch(/useModalRegistration\(/);
-    });
-
-    // An uncontrolled context menu has no `open` prop to read, so the wrapper mirrors Base UI's state through
-    // `onOpenChange`. Replacing a consumer's own handler instead of chaining it would silently break
-    // `source-control-tree-row.tsx`, which drives its menu from local state.
-    it('chains a consumer onOpenChange instead of replacing it', async () => {
-        const source = await readFile(join(uiRoot, 'context-menu.tsx'), 'utf8');
-
-        expect(source).toContain('onOpenChange?.(nextOpen, eventDetails)');
     });
 });

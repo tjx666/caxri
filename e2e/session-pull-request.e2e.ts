@@ -15,6 +15,11 @@ import {
     pageRequest,
     sessionCard,
 } from './support/helpers.ts';
+import {
+    chooseContextMenuItem,
+    contextMenuLabels,
+    dismissContextMenu,
+} from './support/native-context-menu.ts';
 
 const PULL_REQUEST_URL = 'https://github.com/tjx666/project/pull/42';
 
@@ -218,9 +223,7 @@ esac
 
             // Keyboard route 2: the Session row menu carries the same entry with the PR number.
             await card.click({ button: 'right' });
-            const menu = running.page.getByRole('menu', { name: /actions$/u });
-            await expect(menu).toBeVisible();
-            await menu.getByRole('menuitem', { name: 'Open Pull Request #42' }).click();
+            await chooseContextMenuItem(running.app, 'Open Pull Request #42');
             await expect.poll(openedUrls).toEqual([PULL_REQUEST_URL, PULL_REQUEST_URL]);
             const confirmations = await running.app.evaluate(() => {
                 const target = globalThis as typeof globalThis & {
@@ -392,10 +395,8 @@ setInterval(() => {
         await running.page.keyboard.press('Escape');
         await expect(hoverCard).toBeHidden();
         await card.click({ button: 'right' });
-        const menu = running.page.getByRole('menu', { name: /actions$/u });
-        await expect(menu).toBeVisible();
-        await expect(menu.getByRole('menuitem', { name: 'Open Pull Request #42' })).toBeVisible();
-        await running.page.keyboard.press('Escape');
+        await expect(contextMenuLabels(running.app)).resolves.toContain('Open Pull Request #42');
+        await dismissContextMenu(running.app);
         await running.page.mouse.move(500, 300);
 
         await writeClaudeMetadata(config, root, startedAt, 'idle');

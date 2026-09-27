@@ -32,7 +32,7 @@ import { createProjectHidingHandlers } from './project-hiding-handlers';
 import { ProjectStatusService } from './project-status';
 import { VercelDeploymentStore } from './project-status-vercel-store';
 import { createRootServices } from './root-services';
-import { createServiceHandlers, mainOwned } from './service-handlers';
+import { createServiceHandlers, mainOwned, mainOwnedHandlers } from './service-handlers';
 import { SessionCompaction } from './session-compaction';
 import { createMobileSessionHandler, createSessionCreator } from './session-creation';
 import { createSessionPermissionAutoAllowHandlers } from './session-permission-auto-allow-handlers';
@@ -459,27 +459,11 @@ export async function createDomainServices(
     });
     const terminalInput = createTerminalInputHandler({ coordinator, database, send, terminals });
     const handlers: DomainHandlers = {
+        ...mainOwnedHandlers,
         'session.compactWarm': (_parameters, signal) => compaction.run(signal),
-        'extensions.retry': () => mainOwned('extensions.retry'),
-        'requests.cancel': () => mainOwned('requests.cancel'),
-        'viewContainers.cancelRequest': () => mainOwned('viewContainers.cancelRequest'),
-        'viewContainers.catalog': () => mainOwned('viewContainers.catalog'),
-        'viewContainers.executeCommand': () => mainOwned('viewContainers.executeCommand'),
-        'viewContainers.treeChildren': () => mainOwned('viewContainers.treeChildren'),
-        'viewContainers.viewOperation': () => mainOwned('viewContainers.viewOperation'),
-        'agent.context': () => mainOwned('agent.context'),
-        'agent.list': () => mainOwned('agent.list'),
-        'agent.grants': () => mainOwned('agent.grants'),
-        'agent.grant': () => mainOwned('agent.grant'),
-        'agent.revoke': () => mainOwned('agent.revoke'),
-        'agent.delegation.access.create': () => mainOwned('agent.delegation.access.create'),
-        'agent.delegation.access.list': () => mainOwned('agent.delegation.access.list'),
-        'agent.delegation.access.revoke': () => mainOwned('agent.delegation.access.revoke'),
         ...agentCommands.handlers,
         'app.bootstrap': () => bootstrapState(),
         'app.activeContext': () => readActiveContext(database),
-        'events.recover': () => mainOwned('events.recover'),
-        'events.query': () => mainOwned('events.query'),
         'app.records': ({ sessionIds, terminalIds }) => recordState(sessionIds, terminalIds),
         'app.health': () => ({
             ready: true,
@@ -487,30 +471,6 @@ export async function createDomainServices(
             startedAt,
             activePtyCount: terminals.runningCount(),
         }),
-        'host.status': () => mainOwned('host.status'),
-        'host.stop': () => mainOwned('host.stop'),
-        'mobile.access.status': () => mainOwned('mobile.access.status'),
-        'mobile.access.enable': () => mainOwned('mobile.access.enable'),
-        'mobile.access.disable': () => mainOwned('mobile.access.disable'),
-        'mobile.pairing.create': () => mainOwned('mobile.pairing.create'),
-        'mobile.device.list': () => mainOwned('mobile.device.list'),
-        'mobile.dashboard': () => mainOwned('mobile.dashboard'),
-        'mobile.agent.actions': () => mainOwned('mobile.agent.actions'),
-        'mobile.session.archived': () => mainOwned('mobile.session.archived'),
-        'mobile.session.rename': () => mainOwned('mobile.session.rename'),
-        'mobile.session.archive': () => mainOwned('mobile.session.archive'),
-        'mobile.session.restore': () => mainOwned('mobile.session.restore'),
-        'mobile.terminal.takeOver': () => mainOwned('mobile.terminal.takeOver'),
-        'mobile.terminal.release': () => mainOwned('mobile.terminal.release'),
-        'mobile.terminal.input': () => mainOwned('mobile.terminal.input'),
-        'mobile.terminal.scroll': () => mainOwned('mobile.terminal.scroll'),
-        'mobile.device.revoke': () => mainOwned('mobile.device.revoke'),
-        'mobile.device.revoke.apply': () => mainOwned('mobile.device.revoke.apply'),
-        'desktop.status': () => mainOwned('desktop.status'),
-        'desktop.focus': () => mainOwned('desktop.focus'),
-        'desktop.openPath': () => mainOwned('desktop.openPath'),
-        'desktop.openProject': () => mainOwned('desktop.openProject'),
-        'desktop.openFile': () => mainOwned('desktop.openFile'),
         'app.windowState.get': () => ({
             bounds: database.getAppState('windowBounds') ?? DEFAULT_WINDOW_BOUNDS,
             ...(database.getAppState('windowState') ?? {
@@ -526,13 +486,6 @@ export async function createDomainServices(
             });
             return state;
         },
-        'external.open': () => mainOwned('external.open'),
-        'argv.get': () => mainOwned('argv.get'),
-        'argv.update': () => mainOwned('argv.update'),
-        'gpu.restartInSafeMode': () => mainOwned('gpu.restartInSafeMode'),
-        'gpu.testInjectContextLoss': () => mainOwned('gpu.testInjectContextLoss'),
-        'processExplorer.open': () => mainOwned('processExplorer.open'),
-        'dialog.selectDirectory': () => mainOwned('dialog.selectDirectory'),
         ...createWorkbenchRootHandlers(workbenchRoots, mainOwned),
         ...createTerminalMoveHandler({
             coordinator,
@@ -542,25 +495,8 @@ export async function createDomainServices(
             mobileTerminalMutations,
             observeSelectedSession,
         }),
-        'editor.confirmDiscard': () => mainOwned('editor.confirmDiscard'),
-        'diagnostics.export': () => mainOwned('diagnostics.export'),
-        'bugReport.captureScreenshot': () => mainOwned('bugReport.captureScreenshot'),
-        'bugReport.saveScreenshot': () => mainOwned('bugReport.saveScreenshot'),
         'bugReport.context': () => diagnostics.reportContext(),
-        'bugReport.send': () => mainOwned('bugReport.send'),
         ...createBugReportDeliveryHandler({ database, terminals }),
-        'files.reveal': () => mainOwned('files.reveal'),
-        'files.openWithDefaultApp': () => mainOwned('files.openWithDefaultApp'),
-        'project.openInEditor': () => mainOwned('project.openInEditor'),
-        'project.openRoot': () => mainOwned('project.openRoot'),
-        'files.trash': () => mainOwned('files.trash'),
-        'updates.getState': () => mainOwned('updates.getState'),
-        'updates.check': () => mainOwned('updates.check'),
-        'updates.acknowledge': () => mainOwned('updates.acknowledge'),
-        'updates.download': () => mainOwned('updates.download'),
-        'updates.cancel': () => mainOwned('updates.cancel'),
-        'updates.open': () => mainOwned('updates.open'),
-        'theme.import': () => mainOwned('theme.import'),
         'project.cancelCreate': () => {
             throw new CaxriError(
                 'CONFLICT',
@@ -568,7 +504,6 @@ export async function createDomainServices(
             );
         },
         'project.list': () => ({ view: 'desktop', projects: database.listVisibleProjects() }),
-        'project.query': () => mainOwned('project.query'),
         'project.queryForPrincipal': ({ principal, query }) =>
             introspection.records.project(query, principal),
         ...createOrderingHandlers({ database, sendFullStateChange }),
@@ -679,7 +614,6 @@ export async function createDomainServices(
             database.updateSessionState(state);
             return database.getSessionState(state.sessionId);
         },
-        'session.query': () => mainOwned('session.query'),
         'session.queryForPrincipal': ({ principal, query }) =>
             introspection.records.session(query, principal),
         'terminal.create': async ({ sessionId, kind, cwd }) => {
@@ -688,7 +622,6 @@ export async function createDomainServices(
             sendFullStateChange('terminal.create');
             return terminal;
         },
-        'terminal.openFileLink': () => mainOwned('terminal.openFileLink'),
         'terminal.input': terminalInput,
         'terminal.inputBinary': createTerminalBinaryInputHandler({
             coordinator,
@@ -740,7 +673,6 @@ export async function createDomainServices(
         'terminal.preview': ({ terminalId }) => terminals.preview(terminalId),
         'terminal.runningCount': ({ sessionId }) => terminals.runningCount(sessionId),
         'terminal.resources': ({ terminalId }) => terminals.resources(terminalId),
-        'terminal.query': () => mainOwned('terminal.query'),
         'terminal.queryForPrincipal': ({ principal, query }) =>
             introspection.records.terminal(query, principal),
         'terminal.terminateAll': async () => {

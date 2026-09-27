@@ -12,6 +12,11 @@ import {
     pageRequest,
     selectedSessionId,
 } from './support/helpers.ts';
+import {
+    contextMenuLabels,
+    dismissContextMenu,
+    expectNoContextMenu,
+} from './support/native-context-menu.ts';
 
 const PROJECT_NAMES = ['alpha', 'beta', 'gamma'] as const;
 
@@ -283,16 +288,12 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
          * Rename opens the Activity row's inline editor.
          */
         await betaRow.click({ button: 'right' });
-        const rowMenu = page.getByRole('menu', { name: 'beta work actions' });
-        await expect(rowMenu.getByRole('menuitem', { name: /Mark as Read/ })).toBeVisible();
-        await expect(rowMenu.getByRole('menuitem', { name: /Archive/ })).toBeVisible();
-        await expect(rowMenu.getByRole('menuitem', { name: /Rename/ })).toBeVisible();
-        await page.screenshot({
-            path: test.info().outputPath('activity-row-menu.png'),
-            mask: [page.locator('.xterm')],
-        });
-        await page.keyboard.press('Escape');
-        await expect(rowMenu).toHaveCount(0);
+        const rowMenuLabels = await contextMenuLabels(running.app);
+        expect(rowMenuLabels).toEqual(
+            expect.arrayContaining(['Mark as Read', 'Archive', 'Rename']),
+        );
+        await dismissContextMenu(running.app);
+        await expectNoContextMenu(running.app);
         const staleRow = tree.locator(
             `.agent-activity-row[data-session-id="${sessions.get('stale')}"]`,
         );
