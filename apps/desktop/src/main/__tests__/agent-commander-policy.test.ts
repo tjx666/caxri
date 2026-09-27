@@ -23,7 +23,14 @@ describe('Agent Commander Renderer policy', () => {
 
         expect(() => policy.admit(request('commander.board'))).not.toThrow();
         expect(() => policy.admit(request('agentCommander.revealSession'))).not.toThrow();
-        for (const method of ['app.bootstrap', 'app.records', 'file.write', 'project.add']) {
+        expect(() => policy.admit(request('agentCommander.stop'))).not.toThrow();
+        for (const method of [
+            'app.bootstrap',
+            'app.records',
+            'commander.stop',
+            'file.write',
+            'project.add',
+        ]) {
             expect(() => policy.admit(request(method))).toThrow(
                 expect.objectContaining({ code: 'FORBIDDEN' }),
             );

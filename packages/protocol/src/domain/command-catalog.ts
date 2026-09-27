@@ -585,6 +585,14 @@ export const commandDefinitions: CommandDefinition[] = [
         nativeMenu: { menu: 'view', group: 1, order: 2 },
     },
     {
+        id: 'agentCommander.stop',
+        title: 'Stop Agent Commander',
+        category: 'View',
+        description:
+            'Stop the Agent Commander running in the background; opening it again resumes the same conversation',
+        nativeMenu: { menu: 'view', group: 1, order: 3 },
+    },
+    {
         id: 'processExplorer.open',
         title: 'Open Process Explorer',
         category: 'Help',

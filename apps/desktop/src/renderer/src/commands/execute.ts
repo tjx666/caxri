@@ -364,6 +364,12 @@ const commandContext: CommandContext = {
                 caxri.request('agentCommander.open'),
             );
         },
+        stopAgentCommander: () => {
+            // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
+            void tryCommand('Unable to stop Agent Commander', () =>
+                caxri.request('agentCommander.stop'),
+            );
+        },
         openProcessExplorer: () => {
             // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
             void tryCommand('Unable to open Process Explorer', () =>

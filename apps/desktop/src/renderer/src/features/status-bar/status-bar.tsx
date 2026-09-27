@@ -23,6 +23,7 @@ import { ActiveTerminalStatus } from './active-terminal-status';
 import { BranchPicker } from './branch-picker';
 import type { ChipVisibility } from './chip-priority';
 import { resolveChipVisibility } from './chip-priority';
+import { CommanderStatusChip } from './commander-status-chip';
 import { PermissionAutoAllowChip } from './permission-auto-allow-chip';
 import { RemoteDebuggingChip } from './remote-debugging-chip';
 import { RepoStatusChips } from './repo-status-chips';
@@ -245,6 +246,7 @@ export function StatusBar() {
                     </Tooltip>
                 )}
                 <UpdateStatusChip />
+                <CommanderStatusChip />
                 <RemoteDebuggingChip />
                 <ScreencastModeChip />
                 <PermissionAutoAllowChip />

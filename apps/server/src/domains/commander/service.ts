@@ -2,6 +2,7 @@ import type {
     BootstrapState,
     CommanderBoard,
     CommanderIdentity,
+    CommanderRunState,
     CommanderSnapshot,
     SessionPullRequests,
     TerminalKind,
@@ -27,6 +28,11 @@ const MAX_COMMANDER_SESSIONS = 1_000;
 const COMMANDER_PROVIDER = 'codex' satisfies TerminalKind;
 
 export interface AgentCommanderServiceOptions {
+    /**
+     * Drops a queued Commander restore and resolves once one already spawning has finished, so a stop always acts on
+     * the process that restore produced instead of racing its spawn.
+     */
+    cancelRestore(sessionId: string): Promise<void>;
     database: CaxriDatabase;
     /**
      * Creates the Terminal row, lets `beforeStart` record it, then launches it. Recording first matters: the launch
@@ -55,8 +61,22 @@ export interface AgentCommanderServiceOptions {
      */
     scopedWorkbench(identity: CommanderIdentity): BootstrapState;
     sendFullStateChange(): void;
+    /**
+     * Announces a Commander Terminal record change, so the Workbench status bar and the Commander window re-read it.
+     */
+    sendTerminalChange(terminalId: string): void;
+    /**
+     * Kills the Commander PTY behind the restart barrier and parks the row as `detached`, keeping its screen and bound
+     * Codex conversation for the next `restoreTerminals`. Resolves without effect when no process is live.
+     */
+    stopTerminal(terminalId: string): Promise<unknown>;
     userDataPath: string;
 }
+
+const LIVE_ACTIVITY_STATES = new Map<string, CommanderRunState>([
+    ['running', 'working'],
+    ['waiting', 'waiting'],
+]);
 
 /**
  * Owns the Agent Commander's system rows and the two things only it may do: read the cross-Project board and create
@@ -64,6 +84,7 @@ export interface AgentCommanderServiceOptions {
  */
 export class AgentCommanderService {
     private ensuring: Promise<CommanderSnapshot> | undefined;
+    private stopping: Promise<void> | undefined;
 
     constructor(private readonly options: AgentCommanderServiceOptions) {}
 
@@ -121,16 +142,78 @@ export class AgentCommanderService {
         return snapshot;
     }
 
+    private async runStop(): Promise<void> {
+        /**
+         * A stop racing the first ensure waits for the Terminal it creates, so the stop is never silently lost.
+         */
+        try {
+            await this.ensuring;
+        } catch {
+            // The failed ensure reports to its own caller; the stop still acts on whatever rows exist.
+        }
+        const rows = this.options.database.agentCommanderRows();
+        if (!rows?.terminalId) return;
+        await this.options.cancelRestore(rows.sessionId);
+        await this.options.stopTerminal(rows.terminalId);
+        this.options.sendTerminalChange(rows.terminalId);
+    }
+
     /**
      * Single-flight: the window's first request and a reload racing it must not create two Commander Terminals.
      */
     async ensure(): Promise<CommanderSnapshot> {
+        /**
+         * A reopen that arrives during a stop runs after it and restores what it parked. Joining an ensure the stop is
+         * itself waiting on would hand the new window a Terminal the stop is about to kill. Awaits only when a stop is
+         * running: an unconditional await would yield before `ensuring` is set, and a stop issued right after this call
+         * would then miss the Terminal this ensure is creating.
+         */
+        if (this.stopping) {
+            try {
+                await this.stopping;
+            } catch {
+                // The failed stop reports to its own caller; this ensure still starts or restores the Commander.
+            }
+        }
         const pending = (this.ensuring ??= this.runEnsure());
         try {
             return await pending;
         } finally {
             if (this.ensuring === pending) this.ensuring = undefined;
         }
+    }
+
+    /**
+     * Idempotent: stopping a Commander that is not running changes nothing. Sessions the Commander delegated into keep
+     * running; their receipts wait for the Commander's next turn.
+     */
+    async stop(): Promise<null> {
+        const pending = (this.stopping ??= this.runStop());
+        try {
+            await pending;
+        } finally {
+            if (this.stopping === pending) this.stopping = undefined;
+        }
+        return null;
+    }
+
+    /**
+     * Reads durable rows only, so it is safe to poll and never starts anything. The Commander is Codex inside a Shell
+     * PTY, and Codex can exit while the Shell lives on, so both processes must be live. Without them it is `stopped`
+     * whatever its Session last reported: a turn cut off by a stop or a quit leaves `running` behind.
+     */
+    status(): { state: CommanderRunState } {
+        const { database } = this.options;
+        const rows = database.agentCommanderRows();
+        const terminal = rows?.terminalId ? database.getTerminal(rows.terminalId) : undefined;
+        if (!rows || !terminal) return { state: 'stopped' };
+        const shell = terminal.lastProcessState;
+        if (shell !== 'starting' && shell !== 'running') return { state: 'stopped' };
+        const agent = terminal.lastAgentProcessState;
+        if (shell === 'starting' || agent === 'starting') return { state: 'starting' };
+        if (agent !== 'running') return { state: 'stopped' };
+        const activity = database.getSession(rows.sessionId)?.lastActivityState;
+        return { state: (activity && LIVE_ACTIVITY_STATES.get(activity)) ?? 'idle' };
     }
 
     snapshot(): CommanderSnapshot | null {
