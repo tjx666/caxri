@@ -24,11 +24,13 @@ import {
     mobileAttentionRequestSchema,
 } from './mobile-attention-contract.js';
 import { MOBILE_FILES_MAX_ENTRIES, MOBILE_FILES_READ_MAX_BYTES } from './mobile-file-limits.js';
+import { mobileTerminalMethods } from './mobile-terminal-contract.js';
 
 export type { MobileDeviceRole } from './device-role.js';
 export { mobileDeviceRoleSchema } from './device-role.js';
 export * from './mobile-attention-contract.js';
 export { MOBILE_FILES_MAX_ENTRIES, MOBILE_FILES_READ_MAX_BYTES } from './mobile-file-limits.js';
+export * from './mobile-terminal-contract.js';
 
 const noParameters = z.strictObject({}).default({});
 export const mobileDeviceIdSchema = z.string().regex(/^device_[0-9a-f]{32}$/u);
@@ -582,42 +584,7 @@ export const mobileMethods = {
         params: z.strictObject({}),
         result: mobileArchivedSessionsResultSchema,
     },
-    'mobile.terminal.takeOver': {
-        ...commandPolicy('server', 'control', ['terminals.steer']),
-        params: z.strictObject({
-            terminalId: identifierSchema,
-            subscriptionId: identifierSchema,
-            expectedGeneration: z.number().int().positive(),
-            cols: z.number().int().min(2).max(1_000),
-            rows: z.number().int().min(1).max(1_000),
-        }),
-        result: z.strictObject({ expiresAt: z.number().int().positive() }),
-    },
-    'mobile.terminal.release': {
-        ...commandPolicy('server', 'control', ['terminals.steer']),
-        params: z.strictObject({
-            terminalId: identifierSchema,
-            subscriptionId: identifierSchema,
-            expectedGeneration: z.number().int().positive(),
-        }),
-        result: z.null(),
-    },
-    'mobile.terminal.input': {
-        ...commandPolicy('server', 'control', ['terminals.steer']),
-        params: z.strictObject({
-            terminalId: identifierSchema,
-            subscriptionId: identifierSchema,
-            expectedGeneration: z.number().int().positive(),
-            data: z
-                .string()
-                .min(1)
-                .refine(
-                    (data) => new TextEncoder().encode(data).length <= 8 * 1_024,
-                    'Mobile Terminal input must be at most 8 KiB',
-                ),
-        }),
-        result: z.null(),
-    },
+    ...mobileTerminalMethods,
     'mobile.device.revoke': {
         ...commandPolicy('desktop', 'control'),
         params: z.strictObject({ deviceId: mobileDeviceIdSchema }),

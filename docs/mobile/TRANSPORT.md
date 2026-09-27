@@ -83,7 +83,8 @@ An authenticated foreground heartbeat also renews any Terminal size lease held b
 connection and subscription. The Host restores Desktop's latest desired size on unsubscribe,
 socket close, revocation, release, or its independent 12-second lease timeout. Only an explicit
 `mobile.terminal.takeOver` request can alter the PTY size; `mobile.terminal.release` returns size
-ownership to Desktop. `mobile.terminal.input` is fenced to the observed Terminal generation.
+ownership to Desktop. `mobile.terminal.input` and `mobile.terminal.scroll` are fenced to the observed
+Terminal generation; scroll needs no size lease.
 Terminal Host publishes `terminal.sizeOwnership` with the owner and actual PTY grid on takeover,
 mobile size changes, release, timeout, and Desktop attachment. Server Core filters stale Host
 generations before relaying the event. Desktop keeps xterm at the mobile-owned grid while reporting

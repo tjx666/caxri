@@ -13,7 +13,7 @@ import {
     tapMobileCheck,
     waitForMobile,
 } from './mobile-android';
-import { pinchReadOnlyTerminal } from './mobile-native-pinch';
+import { pinchTerminal } from './mobile-native-pinch';
 import { createMobileTerminalAcceptanceFixture } from './mobile-terminal-acceptance-fixture';
 import { tapTerminalKey } from './mobile-terminal-key';
 
@@ -118,9 +118,9 @@ export async function executeMobileTerminalScenario(
         const observingSize = await fixture.menuState();
         expect({ cols: observingSize.cols, rows: observingSize.rows }).toEqual(desktopSize);
         await capture(environment, 'observing', artifacts);
-        await pinchReadOnlyTerminal(environment.serial, 'pinch-in');
+        await pinchTerminal(environment.serial, 'pinch-in');
         await capture(environment, 'fit-to-screen', artifacts);
-        await pinchReadOnlyTerminal(environment.serial, 'pinch-out');
+        await pinchTerminal(environment.serial, 'pinch-out');
         await capture(environment, 'readable-default-restored', artifacts);
         const afterPinch = await fixture.menuState();
         expect({ cols: afterPinch.cols, rows: afterPinch.rows }).toEqual(desktopSize);
@@ -203,14 +203,74 @@ export async function executeMobileTerminalScenario(
         );
         await capture(environment, 'tall-grid-latest', artifacts);
 
+        /**
+         * A full-screen Agent keeps no xterm scrollback; the phone's drag must reach it as wheel input without a lease.
+         */
+        await pageRequest(fixture.running.page, 'terminal.input', {
+            terminalId: fixture.terminalId,
+            data: 'f',
+        });
+        await waitForMobile(
+            () => fixture.menuState(),
+            ({ fullscreen }) => fullscreen,
+        );
+        await adbShell(environment.serial, [
+            'input',
+            'swipe',
+            String(x),
+            String(Math.round(bounds.top + height * 0.35)),
+            String(x),
+            String(Math.round(bounds.top + height * 0.8)),
+            '500',
+        ]);
+        const scrolled = await waitForMobile(
+            () => fixture.menuState(),
+            ({ wheelUp }) => wheelUp > 0,
+        );
+        expect(scrolled.wheelDown).toBe(0);
+        expect({ cols: scrolled.cols, rows: scrolled.rows }).toEqual(desktopSize);
+        await capture(environment, 'fullscreen-scrolled-without-lease', artifacts);
+        await pageRequest(fixture.running.page, 'terminal.input', {
+            terminalId: fixture.terminalId,
+            data: 'f',
+        });
+        await waitForMobile(
+            () => fixture.menuState(),
+            ({ fullscreen }) => !fullscreen,
+        );
+
         await tapMobileCheck(environment.serial, 'terminal-take-over');
         await waitForMobile(
             () => mobileSemantics(environment.serial),
             (nodes) => nodes.some(({ checkId }) => checkId === 'terminal-release'),
         );
-        const takenOver = await waitForMobile(
+        /**
+         * The leased grid can be wider than Desktop's tall fixture grid, and it shrinks once more when the key row
+         * appears, so wait for a changed size that holds across a full lease debounce.
+         */
+        let takenOver = await waitForMobile(
             () => fixture.menuState(),
-            ({ cols }) => cols !== null && cols < desktopSize.cols,
+            ({ cols, rows }) =>
+                cols !== null && (cols !== desktopSize.cols || rows !== desktopSize.rows),
+        );
+        for (let attempt = 0; attempt < 10; attempt += 1) {
+            // eslint-disable-next-line no-await-in-loop -- each sample waits past the lease debounce.
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            // eslint-disable-next-line no-await-in-loop -- the next sample depends on this one.
+            const next = await fixture.menuState();
+            if (next.cols === takenOver.cols && next.rows === takenOver.rows) break;
+            takenOver = next;
+        }
+        /**
+         * The leased grid keeps the observing text size; a full-size font gave a phone only about 49 columns.
+         */
+        expect(takenOver.cols).toBeGreaterThan(60);
+        /**
+         * Taking over jumps to the latest output, so the blinking cursor is on screen for the recording.
+         */
+        await waitForMobile(
+            () => mobileSemantics(environment.serial),
+            (nodes) => nodes.every(({ checkId }) => checkId !== 'terminal-jump-latest'),
         );
         await capture(environment, 'taken-over', artifacts);
 
@@ -267,6 +327,13 @@ export async function executeMobileTerminalScenario(
                 `${takenOver.cols}x${takenOver.rows}`,
             );
         }
+
+        await pinchTerminal(environment.serial, 'pinch-out', 'leased');
+        const zoomed = await waitForMobile(
+            () => fixture.menuState(),
+            ({ cols }) => cols !== null && takenOver.cols !== null && cols < takenOver.cols,
+        );
+        await capture(environment, 'taken-over-zoomed-reflowed', artifacts);
 
         await tapTerminalKey(environment.serial, 'down');
         await waitForMobile(
@@ -341,6 +408,8 @@ export async function executeMobileTerminalScenario(
             releasedSize: { cols: released.cols, rows: released.rows },
             status: 'passed',
             takenOverSize: { cols: takenOver.cols, rows: takenOver.rows },
+            takenOverZoomedSize: { cols: zoomed.cols, rows: zoomed.rows },
+            fullscreenScroll: { wheelDown: scrolled.wheelDown, wheelUp: scrolled.wheelUp },
         });
     } finally {
         try {

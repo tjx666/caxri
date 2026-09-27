@@ -510,6 +510,7 @@ export async function createDomainServices(
         'mobile.terminal.takeOver': () => mainOwned('mobile.terminal.takeOver'),
         'mobile.terminal.release': () => mainOwned('mobile.terminal.release'),
         'mobile.terminal.input': () => mainOwned('mobile.terminal.input'),
+        'mobile.terminal.scroll': () => mainOwned('mobile.terminal.scroll'),
         'mobile.device.revoke': () => mainOwned('mobile.device.revoke'),
         'mobile.device.revoke.apply': () => mainOwned('mobile.device.revoke.apply'),
         'desktop.status': () => mainOwned('desktop.status'),

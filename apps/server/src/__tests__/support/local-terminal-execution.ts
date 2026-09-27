@@ -3,6 +3,7 @@ import type {
     AgentProvider,
     TerminalRecord,
     TerminalSnapshot,
+    TerminalWheelInput,
 } from '@caxri/protocol';
 import { CaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
@@ -165,6 +166,15 @@ export class LocalTerminalExecution extends EventTarget implements TerminalExecu
             throw new CaxriError('CANCELLED', 'Terminal input was cancelled before admission');
         this.requireGeneration(terminalId, expectedGeneration);
         return Promise.resolve(this.engine.write(terminalId, data));
+    }
+
+    scrollForGeneration(
+        terminalId: string,
+        expectedGeneration: number,
+        wheel: TerminalWheelInput,
+    ): Promise<boolean> {
+        this.requireGeneration(terminalId, expectedGeneration);
+        return Promise.resolve(this.engine.scroll(terminalId, wheel));
     }
 
     emitAgentExit(terminalId: string, exitCode: number | null, signal?: NodeJS.Signals): boolean {

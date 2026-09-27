@@ -21,6 +21,7 @@ import { terminalResyncPlan } from './resync-policy';
 import { createTerminalStreamAssembly } from './stream-assembly';
 import type { TerminalWebviewCommand } from './webview-bridge';
 import { parseTerminalWebviewMessage, terminalWebviewCommandScript } from './webview-bridge';
+import { createTerminalWheelQueue } from './wheel-queue';
 
 type TerminalWebviewPayload = TerminalWebviewCommand extends infer Command
     ? Command extends TerminalWebviewCommand
@@ -158,15 +159,32 @@ export const useLiveTerminal = ({
         },
         [outbound, sendWebview],
     );
+    /**
+     * Tells the document whether it draws the phone's own grid with a live cursor, and whether drags may scroll an
+     * alternate-screen application. Sent with every snapshot, which follows a new document and a role change, and at
+     * each lease transition.
+     */
+    const sendControl = useCallback(
+        (isLeased: boolean): void => {
+            const canForwardScroll = context.current.role === 'control';
+            sendWebview({
+                type: 'control',
+                canForwardScroll,
+                isLeased: isLeased && canForwardScroll,
+            });
+        },
+        [sendWebview],
+    );
     const resetOutput = useCallback(
         (cols: number, rows: number, data: string): boolean => {
             if (outboundFrame.current !== null) cancelAnimationFrame(outboundFrame.current);
             outboundFrame.current = null;
             outbound.clear();
             sendWebview({ type: 'reset', cols, rows });
+            sendControl(lease.current !== null);
             return appendOutput(data);
         },
-        [appendOutput, outbound, sendWebview],
+        [appendOutput, outbound, sendControl, sendWebview],
     );
 
     useEffect(() => {
@@ -191,6 +209,7 @@ export const useLiveTerminal = ({
             lease.current = null;
             if (heldLease) {
                 setHasLease(false);
+                sendControl(false);
                 // eslint-disable-next-line no-void -- Unsubscribe and Server lease cleanup remain the final fallback.
                 void request('mobile.terminal.release', heldLease).catch(() => {});
             }
@@ -271,6 +290,7 @@ export const useLiveTerminal = ({
             lease.current = null;
             if (ownedLease) {
                 setHasLease(false);
+                sendControl(false);
                 // eslint-disable-next-line no-void -- Server also releases on unsubscribe and disconnect.
                 void request('mobile.terminal.release', ownedLease).catch(() => {});
             }
@@ -290,6 +310,7 @@ export const useLiveTerminal = ({
         resetOutput,
         retry,
         role,
+        sendControl,
         subscribe,
         subscriptionAvailable,
         terminalId,
@@ -304,6 +325,8 @@ export const useLiveTerminal = ({
         },
         [],
     );
+
+    const leased = hasLease && role === 'control';
 
     const currentTarget = (): TerminalControlTarget | null => {
         const handle = subscription.current;
@@ -327,6 +350,15 @@ export const useLiveTerminal = ({
             expectedGeneration: currentGeneration,
         };
     };
+
+    const targetReference = useRef(currentTarget);
+    useLayoutEffect(() => {
+        targetReference.current = currentTarget;
+    });
+    /**
+     * Created on the first forwarded drag so the queue's sender reads the latest target only from event handlers.
+     */
+    const wheel = useRef<ReturnType<typeof createTerminalWheelQueue> | null>(null);
 
     const sendInput = async (data: string): Promise<'sent' | 'blocked'> => {
         const target = currentTarget();
@@ -410,6 +442,7 @@ export const useLiveTerminal = ({
              * grid. Otherwise it keeps rendering the Desktop grid while the Agent redraws for the phone.
              */
             sendWebview({ type: 'resize', ...phoneSize });
+            sendControl(true);
             setHasLease(true);
             setError(null);
         } catch (error_) {
@@ -424,6 +457,7 @@ export const useLiveTerminal = ({
             if (lease.current === target) {
                 lease.current = null;
                 setHasLease(false);
+                sendControl(false);
                 setError(null);
             }
         } catch (error_) {
@@ -477,6 +511,18 @@ export const useLiveTerminal = ({
                 onTap?.();
                 break;
             }
+            case 'wheel': {
+                if (role !== 'control') break;
+                wheel.current ??= createTerminalWheelQueue(
+                    async (next) => {
+                        const target = targetReference.current();
+                        if (target) await request('mobile.terminal.scroll', { ...target, ...next });
+                    },
+                    (error_) => setError(controlError(error_)),
+                );
+                wheel.current.add({ col: message.col, lines: message.lines, row: message.row });
+                break;
+            }
             case 'error': {
                 invalidateWebview();
                 setState('error');
@@ -497,7 +543,7 @@ export const useLiveTerminal = ({
         }),
         ctrl,
         error,
-        hasLease: hasLease && role === 'control',
+        hasLease: leased,
         hasSize,
         jump: () => sendWebview({ type: 'jump' }),
         onWebviewMessage,

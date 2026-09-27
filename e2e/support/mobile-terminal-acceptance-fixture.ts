@@ -22,8 +22,14 @@ interface MenuState {
     generation: string;
     lines: string[];
     rows: number | null;
+    /**
+     * The fake Agent is on the alternate screen with SGR mouse reporting, like a full-screen Agent TUI.
+     */
+    fullscreen: boolean;
     selected: number;
     submissions: number;
+    wheelDown: number;
+    wheelUp: number;
 }
 
 async function readMenuState(statePath: string): Promise<MenuState> {
@@ -64,7 +70,7 @@ async function createMenuAgent(userData: string, statePath: string) {
         providers: {
             codex: {
                 executableSource: String.raw`#!${process.execPath}
-// 为隔离验收输出合成彩色菜单；只修改临时选择状态文件。
+// 为隔离验收输出合成彩色菜单；只修改临时选择状态文件。输入 f 切换 alternate screen 与 SGR 鼠标上报，并统计滚轮。
 const fs = require('node:fs');
 if (process.argv.includes('--version')) {
   process.stdout.write('codex-cli 0.151.0\n');
@@ -75,6 +81,9 @@ process.stdin.setRawMode?.(true);
 process.stdin.resume();
 let selected = 1;
 let submissions = 0;
+let fullscreen = false;
+let wheelUp = 0;
+let wheelDown = 0;
 let pending = Buffer.alloc(0);
 let generationNumber = 0;
 const statePath = ${JSON.stringify(statePath)};
@@ -98,11 +107,14 @@ const render = () => {
   fs.writeFileSync(statePath + '.next', JSON.stringify({
     cols,
     firstGridMarker: { columns: cols, generation, rows },
+    fullscreen,
     generation,
     lines,
     rows,
     selected,
     submissions,
+    wheelDown,
+    wheelUp,
   }));
   fs.renameSync(statePath + '.next', statePath);
 };
@@ -113,6 +125,16 @@ process.stdin.on('data', (chunk) => {
   pending = Buffer.concat([pending, chunk]);
   while (pending.length > 0) {
     const first = pending[0];
+    if (first === 27 && pending[1] === 91 && pending[2] === 60) {
+      const end = pending.findIndex((byte, index) => index > 2 && (byte === 77 || byte === 109));
+      if (end < 0) break;
+      const button = Number(pending.subarray(3, end).toString('latin1').split(';')[0]);
+      if (button === 64) wheelUp += 1;
+      if (button === 65) wheelDown += 1;
+      pending = pending.subarray(end + 1);
+      render();
+      continue;
+    }
     if (first === 27) {
       if (pending.length < 3) break;
       if (pending[1] === 91 && pending[2] === 66) {
@@ -125,6 +147,12 @@ process.stdin.on('data', (chunk) => {
       continue;
     }
     pending = pending.subarray(1);
+    if (first === 102) {
+      fullscreen = !fullscreen;
+      process.stdout.write(fullscreen ? '\x1b[?1049h\x1b[?1000h\x1b[?1006h' : '\x1b[?1006l\x1b[?1000l\x1b[?1049l');
+      render();
+      continue;
+    }
     if (first !== 13 && first !== 10) continue;
     submissions += 1;
     render();

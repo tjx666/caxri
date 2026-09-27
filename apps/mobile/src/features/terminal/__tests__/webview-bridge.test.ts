@@ -70,4 +70,30 @@ describe('mobile Terminal WebView bridge', () => {
         expect(resize(1, 35)).toThrow();
         expect(resize(48, 1_001)).toThrow();
     });
+
+    it('accepts only a bounded, non-empty wheel frame at a grid cell', () => {
+        const wheel = (lines: number, col = 4) =>
+            parseTerminalWebviewMessage(
+                JSON.stringify({
+                    version: 1,
+                    type: 'wheel',
+                    terminalId: 'terminal-1',
+                    lines,
+                    col,
+                    row: 2,
+                }),
+                'terminal-1',
+            );
+        expect(wheel(-3)).toEqual({
+            version: 1,
+            type: 'wheel',
+            terminalId: 'terminal-1',
+            lines: -3,
+            col: 4,
+            row: 2,
+        });
+        expect(wheel(0)).toBeNull();
+        expect(wheel(51)).toBeNull();
+        expect(wheel(1, 0)).toBeNull();
+    });
 });

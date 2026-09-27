@@ -1,6 +1,8 @@
 import { encodeHex } from '@caxri/mobile-transport';
 import { z } from 'zod';
 
+import { TERMINAL_WHEEL_MAX_LINES } from './view-scale';
+
 const terminalIdSchema = z.string().regex(/^[\w-]{1,200}$/u);
 const baseMessage = { version: z.literal(1), terminalId: terminalIdSchema };
 
@@ -13,6 +15,18 @@ const fromWebviewSchema = z.discriminatedUnion('type', [
         type: z.literal('size'),
         cols: z.number().int().min(2).max(1_000),
         rows: z.number().int().min(1).max(1_000),
+    }),
+    z.strictObject({
+        ...baseMessage,
+        type: z.literal('wheel'),
+        lines: z
+            .number()
+            .int()
+            .min(-TERMINAL_WHEEL_MAX_LINES)
+            .max(TERMINAL_WHEEL_MAX_LINES)
+            .refine((lines) => lines !== 0),
+        col: z.number().int().min(1).max(1_000),
+        row: z.number().int().min(1).max(1_000),
     }),
     z.strictObject({ ...baseMessage, type: z.literal('error'), code: z.literal('render-failed') }),
 ]);
@@ -32,6 +46,16 @@ const toWebviewSchema = z.discriminatedUnion('type', [
     }),
     z.strictObject({ ...baseMessage, type: z.literal('append'), data: z.string().max(24 * 1024) }),
     z.strictObject({ ...baseMessage, type: z.literal('jump') }),
+    /**
+     * `isLeased` draws the phone's own grid with a blinking cursor; `canForwardScroll` lets drags reach an
+     * alternate-screen application through the Server's wheel encoding.
+     */
+    z.strictObject({
+        ...baseMessage,
+        type: z.literal('control'),
+        canForwardScroll: z.boolean(),
+        isLeased: z.boolean(),
+    }),
 ]);
 
 export type TerminalWebviewMessage = z.infer<typeof fromWebviewSchema>;
