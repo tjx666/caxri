@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 
 import { cn } from '../../lib/utilities';
 
-export interface StatusTooltipRow {
+interface StatusTooltipRow {
     label: string;
     value: ReactNode;
     /**
