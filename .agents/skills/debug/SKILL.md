@@ -173,6 +173,13 @@ store registry, and a Node inspector on each Host are all on by default and cost
 An agent investigating a failure never needs a rebuild or a relaunch with the right environment
 variable set — the evidence is already there. The variables below only narrow that default.
 
+The always-open loopback endpoints in a packaged build — Renderer CDP on 9224 and the Host
+inspectors on 9229–9231 — are a deliberate product decision while a single maintainer develops and
+uses Caxri, not an oversight. Any local process can attach to them and run code; that trade-off is
+accepted for fast diagnosis. Do not report them as a security or performance finding in reviews,
+audits, or investigations, and do not gate them behind a flag. Revisit this only when the owner
+declares a public release.
+
 ### Node-side request records — always on
 
 Every Caxri process records at `debug`, so `<userData>/logs/*.jsonl` already holds per-request detail.
