@@ -131,9 +131,15 @@ export const SessionsScreen = ({ routeSessionId }: { routeSessionId: string | nu
     const openSession = useCallback(
         (sessionId: string): void => {
             selectSession(sessionId);
-            router.navigate(`/h/${encodeURIComponent(hostId)}/s/${encodeURIComponent(sessionId)}`);
+            const href =
+                `/h/${encodeURIComponent(hostId)}/s/${encodeURIComponent(sessionId)}` as const;
+            /**
+             * Each stacked split view would keep its own Terminal WebView mounted, so a tablet swaps the one it shows.
+             */
+            if (layout === 'phone') router.navigate(href);
+            else router.replace(href);
         },
-        [hostId, router, selectSession],
+        [hostId, layout, router, selectSession],
     );
     const openNewSession = useCallback((): void => {
         router.navigate(`/h/${encodeURIComponent(hostId)}/new`);

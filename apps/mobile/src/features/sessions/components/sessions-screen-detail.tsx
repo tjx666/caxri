@@ -1,6 +1,8 @@
 import { useEffect, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { useIsFocused } from 'expo-router';
+
 import type { useMobileTheme } from '../../../theme/use-mobile-theme';
 import type { MobileLayoutMode } from '../../layout/layout-mode';
 import { useSessionAttention } from '../hooks/use-session-attention';
@@ -47,7 +49,13 @@ export const SessionsScreenDetail = ({
         routeSessionId !== null && dashboardSelected === null,
     );
     const selected = dashboardSelected ?? shown.session;
-    const isDetailVisible = selected !== null && (layout !== 'phone' || routeSessionId !== null);
+    /**
+     * The route Stack keeps covered screens mounted for its transitions; a covered detail must release its Terminal
+     * lease and stop polling like one that left the screen.
+     */
+    const isFocused = useIsFocused();
+    const isDetailVisible =
+        isFocused && selected !== null && (layout !== 'phone' || routeSessionId !== null);
     const rememberedSegment = selected ? ui.segmentBySession[selected.id] : undefined;
     const wideBackgroundSegment = selected
         ? (ui.contentSegmentBySession[selected.id] ??

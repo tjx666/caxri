@@ -5,6 +5,23 @@ import type { MobileTerminal } from './session-model';
 export type SessionSegment = 'conversation' | 'terminal' | 'changes' | 'panels';
 
 /**
+ * Tab order in the Session header, left to right.
+ */
+export const SESSION_SEGMENTS: readonly SessionSegment[] = [
+    'conversation',
+    'terminal',
+    'changes',
+    'panels',
+];
+
+/**
+ * Which way the tab strip moved, so the incoming panel can slide in from that side: `1` toward a later tab, `-1` toward
+ * an earlier one, and `0` when nothing changed.
+ */
+export const sessionSegmentDirection = (from: SessionSegment, to: SessionSegment): -1 | 0 | 1 =>
+    Math.sign(SESSION_SEGMENTS.indexOf(to) - SESSION_SEGMENTS.indexOf(from)) as -1 | 0 | 1;
+
+/**
  * Side segments inspect the workspace rather than the Agent. On a wide tablet they open beside the last content
  * segment, so switching to one must remember which content segment to keep showing.
  */
