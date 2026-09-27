@@ -2,10 +2,8 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { migrationManifest, schemaVersionForMigration } from '../migrations/manifest';
 import { CaxriDatabase } from '../repository';
 
 const directories: string[] = [];
@@ -106,31 +104,5 @@ describe('Project hiding', () => {
         expect(database.createProject(worktreeRoot, project.id).hiddenAt).toBeDefined();
         expect(database.createProject(hiddenRoot).hiddenAt).toBeUndefined();
         expect(database.getProject(worktree.id)?.hiddenAt).toBeUndefined();
-    });
-
-    it('upgrades the previous schema without hiding existing Projects', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-project-hiding-upgrade-'));
-        directories.push(directory);
-        const path = join(directory, 'state.db');
-        const previous = new Database(path);
-        previous.pragma('foreign_keys = ON');
-        const previousMigrations = migrationManifest.slice(
-            0,
-            migrationManifest.findIndex((migration) => migration.tag === '0031_project-hiding'),
-        );
-        for (const migration of previousMigrations)
-            previous.exec(migration.sql.replaceAll('--> statement-breakpoint', ''));
-        previous
-            .prepare(
-                "INSERT INTO projects (id, root_path, display_title, created_at, last_opened_at) VALUES ('project-1', ?, 'Project', 1, 1)",
-            )
-            .run(directory);
-        previous.pragma(`user_version = ${schemaVersionForMigration('0031_project-hiding') - 1}`);
-        previous.close();
-
-        const upgraded = new CaxriDatabase(path);
-        connections.push(upgraded);
-        expect(upgraded.listVisibleProjects().map(({ id }) => id)).toEqual(['project-1']);
-        expect(upgraded.getProject('project-1')?.hiddenAt).toBeUndefined();
     });
 });

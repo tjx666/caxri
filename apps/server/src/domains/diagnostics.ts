@@ -266,7 +266,6 @@ export class DiagnosticsService {
             readAttentionEpoch: session.readAttentionEpoch,
             lastAttentionKind: session.lastAttentionKind,
             hasUnread: session.hasUnread,
-            layoutVersion: session.layoutVersion,
         }));
         const terminals = this.database.listTerminals().map((terminal) => ({
             id: terminal.id,

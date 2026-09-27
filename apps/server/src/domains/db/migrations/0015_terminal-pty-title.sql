@@ -1,1 +1,0 @@
-ALTER TABLE `terminals` ADD `pty_title` text;

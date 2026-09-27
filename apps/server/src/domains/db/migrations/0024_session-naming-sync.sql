@@ -1,1 +1,0 @@
-ALTER TABLE `sessions` ADD `automatic_naming` text;

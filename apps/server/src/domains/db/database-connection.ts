@@ -2,11 +2,7 @@ import type Database from 'better-sqlite3';
 
 import type { ShutdownReason } from '../session-policy';
 import type { CaxriDrizzleDatabase } from './connection';
-import {
-    CURRENT_SCHEMA_VERSION,
-    markShutdown as markTerminalsShutdown,
-    openDatabase,
-} from './connection';
+import { markShutdown as markTerminalsShutdown, openDatabase } from './connection';
 import { AgentDelegationsModel } from './models/agent-delegations';
 import { AgentDispatchReceiptsModel } from './models/agent-dispatch-receipts';
 import { AppStateModel } from './models/app-state';
@@ -87,7 +83,6 @@ export class CaxriDatabaseConnection {
         this.agentDelegations = new AgentDelegationsModel(this.db);
         this.protocolState = new ProtocolStateModel(this.db, (work) => this.transaction(work));
         this.onTransaction = options.onTransaction;
-        this.appState.set('schemaVersion', CURRENT_SCHEMA_VERSION);
     }
 
     private observeTransaction(observation: DatabaseTransactionObservation): void {

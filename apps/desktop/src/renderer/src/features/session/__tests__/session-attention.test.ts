@@ -19,7 +19,6 @@ const session: SessionRecord = {
     readAttentionEpoch: 1,
     lastAttentionKind: 'waiting',
     hasUnread: true,
-    layoutVersion: 2,
     displayTitle: 'Needs input',
     titleMode: 'automatic',
 };

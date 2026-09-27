@@ -74,7 +74,7 @@ export class TerminalsModel {
     constructor(private readonly database: CaxriDrizzleDatabase) {}
 
     /**
-     * Stable order: `order_index` first, `id` breaks ties for any legacy equal-index rows.
+     * `(session_id, order_index)` is unique, so it alone defines a stable order.
      */
     list(sessionId?: string): TerminalRecord[] {
         const rows = sessionId
@@ -82,12 +82,12 @@ export class TerminalsModel {
                   .select()
                   .from(terminals)
                   .where(eq(terminals.sessionId, sessionId))
-                  .orderBy(asc(terminals.orderIndex), asc(terminals.id))
+                  .orderBy(asc(terminals.orderIndex))
                   .all()
             : this.database
                   .select()
                   .from(terminals)
-                  .orderBy(asc(terminals.sessionId), asc(terminals.orderIndex), asc(terminals.id))
+                  .orderBy(asc(terminals.sessionId), asc(terminals.orderIndex))
                   .all();
         return rows.map(mapTerminal);
     }

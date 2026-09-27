@@ -18,7 +18,6 @@ function session(id: string, projectId = 'p'): SessionRecord {
         attentionEpoch: 0,
         readAttentionEpoch: 0,
         hasUnread: false,
-        layoutVersion: 2,
         displayTitle: id,
         titleMode: 'automatic',
     };

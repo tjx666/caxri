@@ -1,26 +1,23 @@
 import { chmodSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-import { agentProviderIds } from '@caxri/protocol';
 import Database from 'better-sqlite3';
 import { inArray } from 'drizzle-orm';
 import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 
 import type { ShutdownReason } from '../session-policy';
-import { defaultTerminalTitle, shutdownOutcome } from '../session-policy';
+import { shutdownOutcome } from '../session-policy';
 import {
+    BASELINE_SCHEMA_VERSION,
     CURRENT_SCHEMA_VERSION,
     migrationManifest,
-    PRESERVED_SCHEMA_VERSION,
-    preservingMigrations,
-    schemaVersionForMigration,
+    migrationsAfterBaseline,
 } from './migrations/manifest';
 import * as schema from './schema';
 import { terminals } from './schema';
 
 export { CURRENT_SCHEMA_VERSION } from './migrations/manifest';
-export { DEFAULT_LAYOUT_VERSION } from './schema';
 
 export type CaxriDrizzleDatabase = BetterSQLite3Database<typeof schema>;
 
@@ -56,83 +53,6 @@ function installCurrentSchema(database: Database.Database): void {
     for (const migration of migrationManifest) runGeneratedSql(database, migration.sql);
 }
 
-const PROJECT_ORDER_SCHEMA_VERSION = schemaVersionForMigration('0004_wonderful_gladiator');
-const TERMINAL_PTY_TITLE_SCHEMA_VERSION = schemaVersionForMigration('0015_terminal-pty-title');
-const SESSION_ACTIVITY_SCHEMA_VERSION = schemaVersionForMigration('0017_salty_piledriver');
-const SESSION_SIDEBAR_ORDER_SCHEMA_VERSION = schemaVersionForMigration(
-    '0023_session-sidebar-order',
-);
-const AGENT_PROCESS_STATE_SCHEMA_VERSION = schemaVersionForMigration(
-    '0018_empty_marten_broadcloak',
-);
-
-/**
- * Preserves the v9 PrimarySidebar order, which was defined by `created_at, id`, as explicit indexes.
- */
-function backfillProjectOrder(database: Database.Database): void {
-    const legacyProjects = database
-        .prepare('SELECT id FROM projects ORDER BY created_at, id')
-        .all() as Array<{ id: string }>;
-    const updateOrder = database.prepare('UPDATE projects SET order_index = ? WHERE id = ?');
-    for (const [orderIndex, project] of legacyProjects.entries())
-        updateOrder.run(orderIndex, project.id);
-}
-
-/**
- * Preserves the PTY-authored display title that schema v19 stored in `title`, then restores the kind-derived stable
- * identity. This data repair lives beside the generated migration runner so `drizzle-kit generate` remains the sole
- * author of schema SQL.
- */
-function backfillTerminalTitles(database: Database.Database): void {
-    database.prepare('UPDATE terminals SET pty_title = title').run();
-    const restoreStableTitle = database.prepare('UPDATE terminals SET title = ? WHERE kind = ?');
-    for (const kind of ['shell', ...agentProviderIds] as const)
-        restoreStableTitle.run(defaultTerminalTitle(kind), kind);
-}
-
-/**
- * Creation is the only historical event whose meaning is known. `last_opened_at` is deliberately excluded: a visit must
- * not become retroactive evidence that work progressed merely because the schema gained Session Activity.
- */
-function backfillSessionActivity(database: Database.Database): void {
-    database
-        .prepare(
-            "UPDATE sessions SET last_session_activity_at = created_at, last_session_activity_reason = 'created'",
-        )
-        .run();
-}
-
-/**
- * Before Shell-root Agent Terminals, the Terminal process state also described the directly launched Agent. Preserve
- * that recovery intent for existing Agent records so the first upgraded start can distinguish an interrupted Agent from
- * a Terminal that had already returned to an idle Shell.
- */
-function backfillAgentProcessState(database: Database.Database): void {
-    database
-        .prepare(
-            "UPDATE terminals SET last_agent_process_state = last_process_state WHERE kind <> 'shell' OR provider IS NOT NULL",
-        )
-        .run();
-}
-
-function migratePreservingData(database: Database.Database, version: number): void {
-    for (const migration of preservingMigrations)
-        if (migration.version > version) runGeneratedSql(database, migration.sql);
-    if (version < PROJECT_ORDER_SCHEMA_VERSION) backfillProjectOrder(database);
-    if (version < TERMINAL_PTY_TITLE_SCHEMA_VERSION) backfillTerminalTitles(database);
-    if (version < SESSION_ACTIVITY_SCHEMA_VERSION) backfillSessionActivity(database);
-    if (version < AGENT_PROCESS_STATE_SCHEMA_VERSION) backfillAgentProcessState(database);
-    if (version < SESSION_SIDEBAR_ORDER_SCHEMA_VERSION)
-        database.exec(`
-            WITH ranked AS (
-                SELECT id, ROW_NUMBER() OVER (
-                    PARTITION BY project_id ORDER BY last_session_activity_at DESC, created_at DESC, id
-                ) - 1 AS position FROM sessions
-            )
-            UPDATE sessions SET sidebar_order = (SELECT position FROM ranked WHERE ranked.id = sessions.id)
-        `);
-}
-
 function initializeSchema(database: Database.Database): void {
     const version = database.pragma('user_version', { simple: true }) as number;
     if (version > CURRENT_SCHEMA_VERSION) {
@@ -143,9 +63,10 @@ function initializeSchema(database: Database.Database): void {
     // The entire migration body runs in one transaction. SQLite ignores PRAGMA foreign_keys
     // inside a transaction, and openDatabase already enables foreign keys before this runs.
     database.transaction(() => {
-        if (version > 0 && version < PRESERVED_SCHEMA_VERSION) {
+        if (version > 0 && version < BASELINE_SCHEMA_VERSION) {
             /**
-             * Pre-release metadata can be rebuilt; Project folders and user files are never touched.
+             * Owner-declared clean-install cutoff: pre-baseline development metadata is rebuilt, never upgraded.
+             * Project folders and user files are never touched.
              */
             database.exec(`
                 DROP TABLE IF EXISTS protocol_changefeed;
@@ -162,9 +83,10 @@ function initializeSchema(database: Database.Database): void {
                 DROP TABLE IF EXISTS app_state;
             `);
         }
-        if (version === 0 || (version > 0 && version < PRESERVED_SCHEMA_VERSION))
-            installCurrentSchema(database);
-        else if (version < CURRENT_SCHEMA_VERSION) migratePreservingData(database, version);
+        if (version < BASELINE_SCHEMA_VERSION) installCurrentSchema(database);
+        else
+            for (const migration of migrationsAfterBaseline)
+                if (migration.version > version) runGeneratedSql(database, migration.sql);
         database.pragma(`user_version = ${CURRENT_SCHEMA_VERSION}`);
     })();
 }

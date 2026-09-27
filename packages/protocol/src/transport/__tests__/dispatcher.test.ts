@@ -71,7 +71,6 @@ describe('createCommandDispatcher receipt capacity', () => {
                 attentionEpoch: 0,
                 readAttentionEpoch: 0,
                 hasUnread: false,
-                layoutVersion: 1,
                 workbenchProjectId: 'project-1',
             };
         }
@@ -191,7 +190,6 @@ describe('createCommandDispatcher durable receipts', () => {
             attentionEpoch: 0,
             readAttentionEpoch: 0,
             hasUnread: false,
-            layoutVersion: 1,
             workbenchProjectId: 'project-1',
         };
     }
