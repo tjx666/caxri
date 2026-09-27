@@ -12,6 +12,10 @@ launch proof is still pending retain their intentional `stopped` outcome; these 
 process-start failures. Orderly Server shutdown of live Terminals settles them as
 `interrupted`. A later Core restart cannot preserve process ownership proof, so still-active
 receipts recover as `failed` with `host_reset` and do not automatically spawn a replacement.
+That recovery logs each transition but emits no `agent.dispatch.changed`: it runs before the durable
+event journal exists, whose bounded startup queue could not hold one event per receipt. Nothing
+depends on it: Desktop windows reload their state on reconnect, and a later `status` or `wait`
+reads the retired receipt directly.
 
 Terminal restart retires the previous Agent generation through the existing lifecycle event.
 It does not depend on a synthetic `starting` event. Terminal Host loss and Terminal restart

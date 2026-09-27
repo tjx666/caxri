@@ -138,8 +138,8 @@ request and CI state keeps moving. Delegation receipts announce themselves rathe
 that poll: creating a task, or changing its status or failure reason, sends a `state.changed` naming
 the task's Session, because many of those transitions (a startup deadline, an asynchronous result
 collection, a rejected follow-up) change no Session or Terminal record. Saves that only advance
-bookkeeping stay silent, as does Server restart recovery, since every client re-reads everything
-after a restart.
+bookkeeping stay silent, as does Server restart recovery: Desktop windows reload their state on
+reconnect, and a later `status` or `wait` reads the recovered receipt directly.
 
 ## How the Commander works
 
