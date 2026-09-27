@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Animated, { FadeIn, LinearTransition } from 'react-native-reanimated';
 
@@ -15,6 +15,8 @@ import {
 
 import { AgentGlyph } from '../../../components/agent-icon';
 import { IconButton } from '../../../components/icon-button';
+import { PopoverMenu } from '../../../components/popover-menu';
+import { usePopoverAnchor } from '../../../components/use-popover-anchor';
 import type { MobileTheme } from '../../../theme/tokens';
 import { MobileGatewayRequestError } from '../../connection/mobile-gateway-client';
 import type { MobileSessionItem } from '../session-model';
@@ -119,10 +121,12 @@ export const SessionDetailHeader = ({
     session: MobileSessionItem;
     theme: MobileTheme;
 }) => {
-    const [isMenuOpen, setMenuOpen] = useState(false);
+    const menuAnchor = useRef<View>(null);
+    const menu = usePopoverAnchor(menuAnchor);
+    const { close: closeMenu } = menu;
     const [markReadError, setMarkReadError] = useState<string | null>(null);
     const handleMarkRead = useCallback(async (): Promise<void> => {
-        setMenuOpen(false);
+        closeMenu();
         try {
             await onMarkRead();
             setMarkReadError(null);
@@ -133,7 +137,7 @@ export const SessionDetailHeader = ({
                     : 'Unable to mark this Session as read.',
             );
         }
-    }, [onMarkRead]);
+    }, [closeMenu, onMarkRead]);
     return (
         <>
             <View style={[styles.header, { borderColor: theme.border }]}>
@@ -161,47 +165,47 @@ export const SessionDetailHeader = ({
                         </Text>
                         <SessionStatusGlyph session={session} theme={theme} />
                     </View>
-                    <IconButton
-                        accessibilityLabel="Session menu"
-                        expanded={isMenuOpen}
-                        icon={EllipsisVertical}
-                        onPress={() => setMenuOpen((current) => !current)}
-                        testID="session-detail-menu"
-                        theme={theme}
-                    />
-                </View>
-                {isMenuOpen ? (
-                    <View
-                        style={[
-                            styles.menu,
-                            { backgroundColor: theme.surface, borderColor: theme.border },
-                        ]}
-                    >
-                        <Pressable
-                            accessibilityRole="button"
-                            accessibilityState={{ disabled: !isConnected }}
-                            disabled={!isConnected}
-                            onPress={handleMarkRead}
-                            style={styles.menuAction}
-                            testID="session-mark-read"
-                        >
-                            <MailOpen color={theme.muted} size={18} />
-                            <Text
-                                style={[
-                                    styles.menuActionText,
-                                    { color: isConnected ? theme.text : theme.muted },
-                                ]}
-                            >
-                                Mark read
-                            </Text>
-                        </Pressable>
-                        {!isConnected ? (
-                            <Text style={[styles.sendState, { color: theme.muted }]}>
-                                Reconnect to mark read.
-                            </Text>
-                        ) : null}
+                    <View collapsable={false} ref={menuAnchor}>
+                        <IconButton
+                            accessibilityLabel="Session menu"
+                            expanded={menu.isOpen}
+                            icon={EllipsisVertical}
+                            onPress={menu.open}
+                            testID="session-detail-menu"
+                            theme={theme}
+                        />
                     </View>
-                ) : null}
+                </View>
+                <PopoverMenu
+                    closeLabel="Close Session menu"
+                    onClose={closeMenu}
+                    placement={menu.placement}
+                    theme={theme}
+                >
+                    <Pressable
+                        accessibilityRole="button"
+                        accessibilityState={{ disabled: !isConnected }}
+                        disabled={!isConnected}
+                        onPress={handleMarkRead}
+                        style={styles.menuAction}
+                        testID="session-mark-read"
+                    >
+                        <MailOpen color={theme.muted} size={18} />
+                        <Text
+                            style={[
+                                styles.menuActionText,
+                                { color: isConnected ? theme.text : theme.muted },
+                            ]}
+                        >
+                            Mark read
+                        </Text>
+                    </Pressable>
+                    {!isConnected ? (
+                        <Text style={[styles.sendState, { color: theme.muted }]}>
+                            Reconnect to mark read.
+                        </Text>
+                    ) : null}
+                </PopoverMenu>
                 {markReadError ? (
                     <Text
                         accessibilityRole="alert"

@@ -1,61 +1,14 @@
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
-import type { ComponentType } from 'react';
 import { useState } from 'react';
-import {
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    Pressable,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import type { LucideProps } from 'lucide-react-native';
 import { Archive, Pencil } from 'lucide-react-native';
 
+import { BottomSheet, SheetAction, SheetCancel } from '../../../components/bottom-sheet';
 import type { MobileTheme } from '../../../theme/tokens';
 import type { useSessionManagement } from '../hooks/use-session-management';
 import { sessionRenameDraft } from '../session-management-model';
 import type { MobileSessionItem } from '../session-model';
-
-const SheetAction = ({
-    busy,
-    icon: Icon,
-    label,
-    onPress,
-    testID,
-    theme,
-}: {
-    busy: boolean;
-    icon: ComponentType<LucideProps>;
-    label: string;
-    onPress: () => void;
-    testID: string;
-    theme: MobileTheme;
-}) => (
-    <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ busy, disabled: busy }}
-        disabled={busy}
-        onPress={onPress}
-        style={({ pressed }) => [
-            styles.action,
-            { backgroundColor: pressed ? theme.elevated : 'transparent' },
-        ]}
-        testID={testID}
-    >
-        {busy ? (
-            <ActivityIndicator color={theme.muted} size="small" />
-        ) : (
-            <Icon color={theme.muted} size={20} />
-        )}
-        <Text style={[styles.actionText, { color: theme.text }]}>{label}</Text>
-    </Pressable>
-);
 
 /**
  * Long-press actions for one Session row. Rename swaps the sheet body for an inline text field instead of stacking a
@@ -94,7 +47,6 @@ const SessionActionsBody = ({
     session: MobileSessionItem;
     theme: MobileTheme;
 }) => {
-    const insets = useSafeAreaInsets();
     const [mode, setMode] = useState<'menu' | 'rename'>('menu');
     const [draft, setDraft] = useState(session.displayTitle);
     const isBusy = management.pending?.sessionId === session.id;
@@ -103,35 +55,14 @@ const SessionActionsBody = ({
         if (nextTitle !== null && (await management.rename(session.id, nextTitle))) onClose();
     };
     return (
-        <Modal
-            animationType="fade"
-            onRequestClose={onClose}
-            statusBarTranslucent
-            transparent
-            visible
+        <BottomSheet
+            closeLabel="Close Session actions"
+            onClose={onClose}
+            testID="session-actions-sheet"
+            theme={theme}
         >
-            <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                style={styles.root}
-            >
-                <Pressable
-                    accessibilityLabel="Close Session actions"
-                    onPress={onClose}
-                    style={styles.backdrop}
-                    testID="session-actions-backdrop"
-                />
-                <View
-                    style={[
-                        styles.sheet,
-                        {
-                            backgroundColor: theme.surface,
-                            borderColor: theme.border,
-                            paddingBottom: insets.bottom + 12,
-                        },
-                    ]}
-                    testID="session-actions-sheet"
-                >
-                    <View style={[styles.grabber, { backgroundColor: theme.border }]} />
+            {(dismiss) => (
+                <>
                     <Text numberOfLines={1} style={[styles.title, { color: theme.text }]}>
                         {mode === 'rename' ? 'Rename Session' : session.displayTitle}
                     </Text>
@@ -159,6 +90,11 @@ const SessionActionsBody = ({
                                     });
                                 }}
                                 testID="session-action-archive"
+                                theme={theme}
+                            />
+                            <SheetCancel
+                                onPress={dismiss}
+                                testID="session-actions-cancel"
                                 theme={theme}
                             />
                         </View>
@@ -244,38 +180,16 @@ const SessionActionsBody = ({
                             {management.error}
                         </Text>
                     ) : null}
-                </View>
-            </KeyboardAvoidingView>
-        </Modal>
+                </>
+            )}
+        </BottomSheet>
     );
 };
 
 const styles = StyleSheet.create({
-    root: { flex: 1, justifyContent: 'flex-end' },
-    backdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0, 0, 0, 0.5)' },
-    sheet: {
-        alignSelf: 'center',
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        borderWidth: StyleSheet.hairlineWidth,
-        maxWidth: 560,
-        paddingHorizontal: 12,
-        paddingTop: 8,
-        width: '100%',
-    },
-    grabber: { alignSelf: 'center', borderRadius: 2, height: 4, marginBottom: 12, width: 36 },
     title: { fontSize: 17, fontWeight: '700', paddingHorizontal: 8 },
     subtitle: { fontSize: 13, paddingBottom: 8, paddingHorizontal: 8, paddingTop: 2 },
     actions: { paddingTop: 4 },
-    action: {
-        alignItems: 'center',
-        borderRadius: 12,
-        flexDirection: 'row',
-        gap: 14,
-        minHeight: 52,
-        paddingHorizontal: 10,
-    },
-    actionText: { fontSize: 16 },
     rename: { gap: 12, paddingHorizontal: 8, paddingTop: 8 },
     input: {
         borderRadius: 12,

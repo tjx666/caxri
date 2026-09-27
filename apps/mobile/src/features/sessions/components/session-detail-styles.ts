@@ -13,16 +13,6 @@ export const sessionDetailStyles = StyleSheet.create({
         paddingHorizontal: 8,
     },
     title: { flexShrink: 1, fontSize: 17, fontWeight: '700' },
-    menu: {
-        borderRadius: 12,
-        borderWidth: 1,
-        boxShadow: '0px 6px 16px rgba(0, 0, 0, 0.4)',
-        minWidth: 200,
-        paddingVertical: 4,
-        position: 'absolute',
-        right: 12,
-        top: 52,
-    },
     menuAction: {
         alignItems: 'center',
         flexDirection: 'row',

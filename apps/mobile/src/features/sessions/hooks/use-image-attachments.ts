@@ -11,6 +11,13 @@ import { useMobileClient } from '../../connection/mobile-client-provider';
 import { splitMobileImage } from '../image-attachment';
 import { didUploadImageChunks } from '../image-upload';
 
+/**
+ * The largest number of images one message may carry.
+ */
+const MAX_ATTACHMENTS = 3;
+
+export type ImageSource = 'library' | 'camera' | 'clipboard';
+
 interface Attachment {
     id: string;
     uri: string;
@@ -70,8 +77,8 @@ export const useImageAttachments = (sessionId: string) => {
         }
     };
 
-    const add = async (source: 'library' | 'camera' | 'clipboard') => {
-        if (attachments.length >= 3) return;
+    const add = async (source: ImageSource) => {
+        if (attachments.length >= MAX_ATTACHMENTS) return;
         try {
             let uri: string;
             let base64: string;
@@ -123,32 +130,10 @@ export const useImageAttachments = (sessionId: string) => {
         }
     };
 
-    const choose = () =>
-        Alert.alert('Attach image', 'Choose an image source.', [
-            {
-                text: 'Photo library',
-                onPress: async () => {
-                    await add('library');
-                },
-            },
-            {
-                text: 'Camera',
-                onPress: async () => {
-                    await add('camera');
-                },
-            },
-            {
-                text: 'Paste',
-                onPress: async () => {
-                    await add('clipboard');
-                },
-            },
-            { text: 'Cancel', style: 'cancel' },
-        ]);
-
     return {
+        add,
         attachments,
-        choose,
+        canAdd: attachments.length < MAX_ATTACHMENTS,
         readyIds: attachments.filter((item) => item.state === 'ready').map((item) => item.id),
         hasUnsentAttachment: attachments.some((item) => item.state !== 'ready'),
         remove: (id: string) => {
