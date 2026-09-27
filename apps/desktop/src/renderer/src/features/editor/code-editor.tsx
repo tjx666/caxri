@@ -143,17 +143,6 @@ export function CodeEditor({
     useEffect(() => {
         const editor = editorReference.current;
         if (!editor) return;
-        /**
-         * Monaco 0.56 can leave a newly selected custom-language model un-tokenized while its background scheduler is
-         * busy. Prime the registered Monarch grammar, then rebind the model once per path so Monaco schedules
-         * tokenization for the visible model immediately.
-         */
-        const model = editor.getModel();
-        if (language && model?.getLanguageId() === language) {
-            monaco.editor.tokenize(model.getLineContent(1), language);
-            monaco.editor.setModelLanguage(model, 'plaintext');
-            monaco.editor.setModelLanguage(model, language);
-        }
         registrationReference.current?.();
         const unregister = registerEditorRevealTarget(path, editor, editorInstanceId);
         registrationReference.current = unregister;
@@ -162,7 +151,7 @@ export function CodeEditor({
             if (registrationReference.current === unregister)
                 registrationReference.current = undefined;
         };
-    }, [editorInstanceId, language, path]);
+    }, [editorInstanceId, path]);
     /**
      * Declared after the two effects above on purpose: the remembered position is restored and any queued reveal has
      * been applied by the time this runs, so both are visible to the decision in `foldEditorOnOpen`. The first mount
