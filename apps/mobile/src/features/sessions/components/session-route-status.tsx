@@ -51,7 +51,7 @@ export const SessionRouteStatus = ({
         {hasBack && (error || isOffline) ? (
             <Pressable
                 accessibilityRole="button"
-                onPress={() => router.replace(`/h/${encodeURIComponent(hostId)}`)}
+                onPress={() => router.dismissTo(`/h/${encodeURIComponent(hostId)}`)}
                 style={styles.retry}
                 testID="session-route-back"
             >

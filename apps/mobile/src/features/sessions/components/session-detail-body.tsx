@@ -1,11 +1,13 @@
 import type { ReactNode } from 'react';
 import { Text, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 
 import type { MobileTheme } from '../../../theme/tokens';
 import { AttentionCards } from '../../conversation/attention-cards';
 import { ConversationView } from '../../conversation/conversation-view';
 import type { useConversationTimeline } from '../../conversation/use-conversation-timeline';
 import { TerminalLiveView } from '../../terminal/terminal-live-view';
+import { useSegmentEntering } from '../hooks/use-segment-entering';
 import type { MobileSessionItem } from '../session-model';
 import { isMobileTerminalStopped } from '../session-model';
 import type { SessionSegment } from '../session-ui-state';
@@ -37,6 +39,7 @@ export const SessionDetailBody = ({
     wideBackgroundSegment: 'conversation' | 'terminal';
     wideChanges: boolean;
 }) => {
+    const entering = useSegmentEntering(segment);
     const showTerminal =
         segment === 'terminal' ||
         (isSideSessionSegment(segment) && wideChanges && wideBackgroundSegment === 'terminal');
@@ -95,18 +98,24 @@ export const SessionDetailBody = ({
                     style={[styles.wideChanges, { borderColor: theme.border }]}
                     testID="changes-right-pane"
                 >
-                    {side}
+                    <Animated.View entering={entering} key={segment} style={styles.body}>
+                        {side}
+                    </Animated.View>
                 </View>
             </View>
         );
     }
+    /**
+     * Keyed by segment so each tab switch mounts a fresh wrapper and replays its entering animation. The panels already
+     * remounted on every switch because each segment renders a different tree.
+     */
     return (
-        <View style={styles.body}>
+        <Animated.View entering={entering} key={segment} style={styles.body}>
             {segment === 'conversation'
                 ? conversation
                 : segment === 'terminal'
                   ? terminalWithAttention
                   : side}
-        </View>
+        </Animated.View>
     );
 };

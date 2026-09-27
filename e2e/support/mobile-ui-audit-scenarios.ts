@@ -7,6 +7,7 @@ import type { MobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import {
     adbShell,
+    androidBounds,
     captureMobileFramebuffer,
     mobileSemantics,
     setMobileNetworkAvailable,
@@ -195,6 +196,26 @@ async function projectIcons(
     await finish(environment, artifacts, { status: 'passed', treeViews: treeViews.length });
 }
 
+/**
+ * Drags a Session row leftward from its right side, away from the system Back gesture edges, to reveal its action.
+ */
+async function swipeRowLeft(serial: string, rowId: string): Promise<void> {
+    const row = (await mobileSemantics(serial)).find(({ checkId }) => checkId === rowId);
+    const bounds = row && androidBounds(row.bounds);
+    if (!bounds) throw new Error('Synthetic Session row is unavailable');
+    const y = Math.floor((bounds.top + bounds.bottom) / 2);
+    const width = bounds.right - bounds.left;
+    await adbShell(serial, [
+        'input',
+        'swipe',
+        String(Math.floor(bounds.left + width * 0.8)),
+        String(y),
+        String(Math.floor(bounds.left + width * 0.3)),
+        String(y),
+        '300',
+    ]);
+}
+
 const sessionTitle = async (fixture: MobileAcceptanceFixture, sessionId: string) => {
     const result = await pageRequest<{
         sessions: Array<{ archivedAt?: number; displayTitle: string }>;
@@ -251,8 +272,18 @@ async function sessionManagement(
     await tapMobileCheck(serial, 'archived-sessions-back');
     await waitFor(serial, (nodes) => hasCheck(nodes, row));
     await capture(environment, 'restored-home', artifacts, row);
+
+    const swipeArchive = `session-swipe-archive-${sessionId}`;
+    await swipeRowLeft(serial, row);
+    await waitFor(serial, (nodes) => hasCheck(nodes, swipeArchive));
+    await capture(environment, 'swipe-archive', artifacts, swipeArchive);
+    await tapMobileCheck(serial, swipeArchive);
+    await waitFor(serial, (nodes) => !hasCheck(nodes, row));
+    if ((await sessionTitle(fixture, sessionId)).archivedAt === undefined)
+        throw new Error('The swiped Desktop Session was not archived');
     await finish(environment, artifacts, {
         archive: 'removed-from-home-and-archived-on-desktop',
+        swipeArchive: 'revealed-then-archived-on-desktop',
         rename: 'desktop-title-updated',
         restore: 'listed-then-restored-to-home',
         status: 'passed',

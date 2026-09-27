@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import type { SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 
 import type { FlashListRef, ListRenderItemInfo } from '@shopify/flash-list';
 import { FlashList } from '@shopify/flash-list';
@@ -11,6 +12,7 @@ import type { MobileTheme } from '../../../theme/tokens';
 import { useMobileClient } from '../../connection/mobile-client-provider';
 import { AttentionCards } from '../../conversation/attention-cards';
 import type { MobileLayoutMode } from '../../layout/layout-mode';
+import { useOpenSwipeRow } from '../hooks/use-open-swipe-row';
 import { useSessionManagement } from '../hooks/use-session-management';
 import type { SessionListEntry } from '../hooks/use-session-polling';
 import { activeProjectFilter, filterSessionEntries } from '../project-filter';
@@ -21,6 +23,7 @@ import { SessionActionsSheet } from './session-actions-sheet';
 import { SessionHomeHeader } from './session-home-header';
 import { SessionHomeEmpty, SessionHomeStatus } from './session-home-status';
 import { SessionRow } from './session-row';
+import { SessionSwipeRow } from './session-swipe-row';
 
 const styles = StyleSheet.create({
     list: { flex: 1 },
@@ -55,6 +58,7 @@ const styles = StyleSheet.create({
         minHeight: 56,
     },
     tabletNewText: { fontSize: 15, fontWeight: '700' },
+    listError: { fontSize: 13, paddingHorizontal: 18, paddingVertical: 8 },
 });
 
 const entryKey = (entry: SessionListEntry): string => entry.id;
@@ -79,13 +83,40 @@ export const SessionHome = ({
     const listReference = useRef<FlashListRef<SessionListEntry>>(null);
     const management = useSessionManagement();
     const [actionSession, setActionSession] = useState<MobileSessionItem | null>(null);
-    const { clearError } = management;
+    const { archive, clearError } = management;
+    const swipe = useOpenSwipeRow();
+    const { closeOpen: closeOpenSwipe } = swipe;
+    const handleSwipeOpen = useCallback(
+        (methods: SwipeableMethods): void => {
+            clearError();
+            swipe.handleOpen(methods);
+        },
+        [clearError, swipe],
+    );
+    const archiveFromSwipe = useCallback(
+        async (sessionId: string): Promise<boolean> => {
+            const done = await archive(sessionId);
+            if (done) swipe.forget();
+            return done;
+        },
+        [archive, swipe],
+    );
+    /**
+     * Like a chat list, the first tap after revealing a row's action dismisses it instead of opening a Session.
+     */
+    const openSession = useCallback(
+        (sessionId: string): void => {
+            if (!closeOpenSwipe()) onOpenSession(sessionId);
+        },
+        [closeOpenSwipe, onOpenSession],
+    );
     const openActions = useCallback(
         (session: MobileSessionItem): void => {
+            closeOpenSwipe();
             clearError();
             setActionSession(session);
         },
-        [clearError],
+        [clearError, closeOpenSwipe],
     );
     const hasRestoredScroll = useRef(false);
     const {
@@ -155,15 +186,30 @@ export const SessionHome = ({
                 <Text style={[styles.groupHeader, { color: theme.muted }]}>{item.label}</Text>
             ) : (
                 <View>
-                    <SessionRow
-                        now={now}
-                        onLongPress={deviceRole === 'control' ? openActions : undefined}
-                        onPress={onOpenSession}
-                        selected={item.session.id === selectedId && layout !== 'phone'}
-                        session={item.session}
-                        showProject={activeProjectId === null}
+                    <SessionSwipeRow
+                        // FlashList recycles row views; an open swipe must not reappear on another Session.
+                        key={item.session.id}
+                        busy={
+                            management.pending?.action === 'archive' &&
+                            management.pending.sessionId === item.session.id
+                        }
+                        enabled={deviceRole === 'control'}
+                        onArchive={archiveFromSwipe}
+                        onClose={swipe.handleClose}
+                        onOpen={handleSwipeOpen}
+                        sessionId={item.session.id}
                         theme={theme}
-                    />
+                    >
+                        <SessionRow
+                            now={now}
+                            onLongPress={deviceRole === 'control' ? openActions : undefined}
+                            onPress={openSession}
+                            selected={item.session.id === selectedId && layout !== 'phone'}
+                            session={item.session}
+                            showProject={activeProjectId === null}
+                            theme={theme}
+                        />
+                    </SessionSwipeRow>
                     {item.session.lastActivityState === 'waiting' ? (
                         <AttentionCards
                             fallbackToTerminal={item.session.primaryTerminal?.provider !== 'claude'}
@@ -174,7 +220,20 @@ export const SessionHome = ({
                     ) : null}
                 </View>
             ),
-        [activeProjectId, deviceRole, layout, now, onOpenSession, openActions, selectedId, theme],
+        [
+            activeProjectId,
+            archiveFromSwipe,
+            deviceRole,
+            handleSwipeOpen,
+            layout,
+            management.pending,
+            now,
+            openActions,
+            openSession,
+            selectedId,
+            swipe.handleClose,
+            theme,
+        ],
     );
     return (
         <View
@@ -208,6 +267,17 @@ export const SessionHome = ({
                 sections={sections}
                 theme={theme}
             />
+            {/* The actions sheet reports its own failures; a swipe archive has no sheet to show one in. */}
+            {actionSession === null && management.error ? (
+                <Text
+                    accessibilityRole="alert"
+                    onPress={clearError}
+                    style={[styles.listError, { color: theme.danger }]}
+                    testID="session-list-archive-error"
+                >
+                    {management.error}
+                </Text>
+            ) : null}
             {!hasLoaded || filtered.length === 0 ? (
                 <SessionHomeEmpty
                     activeProjectId={activeProjectId}
@@ -236,7 +306,10 @@ export const SessionHome = ({
                         onMomentumScrollEnd={() => listInteractionReference.current?.momentumEnd()}
                         onLoad={restoreScroll}
                         onScroll={rememberScroll}
-                        onScrollBeginDrag={() => listInteractionReference.current?.dragStart()}
+                        onScrollBeginDrag={() => {
+                            closeOpenSwipe();
+                            listInteractionReference.current?.dragStart();
+                        }}
                         onScrollEndDrag={() => listInteractionReference.current?.dragEnd()}
                         ref={listReference}
                         renderItem={renderEntry}
