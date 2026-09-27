@@ -128,10 +128,12 @@ describe('invalidation predicates match factory-built query keys', () => {
         expect(isInvalidated(queryClient, key)).toBe(true);
     });
 
-    it('invalidates the Project Status read its own change event names', () => {
+    it('invalidates the Project Status summary and overview reads its own change event names', () => {
         const queryClient = new QueryClient();
         const summary = caxriQueryKey('projectStatus.summary', { sessionId: SESSION_ID });
+        const overview = caxriQueryKey('projectStatus.overview', { sessionId: SESSION_ID });
         queryClient.setQueryData(summary, {});
+        queryClient.setQueryData(overview, {});
 
         emit(queryClient, {
             event: 'projectStatus.changed',
@@ -139,6 +141,24 @@ describe('invalidation predicates match factory-built query keys', () => {
         });
 
         expect(isInvalidated(queryClient, summary)).toBe(true);
+        // The status bar's overview converges in the same event as the Status panel (issue caxri#1310).
+        expect(isInvalidated(queryClient, overview)).toBe(true);
+    });
+
+    it('invalidates the shared pull-request read and the affected Session’s overview read a sessionPullRequests.changed event covers', () => {
+        const queryClient = new QueryClient();
+        const pullRequests = caxriQueryKey('session.pullRequests', undefined as never);
+        const overview = caxriQueryKey('projectStatus.overview', { sessionId: SESSION_ID });
+        queryClient.setQueryData(pullRequests, {});
+        queryClient.setQueryData(overview, {});
+
+        emit(queryClient, {
+            event: 'sessionPullRequests.changed',
+            payload: { sessionIds: [SESSION_ID] },
+        });
+
+        expect(isInvalidated(queryClient, pullRequests)).toBe(true);
+        expect(isInvalidated(queryClient, overview)).toBe(true);
     });
 
     it('invalidates the "Always allow in this Session" read its own change event names (issue caxri#1295)', () => {
