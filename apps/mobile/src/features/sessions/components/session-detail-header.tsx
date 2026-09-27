@@ -1,5 +1,6 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
+import Animated, { FadeIn, LinearTransition } from 'react-native-reanimated';
 
 import type { LucideIcon } from 'lucide-react-native';
 import {
@@ -14,12 +15,22 @@ import {
 
 import { AgentGlyph } from '../../../components/agent-icon';
 import { IconButton } from '../../../components/icon-button';
+import { PopoverMenu } from '../../../components/popover-menu';
+import { usePopoverAnchor } from '../../../components/use-popover-anchor';
 import type { MobileTheme } from '../../../theme/tokens';
 import { MobileGatewayRequestError } from '../../connection/mobile-gateway-client';
 import type { MobileSessionItem } from '../session-model';
 import type { SessionSegment } from '../session-ui-state';
+import { SESSION_SEGMENTS } from '../session-ui-state';
 import { sessionDetailStyles as styles } from './session-detail-styles';
 import { SessionStatusGlyph } from './session-status-glyph';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+/**
+ * The selected tab grows to fit its label, so every tab animates its frame instead of snapping its neighbours aside.
+ */
+const tabLayoutTransition = LinearTransition.duration(200);
+const tabLabelEntering = FadeIn.duration(160).delay(60);
 
 const segmentPresentation: Record<SessionSegment, { icon: LucideIcon; label: string }> = {
     conversation: { icon: MessagesSquare, label: 'Conversation' },
@@ -27,7 +38,6 @@ const segmentPresentation: Record<SessionSegment, { icon: LucideIcon; label: str
     changes: { icon: FileDiff, label: 'Changes' },
     panels: { icon: FolderGit2, label: 'Project' },
 };
-const segments: SessionSegment[] = ['conversation', 'terminal', 'changes', 'panels'];
 
 /**
  * Only the selected tab spells out its name. Four labelled tabs do not fit a phone at the default font scale, and the
@@ -53,19 +63,24 @@ const SessionSegmentTab = ({
     const count = option === 'changes' && changesCount ? changesCount : null;
     const color = selected ? theme.text : theme.muted;
     return (
-        <Pressable
+        <AnimatedPressable
             accessibilityLabel={count === null ? label : `${label}, ${count}`}
             accessibilityRole="tab"
             accessibilityState={{ selected }}
+            layout={tabLayoutTransition}
             onPress={onPress}
             style={[styles.tab, selected ? { backgroundColor: theme.surface } : null]}
             testID={`session-segment-${option}`}
         >
             <Icon color={color} size={18} strokeWidth={selected ? 2.25 : 2} />
             {selected ? (
-                <Text numberOfLines={1} style={[styles.tabText, { color }]}>
+                <Animated.Text
+                    entering={tabLabelEntering}
+                    numberOfLines={1}
+                    style={[styles.tabText, { color }]}
+                >
                     {label}
-                </Text>
+                </Animated.Text>
             ) : null}
             {count === null ? null : (
                 <Text
@@ -81,7 +96,7 @@ const SessionSegmentTab = ({
                     {count}
                 </Text>
             )}
-        </Pressable>
+        </AnimatedPressable>
     );
 };
 
@@ -106,10 +121,12 @@ export const SessionDetailHeader = ({
     session: MobileSessionItem;
     theme: MobileTheme;
 }) => {
-    const [isMenuOpen, setMenuOpen] = useState(false);
+    const menuAnchor = useRef<View>(null);
+    const menu = usePopoverAnchor(menuAnchor);
+    const { close: closeMenu } = menu;
     const [markReadError, setMarkReadError] = useState<string | null>(null);
     const handleMarkRead = useCallback(async (): Promise<void> => {
-        setMenuOpen(false);
+        closeMenu();
         try {
             await onMarkRead();
             setMarkReadError(null);
@@ -120,7 +137,7 @@ export const SessionDetailHeader = ({
                     : 'Unable to mark this Session as read.',
             );
         }
-    }, [onMarkRead]);
+    }, [closeMenu, onMarkRead]);
     return (
         <>
             <View style={[styles.header, { borderColor: theme.border }]}>
@@ -148,47 +165,47 @@ export const SessionDetailHeader = ({
                         </Text>
                         <SessionStatusGlyph session={session} theme={theme} />
                     </View>
-                    <IconButton
-                        accessibilityLabel="Session menu"
-                        expanded={isMenuOpen}
-                        icon={EllipsisVertical}
-                        onPress={() => setMenuOpen((current) => !current)}
-                        testID="session-detail-menu"
-                        theme={theme}
-                    />
-                </View>
-                {isMenuOpen ? (
-                    <View
-                        style={[
-                            styles.menu,
-                            { backgroundColor: theme.surface, borderColor: theme.border },
-                        ]}
-                    >
-                        <Pressable
-                            accessibilityRole="button"
-                            accessibilityState={{ disabled: !isConnected }}
-                            disabled={!isConnected}
-                            onPress={handleMarkRead}
-                            style={styles.menuAction}
-                            testID="session-mark-read"
-                        >
-                            <MailOpen color={theme.muted} size={18} />
-                            <Text
-                                style={[
-                                    styles.menuActionText,
-                                    { color: isConnected ? theme.text : theme.muted },
-                                ]}
-                            >
-                                Mark read
-                            </Text>
-                        </Pressable>
-                        {!isConnected ? (
-                            <Text style={[styles.sendState, { color: theme.muted }]}>
-                                Reconnect to mark read.
-                            </Text>
-                        ) : null}
+                    <View collapsable={false} ref={menuAnchor}>
+                        <IconButton
+                            accessibilityLabel="Session menu"
+                            expanded={menu.isOpen}
+                            icon={EllipsisVertical}
+                            onPress={menu.open}
+                            testID="session-detail-menu"
+                            theme={theme}
+                        />
                     </View>
-                ) : null}
+                </View>
+                <PopoverMenu
+                    closeLabel="Close Session menu"
+                    onClose={closeMenu}
+                    placement={menu.placement}
+                    theme={theme}
+                >
+                    <Pressable
+                        accessibilityRole="button"
+                        accessibilityState={{ disabled: !isConnected }}
+                        disabled={!isConnected}
+                        onPress={handleMarkRead}
+                        style={styles.menuAction}
+                        testID="session-mark-read"
+                    >
+                        <MailOpen color={theme.muted} size={18} />
+                        <Text
+                            style={[
+                                styles.menuActionText,
+                                { color: isConnected ? theme.text : theme.muted },
+                            ]}
+                        >
+                            Mark read
+                        </Text>
+                    </Pressable>
+                    {!isConnected ? (
+                        <Text style={[styles.sendState, { color: theme.muted }]}>
+                            Reconnect to mark read.
+                        </Text>
+                    ) : null}
+                </PopoverMenu>
                 {markReadError ? (
                     <Text
                         accessibilityRole="alert"
@@ -200,8 +217,8 @@ export const SessionDetailHeader = ({
             </View>
             <View style={[styles.tabs, { borderColor: theme.border }]}>
                 {(hasConversation
-                    ? segments
-                    : segments.filter((option) => option !== 'conversation')
+                    ? SESSION_SEGMENTS
+                    : SESSION_SEGMENTS.filter((option) => option !== 'conversation')
                 ).map((option) => (
                     <SessionSegmentTab
                         key={option}

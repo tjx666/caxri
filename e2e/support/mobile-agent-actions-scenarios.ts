@@ -10,6 +10,7 @@ import { writeJsonAtomic } from '../../scripts/atomic-json';
 import { createMobileAcceptanceFixture } from './mobile-acceptance-fixture';
 import {
     adbShell,
+    androidBounds,
     captureMobileFramebuffer,
     mobileSemantics,
     observeMobileNode,
@@ -205,6 +206,33 @@ export async function executeMobileFileEditScenario(
     }
 }
 
+/**
+ * Opens the Session overflow menu and taps well below it: an outside tap must close the menu without a second press of
+ * the overflow button.
+ */
+async function dismissSessionMenuOutside(serial: string): Promise<void> {
+    await tapMobileCheck(serial, 'session-detail-menu');
+    const nodes = await waitForMobile(
+        () => mobileSemantics(serial),
+        (current) => current.some(({ checkId }) => checkId === 'session-mark-read'),
+    );
+    const item = nodes.find(({ checkId }) => checkId === 'session-mark-read');
+    const bounds = item && androidBounds(item.bounds);
+    if (!bounds) throw new Error('Session menu item is unavailable');
+    await adbShell(serial, [
+        'input',
+        'tap',
+        String(Math.floor((bounds.left + bounds.right) / 2)),
+        String(bounds.bottom + 400),
+    ]);
+    await waitForMobile(
+        () => mobileSemantics(serial),
+        (current) =>
+            current.every(({ checkId }) => checkId !== 'session-mark-read') &&
+            current.some(({ checkId }) => checkId === 'session-detail-menu'),
+    );
+}
+
 export async function executeMobileImageAttachmentScenario(
     environment: MobileAgentScenarioEnvironment,
     artifacts: string[],
@@ -261,23 +289,36 @@ export async function executeMobileImageAttachmentScenario(
         );
         await fixture.pair();
         if (!fixture.allowedSessionId) throw new Error('Image fixture Session is unavailable');
+        // Recording starts on the list so the video also shows the screen transition into the Session.
+        recording = await startMobileFramebufferRecording(environment.serial, remoteVideoPath);
         await tapMobileCheck(environment.serial, `session-row-${fixture.allowedSessionId}`);
         await waitForMobile(
             () => mobileSemantics(environment.serial),
             (nodes) => nodes.some(({ checkId }) => checkId === 'session-attach-image'),
         );
-        recording = await startMobileFramebufferRecording(environment.serial, remoteVideoPath);
+        await dismissSessionMenuOutside(environment.serial);
         await tapMobileCheck(environment.serial, 'session-attach-image');
-        await tapMobileNativeControl(environment.serial, { text: 'PHOTO LIBRARY' });
+        await waitForMobile(
+            () => mobileSemantics(environment.serial),
+            (nodes) => nodes.some(({ checkId }) => checkId === 'image-source-cancel'),
+        );
+        await tapMobileCheck(environment.serial, 'image-source-cancel');
+        await waitForMobile(
+            () => mobileSemantics(environment.serial),
+            (nodes) =>
+                nodes.every(({ checkId }) => checkId !== 'image-source-sheet') &&
+                nodes.some(({ checkId }) => checkId === 'session-attach-image'),
+        );
+        await tapMobileCheck(environment.serial, 'session-attach-image');
+        await tapMobileCheck(environment.serial, 'image-source-library');
         await capture(environment, 'picker', artifacts);
         await tapMobileNativeControl(environment.serial, { singleImageTile: true });
+        // A ready thumbnail drops its progress scrim, so the attachment is ready once only its remove control remains.
         await waitForMobile(
-            () =>
-                observeMobileNode(environment.serial, 'session-image-status-0', {
-                    kind: 'equals',
-                    value: 'Ready',
-                }),
-            ({ exists, textMatches }) => exists && textMatches === true,
+            () => mobileSemantics(environment.serial),
+            (nodes) =>
+                nodes.some(({ checkId }) => checkId === 'session-image-remove-0') &&
+                nodes.every(({ checkId }) => checkId !== 'session-image-status-0'),
         );
         const imageDirectory = join(fixture.testDirectory, 'user-data', 'mobile-attachments');
         const uploaded = await waitForMobile(

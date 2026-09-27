@@ -1,7 +1,8 @@
-import { Modal, Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import type { AgentTimelineItem } from '@caxri/protocol';
 
+import { BottomSheet } from '../../components/bottom-sheet';
 import type { MobileTheme } from '../../theme/tokens';
 import { conversationStyles as styles } from './conversation-styles';
 import { ConversationToolIcon } from './conversation-tool-icon';
@@ -18,34 +19,30 @@ export const ConversationToolDetail = ({
     theme: MobileTheme;
     tool: ToolCall | null;
 }) => {
-    const presentation = tool ? describeTool(tool) : null;
+    if (!tool) return null;
+    const presentation = describeTool(tool);
     return (
-        <Modal animationType="slide" onRequestClose={onClose} transparent visible={tool !== null}>
-            <View style={styles.detailOverlay}>
-                <Pressable
-                    accessibilityLabel="Close tool detail"
-                    accessibilityRole="button"
-                    onPress={onClose}
-                    style={styles.detailBackdrop}
-                />
-                <View
-                    style={[styles.detailSheet, { backgroundColor: theme.surface }]}
-                    testID="conversation-tool-detail"
-                >
+        <BottomSheet
+            closeLabel="Close tool detail"
+            maxHeight="65%"
+            onClose={onClose}
+            testID="conversation-tool-detail"
+            theme={theme}
+        >
+            {(dismiss) => (
+                <View style={styles.detailContent}>
                     <View style={styles.detailHeader}>
-                        {tool && presentation ? (
-                            <ConversationToolIcon
-                                kind={presentation.kind}
-                                status={tool.status}
-                                theme={theme}
-                            />
-                        ) : null}
+                        <ConversationToolIcon
+                            kind={presentation.kind}
+                            status={tool.status}
+                            theme={theme}
+                        />
                         <Text numberOfLines={1} style={[styles.detailTitle, { color: theme.text }]}>
-                            {presentation?.label}
+                            {presentation.label}
                         </Text>
                         <Pressable
                             accessibilityRole="button"
-                            onPress={onClose}
+                            onPress={dismiss}
                             testID="tool-detail-close"
                         >
                             <Text style={[styles.detailClose, { color: theme.primary }]}>
@@ -53,7 +50,7 @@ export const ConversationToolDetail = ({
                             </Text>
                         </Pressable>
                     </View>
-                    {tool && tool.summary !== tool.name ? (
+                    {tool.summary === tool.name ? null : (
                         <Text
                             selectable
                             style={[
@@ -63,14 +60,14 @@ export const ConversationToolDetail = ({
                         >
                             {tool.summary}
                         </Text>
-                    ) : null}
+                    )}
                     <ScrollView>
                         <Text selectable style={[styles.detailBody, { color: theme.text }]}>
-                            {tool?.detail ?? 'No further detail is available.'}
+                            {tool.detail ?? 'No further detail is available.'}
                         </Text>
                     </ScrollView>
                 </View>
-            </View>
-        </Modal>
+            )}
+        </BottomSheet>
     );
 };

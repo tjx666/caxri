@@ -3,12 +3,14 @@ import { describe, expect, it } from 'vitest';
 import {
     emptyHostSessionUiState,
     hasKnownConversationAgent,
+    isSessionDetailVisible,
     isSideSessionSegment,
     preferredSessionSegment,
     rememberSessionDraft,
     rememberSessionSegment,
     resolveSessionConversationSegment,
     selectSessionProject,
+    sessionSegmentDirection,
 } from '../session-ui-state';
 
 describe('host Session UI state', () => {
@@ -157,5 +159,20 @@ describe('host Session UI state', () => {
         const filtered = selectSessionProject(emptyHostSessionUiState(), 'project-one');
         const afterNavigation = rememberSessionSegment(filtered, 'session-one', 'changes');
         expect(afterNavigation.projectId).toBe('project-one');
+    });
+
+    it('reports the tab strip direction for the incoming panel', () => {
+        expect(sessionSegmentDirection('conversation', 'changes')).toBe(1);
+        expect(sessionSegmentDirection('panels', 'terminal')).toBe(-1);
+        expect(sessionSegmentDirection('terminal', 'terminal')).toBe(0);
+    });
+
+    it('hides a covered or unrouted phone detail', () => {
+        const visible = { isFocused: true, isPhone: true, isRouted: true, isSelected: true };
+        expect(isSessionDetailVisible(visible)).toBe(true);
+        expect(isSessionDetailVisible({ ...visible, isFocused: false })).toBe(false);
+        expect(isSessionDetailVisible({ ...visible, isRouted: false })).toBe(false);
+        expect(isSessionDetailVisible({ ...visible, isPhone: false, isRouted: false })).toBe(true);
+        expect(isSessionDetailVisible({ ...visible, isSelected: false })).toBe(false);
     });
 });
