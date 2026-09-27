@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { commandPolicy } from '../transport/method-spec.js';
+
 /**
  * Main-owned boot configuration (`<userData>/config/argv.jsonc`), modeled after VS Code's `argv.json`: values consumed
  * before `app.whenReady()` to gate Chromium browser-process switches, which is earlier than the Runtime-owned settings
@@ -44,3 +46,27 @@ export const remoteDebuggingStateSchema = z.discriminatedUnion('transport', [
 ]);
 
 export type RemoteDebuggingState = z.infer<typeof remoteDebuggingStateSchema>;
+
+const desktopRead = commandPolicy('desktop', 'read');
+const desktopWrite = commandPolicy('desktop', 'write');
+const noParameters = z.object({}).default({});
+
+/**
+ * Main-owned methods that read and write this boot configuration.
+ */
+export const argvDesktopMethods = {
+    'argv.get': {
+        ...desktopRead,
+        params: noParameters,
+        /**
+         * `value` is the stored preference; `remoteDebugging` is what this instance is actually doing about it right
+         * now. A live disclosure must read the second one — see `remoteDebuggingStateSchema`.
+         */
+        result: z.object({ remoteDebugging: remoteDebuggingStateSchema, value: argvConfigSchema }),
+    },
+    'argv.update': {
+        ...desktopWrite,
+        params: z.object({ changes: argvConfigChangesSchema }),
+        result: z.object({ value: argvConfigSchema }),
+    },
+} as const;
