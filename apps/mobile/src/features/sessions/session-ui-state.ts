@@ -28,6 +28,22 @@ export const sessionSegmentDirection = (from: SessionSegment, to: SessionSegment
 export const isSideSessionSegment = (segment: SessionSegment): segment is 'changes' | 'panels' =>
     segment === 'changes' || segment === 'panels';
 
+/**
+ * Whether the selected Session's detail is on screen. A phone shows it only on its own route; a tablet shows it beside
+ * the list. A covered route stays mounted under the navigation Stack but counts as hidden.
+ */
+export const isSessionDetailVisible = ({
+    isFocused,
+    isPhone,
+    isRouted,
+    isSelected,
+}: {
+    isFocused: boolean;
+    isPhone: boolean;
+    isRouted: boolean;
+    isSelected: boolean;
+}): boolean => isFocused && isSelected && (!isPhone || isRouted);
+
 export interface HostSessionUiState {
     contentSegmentBySession: Record<string, 'conversation' | 'terminal'>;
     draftBySession: Record<string, string>;

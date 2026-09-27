@@ -9,7 +9,7 @@ import { useSessionAttention } from '../hooks/use-session-attention';
 import { useSessionConversation } from '../hooks/use-session-conversation';
 import { allMobileSessions } from '../hooks/use-session-polling';
 import { useSessionShow } from '../hooks/use-session-show';
-import { isSideSessionSegment } from '../session-ui-state';
+import { isSessionDetailVisible, isSideSessionSegment } from '../session-ui-state';
 import { useHostSessions } from './host-sessions-provider';
 import { SelectedSessionDetail } from './selected-session-detail';
 import { SessionRouteStatus } from './session-route-status';
@@ -53,9 +53,12 @@ export const SessionsScreenDetail = ({
      * The route Stack keeps covered screens mounted for its transitions; a covered detail must release its Terminal
      * lease and stop polling like one that left the screen.
      */
-    const isFocused = useIsFocused();
-    const isDetailVisible =
-        isFocused && selected !== null && (layout !== 'phone' || routeSessionId !== null);
+    const isDetailVisible = isSessionDetailVisible({
+        isFocused: useIsFocused(),
+        isPhone: layout === 'phone',
+        isRouted: routeSessionId !== null,
+        isSelected: selected !== null,
+    });
     const rememberedSegment = selected ? ui.segmentBySession[selected.id] : undefined;
     const wideBackgroundSegment = selected
         ? (ui.contentSegmentBySession[selected.id] ??

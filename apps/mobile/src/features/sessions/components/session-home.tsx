@@ -12,6 +12,7 @@ import type { MobileTheme } from '../../../theme/tokens';
 import { useMobileClient } from '../../connection/mobile-client-provider';
 import { AttentionCards } from '../../conversation/attention-cards';
 import type { MobileLayoutMode } from '../../layout/layout-mode';
+import { useOpenSwipeRow } from '../hooks/use-open-swipe-row';
 import { useSessionManagement } from '../hooks/use-session-management';
 import type { SessionListEntry } from '../hooks/use-session-polling';
 import { activeProjectFilter, filterSessionEntries } from '../project-filter';
@@ -83,32 +84,22 @@ export const SessionHome = ({
     const management = useSessionManagement();
     const [actionSession, setActionSession] = useState<MobileSessionItem | null>(null);
     const { archive, clearError } = management;
-    const openSwipeReference = useRef<SwipeableMethods | null>(null);
-    const closeOpenSwipe = useCallback((): boolean => {
-        const open = openSwipeReference.current;
-        openSwipeReference.current = null;
-        open?.close();
-        return open !== null;
-    }, []);
+    const swipe = useOpenSwipeRow();
+    const { closeOpen: closeOpenSwipe } = swipe;
     const handleSwipeOpen = useCallback(
         (methods: SwipeableMethods): void => {
-            if (openSwipeReference.current !== methods) closeOpenSwipe();
             clearError();
-            openSwipeReference.current = methods;
+            swipe.handleOpen(methods);
         },
-        [clearError, closeOpenSwipe],
+        [clearError, swipe],
     );
-    const handleSwipeClose = useCallback((methods: SwipeableMethods): void => {
-        if (openSwipeReference.current === methods) openSwipeReference.current = null;
-    }, []);
     const archiveFromSwipe = useCallback(
         async (sessionId: string): Promise<boolean> => {
             const done = await archive(sessionId);
-            // The archived row unmounts without a close event, so forget it before the next tap.
-            if (done) openSwipeReference.current = null;
+            if (done) swipe.forget();
             return done;
         },
-        [archive],
+        [archive, swipe],
     );
     /**
      * Like a chat list, the first tap after revealing a row's action dismisses it instead of opening a Session.
@@ -195,40 +186,30 @@ export const SessionHome = ({
                 <Text style={[styles.groupHeader, { color: theme.muted }]}>{item.label}</Text>
             ) : (
                 <View>
-                    {deviceRole === 'control' ? (
-                        <SessionSwipeRow
-                            // FlashList recycles row views; an open swipe must not reappear on another Session.
-                            key={item.session.id}
-                            busy={
-                                management.pending?.action === 'archive' &&
-                                management.pending.sessionId === item.session.id
-                            }
-                            onArchive={archiveFromSwipe}
-                            onClose={handleSwipeClose}
-                            onOpen={handleSwipeOpen}
-                            sessionId={item.session.id}
-                            theme={theme}
-                        >
-                            <SessionRow
-                                now={now}
-                                onLongPress={openActions}
-                                onPress={openSession}
-                                selected={item.session.id === selectedId && layout !== 'phone'}
-                                session={item.session}
-                                showProject={activeProjectId === null}
-                                theme={theme}
-                            />
-                        </SessionSwipeRow>
-                    ) : (
+                    <SessionSwipeRow
+                        // FlashList recycles row views; an open swipe must not reappear on another Session.
+                        key={item.session.id}
+                        busy={
+                            management.pending?.action === 'archive' &&
+                            management.pending.sessionId === item.session.id
+                        }
+                        enabled={deviceRole === 'control'}
+                        onArchive={archiveFromSwipe}
+                        onClose={swipe.handleClose}
+                        onOpen={handleSwipeOpen}
+                        sessionId={item.session.id}
+                        theme={theme}
+                    >
                         <SessionRow
                             now={now}
+                            onLongPress={deviceRole === 'control' ? openActions : undefined}
                             onPress={openSession}
                             selected={item.session.id === selectedId && layout !== 'phone'}
                             session={item.session}
                             showProject={activeProjectId === null}
                             theme={theme}
                         />
-                    )}
+                    </SessionSwipeRow>
                     {item.session.lastActivityState === 'waiting' ? (
                         <AttentionCards
                             fallbackToTerminal={item.session.primaryTerminal?.provider !== 'claude'}
@@ -243,7 +224,6 @@ export const SessionHome = ({
             activeProjectId,
             archiveFromSwipe,
             deviceRole,
-            handleSwipeClose,
             handleSwipeOpen,
             layout,
             management.pending,
@@ -251,6 +231,7 @@ export const SessionHome = ({
             openActions,
             openSession,
             selectedId,
+            swipe.handleClose,
             theme,
         ],
     );
