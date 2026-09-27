@@ -93,7 +93,13 @@ export const conversationStyles = StyleSheet.create({
     detailContent: { flexShrink: 1, paddingHorizontal: 8 },
     detailHeader: { alignItems: 'center', flexDirection: 'row', gap: 8 },
     detailTitle: { flex: 1, fontSize: 17, fontWeight: '700' },
-    detailClose: { fontSize: 15, fontWeight: '600', padding: 8 },
+    detailCloseButton: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: 44,
+        minWidth: 44,
+    },
+    detailClose: { fontSize: 15, fontWeight: '600' },
     detailSubject: {
         borderRadius: 8,
         fontFamily: 'monospace',

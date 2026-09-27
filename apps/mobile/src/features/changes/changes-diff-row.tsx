@@ -1,7 +1,5 @@
 import { Text, View } from 'react-native';
 
-import { draculaTheme } from '@caxri/protocol';
-
 import type { MobileTheme } from '../../theme/tokens';
 import type { DiffLine } from './changes-model';
 import { changesStyles as styles } from './changes-styles';
@@ -9,9 +7,9 @@ import { changesStyles as styles } from './changes-styles';
 export const ChangesDiffRow = ({ line, theme }: { line: DiffLine; theme: MobileTheme }) => {
     const color =
         line.kind === 'added'
-            ? draculaTheme.colors.success
+            ? theme.gitAdded
             : line.kind === 'removed'
-              ? theme.danger
+              ? theme.gitDeleted
               : line.kind === 'hunk'
                 ? theme.primary
                 : line.kind === 'context'

@@ -43,6 +43,7 @@ export const ConversationToolDetail = ({
                         <Pressable
                             accessibilityRole="button"
                             onPress={dismiss}
+                            style={styles.detailCloseButton}
                             testID="tool-detail-close"
                         >
                             <Text style={[styles.detailClose, { color: theme.primary }]}>

@@ -79,7 +79,8 @@ export const SessionHome = ({
 }) => {
     const { status } = useMobileClient();
     const router = useRouter();
-    const { hostId, listScrollOffsetRef, sessions, setProjectId, ui } = useHostSessions();
+    const { hostId, listScrollOffsetRef, sessions, setProjectId, setSegment, ui } =
+        useHostSessions();
     const listReference = useRef<FlashListRef<SessionListEntry>>(null);
     const management = useSessionManagement();
     const [actionSession, setActionSession] = useState<MobileSessionItem | null>(null);
@@ -180,6 +181,13 @@ export const SessionHome = ({
         },
         [setProjectId],
     );
+    const openTerminal = useCallback(
+        (sessionId: string): void => {
+            setSegment(sessionId, 'terminal');
+            onOpenSession(sessionId);
+        },
+        [onOpenSession, setSegment],
+    );
     const renderEntry = useCallback(
         ({ item }: ListRenderItemInfo<SessionListEntry>) =>
             item.type === 'header' ? (
@@ -213,6 +221,7 @@ export const SessionHome = ({
                     {item.session.lastActivityState === 'waiting' ? (
                         <AttentionCards
                             fallbackToTerminal={item.session.primaryTerminal?.provider !== 'claude'}
+                            onOpenTerminal={() => openTerminal(item.session.id)}
                             role={deviceRole}
                             sessionId={item.session.id}
                             theme={theme}
@@ -230,6 +239,7 @@ export const SessionHome = ({
             now,
             openActions,
             openSession,
+            openTerminal,
             selectedId,
             swipe.handleClose,
             theme,

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 /* eslint-disable no-use-before-define, @typescript-eslint/no-use-before-define -- React Native styles stay after the component they describe. */
@@ -73,6 +73,30 @@ const ScanControls = ({
                     testID="pairing-camera"
                 />
             </View>
+        );
+    /**
+     * Once the OS has denied the request and will not prompt again, `requestPermission` resolves immediately without
+     * showing anything, so the button silently does nothing. `Linking.openSettings` is the only remaining path back to
+     * camera access.
+     */
+    if (!permission.canAskAgain)
+        return (
+            <>
+                <ActionButton
+                    accessibilityHint="Opens this app's system settings, where camera access can be turned back on."
+                    onPress={() => {
+                        // eslint-disable-next-line no-void -- Opening system Settings has no in-app result to await.
+                        void Linking.openSettings();
+                    }}
+                    testID="pairing-camera-settings-button"
+                    theme={theme}
+                >
+                    Open Settings to allow camera access
+                </ActionButton>
+                <Text style={[styles.fallback, { color: theme.muted }]}>
+                    Camera access is optional. You can go back and paste the pairing link instead.
+                </Text>
+            </>
         );
     return (
         <>

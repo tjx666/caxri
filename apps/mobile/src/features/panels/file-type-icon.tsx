@@ -10,18 +10,22 @@ import { panelsStyles as styles } from './panels-styles';
 
 /**
  * The vscode-icons artwork Desktop's Files explorer uses. A symlink wears a small arrow badge on top of whichever icon
- * its target resolved to, matching Desktop's `FileTypeIcon`.
+ * its target resolved to, matching Desktop's `FileTypeIcon`. `dimmed` mirrors the row's own dimming — a broken symlink
+ * or an ignored entry — so the icon and its row text read as one muted unit rather than a bright glyph beside
+ * greyed-out text.
  */
 export const FileTypeIcon = ({
+    dimmed = false,
     entry,
     size = 20,
     theme,
 }: {
+    dimmed?: boolean;
     entry: Pick<FileEntry, 'kind' | 'linkKind' | 'linkTarget' | 'name'>;
     size?: number;
     theme: MobileTheme;
 }) => (
-    <View style={{ height: size, width: size }}>
+    <View style={{ height: size, opacity: dimmed ? 0.5 : 1, width: size }}>
         <SvgXml height={size} width={size} xml={fileIconSvg(resolveFileIconId(entry))} />
         {entry.kind === 'symlink' ? (
             <View style={[styles.symlinkBadge, { backgroundColor: theme.background }]}>

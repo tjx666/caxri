@@ -1,11 +1,12 @@
 import { memo, useCallback, useRef, useState } from 'react';
 import type { ListRenderItemInfo } from 'react-native';
-import { FlatList, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Alert, FlatList, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
 import type { FileEntry } from '@caxri/protocol';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 
 import { IconButton } from '../../components/icon-button';
+import { formatByteSize } from '../../lib/format-size';
 import type { MobileTheme } from '../../theme/tokens';
 import { useMobileClient } from '../connection/mobile-client-provider';
 import { MobileGatewayRequestError } from '../connection/mobile-gateway-client';
@@ -17,12 +18,8 @@ import { useFileRead, useFilesList } from './use-panels';
 const isDirectory = (entry: FileEntry): boolean =>
     entry.kind === 'directory' || (entry.kind === 'symlink' && entry.linkKind === 'directory');
 
-const formatSize = (size: number | undefined): string | null => {
-    if (size === undefined) return null;
-    if (size < 1_024) return `${size} B`;
-    if (size < 1_024 * 1_024) return `${Math.round(size / 1_024)} KB`;
-    return `${(size / 1_024 / 1_024).toFixed(1)} MB`;
-};
+const isBrokenSymlink = (entry: FileEntry): boolean =>
+    entry.kind === 'symlink' && entry.linkKind === 'broken';
 
 const FileRow = memo(
     ({
@@ -35,11 +32,13 @@ const FileRow = memo(
         theme: MobileTheme;
     }) => {
         const isFolder = isDirectory(entry);
+        const isBroken = isBrokenSymlink(entry);
+        const isDimmed = entry.gitIgnored ?? isBroken;
         return (
             <Pressable
-                accessibilityLabel={`${entry.name}, ${isFolder ? 'folder' : 'file'}`}
+                accessibilityLabel={`${entry.name}, ${isFolder ? 'folder' : 'file'}${isBroken ? ', broken link' : ''}`}
                 accessibilityRole="button"
-                disabled={entry.kind === 'symlink' && entry.linkKind === 'broken'}
+                disabled={isBroken}
                 onPress={() => onOpen(entry)}
                 style={({ pressed }) => [
                     styles.row,
@@ -47,10 +46,10 @@ const FileRow = memo(
                 ]}
                 testID={`files-entry-${entry.name}`}
             >
-                <FileTypeIcon entry={entry} theme={theme} />
+                <FileTypeIcon dimmed={isDimmed} entry={entry} theme={theme} />
                 <Text
                     numberOfLines={1}
-                    style={[styles.rowText, { color: entry.gitIgnored ? theme.muted : theme.text }]}
+                    style={[styles.rowText, { color: isDimmed ? theme.muted : theme.text }]}
                 >
                     {entry.name}
                 </Text>
@@ -58,7 +57,7 @@ const FileRow = memo(
                     <ChevronRight color={theme.muted} size={16} />
                 ) : (
                     <Text style={[styles.rowMeta, { color: theme.muted }]}>
-                        {formatSize(entry.size)}
+                        {formatByteSize(entry.size)}
                     </Text>
                 )}
             </Pressable>
@@ -115,6 +114,20 @@ const FilePreview = ({
         } finally {
             setSaving(false);
         }
+    };
+    /**
+     * Leaving the preview with an unsaved draft would discard it silently, so an in-progress edit is confirmed before
+     * the Back action navigates away.
+     */
+    const confirmBack = (): void => {
+        if (draft === null) {
+            onBack();
+            return;
+        }
+        Alert.alert('Discard unsaved changes?', undefined, [
+            { text: 'Keep editing', style: 'cancel' },
+            { text: 'Discard', style: 'destructive', onPress: onBack },
+        ]);
     };
     const body = (() => {
         if (file.isPending)
@@ -230,7 +243,7 @@ const FilePreview = ({
                 <IconButton
                     accessibilityLabel="Back to folder"
                     icon={ChevronLeft}
-                    onPress={onBack}
+                    onPress={confirmBack}
                     testID="files-preview-back"
                     theme={theme}
                 />
@@ -245,8 +258,9 @@ const FilePreview = ({
 };
 
 /**
- * Read-only mirror of Desktop's Files explorer: walk folders under the Session's Project and preview text files. Entry
- * paths come from the Server listing and are passed back unchanged, so symlinks reached through the Project keep their
+ * Mirrors Desktop's Files explorer: walk folders under the Session's Project and preview text files. A Control device
+ * can also edit and save a previewed file (see `FilePreview`); every other device role stays read-only. Entry paths
+ * come from the Server listing and are passed back unchanged, so symlinks reached through the Project keep their
  * workspace identity.
  */
 export const FilesPanel = ({
