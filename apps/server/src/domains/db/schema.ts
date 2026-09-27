@@ -1,12 +1,115 @@
+import type {
+    AgentActivityState,
+    AgentDelegationReceipt,
+    AgentDispatchOperation,
+    AgentDispatchStatus,
+    ProcessState,
+    SessionActivityReason,
+    SessionAttentionKind,
+    SessionTitleMode,
+    TerminalFailureReason,
+} from '@caxri/protocol';
 import { sql } from 'drizzle-orm';
 import type { AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
-import { index, integer, primaryKey, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core';
+import {
+    check,
+    index,
+    integer,
+    primaryKey,
+    sqliteTable,
+    text,
+    unique,
+    uniqueIndex,
+} from 'drizzle-orm/sqlite-core';
+
+export const CURRENT_SESSION_STATE_VERSION = 2;
 
 /**
- * Shared with `sessions.ts` so the DDL default and the `createSession` insert never drift apart.
+ * Pins a `CHECK` value list to the protocol union it mirrors: omitting a member or naming a foreign one fails type
+ * checking, so a widened enum cannot ship until `drizzle-kit generate` has rebuilt the constraint.
+ *
+ * Open-ended columns (`terminals.kind`, `terminals.provider`, `agent_dispatch_receipts.provider`) deliberately carry no
+ * `CHECK`: every new Agent provider would otherwise force a table rebuild for no integrity gain over the model-boundary
+ * validation.
  */
-export const DEFAULT_LAYOUT_VERSION = 2;
-export const CURRENT_SESSION_STATE_VERSION = 2;
+function closedValues<T extends string>() {
+    return <const V extends readonly T[]>(
+        values: V & ([T] extends [V[number]] ? unknown : never),
+    ): V => values;
+}
+
+/**
+ * SQLite evaluates `NULL IN (...)` to NULL, which a `CHECK` accepts, so nullable columns need no extra `IS NULL` arm.
+ */
+function isOneOf(column: AnySQLiteColumn, values: readonly string[]) {
+    return sql`${column} IN (${sql.raw(values.map((value) => `'${value}'`).join(', '))})`;
+}
+
+const processStates = closedValues<ProcessState>()([
+    'starting',
+    'running',
+    'stopped',
+    'dead',
+    'failed',
+    'interrupted',
+    'suspended',
+    'detached',
+]);
+const terminalFailureReasons = closedValues<TerminalFailureReason>()([
+    'working_directory_unavailable',
+    'executable_not_found',
+    'spawn_failed',
+    'agent_session_unavailable',
+]);
+const agentActivityStates = closedValues<AgentActivityState>()([
+    'running',
+    'waiting',
+    'completed',
+    'failed',
+    'idle',
+    'unknown',
+]);
+const sessionAttentionKinds = closedValues<SessionAttentionKind>()([
+    'waiting',
+    'completed',
+    'failed',
+]);
+const sessionActivityReasons = closedValues<SessionActivityReason>()([
+    'created',
+    'user_submission',
+    'agent_started',
+    'agent_waiting',
+    'agent_completed',
+    'agent_failed',
+]);
+const sessionTitleModes = closedValues<SessionTitleMode>()(['automatic', 'manual']);
+const agentDispatchOperations = closedValues<AgentDispatchOperation>()(['start', 'resume', 'wake']);
+const agentDispatchStatuses = closedValues<AgentDispatchStatus>()([
+    'requested',
+    'starting',
+    'running',
+    'stopped',
+    'interrupted',
+    'failed',
+]);
+const agentDelegationStatuses = closedValues<AgentDelegationReceipt['status']>()([
+    'requested',
+    'launching',
+    'awaiting_ready',
+    'submitting',
+    'running',
+    'collecting',
+    'completed',
+    'blocked',
+    'human_intervened',
+    'interrupted',
+    'failed',
+    'answer_unavailable',
+]);
+/**
+ * Owned by `MobileAgentSubmitReceiptsModel`; there is no protocol union to pin against.
+ */
+const mobileAgentSubmitStatuses = ['reserved', 'accepted'] as const;
 
 export const projects = sqliteTable(
     'projects',
@@ -23,14 +126,12 @@ export const projects = sqliteTable(
          * Non-null marks this row as a worktree Caxri auto-registered on behalf of the owning Project: it stays a fully
          * authorized Project, but the PrimarySidebar hides it so linked worktrees never inflate the top-level list.
          * NULL is a root the user added themselves, including a worktree directory they chose to adopt as its own
-         * Project.
-         *
-         * Deliberately declared without `onDelete`: drizzle-kit's generated `ALTER TABLE ... ADD COLUMN` drops the ON
-         * DELETE action (see `0009_mature_agent_zero.sql`, generated from a column declared with `onDelete: 'set
-         * null'`), which would split fresh from upgraded databases. `CaxriDatabase.deleteProject` cascades owned rows
-         * explicitly instead.
+         * Project. Ownership is one level deep, so deleting the owner cascades to every worktree Project it
+         * registered.
          */
-        ownerProjectId: text('owner_project_id').references((): AnySQLiteColumn => projects.id),
+        ownerProjectId: text('owner_project_id').references((): AnySQLiteColumn => projects.id, {
+            onDelete: 'cascade',
+        }),
         /**
          * Non-null while the user has hidden the Project. The row and everything it owns stay intact so a later manual
          * add of the same root restores its Sessions instead of starting an empty Project.
@@ -40,6 +141,7 @@ export const projects = sqliteTable(
     (table) => [
         unique().on(table.rootPath),
         index('projects_order').on(table.orderIndex, table.createdAt, table.id),
+        index('projects_owner').on(table.ownerProjectId),
     ],
 );
 
@@ -51,7 +153,8 @@ export const sessions = sqliteTable(
             .notNull()
             .references(() => projects.id, { onDelete: 'cascade' }),
         /**
-         * Null is the migration-safe representation of "use the owning Project".
+         * Null means "use the owning Project"; a non-null value names an alternate authorized root, such as a linked
+         * worktree Project.
          */
         workbenchProjectId: text('workbench_project_id').references(() => projects.id, {
             onDelete: 'set null',
@@ -69,10 +172,9 @@ export const sessions = sqliteTable(
         createdAt: integer('created_at').notNull(),
         lastOpenedAt: integer('last_opened_at').notNull(),
         /**
-         * Product-owned recency for meaningful Session work. The zero default is migration-only; the preserving
-         * migration runner backfills legacy rows from `created_at`, and every new row supplies a real value.
+         * Product-owned recency for meaningful Session work; every insert supplies a real value.
          */
-        lastSessionActivityAt: integer('last_session_activity_at').notNull().default(0),
+        lastSessionActivityAt: integer('last_session_activity_at').notNull(),
         /**
          * Explicit sidebar position; dragging must never manufacture Session activity.
          */
@@ -91,12 +193,20 @@ export const sessions = sqliteTable(
          * Session inside its own Project group.
          */
         pinnedOrder: integer('pinned_order').notNull().default(0),
-        primaryAgentTerminalId: text('primary_agent_terminal_id'),
+        /**
+         * `CaxriDatabase.closeTerminal` elects a successor; `SET NULL` only guarantees that no other deletion path can
+         * leave the Session pointing at a Terminal that no longer exists.
+         */
+        primaryAgentTerminalId: text('primary_agent_terminal_id').references(
+            // Sessions and Terminals reference each other; Drizzle resolves this callback lazily after both exist.
+            // eslint-disable-next-line no-use-before-define, @typescript-eslint/no-use-before-define
+            (): AnySQLiteColumn => terminals.id,
+            { onDelete: 'set null' },
+        ),
         lastActivityState: text('last_activity_state').notNull().default('idle'),
         attentionEpoch: integer('attention_epoch').notNull().default(0),
         readAttentionEpoch: integer('read_attention_epoch').notNull().default(0),
         lastAttentionKind: text('last_attention_kind'),
-        layoutVersion: integer('layout_version').notNull().default(DEFAULT_LAYOUT_VERSION),
         displayTitle: text('display_title').notNull(),
         titleMode: text('title_mode').notNull().default('automatic'),
         automaticNaming: text('automatic_naming', { mode: 'json' }).$type<{
@@ -111,11 +221,24 @@ export const sessions = sqliteTable(
         }>(),
     },
     (table) => [
-        index('sessions_project_activity').on(
-            table.projectId,
-            sql`${table.lastSessionActivityAt} DESC`,
-        ),
+        /**
+         * Matches `SessionsModel.list`'s `created_at, id` order; sidebar and activity ordering are applied in memory.
+         */
+        index('sessions_project_created').on(table.projectId, table.createdAt, table.id),
         index('sessions_workbench_project').on(table.workbenchProjectId),
+        check(
+            'sessions_last_activity_state',
+            isOneOf(table.lastActivityState, agentActivityStates),
+        ),
+        check(
+            'sessions_last_attention_kind',
+            isOneOf(table.lastAttentionKind, sessionAttentionKinds),
+        ),
+        check(
+            'sessions_last_session_activity_reason',
+            isOneOf(table.lastSessionActivityReason, sessionActivityReasons),
+        ),
+        check('sessions_title_mode', isOneOf(table.titleMode, sessionTitleModes)),
     ],
 );
 
@@ -158,10 +281,20 @@ export const terminals = sqliteTable(
     },
     (table) => [
         /**
-         * Order_index is unique per Session by construction (see terminals.ts); id breaks ties deterministically for
-         * any legacy row that predates that guarantee.
+         * Inserts append at `MAX(order_index) + 1` and a moved Terminal lands alone in a brand-new Session, so no write
+         * ever needs two rows to share a position transiently.
          */
-        index('terminals_session_order').on(table.sessionId, table.orderIndex, table.id),
+        uniqueIndex('terminals_session_order').on(table.sessionId, table.orderIndex),
+        check('terminals_last_process_state', isOneOf(table.lastProcessState, processStates)),
+        check(
+            'terminals_last_agent_process_state',
+            isOneOf(table.lastAgentProcessState, processStates),
+        ),
+        check('terminals_failure_reason', isOneOf(table.failureReason, terminalFailureReasons)),
+        check(
+            'terminals_failure_reason_state',
+            sql`${table.failureReason} IS NULL OR ${table.lastProcessState} = 'failed'`,
+        ),
     ],
 );
 
@@ -170,11 +303,8 @@ export const terminalSnapshots = sqliteTable('terminal_snapshots', {
         .primaryKey()
         .references(() => terminals.id, { onDelete: 'cascade' }),
     encodingVersion: integer('encoding_version').notNull(),
-    /**
-     * Pre-grid snapshot encodings remain stored with null geometry and fail closed at the model boundary.
-     */
-    cols: integer('cols'),
-    rows: integer('rows'),
+    cols: integer('cols').notNull(),
+    rows: integer('rows').notNull(),
     lineCount: integer('line_count').notNull(),
     byteCount: integer('byte_count').notNull(),
     payload: text('payload').notNull(),
@@ -207,6 +337,12 @@ export const sessionState = sqliteTable('session_state', {
     ).notNull(),
 });
 
+/**
+ * Typed key/value cells validated by `AppStateModel`. `lastSelectedProjectId`, `lastSelectedSessionId`, and
+ * `externalDelegationSessions` hold row IDs inside JSON, where no foreign key reaches them: every Project or Session
+ * deletion path must move the selection (`moveSelectionOffProjects`, `CaxriDatabase.deleteSession`), and readers of
+ * `externalDelegationSessions` drop bindings whose Session no longer exists.
+ */
 export const appState = sqliteTable('app_state', {
     key: text('key').primaryKey(),
     valueJson: text('value_json').notNull(),
@@ -247,6 +383,8 @@ export const agentDispatchReceipts = sqliteTable(
             table.updatedAt,
             table.dispatchId,
         ),
+        check('agent_dispatch_operation', isOneOf(table.operation, agentDispatchOperations)),
+        check('agent_dispatch_status', isOneOf(table.status, agentDispatchStatuses)),
     ],
 );
 
@@ -266,6 +404,7 @@ export const mobileAgentSubmitReceipts = sqliteTable(
     (table) => [
         primaryKey({ columns: [table.deviceId, table.deviceGeneration, table.clientMutationId] }),
         index('mobile_agent_submit_created').on(table.createdAt),
+        check('mobile_agent_submit_status', isOneOf(table.status, mobileAgentSubmitStatuses)),
     ],
 );
 
@@ -273,12 +412,16 @@ export const mobileAgentSubmitReceipts = sqliteTable(
  * One durable identity row anchors recovery across Server boots. `state_epoch` changes only when the compatible
  * changefeed history is deliberately replaced; a normal restart changes the Boot ID, not this row.
  */
-export const protocolIdentity = sqliteTable('protocol_identity', {
-    singleton: integer('singleton').primaryKey(),
-    serverId: text('server_id').notNull().unique(),
-    stateEpoch: text('state_epoch').notNull(),
-    createdAt: integer('created_at').notNull(),
-});
+export const protocolIdentity = sqliteTable(
+    'protocol_identity',
+    {
+        singleton: integer('singleton').primaryKey(),
+        serverId: text('server_id').notNull().unique(),
+        stateEpoch: text('state_epoch').notNull(),
+        createdAt: integer('created_at').notNull(),
+    },
+    (table) => [check('protocol_identity_singleton', sql`${table.singleton} = 1`)],
+);
 
 /**
  * Replays a bounded, content-reviewed command reply after the original reply was lost. Parameters are represented only
@@ -321,6 +464,10 @@ export const protocolChangefeed = sqliteTable(
 /**
  * Delegation bodies and answers are private domain data, never bootstrap state or command-journal payloads. Session
  * ownership gives deletion an explicit retention boundary without deleting any Project files.
+ *
+ * `status` and `terminal_id` are query projections of `record_json.receipt`. `terminal_id` intentionally has no foreign
+ * key: a `SET NULL` would desynchronize it from the JSON record, and a closed Terminal's ID stays meaningful evidence
+ * for the delegation that ran in it.
  */
 export const agentDelegations = sqliteTable(
     'agent_delegations',
@@ -334,7 +481,9 @@ export const agentDelegations = sqliteTable(
         recordJson: text('record_json').notNull(),
     },
     (table) => [
+        index('agent_delegations_session').on(table.sessionId),
         index('agent_delegations_status').on(table.status),
         index('agent_delegations_terminal').on(table.terminalId),
+        check('agent_delegations_status', isOneOf(table.status, agentDelegationStatuses)),
     ],
 );

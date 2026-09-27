@@ -4,31 +4,6 @@ import { eq } from 'drizzle-orm';
 import type { CaxriDrizzleDatabase } from '../connection';
 import { terminalSnapshots } from '../schema';
 
-interface SnapshotRow {
-    terminalId: string;
-    encodingVersion: number;
-    cols: number | null;
-    rows: number | null;
-    lineCount: number;
-    byteCount: number;
-    payload: string;
-    updatedAt: number;
-}
-
-function mapSnapshot(row: SnapshotRow): TerminalSnapshot | undefined {
-    if (row.cols === null || row.rows === null) return undefined;
-    return {
-        terminalId: row.terminalId,
-        encodingVersion: row.encodingVersion,
-        cols: row.cols,
-        rows: row.rows,
-        lineCount: row.lineCount,
-        byteCount: row.byteCount,
-        payload: row.payload,
-        updatedAt: row.updatedAt,
-    };
-}
-
 /**
  * Pure CRUD over the `terminal_snapshots` table.
  */
@@ -36,12 +11,11 @@ export class SnapshotsModel {
     constructor(private readonly database: CaxriDrizzleDatabase) {}
 
     get(terminalId: string): TerminalSnapshot | undefined {
-        const row = this.database
+        return this.database
             .select()
             .from(terminalSnapshots)
             .where(eq(terminalSnapshots.terminalId, terminalId))
             .get();
-        return row ? mapSnapshot(row) : undefined;
     }
 
     save(snapshot: TerminalSnapshot): void {

@@ -41,7 +41,6 @@ function handler(): CommandAdapter {
                     attentionEpoch: 0,
                     readAttentionEpoch: 0,
                     hasUnread: false,
-                    layoutVersion: 1,
                     displayTitle: request.params.displayTitle,
                     titleMode: 'manual',
                 };

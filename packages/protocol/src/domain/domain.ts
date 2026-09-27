@@ -212,7 +212,6 @@ export const sessionRecordSchema = z.object({
      * Derived read-model field; SQLite stores only the two epochs above.
      */
     hasUnread: z.boolean(),
-    layoutVersion: z.number(),
     displayTitle: z.string(),
     /**
      * Automatic titles follow the primary Agent; manual titles are owned by the user.

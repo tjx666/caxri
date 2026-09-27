@@ -3,10 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { compareSessionSidebarOrder } from '@caxri/protocol';
-import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { migrationManifest, schemaVersionForMigration } from '../migrations/manifest';
 import { CaxriDatabase } from '../repository';
 
 const directories: string[] = [];
@@ -155,54 +153,5 @@ describe('Session sidebar order', () => {
         database.selectSession(b.id);
         database.archiveSession(b.id);
         expect(database.getAppState('lastSelectedSessionId')).toBe(a.id);
-    });
-
-    it('backfills the previous schema in its exact visible activity order', async () => {
-        const directory = await mkdtemp(join(tmpdir(), 'caxri-session-order-upgrade-'));
-        directories.push(directory);
-        const path = join(directory, 'state.db');
-        const previous = new Database(path);
-        /**
-         * Pin the pre-order schema so future migrations cannot silently skip the backfill under test.
-         */
-        const previousMigrations = migrationManifest.slice(
-            0,
-            migrationManifest.findIndex(
-                (migration) => migration.tag === '0023_session-sidebar-order',
-            ),
-        );
-        for (const migration of previousMigrations)
-            previous.exec(migration.sql.replaceAll('--> statement-breakpoint', ''));
-        expect(
-            (previous.pragma('table_info(sessions)') as Array<{ name: string }>).map(
-                (column) => column.name,
-            ),
-        ).not.toContain('sidebar_order');
-        previous
-            .prepare(
-                'INSERT INTO projects (id, root_path, display_title, created_at, last_opened_at) VALUES (?, ?, ?, 1, 1)',
-            )
-            .run('p', directory, 'Project');
-        const insert = previous.prepare(
-            'INSERT INTO sessions (id, project_id, display_title, created_at, last_opened_at, last_session_activity_at) VALUES (?, ?, ?, ?, 999, ?)',
-        );
-        insert.run('a', 'p', 'Alpha', 1, 10);
-        insert.run('b', 'p', 'Beta', 2, 20);
-        insert.run('c', 'p', 'Gamma', 3, 20);
-        previous.pragma(`user_version = ${schemaVersionForMigration('0022_natural_apocalypse')}`);
-        previous.close();
-        const upgraded = new CaxriDatabase(path);
-        connections.push(upgraded);
-        expect(
-            upgraded
-                .listSessions('p')
-                .toSorted(compareSessionSidebarOrder)
-                .map((row) => [row.id, row.sidebarOrder]),
-        ).toEqual([
-            ['c', 0],
-            ['b', 1],
-            ['a', 2],
-        ]);
-        expect(upgraded.getSession('a')?.lastSessionActivityAt).toBe(10);
     });
 });

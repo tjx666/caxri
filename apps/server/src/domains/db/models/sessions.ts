@@ -17,7 +17,6 @@ import {
 import { and, asc, eq, lt, sql } from 'drizzle-orm';
 
 import type { CaxriDrizzleDatabase } from '../connection';
-import { DEFAULT_LAYOUT_VERSION } from '../connection';
 import {
     CURRENT_SESSION_STATE_VERSION,
     sessions,
@@ -83,7 +82,7 @@ export class SessionsModel {
             .select({ id: terminals.id })
             .from(terminals)
             .where(eq(terminals.sessionId, sessionId))
-            .orderBy(asc(terminals.orderIndex), asc(terminals.id))
+            .orderBy(asc(terminals.orderIndex))
             .all()
             .map((terminal) => terminal.id);
     }
@@ -93,7 +92,7 @@ export class SessionsModel {
         const rows = this.database
             .select({ id: terminals.id, sessionId: terminals.sessionId })
             .from(terminals)
-            .orderBy(asc(terminals.sessionId), asc(terminals.orderIndex), asc(terminals.id))
+            .orderBy(asc(terminals.sessionId), asc(terminals.orderIndex))
             .all();
         for (const terminal of rows) {
             const terminalIds = terminalIdsBySession.get(terminal.sessionId);
@@ -356,7 +355,6 @@ export class SessionsModel {
                 attentionEpoch: 0,
                 readAttentionEpoch: 0,
                 lastAttentionKind: null,
-                layoutVersion: DEFAULT_LAYOUT_VERSION,
                 displayTitle: input.displayTitle,
                 titleMode: 'automatic',
             })

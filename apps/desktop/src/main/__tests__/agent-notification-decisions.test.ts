@@ -27,7 +27,6 @@ function session(patch: Partial<SessionRecord> & Pick<SessionRecord, 'id'>): Ses
         attentionEpoch: 0,
         readAttentionEpoch: 0,
         hasUnread: false,
-        layoutVersion: 1,
         displayTitle: 'Investigate hooks',
         titleMode: 'automatic',
         primaryAgentTerminalId: 'terminal-1',

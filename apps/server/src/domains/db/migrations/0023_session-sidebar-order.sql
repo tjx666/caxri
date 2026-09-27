@@ -1,1 +1,0 @@
-ALTER TABLE `sessions` ADD `sidebar_order` integer DEFAULT 0 NOT NULL;

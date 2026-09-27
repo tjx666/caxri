@@ -1,1 +1,0 @@
-ALTER TABLE `session_state` ADD `revision` integer DEFAULT 0 NOT NULL;
