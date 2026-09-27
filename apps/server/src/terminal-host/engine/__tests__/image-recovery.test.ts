@@ -21,17 +21,59 @@ describe('TerminalImageRecoveryFilter', () => {
         expect(output).not.toContain('PNG_SECRET');
     });
 
-    it('redacts SIXEL and unsupported Kitty payloads', () => {
+    it('redacts SIXEL and placed Kitty payloads', () => {
         const filter = new TerminalImageRecoveryFilter();
 
         const output = filter.push(
-            'a\u{1B}P1;2qSIXEL_SECRET\u{1B}\\b\u{1B}_Gf=100;KITTY_SECRET\u{1B}\\c',
+            'a\u{1B}P1;2qSIXEL_SECRET\u{1B}\\b\u{1B}_Ga=T,f=100;KITTY_SECRET\u{1B}\\c',
         );
 
         expect(output).toBe(
             `a${TERMINAL_IMAGE_RECOVERY_PLACEHOLDER}b${TERMINAL_IMAGE_RECOVERY_PLACEHOLDER}c`,
         );
         expect(output).not.toMatch(/SIXEL_SECRET|KITTY_SECRET/);
+    });
+
+    it('drops Kitty graphics controls that never place an image without a placeholder', () => {
+        const filter = new TerminalImageRecoveryFilter();
+
+        /**
+         * Claude Code sends this capability probe at startup in terminals it does not recognize.
+         */
+        const query = '\u{1B}_Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA\u{1B}\\';
+        const transmitOnly = '\u{1B}_Gi=7,f=100;TRANSMIT_SECRET\u{1B}\\';
+        const deletion = '\u{1B}_Ga=d,d=I,i=7,q=2\u{1B}\\';
+
+        const output = filter.push(`before${query}${transmitOnly}${deletion}after`);
+
+        expect(output).toBe('beforeafter');
+        expect(filter.finish()).toBe('');
+    });
+
+    it('emits one placeholder for a chunked Kitty image placement', () => {
+        const filter = new TerminalImageRecoveryFilter();
+
+        const output = filter.push(
+            'a\u{1B}_Ga=T,f=100,m=1;FIRST_SECRET\u{1B}\\' +
+                '\u{1B}_Gm=1;MIDDLE_SECRET\u{1B}\\' +
+                '\u{1B}_Gm=0;LAST_SECRET\u{1B}\\b' +
+                '\u{1B}_Ga=p,i=7\u{1B}\\c',
+        );
+
+        expect(output).toBe(
+            `a${TERMINAL_IMAGE_RECOVERY_PLACEHOLDER}b${TERMINAL_IMAGE_RECOVERY_PLACEHOLDER}c`,
+        );
+    });
+
+    it('decides Kitty visibility from a header split across chunks', () => {
+        const filter = new TerminalImageRecoveryFilter();
+
+        expect(filter.push('before\u{1B}_Gi=31,a')).toBe('before');
+        expect(filter.push('=q;AAAA\u{1B}\\after')).toBe('after');
+        expect(filter.push('\u{1B}_Ga')).toBe('');
+        expect(filter.push('=T;SECRET\u{1B}\\done')).toBe(
+            `${TERMINAL_IMAGE_RECOVERY_PLACEHOLDER}done`,
+        );
     });
 
     it('redacts multipart IIP and C1 image controls', () => {
@@ -41,7 +83,7 @@ describe('TerminalImageRecoveryFilter', () => {
             '\u{1B}]1337;MultipartFile=inline=1\u{7}' +
                 '\u{1B}]1337;FilePart=MULTIPART_SECRET\u{1B}\\' +
                 '\u{90}qC1_SIXEL_SECRET\u{9C}' +
-                '\u{9F}GC1_KITTY_SECRET\u{9C}after',
+                '\u{9F}Ga=T;C1_KITTY_SECRET\u{9C}after',
         );
 
         expect(output).toBe(`${TERMINAL_IMAGE_RECOVERY_PLACEHOLDER.repeat(4)}after`);
