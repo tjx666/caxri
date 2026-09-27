@@ -181,6 +181,12 @@ const androidCases = {
         recordingOwner: 'adapter',
         scenario: 'conversation-tablet-font',
     },
+    'MOB-CONV-05': {
+        desktopProfile: 'managed-by-isolated-e2e',
+        media: ['screenshot', 'video'],
+        recordingOwner: 'scenario',
+        scenario: 'conversation-open-return',
+    },
     'MOB-TIMELINE-01': {
         desktopProfile: 'managed-by-isolated-e2e',
         media: [],
