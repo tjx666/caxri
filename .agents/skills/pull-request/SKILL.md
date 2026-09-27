@@ -92,13 +92,15 @@ readback. Do not end again at local validation or PR creation. A status-only que
 
 One self-hosted runner serves every session, and a full pass costs 20-25 minutes of it. Spending
 that on a diff CI cannot meaningfully judge starves every sibling delivery queued behind it. Two
-narrow classes of change may therefore be merged as soon as their own local gates pass, without
-waiting for the PR's checks:
+narrow classes of change therefore skip CI once their own local gates pass:
 
 - **Documentation only** — `docs/`, `AGENTS.md`, `.agents/**`, or another tracked `.md` that no
-  shipped code reads.
+  shipped code reads. The owner has granted standing authorization: commit it directly on `main`
+  in the primary checkout and push, with no worktree, branch, or pull request. If `main` moved,
+  `git pull --ff-only` first and rerun the gates.
 - **Renderer styling only** — token, spacing, color, or layout values with no behavior change,
-  even when the change ships a test alongside them.
+  even when the change ships a test alongside them. It still goes through a pull request, which
+  may merge without waiting for its checks.
 
 Run the gates that actually cover the changed files first, and require them to pass:
 
@@ -115,10 +117,12 @@ reference one another, so prose edited here can fail a unit test no markdown lin
 One line outside those classes disqualifies the exception. A diff that also touches `apps/`,
 `packages/`, `extensions/`, `e2e/`, `scripts/`, `tools/`, a workflow YAML, `package.json`, or
 `pnpm-lock.yaml` returns to the normal path — documentation bundled with a code change is a code
-change. The exception removes the wait, not the merge authorization step 7 still requires.
+change. For Renderer styling, the exception removes the wait, not the merge authorization step 7
+still requires.
 
-Merging does not stop the PR's run — a queued job keeps its place in line and will still take the
-runner for a head nobody is waiting on. Cancel it explicitly:
+Merging does not stop the PR's run, and a documentation push to `main` may start one — a queued job
+keeps its place in line and will still take the runner for a head nobody is waiting on. Cancel it
+explicitly:
 
 ```bash
 gh api -X POST repos/tjx666/caxri/actions/runs/<run-id>/cancel
