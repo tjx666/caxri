@@ -94,7 +94,7 @@ const GUIDANCE = new Map<FullSuiteRunner, string>([
     [
         'unit',
         'Run the focused checker instead: `bun run check <changed files>` picks the owning suites, name the test ' +
-            'files directly with `rtk vitest run <file>`, or narrow to one workspace with `vitest run --project ' +
+            'files directly with `bunx vitest run <file>`, or narrow to one workspace with `vitest run --project ' +
             '<name>`. Watching the whole repository is the same gate, so `bun run test:watch` also takes a file or ' +
             'a `--project`. The full suite is a repository-wide gate; see the "Repository-wide gates" section of ' +
             'the `quality-check` skill.',

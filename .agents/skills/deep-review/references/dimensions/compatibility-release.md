@@ -11,8 +11,10 @@ and whether a bad release has a concrete recovery path.
 
 ## Quick checklist
 
-- IPC params/results/events or persisted layouts/settings/snapshots change without tolerating values
-  written by the previous version
+- A non-schema IPC/persisted layout, setting, or snapshot change adds a protocol adapter, legacy Host
+  control, dual-read/write path, or migration UI only to keep an unpublished build's previous shape
+  working, instead of failing clearly toward the documented reset or reinstall workflow (AGENTS.md's
+  pre-release policy; this bullet does not apply once the owner declares the public release)
 - Database schema changes lack generated checked-in migrations, bundled `?raw` loading, clean-profile
   replay, or an upgrade-path test
 - Main, Preload, Runtime, and Renderer assumptions diverge; non-Renderer code uses Renderer-only path
@@ -28,8 +30,6 @@ and whether a bad release has a concrete recovery path.
   or imply signing/notarization that does not exist
 - A release-sensitive change has no focused build/package/native/startup validation proportional to
   its surface
-- Reverting code after new durable state is written would make the previous version unreadable or
-  lose user work
 
 ## Release checks
 
@@ -49,6 +49,8 @@ Emit a `release_checks` item, not a defect, when safety depends on state source 
 
 ## Rule sources
 
+- `AGENTS.md` ("Product invariants" — the pre-release no-compatibility-layer policy is authoritative;
+  it governs every bullet above that touches IPC, persisted shape, or previous-build compatibility)
 - `.agents/skills/build/SKILL.md`
 - `.agents/skills/release/SKILL.md`
 - `.agents/skills/project-architecture/references/electron-toolchain.md`
@@ -57,6 +59,9 @@ Emit a `release_checks` item, not a defect, when safety depends on state source 
 
 ## Not violations
 
-- An additive persisted field with a validated default and old-shape fallback
+- An additive persisted field with a validated default and old-shape fallback (optional, not required)
+- A non-schema IPC/persisted shape change, or a revert that leaves durable state unreadable to the
+  reverted code, before the owner has declared the public release — AGENTS.md's documented reset or
+  reinstall workflow is the accepted recovery path, not a preserved compatibility layer
 - Unsigned/not-notarized local artifacts when the change does not claim public distribution
 - Missing full-suite execution during iteration when focused validation covers the change
