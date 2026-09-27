@@ -334,24 +334,28 @@ count, and complete root path. The treeitem's accessible name still includes the
 moving the visible digit into the detail card does not make a collapsed Project opaque to assistive
 technology.
 Selection is an `--elevated` fill (radius 6), no border and no accent — the primarySidebar stays
-entirely neutral so the focused pane keeps the screen's one accent. Every Session row ends in one
-trailing status track. Show only one 14px glyph at the right edge: unread attention, running work,
-or a detached Agent takes precedence over the pull request. The PR appears only when no lifecycle
-signal is visible; its hover-card link, context-menu entry, and keyboard command remain available
-while the row glyph is hidden. A visible glyph claims the 14px track and every such glyph shares one
-vertical line; an idle Session with no PR collapses the empty track to zero so its title gains one
-more character while retaining the 8px separation from the right edge. The MRU switcher still
-reserves its status slot because its neighbouring relative timestamp must not shift. Unacknowledged attention wins and uses a warning ring/dot with a
-ping; there is deliberately no second, static amber state, so reading a Session is the only thing
-that clears the status and nothing can bring it back unread; active work (including compaction) uses
-a muted spinner; settled, idle, unknown, failed, and exited Sessions render no status, which hands
-the edge position to a pull request glyph. Thus a
-failed process is not a persistent list alert, while reliable unread attention remains visible
+entirely neutral so the focused pane keeps the screen's one accent. A Session row splits its two
+status questions across its two edges, and each edge has one fixed meaning. The leading Agent icon
+answers "does this Agent need me, or is it working?": running work (including compaction) wraps the
+icon in a thin foreground arc spinning over a faint track; unacknowledged attention wraps it in a
+pinging warning ring and tints the icon warning; a detached Agent dims the icon under a small
+unplugged badge. A decorated icon shrinks by 3px so its ring stays inside a 3px halo of the 14px
+box, and the title never moves between states. Attention wins over running; there is deliberately
+no second, static amber state, so reading a Session is the only thing that clears it and nothing can
+bring it back unread. Settled, idle, unknown, failed, and exited Sessions show the plain icon. The
+trailing track answers only "how far has this delivery got?": the pull request and its production
+deployment, never hidden by lifecycle. A visible glyph claims the 14px track and every such glyph
+shares one vertical line; a Session with no PR collapses the empty track to zero so its title gains
+one more character while retaining the 8px separation from the right edge. The MRU switcher uses the
+same leading icon. A collapsed Project heading summarizes the rows it hides: a small running arc with
+the running count, and one warning dot when any Session is unread; it stays beside the name while the
+heading's hover actions show, and disappears when the Project expands. Thus a failed process is not a persistent
+list alert, while reliable unread attention remains visible
 regardless of its exact kind. Motion and shape carry the glance signal without changing title
 weight, and the accessible label plus the Session hover/focus card preserve exact lifecycle and
 attention details. On pointer hover, Pin and Archive occupy a reserved cluster at the row's right
 edge; the title (and a Pinned row's Project name) clips with the same right-edge fade before that
-cluster, and the trailing status glyph collapses so it does not double-reserve. Keyboard focus keeps
+cluster, and the trailing delivery glyph collapses so it does not double-reserve. Keyboard focus keeps
 the track visible because Delete already owns the keyboard action; the hover buttons stay outside
 the tree's single Tab stop. The Portal
 card opens to the PrimarySidebar's right after a short hover delay (or immediately on intentional keyboard focus),
@@ -446,7 +450,9 @@ deleting the owner deletes it, and the confirmation names the ones about to go.
 Pull request lifecycle owns the glyph color: open is `--success`, closed is `--danger`, merged
 is `--merged`, and draft is `--muted`. Checks appear as text in the hover card, with failures in
 `--danger`; never overlay a badge on the small PR glyph or recolor it for CI. The existing animated
-yellow Session attention ring keeps its separate meaning and position.
+yellow Session attention ring keeps its separate meaning on the leading Agent icon. A production
+deployment that succeeded uses the rocket in `--merged`: shipping is where a merged pull request goes
+next, and a green rocket read as the same state as an open PR.
 
 The Status tab carries a compact, static badge anchored to the heartbeat icon's lower-right
 corner, following VS Code's activity-bar badge placement. Use a 16px minimum circular surface that
@@ -565,7 +571,7 @@ Terminal title and replace generic progress text while active. `Compacting` is t
 exception: it uses `--foreground` and a slow opacity pulse so long-running context compression
 remains noticeable without animating the Agent icon or Session title. Work tabs carry no separate
 process-state dot; process liveness remains available through diagnostics rather than duplicate
-chrome. This does not govern the Session list's right-edge running spinner.
+chrome. This does not govern the Session list's running arc around the Agent icon.
 
 **Git decorations** — a file with working-tree changes reads the same wherever its name appears.
 The name takes the `--git-*` color of its change, and a single status letter (`M`, `A`, `D`, `U`…)
@@ -664,9 +670,11 @@ disclosures in Files, Source Control, and extension-contributed trees. Do not st
 The Process Explorer window is out of scope (separate style layer, read-only diagnostics).
 
 The Session status icon is the narrow state-motion exception: unread attention pings so a newly
-actionable event is noticeable, and running spins. Amber always pings — an unread event is the only
-thing that colors the slot — so a still amber dot never competes with it. The motion belongs inside
-the icon; swapping among the three list projections remains instant.
+actionable event is noticeable, and running spins an arc around the Agent icon. Amber always pings —
+an unread event is the only thing that colors the Agent icon — so a still amber dot never competes
+with it; the collapsed Project heading's static warning dot summarizes rows that already ping. The
+motion belongs to the ring, never the Agent mark itself; swapping among the three list projections
+remains instant.
 
 The work-tab `Compacting` accessory is the other state-motion exception: only that word pulses,
 while the Agent icon, Session title, focus accent, and neighboring tabs remain still. Hovered or

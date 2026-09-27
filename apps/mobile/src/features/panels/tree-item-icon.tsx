@@ -228,7 +228,8 @@ const THEME_TONES: Partial<Record<string, Tone>> = {
     'hourglass': 'muted',
     'pass': 'success',
     'question': 'muted',
-    'rocket-success': 'success',
+    // Violet like Desktop's: a shipped deployment is where a merged pull request goes next.
+    'rocket-success': 'merged',
     'shield': 'muted',
     'shield-alert': 'danger',
     'shield-check': 'success',

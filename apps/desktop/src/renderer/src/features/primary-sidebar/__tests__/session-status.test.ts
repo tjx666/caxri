@@ -1,7 +1,7 @@
 import type { AgentActivityState, SessionRecord } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
-import { sessionStatus } from '../session-status';
+import { sessionStatus, summarizeSessionStatuses } from '../session-status';
 
 function sessionSource(
     lastActivityState: AgentActivityState,
@@ -96,5 +96,32 @@ describe('Session list status', () => {
                 sessionSource('failed', { hasUnread: true, lastAttentionKind: 'failed' }),
             ),
         ).toMatchObject({ kind: 'attention' });
+    });
+});
+
+describe('summarizeSessionStatuses', () => {
+    it('counts running and unread Sessions with the same projection as their rows', () => {
+        const sessions = [
+            sessionSource('running'),
+            sessionSource('idle', { hasUnread: true, lastAttentionKind: 'completed' }),
+            // Unread outranks running, so this Session counts as attention only.
+            sessionSource('running', { hasUnread: true, lastAttentionKind: 'completed' }),
+            sessionSource('idle'),
+            sessionSource('idle'),
+        ];
+        const compacting = sessions[3];
+        expect(
+            summarizeSessionStatuses(sessions, (session) =>
+                session === compacting ? { agentOperation: 'compacting' } : undefined,
+            ),
+        ).toEqual({ attention: 2, running: 2 });
+    });
+
+    it('leaves a detached Agent out of the running count', () => {
+        expect(
+            summarizeSessionStatuses([sessionSource('running')], () => ({
+                lastProcessState: 'detached',
+            })),
+        ).toEqual({ attention: 0, running: 0 });
     });
 });
