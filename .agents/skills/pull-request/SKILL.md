@@ -12,7 +12,10 @@ authority.
 When the user follows up on unfinished delivery by directing the agent to proceed with the
 discussed merge, carry that authorization through commit, PR publication, checks, merge, and remote
 readback. Do not end again at local validation or PR creation. A status-only question such as
-"has it merged?" remains read-only and does not grant merge authorization.
+"has it merged?" does not grant new merge authorization or revoke an existing authorized delivery.
+After answering an intervening question, resume that delivery using the existing watcher result:
+a failed run requires diagnosis and repair, not just a status reply. Stop only when the user pauses
+or cancels the delivery, or a concrete blocker requires their input.
 
 1. Refresh the current branch, working tree, remote refs, linked issue state, existing PR state,
    and required checks before making a delivery decision. Remote mutations require explicit user or

@@ -9,9 +9,6 @@ import { execFileAsync } from '../exec';
 import {
     cleanup,
     didRemoveCreatedRunRoot,
-    ownedProcessIds,
-    parseProcessTable,
-    protectedProcessIds,
     shortTemporaryLinkPath,
     validateRunnerOwner,
 } from '../self-hosted-runner';
@@ -37,23 +34,6 @@ function cleanupFixtureEnvironment(input: {
 }
 
 describe('self-hosted E2E runner ownership', () => {
-    const processes = parseProcessTable(`
-  1   0 launchd
-100   1 runner
-110 100 bash CAXRI_RUNNER_OWNER=caxri-42-1-control
-120 110 bun CAXRI_RUNNER_OWNER=caxri-42-1-control
-130 100 Electron CAXRI_RUNNER_OWNER=caxri-41-1-control
-140 100 Electron CAXRI_RUNNER_OWNER=caxri-42-1-control-extra
-`);
-
-    it('protects the cleanup process ancestry and selects only the exact run owner', () => {
-        expect([...protectedProcessIds(processes, 120)]).toEqual([120, 110, 100, 1]);
-        expect(
-            ownedProcessIds(processes, 'caxri-42-1-control', protectedProcessIds(processes, 120)),
-        ).toEqual([]);
-        expect(ownedProcessIds(processes, 'caxri-42-1-control', new Set([110]))).toEqual([120]);
-    });
-
     it('accepts only bounded portable run owners', () => {
         expect(validateRunnerOwner('caxri-123-2-parallel-safe')).toBe('caxri-123-2-parallel-safe');
         expect(() => validateRunnerOwner('caxri-123-2-../../home')).toThrow(
@@ -177,7 +157,7 @@ describe('self-hosted E2E runner ownership', () => {
         }
     });
 
-    it('finishes owned link and run-root cleanup after an earlier teardown failure', async () => {
+    it('preserves owned profiles and links when process teardown is not verified', async () => {
         const root = await mkdtemp(join(tmpdir(), 'caxri-runner-cleanup-'));
         const workspace = join(root, 'workspace');
         const runnerTemporary = join(root, 'runner-temp');
@@ -217,8 +197,8 @@ describe('self-hosted E2E runner ownership', () => {
                 ),
             ).rejects.toThrow('injected earlier teardown failure');
 
-            await expect(access(temporaryLink)).rejects.toMatchObject({ code: 'ENOENT' });
-            await expect(access(runRoot)).rejects.toMatchObject({ code: 'ENOENT' });
+            await expect(access(temporaryLink)).resolves.toBeUndefined();
+            await expect(access(runRoot)).resolves.toBeUndefined();
             expect(await readFile(githubSummary, 'utf8')).toContain(
                 '| Cleanup stage failures | `1` |',
             );
@@ -349,8 +329,8 @@ describe('self-hosted E2E runner ownership', () => {
                 ),
             ).rejects.toThrow('first cleanup failure');
 
-            await expect(access(temporaryLink)).rejects.toMatchObject({ code: 'ENOENT' });
-            await expect(access(runRoot)).rejects.toMatchObject({ code: 'ENOENT' });
+            await expect(access(temporaryLink)).resolves.toBeUndefined();
+            await expect(access(runRoot)).resolves.toBeUndefined();
         } finally {
             await rm(temporaryLink, { recursive: true, force: true });
             await rm(root, { recursive: true, force: true });
