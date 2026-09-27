@@ -1,6 +1,7 @@
 import { Buffer } from 'node:buffer';
 
 import type { AgentProvider } from '@caxri/protocol';
+import { isDelegationActive } from '@caxri/protocol';
 
 import type { DelegationCompletion } from '../agents';
 /**
@@ -9,7 +10,6 @@ import type { DelegationCompletion } from '../agents';
 // react-doctor-disable-next-line react-doctor/no-barrel-import
 import { delegationAdapter } from '../agents';
 import type { StoredAgentDelegation } from '../db';
-import { isDelegationActive } from './lifecycle';
 
 /**
  * How long one task waits between transcript reads. A native-completion provider writes its answer once at the end of
