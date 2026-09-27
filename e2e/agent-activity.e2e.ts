@@ -101,7 +101,11 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
             .prepare(
                 'UPDATE projects SET display_title = ? WHERE id = (SELECT project_id FROM sessions WHERE id = ?)',
             )
-            .run('web-client-platform', sessions.get('beta'));
+            // Short on purpose: the assertions below drag the Primary Side Bar to its narrowest width (180px) and still
+            // expect this name to render whole, un-clipped, and un-faded — `.agent-activity-project`'s reserved 8px
+            // trailing buffer (issue #1173) already spends part of that tight budget, so a name any longer leaves too
+            // little room to prove the un-clipped case rather than the already-covered clipped one below.
+            .run('webapp', sessions.get('beta'));
         database
             .prepare(
                 'UPDATE projects SET display_title = ? WHERE id = (SELECT project_id FROM sessions WHERE id = ?)',
@@ -198,7 +202,7 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
         await expect(betaRow).toContainText('beta work');
         // The Project cell specifically, not the row: the Session title contains the Project name too, so asserting on
         // the whole row would pass even if the flat list never printed which repository a row belongs to.
-        await expect(betaRow.locator('.agent-activity-project')).toHaveText('web-client-platform');
+        await expect(betaRow.locator('.agent-activity-project')).toHaveText('webapp');
         /*
          * The state is a glyph, not a phrase, so the words only survive as its accessible name. Assert both halves:
          * the shape that identifies the state visually, and the label a screen reader is left with once the phrase is
@@ -234,6 +238,18 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
                     .evaluate((cell) => cell.scrollWidth <= cell.clientWidth),
             )
             .toBe(true);
+        /*
+         * A short, un-clipped Project name must render inside a box wider than its own text, not exactly the width of
+         * the text: `.overflow-fade`'s mask fades the box's last 8px unconditionally, so an exactly content-sized box
+         * would fade real characters even though nothing is actually being cut off. `clientWidth` includes the cell's
+         * reserved trailing padding while `scrollWidth` (by definition) does not, so a gap between them here proves that
+         * buffer exists — the fix for github.com/tjx666/caxri/issues/1173.
+         */
+        expect(
+            await betaRow
+                .locator('.agent-activity-project')
+                .evaluate((cell) => cell.clientWidth - cell.scrollWidth),
+        ).toBeGreaterThanOrEqual(8);
         expect(await betaRow.evaluate((row) => row.getBoundingClientRect().height)).toBe(rowHeight);
         expect(
             await betaRow.locator('.agent-activity-time').evaluate((time) => {
@@ -247,7 +263,7 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
          * truncated one can still be read in full, now that the row has no tooltip competing with the card.
          */
         await betaRow.locator('.agent-activity-project').hover();
-        await expect(page.locator('.session-activity-card')).toContainText('web-client-platform');
+        await expect(page.locator('.session-activity-card')).toContainText('webapp');
         await page.screenshot({
             path: test.info().outputPath('activity-narrow-project.png'),
             mask: [page.locator('.xterm')],

@@ -171,7 +171,15 @@ export function AgentActivityRowTrigger({
                         <span className="flex size-3 flex-none items-center justify-center">
                             <AgentIdentityIcon identity={terminal?.kind ?? 'shell'} size={12} />
                         </span>
-                        <span className="agent-activity-project overflow-fade max-w-[calc(100%-1rem)] min-w-0 shrink-0">
+                        {/*
+                         * `pr-2` reserves the mask's own 8px fade distance as trailing padding, not text: `.overflow-fade`
+                         * fades the box's last 8px unconditionally (see `styles.css`), and this box is `shrink-0` (sized
+                         * to content, not a flex-1 "wider than content" box like the Project tree's), so without the
+                         * padding a short, un-clipped Project name had its own last pixels faded for no reason
+                         * (github.com/tjx666/caxri/issues/1173). The padding is inside `max-w`, so a Project long enough
+                         * to hit the cap still clips at that same edge — this only changes the short-name case.
+                         */}
+                        <span className="agent-activity-project overflow-fade max-w-[calc(100%-1rem)] min-w-0 shrink-0 pr-2">
                             {project.displayTitle}
                         </span>
                         {worktreeProject && (
@@ -180,7 +188,8 @@ export function AgentActivityRowTrigger({
                                 data-session-worktree={worktreeProject.displayTitle}
                             >
                                 <WorktreeIcon className="flex-none" size={11} />
-                                <span className="overflow-fade">
+                                {/* Same reserved-padding reasoning as `.agent-activity-project` above. */}
+                                <span className="overflow-fade pr-2">
                                     {worktreeProject.displayTitle}
                                 </span>
                             </span>
