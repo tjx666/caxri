@@ -41,6 +41,13 @@ export function reviewSnippet(content: string, startLine: number, endLine: numbe
 }
 
 /**
+ * Maps Monaco's diff side vocabulary to the words a reviewer would say out loud, for the review card heading.
+ */
+export function reviewSideLabel(side: GitReviewComment['side']): 'New' | 'Old' {
+    return side === 'original' ? 'Old' : 'New';
+}
+
+/**
  * Submit a multiline review as one bracketed paste, matching xterm's Agent paste path.
  */
 export function formatReviewTerminalInput(text: string): string {
@@ -53,10 +60,15 @@ export function formatReviewTerminalInput(text: string): string {
 export const useGitReviewComments = create<GitReviewCommentState>((set) => ({
     comments: [],
     add: (comment) => set((state) => ({ comments: [...state.comments, comment] })),
+    /**
+     * Editing a sent or outdated comment's text has to make it sendable again, or the correction silently never reaches
+     * the Agent: resetting to `pending` here is a no-op for an already-pending comment and otherwise clears the
+     * resolved state the stale text earned.
+     */
     edit: (id, text) =>
         set((state) => ({
             comments: state.comments.map((comment) =>
-                comment.id === id ? { ...comment, text } : comment,
+                comment.id === id ? { ...comment, text, status: 'pending' } : comment,
             ),
         })),
     remove: (id) =>

@@ -29,7 +29,13 @@ export function bindGitReviewCommentEditor(
 ): () => void {
     const zones = new Map<
         string,
-        { root: ReturnType<typeof createRoot>; zoneId: string; comment: GitReviewComment }
+        {
+            root: ReturnType<typeof createRoot>;
+            zoneId: string;
+            zone: MonacoEditor.IViewZone;
+            comment: GitReviewComment;
+            resizeObserver: ResizeObserver;
+        }
     >();
     let hoverDecorations: MonacoEditor.IEditorDecorationsCollection | undefined;
     const isInScope = (comment: GitReviewComment) =>
@@ -38,14 +44,45 @@ export function bindGitReviewCommentEditor(
         comment.sourceKey === scope.sourceKey &&
         comment.path === scope.path &&
         comment.side === scope.side;
+    /**
+     * Monaco view zones do not size to their content, so the card's own vertical resize (edit mode, a manually resized
+     * textarea) would otherwise get clipped by a stale `heightInPx`. `ResizeObserver` measures the mounted card's real
+     * rendered height and `layoutZone` reflows the editor around it.
+     */
+    const observeZoneHeight = (
+        domNode: HTMLDivElement,
+        zoneId: string,
+        zone: MonacoEditor.IViewZone,
+    ) => {
+        const resizeObserver = new ResizeObserver(() => {
+            const measured = Math.ceil(domNode.getBoundingClientRect().height);
+            if (measured <= 0 || zone.heightInPx === measured) return;
+            editor.changeViewZones((accessor) => {
+                zone.heightInPx = measured;
+                accessor.layoutZone(zoneId);
+            });
+        });
+        resizeObserver.observe(domNode);
+        return resizeObserver;
+    };
+    /**
+     * Monaco stretches a view zone across the whole scrollable content width, which runs under the minimap and
+     * scrollbar, so a card sized to the zone was clipped on its right edge. The visible content width caps it instead.
+     */
+    const syncZoneWidth = (domNode: HTMLElement) =>
+        domNode.style.setProperty(
+            '--git-review-zone-width',
+            `${editor.getLayoutInfo().contentWidth}px`,
+        );
     const renderZones = () => {
         const comments = useGitReviewComments.getState().comments.filter(isInScope);
         const currentIds = new Set(comments.map((comment) => comment.id));
         editor.changeViewZones((accessor) => {
-            for (const [id, zone] of zones) {
+            for (const [id, entry] of zones) {
                 if (currentIds.has(id)) continue;
-                zone.root.unmount();
-                accessor.removeZone(zone.zoneId);
+                entry.resizeObserver.disconnect();
+                entry.root.unmount();
+                accessor.removeZone(entry.zoneId);
                 zones.delete(id);
             }
             for (const comment of comments) {
@@ -59,18 +96,21 @@ export function bindGitReviewCommentEditor(
                 }
                 const domNode = document.createElement('div');
                 domNode.className = 'git-review-zone';
-                const zoneId = accessor.addZone({
+                syncZoneWidth(domNode);
+                const zone: MonacoEditor.IViewZone = {
                     afterLineNumber: comment.endLine,
                     heightInPx: 128,
                     domNode,
-                });
+                };
+                const zoneId = accessor.addZone(zone);
                 /**
                  * Monaco marks view zones as decorative. Review cards contain editable controls and must enter the
                  * accessibility tree.
                  */
                 domNode.closest('[aria-hidden="true"]')?.removeAttribute('aria-hidden');
                 const root = createRoot(domNode);
-                zones.set(comment.id, { root, zoneId, comment });
+                const resizeObserver = observeZoneHeight(domNode, zoneId, zone);
+                zones.set(comment.id, { root, zoneId, zone, comment, resizeObserver });
                 root.render(createElement(GitReviewCard, { comment }));
             }
         });
@@ -91,10 +131,15 @@ export function bindGitReviewCommentEditor(
             status: 'pending',
         });
     };
+    /**
+     * No `keybindings` entry here: `Cmd+Shift+M` is registered centrally as `editor.addReviewComment` in
+     * `packages/protocol`'s default keybindings, so it is rebindable in Settings and discoverable in the Command
+     * Palette instead of being a Monaco-only shortcut invisible to both. The context-menu entry stays, since Monaco has
+     * no other way to surface an editor action there.
+     */
     editor.addAction({
         id: 'caxri.addReviewComment',
         label: 'Add Review Comment',
-        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyM],
         contextMenuGroupId: 'navigation',
         contextMenuOrder: 1,
         run: () => add(),
@@ -148,6 +193,9 @@ export function bindGitReviewCommentEditor(
                 editor.getValue(),
             ),
     );
+    const layout = editor.onDidLayoutChange(() => {
+        for (const entry of zones.values()) syncZoneWidth(entry.zone.domNode);
+    });
     const unsubscribe = useGitReviewComments.subscribe(renderZones);
     renderZones();
     return () => {
@@ -157,11 +205,13 @@ export function bindGitReviewCommentEditor(
         hover.dispose();
         click.dispose();
         content.dispose();
+        layout.dispose();
         hoverDecorations?.clear();
         editor.changeViewZones((accessor) => {
-            for (const zone of zones.values()) {
-                zone.root.unmount();
-                accessor.removeZone(zone.zoneId);
+            for (const entry of zones.values()) {
+                entry.resizeObserver.disconnect();
+                entry.root.unmount();
+                accessor.removeZone(entry.zoneId);
             }
         });
         zones.clear();

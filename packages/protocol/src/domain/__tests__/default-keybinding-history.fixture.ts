@@ -470,6 +470,7 @@ export const releasedDefaultKeybindingGenerations = [
             { key: 'cmd+w', command: 'workbench.closeActiveTab' },
             { key: 'cmd+s', command: 'editor.save' },
             { key: 'cmd+alt+k', command: 'editor.sendReferenceToTerminal' },
+            { key: 'cmd+shift+m', command: 'editor.addReviewComment' },
             { key: 'cmd+shift+v', command: 'editor.openPreview' },
             { key: 'cmd+k v', command: 'editor.openPreviewToSide' },
             { key: 'cmd+1', command: 'secondarySidebar.showFiles' },
