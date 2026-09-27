@@ -361,6 +361,9 @@ All non-archived Project and
 Session names and navigation icons use `--foreground`, including inactive rows. Overflowing Session
 and Project names clip with a right-edge fade instead of an ellipsis — the ellipsis glyph spends
 row width on punctuation. The fade is about one character at the 13px UI size, matching Codex.
+A Project heading's Customize Icon and New Session buttons follow the same hover-cluster rule: at
+rest they reserve no width, so the name runs to the row's edge; on hover, keyboard focus, or while
+the New Session menu is open the name makes room and fades before them.
 Clipped Session names reveal their tail after a 600ms title hover or keyboard-focus pause, moving
 at a steady reading speed and holding at the end. Leaving restores the fade; short names remain
 still.
@@ -515,8 +518,9 @@ remaining width with their full displayed content as the minimum. Crowded bars s
 truncating Terminal labels or imposing a fixed filename cap.
 While the whole workbench holds exactly one tab across every
 pane, that tab drops the accent top border: an "active" marker distinguishes nothing when there is
-nothing to distinguish it from, and the pane ring still carries focus. The New Terminal + keeps a
-stable slot at the bar's trailing edge, revealed on bar hover or keyboard focus. Hovering + opens
+nothing to distinguish it from, and the pane ring still carries focus. The New Terminal + reserves
+no slot then: it floats over that tab's trailing end, revealed on bar hover or keyboard focus, so the
+tab's fill reaches the bar's edge instead of leaving a block of bar color beside it. Hovering + opens
 the Agent list; pressing it opens the same list for pointer and keyboard users. The chosen Agent
 starts as another Terminal in the same Session. With two or more tabs, + stays visible and keeps
 the same menu behavior. An empty pane uses its own labelled New Terminal action.
