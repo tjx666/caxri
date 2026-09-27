@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import type { BootstrapState } from '@caxri/protocol';
 import { listPaneTerminalIds } from '@caxri/protocol';
 
+import type { E2EApp } from './support/electron-app.ts';
 import type { Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
 import {
@@ -16,8 +17,11 @@ import {
     VISIBLE_SESSION,
     waitForNewTerminalId,
 } from './support/helpers.ts';
-
-const ONLY_TAB_REASON = 'This is the only tab open in this session';
+import {
+    chooseContextMenuItem,
+    dismissContextMenu,
+    isContextMenuItemEnabled,
+} from './support/native-context-menu.ts';
 
 /**
  * `:not([inert])` because Move to New Session leaves the source Session's tab behind as an exit-animation ghost with
@@ -30,9 +34,9 @@ function terminalTab(page: Page, terminalId: string) {
     );
 }
 
-async function openMoveMenu(page: Page, terminalId: string) {
+async function isMoveActionEnabled(app: E2EApp, page: Page, terminalId: string) {
     await terminalTab(page, terminalId).click({ button: 'right' });
-    return page.getByRole('menuitem', { name: 'Move to New Session' });
+    return isContextMenuItemEnabled(app, 'Move to New Session');
 }
 
 async function typeInTerminal(page: Page, terminalId: string, command: string): Promise<void> {
@@ -60,14 +64,8 @@ test('Move to New Session keeps the live Terminal and disables the only-tab acti
         if (!sourceSessionId || !sourceSession || !firstTerminalId)
             throw new Error('Initial Session and Terminal were not created');
 
-        const onlyTabAction = await openMoveMenu(running.page, firstTerminalId);
-        await expect(onlyTabAction).toBeDisabled();
-        await expect(onlyTabAction).toHaveAttribute('title', ONLY_TAB_REASON);
-        await expect(onlyTabAction).toHaveAttribute(
-            'aria-describedby',
-            /context-menu-item-reason-/,
-        );
-        await onlyTabAction.click({ force: true });
+        expect(await isMoveActionEnabled(running.app, running.page, firstTerminalId)).toBe(false);
+        await dismissContextMenu(running.app);
         const afterDisabledActivation = await pageRequest<BootstrapState>(
             running.page,
             'app.bootstrap',
@@ -77,7 +75,6 @@ test('Move to New Session keeps the live Terminal and disables the only-tab acti
             initial.sessions.map(({ id }) => id),
         );
         expect(afterDisabledActivation.terminals).toEqual(initial.terminals);
-        await running.page.keyboard.press('Escape');
 
         await pressNewTerminal(running.page);
         const movedTerminalId = await waitForNewTerminalId(running.page, [firstTerminalId]);
@@ -96,10 +93,8 @@ test('Move to New Session keeps the live Terminal and disables the only-tab acti
         );
         await expect(movedRows).toContainText('BEFORE_MOVE_preserved');
 
-        const enabledAction = await openMoveMenu(running.page, movedTerminalId);
-        await expect(enabledAction).toBeEnabled();
-        await expect(enabledAction).not.toHaveAttribute('title');
-        await enabledAction.click();
+        expect(await isMoveActionEnabled(running.app, running.page, movedTerminalId)).toBe(true);
+        await chooseContextMenuItem(running.app, 'Move to New Session');
 
         let settled: BootstrapState | undefined;
         await expect
@@ -156,9 +151,8 @@ test('Move to New Session keeps the live Terminal and disables the only-tab acti
         await expect(movedRows).toContainText('AFTER_MOVE_preserved');
         expect(await pageRequest(running.page, 'terminal.runningCount')).toBe(2);
 
-        const movedOnlyTabAction = await openMoveMenu(running.page, movedTerminalId);
-        await expect(movedOnlyTabAction).toBeDisabled();
-        await expect(movedOnlyTabAction).toHaveAttribute('title', ONLY_TAB_REASON);
+        expect(await isMoveActionEnabled(running.app, running.page, movedTerminalId)).toBe(false);
+        await dismissContextMenu(running.app);
     } finally {
         try {
             await running.app.close();

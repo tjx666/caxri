@@ -15,6 +15,11 @@ import {
     sessionCard,
     waitForRuntimeReady,
 } from './support/helpers.ts';
+import {
+    chooseContextMenuItem,
+    expectNoContextMenu,
+    isContextMenuItemEnabled,
+} from './support/native-context-menu.ts';
 
 /**
  * Closes the Electron app during teardown without letting an already-closed app fail the test.
@@ -130,12 +135,11 @@ test('The Session context menu renames a selected and an unselected row', async 
 
         const selectedCard = sessionCard(page, secondSessionId);
         await selectedCard.click({ button: 'right' });
-        const renameItem = page.getByRole('menuitem', { name: /^Rename/ });
-        await expect(renameItem).toBeEnabled();
-        await renameItem.click();
+        expect(await isContextMenuItemEnabled(running.app, 'Rename')).toBe(true);
+        await chooseContextMenuItem(running.app, 'Rename');
         const selectedInput = selectedCard.getByRole('textbox', { name: 'Rename Untitled' });
         await expect(selectedInput).toBeFocused();
-        await expect(page.getByRole('menu')).toHaveCount(0);
+        await expectNoContextMenu(running.app);
         await expect(selectedInput).toBeFocused();
         expect(
             await selectedInput.evaluate((element) => ({
@@ -153,7 +157,7 @@ test('The Session context menu renames a selected and an unselected row', async 
          */
         const unselectedCard = sessionCard(page, firstSessionId);
         await unselectedCard.click({ button: 'right' });
-        await page.getByRole('menuitem', { name: /^Rename/ }).click();
+        await chooseContextMenuItem(running.app, 'Rename');
         const unselectedInput = unselectedCard.getByRole('textbox', { name: 'Rename Untitled' });
         await expect(unselectedInput).toBeFocused();
         await unselectedInput.press('Escape');
@@ -208,7 +212,7 @@ test('Activity renames the selected Session from the palette and an unselected r
         await expect(selectedRow).toContainText('Activity renamed');
 
         await unselectedRow.click({ button: 'right' });
-        await page.getByRole('menuitem', { name: /^Rename/ }).click();
+        await chooseContextMenuItem(running.app, 'Rename');
         const unselectedInput = unselectedRow.getByRole('textbox', { name: 'Rename Untitled' });
         await expect(unselectedInput).toBeFocused();
         await unselectedInput.fill('Should be cancelled');

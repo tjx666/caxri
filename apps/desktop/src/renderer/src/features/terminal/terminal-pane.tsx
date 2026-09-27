@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer } from 'react';
 
 import type { ProcessState, TerminalFailureReason } from '@caxri/protocol';
 import { agentProviderCatalog, defaultAppSettings } from '@caxri/protocol';
@@ -15,16 +15,11 @@ import {
 
 import { CommandTooltip } from '../../components/command-tooltip';
 import { Button } from '../../components/ui/button';
-import {
-    ContextMenu,
-    ContextMenuContent,
-    ContextMenuItem,
-    ContextMenuSeparator,
-    ContextMenuTrigger,
-} from '../../components/ui/context-menu';
 import { Spinner } from '../../components/ui/spinner';
 import { Tooltip } from '../../components/ui/tooltip';
-import { useCommandShortcut } from '../../lib/keybindings';
+import { useContextMenu } from '../../hooks/use-context-menu';
+import { CONTEXT_MENU_SEPARATOR } from '../../lib/context-menu';
+import { readCommandShortcut, useCommandShortcut } from '../../lib/keybindings';
 import { isAgentProcessRunning } from '../../lib/terminal-agent-runtime';
 import { cn } from '../../lib/utilities';
 import { useCaxriQuery } from '../../queries/client';
@@ -288,7 +283,6 @@ export function TerminalPane({
         wordSeparators,
     });
     const linkPicker = useTerminalLinkPicker(terminalId, focusTerminal);
-    const openDetectedLinkShortcut = useCommandShortcut('terminal.openDetectedLink');
 
     useEffect(
         () => registerTerminalFocusHandler(terminalId, focusTerminal, getFocusElement),
@@ -334,11 +328,26 @@ export function TerminalPane({
     const isResumesAgentSession = Boolean(terminal?.provider && terminal.agentSessionId);
     const isRunning = processState === 'running';
     /**
-     * Recomputed only when the menu opens rather than tracked continuously: xterm selection changes do not otherwise
-     * trigger a `TerminalPane` rerender, so reading `hasActiveTerminalSelection` straight in JSX would show whatever
-     * was true the last time some other prop changed.
+     * Built when the menu opens rather than on render: xterm selection changes do not trigger a `TerminalPane`
+     * rerender, so a render-time `hasActiveTerminalSelection` would show whatever was true the last time some other
+     * prop changed.
      */
-    const [contextMenuHasSelection, setContextMenuHasSelection] = useState(false);
+    const openContextMenu = useContextMenu(() => [
+        {
+            label: 'Copy',
+            disabled: !hasActiveTerminalSelection(terminalId),
+            onSelect: () => copyActiveTerminalSelection(terminalId),
+        },
+        { label: 'Paste', disabled: !isRunning, onSelect: () => pasteFromClipboard() },
+        CONTEXT_MENU_SEPARATOR,
+        { label: 'Clear', onSelect: () => clearActiveTerminal(terminalId) },
+        { label: 'Find in Terminal', onSelect: () => findInActiveTerminal(terminalId) },
+        {
+            label: 'Open Detected Link…',
+            shortcut: readCommandShortcut('terminal.openDetectedLink'),
+            onSelect: () => openTerminalLinkPicker(terminalId),
+        },
+    ]);
 
     return (
         <div
@@ -379,58 +388,11 @@ export function TerminalPane({
                     </span>
                 </div>
             )}
-            <ContextMenu
-                onOpenChange={(open) => {
-                    if (open) setContextMenuHasSelection(hasActiveTerminalSelection(terminalId));
-                }}
-            >
-                <ContextMenuTrigger
-                    render={
-                        <div
-                            ref={containerRef}
-                            className="terminal-surface min-h-0 w-full flex-1"
-                        />
-                    }
-                />
-                <ContextMenuContent>
-                    <Tooltip
-                        content="Select text in the Terminal to copy it"
-                        disabled={contextMenuHasSelection}
-                    >
-                        <span className="block">
-                            <ContextMenuItem
-                                disabled={!contextMenuHasSelection}
-                                onClick={() => copyActiveTerminalSelection(terminalId)}
-                            >
-                                Copy
-                            </ContextMenuItem>
-                        </span>
-                    </Tooltip>
-                    <Tooltip content="Terminal is not running" disabled={isRunning}>
-                        <span className="block">
-                            <ContextMenuItem
-                                disabled={!isRunning}
-                                onClick={() => pasteFromClipboard()}
-                            >
-                                Paste
-                            </ContextMenuItem>
-                        </span>
-                    </Tooltip>
-                    <ContextMenuSeparator />
-                    <ContextMenuItem onClick={() => clearActiveTerminal(terminalId)}>
-                        Clear
-                    </ContextMenuItem>
-                    <ContextMenuItem onClick={() => findInActiveTerminal(terminalId)}>
-                        Find in Terminal
-                    </ContextMenuItem>
-                    <ContextMenuItem
-                        hint={openDetectedLinkShortcut}
-                        onClick={() => openTerminalLinkPicker(terminalId)}
-                    >
-                        Open Detected Link…
-                    </ContextMenuItem>
-                </ContextMenuContent>
-            </ContextMenu>
+            <div
+                ref={containerRef}
+                className="terminal-surface min-h-0 w-full flex-1"
+                onContextMenu={openContextMenu}
+            />
             {searchState.open && (
                 <TerminalSearchBar
                     caseSensitive={searchState.caseSensitive}

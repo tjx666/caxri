@@ -162,6 +162,7 @@ export const appSettingsSchema = z.object({
     'primarySidebar.autoCollapseProjects': z
         .enum(enumValues(spec['primarySidebar.autoCollapseProjects'].options))
         .default(spec['primarySidebar.autoCollapseProjects'].default),
+    'window.zoomLevel': integerField(spec['window.zoomLevel']),
     'workbench.fontFamily': nullableStringField(spec['workbench.fontFamily']),
     'workbench.externalEditor': nullableStringField(spec['workbench.externalEditor']),
     'updates.skippedVersion': nullableStringField(spec['updates.skippedVersion']),

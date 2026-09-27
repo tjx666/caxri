@@ -238,6 +238,7 @@ const rows: SettingRowSource[] = [
     specRow('primarySidebar.autoCollapseProjects'),
     specRow('workbench.newWorktreeBehavior'),
     specRow('workbench.fontFamily'),
+    specRow('window.zoomLevel'),
     specRow('workbench.externalEditor'),
     specRow('updates.skippedVersion'),
     {

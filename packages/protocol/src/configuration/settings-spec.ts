@@ -166,6 +166,18 @@ export const settingsSpec = [
         default: '30m',
     },
     {
+        kind: 'integer',
+        key: 'window.zoomLevel',
+        title: 'Zoom level',
+        description:
+            'Scales the whole interface. 0 is the original size; each step up or down zooms by 20%. View › Zoom In, Zoom Out, and Reset Zoom change it too.',
+        category: 'general',
+        keywords: ['zoom', 'scale', 'size', 'magnify', 'ui', 'interface'],
+        min: -5,
+        max: 8,
+        default: 0,
+    },
+    {
         kind: 'string',
         key: 'workbench.fontFamily',
         title: 'Font family',

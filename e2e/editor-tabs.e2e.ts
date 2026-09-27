@@ -7,6 +7,7 @@ import type { Locator, Page } from '@playwright/test';
 
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pressNewTerminal } from './support/helpers.ts';
+import { chooseContextMenuItem, isContextMenuItemEnabled } from './support/native-context-menu.ts';
 
 interface EditorPresenceEvent {
     ariaHidden?: string;
@@ -235,27 +236,22 @@ test('editor previews pin and expose the standard close actions', async () => {
         ).toBe('3px');
 
         await cTab.click({ button: 'right' });
-        await running.page.getByRole('menuitem', { name: 'Close to the Right' }).click();
+        await chooseContextMenuItem(running.app, 'Close to the Right');
         await expect(dTab).toHaveCount(0);
         await expect(bTab).toBeVisible();
         await expect(cTab).toBeVisible();
 
         await running.page.getByRole('treeitem', { name: 'a.js', exact: true }).dblclick();
         await cTab.click({ button: 'right' });
-        await running.page.getByRole('menuitem', { name: 'Close Others' }).click();
+        await chooseContextMenuItem(running.app, 'Close Others');
         await expect(running.page.locator('.work-tab:not([data-terminal-id])')).toHaveCount(1);
         await expect(cTab).toBeVisible();
 
         await expect(cTab).toContainText('●');
         await expect(running.page.locator('.work-tab[data-terminal-id]')).toHaveCount(1);
         await cTab.click({ button: 'right' });
-        await expect(running.page.getByRole('menuitem', { name: 'Close Others' })).toBeDisabled();
-        await running.page.screenshot({
-            path: test.info().outputPath('editor-close-menu.png'),
-            animations: 'disabled',
-            style: '.monaco-editor .view-lines, .monaco-editor .minimap, .terminal-surface { visibility: hidden !important; }',
-        });
-        await running.page.getByRole('menuitem', { name: 'Close All' }).click();
+        expect(await isContextMenuItemEnabled(running.app, 'Close Others')).toBe(false);
+        await chooseContextMenuItem(running.app, 'Close All');
         // Editor bulk closes preserve the default Terminal even when it shares the same pane.
         await expect(running.page.locator('.work-tab:not([data-terminal-id])')).toHaveCount(0);
         await expect(running.page.locator('.work-tab[data-terminal-id]')).toHaveCount(1);

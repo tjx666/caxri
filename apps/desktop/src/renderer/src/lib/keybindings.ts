@@ -140,6 +140,16 @@ export function isKeybindingRecordingEventTarget(target: EventTarget | null): bo
 /**
  * Looks up the live raw keybinding for a command; presentation belongs to `ShortcutBadge`.
  */
+/**
+ * Non-subscribing read of a command's live shortcut, for builders that run at the moment a menu opens rather than on
+ * every render.
+ */
+export function readCommandShortcut(commandId: CommandId): string | undefined {
+    return useWorkbenchStore
+        .getState()
+        .bootstrap?.keybindings.find((item) => item.command === commandId)?.key;
+}
+
 export function useCommandShortcut(commandId: CommandId): string | undefined {
     const keybindings = useWorkbenchStore((state) => state.bootstrap?.keybindings);
     return useMemo(() => {

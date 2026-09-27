@@ -35,6 +35,7 @@ import {
     unsavedChangesChoice,
     unsavedChangesPrompt,
 } from './confirmations';
+import { showContextMenu } from './context-menu';
 import { openExternalUrl } from './external-links';
 import type { ProcessExplorerWindowController } from './process-explorer-window';
 import type { DesktopServerConnection } from './server-connection';
@@ -406,6 +407,10 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 );
                 return { choice: unsavedChangesChoice(result.response) };
             }
+            case 'contextMenu.show':
+                if (!mainWindow || mainWindow.isDestroyed())
+                    throw new CaxriError('UNAVAILABLE', 'No window is available for the menu');
+                return showContextMenu(mainWindow, request.params);
             case 'processExplorer.open':
                 options.getProcessExplorer().open();
                 return null;

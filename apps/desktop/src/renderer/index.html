@@ -18,8 +18,91 @@
             content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src __CAXRI_CONNECT_SRC__; worker-src 'self' blob:"
         />
         <title>Caxri</title>
+        <!-- Startup loader: painted by the first frame, before any bundle runs. On macOS the window is a translucent
+             vibrancy material behind this transparent page (see `createWindow` in `main/index.ts`), so the Caxri mark
+             floats over the blurred desktop until the workbench attaches and `App` removes `#startup-loader`. The mark is
+             one CSS mask so a single element carries both its base color and the sweeping highlight. -->
+        <style>
+            /* Stacks every React surface — the transparent wait screen, a crash screen — above the loader. */
+            #root {
+                position: relative;
+            }
+
+            /*
+             * The theme paints an opaque `:root` background, and a production build links that stylesheet before this
+             * frame is shown. Until the workbench attaches and removes the loader, the root stays clear so the window's
+             * macOS vibrancy (or the non-macOS window color) shows behind the mark.
+             */
+            html:has(#startup-loader) {
+                background: transparent;
+            }
+
+            .startup-loader {
+                position: fixed;
+                inset: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                pointer-events: none;
+                -webkit-app-region: drag;
+            }
+
+            .startup-loader__mark {
+                width: 56px;
+                height: 56px;
+                opacity: 0;
+                background:
+                    linear-gradient(
+                            112deg,
+                            transparent 22%,
+                            rgb(255 255 255 / 0.04) 38%,
+                            rgb(255 255 255 / 0.5) 49%,
+                            rgb(255 255 255 / 0.08) 56%,
+                            transparent 74%
+                        )
+                        140% 0 / 220% 100% no-repeat,
+                    #adadad;
+                -webkit-mask: url('data:image/svg+xml;utf8,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2064%2064%22%3E%3Cpath%20d=%22M45.32%2019.14A20%2020%200%201%200%2045.32%2044.86%22%20fill=%22none%22%20stroke=%22black%22%20stroke-width=%227%22%20stroke-linecap=%22round%22/%3E%3Crect%20x=%2250%22%20y=%2223%22%20width=%226%22%20height=%2218%22%20rx=%223%22/%3E%3C/svg%3E')
+                    center / contain no-repeat;
+                mask: url('data:image/svg+xml;utf8,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2064%2064%22%3E%3Cpath%20d=%22M45.32%2019.14A20%2020%200%201%200%2045.32%2044.86%22%20fill=%22none%22%20stroke=%22black%22%20stroke-width=%227%22%20stroke-linecap=%22round%22/%3E%3Crect%20x=%2250%22%20y=%2223%22%20width=%226%22%20height=%2218%22%20rx=%223%22/%3E%3C/svg%3E')
+                    center / contain no-repeat;
+                animation:
+                    startup-loader-fade-in 180ms ease-out 60ms forwards,
+                    startup-loader-shimmer 2200ms cubic-bezier(0.4, 0, 0.2, 1) infinite;
+            }
+
+            @media (prefers-reduced-motion: reduce) {
+                .startup-loader__mark {
+                    opacity: 1;
+                    animation: none;
+                }
+            }
+
+            @keyframes startup-loader-fade-in {
+                to {
+                    opacity: 1;
+                }
+            }
+
+            @keyframes startup-loader-shimmer {
+                from {
+                    background-position:
+                        140% 0,
+                        0 0;
+                }
+
+                to {
+                    background-position:
+                        -120% 0,
+                        0 0;
+                }
+            }
+        </style>
     </head>
     <body>
+        <div id="startup-loader" class="startup-loader" aria-hidden="true">
+            <div class="startup-loader__mark"></div>
+        </div>
         <div id="root"></div>
         <script type="module" src="/src/main.tsx"></script>
     </body>

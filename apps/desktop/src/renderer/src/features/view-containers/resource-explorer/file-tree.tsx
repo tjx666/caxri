@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
 
 import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual';
 
+import { ContextMenuTrigger } from '../../../components/context-menu-trigger';
 import { useLatestReference } from '../../../hooks/use-latest-reference';
 import { useScrollEdge } from '../../../hooks/use-scroll-edge';
 import { useGitChildRepo, useGitDecoration } from '../../../stores/git-decorations';
@@ -20,7 +21,7 @@ const MemoizedFileTreeItem = memo(FileTreeItem);
 import type { EditRequest, FocusTarget } from './file-tree-item-types';
 import type { FileTreeNavigator } from './file-tree-navigation-context';
 import { FileTreeNavigationContext } from './file-tree-navigation-context';
-import { FileTreeRootContextMenu } from './file-tree-root-context-menu';
+import { fileTreeRootMenu } from './file-tree-root-context-menu';
 import {
     FILE_TREE_ROW_HEIGHT,
     fileTreeRevealOffset,
@@ -286,7 +287,7 @@ export function FileTree({ controller }: { controller: ResourceExplorerControlle
 
     return (
         <div className="scroll-edge-shell relative flex min-h-0 flex-1 flex-col">
-            <FileTreeRootContextMenu controller={controller}>
+            <ContextMenuTrigger menu={() => fileTreeRootMenu(controller)}>
                 <div
                     ref={scrollElement}
                     role="tree"
@@ -349,7 +350,7 @@ export function FileTree({ controller }: { controller: ResourceExplorerControlle
                         </div>
                     </FileTreeNavigationContext>
                 </div>
-            </FileTreeRootContextMenu>
+            </ContextMenuTrigger>
         </div>
     );
 }

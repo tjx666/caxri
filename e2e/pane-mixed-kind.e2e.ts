@@ -7,6 +7,12 @@ import { execFileAsync } from '@caxri/system';
 import type { Locator, Page } from './support/fixtures.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
+import {
+    chooseContextMenuItem,
+    contextMenuLabels,
+    dismissContextMenu,
+    isContextMenuItemEnabled,
+} from './support/native-context-menu.ts';
 
 /**
  * Longer than the 500ms hover-to-activate timer the pane surface used to run, so a drag that still activated on hover
@@ -153,14 +159,11 @@ test('a pane holding a Terminal and a document treats both tabs the same', async
          * instead of offering four items that do nothing.
          */
         await terminalTab.click({ button: 'right' });
-        await expect(
-            running.page.getByRole('menuitem', { name: 'Move to New Session' }),
-        ).toBeVisible();
-        await expect(
-            running.page.getByRole('menuitem', { name: 'Close to the Right' }),
-        ).toBeVisible();
-        await expect(running.page.getByRole('menuitem', { name: 'Split Right' })).toBeDisabled();
-        await running.page.keyboard.press('Escape');
+        expect(await contextMenuLabels(running.app)).toEqual(
+            expect.arrayContaining(['Move to New Session', 'Close to the Right']),
+        );
+        expect(await isContextMenuItemEnabled(running.app, 'Split Right')).toBe(false);
+        await dismissContextMenu(running.app);
 
         const fileTab = await openAndPinFile(running.page, 'notes.ts');
         await expect(running.page.locator('.work-tab')).toHaveCount(2);
@@ -172,9 +175,9 @@ test('a pane holding a Terminal and a document treats both tabs the same', async
          * scoping them to Terminals left both permanently disabled in exactly this layout.
          */
         await terminalTab.click({ button: 'right' });
-        await expect(running.page.getByRole('menuitem', { name: 'Close Others' })).toBeEnabled();
-        await expect(running.page.getByRole('menuitem', { name: 'Close Editors' })).toBeEnabled();
-        await running.page.getByRole('menuitem', { name: 'Split Right' }).click();
+        expect(await isContextMenuItemEnabled(running.app, 'Close Others')).toBe(true);
+        expect(await isContextMenuItemEnabled(running.app, 'Close Editors')).toBe(true);
+        await chooseContextMenuItem(running.app, 'Split Right');
         await expect(panes).toHaveCount(2);
 
         const paneIds = await panes.evaluateAll((nodes) =>
@@ -328,7 +331,7 @@ test('a cancelled drag and a context-menu close both leave focus and the active 
         const panes = running.page.locator('.workbench-pane');
 
         await terminalTab.click({ button: 'right' });
-        await running.page.getByRole('menuitem', { name: 'Split Right' }).click();
+        await chooseContextMenuItem(running.app, 'Split Right');
         await expect(panes).toHaveCount(2);
         /**
          * The split leaves an `inert` copy of the Terminal tab behind in the old bar for the length of its exit
@@ -356,13 +359,12 @@ test('a cancelled drag and a context-menu close both leave focus and the active 
         await running.page.mouse.up();
 
         /**
-         * The context menu renders in a portal and holds focus while it is open, so the tab bar looks abandoned right
-         * up until the menu's own action destroys the tab the menu would hand focus back to. Closing through it must
-         * still leave focus on the surviving tab rather than on `document.body`, where no arrow key or tablist shortcut
-         * reaches. Nothing calls `focus()` afterwards here — that would hide the very result under test.
+         * The menu's own action destroys the tab the right click landed on. Closing through it must still leave focus
+         * on the surviving tab rather than on `document.body`, where no arrow key or tablist shortcut reaches. Nothing
+         * calls `focus()` afterwards here — that would hide the very result under test.
          */
         await terminalTab.click({ button: 'right' });
-        await running.page.getByRole('menuitem', { name: 'Close', exact: true }).click();
+        await chooseContextMenuItem(running.app, 'Close');
         await expect(panes).toHaveCount(1);
         await expect(running.page.locator('.work-tab')).toHaveCount(1);
         await expect(fileTab.getByRole('tab')).toBeFocused();

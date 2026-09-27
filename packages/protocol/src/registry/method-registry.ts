@@ -30,6 +30,7 @@ import {
     argvConfigSchema,
     remoteDebuggingStateSchema,
 } from '../desktop/argv-config.js';
+import { contextMenuDesktopMethods } from '../desktop/context-menu-contract.js';
 import {
     desktopHostMethods,
     desktopRootIdentitySchema,
@@ -318,6 +319,7 @@ export const methods = {
         result: z.object({ value: argvConfigSchema }),
     },
     ...gpuDesktopMethods,
+    ...contextMenuDesktopMethods,
     'external.open': {
         ...desktopControl,
         params: z.object({ url: z.string().min(1).max(16_384) }),

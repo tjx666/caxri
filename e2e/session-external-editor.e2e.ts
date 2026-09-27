@@ -9,6 +9,7 @@ import { execFileAsync } from '@caxri/system';
 import { createFakeAgentMode } from './support/agent-fixture.ts';
 import { expect, test } from './support/fixtures.ts';
 import { createProjectSession, launchCaxri, pageRequest } from './support/helpers.ts';
+import { chooseContextMenuItem } from './support/native-context-menu.ts';
 import { readFileForPoll } from './support/result-file-polling.ts';
 
 async function initializeRepo(root: string): Promise<void> {
@@ -183,9 +184,7 @@ process.stdout.write('External editor Agent ready\r\n');
 
         const sessionCard = running.page.locator(`.session-card[data-session-id="${sessionId}"]`);
         await sessionCard.click({ button: 'right' });
-        const menu = running.page.getByRole('menu', { name: /actions$/u });
-        await expect(menu).toBeVisible();
-        await menu.getByRole('menuitem', { name: 'Open Project in Editor', exact: true }).click();
+        await chooseContextMenuItem(running.app, 'Open Project in Editor');
         await expect.poll(() => readEditorArguments(editorArguments)).toEqual([worktree]);
 
         await rm(editorArguments, { force: true });
