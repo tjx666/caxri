@@ -100,6 +100,13 @@ describe('Agent Commander service', () => {
         expect(instructions).toContain('node "$CAXRI_CLI_PATH"');
         // A ready report is checked against the pull request's live head, not the board's cached copy.
         expect(instructions).toContain('headRefOid');
+        // The CLI rejects a `--timeout` above 120000 ms, so a longer wait would fail every unattended round.
+        const waitTimeouts = instructions
+            .matchAll(/--timeout (\d+)/g)
+            .map(([, value]) => Number(value))
+            .toArray();
+        expect(waitTimeouts).not.toHaveLength(0);
+        expect(waitTimeouts.every((value) => value <= 120_000)).toBe(true);
         expect(database.listVisibleProjects().map(({ id }) => id)).not.toContain(
             first.identity.projectId,
         );

@@ -345,7 +345,7 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
                         invocation.requestId,
                         agentEndpoints,
                     );
-                    return requestCancellations.run(
+                    return requestCancellations.runDisconnectable(
                         principalRequestKey(context, invocation.requestId),
                         (signal) => forwardDomainOperation(operation, signal),
                     );
@@ -747,9 +747,9 @@ export async function startServerCore(options: ServerCoreOptions): Promise<Serve
             },
             onRequestDisconnected: async (requestId, context) => {
                 agentInbox.cancelWait(requestId);
-                const waitIds =
-                    dispatchWaitIds.get(principalRequestKey(context, requestId)) ??
-                    new Set<string>();
+                const key = principalRequestKey(context, requestId);
+                requestCancellations.disconnect(key);
+                const waitIds = dispatchWaitIds.get(key) ?? new Set<string>();
                 await Promise.all(
                     [...waitIds].map(async (waitId) => {
                         try {

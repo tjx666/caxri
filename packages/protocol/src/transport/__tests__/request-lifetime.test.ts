@@ -8,9 +8,14 @@ import { isNonExpiringServerOperation, isNonExpiringViewOperation } from '../req
 
 describe('isNonExpiringServerOperation', () => {
     it('allows the documented non-expiring methods', () => {
-        expect(isNonExpiringServerOperation('agent.dispatch.waitInternal')).toBe(true);
-        expect(isNonExpiringServerOperation('agent.delegation.waitInternal')).toBe(true);
-        expect(isNonExpiringServerOperation('agent.message.wait')).toBe(true);
+        for (const method of [
+            'agent.dispatch.wait',
+            'agent.dispatch.waitInternal',
+            'agent.delegation.wait',
+            'agent.delegation.waitInternal',
+            'agent.message.wait',
+        ])
+            expect(isNonExpiringServerOperation(method)).toBe(true);
         for (const method of [
             'files.create',
             'files.copy',
@@ -27,7 +32,7 @@ describe('isNonExpiringServerOperation', () => {
     });
 
     it('rejects representative expiring and unrelated methods', () => {
-        expect(isNonExpiringServerOperation('agent.dispatch.wait')).toBe(false);
+        expect(isNonExpiringServerOperation('agent.delegation.status')).toBe(false);
         expect(isNonExpiringServerOperation('agent.dispatch.start')).toBe(false);
         expect(isNonExpiringServerOperation('files.read')).toBe(false);
         expect(isNonExpiringServerOperation('terminal.send')).toBe(false);
