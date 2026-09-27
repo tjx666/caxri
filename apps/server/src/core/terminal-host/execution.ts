@@ -5,6 +5,7 @@ import type {
     TerminalRecord,
     TerminalResourceUsage,
     TerminalSnapshot,
+    TerminalWheelInput,
 } from '@caxri/protocol';
 import {
     CaxriError,
@@ -608,6 +609,10 @@ export class RemoteTerminalExecution extends EventTarget implements TerminalExec
         signal?: AbortSignal,
     ): Promise<boolean> {
         return this.mobileControl.inputForGeneration(terminalId, expectedGeneration, data, signal);
+    }
+
+    scrollForGeneration(terminalId: string, generation: number, wheel: TerminalWheelInput) {
+        return this.mobileControl.scrollForGeneration(terminalId, generation, wheel);
     }
 
     async textTail(terminalId: string, maximumCharacters: number): Promise<string | null> {

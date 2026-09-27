@@ -35,6 +35,7 @@ import {
     readMobileArchivedSessions,
     sessionForPrincipal,
 } from './session-management';
+import { invokeMobileTerminalRequest } from './terminal-requests';
 
 export function resolveMobileAgentEndpoint(
     registry: AgentEndpointRegistry,
@@ -79,6 +80,7 @@ type MobileControlRequest = Extract<
             | 'mobile.terminal.takeOver'
             | 'mobile.terminal.release'
             | 'mobile.terminal.input'
+            | 'mobile.terminal.scroll'
             | 'mobile.pairing.create'
             | 'mobile.project.browse'
             | 'mobile.project.add'
@@ -629,7 +631,8 @@ export const openMobileAccessController = async (options: {
                 }
                 case 'mobile.terminal.takeOver':
                 case 'mobile.terminal.release':
-                case 'mobile.terminal.input': {
+                case 'mobile.terminal.input':
+                case 'mobile.terminal.scroll': {
                     const principal = currentPairedPrincipal(context.principal, request.method);
                     await terminalForPrincipal(domainService, principal, request.params.terminalId);
                     const current = currentPairedPrincipal(principal, request.method);
@@ -639,17 +642,7 @@ export const openMobileAccessController = async (options: {
                         request.params.subscriptionId,
                         request.params.terminalId,
                     );
-                    if (request.method === 'mobile.terminal.takeOver')
-                        return observer.takeOver(request.params.expectedGeneration, {
-                            cols: request.params.cols,
-                            rows: request.params.rows,
-                        });
-                    if (request.method === 'mobile.terminal.release') {
-                        await observer.releaseTakeOver(request.params.expectedGeneration);
-                        return null;
-                    }
-                    await observer.input(request.params.expectedGeneration, request.params.data);
-                    return null;
+                    return invokeMobileTerminalRequest(request, observer);
                 }
                 case 'mobile.pairing.create': {
                     return withAuthority(async () => {

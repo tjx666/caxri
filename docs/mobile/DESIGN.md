@@ -215,8 +215,19 @@ for this Agent. Showing the Terminal.` A plain shell never shows this notice.
   readable minimum; a tall grid scrolls vertically and starts at the latest output. A wide grid
   pans horizontally. Pinch zoom can shrink the view to fit the whole grid.
   Observing never resizes the PTY.
+- **Scrolling**: a vertical drag scrolls xterm's own scrollback for a normal-screen shell. An
+  alternate-screen or mouse-reporting application, such as a full-screen Agent TUI, `vim`, or `less`,
+  keeps no xterm scrollback, so on a control device the drag is forwarded as wheel input through
+  `mobile.terminal.scroll`, the same way a Desktop wheel reaches the application. This scrolls the
+  shared screen that Desktop also shows, and needs no takeover. View and reply devices scroll only
+  local scrollback.
 - **Take over**: a floating `Take over` button (control devices) resizes the PTY to the phone through
-  a Server lease and opens the system keyboard. Tapping the Terminal reopens the keyboard; when the
+  a Server lease and opens the system keyboard. The phone keeps the text size it showed while
+  observing, so the leased grid holds as many cells as fit at that size instead of switching to a
+  large full-size font. Pinching while leased changes the text size, and the lease is then re-applied
+  at the new grid so the content reflows to fill the phone. Desktop mirrors the leased grid until
+  release. Because the phone types through a native input, the WebView never holds focus; while
+  leased it draws a blinking block cursor itself instead of xterm's unfocused outline. Tapping the Terminal reopens the keyboard; when the
   keyboard changes the visible size, the lease is re-applied with the new size and the phone resizes
   its own grid to match, because the observer stream carries output only. Leaving the screen,
   backgrounding, disconnecting, or revocation releases the lease on the Server and restores the

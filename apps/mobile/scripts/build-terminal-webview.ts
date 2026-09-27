@@ -45,7 +45,7 @@ const html = `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src 'none'; img-src data:; script-src 'unsafe-inline'; style-src 'unsafe-inline'; font-src 'none'; media-src 'none'; frame-src 'none'; worker-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'">
-<style>${css}\nhtml,body,#viewport{margin:0;width:100%;height:100%;overflow:hidden;background:${draculaTheme.terminal.background}}#viewport{overflow:auto;position:absolute;inset:0}#frame{position:relative}#stage{position:absolute;left:0;top:0;transform-origin:top left}.xterm{padding:0}</style>
+<style>${css}\nhtml,body,#viewport{margin:0;width:100%;height:100%;overflow:hidden;background:${draculaTheme.terminal.background}}#viewport{overflow:auto;position:absolute;inset:0}#frame{position:relative}#stage{position:absolute;left:0;top:0;transform-origin:top left}.xterm{padding:0}body.caxri-cursor-off .xterm .xterm-rows .xterm-cursor.xterm-cursor-block{background-color:transparent!important;color:inherit!important}</style>
 </head><body><div id="viewport"><div id="frame"><div id="stage"></div></div></div>
 <script>window.__CAXRI_TERMINAL_ID__=__TERMINAL_ID_JSON__;window.__CAXRI_TERMINAL_THEME__=${JSON.stringify(draculaTheme.terminal)};${javascript}</script>
 </body></html>`;

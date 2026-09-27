@@ -217,6 +217,8 @@ describe('MobileAccessController role and resource authority', () => {
         expect(isMobileGatewayMethodAllowedForRole('reply', 'mobile.terminal.takeOver')).toBe(
             false,
         );
+        expect(isMobileGatewayMethodAllowedForRole('view', 'mobile.terminal.scroll')).toBe(false);
+        expect(isMobileGatewayMethodAllowedForRole('reply', 'mobile.terminal.scroll')).toBe(false);
         expect(isMobileGatewayMethodAllowedForRole('control', 'mobile.session.create')).toBe(true);
         expect(isMobileGatewayMethodAllowedForRole('control', 'agent.control.interrupt')).toBe(
             true,
@@ -225,6 +227,7 @@ describe('MobileAccessController role and resource authority', () => {
             'mobile.terminal.takeOver',
             'mobile.terminal.release',
             'mobile.terminal.input',
+            'mobile.terminal.scroll',
         ])
             expect(isMobileGatewayMethodAllowedForRole('control', method)).toBe(true);
         expect(isMobileGatewayMethodAllowedForRole('control', 'session.create')).toBe(false);
