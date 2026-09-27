@@ -190,6 +190,7 @@ function recordingContext(): { calls: string[]; context: CommandContext } {
             },
             windows: {
                 openAgentCommander: record('windows.openAgentCommander'),
+                stopAgentCommander: record('windows.stopAgentCommander'),
                 openProcessExplorer: record('windows.openProcessExplorer'),
                 zoom: record('windows.zoom'),
             },

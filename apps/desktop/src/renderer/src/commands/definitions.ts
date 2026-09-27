@@ -339,6 +339,7 @@ export const commandDefinitions: CommandDefinition[] = [
     }),
     fromCatalog('processExplorer.open', (context) => context.windows.openProcessExplorer()),
     fromCatalog('agentCommander.open', (context) => context.windows.openAgentCommander()),
+    fromCatalog('agentCommander.stop', (context) => context.windows.stopAgentCommander()),
     fromCatalog(
         'developer.toggleScreencastMode',
         (context) => context.developer.toggleScreencastMode(),

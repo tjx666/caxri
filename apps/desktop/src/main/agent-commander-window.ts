@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 
+import { isCaxriError } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
 import type { BrowserWindow, WebContents } from 'electron';
@@ -16,6 +17,7 @@ interface AgentCommanderWindowOptions {
     isPackaged: boolean;
     logger: () => StructuredLogger | undefined;
     rendererUrl?: string;
+    stopCommander: () => Promise<unknown>;
     windowMode: E2EWindowMode;
 }
 
@@ -104,6 +106,22 @@ export class AgentCommanderWindowController {
 
     close(): void {
         if (this.window && !this.window.isDestroyed()) this.window.close();
+    }
+
+    /**
+     * Closes the window first so it never shows its own Terminal going away, then stops the Commander on the Server.
+     * Reopening the window runs `commander.ensure`, which resumes the same Codex conversation.
+     */
+    async stop(): Promise<void> {
+        this.close();
+        try {
+            await this.options.stopCommander();
+        } catch (error) {
+            this.options.logger()?.write('error', logEventCatalog.agentCommander.stopFailed, {
+                fields: { code: isCaxriError(error) ? error.code : 'INTERNAL' },
+            });
+            throw error;
+        }
     }
 
     open(): void {

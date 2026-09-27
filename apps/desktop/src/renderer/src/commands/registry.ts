@@ -135,6 +135,7 @@ export interface CommandContext {
     };
     windows: {
         openAgentCommander(): void;
+        stopAgentCommander(): void;
         openProcessExplorer(): void;
         zoom(step: 'in' | 'out' | 'reset'): void;
     };

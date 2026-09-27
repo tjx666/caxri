@@ -30,8 +30,10 @@ The window runs with the Desktop principal. Main therefore authorizes it separat
 `AgentCommanderRendererPolicy` (`agent-commander-policy.ts`) in the `caxri:request` IPC path:
 
 - **Always admitted.** A short read list (`commander.board`, Settings, keybindings, theme,
-  `events.recover`), the Commander's own lifecycle (`commander.ensure`, `commander.snapshot`),
-  `external.open`, and one Workbench hand-off, `agentCommander.revealSession`. `app.bootstrap` and
+  `events.recover`), the Commander's own lifecycle (`commander.ensure`, `commander.snapshot`, and
+  `agentCommander.stop` for the title bar's Stop button), `external.open`, and one Workbench
+  hand-off, `agentCommander.revealSession`. The window cannot call `commander.stop` directly; Main
+  closes the window before it stops the Commander. `app.bootstrap` and
   `app.records` are refused: the window reads its rows only through `commander.snapshot`.
 - **Terminal requests** (attach, detach, input, resize, restart, long paste, and the pane's
   reference-context read) are admitted only when they name the Commander Terminal, and
@@ -54,6 +56,13 @@ Each window tracks its own events-ready state.
 Closing or reloading the Commander window detaches its view of the Commander Terminal, but the PTY
 keeps running and the next window re-attaches from a snapshot. Closing the main window detaches
 every Terminal view, the Commander's included, and then closes the Commander window.
+
+While the Commander runs, the Workbench status bar shows a muted `Commander` chip with its state
+(`starting`, `working`, `needs input`, or `idle`) from `commander.status`; clicking it opens the
+window. A stopped Commander shows no chip. **View > Stop Agent Commander** (also in the Command
+Palette) and the window's **Stop** button run `agentCommander.stop`: Main closes the window, then
+calls `commander.stop`. Main logs a failed stop as `agent_commander.stop_failed` with its error
+code.
 
 ## Server model
 
@@ -87,8 +96,24 @@ there. When Git is missing or `git init` fails, the Commander still starts and S
 creates any missing Commander row. The Terminal is launched only when
 it was just created. An existing Terminal that an app restart or suspension interrupted is resumed
 through a dedicated restore supervisor: the Workbench resumes Terminals only for the Session it
-selects, and it never selects the Commander Session. A Terminal that exited on its own stays as it
-is; the pane's own Resume and Restart actions relaunch it.
+selects, and it never selects the Commander Session. The same restore resumes a Commander the user
+stopped. A Terminal that exited on its own stays as it is; the pane's own Resume and Restart actions
+relaunch it.
+
+`commander.stop` is desktop-only and idempotent. It drops any queued Commander restore and waits
+for one that is already spawning, then kills the PTY behind the same barrier a suspension uses and
+parks the Terminal as `detached`, keeping its row, final screen, and bound Codex conversation. Only
+an explicit `commander.ensure` resumes it; an app restart does not. A stop racing an ensure is
+ordered: a stop waits for the Terminal the first ensure creates, and an ensure that arrives during a
+stop runs after it and restores what it parked. Sessions the Commander delegated into keep running;
+their receipts wait for the Commander's next turn.
+
+`commander.status` is a content-free read for the status bar. The Commander is Codex inside a Shell
+PTY, and Codex can exit while the Shell lives on, so it reads `stopped` unless both processes are
+live, whatever its Session last reported. A live Commander reads `starting`, or mirrors the
+Commander Session's activity as `working`, `waiting`, or `idle`. Every `state.changed` event
+invalidates it in the Workbench, because Workbench records exclude the Commander's rows and no
+record-scoped event names them.
 
 The board (`commander.board`) projects every non-archived Session in a visible top-level Project
 into one of six groups, in this order: `attention`, `working`, `waiting`, `failed`, `finished`, and
@@ -186,8 +211,9 @@ Inside the Commander Terminal, the Commander calls the version-matched CLI throu
 - Commander identity lives in an `app_state` cell rather than a Project column. A durable
   `projects` role column was deferred because it changes the table definition.
 - The board uses the cached pull-request snapshot and does not refresh pull requests row by row.
-- The Commander Terminal keeps running after its window closes. It is visible again the next time
-  the window opens.
+- Stopping the Commander ends its current turn. Reopening resumes the conversation, not the turn.
+- There is no setting to stop the Commander whenever its window closes. The status bar chip and the
+  explicit Stop cover the single-maintainer workflow; add one only when a real need appears.
 - The Commander runs with the user's own Codex configuration, including its sandbox mode. Endpoint
   capabilities are product authorization, not a filesystem sandbox for processes of the same OS
   user.

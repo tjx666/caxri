@@ -194,6 +194,35 @@ describe('TerminalRestoreSupervisor', () => {
         expect(retainedGenerationCount(supervisor)).toBe(0);
     });
 
+    it('settles only after a restore that already started has finished, even when cancelled', async () => {
+        const supervisor = new TerminalRestoreSupervisor(1);
+        await expect(supervisor.settled('session-a')).resolves.toBeUndefined();
+        const spawning = Promise.withResolvers<boolean>();
+        let hasStarted = false;
+        const restore = supervisor.restore('session-a', [
+            () => {
+                hasStarted = true;
+                return spawning.promise;
+            },
+        ]);
+        await vi.waitFor(() => expect(hasStarted).toBe(true));
+
+        supervisor.cancel('session-a');
+        let hasSettled = false;
+        const settled = (async () => {
+            await supervisor.settled('session-a');
+            hasSettled = true;
+        })();
+        await Promise.resolve();
+        expect(hasSettled).toBe(false);
+
+        spawning.resolve(true);
+        await settled;
+        expect(hasSettled).toBe(true);
+        await expect(restore).resolves.toEqual([true]);
+        await expect(supervisor.settled('session-a')).resolves.toBeUndefined();
+    });
+
     it('allows an archived Session to restore again after cancellation', async () => {
         const supervisor = new TerminalRestoreSupervisor(1);
         const restoreStarted = Promise.withResolvers<void>();

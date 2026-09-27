@@ -15,6 +15,7 @@ export interface AppMenuOptions {
     dispatchCommand: (command: CommandId, isViaAccelerator: boolean) => void;
     openProcessExplorer: () => void;
     openAgentCommander: () => void;
+    stopAgentCommander: () => void;
 }
 
 /**
@@ -87,6 +88,7 @@ export function buildAppMenuTemplate({
     dispatchCommand,
     openAgentCommander,
     openProcessExplorer,
+    stopAgentCommander,
 }: AppMenuOptions): MenuItemConstructorOptions[] {
     const command = (definition: CommandDefinition): MenuItemConstructorOptions => ({
         id: `command.${definition.id}`,
@@ -117,6 +119,7 @@ export function buildAppMenuTemplate({
              * Workbench Renderer is not the one that should run it.
              */
             if (definition.id === 'agentCommander.open') return openAgentCommander();
+            if (definition.id === 'agentCommander.stop') return stopAgentCommander();
             dispatchCommand(definition.id, event.triggeredByAccelerator === true);
         },
     });

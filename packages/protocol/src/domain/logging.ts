@@ -180,6 +180,7 @@ export const logEventCatalog = {
         renderProcessGone: 'agent_commander.render_process_gone',
         requestDenied: 'agent_commander.request_denied',
         responsive: 'agent_commander.responsive',
+        stopFailed: 'agent_commander.stop_failed',
         unhandledRejection: 'agent_commander.unhandled_rejection',
         unresponsive: 'agent_commander.unresponsive',
         workspaceRepositoryFailed: 'agent_commander.workspace_repository_failed',
