@@ -1,7 +1,9 @@
 import { useState } from 'react';
 
+import { Button } from '../../components/ui/button';
+import { Textarea } from '../../components/ui/textarea';
 import type { GitReviewComment } from './git-review-comments';
-import { useGitReviewComments } from './git-review-comments';
+import { reviewSideLabel, useGitReviewComments } from './git-review-comments';
 
 export function GitReviewCard({ comment }: { comment: GitReviewComment }) {
     const [editing, setEditing] = useState(false);
@@ -22,7 +24,7 @@ export function GitReviewCard({ comment }: { comment: GitReviewComment }) {
         >
             <div className="git-review-card-heading">
                 <span>
-                    Review · {comment.side} L{comment.startLine}
+                    Review · {reviewSideLabel(comment.side)} L{comment.startLine}
                     {comment.endLine > comment.startLine ? `–${comment.endLine}` : ''}
                 </span>
                 <span className={`git-review-status git-review-status-${comment.status}`}>
@@ -30,9 +32,10 @@ export function GitReviewCard({ comment }: { comment: GitReviewComment }) {
                 </span>
             </div>
             {isEditing ? (
-                <textarea
+                <Textarea
                     autoFocus
                     aria-label="Review comment"
+                    className="my-1"
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}
                     onKeyDown={(event) => {
@@ -52,23 +55,24 @@ export function GitReviewCard({ comment }: { comment: GitReviewComment }) {
             )}
             <div className="git-review-card-actions">
                 {isEditing ? (
-                    <button type="button" onClick={save}>
+                    <Button size="sm" variant="ghost" onClick={save}>
                         Save
-                    </button>
+                    </Button>
                 ) : (
-                    <button
-                        type="button"
+                    <Button
+                        size="sm"
+                        variant="ghost"
                         onClick={() => {
                             setDraft(comment.text);
                             setEditing(true);
                         }}
                     >
                         Edit
-                    </button>
+                    </Button>
                 )}
-                <button type="button" onClick={() => remove(comment.id)}>
+                <Button size="sm" variant="ghost" onClick={() => remove(comment.id)}>
                     Delete
-                </button>
+                </Button>
             </div>
         </div>
     );

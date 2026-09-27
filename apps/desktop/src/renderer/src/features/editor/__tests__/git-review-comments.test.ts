@@ -4,6 +4,7 @@ import type { GitReviewComment } from '../git-review-comments';
 import {
     formatGitReviewComments,
     formatReviewTerminalInput,
+    reviewSideLabel,
     reviewSnippet,
     useGitReviewComments,
 } from '../git-review-comments';
@@ -71,6 +72,31 @@ describe('Git review comments', () => {
 
     it('extracts an inclusive line span', () => {
         expect(reviewSnippet('one\ntwo\nthree', 2, 3)).toBe('two\nthree');
+    });
+
+    it('labels each diff side in words a reviewer would say', () => {
+        expect(reviewSideLabel('original')).toBe('Old');
+        expect(reviewSideLabel('modified')).toBe('New');
+    });
+
+    it('editing a sent or outdated comment returns it to pending so the fix is sendable', () => {
+        const state = useGitReviewComments.getState();
+        state.add(comment);
+        state.markSent([comment.id]);
+        expect(useGitReviewComments.getState().comments[0]?.status).toBe('sent');
+        state.edit(comment.id, 'Actually, handle it this way');
+        expect(useGitReviewComments.getState().comments[0]).toMatchObject({
+            status: 'pending',
+            text: 'Actually, handle it this way',
+        });
+
+        state.refresh('session-1', 'repo-1', 'working', 'src/example.ts', 'modified', 'changed');
+        expect(useGitReviewComments.getState().comments[0]?.status).toBe('outdated');
+        state.edit(comment.id, 'Updated for the new content');
+        expect(useGitReviewComments.getState().comments[0]).toMatchObject({
+            status: 'pending',
+            text: 'Updated for the new content',
+        });
     });
 
     it('keeps the same path in separate diff sources independent', () => {

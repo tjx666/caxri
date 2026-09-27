@@ -20,6 +20,7 @@ import {
     useDiffEditorActionState,
 } from './git-diff-actions';
 import { GitDiffViewOptions } from './git-diff-view-options';
+import { GitReviewSend } from './git-review-send';
 
 /**
  * Fixed actions for the active file or single-file Git diff. The optional `git.fileHead` annotation already resolves
@@ -27,11 +28,20 @@ import { GitDiffViewOptions } from './git-diff-view-options';
  */
 export function EditorTabActions({ path, paneId }: { paneId?: string; path: string }) {
     const gitDiffTab = parseGitDiffTab(path);
+    const session = usePaneViewSession();
     if (gitDiffTab) {
         return (
             <>
                 {gitDiffTab.kind !== 'changes' && (
                     <GitDiffTabActions paneId={paneId} tab={gitDiffTab} tabPath={path} />
+                )}
+                {/*
+                 * Lives here instead of an overlay on the diff surface itself so it is discoverable the same way as
+                 * every other diff tab action, and reachable for all three diff kinds (single file, Open Changes, and
+                 * commit file), not just the ones `GitDiffTabActions` covers.
+                 */}
+                {session && (
+                    <GitReviewSend sessionId={session.id} repositoryId={gitDiffTab.repositoryId} />
                 )}
                 <GitDiffViewOptions stacked={gitDiffTab.kind === 'changes'} />
             </>

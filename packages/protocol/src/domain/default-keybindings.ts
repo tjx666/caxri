@@ -96,6 +96,12 @@ export const defaultKeybindings: Keybinding[] = [
      * Monaco owns focus, so the command opts into `allowInEditable`.
      */
     { key: 'cmd+alt+k', command: 'editor.sendReferenceToTerminal' },
+    /**
+     * `Cmd+Shift+M` was previously a Monaco-only shortcut registered directly by the Git diff review action, invisible
+     * to Settings and the Command Palette. It must fire while Monaco owns focus, so the command opts into
+     * `allowInEditable`.
+     */
+    { key: 'cmd+shift+m', command: 'editor.addReviewComment' },
     { key: 'cmd+shift+v', command: 'editor.openPreview' },
     /**
      * Matches VS Code's `Cmd+K V`, including its requirement to release Command before the second chord: the second
@@ -216,6 +222,10 @@ export const defaultKeybindingChanges = [
     {
         type: 'add',
         binding: { key: 'cmd+alt+k', command: 'editor.sendReferenceToTerminal' },
+    },
+    {
+        type: 'add',
+        binding: { key: 'cmd+shift+m', command: 'editor.addReviewComment' },
     },
     {
         type: 'add',
