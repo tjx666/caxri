@@ -53,7 +53,13 @@ export function rememberEditorViewState(
 
 /**
  * Restores the remembered position for whichever model the editor currently holds. A document nobody has scrolled yet
- * is left at Monaco's own starting position.
+ * is left at Monaco's own starting position, but its current view state is still re-applied.
+ *
+ * `restoreViewState` is the only public way to tell Monaco the visible lines have stabilized. A model's tokenizer
+ * learns which lines are on screen only from that signal, a `scrollTop` change, or a line-count change. Standalone
+ * `create` and `setModel` send none of them, so a document opened at the top would otherwise wait for Monaco's
+ * `requestIdleCallback` background tokenizer. On a busy workbench that left freshly opened files uncolored for up to
+ * seconds.
  */
 export function restoreEditorViewState(
     editor: MonacoEditor,
@@ -63,7 +69,11 @@ export function restoreEditorViewState(
     if (!modelUri) return;
     const key = viewStateKey(modelUri, editorInstanceId);
     const state = viewStates.get(key);
-    if (!state) return;
+    if (!state) {
+        const current = editor.saveViewState();
+        if (current) editor.restoreViewState(current);
+        return;
+    }
     // Re-inserting keeps a document the user keeps returning to out of the eviction path.
     viewStates.delete(key);
     viewStates.set(key, state);

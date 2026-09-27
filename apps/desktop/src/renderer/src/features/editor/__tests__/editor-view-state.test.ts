@@ -55,24 +55,38 @@ describe('Editor view state', () => {
      * not inherit a scroll position from the Session the user switched away from.
      */
     it('does not carry a position across Sessions or files', () => {
-        remember(editor('caxri://session/session-1/AGENTS.md'), 'pane-1');
+        remember(editor('caxri://session/session-1/AGENTS.md', 'session-1-position'), 'pane-1');
 
         const otherSession = editor('caxri://session/session-2/AGENTS.md');
         const otherFile = editor('caxri://session/session-1/README.md');
         restore(otherSession, 'pane-1');
         restore(otherFile, 'pane-1');
 
-        expect(otherSession.restoreViewState).not.toHaveBeenCalled();
-        expect(otherFile.restoreViewState).not.toHaveBeenCalled();
+        expect(otherSession.restoreViewState).not.toHaveBeenCalledWith('session-1-position');
+        expect(otherFile.restoreViewState).not.toHaveBeenCalledWith('session-1-position');
     });
 
     it('ignores an editor whose model is already gone', () => {
-        remember(editor(undefined), 'pane-1');
+        remember(editor(undefined, 'orphaned-position'), 'pane-1');
+        const detached = editor(undefined);
+        restore(detached, 'pane-1');
 
         const remounted = editor('caxri://session/session-1/AGENTS.md');
         restore(remounted, 'pane-1');
 
-        expect(remounted.restoreViewState).not.toHaveBeenCalled();
+        expect(detached.restoreViewState).not.toHaveBeenCalled();
+        expect(remounted.restoreViewState).not.toHaveBeenCalledWith('orphaned-position');
+    });
+
+    /**
+     * Monaco reports visible lines to a model's tokenizer only through a view-state restore, a scroll, or a line-count
+     * change; without this signal a document opened at the top waits for idle-time background tokenization.
+     */
+    it('re-applies the current view of a document shown for the first time', () => {
+        const firstOpen = editor('caxri://session/session-1/AGENTS.md', 'top-of-file');
+        restore(firstOpen, 'pane-1');
+
+        expect(firstOpen.restoreViewState).toHaveBeenCalledExactlyOnceWith('top-of-file');
     });
 
     it('evicts the least recently used document once the cache is full', () => {
@@ -92,7 +106,7 @@ describe('Editor view state', () => {
         restore(newest, 'pane-1');
 
         expect(oldest.restoreViewState).toHaveBeenCalledWith('position-0');
-        expect(evicted.restoreViewState).not.toHaveBeenCalled();
+        expect(evicted.restoreViewState).not.toHaveBeenCalledWith('position-1');
         expect(newest.restoreViewState).toHaveBeenCalledWith('position-100');
     });
 });
