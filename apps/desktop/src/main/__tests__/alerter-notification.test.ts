@@ -41,9 +41,15 @@ describe('alerter notification adapter', () => {
             '--sound',
             'default',
             '--timeout',
-            '10',
+            '30',
             '--group',
             'caxri-agent-session-session-1',
+        ]);
+        expect(buildAlerterArguments({ ...notification, subtitle: 'caxri' }).slice(1, 5)).toEqual([
+            '--title',
+            'Background session',
+            '--subtitle',
+            'caxri',
         ]);
         expect(buildAlerterArguments(notification, '/app/Resources/icon.icns').slice(0, 3)).toEqual(
             ['--json', '--app-icon', '/app/Resources/icon.icns'],
