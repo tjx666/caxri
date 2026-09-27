@@ -6,7 +6,7 @@ import { pushToast, tryCommand } from '../../stores/toasts';
 import { didSelectSession } from '../session/session-commands';
 import { getActivePaneTab } from '../workbench/pane-actions';
 import { openEditorTab } from './document-commands';
-import { listBoundGitReviewCommentEditors } from './git-review-comment-binding';
+import { listBoundGitReviewCommentEditors } from './git-review-bound-editors';
 import type { GitReviewComment } from './git-review-comments';
 
 export interface ReviewCommentAnchor {

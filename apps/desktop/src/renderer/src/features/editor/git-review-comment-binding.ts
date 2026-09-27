@@ -5,6 +5,8 @@ import type { editor as MonacoEditor } from 'monaco-editor';
 
 import { monaco } from '../../lib/monaco';
 import { subscribeCaxriQuery } from '../../queries/client';
+import type { BoundGitReviewCommentEditor, ReviewEditorScope } from './git-review-bound-editors';
+import { registerBoundGitReviewCommentEditor } from './git-review-bound-editors';
 import { GitReviewCard } from './git-review-card';
 import {
     clearActiveGitReviewComment,
@@ -14,32 +16,6 @@ import {
 } from './git-review-comment-commands';
 import type { GitReviewComment } from './git-review-comments';
 import { reviewSnippet } from './git-review-comments';
-
-interface ReviewEditorScope {
-    sessionId: string;
-    repositoryId: string;
-    sourceKey: string;
-    path: string;
-    side: GitReviewComment['side'];
-}
-
-/**
- * One mounted review editor, registered here for the next/previous review comment commands
- * (`git-review-navigation-commands.ts`) to reach across every currently mounted diff editor pane. Deliberately scoped
- * to mounted editors only: jumping into a virtualized-out file in a multi-file "Open Changes" diff would need
- * infrastructure this feature does not have yet (see `docs/git-diff-review.md`).
- */
-export interface BoundGitReviewCommentEditor {
-    scope: ReviewEditorScope;
-    getComments(): GitReviewComment[];
-    reveal(id: string): boolean;
-}
-
-const boundReviewEditors = new Set<BoundGitReviewCommentEditor>();
-
-export function listBoundGitReviewCommentEditors(): ReadonlySet<BoundGitReviewCommentEditor> {
-    return boundReviewEditors;
-}
 
 /**
  * Monaco owns the scrolling surface; view zones keep cards attached to their exact lines.
@@ -94,6 +70,24 @@ export function bindGitReviewCommentEditor(
             '--git-review-zone-width',
             `${editor.getLayoutInfo().contentWidth}px`,
         );
+    /**
+     * A comment created on a line near the viewport's bottom edge gets its card placed below the visible area, where
+     * the user cannot see or type into it; the next render scrolls just far enough to show that one new card.
+     */
+    let revealOnCreateId: string | undefined;
+    const revealCreatedZone = () => {
+        const entry = revealOnCreateId ? zones.get(revealOnCreateId) : undefined;
+        if (!entry) return;
+        revealOnCreateId = undefined;
+        const lineHeight = editor.getOption(monaco.editor.EditorOption.lineHeight);
+        const zoneBottom =
+            editor.getTopForLineNumber(entry.comment.endLine) +
+            lineHeight +
+            (entry.zone.heightInPx ?? 0);
+        const viewportBottom = editor.getScrollTop() + editor.getLayoutInfo().height;
+        if (zoneBottom > viewportBottom)
+            editor.setScrollTop(zoneBottom - editor.getLayoutInfo().height);
+    };
     const renderZones = () => {
         const comments = scopedComments;
         const currentIds = new Set(comments.map((comment) => comment.id));
@@ -141,9 +135,11 @@ export function bindGitReviewCommentEditor(
         const endLine = line ?? Math.max(startLine, selection?.endLineNumber ?? startLine);
         const model = editor.getModel();
         if (!model) return;
+        const id = crypto.randomUUID();
+        revealOnCreateId = id;
         // eslint-disable-next-line no-void -- floating-promise discard: new comment appears via `gitReview.changed`
         void createGitReviewComment({
-            id: crypto.randomUUID(),
+            id,
             ...scope,
             startLine,
             endLine,
@@ -225,18 +221,19 @@ export function bindGitReviewCommentEditor(
             return true;
         },
     };
-    boundReviewEditors.add(boundEditor);
+    const unregister = registerBoundGitReviewCommentEditor(boundEditor);
     const unsubscribe = subscribeCaxriQuery(
         'gitReview.list',
         { sessionId: scope.sessionId, repositoryId: scope.repositoryId },
         (comments) => {
             scopedComments = (comments ?? []).filter(isInScope);
             renderZones();
+            revealCreatedZone();
         },
     );
     return () => {
         unsubscribe();
-        boundReviewEditors.delete(boundEditor);
+        unregister();
         focus.dispose();
         clearActiveGitReviewComment(editor);
         hover.dispose();
