@@ -26,6 +26,7 @@ import {
 } from '../terminal/terminal-renderer-status';
 import { StatusInfo } from './status-info';
 import { StatusItem } from './status-item';
+import { StatusTooltip } from './status-tooltip';
 import { terminalMemoryLabel } from './terminal-memory-label';
 
 const openProcessExplorer = (): void => executeCommand('processExplorer.open');
@@ -135,7 +136,13 @@ function TerminalUsageStatus({
                 <StatusItem
                     ariaLabel={`Open Process Explorer — Terminal memory: ${memoryLabel}`}
                     icon={<MemoryStick />}
-                    title={`Open Process Explorer — Terminal memory: ${memoryLabel}`}
+                    title={
+                        <StatusTooltip
+                            title={`Terminal memory: ${memoryLabel}`}
+                            notes={["Resident memory of this Terminal's whole process tree"]}
+                            hint="Click to open Process Explorer"
+                        />
+                    }
                     onClick={openProcessExplorer}
                 >
                     {memoryLabel}
@@ -145,7 +152,13 @@ function TerminalUsageStatus({
                 <StatusItem
                     ariaLabel={`Open Process Explorer — Terminal: ${childLabel}`}
                     icon={<Workflow />}
-                    title={`Open Process Explorer — Terminal: ${childLabel}`}
+                    title={
+                        <StatusTooltip
+                            title={childLabel}
+                            notes={['Running under this Terminal']}
+                            hint="Click to open Process Explorer"
+                        />
+                    }
                     onClick={openProcessExplorer}
                 >
                     {usage.childProcessCount}

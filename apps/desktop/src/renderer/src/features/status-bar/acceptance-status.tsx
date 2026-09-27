@@ -8,13 +8,10 @@ import {
     ShieldX,
 } from 'lucide-react';
 
-import {
-    acceptanceAriaLabel,
-    acceptanceChipLabel,
-    acceptanceTooltipLines,
-} from './acceptance-label';
+import { acceptanceAriaLabel, acceptanceChipLabel, acceptanceTooltip } from './acceptance-label';
 import { StatusInfo } from './status-info';
 import { StatusItem } from './status-item';
+import { StatusTooltip } from './status-tooltip';
 
 /**
  * The shield says this chip is an acceptance report rather than one more circle among the CI, Linear, and deployment
@@ -53,11 +50,7 @@ export function AcceptanceStatus({
     const shared = {
         ariaLabel: acceptanceAriaLabel(acceptance, extra.length),
         icon: <Icon className={tone} />,
-        title: (
-            <span className="whitespace-pre-wrap">
-                {acceptanceTooltipLines(acceptance, extra).join('\n')}
-            </span>
-        ),
+        title: <StatusTooltip {...acceptanceTooltip(acceptance, extra)} />,
     };
     const label = (
         <>

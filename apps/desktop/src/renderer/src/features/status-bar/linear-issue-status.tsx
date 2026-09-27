@@ -1,9 +1,10 @@
 import type { ProjectStatusOverviewLinearIssue } from '@caxri/protocol';
 
 import { LinearStatusIcon } from '../../icons/linear/linear-status-icon';
-import { linearIssueAriaLabel, linearIssueTooltipLines } from './linear-issue-label';
+import { linearIssueAriaLabel, linearIssueTooltip } from './linear-issue-label';
 import { StatusInfo } from './status-info';
 import { StatusItem } from './status-item';
+import { StatusTooltip } from './status-tooltip';
 
 /**
  * The chip prints the identifier and nothing else. A Linear title is a sentence, and the status bar's left group
@@ -26,11 +27,7 @@ export function LinearIssueStatus({
                 style={issue.stateColor ? { color: issue.stateColor } : undefined}
             />
         ),
-        title: (
-            <span className="whitespace-pre-wrap">
-                {linearIssueTooltipLines(issue, extra).join('\n')}
-            </span>
-        ),
+        title: <StatusTooltip {...linearIssueTooltip(issue, extra)} />,
     };
     const label = (
         <>

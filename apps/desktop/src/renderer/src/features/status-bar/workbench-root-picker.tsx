@@ -18,6 +18,7 @@ import { useSelectedSession, useSelectedWorkbenchProject } from '../../stores/se
 import { PickerQueryStatus } from './picker-query-status';
 import { pickerSearchScore } from './picker-search';
 import { statusItemClassName } from './status-item';
+import { StatusTooltip } from './status-tooltip';
 import { useWorkbenchRootPicker } from './use-workbench-root-picker';
 import {
     conversationWorkbenchRoots,
@@ -43,11 +44,10 @@ function WorktreeOption({
     return (
         <Tooltip
             content={
-                <span className="break-all whitespace-pre-wrap">
-                    {label}
-                    {'\n'}
-                    {root.rootPath}
-                </span>
+                <StatusTooltip
+                    title={label}
+                    rows={[{ label: 'Path', value: root.rootPath, isCode: true }]}
+                />
             }
         >
             <CommandItem
@@ -132,7 +132,19 @@ function WorkbenchRootTrigger({
     return (
         <Tooltip
             content={
-                isSwitching ? `Switching to ${switchingLabel}…` : `${rootPath}\nBranch: ${branch}`
+                isSwitching ? (
+                    `Switching to ${switchingLabel}…`
+                ) : (
+                    <StatusTooltip
+                        eyebrow={isWorktree ? 'Linked worktree' : 'Workbench Root'}
+                        title={title}
+                        rows={[
+                            { label: 'Branch', value: branch },
+                            { label: 'Path', value: rootPath, isCode: true },
+                        ]}
+                        hint="Click to switch Workbench Root"
+                    />
+                )
             }
             // The pointer is still on the trigger once its menu opens, so a hover delay that fires after the click
             // would raise the tooltip over the menu's first options and swallow the click meant for them.

@@ -305,7 +305,10 @@ reports what the process is actually doing rather than what `argv.jsonc` now say
 switch off leaves the channel open until the next launch (principle 9). Clicking it opens its setting.
 
 Persistent metrics use concise icon-plus-value labels; explanatory prose belongs in their
-accessible names and hover tooltips. The notification bell is pinned to the far bottom-right corner,
+accessible names and hover tooltips. A multi-fact status-bar tooltip uses the shared `StatusTooltip`
+layout rather than a newline-joined string: an optional muted kind line, a semibold title, muted
+label/value rows (paths and addresses in monospace), foreground state lines, muted notes, and a final
+muted `Click to …` hint naming what the chip does. A single-phrase tooltip stays plain text. The notification bell is pinned to the far bottom-right corner,
 outside the right-hand chip rail, VS Code style: every chip beside it follows the active tab and
 comes and goes as the user moves around, so an anchor placed among them would slide sideways, and
 the rail's last child is the first thing an overflow hides.
