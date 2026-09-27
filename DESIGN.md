@@ -767,14 +767,16 @@ editors omit the disclosure entirely. Repository-scoped `Commits` stays nested u
 and keeps its optional path input and commit-details disclosure.
 
 File and folder rows do not open a hover tooltip: the path is already the row's accessible name, and
-a cursor-anchored card over the adjacent diff is worse than a truncated label. Repository rows still
-carry the hover text their own width cannot — branch, and in Pull Request mode the pull request
-Option-click opens. Option-click is the panel's one modifier gesture and it always means "skip the
-row's default and go to the thing itself": on a file row it opens the working file instead of its
-diff, and on a repository row or its `PR #<n> Changes` caption it opens that pull request in the
-default browser. A file row that offers it advertises `aria-keyshortcuts` without spending a tooltip
-on the gesture. Trailing Discard actions and the panel header keep their tooltips. A deleted file
-has no working copy left, so it keeps the diff activation only.
+a cursor-anchored card over the adjacent diff is worse than a truncated label. Repository rows and
+their `PR #<n> Changes` caption still carry the hover text their own width cannot — branch, and in
+Pull Request mode the pull request Command-click opens in the default browser. Option-click is the
+panel's modifier gesture for recursive disclosure there: on a repository row, a group caption, or a
+folder row it expands or collapses everything below instead of just that row. A file row keeps
+Option-click's other meaning instead — it skips the row's default and goes to the thing itself,
+opening the working file rather than its diff. A file or folder row that offers a modifier gesture
+advertises it through `aria-keyshortcuts` without spending a tooltip on it. Trailing Discard actions
+and the panel header keep their tooltips. A deleted file has no working copy left, so it keeps the
+diff activation only.
 
 A submodule the panel already lists as its own repository section does not also appear as a gitlink
 row in its parent's change list — the section carries the same submodule with its branch and its

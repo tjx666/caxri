@@ -65,4 +65,45 @@ describe('Status extension review threads', () => {
             false,
         );
     });
+
+    it('reports a failed read instead of a clean review when the field is missing on an open pull request', () => {
+        const pullRequestUrl = 'https://github.com/example/repo/pull/7';
+        const repo: ProjectStatusRepository = {
+            id: 'fixture',
+            kind: 'primary',
+            name: 'project',
+            branch: 'feature',
+            acceptances: [],
+            linearIssues: [],
+            errors: [],
+            pullRequest: {
+                number: 7,
+                title: 'Feature',
+                url: pullRequestUrl,
+                lifecycle: 'open',
+                state: 'success',
+                checks: [],
+                hiddenCheckCount: 0,
+                // Absent because the GraphQL read failed (see `ReviewThreadStore.attach`'s catch branch), not because
+                // every thread was resolved.
+            },
+        };
+        const children = buildRepoNode(repo).children ?? [];
+        const failure = children.find(
+            (node) => node.item.label === 'Could not check review comments',
+        );
+        expect(failure).toBeDefined();
+        expect(failure?.children).toBeUndefined();
+        expect(failure?.item.command).toMatchObject({ arguments: [pullRequestUrl] });
+        expect(children.some((node) => node.item.label === 'Unresolved Comments')).toBe(false);
+
+        // A merged pull request never asks for threads at all, so a missing field there is not a failure.
+        const merged = buildRepoNode({
+            ...repo,
+            pullRequest: { ...repo.pullRequest!, lifecycle: 'merged' },
+        });
+        expect(
+            merged.children?.some((node) => node.item.label === 'Could not check review comments'),
+        ).toBe(false);
+    });
 });

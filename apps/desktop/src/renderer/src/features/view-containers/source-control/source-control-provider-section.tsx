@@ -412,8 +412,19 @@ export function SourceControlProviderSection({
                                                     <Empty className="empty-panel gap-0 p-0 px-3 py-4 text-muted">
                                                         {group.isLoading ? (
                                                             <span className="inline-flex items-center gap-1.5">
-                                                                <Spinner size={12} />
-                                                                {group.emptyMessage}
+                                                                {/* The Spinner's own "Loading" label would announce
+                                                                alongside the descriptive text below, so it is hidden
+                                                                from assistive tech and the live region announces once. */}
+                                                                <Spinner
+                                                                    size={12}
+                                                                    aria-hidden="true"
+                                                                />
+                                                                <span
+                                                                    role="status"
+                                                                    aria-live="polite"
+                                                                >
+                                                                    {group.emptyMessage}
+                                                                </span>
                                                             </span>
                                                         ) : (
                                                             group.emptyMessage
