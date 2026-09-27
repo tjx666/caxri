@@ -10,6 +10,28 @@ The startup watcher records the first Worker reply. Passing its five-second budg
 only that no reply arrived; it does not prove that the module never executed. A delayed reply
 clears the current stall, so a later Retry cannot terminate a Worker that already recovered.
 
+## Automatic recovery
+
+Chromium's dedicated-worker path is the suspected root cause (see "Debugger pauses" below), so the
+product fallback stays at the diff surface instead of waiting on an upstream fix: a stalled
+comparison heals itself once, without the user having to find and press Retry.
+
+A stall that is still unresolved a second, equal eight-second window after its `timeout` report
+gets one automatic attempt: `git-diff-stall-watch.ts`'s `recoveryGraceMs` offers the caller
+`onRecoveryDue`, which is recorded as a `worker-recreated` diagnostic (the active counterpart to
+`recovered` — the surface gave up waiting on the original Worker instead of it answering late) and
+destroys and recreates the stalled Worker before asking Monaco to recompute, the same mechanical
+steps the manual Retry button already performed. `git-monaco-diff-editor.tsx` owns this decision
+per diff surface; `git-diff-worker-recovery.ts` is the pure state machine that bounds it to one
+automatic attempt (`MAX_AUTOMATIC_WORKER_RECOVERIES`) so a Worker that keeps failing is surfaced to
+the user instead of retried forever on its own. A manual Retry click always resets that budget, since
+it is a fresh user-initiated attempt.
+
+The extra window exists so this mechanism never competes with a Worker whose startup was merely
+delayed rather than dead: passive recovery (the `recovered` outcome, and the scenario
+`git-diff-worker-recovery.e2e.ts` exercises) always gets first refusal, because the grace period is
+racy against `waitForDiff()` resolving on its own the whole time it is running.
+
 ## Debugger pauses
 
 An isolated Electron experiment reproduced a startup stall with a connected CDP client using

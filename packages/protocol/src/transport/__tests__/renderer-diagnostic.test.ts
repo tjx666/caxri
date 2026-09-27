@@ -286,6 +286,17 @@ describe('Renderer diagnostic contract', () => {
         ).toBe(false);
     });
 
+    it('accepts a stall whose Worker was destroyed and recreated instead of answering late', () => {
+        const workerRecreated = {
+            ...validEditorWorkerStallDiagnostic,
+            outcome: 'worker-recreated',
+            workerRoundTrip: 'skipped',
+            workerRoundTripMs: null,
+            workerBroadcast: 'skipped',
+        };
+        expect(rendererDiagnosticSchema.parse(workerRecreated)).toEqual(workerRecreated);
+    });
+
     it('carries every combination of the two Worker return paths', () => {
         // Each pair is a different conclusion for a reader of desktop.jsonl, which is the whole reason both are
         // recorded: the Worker never ran, only the Renderer-internal reply was lost (issue #962), or messaging was

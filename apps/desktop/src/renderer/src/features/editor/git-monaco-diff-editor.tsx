@@ -16,6 +16,10 @@ import { disposeGitDiffModels } from './git-diff-model-lifecycle';
 import type { GitDiffComputationOutcome } from './git-diff-stall-watch';
 import { gitDiffStallWatch } from './git-diff-stall-watch';
 import { useGitDiffViewStore } from './git-diff-view-store';
+import {
+    diffWorkerRecoveryReducer,
+    initialDiffWorkerRecoveryState,
+} from './git-diff-worker-recovery';
 
 const DIFF_RETRY_LABEL = 'Comparing these two versions again…';
 
@@ -32,6 +36,7 @@ type GitDiffEditorProperties = Omit<DiffEditorProps, 'onMount'> & {
 function GitDiffEditorSurface(
     properties: GitDiffEditorProperties & {
         onOutcome: (outcome: GitDiffComputationOutcome) => void;
+        onRecoveryDue?: () => void;
     },
 ) {
     const inlineView = useGitDiffViewStore((state) => state.inlineView);
@@ -82,8 +87,10 @@ function GitDiffEditorSurface(
         instance.revealFirstDiff();
         /**
          * Monaco computes the diff in a Web Worker, so a Worker that stops replying renders as an unchanged file rather
-         * than an error. The watcher records that case (issue #962) and now also reports the outcome to this surface,
-         * which is what lets a diff that never computed say so instead of passing for an unchanged file (issue #978).
+         * than an error. The watcher records that case (issue #962) and reports the outcome to this surface, which is
+         * what lets a diff that never computed say so instead of passing for an unchanged file (issue #978). If the
+         * stalled Worker still has not answered after a second, equal wait, `onRecoveryDue` offers this surface one
+         * automatic self-heal — see `GitMonacoDiffEditor` below and `git-diff-worker-recovery.ts`.
          */
         const cancelStallWatch = gitDiffStallWatch.observe({
             waitForDiff: () => viewModel.waitForDiff(),
@@ -93,6 +100,7 @@ function GitDiffEditorSurface(
                 identicalModels: models.original.getValue() === models.modified.getValue(),
             }),
             onOutcome: (outcome) => properties.onOutcome(outcome),
+            onRecoveryDue: properties.onRecoveryDue,
         });
         const unmount = properties.onMount?.(instance, monaco);
         return () => {
@@ -142,6 +150,12 @@ export function GitMonacoDiffEditor(properties: GitDiffEditorProperties) {
         initialEditorLoadState,
     );
     const attempt = computation.attempt;
+    /**
+     * Owned by this component, not the shared `gitDiffStallWatch` singleton: the watch is one per window, but the
+     * automatic-recovery budget is per diff surface. A `ref` (not state) because spending it must never itself trigger
+     * a render — the retry it can cause already does that through `dispatchComputation`.
+     */
+    const recovery = useRef(initialDiffWorkerRecoveryState);
     const isStalled = computation.status === 'failed';
     /**
      * Only a retry gets a progress state. The first comparison resolves in well under a frame on any ordinary file, so
@@ -158,9 +172,29 @@ export function GitMonacoDiffEditor(properties: GitDiffEditorProperties) {
                 <GitDiffEditorSurface
                     key={attempt}
                     {...properties}
-                    onOutcome={(outcome) =>
-                        dispatchComputation(gitDiffComputationAction(outcome, attempt))
-                    }
+                    onOutcome={(outcome) => {
+                        if (outcome === 'computed')
+                            recovery.current = diffWorkerRecoveryReducer(recovery.current, {
+                                type: 'computed',
+                            });
+                        dispatchComputation(gitDiffComputationAction(outcome, attempt));
+                    }}
+                    onRecoveryDue={() => {
+                        /**
+                         * The stalled Worker already had two full comparison budgets to answer on its own
+                         * (`git-diff-stall-watch.ts`'s `recoveryGraceMs`); this is the self-heal path for the one that
+                         * really stopped. Bounded to one automatic attempt per surface — a second stall goes back
+                         * through the manual "Retry" the failure state below already offers, so a Worker that keeps
+                         * failing does not loop forever without telling the user. See issue #962.
+                         */
+                        const decision = diffWorkerRecoveryReducer(recovery.current, {
+                            type: 'stalled',
+                        });
+                        recovery.current = decision;
+                        if (decision.status !== 'recovering') return;
+                        releaseStalledEditorWorkers();
+                        dispatchComputation({ type: 'retried' });
+                    }}
                 />
             </div>
             {isCovered && (
@@ -174,8 +208,15 @@ export function GitMonacoDiffEditor(properties: GitDiffEditorProperties) {
                                  * Releasing first is what makes the retry different from the one that already failed: a
                                  * Worker that never started keeps being handed to every later comparison, so a new view
                                  * model alone would queue behind the same dead Worker. See issue #962.
+                                 *
+                                 * A manual retry is a fresh user-initiated attempt, so it also gets a fresh automatic
+                                 * self-heal budget — the same way `git-diff-worker-recovery.ts` resets on a comparison
+                                 * change.
                                  */
                                 releaseStalledEditorWorkers();
+                                recovery.current = diffWorkerRecoveryReducer(recovery.current, {
+                                    type: 'restarted',
+                                });
                                 dispatchComputation({ type: 'retried' });
                             }}
                         />
