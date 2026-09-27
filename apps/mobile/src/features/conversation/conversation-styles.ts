@@ -3,6 +3,7 @@ import { StyleSheet } from 'react-native';
 export const conversationStyles = StyleSheet.create({
     root: { flex: 1, minWidth: 0 },
     list: { flex: 1 },
+    listPositioning: { flex: 1, opacity: 0 },
     listContent: { paddingBottom: 8, paddingHorizontal: 16, paddingTop: 16 },
     /**
      * FlashList positions cells itself and ignores `gap` on its content container, so each cell owns its spacing.
