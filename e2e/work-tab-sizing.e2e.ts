@@ -738,10 +738,9 @@ test('the bar hides "+" with no tabs at all and reserves its drag corner only wi
         await running.page.keyboard.press('Meta+BracketLeft');
         await expect(dragCorner).toHaveCount(0);
 
-        // The empty pane offers its own New Terminal button, so the tab bar loses the reserved + slot.
         const onlyTab = running.page.locator('.work-tabs .work-tab').first();
-        // With one tab, the close button and active accent stay absent; closing it reveals the empty pane's own New
-        // Terminal action. Terminal > Close Terminal remains available, while `cmd+w` archives the Session.
+        // With one tab, the close button and active accent stay absent. Terminal > Close Terminal on that last tab
+        // archives the Session, the same meaning as `cmd+w`, instead of leaving an empty pane behind.
         await onlyTab.hover();
         await expect(onlyTab.getByRole('button', { name: 'Close Terminal' })).toHaveCount(0);
         await running.app.evaluate(({ Menu }) => {
@@ -749,9 +748,9 @@ test('the bar hides "+" with no tabs at all and reserves its drag corner only wi
                 ?.getMenuItemById('command.terminal.close')
                 ?.click({ triggeredByAccelerator: false });
         });
-        await expect(running.page.getByText('No Terminal in this Session.')).toBeVisible();
-        await expect(running.page.locator('.work-tabs .work-tab')).toHaveCount(0);
-        await expect(actions).toHaveCount(0);
+        await expect(running.page.locator('aside .archived-sessions-entry')).toHaveAccessibleName(
+            'Archived Sessions (1)',
+        );
     } finally {
         await closeAppQuietly(running.app);
         await removeQuitTestDirectory(testDirectory);

@@ -1,8 +1,13 @@
-import { createPaneLayout, openResource } from '@caxri/protocol';
+import { createPaneLayout, listPaneTabs, openResource, splitTabIntoPane } from '@caxri/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { lastTabTerminalSessionId } from '../session-last-tab';
 
+/**
+ * `terminal.close` and `workbench.closeActiveTab` (`commands/execute.ts`) both resolve their archive-or-close decision
+ * through this helper, so its contract has to hold for both the whole-pane layouts a Cmd+W-style close sees and the
+ * split layouts a Terminal's own dedicated close command sees just as often.
+ */
 describe('lastTabTerminalSessionId', () => {
     const terminal = { kind: 'terminal', terminalId: 'terminal-1' } as const;
     const terminals = [{ id: 'terminal-1', sessionId: 'session-1' }];
@@ -25,6 +30,23 @@ describe('lastTabTerminalSessionId', () => {
         expect(lastTabTerminalSessionId(terminals, withDocument, 'terminal-1')).toBeUndefined();
     });
 
+    it('keeps the ordinary close when a document tab lives in a split pane', () => {
+        const withDocument = openResource(createPaneLayout(terminal), {
+            kind: 'file',
+            path: 'notes.ts',
+        });
+        const documentTab = listPaneTabs(withDocument).find(
+            ({ tab }) => tab.resource.kind === 'file',
+        );
+        const split = splitTabIntoPane(
+            withDocument,
+            documentTab!.tab.id,
+            withDocument.root.id,
+            'right',
+        );
+        expect(lastTabTerminalSessionId(terminals, split, 'terminal-1')).toBeUndefined();
+    });
+
     it('ignores other Sessions and unknown Terminals', () => {
         const otherSession = [...terminals, { id: 'terminal-9', sessionId: 'session-2' }];
         expect(
@@ -33,5 +55,12 @@ describe('lastTabTerminalSessionId', () => {
         expect(
             lastTabTerminalSessionId(terminals, createPaneLayout(terminal), 'terminal-x'),
         ).toBeUndefined();
+    });
+
+    it('returns undefined when there is no Session or no layout', () => {
+        expect(
+            lastTabTerminalSessionId([], createPaneLayout(terminal), 'terminal-1'),
+        ).toBeUndefined();
+        expect(lastTabTerminalSessionId(terminals, undefined, 'terminal-1')).toBeUndefined();
     });
 });
