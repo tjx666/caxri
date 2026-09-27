@@ -37,6 +37,7 @@ import {
 import { PaneMountPortal } from './pane-mount-portal';
 import { reconcilePaneMounts } from './pane-mounts';
 import { PaneTabBar } from './pane-tab-bar';
+import { PaneViewLayoutSignalProvider } from './pane-view-layout-signal';
 import { PaneViewSessionProvider, usePaneViewSession } from './pane-view-session';
 import { useTabFocusRecovery } from './use-tab-focus-recovery';
 
@@ -440,24 +441,26 @@ export function PaneView({ isVisible, sessionId }: { isVisible: boolean; session
     if (!layout) return null;
     return (
         <PaneViewSessionProvider value={sessionId}>
-            <div className={fullBleedClassName}>
-                <PaneNodeView
-                    leadingPane={leadingPaneId(layout.root)}
-                    layout={layout}
-                    node={layout.root}
-                />
-                {panes.map(({ key, pane }) => (
-                    <PaneMountPortal key={key} paneId={pane.id}>
-                        <PaneBox
-                            isLeading={pane.id === leadingPaneId(layout.root)}
-                            isVisible={isVisible}
-                            layout={layout}
-                            pane={pane}
-                            spansWindowWidth={isLeadingBarWindowWide(layout.root)}
-                        />
-                    </PaneMountPortal>
-                ))}
-            </div>
+            <PaneViewLayoutSignalProvider value={layout}>
+                <div className={fullBleedClassName}>
+                    <PaneNodeView
+                        leadingPane={leadingPaneId(layout.root)}
+                        layout={layout}
+                        node={layout.root}
+                    />
+                    {panes.map(({ key, pane }) => (
+                        <PaneMountPortal key={key} paneId={pane.id}>
+                            <PaneBox
+                                isLeading={pane.id === leadingPaneId(layout.root)}
+                                isVisible={isVisible}
+                                layout={layout}
+                                pane={pane}
+                                spansWindowWidth={isLeadingBarWindowWide(layout.root)}
+                            />
+                        </PaneMountPortal>
+                    ))}
+                </div>
+            </PaneViewLayoutSignalProvider>
         </PaneViewSessionProvider>
     );
 }
