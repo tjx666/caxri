@@ -68,6 +68,8 @@ export function useAgentCommander(): { retry: () => void; status: AgentCommander
                 }));
             if (effect.snapshot) refreshCommanderSnapshot();
             if (effect.board) refetchBoard();
+            // Re-runs the start effect without its loading state: the pane keeps its screen while the Server resumes it.
+            if (effect.ensure) setAttempt((current) => current + 1);
         });
         return () => {
             unsubscribe();

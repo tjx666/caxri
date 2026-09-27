@@ -48,6 +48,9 @@ Main routes events through the same policy:
   recovering event client sees a gap-free cursor sequence.
 - **Terminal-scoped transient events** (`terminal.output`, `terminal.outputRecovery`,
   `terminal.sizeOwnership`) go only to the window viewing that Terminal.
+- **Shared transient events** (`host.connectionChanged`, `sessionPullRequests.changed`) reach both
+  windows: a reconnect dropped PTY output to every mounted pane, and the board shows the pull
+  requests the second announces. Neither is a command, so delivering it twice runs nothing twice.
 - **Other transient events** go only to the Workbench, including `command.execute` and
   `desktop.openRequested`, so a menu accelerator never runs twice.
 
@@ -98,7 +101,9 @@ it was just created. An existing Terminal that an app restart or suspension inte
 through a dedicated restore supervisor: the Workbench resumes Terminals only for the Session it
 selects, and it never selects the Commander Session. The same restore resumes a Commander the user
 stopped. A Terminal that exited on its own stays as it is; the pane's own Resume and Restart actions
-relaunch it.
+relaunch it. A Server Core restart takes the Commander's PTY with it, so an open Commander window
+runs `commander.ensure` again once the runtime is ready or Desktop reconnects to a replaced Server;
+a window that is closed leaves the Commander parked until the next ensure.
 
 `commander.stop` is desktop-only and idempotent. It drops any queued Commander restore and waits
 for one that is already spawning, then kills the PTY behind the same barrier a suspension uses and

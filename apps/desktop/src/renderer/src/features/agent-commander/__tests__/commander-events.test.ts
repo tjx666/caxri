@@ -28,7 +28,7 @@ describe('commanderEventEffect', () => {
                 event('state.changed', { kind: 'full', reason: 'unknown' }),
                 identity,
             ),
-        ).toEqual({ board: true, reattach: false, snapshot: true });
+        ).toEqual({ board: true, ensure: false, reattach: false, snapshot: true });
     });
 
     it("re-reads the snapshot only when a record change names the Commander's own rows", () => {
@@ -38,35 +38,50 @@ describe('commanderEventEffect', () => {
         );
         expect(
             commanderEventEffect(records(['other-session'], ['other-terminal']), identity),
-        ).toEqual({ board: true, reattach: false, snapshot: false });
+        ).toEqual({ board: true, ensure: false, reattach: false, snapshot: false });
     });
 
     it('treats a record change before the first snapshot as possibly its own', () => {
         expect(commanderEventEffect(records(['other-session']), undefined).snapshot).toBe(true);
     });
 
-    it('re-attaches after the Server comes back', () => {
-        expect(
-            commanderEventEffect(
-                event('runtime.status', { restartCount: 1, status: 'ready' }),
-                identity,
-            ),
-        ).toEqual({ board: true, reattach: true, snapshot: true });
-        expect(
-            commanderEventEffect(
-                event('host.connectionChanged', {
-                    attempt: 1,
-                    downtimeMs: 10,
-                    isHostReplaced: false,
-                    status: 'reconnected',
-                }),
-                identity,
-            ),
-        ).toEqual({ board: true, reattach: true, snapshot: true });
+    /**
+     * A new Server generation took the Commander's PTY with it and restores only the Workbench's selected Session, so
+     * the window has to start its Commander again; a reconnect to the same Server only lost PTY bytes.
+     */
+    it.each([
+        ['a Server restart', event('runtime.status', { restartCount: 1, status: 'ready' }), true],
+        [
+            'a reconnect to a replaced Server',
+            event('host.connectionChanged', {
+                attempt: 1,
+                downtimeMs: 10,
+                isHostReplaced: true,
+                status: 'reconnected',
+            }),
+            true,
+        ],
+        [
+            'a reconnect to the same Server',
+            event('host.connectionChanged', {
+                attempt: 1,
+                downtimeMs: 10,
+                isHostReplaced: false,
+                status: 'reconnected',
+            }),
+            false,
+        ],
+    ])('re-attaches after %s', (_, serverEvent, shouldEnsure) => {
+        expect(commanderEventEffect(serverEvent, identity)).toEqual({
+            board: true,
+            ensure: shouldEnsure,
+            reattach: true,
+            snapshot: true,
+        });
     });
 
     it('waits out a restart and leaves a profile takeover to the Workbench window', () => {
-        const none = { board: false, reattach: false, snapshot: false };
+        const none = { board: false, ensure: false, reattach: false, snapshot: false };
         expect(
             commanderEventEffect(
                 event('runtime.status', { restartCount: 1, status: 'restarting' }),
@@ -82,6 +97,7 @@ describe('commanderEventEffect', () => {
         for (const name of ['settings.changed', 'theme.changed', 'keybindings.changed'] as const) {
             expect(commanderEventEffect(event(name, {}), identity)).toEqual({
                 board: false,
+                ensure: false,
                 reattach: false,
                 snapshot: true,
             });
@@ -97,11 +113,11 @@ describe('commanderEventEffect', () => {
                 event('sessionPullRequests.changed', { sessionIds: ['session-1'] }),
                 identity,
             ),
-        ).toEqual({ board: true, reattach: false, snapshot: false });
+        ).toEqual({ board: true, ensure: false, reattach: false, snapshot: false });
     });
 
     it('ignores UI commands, which belong to the Workbench window', () => {
-        const none = { board: false, reattach: false, snapshot: false };
+        const none = { board: false, ensure: false, reattach: false, snapshot: false };
         expect(
             commanderEventEffect(event('command.execute', { command: 'palette.show' }), identity),
         ).toEqual(none);
