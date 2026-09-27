@@ -627,10 +627,12 @@ test('startup failure uses a compact danger status without covering output', asy
         await captureRecoveryEvidence(running.page, 'missing-cli');
         await actions.nth(0).focus();
         await running.page.keyboard.press('Enter');
-        await expect(running.page.getByRole('dialog', { name: 'Settings' })).toBeVisible();
+        const settingsTab = running.page.locator('[data-settings-page]');
+        await expect(settingsTab).toBeVisible();
         await captureRecoveryEvidence(running.page, 'open-settings');
-        await running.page.keyboard.press('Escape');
-        await expect(running.page.getByRole('dialog', { name: 'Settings' })).toHaveCount(0);
+        // Settings is a Workbench tab (issue caxri#1289); `Cmd+W` closes it like any document tab.
+        await running.page.keyboard.press('Meta+w');
+        await expect(settingsTab).toHaveCount(0);
         // The Runtime failure is covered by its integration test; this persisted state verifies the Renderer copy.
         const terminalId = await running.page
             .locator('.terminal-pane')

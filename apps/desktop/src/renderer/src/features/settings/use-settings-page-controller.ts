@@ -13,7 +13,12 @@ import { builtinThemes, findMatchingBuiltinTheme } from '@caxri/protocol';
 import { caxri } from '../../lib/caxri';
 import type { SettingsView } from '../../stores/dialogs';
 import { useDialogStore } from '../../stores/dialogs';
-import { describeFailure, dismissToastsMatching, pushToast } from '../../stores/toasts';
+import {
+    describeFailure,
+    dismissToastsMatching,
+    isCancelledRequest,
+    pushToast,
+} from '../../stores/toasts';
 import { refreshWorkbench } from '../../stores/workbench';
 import type { ConfigKind } from './config-edit';
 import { applyFormEdit, CONFIG_FILE_NAMES, CONFIG_KINDS } from './config-edit';
@@ -147,8 +152,14 @@ const onApplied = (): void => {
     // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
     void refreshWorkbench();
 };
-const onSettingsError = (error: unknown, label: string): void =>
+/**
+ * Main answers every queued Renderer request with `CANCELLED` once quit starts, so a debounced write or reload still in
+ * flight at quit must not raise a notification over a window that is already going away (same rule as `tryCommand`).
+ */
+export function reportSettingsError(error: unknown, label: string): void {
+    if (isCancelledRequest(error)) return;
     pushToast('error', describeFailure(error, label));
+}
 
 export function useSettingsPageController() {
     const request = useDialogStore((state) => state.settingsRequest);
@@ -214,7 +225,7 @@ export function useSettingsPageController() {
         onApplied,
         onError: (error, kind) => {
             // Never applied to state on failure, so the field the user just changed stays exactly as they left it.
-            onSettingsError(error, CONFIG_FILE_NAMES[kind]);
+            reportSettingsError(error, CONFIG_FILE_NAMES[kind]);
         },
         onExternalChange: (kind, payload) => {
             if (payload.error) {
@@ -343,7 +354,7 @@ export function useSettingsPageController() {
                 argvConfigAtLoad.current ??= argvResult.value;
                 setLoaded(true);
             } catch (error: unknown) {
-                onSettingsError(error, 'Unable to load configuration');
+                reportSettingsError(error, 'Unable to load configuration');
             }
         }
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
@@ -355,7 +366,7 @@ export function useSettingsPageController() {
             try {
                 setAgentSkillHealth(await getAgentSkillHealth());
             } catch (error: unknown) {
-                onSettingsError(error, 'Unable to inspect Caxri CLI skills');
+                reportSettingsError(error, 'Unable to inspect Caxri CLI skills');
             }
         }
         // eslint-disable-next-line no-void -- intentional floating-promise discard, see above
@@ -625,7 +636,7 @@ export function useSettingsPageController() {
         // out-of-order responses from rapid toggles, mirroring `writeGeneration`.
         setArgvConfig((current) => (current ? { ...current, ...changes } : current));
         const generation = ++argvWriteGeneration.current;
-        // eslint-disable-next-line no-void -- intentional floating-promise discard, the IIFE below reports its own errors via onSettingsError
+        // eslint-disable-next-line no-void -- intentional floating-promise discard, the IIFE below reports its own errors via reportSettingsError
         void (async (): Promise<void> => {
             try {
                 const result = await writeArgvConfig({ changes });
@@ -644,7 +655,7 @@ export function useSettingsPageController() {
                 // on it.
                 if (notice) pushToast('info', notice, { persist: true });
             } catch (error) {
-                onSettingsError(error, 'argv.jsonc');
+                reportSettingsError(error, 'argv.jsonc');
             }
         })();
     };

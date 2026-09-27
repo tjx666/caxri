@@ -1,10 +1,12 @@
 import type { ArgvConfig } from '@caxri/protocol';
-import { argvConfigSchema } from '@caxri/protocol';
-import { describe, expect, it } from 'vitest';
+import { argvConfigSchema, CaxriError } from '@caxri/protocol';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { dismissToast, getToasts } from '../../../stores/toasts';
 import {
     ARGV_RESTART_NOTICE_PREFIX,
     argvRestartNotice,
+    reportSettingsError,
     settingTitleForArgvKey,
 } from '../use-settings-page-controller';
 
@@ -98,5 +100,33 @@ describe('argvRestartNotice', () => {
             expect(argvRestartNotice({ applied, baseline: BOOT_BASELINE })).toMatch(
                 new RegExp(`^${ARGV_RESTART_NOTICE_PREFIX}`),
             );
+    });
+});
+
+describe('reportSettingsError', () => {
+    beforeEach(() => {
+        vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+            setTimeout(callback, 0),
+        );
+        vi.stubGlobal('cancelAnimationFrame', clearTimeout);
+        dismissToast();
+    });
+
+    afterEach(() => {
+        dismissToast();
+        vi.unstubAllGlobals();
+    });
+
+    it('names the file whose write failed', () => {
+        reportSettingsError(new CaxriError('IO', 'disk full'), 'settings.jsonc');
+        expect(getToasts().map((toast) => toast.title)).toEqual(['settings.jsonc. disk full.']);
+    });
+
+    it('stays silent for a write Main cancelled because the app is quitting', () => {
+        reportSettingsError(
+            new CaxriError('CANCELLED', 'Application is quitting'),
+            'settings.jsonc',
+        );
+        expect(getToasts()).toEqual([]);
     });
 });

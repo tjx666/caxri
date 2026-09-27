@@ -394,8 +394,8 @@ test('Agent Commands & Skills stays discoverable, describes its target, and pres
         picker = running.page.locator('[data-agent-actions-picker]');
         await picker.getByRole('button', { name: 'Manage in Settings…' }).click();
         await expect(picker).not.toBeVisible();
-        const settingsDialog = running.page.getByRole('dialog');
-        const actionsRow = settingsDialog.locator('[data-setting-row="agents.codex.actions"]');
+        const settingsTab = running.page.locator('[data-settings-page]');
+        const actionsRow = settingsTab.locator('[data-setting-row="agents.codex.actions"]');
         await expect(actionsRow).toBeVisible();
         await actionsRow.getByRole('switch', { name: 'Show /diff' }).uncheck();
         await actionsRow.getByLabel('New command or skill invocation').fill('/goal');
@@ -432,7 +432,9 @@ test('Agent Commands & Skills stays discoverable, describes its target, and pres
                 diffEnabled: false,
                 recent: ['/status', '/diff', '$e2e-required', '$e2e-action'],
             });
-        await settingsDialog.getByRole('button', { name: 'Close' }).click();
+        // Settings is a Workbench tab (issue caxri#1289); `Cmd+W` closes it like any document tab.
+        await running.page.keyboard.press('Meta+w');
+        await expect(settingsTab).toHaveCount(0);
 
         await input.focus();
         await running.page.keyboard.press('Meta+Shift+A');
@@ -442,10 +444,7 @@ test('Agent Commands & Skills stays discoverable, describes its target, and pres
             .toEqual(['/status', '$e2e-required', '$e2e-action']);
         await expect(picker.locator('[data-agent-action="/diff"]')).toHaveCount(0);
         await picker.getByRole('button', { name: 'Manage in Settings…' }).click();
-        const reopenedSettings = running.page.getByRole('dialog');
-        const reopenedActionsRow = reopenedSettings.locator(
-            '[data-setting-row="agents.codex.actions"]',
-        );
+        const reopenedActionsRow = settingsTab.locator('[data-setting-row="agents.codex.actions"]');
         await reopenedActionsRow.getByRole('switch', { name: 'Show /diff' }).check();
         await expect
             .poll(async () => {
@@ -462,7 +461,8 @@ test('Agent Commands & Skills stays discoverable, describes its target, and pres
                 );
             })
             .toBe(false);
-        await reopenedSettings.getByRole('button', { name: 'Close' }).click();
+        await running.page.keyboard.press('Meta+w');
+        await expect(settingsTab).toHaveCount(0);
 
         await input.focus();
         await running.page.keyboard.press('Meta+Shift+A');
