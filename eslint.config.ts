@@ -468,6 +468,7 @@ export default defineConfig(
         ignores: [
             '**/main.tsx',
             '**/process-explorer-main.tsx',
+            '**/agent-commander-main.tsx',
             '**/index.tsx',
             '**/*.test.tsx',
             '**/*.stories.tsx',

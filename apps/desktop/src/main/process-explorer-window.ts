@@ -4,20 +4,18 @@ import type { RendererErrorKind, ThemeTokens } from '@caxri/protocol';
 import { isRendererErrorKind, RENDERER_ERROR_CHANNELS } from '@caxri/protocol';
 import type { StructuredLogger } from '@caxri/system';
 import { logEventCatalog } from '@caxri/system';
-import { BrowserWindow, ipcMain } from 'electron';
+import type { BrowserWindow } from 'electron';
+import { ipcMain } from 'electron';
 
 import type { ProcessExplorerSnapshot } from '../shared/process-explorer';
 import { processExplorerSnapshotSchema } from '../shared/process-explorer';
 import { PROCESS_EXPLORER_CHANNELS } from '../shared/process-explorer-channels';
-import { isBenignRendererErrorMessage } from '../shared/renderer-error-policy';
-import { consoleErrorLogFields } from './console-error-fields';
-import { decideCrashRecovery } from './crash-policy';
+import { createAuxiliaryWindow, isAuxiliaryWindowRevealed } from './auxiliary-window';
 import type { ProcessExplorerSampler } from './process-explorer';
 import {
     assertTrustedProcessExplorerSender,
     resolveProcessExplorerRendererUrl,
 } from './process-explorer-window-helpers';
-import { observeRendererHangs } from './renderer-hang-observer';
 import type { E2EWindowMode } from './window-mode';
 
 interface ProcessExplorerWindowOptions {
@@ -35,7 +33,6 @@ interface ProcessExplorerWindowOptions {
 }
 
 export class ProcessExplorerWindowController {
-    private rendererCrashTimestampsMs: number[] = [];
     private window?: BrowserWindow;
 
     constructor(private readonly options: ProcessExplorerWindowOptions) {}
@@ -89,117 +86,31 @@ export class ProcessExplorerWindowController {
     }
 
     open(): void {
-        if (this.window && !this.window.isDestroyed()) {
-            if (this.window.isMinimized()) this.window.restore();
-            if (this.options.windowMode === 'visible') {
-                this.window.show();
-                this.window.focus();
-            }
-            return;
-        }
-        const rendererUrl = resolveProcessExplorerRendererUrl(this.options);
-        const window = new BrowserWindow({
-            width: 1_280,
-            height: 760,
-            minWidth: 720,
-            minHeight: 420,
-            title: 'Process Explorer — Caxri',
-            backgroundColor: '#282a36',
-            titleBarStyle: 'hiddenInset',
-            show: false,
-            webPreferences: {
-                preload: join(this.options.currentDirectory, '../preload/process-explorer.cjs'),
-                contextIsolation: true,
-                nodeIntegration: false,
-                sandbox: true,
-            },
-        });
-        this.rendererCrashTimestampsMs = [];
-        this.window = window;
-        window.once('ready-to-show', () => {
-            if (this.options.windowMode === 'visible') window.show();
-        });
-        window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-        window.webContents.on('will-navigate', (event, url) => {
-            /**
-             * A crashed WebContents may no longer report its current URL. Compare against the immutable entry URL so
-             * recovery is allowed without widening navigation privileges.
-             */
-            if (url === rendererUrl) return;
-            event.preventDefault();
-        });
-        window.webContents.on('console-message', (details) => {
-            if (details.level !== 'error' || isBenignRendererErrorMessage(details.message)) return;
-            this.options.logger.write('error', logEventCatalog.processExplorer.consoleError, {
-                fields: consoleErrorLogFields(details),
-            });
-        });
-        window.webContents.on('preload-error', () => {
-            this.options.logger.write('error', logEventCatalog.processExplorer.preloadError, {
-                fields: { code: 'PRELOAD_ERROR' },
-            });
-        });
-        observeRendererHangs(
-            window.webContents,
-            logEventCatalog.processExplorer,
-            () => this.options.logger,
-            () => this.window === window,
-        );
-        window.webContents.on('render-process-gone', (_event, details) => {
-            if (details.reason === 'clean-exit' || window.isDestroyed() || this.window !== window)
-                return;
-            const { decision, crashTimestampsMs } = decideCrashRecovery(
-                this.rendererCrashTimestampsMs,
-                Date.now(),
-            );
-            this.rendererCrashTimestampsMs = crashTimestampsMs;
-            if (decision.action === 'reload') {
-                this.options.logger.write(
-                    'warn',
-                    logEventCatalog.processExplorer.renderProcessGone,
-                    {
-                        fields: {
-                            code: 'RENDER_PROCESS_GONE',
-                            reason: details.reason,
-                            crashCount: decision.crashCount,
-                            delayMs: decision.delayMs ?? 0,
-                        },
-                    },
-                );
-                setTimeout(() => {
-                    if (this.window === window && !window.isDestroyed())
-                        // `render-process-gone` recovery reload is best-effort: a failed reload
-                        // here re-triggers this same crash-recovery handler on the next crash
-                        // event, so it is deliberately fire-and-forget rather than awaited.
-                        // eslint-disable-next-line unicorn/prefer-await -- see comment above
-                        window.loadURL(rendererUrl).catch(() => {});
-                }, decision.delayMs);
-                return;
-            }
-            this.options.logger.write(
-                'error',
-                logEventCatalog.processExplorer.renderProcessCrashLoop,
-                {
-                    fields: {
-                        code: 'RENDER_PROCESS_CRASH_LOOP',
-                        reason: details.reason,
-                        crashCount: decision.crashCount,
-                    },
+        if (isAuxiliaryWindowRevealed(this.window, this.options.windowMode === 'visible')) return;
+        const window = createAuxiliaryWindow({
+            browserWindow: {
+                width: 1_280,
+                height: 760,
+                minWidth: 720,
+                minHeight: 420,
+                title: 'Process Explorer — Caxri',
+                backgroundColor: '#282a36',
+                titleBarStyle: 'hiddenInset',
+                webPreferences: {
+                    preload: join(this.options.currentDirectory, '../preload/process-explorer.cjs'),
+                    contextIsolation: true,
+                    nodeIntegration: false,
+                    sandbox: true,
                 },
-            );
-            /**
-             * Process Explorer is optional diagnostics, so stop only its failed window. Creating the next window resets
-             * crash history and leaves the healthy workbench untouched.
-             */
-            window.destroy();
+            },
+            events: logEventCatalog.processExplorer,
+            logger: this.options.logger,
+            rendererUrl: resolveProcessExplorerRendererUrl(this.options),
+            showOnReady: this.options.windowMode === 'visible',
         });
+        this.window = window;
         window.on('closed', () => {
             if (this.window === window) this.window = undefined;
         });
-        // `open()` creates the window synchronously and returns before navigation settles;
-        // load failures surface through the 'render-process-gone'/'preload-error' handlers
-        // above, so this is deliberately fire-and-forget rather than awaited.
-        // eslint-disable-next-line unicorn/prefer-await -- see comment above
-        window.loadURL(rendererUrl).catch(() => {});
     }
 }

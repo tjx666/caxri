@@ -48,6 +48,7 @@ interface StoredEndpoint {
     expiresAt: number;
     grants: Map<string, AgentEndpointGrant>;
     launchId: string;
+    role?: 'commander';
     summary: AgentEndpointSummary;
     terminalId: string;
     tokenDigest: Buffer;
@@ -86,8 +87,20 @@ function tokenDigest(token: string): Buffer {
     return createHash('sha256').update(token).digest();
 }
 
+/**
+ * Fixed authority of the Agent Commander Terminal: read the cross-Project board, create empty Sessions, and delegate
+ * into them. Target Sessions are authorized per request by domain services, so the principal's Project scope stays the
+ * Commander's own system Project and never widens to control or dispatch.
+ */
+const COMMANDER_CAPABILITIES = [
+    'agents.delegate',
+    'commander',
+] as const satisfies readonly Capability[];
+
 function capabilitiesFor(record: StoredEndpoint, now: number): Capability[] {
     const granted = new Set<Capability>(BASELINE_CAPABILITIES);
+    if (record.role === 'commander')
+        for (const capability of COMMANDER_CAPABILITIES) granted.add(capability);
     for (const grant of record.grants.values()) {
         if (grant.expiresAt <= now) continue;
         const capabilitiesForPolicy = GRANT_CAPABILITIES[grant.policy];
@@ -230,6 +243,7 @@ export class AgentEndpointRegistry {
             expiresAt,
             grants: new Map(),
             launchId: input.launchId,
+            role: input.role,
             summary,
             terminalId: input.terminalId,
             tokenDigest: tokenDigest(token),

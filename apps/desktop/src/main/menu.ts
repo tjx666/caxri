@@ -14,6 +14,7 @@ export interface AppMenuOptions {
     keybindings: Keybinding[];
     dispatchCommand: (command: CommandId, isViaAccelerator: boolean) => void;
     openProcessExplorer: () => void;
+    openAgentCommander: () => void;
 }
 
 /**
@@ -84,6 +85,7 @@ function isRendererOwnedShortcut(commandId: string): boolean {
 export function buildAppMenuTemplate({
     keybindings,
     dispatchCommand,
+    openAgentCommander,
     openProcessExplorer,
 }: AppMenuOptions): MenuItemConstructorOptions[] {
     const command = (definition: CommandDefinition): MenuItemConstructorOptions => ({
@@ -110,6 +112,11 @@ export function buildAppMenuTemplate({
              * The Process Explorer menu must work while its diagnostic window is focused.
              */
             if (definition.id === 'processExplorer.open') return openProcessExplorer();
+            /**
+             * Like Process Explorer, the Agent Commander menu must work while its own window is focused, and the
+             * Workbench Renderer is not the one that should run it.
+             */
+            if (definition.id === 'agentCommander.open') return openAgentCommander();
             dispatchCommand(definition.id, event.triggeredByAccelerator === true);
         },
     });

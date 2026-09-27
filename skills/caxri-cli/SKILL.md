@@ -8,7 +8,7 @@ description: Operate and debug the current Caxri Host through its version-matche
 Use only the bundled `caxri` binary and its authenticated local Host transport. Treat this skill as
 workflow guidance; treat live introspection as the command and capability authority.
 
-<!-- caxri-capabilities: agents.control,agents.delegate,agents.dispatch,agents.message,agents.read,diagnostics.read,projects.read,sessions.read,settings.read,settings.write,terminals.steer -->
+<!-- caxri-capabilities: agents.control,agents.delegate,agents.dispatch,agents.message,agents.read,commander,diagnostics.read,projects.read,sessions.read,settings.read,settings.write,terminals.steer -->
 
 ## Start with live introspection
 
@@ -141,6 +141,22 @@ An Agent needs a bounded `agent:control` grant for dispatch or control. CLI Term
 `terminals.steer` and human owner authority; a paired device has a separate, narrower short-reply
 path for the selected waiting Agent. An Agent Endpoint must not attempt either path. Never infer
 lifecycle completion from Terminal silence or read output to guess Agent state.
+
+## Coordinate work as the Agent Commander
+
+Only the Agent Commander Terminal holds the `commander` capability. It reads every visible Project
+and Session through one board and delegates each task into an empty Session it created itself:
+
+```bash
+caxri commander board --json
+caxri commander session create --project project-1 --json
+```
+
+Board rows carry `group` (`attention`, `working`, `waiting`, `failed`, `finished`, `idle`), the
+primary Agent's process state, and a cached pull request with the snapshot's `pullRequestsRefreshedAt`.
+Pass the returned `projectId` and `sessionId` to `agent delegate create`. Delegation into any other
+Session, including busy user Sessions, is refused; the Commander has no dispatch, control, steer,
+or Settings write authority.
 
 ## Inspect the matching skill offline
 

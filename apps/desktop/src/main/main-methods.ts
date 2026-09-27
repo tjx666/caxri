@@ -22,6 +22,7 @@ import { app, clipboard, ClipboardItem, dialog, nativeImage, shell } from 'elect
 import { createAcceptanceExternalOpenFixture } from './acceptance-external-open';
 import { createAcceptanceSessionDeleteFixture } from './acceptance-session-delete';
 import { createAcceptanceThemeImportFixture } from './acceptance-theme-import';
+import type { AgentCommanderWindowController } from './agent-commander-window';
 import { readArgvConfig, updateArgvConfig } from './argv-config';
 import {
     deleteProjectPrompt,
@@ -48,6 +49,11 @@ interface MainMethodHandlerOptions {
     acceptanceThemeImportFixture?: ReturnType<typeof createAcceptanceThemeImportFixture>;
     allowGpuTestInjection?: boolean;
     getProcessExplorer(): ProcessExplorerWindowController;
+    getAgentCommander(): AgentCommanderWindowController | undefined;
+    /**
+     * Selects a Session in the Workbench and raises the main window; used by the Agent Commander board.
+     */
+    revealSessionInWorkbench(sessionId: string): Promise<void>;
     /**
      * What this instance actually exposes, resolved once at boot by `configureDesktopProfile`. It is not derivable from
      * `argv.jsonc`: an unpackaged launch ignores the stored preference, and a window whose switch was just flipped
@@ -413,6 +419,12 @@ export function createMainMethodHandler(options: MainMethodHandlerOptions) {
                 return showContextMenu(mainWindow, request.params);
             case 'processExplorer.open':
                 options.getProcessExplorer().open();
+                return null;
+            case 'agentCommander.open':
+                options.getAgentCommander()?.open();
+                return null;
+            case 'agentCommander.revealSession':
+                await options.revealSessionInWorkbench(request.params.sessionId);
                 return null;
             case 'bugReport.send': {
                 const { report, screenshot, sessionId, terminalId } = request.params;

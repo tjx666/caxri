@@ -1,4 +1,5 @@
 export * from './agent-action-contract.js';
+export * from './agent-commander-contract.js';
 export * from './agent-delegation-contract.js';
 export * from './agent-delegation-settings.js';
 export * from './agent-delegation-usage.js';

@@ -35,6 +35,8 @@ import {
     shutdownOutcome,
 } from '../session-policy';
 import { AgentIdentity } from './agent-identity';
+import type { AgentCommanderRows } from './commander-rows';
+import { agentCommanderRows } from './commander-rows';
 import type { CaxriDatabaseConnectionOptions as CaxriDatabaseOptions } from './database-connection';
 import { CaxriDatabaseConnection as CaxriDatabase_ } from './database-connection';
 import { ensureDelegationContext } from './delegation-context';
@@ -259,6 +261,10 @@ export class CaxriDatabase {
 
     listVisibleSessions(): SessionRecord[] {
         return listVisibleSessions(this.db);
+    }
+
+    agentCommanderRows(): AgentCommanderRows | undefined {
+        return agentCommanderRows(this.db);
     }
 
     listSessions(projectId?: string): SessionRecord[] {
@@ -568,7 +574,7 @@ export class CaxriDatabase {
             const selectedProjectId = this.db.appState.get('lastSelectedProjectId');
             const candidateSessions = selectedProjectId
                 ? this.db.sessions.list(selectedProjectId)
-                : this.db.sessions.list();
+                : listVisibleSessions(this.db);
             const selection = selectFallbackAfterDeletion(
                 firstActiveSession(candidateSessions),
                 selectedProjectId ?? null,

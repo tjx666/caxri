@@ -4,6 +4,7 @@
 Desktop Main
   -> secure BrowserWindow + native dialogs
   -> dedicated Process Explorer window + fixed process sampler
+  -> Agent Commander window sharing the Desktop connection behind a Main admission policy
   -> correlated IPC allowlist
   -> authenticated Client with a generation-bound Desktop lease
 
@@ -22,6 +23,7 @@ Preload
 Renderer
   -> React, xterm.js, Monaco, shadcn/ui on Base UI
   -> separate Process Explorer entry with a snapshot-only preload
+  -> separate Agent Commander entry (board + Commander Terminal) on the Workbench preload
 
 Extension Host child process
   -> per-extension generation-scoped public `caxri` API instances
@@ -79,6 +81,8 @@ directory keeps the archive stable when invoked from a linked worktree. Project 
 files are never targets.
 
 The Process Explorer is a singleton Desktop Main-owned window with its own Renderer entry and narrow Preload. While open, it samples a fixed `/bin/ps` argv every two seconds, selects both the Desktop and detached Server process trees, overlays Electron process metrics, and exposes only process name, parent/PID, CPU, and resident memory. Common credential flags are redacted before the snapshot crosses IPC. It cannot access the workbench request bridge, Terminal output, environment values, source files, or Agent transcripts; closing it never changes Server or PTY lifecycle.
+
+The Agent Commander is a second singleton Desktop Main-owned window (`agent-commander-window.ts`). Unlike the Process Explorer it loads the Workbench preload and shares Main's single Desktop connection, so Main, not the preload, is its authority boundary: `AgentCommanderRendererPolicy` admits a fixed request list plus Terminal requests naming only the Commander Terminal, and routes relay messages per window (durable envelopes to both, Terminal-scoped transient events to the viewing window, other transient events to the Workbench only). Closing or reloading it detaches the Commander Terminal view without stopping its PTY; closing the main window closes it first. See `docs/agent-commander.md`.
 
 Renderer or Desktop restart recovers Server-owned state and attaches to live PTYs. Server Core restart
 recovers database metadata and persisted snapshots, but operating-system PTYs owned by its retired

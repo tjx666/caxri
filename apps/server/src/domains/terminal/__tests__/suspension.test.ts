@@ -41,7 +41,13 @@ function session(id: string, primaryAgentTerminalId: string) {
     } as unknown as SessionRecord;
 }
 
-function createHarness(options: { selected?: string; settings?: Partial<AppSettings> } = {}) {
+function createHarness(
+    options: {
+        commanderSessionId?: string;
+        selected?: string;
+        settings?: Partial<AppSettings>;
+    } = {},
+) {
     let now = START;
     let selected = options.selected ?? 'session-b';
     const sessions = new Map([
@@ -68,6 +74,8 @@ function createHarness(options: { selected?: string; settings?: Partial<AppSetti
     });
     const service = new TerminalSuspensionService({
         database: {
+            agentCommanderRows: () =>
+                options.commanderSessionId && { sessionId: options.commanderSessionId },
             getSession: (id: string) => sessions.get(id),
             listSessions: () => sessions.values().toArray(),
             listTerminals: (sessionId?: string) =>
@@ -158,6 +166,15 @@ describe('TerminalSuspensionService', () => {
         harness.advance(UNTOUCHED_SUSPENSION_DELAY_MS);
         expect(await harness.service.sweep()).toEqual(['terminal-a']);
         expect(harness.suspend).toHaveBeenCalledTimes(1);
+    });
+
+    it('never suspends the Agent Commander Terminal, which the Workbench never selects', async () => {
+        const harness = createHarness({ commanderSessionId: 'session-a' });
+        harness.service.start();
+        harness.service.observeLaunch('terminal-a');
+        harness.advance(UNTOUCHED_SUSPENSION_DELAY_MS * 2);
+        expect(await harness.service.sweep()).toEqual([]);
+        expect(harness.suspend).not.toHaveBeenCalled();
     });
 
     it('keeps an Agent the user typed into or that ran a turn', async () => {

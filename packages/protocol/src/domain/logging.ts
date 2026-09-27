@@ -168,6 +168,17 @@ export const logEventCatalog = {
     process: {
         eventLoopStall: 'process.event_loop_stall',
     },
+    agentCommander: {
+        consoleError: 'agent_commander.console_error',
+        pageException: 'agent_commander.page_exception',
+        preloadError: 'agent_commander.preload_error',
+        renderProcessCrashLoop: 'agent_commander.render_process_crash_loop',
+        renderProcessGone: 'agent_commander.render_process_gone',
+        requestDenied: 'agent_commander.request_denied',
+        responsive: 'agent_commander.responsive',
+        unhandledRejection: 'agent_commander.unhandled_rejection',
+        unresponsive: 'agent_commander.unresponsive',
+    },
     processExplorer: {
         consoleError: 'process_explorer.console_error',
         pageException: 'process_explorer.page_exception',

@@ -578,6 +578,13 @@ export const commandDefinitions: CommandDefinition[] = [
         nativeMenu: { menu: 'view', group: 1, order: 1 },
     },
     {
+        id: 'agentCommander.open',
+        title: 'Open Agent Commander',
+        category: 'View',
+        description: 'Open the cross-Project Agent board beside a Codex commander Terminal',
+        nativeMenu: { menu: 'view', group: 1, order: 2 },
+    },
+    {
         id: 'processExplorer.open',
         title: 'Open Process Explorer',
         category: 'Help',

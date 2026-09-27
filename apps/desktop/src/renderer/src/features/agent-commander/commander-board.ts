@@ -1,0 +1,176 @@
+import type {
+    AgentActivityState,
+    CommanderBoardGroupId,
+    CommanderBoardRow,
+    ProcessState,
+    SessionPullRequest,
+} from '@caxri/protocol';
+import { agentProviderCatalog, commanderBoardGroupIds } from '@caxri/protocol';
+
+import type { AgentActivityGlyphId } from '../agent-activity/agent-activity-glyph';
+import type { SessionActivityPresentation } from '../primary-sidebar/session-activity';
+import {
+    sessionActivityPresentation,
+    sessionUnreadTone,
+} from '../primary-sidebar/session-activity';
+import {
+    sessionPullRequestPresentation,
+    sessionPullRequestToneClassName,
+} from '../primary-sidebar/session-pull-request';
+
+/**
+ * The Workbench Activity view's group names, so the same Session reads the same in both windows.
+ */
+const GROUP_LABELS: Record<CommanderBoardGroupId, string> = {
+    attention: 'Needs attention',
+    failed: 'Failed',
+    finished: 'Recently finished',
+    idle: 'Idle',
+    waiting: 'Waiting',
+    working: 'Working',
+};
+
+interface CommanderBoardSection {
+    id: CommanderBoardGroupId;
+    label: string;
+    rows: readonly CommanderBoardRow[];
+}
+
+/**
+ * Buckets board rows into the protocol's display order and drops empty groups. Rows keep the Server's order within a
+ * group, which is already most recent first.
+ */
+export function commanderBoardSections(
+    rows: readonly CommanderBoardRow[],
+): CommanderBoardSection[] {
+    const rowsByGroup = Map.groupBy(rows, (row) => row.group);
+    return commanderBoardGroupIds.flatMap((id) => {
+        const groupRows = rowsByGroup.get(id);
+        return groupRows ? [{ id, label: GROUP_LABELS[id], rows: groupRows }] : [];
+    });
+}
+
+/**
+ * The same shape per state as the Activity view, so a glyph means one thing everywhere.
+ */
+const GLYPH_BY_STATE: Record<AgentActivityState, AgentActivityGlyphId> = {
+    completed: 'check',
+    failed: 'x',
+    idle: 'hollow',
+    running: 'spinner',
+    unknown: 'dashed',
+    waiting: 'question',
+};
+
+const TONE_TEXT_CLASSNAME: Record<SessionActivityPresentation['tone'], string> = {
+    danger: 'text-danger',
+    neutral: 'text-muted',
+    success: 'text-success',
+    warning: 'text-warning',
+};
+
+/**
+ * A Terminal that is not running cannot be doing what its last activity says, so its process state wins the phrase.
+ * `running` is absent on purpose: a live process is described by its Agent activity instead.
+ */
+const PROCESS_PHRASES: Partial<Record<ProcessState, string>> = {
+    dead: 'Exited',
+    detached: 'Detached',
+    failed: 'Failed to start',
+    interrupted: 'Interrupted',
+    starting: 'Starting',
+    stopped: 'Exited',
+    suspended: 'Suspended',
+};
+
+interface CommanderRowPresentation {
+    /**
+     * Which Agent CLI the row's Terminal runs, or `Shell` for a plain shell.
+     */
+    agentLabel: string;
+    glyph: AgentActivityGlyphId;
+    /**
+     * The glyph's accessible name and hover title.
+     */
+    glyphLabel: string;
+    /**
+     * What the Agent is doing, as the row prints it.
+     */
+    statePhrase: string;
+    toneClassName: string;
+}
+
+/**
+ * Presents one board row. Tone follows the Activity view's two-tier rule: apart from a live turn's green spinner, only
+ * a row that asks the user for something (unread, failed) is tinted, so color on the board always means "look here".
+ */
+export function commanderRowPresentation(row: CommanderBoardRow): CommanderRowPresentation {
+    const { agent } = row;
+    const activity = sessionActivityPresentation(row.activityState, agent?.operation);
+    const processPhrase = agent ? PROCESS_PHRASES[agent.processState] : undefined;
+    const statePhrase = agent ? (processPhrase ?? activity.label) : 'No Terminal';
+    const agentLabel =
+        !agent || agent.kind === 'shell' ? 'Shell' : agentProviderCatalog[agent.kind].displayName;
+    if (agent?.processState === 'detached')
+        return {
+            agentLabel,
+            glyph: 'unplug',
+            glyphLabel: statePhrase,
+            statePhrase,
+            toneClassName: TONE_TEXT_CLASSNAME.neutral,
+        };
+    const isLive = row.activityState === 'running' || agent?.operation === 'compacting';
+    const glyph = isLive ? 'spinner' : GLYPH_BY_STATE[row.activityState];
+    const tone: SessionActivityPresentation['tone'] = isLive
+        ? 'success'
+        : row.group === 'attention' && row.hasUnread
+          ? sessionUnreadTone(row.activityState)
+          : row.group === 'failed'
+            ? 'danger'
+            : 'neutral';
+    return {
+        agentLabel,
+        glyph,
+        glyphLabel: row.hasUnread ? `Unread. ${activity.label}` : activity.label,
+        statePhrase,
+        toneClassName: TONE_TEXT_CLASSNAME[tone],
+    };
+}
+
+interface CommanderPullRequestBadge {
+    ariaLabel: string;
+    checksLabel?: string;
+    checksToneClassName?: string;
+    /**
+     * `#123`.
+     */
+    numberLabel: string;
+    stateLabel: string;
+    title: string;
+    toneClassName: string;
+    url: string;
+}
+
+/**
+ * The board's pull request chip: number, lifecycle, and CI, reusing the PrimarySidebar's presentation so a PR reads the
+ * same in both windows. Lifecycle and checks keep separate tones, because a red open PR was once mistaken for a closed
+ * one.
+ */
+export function commanderPullRequestBadge(
+    pullRequest: SessionPullRequest | undefined,
+): CommanderPullRequestBadge | undefined {
+    if (!pullRequest) return undefined;
+    const presentation = sessionPullRequestPresentation(pullRequest);
+    return {
+        ariaLabel: `${presentation.ariaLabel} Open in browser.`,
+        ...(presentation.checksLabel && { checksLabel: presentation.checksLabel }),
+        ...(presentation.checksTone && {
+            checksToneClassName: sessionPullRequestToneClassName(presentation.checksTone),
+        }),
+        numberLabel: `#${pullRequest.number}`,
+        stateLabel: presentation.label,
+        title: pullRequest.title,
+        toneClassName: sessionPullRequestToneClassName(presentation.tone),
+        url: pullRequest.url,
+    };
+}
