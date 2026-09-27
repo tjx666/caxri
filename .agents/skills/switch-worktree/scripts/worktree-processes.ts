@@ -19,8 +19,36 @@ export interface StopOperations {
     list: () => Promise<ProcessEntry[]>;
     cwd: (pid: number) => Promise<string | undefined>;
     identity: (pid: number) => Promise<string | undefined>;
-    signalProcess: (pid: number, signal: NodeJS.Signals) => void;
+    signalProcess: (pid: number, signal: NodeJS.Signals) => SignalOutcome | void;
     wait: (milliseconds: number) => Promise<unknown>;
+}
+
+/**
+ * Closed reasons a target can fail to receive or act on a signal. `identity-unavailable` and `identity-changed` are
+ * caught before the signal call itself; the rest come from classifying `process.kill`'s thrown error. `already-exited`
+ * is the expected, benign outcome (the process died between listing and signaling) and is never itself a reason a
+ * survivor stays alive. A survivor with no recorded reason was signaled successfully but had not exited by the time the
+ * bounded wait gave up — an exit delay, not a signal failure — and needs a manual per-PID check instead of a blind
+ * retry.
+ */
+export type SignalFailureReason =
+    | 'identity-unavailable'
+    | 'identity-changed'
+    | 'already-exited'
+    | 'permission-denied'
+    | 'signal-error';
+
+interface SignalOutcome {
+    ok: boolean;
+    reason?: SignalFailureReason;
+}
+
+interface StopSurvivor extends ProcessEntry {
+    /**
+     * Set only when the most recent signal attempt for this PID did not land (never reaches `process.kill`, or
+     * `process.kill` itself threw). Absent on a survivor whose signal was actually delivered.
+     */
+    closedReason?: SignalFailureReason;
 }
 
 const TERMINATION_POLL_MS = 250;
@@ -293,8 +321,19 @@ export const defaultStopOperations: StopOperations = {
     signalProcess: (pid, signal) => {
         try {
             process.kill(pid, signal);
-        } catch {
-            // The process exited between the listing and the signal; that is the outcome we wanted.
+            return { ok: true };
+        } catch (error) {
+            /**
+             * `process.kill` throws a Node errno error; classify it instead of swallowing it, so a genuine failure (the
+             * signal was refused) is never indistinguishable from the benign case (the process already exited) or from
+             * a survivor that is simply slow to exit after a signal that landed fine.
+             *
+             * @see https://github.com/tjx666/caxri/issues/1179
+             */
+            const code = (error as NodeJS.ErrnoException).code;
+            if (code === 'ESRCH') return { ok: false, reason: 'already-exited' };
+            if (code === 'EPERM') return { ok: false, reason: 'permission-denied' };
+            return { ok: false, reason: 'signal-error' };
         }
     },
     wait: (milliseconds) => sleep(milliseconds),
@@ -302,7 +341,7 @@ export const defaultStopOperations: StopOperations = {
 
 export interface StopProcessesResult {
     stopped: ProcessEntry[];
-    survivors: ProcessEntry[];
+    survivors: StopSurvivor[];
 }
 
 /**
@@ -332,19 +371,31 @@ async function survivingTargets(
 }
 
 /**
- * A PID is never signal authority after its captured process start identity changes.
+ * A PID is never signal authority after its captured process start identity changes. Every target that does not end in
+ * a delivered signal gets a closed reason recorded instead of being silently skipped, so a caller can tell a refused
+ * signal apart from a stale identity or a process that simply has not exited yet.
  */
 async function signalMatchingTargets(
     targets: readonly ProcessEntry[],
     operations: StopOperations,
     signal: NodeJS.Signals,
-): Promise<void> {
+): Promise<Map<number, SignalFailureReason>> {
+    const failures = new Map<number, SignalFailureReason>();
     for (const target of targets) {
-        // eslint-disable-next-line no-await-in-loop -- each target needs its own current identity before signaling.
-        if (target.identity && (await operations.identity(target.pid)) === target.identity) {
-            operations.signalProcess(target.pid, signal);
+        if (!target.identity) {
+            failures.set(target.pid, 'identity-unavailable');
+            continue;
         }
+        // eslint-disable-next-line no-await-in-loop -- each target needs its own current identity before signaling.
+        const currentIdentity = await operations.identity(target.pid);
+        if (currentIdentity !== target.identity) {
+            failures.set(target.pid, 'identity-changed');
+            continue;
+        }
+        const outcome = operations.signalProcess(target.pid, signal);
+        if (outcome && !outcome.ok) failures.set(target.pid, outcome.reason ?? 'signal-error');
     }
+    return failures;
 }
 
 /**
@@ -357,7 +408,11 @@ export async function stopProcesses(
 ): Promise<StopProcessesResult> {
     if (targets.length === 0) return { stopped: [], survivors: [] };
     const targetsByPid = new Map(targets.map((entry) => [entry.pid, entry]));
-    await signalMatchingTargets(targets, operations, 'SIGTERM');
+    const signalFailures = new Map<number, SignalFailureReason>();
+    const recordFailures = (round: Map<number, SignalFailureReason>): void => {
+        for (const [pid, reason] of round) signalFailures.set(pid, reason);
+    };
+    recordFailures(await signalMatchingTargets(targets, operations, 'SIGTERM'));
     let remaining: ProcessEntry[] = targets as ProcessEntry[];
     for (let waited = 0; waited < TERMINATION_WAIT_MS; waited += TERMINATION_POLL_MS) {
         // eslint-disable-next-line no-await-in-loop -- bounded wait for the signalled processes to exit
@@ -366,7 +421,7 @@ export async function stopProcesses(
         remaining = await survivingTargets(operations, targetsByPid);
         if (remaining.length === 0) return { stopped: [...targets], survivors: [] };
     }
-    await signalMatchingTargets(remaining, operations, 'SIGKILL');
+    recordFailures(await signalMatchingTargets(remaining, operations, 'SIGKILL'));
     for (let waited = 0; waited < FORCE_WAIT_MS; waited += TERMINATION_POLL_MS) {
         // eslint-disable-next-line no-await-in-loop -- bounded wait for force-terminated processes to exit
         await operations.wait(TERMINATION_POLL_MS);
@@ -376,34 +431,75 @@ export async function stopProcesses(
     }
     return {
         stopped: targets.filter((entry) => remaining.every((alive) => alive.pid !== entry.pid)),
-        survivors: remaining,
+        // A reason only ever describes the final round it was recorded in: once a target exits, its earlier
+        // SIGTERM-round reason (e.g. a transient identity race) must not be attributed to a later survivor read.
+        survivors: remaining.map((entry) => {
+            const closedReason = signalFailures.get(entry.pid);
+            return closedReason ? { ...entry, closedReason } : entry;
+        }),
     };
 }
 
 /**
- * Re-enumerates ownership after shutdown so a restarted child cannot turn a failed stop into a success report.
+ * A worktree-owned process discovered only after an earlier round's targets are gone gets at most this many of its own
+ * stop rounds. A genuine dev-session tree (a detached Server Core chained through Extension Host and a PTY shell)
+ * settles within one or two extra rounds; the bound exists only so a process that kept spawning fresh owned descendants
+ * forever could not turn `stop` into an unbounded loop.
+ */
+const MAX_STOP_ROUNDS = 4;
+
+/**
+ * Repeatedly re-enumerates ownership and stops whatever is newly found, instead of stopping only the processes visible
+ * in the very first snapshot. A process that had not finished forking yet, or that only becomes independently
+ * path-owned once its supervisor exits (a detached Server Core's PTY shell, reparented to launchd), is invisible to
+ * that first snapshot; without another round, `stop` would confirm it is worktree-owned and then simply report it as an
+ * unexplained survivor without ever having signaled it. A round stops early once it produces a genuine survivor (a
+ * signal that failed or a process that would not exit) — retrying further rounds cannot help a target that already
+ * resisted both signals in this one.
+ *
+ * A trailing read-only re-enumeration re-confirms the settled state afterward so a process that restarted mid-stop, or
+ * one this bounded loop never got to, is still reported accurately rather than assumed clean.
+ *
+ * @see https://github.com/tjx666/caxri/issues/1179
  */
 export async function stopWorktreeProcesses(
     input: { launcherPid?: number; selfPid: number; worktreePath: string },
     operations: StopOperations = defaultStopOperations,
 ): Promise<StopProcessesResult> {
-    const initial = await inspectWorktreeProcesses(input, operations);
-    const targets = initial.owned;
-    const result = await stopProcesses(targets, operations);
-    if (targets.length > 0) await operations.wait(TERMINATION_POLL_MS);
+    const stopped = new Map<number, ProcessEntry>();
+    const attempted = new Set<number>();
+    let lastRoundSurvivors: StopSurvivor[] = [];
+    for (let round = 0; round < MAX_STOP_ROUNDS; round += 1) {
+        // eslint-disable-next-line no-await-in-loop -- each round must observe the previous round's effect first.
+        const snapshot = await inspectWorktreeProcesses(input, operations);
+        const targets = snapshot.owned.filter((entry) => !attempted.has(entry.pid));
+        if (targets.length === 0) {
+            lastRoundSurvivors = [];
+            break;
+        }
+        for (const entry of targets) attempted.add(entry.pid);
+        // eslint-disable-next-line no-await-in-loop -- bounded, sequential rounds by design; see MAX_STOP_ROUNDS.
+        const result = await stopProcesses(targets, operations);
+        for (const entry of result.stopped) stopped.set(entry.pid, entry);
+        lastRoundSurvivors = result.survivors;
+        if (result.survivors.length > 0) break;
+        // eslint-disable-next-line no-await-in-loop -- let a freshly-exited descendant settle before the next scan.
+        await operations.wait(TERMINATION_POLL_MS);
+    }
     const final = await inspectWorktreeProcesses(input, operations);
+    // `lastRoundSurvivors` carries each PID's closed reason; list it last so a duplicate PID re-discovered by the
+    // fresh `final` ownership scan (which has no signal-failure information of its own) never overwrites that reason.
     const survivors = new Map(
-        [
-            ...result.survivors,
-            ...final.owned,
-            ...initial.unresolved.filter((entry) =>
-                final.entries.some((current) => current.pid === entry.pid),
-            ),
-            ...final.unresolved,
-        ].map((entry) => [entry.pid, entry]),
+        [...final.owned, ...final.unresolved, ...lastRoundSurvivors].map((entry) => [
+            entry.pid,
+            entry,
+        ]),
     );
     return {
-        stopped: result.stopped.filter((entry) => !survivors.has(entry.pid)),
+        stopped: stopped
+            .values()
+            .filter((entry) => !survivors.has(entry.pid))
+            .toArray(),
         survivors: survivors.values().toArray(),
     };
 }

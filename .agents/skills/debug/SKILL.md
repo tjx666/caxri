@@ -91,15 +91,20 @@ bun run .agents/skills/switch-worktree/scripts/switch-worktree.ts stop
 ```
 
 which resolves ownership from this worktree's absolute path and the launcher's process record, then
-escalates SIGTERM to SIGKILL and exits non-zero on survivors.
+escalates SIGTERM to SIGKILL and exits non-zero on survivors. Each survivor carries a closed reason
+when the signal itself never landed (an identity mismatch or a refused `process.kill`); one with no
+reason was actually signaled but had not exited yet. Do not treat a non-zero exit as "already
+cleaned up" or retry blindly — read the reason codes and the per-PID manual-verification steps in
+`switch-worktree`'s "Stop what this checkout started" section before falling back to a manual kill.
 
 Never terminate by name or bundle pattern. `pkill -f "Electron.app/Contents/MacOS/Electron"`
 silently misses the window process and the launcher can outlive the signal; `pkill -f "Caxri.app"`
 matches the installed `/Applications/Caxri.app` and has already killed it mid-session while an agent
 was cleaning up an interrupted local E2E pool. Never trust `pkill`'s exit code. Confirm with
-`ps -axo pid,command` plus a CDP probe of `127.0.0.1:9223`. Kill a PID directly only after matching
-it against the absolute `<worktree>/` path, so a sibling worktree's session and the installed
-application are never hit.
+`ps -axo pid,command` plus a CDP probe of this worktree's port (see "Live CDP inspection" below for
+where to read it — do not assume 9223). Kill a PID directly only after matching it against the
+absolute `<worktree>/` path, so a sibling worktree's session and the installed application are never
+hit.
 
 The dev Server Core and Extension Host are long-lived background processes that survive window
 restarts. The Desktop replaces a Server whose build fingerprint differs from its own on connect,
@@ -134,37 +139,52 @@ auto-attach/resume behavior can invalidate that experiment. Retain owned-port an
 When an isolated provider HOME also covers a dev build, pass the verified pinned Node executable
 through `CAXRI_SERVER_RUNTIME_EXECUTABLE`; runtime discovery must not fall back to that empty HOME.
 
-Every unpackaged (dev) launch exposes CDP at `127.0.0.1:9223` and packaged (production) builds
-expose `127.0.0.1:9224` (`CAXRI_DEV_CDP_PORT` overrides either), so an installed app and a dev
-instance can run and be inspected concurrently. A production-build issue can usually be inspected
-by connecting to the running installed app on 9224 directly; whether that suffices or a dev
-relaunch is still needed depends on the problem. The `remoteDebugging` field in the Main-owned boot
-config `<userData>/config/argv.jsonc` (Settings → "Debugging port") turns the endpoint off on
-the next launch (`apps/desktop/src/main/desktop-profile.ts`).
+Packaged (production) builds expose CDP at the fixed `127.0.0.1:9224` (`CAXRI_DEV_CDP_PORT`
+overrides it). A production-build issue can usually be inspected by connecting to the running
+installed app there directly; whether that suffices or a dev relaunch is still needed depends on
+the problem. The `remoteDebugging` field in the Main-owned boot config
+`<userData>/config/argv.jsonc` (Settings → "Debugging port") turns the endpoint off on the next
+launch (`apps/desktop/src/main/desktop-profile.ts`).
 
-Connect with `agent-browser`, always stripping proxy environment variables:
+An unpackaged (dev) instance's port is **not** a fixed constant: `switch-worktree dev` (see the
+`switch-worktree` skill) derives a stable port per worktree so simultaneous dev instances in sibling
+worktrees never collide, and prints it in its own startup output before the launcher blocks. Read
+it from there, or from `switch-worktree list --json`'s `cdpPort` field for the target worktree —
+never hardcode 9223. A bare `bun run dev` outside the wrapper is the only case that still defaults
+to the fixed 9223.
+
+Connect with `agent-browser`, always stripping proxy environment variables and passing the port
+through `--cdp` (not the `connect` subcommand, which can launch a fresh, disconnected browser
+instead of attaching — see [common-mistakes.md](../../acceptance/common-mistakes.md#reaching-the-owned-electron-endpoint-with-agent-browser-connect)):
 
 ```bash
+PORT=<port from switch-worktree dev output, list --json, or 9224 for packaged>
 env -u HTTP_PROXY -u http_proxy -u HTTPS_PROXY -u https_proxy -u ALL_PROXY -u all_proxy \
-  agent-browser connect 9223   # 9224 for a packaged (production) app
+  agent-browser --cdp "$PORT" snapshot
 ```
 
-The `env -u` prefix is mandatory on this machine: agent-browser honors `HTTP_PROXY`/`ALL_PROXY`
-but ignores `NO_PROXY`, silently prints `[agent-browser] relaunched browser`, and attaches to its
-own HeadlessChrome instead of Caxri. Fixing proxy rules does not help — the local proxy already
-forwards loopback traffic (verified: `curl -x http://127.0.0.1:7890` and `-x socks5://...` both
-reach `/json/version`), and agent-browser still fails with only `HTTP_PROXY` set, so the breakage
-is inside agent-browser's own proxy handling (most likely the CDP WebSocket leg). Stripping the
-variables is the only reliable workaround. Verify the attachment before trusting any result:
-`agent-browser eval "navigator.userAgent"` must report `caxri/... Electron/...`, not
-`HeadlessChrome`. See <https://github.com/tjx666/caxri/issues/204>.
+The `env -u` prefix is mandatory on this machine: agent-browser honors `HTTP_PROXY`/`ALL_PROXY` but
+ignores `NO_PROXY` and silently attaches to its own HeadlessChrome instead of Caxri when they are
+set. Stripping them is the only reliable workaround; see
+<https://github.com/tjx666/caxri/issues/204>.
 
-With proxy variables stripped, agent-browser 0.34.0 attaches fully to the app's existing main
-window: `tab` lists the real Caxri page target and `eval`/`screenshot` run against it directly
-(verified against a packaged 0.0.13 app), so prefer agent-browser over hand-rolled CDP. Only if
-attachment misbehaves (e.g. the UA check above fails), fall back to a raw CDP WebSocket: read the
-target list from `http://127.0.0.1:9223/json/list` (9224 for production), open the page target's
-`webSocketDebuggerUrl`, and drive it with `Runtime.evaluate` from a small Bun script.
+A shared `Electron/...` user agent across every Caxri window means the UA alone never proves which
+worktree's window a connection reached — a sibling worktree's dev instance passes the same check.
+Verify both before trusting any result:
+
+```bash
+agent-browser --cdp "$PORT" eval "navigator.userAgent"                 # must report caxri/... Electron/...
+agent-browser --cdp "$PORT" eval "JSON.stringify(globalThis.__caxriWorktree)"
+```
+
+`__caxriWorktree` must equal this worktree's absolute checkout path (`pwd` in the worktree, or the
+path `switch-worktree dev` printed it for). A mismatch or `undefined` means the connection reached
+the wrong worktree's window, or an instance not launched through `switch-worktree dev` (a bare
+`bun run dev`, or a packaged build, neither of which sets it) — reconnect to the correct port
+instead of trusting a plausible-looking page. `eval`/`screenshot` then run directly against the
+attached window; prefer agent-browser over hand-rolled CDP. Only if attachment misbehaves, fall
+back to a raw CDP WebSocket: read the target list from `http://127.0.0.1:$PORT/json/list`, open the
+page target's `webSocketDebuggerUrl`, and drive it with `Runtime.evaluate` from a small Bun script.
 
 ## Production debugging controls
 
