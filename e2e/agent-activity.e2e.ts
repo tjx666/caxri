@@ -101,11 +101,9 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
             .prepare(
                 'UPDATE projects SET display_title = ? WHERE id = (SELECT project_id FROM sessions WHERE id = ?)',
             )
-            // Short on purpose: the assertions below drag the Primary Side Bar to its narrowest width (180px) and still
-            // expect this name to render whole, un-clipped, and un-faded — `.agent-activity-project`'s reserved 8px
-            // trailing buffer (issue #1173) already spends part of that tight budget, so a name any longer leaves too
-            // little room to prove the un-clipped case rather than the already-covered clipped one below.
-            .run('webapp', sessions.get('beta'));
+            // Sized so that at the 180px minimum width the name plus its reserved 8px fade buffer (#1173) still fits
+            // whole, while the time no longer fits beside it and has to drop out first.
+            .run('web-client-portal', sessions.get('beta'));
         database
             .prepare(
                 'UPDATE projects SET display_title = ? WHERE id = (SELECT project_id FROM sessions WHERE id = ?)',
@@ -202,7 +200,7 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
         await expect(betaRow).toContainText('beta work');
         // The Project cell specifically, not the row: the Session title contains the Project name too, so asserting on
         // the whole row would pass even if the flat list never printed which repository a row belongs to.
-        await expect(betaRow.locator('.agent-activity-project')).toHaveText('webapp');
+        await expect(betaRow.locator('.agent-activity-project')).toHaveText('web-client-portal');
         /*
          * The state is a glyph, not a phrase, so the words only survive as its accessible name. Assert both halves:
          * the shape that identifies the state visually, and the label a screen reader is left with once the phrase is
@@ -241,14 +239,15 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
         /*
          * A short, un-clipped Project name must render inside a box wider than its own text, not exactly the width of
          * the text: `.overflow-fade`'s mask fades the box's last 8px unconditionally, so an exactly content-sized box
-         * would fade real characters even though nothing is actually being cut off. `clientWidth` includes the cell's
-         * reserved trailing padding while `scrollWidth` (by definition) does not, so a gap between them here proves that
-         * buffer exists — the fix for github.com/tjx666/caxri/issues/1173.
+         * would fade real characters even though nothing is actually being cut off. Measure the text's own right edge
+         * against the box's: `scrollWidth` counts padding too, so it cannot see the reserved buffer (issue #1173).
          */
         expect(
-            await betaRow
-                .locator('.agent-activity-project')
-                .evaluate((cell) => cell.clientWidth - cell.scrollWidth),
+            await betaRow.locator('.agent-activity-project').evaluate((cell) => {
+                const text = document.createRange();
+                text.selectNodeContents(cell);
+                return cell.getBoundingClientRect().right - text.getBoundingClientRect().right;
+            }),
         ).toBeGreaterThanOrEqual(8);
         expect(await betaRow.evaluate((row) => row.getBoundingClientRect().height)).toBe(rowHeight);
         expect(
@@ -263,7 +262,7 @@ test('Activity groups every Project’s Sessions attention-first and clears a re
          * truncated one can still be read in full, now that the row has no tooltip competing with the card.
          */
         await betaRow.locator('.agent-activity-project').hover();
-        await expect(page.locator('.session-activity-card')).toContainText('webapp');
+        await expect(page.locator('.session-activity-card')).toContainText('web-client-portal');
         await page.screenshot({
             path: test.info().outputPath('activity-narrow-project.png'),
             mask: [page.locator('.xterm')],

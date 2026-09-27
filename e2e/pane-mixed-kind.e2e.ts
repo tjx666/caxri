@@ -403,7 +403,7 @@ test('a Session with a mixed-kind split layout renders every pane on a fresh mou
         const panes = running.page.locator('.workbench-pane');
         await openAndPinFile(running.page, 'notes.ts');
         await terminalTab.click({ button: 'right' });
-        await running.page.getByRole('menuitem', { name: 'Split Right' }).click();
+        await chooseContextMenuItem(running.app, 'Split Right');
         await expect(panes).toHaveCount(2);
 
         await running.page.reload();
