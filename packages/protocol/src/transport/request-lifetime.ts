@@ -4,7 +4,9 @@ import {
 } from '../registry/view-methods.js';
 
 const nonExpiringServerOperations = new Set([
+    'agent.dispatch.wait',
     'agent.dispatch.waitInternal',
+    'agent.delegation.wait',
     'agent.delegation.waitInternal',
     'agent.message.wait',
     'files.create',
@@ -23,9 +25,10 @@ const nonExpiringViewOperations = new Set(['git.sync', 'git.discard']);
 
 /**
  * Durable Files mutations, save/copy, and Runtime-authorized destructive Git apply lack a safe retry boundary, while
- * Agent Inbox and dispatch waits carry their own validated long-poll deadlines. Terminal input is bounded by both its
- * public payload and private Host request deadlines. Their transports must wait for the authoritative result instead of
- * racing a second generic timer.
+ * Agent Inbox, dispatch, and delegation waits carry their own validated long-poll deadlines: a client timer on the same
+ * deadline starts first and would always turn the wait's timeout result into a transport error. Terminal input is
+ * bounded by both its public payload and private Host request deadlines. Their transports must wait for the
+ * authoritative result instead of racing a second generic timer.
  */
 export function isNonExpiringServerOperation(method: string): boolean {
     return nonExpiringServerOperations.has(method);
