@@ -2,6 +2,63 @@ import parcelWatcher from '@parcel/watcher';
 
 import { WatchHub } from '../../domains/watch-hub';
 
+const DEFAULT_EVENT_GATE_TIMEOUT_MS = 5_000;
+
+/**
+ * Push-based alternative to polling a mutable events array with `expect.poll`/`vi.waitFor`. Both of those resample on a
+ * fixed interval, so on a loaded self-hosted runner each tick competes for the same starved event loop the watcher
+ * callback itself is waiting on — the polling interval adds its own delay on top of the real watcher/settle latency,
+ * which is what turns load into a hard timeout instead of just a slower pass (see issue #1259). Resolving from inside
+ * `push` settles a waiting `waitFor` in the same tick the matching event actually arrives, no matter how long the gap
+ * to the next scheduled poll tick would have been.
+ */
+export function createEventGate<T>() {
+    const events: T[] = [];
+    const waiters = new Set<{ isMatch: (event: T) => boolean; resolve: (event: T) => void }>();
+    return {
+        events,
+        push: (event: T): void => {
+            events.push(event);
+            for (const waiter of waiters) {
+                if (!waiter.isMatch(event)) continue;
+                waiters.delete(waiter);
+                waiter.resolve(event);
+            }
+        },
+        /**
+         * Resolves with the first already-observed or future event matching `isMatch`. Checking history first closes
+         * the gap where the event arrived before `waitFor` was called.
+         */
+        waitFor(
+            isMatch: (event: T) => boolean,
+            timeoutMs = DEFAULT_EVENT_GATE_TIMEOUT_MS,
+        ): Promise<T> {
+            const observed = events.find((event) => isMatch(event));
+            if (observed !== undefined) return Promise.resolve(observed);
+            return new Promise<T>((resolve, reject) => {
+                // A boxed reference (rather than a bare `let`) lets `waiter.resolve` cancel the pending timeout
+                // without a use-before-define/prefer-const conflict: the box itself is assigned once, its
+                // `current` property is filled in after `waiter` is created and captures it by reference.
+                const timerBox: { current?: ReturnType<typeof setTimeout> } = {};
+                const waiter = {
+                    isMatch,
+                    resolve: (event: T) => {
+                        clearTimeout(timerBox.current);
+                        resolve(event);
+                    },
+                };
+                timerBox.current = setTimeout(() => {
+                    waiters.delete(waiter);
+                    reject(
+                        new Error(`Timed out after ${timeoutMs}ms waiting for a matching event`),
+                    );
+                }, timeoutMs);
+                waiters.add(waiter);
+            });
+        },
+    };
+}
+
 /**
  * Observes the real backend without changing its options, callbacks, or subscription lifetime.
  */

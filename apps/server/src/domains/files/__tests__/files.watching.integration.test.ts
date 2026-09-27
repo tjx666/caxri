@@ -9,6 +9,7 @@ import type parcelWatcher from '@parcel/watcher';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+    createEventGate,
     createWatchDiagnosticHub,
     createWatchFailureProbe,
 } from '../../../__tests__/support/watch-diagnostics';
@@ -144,13 +145,13 @@ describe('FileService watcher and polling behavior', () => {
         const canonicalWatchedPath = await realpath(watchedPath);
         const database = new CaxriDatabase(join(directory, 'state.db'));
         const session = database.createSession(database.createProject(root).id, 'shell').session;
-        const events: string[] = [];
+        const gate = createEventGate<string>();
         const watchHub = createWatchDiagnosticHub();
         const service = new FileService(
             database,
             (event) => {
                 if (event.event === 'files.changed')
-                    events.push(...event.payload.changes.map((change) => change.path));
+                    for (const change of event.payload.changes) gate.push(change.path);
             },
             createLogger(join(directory, 'logs')),
             () => 1024,
@@ -158,10 +159,17 @@ describe('FileService watcher and polling behavior', () => {
         );
         try {
             await service.watchSession(session.id);
-            const diagnose = createWatchFailureProbe(watchHub, 'files-root', () => events.length);
+            const diagnose = createWatchFailureProbe(
+                watchHub,
+                'files-root',
+                () => gate.events.length,
+            );
             await writeFile(watchedPath, 'after', 'utf8');
 
-            await diagnose(expect.poll(() => events.length, { timeout: 5_000 }).toBeGreaterThan(0));
+            // A push-based wait for the first event settles the instant the watcher (native callback or fallback
+            // poll) actually observes the write, instead of resampling `gate.events.length` on a fixed interval
+            // that itself competes for the same event loop under CI load — see issue #1259.
+            await diagnose(gate.waitFor(() => true));
             /**
              * Wait beyond a complete polling interval so the native event cannot be replayed as a phantom change.
              */
@@ -171,12 +179,12 @@ describe('FileService watcher and polling behavior', () => {
              * parallel filesystem load. Coalescing guarantees one event per canonical path; it does not suppress a
              * valid parent-directory invalidation.
              */
-            expect(events.filter((path) => path === canonicalWatchedPath)).toEqual([
+            expect(gate.events.filter((path) => path === canonicalWatchedPath)).toEqual([
                 canonicalWatchedPath,
             ]);
-            expect(new Set(events).size).toBe(events.length);
+            expect(new Set(gate.events).size).toBe(gate.events.length);
             expect(
-                events.every(
+                gate.events.every(
                     (path) => path === canonicalRoot || path.startsWith(`${canonicalRoot}/`),
                 ),
             ).toBe(true);
