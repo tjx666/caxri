@@ -33,6 +33,11 @@ describe('agentIconRegistry', () => {
         ]);
     });
 
+    it('draws the full-bleed Codex mark smaller so it matches the shorter Claude Code glyph', () => {
+        expect(agentIconRegistry.codex.opticalScale).toBeLessThan(1);
+        expect(agentIconRegistry.claude.opticalScale).toBeUndefined();
+    });
+
     it('uses the deliberate unknown fallback for future adapters', () => {
         expect(resolveAgentIcon('future-agent')).toBe(agentIconRegistry.unknown);
         expect(resolveAgentIcon()).toBe(agentIconRegistry.unknown);

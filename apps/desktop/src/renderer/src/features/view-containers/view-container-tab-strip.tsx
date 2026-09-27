@@ -9,19 +9,12 @@ import { ContainerTabTooltip } from './container-tab-tooltip';
 import { useViewBadges } from './hooks/use-view-badges';
 
 /**
- * Compact per-tab width budget for the SecondarySidebar's icon-only rail: the 48px `indicatorMaxWidth` passed below,
- * plus `chrome-tabs.tsx`'s own 8px `INDICATOR_INSET` on each side — the exact slot the indicator was already sized for.
- * Below this the SecondarySidebar's resizable width (240–600px, see `stores/chrome-layout.ts`) stretched three
- * icon-only tabs across the whole rail via `auto-cols-fr`, so the moving underline sat capped at 48px inside a much
- * wider, mostly empty slot — the "loose" spacing issue #1290 reported. Used only as a `maxWidth`, not a fixed width:
- * `auto-cols-fr` still divides whatever space is actually available, so a sidebar dragged near its minimum width, or an
- * extension contributing extra containers, still shrinks to fit instead of overflowing.
- */
-const SECONDARY_SIDEBAR_TAB_WIDTH = 64;
-
-/**
  * The tab strip a `ViewContainerSurface` renders above its containers, kept in its own file so the badge query stays on
  * this side of that boundary.
+ *
+ * SecondarySidebar tabs divide the whole rail evenly (`auto-cols-fr`); the 48px `indicatorMaxWidth` keeps the moving
+ * mark compact inside each wide slot. A per-tab width cap was tried and reverted: it left-aligned the strip and left
+ * the rest of the rail empty.
  *
  * `useViewBadges` follows the selected Session and re-resolves on every switch, and its result is a freshly built
  * record every time. Read in the surface, that re-rendered the surface — and with it every `ChromeTabPanel` it renders,
@@ -83,11 +76,6 @@ export function ViewContainerTabStrip({
                 idPrefix={idPrefix}
                 indicatorMaxWidth={location === 'secondarySidebar' ? 48 : undefined}
                 items={tabs}
-                style={
-                    location === 'secondarySidebar'
-                        ? { maxWidth: containers.length * SECONDARY_SIDEBAR_TAB_WIDTH }
-                        : undefined
-                }
                 tabClassName={location === 'panel' ? 'h-9 gap-1.5 px-3 text-[11px]' : 'h-9 w-full'}
                 value={resolvedId ?? ''}
                 onValueChange={onSelectContainer}

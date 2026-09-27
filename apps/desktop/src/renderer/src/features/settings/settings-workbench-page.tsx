@@ -39,36 +39,35 @@ function SettingsWorkbenchView(controller: SettingsPageController) {
             data-settings-page
             className="grid h-full grid-rows-[auto_auto_minmax(0,1fr)] overflow-hidden"
         >
-            {/*
-             * No `border-b`: this surface separates its header from the tab strip the same way the
-             * rest of the Workbench separates chrome from content, a `bg-background`/`bg-surface`
-             * step rather than a hairline — free here because `ChromeTabs`' own tab buttons already
-             * paint `bg-surface` and this header paints nothing, leaving it on the pane's ambient
-             * `bg-background`.
-             */}
-            <div className="pt-4 pr-4 pb-3 pl-4">
+            <div className="bg-surface pt-4 pr-4 pb-3 pl-4">
                 <h1 className="m-0 text-[15px] font-semibold">Settings</h1>
                 <p className="mt-1 mb-0 text-[11px] leading-[1.45] text-muted">
                     Changes apply immediately and are stored as editable files.
                 </p>
             </div>
-            <div className="flex">
+            {/*
+             * The title and tab strip form one `bg-surface` header band over the `bg-background` content — a
+             * background step, not a hairline (see `renderer-design-contract.test.ts`). The shared tab fill used to
+             * stop at the last tab and read as a stray block. `pl-1` plus each tab's `px-3` lines the first label up
+             * with the `pl-4` title.
+             */}
+            <div className="flex items-center bg-surface pl-1">
                 <ChromeTabs
                     ariaLabel="Settings sections"
-                    className="flex flex-1"
+                    className="flex flex-1 self-stretch"
                     idPrefix="settings"
                     items={CONFIG_KINDS.map((value) => ({
                         value,
                         label: value[0].toUpperCase() + value.slice(1),
                         content: value[0].toUpperCase() + value.slice(1),
                     }))}
-                    tabClassName="min-h-9 px-4"
+                    tabClassName="min-h-9 px-3"
                     value={tab}
                     onValueChange={controller.changeTab}
                 />
                 <ToggleGroup
                     aria-label="Settings view"
-                    className="my-1 mr-2"
+                    className="mr-2"
                     value={[view]}
                     onValueChange={(next: Array<'ui' | 'source'>) => {
                         // Base UI reports re-activating the selected segment as an empty

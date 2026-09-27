@@ -1,7 +1,8 @@
 import type { ProjectStatusOverviewLinearIssue } from '@caxri/protocol';
 
+import { StructuredTooltip } from '../../components/structured-tooltip';
 import { LinearStatusIcon } from '../../icons/linear/linear-status-icon';
-import { linearIssueAriaLabel, linearIssueTooltipLines } from './linear-issue-label';
+import { linearIssueAriaLabel, linearIssueTooltip } from './linear-issue-label';
 import { StatusInfo } from './status-info';
 import { StatusItem } from './status-item';
 
@@ -26,11 +27,7 @@ export function LinearIssueStatus({
                 style={issue.stateColor ? { color: issue.stateColor } : undefined}
             />
         ),
-        title: (
-            <span className="whitespace-pre-wrap">
-                {linearIssueTooltipLines(issue, extra).join('\n')}
-            </span>
-        ),
+        title: <StructuredTooltip {...linearIssueTooltip(issue, extra)} />,
     };
     const label = (
         <>

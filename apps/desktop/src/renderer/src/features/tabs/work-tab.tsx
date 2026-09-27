@@ -209,10 +209,7 @@ function WorkTabLabel({
             {icon === 'file' ? (
                 <FileTypeIcon entry={{ kind: 'file', name: fileIconName ?? label }} />
             ) : (
-                // `tone="state"`: the tab tints with the tab's own active/inactive/hover foreground
-                // (`text-tab-*-foreground`), so Claude Code and Codex must tint with it too instead
-                // of keeping a fixed brand color no other Agent icon in this rail has.
-                <AgentIdentityIcon identity={icon} size={13} tone="state" />
+                <AgentIdentityIcon identity={icon} size={13} />
             )}
             <span
                 ref={labelReference}

@@ -11,6 +11,7 @@ import {
 import { usePolledQuery } from '@/hooks/use-polled-query';
 
 import { executeCommand } from '../../commands/execute';
+import { StructuredTooltip } from '../../components/structured-tooltip';
 import { cn } from '../../lib/utilities';
 import { openHardwareAccelerationSettings } from '../gpu/gpu-commands';
 import { useIsHardwareAccelerationOff } from '../gpu/use-is-hardware-acceleration-off';
@@ -135,7 +136,13 @@ function TerminalUsageStatus({
                 <StatusItem
                     ariaLabel={`Open Process Explorer — Terminal memory: ${memoryLabel}`}
                     icon={<MemoryStick />}
-                    title={`Open Process Explorer — Terminal memory: ${memoryLabel}`}
+                    title={
+                        <StructuredTooltip
+                            title={`Terminal memory: ${memoryLabel}`}
+                            notes={["Resident memory of this Terminal's whole process tree"]}
+                            hint="Click to open Process Explorer"
+                        />
+                    }
                     onClick={openProcessExplorer}
                 >
                     {memoryLabel}
@@ -145,7 +152,13 @@ function TerminalUsageStatus({
                 <StatusItem
                     ariaLabel={`Open Process Explorer — Terminal: ${childLabel}`}
                     icon={<Workflow />}
-                    title={`Open Process Explorer — Terminal: ${childLabel}`}
+                    title={
+                        <StructuredTooltip
+                            title={childLabel}
+                            notes={['Running under this Terminal']}
+                            hint="Click to open Process Explorer"
+                        />
+                    }
                     onClick={openProcessExplorer}
                 >
                     {usage.childProcessCount}

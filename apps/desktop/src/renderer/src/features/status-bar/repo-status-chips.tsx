@@ -2,6 +2,7 @@ import type { CommandId, ProjectStatusOverview } from '@caxri/protocol';
 import { FileDiff, GitPullRequest } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
+import { StructuredTooltip } from '../../components/structured-tooltip';
 import { AcceptanceStatus } from './acceptance-status';
 import type { ChipVisibility } from './chip-priority';
 import { LinearIssueStatus } from './linear-issue-status';
@@ -20,7 +21,30 @@ function RepoChangesStatus({ additions, deletions }: { additions: number; deleti
         <StatusItem
             icon={<FileDiff />}
             ariaLabel={`Open changes: ${additions} ${additions === 1 ? 'addition' : 'additions'}, ${deletions} ${deletions === 1 ? 'deletion' : 'deletions'}`}
-            title="Show primary repository changes"
+            title={
+                <StructuredTooltip
+                    title="Primary repository changes"
+                    rows={[
+                        {
+                            label: 'Added',
+                            value: (
+                                <span className="text-success">
+                                    +{additions} {additions === 1 ? 'line' : 'lines'}
+                                </span>
+                            ),
+                        },
+                        {
+                            label: 'Removed',
+                            value: (
+                                <span className="text-danger">
+                                    -{deletions} {deletions === 1 ? 'line' : 'lines'}
+                                </span>
+                            ),
+                        },
+                    ]}
+                    hint="Click to show in Git"
+                />
+            }
             onClick={() => showSecondarySidebar('secondarySidebar.showGit')}
         >
             +{additions} -{deletions}
@@ -47,7 +71,13 @@ export function RepoStatusChips({
                     icon={<GitPullRequest />}
                     href={repo.pullRequest.url}
                     ariaLabel={`Open pull request #${repo.pullRequest.number}`}
-                    title={repo.pullRequest.title}
+                    title={
+                        <StructuredTooltip
+                            eyebrow={`Pull request #${repo.pullRequest.number}`}
+                            title={repo.pullRequest.title}
+                            hint="Click to open on GitHub"
+                        />
+                    }
                 >
                     #{repo.pullRequest.number}
                 </StatusItem>

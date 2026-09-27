@@ -265,7 +265,7 @@ export function FileTreeRowContent({
     return (
         <>
             {isDirectory && (expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />)}
-            <FileTypeIcon childRepo={Boolean(childRepo)} entry={entry} expanded={expanded} />
+            <FileTypeIcon childRepo={childRepo} entry={entry} expanded={expanded} />
             {/*
              * VS Code's Git decoration: the name takes the change's color, and only a file adds the status letter at
              * the row's trailing edge. A folder is colored by the strongest change anywhere beneath it but stays

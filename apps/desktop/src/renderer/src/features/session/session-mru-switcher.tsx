@@ -105,7 +105,7 @@ function SessionMruRow({
             onMouseMove={() => useSessionMruSwitcherStore.getState().select(index)}
         >
             {/* The same Session row family as the PrimarySidebar: the Agent's lifecycle rides on its icon. */}
-            <SessionAgentStatusIcon session={session} size={16} terminal={terminal} />
+            <SessionAgentStatusIcon session={session} size={16} terminal={terminal} tone="brand" />
             <span className="min-w-0 flex-1">
                 <strong
                     className={cn(

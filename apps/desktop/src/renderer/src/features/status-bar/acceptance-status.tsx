@@ -8,11 +8,8 @@ import {
     ShieldX,
 } from 'lucide-react';
 
-import {
-    acceptanceAriaLabel,
-    acceptanceChipLabel,
-    acceptanceTooltipLines,
-} from './acceptance-label';
+import { StructuredTooltip } from '../../components/structured-tooltip';
+import { acceptanceAriaLabel, acceptanceChipLabel, acceptanceTooltip } from './acceptance-label';
 import { StatusInfo } from './status-info';
 import { StatusItem } from './status-item';
 
@@ -53,11 +50,7 @@ export function AcceptanceStatus({
     const shared = {
         ariaLabel: acceptanceAriaLabel(acceptance, extra.length),
         icon: <Icon className={tone} />,
-        title: (
-            <span className="whitespace-pre-wrap">
-                {acceptanceTooltipLines(acceptance, extra).join('\n')}
-            </span>
-        ),
+        title: <StructuredTooltip {...acceptanceTooltip(acceptance, extra)} />,
     };
     const label = (
         <>
