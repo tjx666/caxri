@@ -13,27 +13,17 @@ import { TerminalSquare } from 'lucide-react';
 
 import { Empty, EmptyMedia, EmptyTitle } from '../../components/ui/empty';
 import { usePointerDragResize } from '../../hooks/use-pointer-drag-resize';
-import {
-    hasTerminalDraggedPath,
-    projectTerminalInput,
-    terminalDragPath,
-    terminalReferencePath,
-} from '../../lib/file-drag';
+import { hasTerminalDraggedPath } from '../../lib/file-drag';
 import { cn } from '../../lib/utilities';
 import { useSessionState, useTerminal } from '../../stores/selectors';
 import { EditorSurface } from '../editor/editor-surface';
 import { workPanelId, workTabId } from '../tabs/work-tab-accessibility';
 import { NewTerminalButton } from '../terminal/new-terminal-button';
-import { didPasteIntoTerminal } from '../terminal/terminal-commands';
+import { didPasteDropIntoTerminal } from '../terminal/terminal-drop';
 import { TerminalPane } from '../terminal/terminal-pane';
 import { focusPane, movePaneTab, resizePaneSplit, splitPaneTab } from './pane-actions';
 import type { PaneDropZone } from './pane-drop-zone';
-import {
-    EDITOR_PATH_DRAG_TYPE,
-    PANE_TAB_DRAG_TYPE,
-    resolvePaneDropIntent,
-    resolvePaneDropZone,
-} from './pane-drop-zone';
+import { PANE_TAB_DRAG_TYPE, resolvePaneDropIntent, resolvePaneDropZone } from './pane-drop-zone';
 import { PaneMountPortal } from './pane-mount-portal';
 import { reconcilePaneMounts } from './pane-mounts';
 import { PaneTabBar } from './pane-tab-bar';
@@ -211,17 +201,7 @@ function PaneBox({
         const intent = dropIntent(event);
         if (!intent) return;
         if (intent === 'paste') {
-            const path =
-                event.dataTransfer.getData(EDITOR_PATH_DRAG_TYPE) || terminalDragPath(event);
-            const projectInput = projectTerminalInput(event.dataTransfer);
-            if (!terminal || (!path && !projectInput)) return;
-            event.preventDefault();
-            if (
-                didPasteIntoTerminal(
-                    terminal.id,
-                    projectInput ?? terminalReferencePath(path!, terminal, session?.rootPath),
-                )
-            )
+            if (terminal && didPasteDropIntoTerminal(event, terminal, session?.rootPath))
                 focusPane(pane.id);
             return;
         }
