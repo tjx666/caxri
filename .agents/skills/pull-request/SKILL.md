@@ -41,7 +41,11 @@ readback. Do not end again at local validation or PR creation. A status-only que
    `--force-with-lease=refs/heads/<branch>:<observed-oid>` lease. Never use bare `--force`, and
    stop if the lease rejects the update.
 5. Create or update the PR with an English title and body that describe observable behavior,
-   validation, non-goals, and closing issue links. Read back the resulting PR.
+   validation, non-goals, and closing issue links. A ready PR runs only affected tests, and the
+   import graph cannot see which Electron workflows a Renderer or Server change reaches: when the
+   change is user-visible, add one `CI-E2E-Tests: ["e2e/example.e2e.ts"]` line naming the specs
+   that cover it (see `docs/ci-performance.md`). Set it before pushing, since the policy reads the
+   body at push time. Read back the resulting PR.
 6. Treat queued or failed required checks, unresolved conflicts, and active review findings as real
    readiness blockers, unless the diff qualifies for [Fast merge without CI](#fast-merge-without-ci)
    or a failed case qualifies for the CI-only parity exception below.
