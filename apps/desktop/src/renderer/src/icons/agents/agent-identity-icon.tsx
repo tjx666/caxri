@@ -13,10 +13,8 @@ export function AgentIdentityIcon({
     identity?: string | null;
     size?: number;
     /**
-     * See {@link AgentIconTone}. Defaults to `'brand'`, today's behavior: a `color-asset` identity (Claude Code, Codex)
-     * keeps its full-color mark. Pass `'state'` in a context that tints the icon by the Session/Terminal's own
-     * running/waiting/idle/failed state or its tab/row selection state (Session rows, Activity rows, Terminal tab
-     * icons), so every identity tints alike.
+     * See {@link AgentIconTone}. Defaults to `'brand'`: a `color-asset` identity (Claude Code, Codex) keeps its
+     * full-color mark. Only PrimarySidebar Session rows pass `'state'`.
      */
     tone?: AgentIconTone;
 }) {

@@ -247,9 +247,7 @@ function ArchivedSessionRow({
                 onCheckedChange={(next) => onToggle([item.session.id], next === true)}
             />
             <div className="flex min-w-0 items-center gap-2">
-                {/* `tone="state"`: same Session row family as the primary sidebar's rows, so Claude
-                    Code/Codex must tint like every other Agent instead of keeping a fixed brand color. */}
-                <AgentIdentityIcon identity={item.agent} size={15} tone="state" />
+                <AgentIdentityIcon identity={item.agent} size={15} />
                 <div className="min-w-0">
                     <p className="m-0 truncate text-[12px] font-medium">
                         {item.session.displayTitle}

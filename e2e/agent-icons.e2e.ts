@@ -94,6 +94,11 @@ test('Agent identities stay consistent across every shared surface', async () =>
         );
         await expect(codexTab.locator('[data-agent-icon="codex"]')).toBeVisible();
         await expect(claudeTab.locator('[data-agent-icon="claude"]')).toBeVisible();
+        /**
+         * Only PrimarySidebar Session rows tint Agent icons by state; workbench tabs keep the brand-color image.
+         */
+        await expect(codexTab.locator('img[data-agent-icon="codex"]')).toBeVisible();
+        await expect(claudeTab.locator('img[data-agent-icon="claude"]')).toBeVisible();
         await claudeTab.getByRole('tab').click();
         await expect(
             running.page.locator(
@@ -104,6 +109,11 @@ test('Agent identities stay consistent across every shared surface', async () =>
             running.page
                 .locator(`.session-card[data-session-id="${sessionId}"]`)
                 .locator('[data-agent-icon="codex"]'),
+        ).toBeVisible();
+        await expect(
+            running.page
+                .locator(`.session-card[data-session-id="${sessionId}"]`)
+                .locator('.agent-identity-icon-mask[data-agent-icon="codex"]'),
         ).toBeVisible();
 
         const infoTab = await openPanelView(running.page, 'Info');

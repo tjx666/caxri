@@ -341,7 +341,10 @@ answers "does this Agent need me, or is it working?": running work (including co
 icon in a thin foreground arc spinning over a faint track; unacknowledged attention wraps it in a
 pinging warning ring and tints the icon warning; a detached Agent dims the icon under a small
 unplugged badge. A decorated icon shrinks by 3px so its ring stays inside a 3px halo of the 14px
-box, and the title never moves between states. Attention wins over running; there is deliberately
+box, and the title never moves between states. These rows render every Agent icon as a mono mask
+tinted by the row; every other surface — workbench tabs, the Session hover card, the MRU switcher,
+Activity rows, Archived Sessions, Settings, and menus — keeps Claude Code and Codex in brand color.
+Attention wins over running; there is deliberately
 no second, static amber state, so reading a Session is the only thing that clears it and nothing can
 bring it back unread. Settled, idle, unknown, failed, and exited Sessions show the plain icon. The
 trailing track answers only "how far has this delivery got?": the pull request and its production
