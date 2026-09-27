@@ -1,6 +1,6 @@
 import type { LinearIssueSource, ProjectStatusOverviewLinearIssue } from '@caxri/protocol';
 
-import type { StatusTooltipData } from './status-tooltip';
+import type { StructuredTooltipData } from '../../components/structured-tooltip';
 
 /**
  * How the chip names each source. The wording is the sentence a reader needs in order to decide how much to trust the
@@ -36,13 +36,13 @@ export function linearIssueAriaLabel(
 }
 
 /**
- * The hover tooltip's content. Kept as data rather than JSX so the wording stays unit-testable; `StatusTooltip` decides
- * the hierarchy.
+ * The hover tooltip's content. Kept as data rather than JSX so the wording stays unit-testable; `StructuredTooltip`
+ * decides the hierarchy.
  */
 export function linearIssueTooltip(
     issue: ProjectStatusOverviewLinearIssue,
     extra: readonly ProjectStatusOverviewLinearIssue[] = [],
-): StatusTooltipData {
+): StructuredTooltipData {
     return {
         eyebrow: issue.title ? issue.identifier : undefined,
         title: issue.title ?? issue.identifier,

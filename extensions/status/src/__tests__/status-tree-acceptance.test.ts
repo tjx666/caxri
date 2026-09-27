@@ -45,7 +45,9 @@ describe('Status extension acceptance rows', () => {
 
         expect(report.item.label).toBe('Recover a stalled diff');
         // Neither the tally nor the round is carried by the glyph, so the row is the only place they can be stated.
-        expect(report.item.description).toBe('4/12 · round 1');
+        expect(report.item.description).toBe('4/12 · r1');
+        // The accessible name keeps the words `r1` would be read out as.
+        expect(report.item.accessibilityInformation?.label).toContain('4/12 · round 1');
         expect(iconId(report)).toBe('shield-x');
         const tooltip = report.item.tooltip as TreeItemRichTooltip;
         expect(tooltip.badge).toEqual({ label: 'Repairing', tone: 'danger' });
@@ -79,7 +81,10 @@ describe('Status extension acceptance rows', () => {
             roundCount: 3,
         });
 
-        expect(report.item.description).toBe('12/12 · latest of 3');
+        expect(report.item.description).toBe('12/12 · r3');
+        expect(report.item.accessibilityInformation?.label).toContain('12/12 · latest of 3');
+        const tooltip = report.item.tooltip as TreeItemRichTooltip;
+        expect(tooltip.rows).toContainEqual({ label: 'round', value: 'latest of 3' });
         expect(iconId(report)).toBe('shield-check');
     });
 
@@ -99,6 +104,6 @@ describe('Status extension acceptance rows', () => {
         });
 
         expect(iconId(report)).toBe('shield-ellipsis');
-        expect(report.item.description).toBe('1/1 · round 2');
+        expect(report.item.description).toBe('1/1 · r2');
     });
 });

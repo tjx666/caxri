@@ -1,6 +1,9 @@
 import type { FileEntry } from '@caxri/protocol';
 
-import { GIT_REPOSITORY_BADGE, resolveFileIcon } from './file-icon-resolver';
+import type { GitChildRepoKind } from '../../lib/git-decorations';
+import { ArchiveIcon } from '../codicons/archive-icon';
+import { RepoIcon } from '../codicons/repo-icon';
+import { resolveFileIcon } from './file-icon-resolver';
 
 const SYMLINK_ARROW_PATH = 'M2.6 7.4 7.4 2.6M7.4 2.6H4.7M7.4 2.6V5.3';
 
@@ -26,19 +29,18 @@ function SymlinkBadge() {
 }
 
 /**
- * Marks a submodule or nested clone with the Git logo in the folder's lower-right corner. The stacked `drop-shadow`s
- * trace a `--surface` outline around the diamond itself rather than a box behind it, the same separation the symlink
- * arrow gets from its double stroke.
+ * A submodule or nested clone takes the glyph Source Control and Project Status already give that repository (`archive`
+ * for a submodule, `repo` for a nested clone) in place of a folder. A neutral folder wearing a small Git badge still
+ * read as one more folder among the themed ones, and did not say which kind of repository it was; the shared glyph
+ * names the kind and ties this row to the same repository's rows in the other two panels.
  */
-function ChildRepoBadge() {
+function ChildRepoIcon({ kind }: { kind: GitChildRepoKind }) {
+    const Icon = kind === 'submodule' ? ArchiveIcon : RepoIcon;
     return (
-        <img
-            alt=""
-            aria-hidden="true"
-            className="pointer-events-none absolute -right-0.5 -bottom-0.5 size-2.5 [filter:drop-shadow(1px_0_0_var(--surface))_drop-shadow(-1px_0_0_var(--surface))_drop-shadow(0_1px_0_var(--surface))_drop-shadow(0_-1px_0_var(--surface))]"
-            data-file-icon-badge={GIT_REPOSITORY_BADGE.id}
-            draggable={false}
-            src={GIT_REPOSITORY_BADGE.src}
+        <Icon
+            className="file-type-icon flex-none text-foreground"
+            data-child-repo-icon={kind}
+            size={16}
         />
     );
 }
@@ -46,16 +48,18 @@ function ChildRepoBadge() {
 export function FileTypeIcon({
     entry,
     expanded = false,
-    childRepo: childRepo = false,
+    childRepo,
 }: {
     entry: Pick<FileEntry, 'kind' | 'linkKind' | 'linkTarget' | 'name'>;
     expanded?: boolean;
     /**
-     * Whether this directory is a submodule or a nested clone, which takes a neutral folder wearing the Git badge.
+     * Set when this directory is a submodule or a nested clone, which takes its repository glyph instead of a folder.
      */
-    childRepo?: boolean;
+    childRepo?: GitChildRepoKind;
 }) {
-    const icon = resolveFileIcon(entry, expanded, childRepo);
+    if (childRepo && (entry.kind === 'directory' || entry.linkKind === 'directory'))
+        return <ChildRepoIcon kind={childRepo} />;
+    const icon = resolveFileIcon(entry, expanded);
     const image = (
         <img
             alt=""
@@ -66,13 +70,6 @@ export function FileTypeIcon({
             src={icon.src}
         />
     );
-    if (childRepo && (entry.kind === 'directory' || entry.linkKind === 'directory'))
-        return (
-            <span className="relative flex h-4 w-4 flex-none" data-child-repo-icon="">
-                {image}
-                <ChildRepoBadge />
-            </span>
-        );
     if (entry.kind !== 'symlink') return image;
     return (
         <span

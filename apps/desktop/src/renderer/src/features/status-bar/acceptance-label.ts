@@ -6,7 +6,7 @@ import type {
     ProjectStatusOverviewAcceptance,
 } from '@caxri/protocol';
 
-import type { StatusTooltipData } from './status-tooltip';
+import type { StructuredTooltipData } from '../../components/structured-tooltip';
 
 /**
  * How the chip names each source, in the wording a reader needs to decide how much to trust it: a pull request states
@@ -90,13 +90,13 @@ export function acceptanceAriaLabel(
 }
 
 /**
- * The hover tooltip's content. Kept as data rather than JSX so the wording stays unit-testable; `StatusTooltip` decides
- * the hierarchy.
+ * The hover tooltip's content. Kept as data rather than JSX so the wording stays unit-testable; `StructuredTooltip`
+ * decides the hierarchy.
  */
 export function acceptanceTooltip(
     acceptance: ProjectStatusOverviewAcceptance,
     extra: readonly ProjectStatusOverviewAcceptance[] = [],
-): StatusTooltipData {
+): StructuredTooltipData {
     const round =
         acceptance.round === undefined
             ? // No pinned round means the link addressed the report as a whole, so the latest one answered it — worth

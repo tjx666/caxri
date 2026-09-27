@@ -248,9 +248,16 @@ describe('Status extension tree', () => {
                 },
             };
             const branch = buildRepoNode(repo).children?.[0].item;
-            expect(branch?.description).toBe(`default · ${label}`);
-            expect(branch?.accessibilityInformation?.label).toContain(label);
             const tooltip = branch?.tooltip as TreeItemRichTooltip;
+            // `Synced` is the steady state and asks nothing of the reader, so only the hover card says it.
+            if (state === 'synced') {
+                expect(branch?.description).toBe('default');
+                expect(branch?.accessibilityInformation?.label).not.toContain(label);
+            } else {
+                expect(branch?.description).toBe(`default · ${label}`);
+                expect(branch?.accessibilityInformation?.label).toContain(label);
+            }
+            expect(tooltip.badge?.label).toBe(label);
             expect(tooltip.rows).toContainEqual({
                 label: 'compared branch',
                 value: 'origin/feature/status',

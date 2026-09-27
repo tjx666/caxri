@@ -121,7 +121,8 @@ process.exit(result.status ?? 1);
         // `Pull Request Changes` in that mode, so an unscoped role lookup matches two buttons.
         const modeSwitch = running.page.locator('.git-mode-switch');
         await modeSwitch.getByRole('button', { name: 'Pull Request Changes' }).click();
-        await expect(running.page.getByText('PR #42 Changes', { exact: true })).toBeVisible();
+        // One group and no history: the repository row stands in for the `PR #42 Changes` caption.
+        await expect(running.page.locator('.git-changes-caption')).toHaveCount(0);
         await expect(files.locator('.git-row[data-path="pr-only.txt"]')).toBeVisible();
         await expect(
             running.page.getByText(GitPullRequestErrorMessage.missingCommits, { exact: true }),
@@ -156,7 +157,8 @@ process.exit(result.status ?? 1);
         await modeSwitch.getByRole('button', { name: 'Working Tree Changes', exact: true }).click();
         await expect(files.locator('.git-row[data-path="working-only.txt"]')).toBeVisible();
         await modeSwitch.getByRole('button', { name: 'Pull Request Changes', exact: true }).click();
-        await expect(running.page.getByText('PR #42 Changes', { exact: true })).toBeVisible();
+        // One group and no history: the repository row stands in for the `PR #42 Changes` caption.
+        await expect(running.page.locator('.git-changes-caption')).toHaveCount(0);
         await expect(files.locator('.git-row[data-path="pr-only.txt"]')).toBeVisible();
         await expect(
             modeSwitch.getByRole('button', { name: 'Pull Request Changes', exact: true }),
@@ -197,7 +199,8 @@ process.exit(result.status ?? 1);
                 }
             })
             .toBe(true);
-        await expect(running.page.getByText('PR #42 Changes', { exact: true })).toBeVisible();
+        // One group and no history: the repository row stands in for the `PR #42 Changes` caption.
+        await expect(running.page.locator('.git-changes-caption')).toHaveCount(0);
         await expect(files.locator('.git-row[data-path="tracked.txt"]')).toBeVisible();
         await running.page.screenshot({ path: test.info().outputPath('pr-refresh.png') });
         await rm(refreshGate);
@@ -252,8 +255,9 @@ process.exit(result.status ?? 1);
         await diff.screenshot({ path: test.info().outputPath('git-pr-deleted-file-diff.png') });
 
         /**
-         * Option-click is the app-wide recursive disclosure gesture, so the repository row collapses its group captions
-         * and folders with it, and the pull-request page moved to Command-click (issue #1129).
+         * Option-click is the app-wide recursive disclosure gesture, so the repository row collapses its folders with
+         * it, and the pull-request page moved to Command-click (issue #1129). Pull Request mode folds its one group
+         * into the repository row, so both gestures land there.
          */
         await running.app.evaluate(({ dialog, shell }) => {
             const target = globalThis as typeof globalThis & { caxriOpenedLinks?: string[] };
@@ -266,14 +270,13 @@ process.exit(result.status ?? 1);
             };
         });
         const repo = running.page.locator('.git-repository-section').first();
-        const caption = repo.locator('.git-changes-caption [role="treeitem"]');
-        await expect(caption).toHaveAttribute('aria-expanded', 'true');
-        await repo.locator('.git-repository-row').click({ modifiers: ['Alt'] });
+        const header = repo.locator('.git-repository-row');
+        await expect(header).toHaveAttribute('aria-expanded', 'true');
+        await header.click({ modifiers: ['Alt'] });
+        await expect(header).toHaveAttribute('aria-expanded', 'false');
         await expect(repo.locator('.git-files')).toHaveCount(0);
-        await repo.locator('.git-repository-row').click();
-        await expect(caption).toHaveAttribute('aria-expanded', 'false');
-        await caption.click({ modifiers: ['Meta'] });
-        await expect(caption).toHaveAttribute('aria-expanded', 'false');
+        await header.click({ modifiers: ['Meta'] });
+        await expect(header).toHaveAttribute('aria-expanded', 'false');
         await expect
             .poll(() =>
                 running.app.evaluate(
@@ -283,8 +286,8 @@ process.exit(result.status ?? 1);
                 ),
             )
             .toContain('https://github.com/tjx666/project/pull/42');
-        await caption.click({ modifiers: ['Alt'] });
-        await expect(caption).toHaveAttribute('aria-expanded', 'true');
+        await header.click({ modifiers: ['Alt'] });
+        await expect(header).toHaveAttribute('aria-expanded', 'true');
         await expect(repo.locator('.git-row[data-path="pr-only.txt"]')).toBeVisible();
     } finally {
         await rm(refreshGate, { force: true });

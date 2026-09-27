@@ -172,6 +172,27 @@ describe('Terminal file references', () => {
         expect(terminalReferencePath('/repo/src/file.ts', terminal)).toBe('/repo/src/file.ts');
         expect(terminalReferencePath('/repo/src/file.ts', { cwd: '/repo' })).toBe('src/file.ts');
     });
+    it("resolves a running Agent's references against a worktree Workbench Root it entered without reporting it", () => {
+        const agent = { cwd: '/repo', lastAgentProcessState: 'running' as const };
+        expect(
+            terminalReferencePath('/worktrees/task/docker-compose', agent, '/worktrees/task'),
+        ).toBe('docker-compose');
+        // A path under the launch cwd keeps resolving against it, and one outside both stays absolute.
+        expect(terminalReferencePath('/repo/src/file.ts', agent, '/worktrees/task')).toBe(
+            'src/file.ts',
+        );
+        expect(terminalReferencePath('/elsewhere/file.ts', agent, '/worktrees/task')).toBe(
+            '/elsewhere/file.ts',
+        );
+        // A plain shell's relative paths resolve against where it stands, so the Workbench Root never applies.
+        expect(
+            terminalReferencePath(
+                '/worktrees/task/docker-compose',
+                { cwd: '/repo' },
+                '/worktrees/task',
+            ),
+        ).toBe('/worktrees/task/docker-compose');
+    });
     it('uses the shell launch directory after the Agent child exits', () => {
         const terminal = {
             cwd: '/repo',

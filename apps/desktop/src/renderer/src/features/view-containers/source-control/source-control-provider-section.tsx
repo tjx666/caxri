@@ -1,4 +1,4 @@
-import type { KeyboardEvent } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
 import { useState } from 'react';
 
 import type {
@@ -9,6 +9,8 @@ import type {
 import { ChevronDown, ChevronRight } from 'lucide-react';
 
 import { DisclosureMotion } from '../../../components/disclosure-motion';
+import type { StructuredTooltipData } from '../../../components/structured-tooltip';
+import { StructuredTooltip } from '../../../components/structured-tooltip';
 import { Button } from '../../../components/ui/button';
 import { Empty } from '../../../components/ui/empty';
 import { Spinner } from '../../../components/ui/spinner';
@@ -51,17 +53,76 @@ function didOpenExternalLink(
     return true;
 }
 
+/**
+ * A disclosure row's hover: what the row is, then the modifier gestures it answers, set apart at the bottom.
+ */
 function rowTooltip(
-    lines: ReadonlyArray<string | undefined>,
+    content: Omit<StructuredTooltipData, 'hint'>,
     link: SourceControlExternalLink | undefined,
-): string {
-    return [
-        ...lines,
-        link && `Command-click to ${link.label.toLowerCase()}`,
-        'Option-click to expand or collapse everything below',
-    ]
-        .filter(Boolean)
-        .join('\n');
+): ReactNode {
+    return (
+        <StructuredTooltip
+            {...content}
+            hint={[
+                ...(link ? [`Command-click to ${link.label.toLowerCase()}`] : []),
+                'Option-click to expand or collapse everything below',
+            ]}
+        />
+    );
+}
+
+/**
+ * A provider whose only content is one group — Pull Request and Last Commit modes — folds that group into its own
+ * header. The caption repeated what the header and the mode switch already said (`PR #20092 Changes` under a repository
+ * row that already counts the same files), and spent a second row per repository on it. Working-tree mode keeps the
+ * caption, because there it separates the changes from the history section below.
+ */
+function foldedGroupOf(provider: ProviderModel): GroupModel | undefined {
+    return provider.groups.length === 1 && !provider.history ? provider.groups[0] : undefined;
+}
+
+function GroupActionButtons({
+    controller,
+    group,
+}: {
+    controller: ReadyController;
+    group: GroupModel;
+}) {
+    return (
+        <>
+            {group.actions.map((action) => (
+                <Tooltip content={action.tooltip ?? action.label} key={action.id}>
+                    <Button
+                        /*
+                         * Revealed on hover or focus, exactly like the single-file toolbar. The group toolbar carries
+                         * `Discard All Changes`, which acts on the whole repository; leaving the loudest destructive
+                         * action permanently on screen while the narrower one hid behind hover inverted the risk
+                         * gradient. VS Code hides both by default and reveals them from one rule (`scm.css`
+                         * `.resource-group > .actions` beside `.resource … > .actions`).
+                         */
+                        className={cn(
+                            'hidden size-6 group-focus-within:flex group-hover:flex',
+                            action.emphasis === 'danger' ? 'git-discard-all' : 'git-open-changes',
+                        )}
+                        size="icon"
+                        variant="ghost"
+                        tabIndex={-1}
+                        aria-label={action.accessibilityLabel ?? action.label}
+                        disabled={action.disabled}
+                        onClick={() => {
+                            // eslint-disable-next-line no-void -- the controller owns provider action errors
+                            void controller.runAction(action);
+                        }}
+                    >
+                        <SourceControlIcon icon={action.icon} />
+                    </Button>
+                </Tooltip>
+            ))}
+            {(group.hiddenCount ?? 0) > 0 && (
+                <span className="font-normal normal-case">{group.hiddenCount} hidden</span>
+            )}
+        </>
+    );
 }
 
 /**
@@ -87,10 +148,15 @@ function subtreeTarget(
 function ProviderHeader({
     controller,
     expanded,
+    foldedGroup,
     provider,
 }: {
     controller: ReadyController;
     expanded: boolean;
+    /**
+     * The single group this header stands in for; its actions join the header's (see {@link foldedGroupOf}).
+     */
+    foldedGroup: GroupModel | undefined;
     provider: ProviderModel;
 }) {
     const [runningActionId, setRunningActionId] = useState<string>();
@@ -131,6 +197,9 @@ function ProviderHeader({
             // eslint-disable-next-line no-void -- run owns progress and the controller owns errors
             void run(action);
         }),
+        ...(foldedGroup
+            ? sourceControlActionMenuItems(foldedGroup.actions, controller.runAction)
+            : []),
     ];
     return (
         <div className="git-repository-header group flex items-center bg-surface hover:bg-elevated">
@@ -142,7 +211,15 @@ function ProviderHeader({
                 aria-keyshortcuts={provider.externalLink ? 'Meta Alt' : 'Alt'}
                 data-path={provider.rootPath}
                 tooltip={rowTooltip(
-                    [provider.tooltip, provider.descriptionTooltip],
+                    {
+                        title: provider.label,
+                        rows: provider.rootPath
+                            ? [{ label: 'Path', value: provider.rootPath, isCode: true }]
+                            : undefined,
+                        details: [provider.descriptionTooltip],
+                        notes:
+                            provider.tooltip === provider.rootPath ? undefined : [provider.tooltip],
+                    },
                     provider.externalLink,
                 )}
                 menuItems={menuItems}
@@ -211,6 +288,11 @@ function ProviderHeader({
                     {provider.countLabel}
                 </span>
             </SourceControlTreeRow>
+            {foldedGroup && (
+                <span className="git-changes-actions flex items-center gap-1 text-[11px] text-muted">
+                    <GroupActionButtons controller={controller} group={foldedGroup} />
+                </span>
+            )}
             {uncommittedMode && provider.uncommittedNotice && (
                 <Tooltip content={provider.uncommittedNotice.tooltip}>
                     <Button
@@ -298,7 +380,7 @@ function GroupCaption({
                 className="flex h-7 min-w-0 flex-1 cursor-pointer items-center gap-1 border-0 bg-transparent px-2 text-left text-[10px] font-bold tracking-[0.06em] text-muted uppercase hover:text-foreground"
                 aria-expanded={expanded}
                 aria-keyshortcuts={externalLink ? 'Meta Alt' : 'Alt'}
-                tooltip={rowTooltip([group.label], externalLink)}
+                tooltip={rowTooltip({ title: group.label }, externalLink)}
                 menuItems={sourceControlActionMenuItems(group.actions, controller.runAction)}
                 onClick={(event) => {
                     if (didOpenExternalLink(event, externalLink)) return;
@@ -323,41 +405,67 @@ function GroupCaption({
                 <span className="truncate">{group.label}</span>
             </SourceControlTreeRow>
             <span className="git-changes-actions flex items-center gap-1">
-                {group.actions.map((action) => (
-                    <Tooltip content={action.tooltip ?? action.label} key={action.id}>
-                        <Button
-                            /*
-                             * Revealed on hover or focus, exactly like the single-file toolbar. The group toolbar
-                             * carries `Discard All Changes`, which acts on the whole repository; leaving the loudest
-                             * destructive action permanently on screen while the narrower one hid behind hover
-                             * inverted the risk gradient. VS Code hides both by default and reveals them from one
-                             * rule (`scm.css` `.resource-group > .actions` beside `.resource … > .actions`).
-                             */
-                            className={cn(
-                                'hidden size-6 group-focus-within:flex group-hover:flex',
-                                action.emphasis === 'danger'
-                                    ? 'git-discard-all'
-                                    : 'git-open-changes',
-                            )}
-                            size="icon"
-                            variant="ghost"
-                            tabIndex={-1}
-                            aria-label={action.accessibilityLabel ?? action.label}
-                            disabled={action.disabled}
-                            onClick={() => {
-                                // eslint-disable-next-line no-void -- the controller owns provider action errors
-                                void controller.runAction(action);
-                            }}
-                        >
-                            <SourceControlIcon icon={action.icon} />
-                        </Button>
-                    </Tooltip>
-                ))}
-                {(group.hiddenCount ?? 0) > 0 && (
-                    <span className="font-normal normal-case">{group.hiddenCount} hidden</span>
-                )}
+                <GroupActionButtons controller={controller} group={group} />
                 <span>{group.count}</span>
             </span>
+        </div>
+    );
+}
+
+/**
+ * A group's file list with its truncation notice and empty state. `level` is the ARIA level of its top-level rows: one
+ * below the caption, or one below the provider header when the caption is folded away.
+ */
+function GroupBody({
+    controller,
+    group,
+    level,
+    provider,
+}: {
+    controller: ReadyController;
+    group: GroupModel;
+    level: number;
+    provider: ProviderModel;
+}) {
+    return (
+        <div className="git-changes-body">
+            {group.truncationMessage && (
+                <div
+                    role="status"
+                    aria-live="polite"
+                    className="git-changes-truncated border-b border-border bg-surface px-3 py-1.5 text-[11px] text-muted"
+                >
+                    {group.truncationMessage}
+                </div>
+            )}
+            {group.resources.length === 0 && (
+                <Empty className="empty-panel gap-0 p-0 px-3 py-4 text-muted">
+                    {group.isLoading ? (
+                        <span className="inline-flex items-center gap-1.5">
+                            {/* The Spinner's own "Loading" label would announce alongside the descriptive text below,
+                            so it is hidden from assistive tech and the live region announces once. */}
+                            <Spinner size={12} aria-hidden="true" />
+                            <span role="status" aria-live="polite">
+                                {group.emptyMessage}
+                            </span>
+                        </span>
+                    ) : (
+                        group.emptyMessage
+                    )}
+                </Empty>
+            )}
+            {group.resources.length > 0 && (
+                <SourceControlTreeItems
+                    activeEditorResource={controller.activeEditorResource}
+                    expandedDirectories={controller.navigation.expandedDirectories}
+                    level={level}
+                    nodes={buildSourceControlResourceTree(group.resources)}
+                    providerKey={`${controller.model.selectedModeId}:${provider.id}`}
+                    repositoryRootPath={provider.rootPath}
+                    runAction={controller.runAction}
+                    setDirectoriesExpanded={controller.setDirectoriesExpanded}
+                />
+            )}
         </div>
     );
 }
@@ -371,92 +479,59 @@ export function SourceControlProviderSection({
 }) {
     const expanded =
         controller.navigation.expandedProviders[provider.id] ?? provider.expandedByDefault;
+    const foldedGroup = foldedGroupOf(provider);
     return (
         <section
             className="git-repository-section relative border-b border-border"
             data-git-repository-id={provider.id}
         >
-            <ProviderHeader controller={controller} expanded={expanded} provider={provider} />
+            <ProviderHeader
+                controller={controller}
+                expanded={expanded}
+                foldedGroup={foldedGroup}
+                provider={provider}
+            />
             <DisclosureMotion animate expanded={expanded} kind="git-repository">
                 {() => (
                     <div className="git-files overflow-visible">
-                        {provider.groups.map((group) => {
-                            const groupExpanded =
-                                controller.navigation.expandedGroups[group.id] ??
-                                group.expandedByDefault;
-                            return (
-                                <div key={group.id}>
-                                    <GroupCaption
-                                        controller={controller}
-                                        expanded={groupExpanded}
-                                        group={group}
-                                        provider={provider}
-                                    />
-                                    <DisclosureMotion
-                                        animate
-                                        expanded={groupExpanded}
-                                        kind="git-changes"
-                                    >
-                                        {() => (
-                                            <div className="git-changes-body">
-                                                {group.truncationMessage && (
-                                                    <div
-                                                        role="status"
-                                                        aria-live="polite"
-                                                        className="git-changes-truncated border-b border-border bg-surface px-3 py-1.5 text-[11px] text-muted"
-                                                    >
-                                                        {group.truncationMessage}
-                                                    </div>
-                                                )}
-                                                {group.resources.length === 0 && (
-                                                    <Empty className="empty-panel gap-0 p-0 px-3 py-4 text-muted">
-                                                        {group.isLoading ? (
-                                                            <span className="inline-flex items-center gap-1.5">
-                                                                {/* The Spinner's own "Loading" label would announce
-                                                                alongside the descriptive text below, so it is hidden
-                                                                from assistive tech and the live region announces once. */}
-                                                                <Spinner
-                                                                    size={12}
-                                                                    aria-hidden="true"
-                                                                />
-                                                                <span
-                                                                    role="status"
-                                                                    aria-live="polite"
-                                                                >
-                                                                    {group.emptyMessage}
-                                                                </span>
-                                                            </span>
-                                                        ) : (
-                                                            group.emptyMessage
-                                                        )}
-                                                    </Empty>
-                                                )}
-                                                {group.resources.length > 0 && (
-                                                    <SourceControlTreeItems
-                                                        activeEditorResource={
-                                                            controller.activeEditorResource
-                                                        }
-                                                        expandedDirectories={
-                                                            controller.navigation
-                                                                .expandedDirectories
-                                                        }
-                                                        nodes={buildSourceControlResourceTree(
-                                                            group.resources,
-                                                        )}
-                                                        providerKey={`${controller.model.selectedModeId}:${provider.id}`}
-                                                        repositoryRootPath={provider.rootPath}
-                                                        runAction={controller.runAction}
-                                                        setDirectoriesExpanded={
-                                                            controller.setDirectoriesExpanded
-                                                        }
-                                                    />
-                                                )}
-                                            </div>
-                                        )}
-                                    </DisclosureMotion>
-                                </div>
-                            );
-                        })}
+                        {foldedGroup ? (
+                            <GroupBody
+                                controller={controller}
+                                group={foldedGroup}
+                                level={2}
+                                provider={provider}
+                            />
+                        ) : (
+                            provider.groups.map((group) => {
+                                const groupExpanded =
+                                    controller.navigation.expandedGroups[group.id] ??
+                                    group.expandedByDefault;
+                                return (
+                                    <div key={group.id}>
+                                        <GroupCaption
+                                            controller={controller}
+                                            expanded={groupExpanded}
+                                            group={group}
+                                            provider={provider}
+                                        />
+                                        <DisclosureMotion
+                                            animate
+                                            expanded={groupExpanded}
+                                            kind="git-changes"
+                                        >
+                                            {() => (
+                                                <GroupBody
+                                                    controller={controller}
+                                                    group={group}
+                                                    level={3}
+                                                    provider={provider}
+                                                />
+                                            )}
+                                        </DisclosureMotion>
+                                    </div>
+                                );
+                            })
+                        )}
                         {provider.history && (
                             <SourceControlHistory
                                 descriptor={provider.history}

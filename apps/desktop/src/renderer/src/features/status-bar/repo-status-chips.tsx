@@ -2,13 +2,13 @@ import type { CommandId, ProjectStatusOverview } from '@caxri/protocol';
 import { FileDiff, GitPullRequest } from 'lucide-react';
 
 import { executeCommand } from '../../commands/execute';
+import { StructuredTooltip } from '../../components/structured-tooltip';
 import { AcceptanceStatus } from './acceptance-status';
 import type { ChipVisibility } from './chip-priority';
 import { LinearIssueStatus } from './linear-issue-status';
 import { pullRequestUnavailableLabel } from './pull-request-status-label';
 import { StatusInfo } from './status-info';
 import { StatusItem } from './status-item';
-import { StatusTooltip } from './status-tooltip';
 
 type Repo = NonNullable<ProjectStatusOverview['repository']>;
 
@@ -22,7 +22,7 @@ function RepoChangesStatus({ additions, deletions }: { additions: number; deleti
             icon={<FileDiff />}
             ariaLabel={`Open changes: ${additions} ${additions === 1 ? 'addition' : 'additions'}, ${deletions} ${deletions === 1 ? 'deletion' : 'deletions'}`}
             title={
-                <StatusTooltip
+                <StructuredTooltip
                     title="Primary repository changes"
                     rows={[
                         {
@@ -72,7 +72,7 @@ export function RepoStatusChips({
                     href={repo.pullRequest.url}
                     ariaLabel={`Open pull request #${repo.pullRequest.number}`}
                     title={
-                        <StatusTooltip
+                        <StructuredTooltip
                             eyebrow={`Pull request #${repo.pullRequest.number}`}
                             title={repo.pullRequest.title}
                             hint="Click to open on GitHub"
